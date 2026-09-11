@@ -12,7 +12,149 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# --- Catalog Selection Tests ---
+# Prompt rendering for the inference formats described by
+# `blueprints/modules/a2ui_agent.blueprint.md` sections 3.E and 4.
+#
+# Catalog loading moved to `catalog_provider.yaml` and capability negotiation to
+# `catalog_resolver.yaml`, which own those APIs. The `select_catalog` cases at
+# the end of this file stay put: that helper is frozen, not removed, and the
+# shipped Python and Kotlin agent SDKs still run against them. See the Legacy
+# Surfaces table in section 6.
+
+- name: test_generate_system_prompt_minimal
+  description: Tests prompt generation with minimal arguments.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    role_description: "Just Role"
+  expect_contains:
+    - "Just Role"
+    - "## Workflow Description:"
+    - "The generated response MUST follow these rules:"
+
+- name: test_generate_system_prompt_custom_workflow
+  description: Tests appending custom workflow rules.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    role_description: "Role"
+    workflow_description: "Custom Rule Content"
+  expect_contains:
+    - "Role"
+    - "## Workflow Description:"
+    - "The generated response MUST follow these rules:"
+    - "Custom Rule Content"
+
+- name: test_generate_system_prompt_full
+  description: Tests full prompt generation with all descriptions.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    role_description: "Role"
+    workflow_description: "Workflow"
+    ui_description: "Render UI."
+  expect_contains:
+    - "Role"
+    - "## Workflow Description:"
+    - "Workflow"
+    - "## UI Description:"
+    - "Render UI."
+
+- name: test_generate_system_prompt_with_schema
+  description: Tests prompt generation with schema included.
+  action: generate_prompt
+  args:
+    version: "0.9"
+    role_description: "Role"
+    include_schema: true
+  expect_contains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Catalog Schema:"
+    - "---END A2UI JSON SCHEMA---"
+
+- name: test_generate_system_prompt_with_examples
+  description: Tests prompt generation with examples included.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    role_description: "Role"
+    include_examples: true
+    examples_path: "test_data/load_examples/basic"
+  expect_contains:
+    - "Role"
+    - "### Examples:"
+    - "---BEGIN example1---"
+    - "---END example1---"
+    - "---BEGIN example2---"
+    - "---END example2---"
+
+- name: test_generate_system_prompt_with_inline_catalog
+  description: Tests inline catalog handling in prompt generation.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    role_description: "Role"
+    include_schema: true
+    accepts_inline_catalogs: true
+    client_ui_capabilities:
+      inlineCatalogs:
+        - catalogId: id_inline
+          components:
+            Button: {}
+  expect_contains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Catalog Schema:"
+    - '"Button": {}'
+    - "---END A2UI JSON SCHEMA---"
+
+# --- New Tests requested by User ---
+
+- name: test_generate_system_prompt_v0_9_common_types
+  description: Tests v0.9 prompt generation with common types included.
+  action: generate_prompt
+  args:
+    version: "0.9"
+    role_description: "Role"
+    include_schema: true
+  expect_contains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Common Types Schema:"
+    - "### Catalog Schema:"
+    - "---END A2UI JSON SCHEMA---"
+
+- name: test_generate_system_prompt_full_with_caps
+  description: Tests full prompt generation with capabilities and allowed components.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    role_description: "Role"
+    include_schema: true
+    client_ui_capabilities:
+      supportedCatalogIds: ["https://a2ui.org/specification/v0_8/standard_catalog_definition.json"]
+
+    allowed_components: ["Text"]
+  expect_contains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Catalog Schema:"
+    - '"Text": {'
+    - "---END A2UI JSON SCHEMA---"
+
+# --- Legacy: Catalog Selection Tests ---
+#
+# `select_catalog` is frozen. `resolve_catalogs` supersedes it, and section 6 of
+# `blueprints/modules/a2ui_agent.blueprint.md` lists it under Legacy Surfaces:
+# do not implement it in a new SDK and do not add cases here. The cases below
+# stay because the shipped Python and Kotlin agent SDKs still expose the helper,
+# and deleting them would leave that code untested. New negotiation coverage
+# belongs in `catalog_resolver.yaml`.
 
 - name: test_select_catalog_default
   description: If supported_catalog_ids is not provided, return the first supported catalog.
@@ -153,176 +295,3 @@
     components:
       Text: {}
       Button: {}
-
-# --- Manager Modifier Tests ---
-
-- name: test_manager_with_modifiers
-  description: Tests that A2uiSchemaManager applies modifiers during loading.
-  catalog_configs:
-    - name: test_strict
-      path: "test_data/load_examples/schema_with_strict/catalog.json"
-  modifiers: ["remove_strict_validation"]
-  action: load_catalog
-  expect:
-    catalog_schema:
-      catalogId: "test_strict"
-      components:
-        Text:
-          type: object
-          properties:
-            text: {type: string}
-
-- name: test_manager_no_modifiers
-  description: Tests that A2uiSchemaManager works fine without modifiers.
-  catalog_configs:
-    - name: test_strict
-      path: "test_data/load_examples/schema_with_strict/catalog.json"
-  action: load_catalog
-  expect:
-    catalog_schema:
-      catalogId: "test_strict"
-      components:
-        Text:
-          type: object
-          properties:
-            text: {type: string}
-          additionalProperties: false
-
-# --- Prompt Generation Tests ---
-
-- name: test_generate_system_prompt_minimal
-  description: Tests prompt generation with minimal arguments.
-  action: generate_prompt
-  args:
-    version: "0.8"
-    role_description: "Just Role"
-  expect_contains:
-    - "Just Role"
-    - "## Workflow Description:"
-    - "The generated response MUST follow these rules:"
-
-- name: test_generate_system_prompt_custom_workflow
-  description: Tests appending custom workflow rules.
-  action: generate_prompt
-  args:
-    version: "0.8"
-    role_description: "Role"
-    workflow_description: "Custom Rule Content"
-  expect_contains:
-    - "Role"
-    - "## Workflow Description:"
-    - "The generated response MUST follow these rules:"
-    - "Custom Rule Content"
-
-- name: test_generate_system_prompt_full
-  description: Tests full prompt generation with all descriptions.
-  action: generate_prompt
-  args:
-    version: "0.8"
-    role_description: "Role"
-    workflow_description: "Workflow"
-    ui_description: "Render UI."
-  expect_contains:
-    - "Role"
-    - "## Workflow Description:"
-    - "Workflow"
-    - "## UI Description:"
-    - "Render UI."
-
-- name: test_generate_system_prompt_with_schema
-  description: Tests prompt generation with schema included.
-  action: generate_prompt
-  args:
-    version: "0.9"
-    role_description: "Role"
-    include_schema: true
-  expect_contains:
-    - "Role"
-    - "---BEGIN A2UI JSON SCHEMA---"
-    - "### Server To Client Schema:"
-    - "### Catalog Schema:"
-    - "---END A2UI JSON SCHEMA---"
-
-- name: test_generate_system_prompt_with_examples
-  description: Tests prompt generation with examples included.
-  action: generate_prompt
-  args:
-    version: "0.8"
-    role_description: "Role"
-    include_examples: true
-    examples_path: "test_data/load_examples/basic"
-  expect_contains:
-    - "Role"
-    - "### Examples:"
-    - "---BEGIN example1---"
-    - "---END example1---"
-    - "---BEGIN example2---"
-    - "---END example2---"
-
-- name: test_generate_system_prompt_with_inline_catalog
-  description: Tests inline catalog handling in prompt generation.
-  action: generate_prompt
-  args:
-    version: "0.8"
-    role_description: "Role"
-    include_schema: true
-    accepts_inline_catalogs: true
-    client_ui_capabilities:
-      inlineCatalogs:
-        - catalogId: id_inline
-          components:
-            Button: {}
-  expect_contains:
-    - "Role"
-    - "---BEGIN A2UI JSON SCHEMA---"
-    - "### Server To Client Schema:"
-    - "### Catalog Schema:"
-    - '"Button": {}'
-    - "---END A2UI JSON SCHEMA---"
-
-# --- New Tests requested by User ---
-
-- name: test_schema_manager_init_custom_catalog
-  description: Tests that A2uiSchemaManager can load a custom catalog from path.
-  action: load_catalog
-  catalog_configs:
-    - name: standard
-      path: "test_data/schema_manager/catalog.json"
-    - name: Custom
-      path: "test_data/schema_manager/custom_catalog.json"
-  expect:
-    supported_catalog_ids: ["basic", "Custom"]
-
-- name: test_generate_system_prompt_v0_9_common_types
-  description: Tests v0.9 prompt generation with common types included.
-  action: generate_prompt
-  args:
-    version: "0.9"
-    role_description: "Role"
-    include_schema: true
-  expect_contains:
-    - "Role"
-    - "---BEGIN A2UI JSON SCHEMA---"
-    - "### Server To Client Schema:"
-    - "### Common Types Schema:"
-    - "### Catalog Schema:"
-    - "---END A2UI JSON SCHEMA---"
-
-- name: test_generate_system_prompt_full_with_caps
-  description: Tests full prompt generation with capabilities and allowed components.
-  action: generate_prompt
-  args:
-    version: "0.8"
-    role_description: "Role"
-    include_schema: true
-    client_ui_capabilities:
-      supportedCatalogIds: ["https://a2ui.org/specification/v0_8/standard_catalog_definition.json"]
-
-    allowed_components: ["Text"]
-  expect_contains:
-    - "Role"
-    - "---BEGIN A2UI JSON SCHEMA---"
-    - "### Server To Client Schema:"
-    - "### Catalog Schema:"
-    - '"Text": {'
-    - "---END A2UI JSON SCHEMA---"
