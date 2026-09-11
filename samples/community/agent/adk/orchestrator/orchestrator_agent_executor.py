@@ -286,7 +286,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
                 logger.info(f"Created remote agent with description: {description}")
 
-        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.5-flash")
+        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
         agent = LlmAgent(
             model=LiteLlm(model=LITELLM_MODEL),
             name="orchestrator_agent",
