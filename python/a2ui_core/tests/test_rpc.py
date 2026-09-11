@@ -375,6 +375,49 @@ async def test_rpc_handler_async_outbound_listener_error() -> None:
     assert "Transport failed" in str(exc_info.value)
 
 
+@pytest.mark.asyncio
+async def test_rpc_handler_async_outbound_listener_success_resolves_response() -> None:
+    from a2ui.core.schema.v1_0 import (
+        AgentFunctionResponse,
+        AgentFunctionResponseMessage,
+    )
+
+    sent_messages: list[dict[str, Any]] = []
+
+    async def async_listener(msg: dict[str, Any]) -> None:
+        await asyncio.sleep(0.01)
+        sent_messages.append(msg)
+
+    cat = Catalog("basic", protocol_version="v1.0")
+    handler = RpcHandler([cat], outbound_listener=async_listener)
+
+    fut = handler.call_agent_function(
+        surface_id="s1",
+        call=FunctionCall(call="fetchData"),
+        options=CallOptions(function_call_id="call-async-send-1"),
+    )
+
+    # Let async transmission finish
+    await asyncio.sleep(0.03)
+    assert len(sent_messages) == 1
+    # Pending call must still be active and not prematurely popped
+    assert not fut.done()
+
+    # Inbound response arrives from agent
+    handler.handle_agent_function_response(
+        AgentFunctionResponseMessage(
+            version="v1.0",
+            agentFunctionResponse=AgentFunctionResponse(
+                functionCallId="call-async-send-1",
+                value={"status": "received_ok"},
+            ),
+        )
+    )
+
+    result = await fut
+    assert result == {"status": "received_ok"}
+
+
 def test_rpc_handler_handle_agent_function_response_pydantic_model() -> None:
     from a2ui.core.schema.v1_0 import AgentFunctionResponse, AgentFunctionResponseMessage
 

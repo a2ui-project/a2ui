@@ -755,22 +755,23 @@ class RpcHandler(Generic[TComponent, TFunction]):
             if inspect.isawaitable(res):
                 task = loop.create_task(cast(Any, res))
 
-                def _on_task_done(t: asyncio.Task[Any]) -> None:
-                    p = self._pending_agent_calls.pop(call_id, None)
-                    if not p:
-                        return
-                    if t.cancelled():
-                        p.reject(
-                            A2uiRpcError(
-                                "Outbound transport task was cancelled.",
-                                function_call_id=call_id,
-                                code=RpcErrorCode.CANCELLED.value,
+                def _on_task_done(completed_task: asyncio.Task[Any]) -> None:
+                    if completed_task.cancelled():
+                        pending_call = self._pending_agent_calls.pop(call_id, None)
+                        if pending_call:
+                            pending_call.reject(
+                                A2uiRpcError(
+                                    "Outbound transport task was cancelled.",
+                                    function_call_id=call_id,
+                                    code=RpcErrorCode.CANCELLED.value,
+                                )
                             )
-                        )
                     else:
-                        exc = t.exception()
+                        exc = completed_task.exception()
                         if exc is not None:
-                            p.reject(exc)
+                            pending_call = self._pending_agent_calls.pop(call_id, None)
+                            if pending_call:
+                                pending_call.reject(exc)
 
                 task.add_done_callback(_on_task_done)
         except Exception as exc:
