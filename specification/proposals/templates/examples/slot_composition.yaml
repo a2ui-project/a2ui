@@ -1,0 +1,97 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+version: "0.1"
+name: CompositeSectionCard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+description: Collapsible or styled content section card with title, custom header action slot, and children slot.
+parameters:
+  title:
+    type: string
+    description: Section header title.
+  headerAction:
+    type: child
+    description: Single child component placed in the right side of the header.
+  children:
+    type: children
+    description: Content components contained within the section body.
+    default: []
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Row
+        justify: spaceBetween
+        align: center
+        children:
+          - component: Text
+            text: "{{ title }}"
+            variant: h2
+          - component: Column
+            children: "{{ headerAction }}"
+      - component: Divider
+        axis: horizontal
+      - component: Column
+        children: "{{ children }}"
+
+sampleData:
+  title: Project Milestones
+  headerAction:
+    component: Button
+    text: Refresh
+  children: []
+
+---
+version: "0.1"
+name: TwoColumnLayoutWithHeader
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+description: Responsive two-column dashboard grid with a hero header, left column, and right column.
+parameters:
+  headerChild:
+    type: child
+    description: Component rendered in the full-width header slot.
+  leftChildren:
+    type: children
+    description: Components rendered in the left column.
+  rightChildren:
+    type: children
+    description: Components rendered in the right column.
+
+layout:
+  component: Column
+  children:
+    - component: Column
+      children: "{{ headerChild }}"
+    - component: Divider
+      axis: horizontal
+    - component: Row
+      justify: spaceBetween
+      align: start
+      children:
+        - component: Column
+          children: "{{ leftChildren }}"
+        - component: Column
+          children: "{{ rightChildren }}"
+
+sampleData:
+  headerChild:
+    component: Text
+    text: Executive Operations Dashboard
+    variant: h1
+  leftChildren: []
+  rightChildren: []
