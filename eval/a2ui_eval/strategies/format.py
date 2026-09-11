@@ -70,6 +70,12 @@ def _get_strategy(
         from a2ui.inference_formats.experimental.atom.format import AtomFormat
 
         return AtomFormat(catalog=catalog, surface_id=surface_id)
+    elif format_name == "vertical":
+        from a2ui.inference_formats.experimental.vertical.format import VerticalFormat
+
+        return VerticalFormat(
+            catalog=catalog, surface_id=surface_id, version=formatted_version
+        )
     else:
         raise ValueError(f"Unknown format strategy: {format_name}")
 
@@ -185,7 +191,7 @@ def parse_with_hard_kill_timeout(
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-    timeout_sec: float = 5.0,
+    timeout_sec: float = 15.0,
 ) -> dict[str, Any]:
     with multiprocessing.Manager() as manager:
         return_dict = manager.dict()
@@ -252,7 +258,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
                 resolved_catalog_path,
                 surface_id,
                 completion,
-                timeout_sec=5.0,
+                timeout_sec=15.0,
             )
 
             compiled_jsons = res_dict.get("compiled_jsons", [])

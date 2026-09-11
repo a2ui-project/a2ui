@@ -278,6 +278,58 @@ async def test_a2ui_atom_solvers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_format_solvers_vertical() -> None:
+    from a2ui_eval.shared.utils import GIT_ROOT
+
+    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+
+    from a2ui_eval.strategies.format import (
+        format_system_prompt,
+        compile_format_payload,
+    )
+
+    prompt_solver = format_system_prompt("vertical", version="1.0")
+
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={"catalog": str(catalog_file)},
+    )
+
+    import a2ui_eval.strategies.format as format_module
+
+    original_git_root = getattr(format_module, "GIT_ROOT", None)
+    setattr(format_module, "GIT_ROOT", GIT_ROOT)
+
+    try:
+        state = await prompt_solver(state, dummy_generate)
+        assert len(state.messages) == 1
+        assert state.messages[0].role == "system"
+        assert "A2UI Vertical" in state.messages[0].content
+
+        compile_solver = compile_format_payload("vertical", version="1.0")
+        state.output = ModelOutput(
+            model="mock/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content='<a2ui>Text("Hello world!")</a2ui>'
+                    )
+                )
+            ],
+        )
+        state = await compile_solver(state, dummy_generate)
+        assert "<a2ui-json>" in state.output.completion
+        assert '"component": "Text"' in state.output.completion
+    finally:
+        if original_git_root is not None:
+            setattr(format_module, "GIT_ROOT", original_git_root)
+
+
+@pytest.mark.asyncio
 async def test_format_system_prompt_with_domain_prompt() -> None:
     from a2ui_eval.shared.utils import GIT_ROOT
     from a2ui_eval.strategies.format import format_system_prompt, _get_strategy, _parse_and_validate_in_process, compile_format_payload

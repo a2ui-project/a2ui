@@ -23,6 +23,7 @@ STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
     "express": lambda version: format_solver("express", version),
     "elemental": lambda version: format_solver("elemental", version),
     "atom": lambda version: format_solver("atom", version),
+    "vertical": lambda version: format_solver("vertical", version),
 }
 
 

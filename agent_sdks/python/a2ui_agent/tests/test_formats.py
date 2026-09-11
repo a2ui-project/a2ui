@@ -23,6 +23,10 @@ from a2ui.inference_formats.experimental.elemental import (
     ElementalFormat,
     ElementalParser,
 )
+from a2ui.inference_formats.experimental.vertical import (
+    VerticalFormat,
+    VerticalParser,
+)
 
 
 @pytest.fixture
@@ -156,6 +160,11 @@ def test_supports_streaming_property(test_catalog):
     assert elemental_fmt.supports_streaming is False
     assert elemental_fmt.parser.supports_streaming is False
 
+    # 4. VerticalFormat parser supports streaming
+    vertical_fmt = VerticalFormat(catalog=test_catalog)
+    assert vertical_fmt.supports_streaming is True
+    assert vertical_fmt.parser.supports_streaming is True
+
 
 def test_process_chunk_raises_not_implemented(test_catalog):
     express_parser = ExpressParser(test_catalog)
@@ -203,6 +212,12 @@ def test_decompiler_delegation(test_catalog):
     decompiled_dsl = expr_parser.decompile(envelope)
     assert 'root = Text("Hello World")' in decompiled_dsl
 
+    # Verify Vertical Parser Decompile
+    vertical_fmt = VerticalFormat(catalog=test_catalog)
+    vert_parser = vertical_fmt.parser
+    decompiled_vert = vert_parser.decompile(envelope)
+    assert 'Text(text="Hello World")' in decompiled_vert
+
     # Verify wrap_decompiled_blocks implementation
     assert (
         direct_json_fmt.parser.wrap_decompiled_blocks(["{}", "{}"])
@@ -211,6 +226,10 @@ def test_decompiler_delegation(test_catalog):
     assert (
         expr_parser.wrap_decompiled_blocks(["a = 1", "b = 2"])
         == "<a2ui>\na = 1\nb = 2\n</a2ui>"
+    )
+    assert (
+        vert_parser.wrap_decompiled_blocks(["Text()", "Divider()"])
+        == "<a2ui>\nText()\nDivider()\n</a2ui>"
     )
 
     # Verify abstract PromptGenerator generate pass
