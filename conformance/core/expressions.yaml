@@ -214,6 +214,73 @@
     category: "ParseError"
     message: "Unexpected characters"
 
+- name: test_expr_negative_integer
+  description: A leading minus followed by a digit is a negative number, not a path.
+  action: parse_expression_template
+  input: "${-1}"
+  expect: [-1]
+
+- name: test_expr_negative_decimal
+  description: The same for a decimal.
+  action: parse_expression_template
+  input: "${-1.5}"
+  expect: [-1.5]
+
+- name: test_expr_negative_as_function_argument
+  description: >
+    A negative argument reaches the function as a number. It used to arrive as a
+    data binding to the path "-1", which is the shape a real path has, so nothing
+    reported it.
+  action: parse_expression_template
+  input: "${round(value: -1.5)}"
+  expect:
+    - call: "round"
+      args:
+        value: -1.5
+      returnType: "any"
+
+- name: test_expr_exponent
+  description: Exponential notation is a number literal.
+  action: parse_expression_template
+  input: "${1e3}"
+  expect: [1000]
+
+- name: test_expr_exponent_signed
+  description: The exponent may carry a sign, and the mantissa may be decimal.
+  action: parse_expression_template
+  input: "${1.5e-3}"
+  expect: [0.0015]
+
+- name: test_expr_hyphen_in_path_is_still_a_path
+  description: >
+    A hyphen inside an identifier keeps belonging to the path. Only a hyphen
+    followed by a digit, at the start of an expression, begins a number.
+  action: parse_expression_template
+  input: "${a-b}"
+  expect: [{path: "a-b"}]
+
+- name: test_expr_hyphen_before_non_digit_is_a_path
+  description: A leading hyphen not followed by a digit is still a path.
+  action: parse_expression_template
+  input: "${-a}"
+  expect: [{path: "-a"}]
+
+- name: test_expr_error_exponent_out_of_range
+  description: >
+    An exponent large enough to overflow is rejected. The value would be
+    infinity, which JSON cannot carry and no renderer can show.
+  action: parse_expression_template
+  input: "${1e999}"
+  expect_error:
+    category: "ParseError"
+
+- name: test_expr_error_exponent_without_digits
+  description: An exponent marker with no digits after it is not a number.
+  action: parse_expression_template
+  input: "${1e}"
+  expect_error:
+    category: "ParseError"
+
 - name: test_expr_number_with_trailing_point
   description: >
     A trailing decimal point is accepted, as every client implementation does

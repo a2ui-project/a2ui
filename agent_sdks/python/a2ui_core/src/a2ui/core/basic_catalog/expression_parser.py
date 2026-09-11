@@ -12,8 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import Any, Dict, List, Union
+
+# An optional minus, digits, an optional decimal point with optional further
+# digits, and an optional exponent whose digits are required.
+#
+# Every client implementation accepts a trailing point ("1.") today and none
+# accepts a second point ("1.2.3"), so the grammar is written to keep that.
+NUMBER_LITERAL = re.compile(r"^-?\d+\.?\d*([eE][+-]?\d+)?$")
 
 
 class Scanner:
@@ -159,6 +167,9 @@ class ExpressionParser:
         # 1. Literals
         if scanner.matches_string("'") or scanner.matches_string('"'):
             return self.parse_string_literal(scanner)
+        # A hyphen starts a number only when a digit follows it. Otherwise it
+        # belongs to the path being scanned below, which keeps `${-a}` and
+        # `${a-b}` data bindings.
         if self.is_digit(scanner.peek()) or (
             scanner.peek() == "-" and self.is_digit(scanner.peek(1))
         ):
@@ -258,9 +269,24 @@ class ExpressionParser:
             self.is_digit(scanner.peek()) or scanner.peek() == "."
         ):
             scanner.advance()
+        if scanner.peek() in ("e", "E"):
+            scanner.advance()
+            if scanner.peek() in ("+", "-"):
+                scanner.advance()
+            while not scanner.is_at_end() and self.is_digit(scanner.peek()):
+                scanner.advance()
         num_str = scanner.input[start : scanner.pos]
-        if "." in num_str:
-            return float(num_str)
+        # The grammar is spelled out here rather than delegated to the platform's
+        # number parser, so that every implementation accepts the same literals.
+        if not NUMBER_LITERAL.match(num_str):
+            raise ValueError(f"Invalid number literal: '{num_str}'")
+        if "." in num_str or "e" in num_str or "E" in num_str:
+            value = float(num_str)
+            # An exponent large enough to overflow gives inf, which JSON cannot
+            # carry and no consumer can render.
+            if not math.isfinite(value):
+                raise ValueError(f"Number literal is out of range: '{num_str}'")
+            return value
         return int(num_str)
 
     def is_alnum(self, c: str) -> bool:

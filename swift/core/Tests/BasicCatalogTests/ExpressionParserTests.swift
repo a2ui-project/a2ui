@@ -144,4 +144,48 @@ struct ExpressionParserTests {
       _ = try parser.parseExpression("add(a 10, b: 20)")
     }
   }
+
+  @Test func parsesNegativeNumberLiterals() throws {
+    #expect(try parser.parseExpression("-1") == .integer(-1))
+    #expect(try parser.parseExpression("-1.5") == .number(-1.5))
+    #expect(try parser.parse("${-1}") == [.integer(-1)])
+  }
+
+  @Test func parsesNegativeNumberAsFunctionArgument() throws {
+    let result = try parser.parse("${round(value: -1.5)}")
+    #expect(
+      result == [
+        .object([
+          "call": .string("round"),
+          "args": .object(["value": .number(-1.5)]),
+          "returnType": .string("any"),
+        ])
+      ]
+    )
+  }
+
+  @Test func parsesExponentialNumberLiterals() throws {
+    #expect(try parser.parseExpression("1e3") == .number(1000))
+    #expect(try parser.parseExpression("1.5e-3") == .number(0.0015))
+    #expect(try parser.parseExpression("2E+2") == .number(200))
+  }
+
+  @Test func parsesHyphensInsideTokensAsPaths() throws {
+    #expect(try parser.parseExpression("a-b") == .object(["path": .string("a-b")]))
+    #expect(try parser.parseExpression("-a") == .object(["path": .string("-a")]))
+  }
+
+  @Test func parsesNumbersWithTrailingPointAndLeadingZeros() throws {
+    #expect(try parser.parseExpression("1.") == .number(1))
+    #expect(try parser.parseExpression("007") == .integer(7))
+  }
+
+  @Test func returnsErrorOnInvalidNumberLiterals() {
+    #expect(throws: FunctionError.self) {
+      _ = try parser.parseExpression("1.2.3")
+    }
+    #expect(throws: FunctionError.self) {
+      _ = try parser.parseExpression("1e")
+    }
+  }
 }
