@@ -15,7 +15,7 @@ The builder API allows developers and agents to author interfaces as nested Pyth
 Components are instantiated as Python objects. Containers accept child components through designated slot parameters:
 
 ```python
-from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text, Button, Action
+from a2ui.builder.v0_9.catalogs.basic_catalog import Card, Column, Text, Button, Action
 
 tree = Card(
     child=Column(
@@ -93,10 +93,10 @@ Component classes inherit from `ComponentBuilderNode` and define the properties 
 from typing import Any, Literal, Optional
 from a2ui.builder.v0_9 import (
     Action,
+    Child,
     ComponentBuilderNode,
     DataBinding,
     FunctionCall,
-    Slot,
 )
 
 ButtonVariant = Literal["default", "primary", "borderless"]
@@ -107,7 +107,7 @@ class Button(ComponentBuilderNode):
     component: Literal["Button"] = "Button"
     accessibility: Optional[Any] = None
     weight: Optional[float] = None
-    child: Slot
+    child: Child
     variant: Optional[ButtonVariant] = "default"
     action: Action
 ```
@@ -115,7 +115,7 @@ class Button(ComponentBuilderNode):
 Key characteristics:
 
 - `component`: Literal string constant matching the catalog component identifier.
-- Slots: Parameters accepting children (`child: Slot`, `children: SlotList | DynamicChildList`) accept nested `ComponentBuilderNode` instances or data-bound templates.
+- Children: Parameters accepting children (`child: Child`, `children: ChildList`) accept nested `ComponentBuilderNode` instances or data-bound templates.
 - Properties: Primitive properties accept static values, `DataBinding` instances, or `FunctionCall` objects.
 - Flattening: Calling `tree.to_components()` automatically traverses attributes, allocates scoped IDs, and replaces slot references.
 
@@ -156,7 +156,7 @@ You can subclass generated components to create domain-specific building blocks 
 
 ```python
 from typing import Any
-from a2ui.builder.v0_9.catalogs.basic import Button, Text, Action
+from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text, Action
 
 class PrimaryActionButton(Button):
     """Button configured with primary styling and default event name."""
@@ -178,7 +178,7 @@ You can define custom components that are not in the official catalog schema by 
 
 ```python
 from typing import Any, Literal, Optional
-from a2ui.builder.v0_9 import ComponentBuilderNode, Slot
+from a2ui.builder.v0_9 import ComponentBuilderNode, Child
 
 class MetricCard(ComponentBuilderNode):
     """Custom metric card component."""
@@ -187,7 +187,7 @@ class MetricCard(ComponentBuilderNode):
     label: str
     value: str
     trend: Optional[str] = None
-    icon: Optional[Slot] = None
+    icon: Optional[Child] = None
 ```
 
 Because `MetricCard` inherits from `ComponentBuilderNode`:

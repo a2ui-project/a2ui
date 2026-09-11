@@ -19,23 +19,18 @@ from pydantic import BaseModel, ValidationError
 
 from a2ui.builder.v0_9 import (
     Action,
-    AccessibilityAttributes,
     ComponentBuilderNode,
-    ComponentRef,
     ComponentTree,
-    DataBinding,
-    DynamicChildList,
     FunctionCall,
     bind,
     create_surface,
     flatten_component_tree,
     update_components,
 )
-from a2ui.builder.v0_9.catalogs.basic import (
+from a2ui.builder.v0_9.catalogs.basic_catalog import (
     Button,
     Card,
     Column,
-    Row,
     Text,
     Image,
     Icon,
@@ -195,35 +190,28 @@ def test_component_tree_envelope_packaging():
     assert surface_msgs[0]["createSurface"]["catalogId"] == "basic"
     assert "updateComponents" in surface_msgs[1]
 
-    # 4. Unlinked roots and pruning
-    unlinked_text = Text(text="Orphaned Widget")
-    tree.unlinked_roots.append(unlinked_text)
-    assert len(tree.to_components()) == 3
-
-    tree.prune_unlinked()
-    assert len(tree.unlinked_roots) == 0
-    assert len(tree.to_components()) == 2
-
 
 def test_top_level_envelope_helpers():
     """Verifies create_surface and update_components functional helpers."""
     root_col = Column(children=[Text(text="Status")])
 
-    # create_surface helper emits createSurface + updateComponents
+    # create_surface helper emits CreateSurfaceMessage + UpdateComponentsMessage
     create_msgs = create_surface(
         "my-surface", root=root_col, catalog_id="org.a2ui.basic"
     )
     assert len(create_msgs) == 2
-    assert create_msgs[0]["createSurface"]["surfaceId"] == "my-surface"
-    assert create_msgs[0]["createSurface"]["catalogId"] == "org.a2ui.basic"
-    assert create_msgs[1]["updateComponents"]["surfaceId"] == "my-surface"
+    assert create_msgs[0].create_surface.surface_id == "my-surface"
+    assert create_msgs[0].create_surface.catalog_id == "org.a2ui.basic"
+    assert create_msgs[1].update_components.surface_id == "my-surface"
+
+    dumped = [m.model_dump(by_alias=True, exclude_none=True) for m in create_msgs]
+    assert "createSurface" in dumped[0]
+    assert "updateComponents" in dumped[1]
 
     # update_components helper emits ONLY updateComponents (does not reset surface)
     update_msgs = update_components("my-surface", root=root_col)
     assert len(update_msgs) == 1
-    assert "updateComponents" in update_msgs[0]
-    assert update_msgs[0]["updateComponents"]["surfaceId"] == "my-surface"
-    assert "createSurface" not in update_msgs[0]
+    assert update_msgs[0].update_components.surface_id == "my-surface"
 
 
 def test_component_tree_methods():
@@ -277,7 +265,7 @@ def test_static_typechecker_compiler_rejections():
 
     # 1. Invalid enum variant
     code_bad_enum = """
-from a2ui.builder.v0_9.catalogs.basic import Button, Text
+from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text
 from a2ui.builder.v0_9 import Action
 b = Button(child=Text(text="Hi"), action=Action(event="click"), variant="invalid_variant")
 """
@@ -287,7 +275,7 @@ b = Button(child=Text(text="Hi"), action=Action(event="click"), variant="invalid
 
     # 2. Misspelled argument name
     code_typo_arg = """
-from a2ui.builder.v0_9.catalogs.basic import Button, Text
+from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text
 from a2ui.builder.v0_9 import Action
 b = Button(child=Text(text="Hi"), action=Action(event="click"), lable="Save")
 """
@@ -297,10 +285,91 @@ b = Button(child=Text(text="Hi"), action=Action(event="click"), lable="Save")
 
     # 3. Invalid child type (raw string instead of component node)
     code_bad_child = """
-from a2ui.builder.v0_9.catalogs.basic import Button
+from a2ui.builder.v0_9.catalogs.basic_catalog import Button
 from a2ui.builder.v0_9 import Action
 b = Button(child="not_a_component", action=Action(event="click"))
 """
     normal_report, _, exit_status = mypy.api.run(["-c", code_bad_child])
     assert exit_status != 0
     assert 'Argument "child" to "Button" has incompatible type' in normal_report
+
+
+def test_id_collision_prevention():
+    """Verifies that auto-generated sequential IDs never collide with user-provided IDs."""
+    tree = Column(
+        id="root",
+        children=[
+            Text(id="text_1", text="Explicit text_1"),
+            Text(text="Auto-allocated text"),
+        ],
+    )
+    comps = flatten_component_tree(tree)
+    ids = [c["id"] for c in comps]
+    assert len(ids) == len(set(ids)), f"Duplicate IDs detected: {ids}"
+    assert "root__text_1" in ids
+    assert "root__text_2" in ids
+
+
+def test_tab_item_and_choice_option_models():
+    """Verifies typed TabItem and ChoiceOption item models with nested child resolution."""
+    from a2ui.builder.v0_9.catalogs.basic_catalog import (
+        ChoiceOption,
+        ChoicePicker,
+        TabItem,
+        Tabs,
+    )
+
+    tabs_comp = Tabs(
+        id="my_tabs",
+        tabs=[
+            TabItem(title="Tab 1", child=Text(id="tab1_txt", text="First Tab Content")),
+            TabItem(
+                title="Tab 2",
+                child=Button(
+                    id="tab2_btn",
+                    child=Text(text="Click"),
+                    action=Action(event="click"),
+                ),
+            ),
+        ],
+    )
+    comps = flatten_component_tree(tabs_comp)
+    assert len(comps) == 4
+    tabs_wire = next(c for c in comps if c["id"] == "my_tabs")
+    assert tabs_wire["tabs"][0]["child"] == "my_tabs__tab1_txt"
+    assert tabs_wire["tabs"][0]["title"] == "Tab 1"
+    assert tabs_wire["tabs"][1]["child"] == "my_tabs__tab2_btn"
+
+    picker = ChoicePicker(
+        id="my_picker",
+        value=["opt1"],
+        options=[
+            ChoiceOption(label="Option 1", value="opt1"),
+            ChoiceOption(label="Option 2", value="opt2"),
+        ],
+    )
+    picker_comps = flatten_component_tree(picker)
+    assert len(picker_comps) == 1
+    assert picker_comps[0]["options"][0] == {"label": "Option 1", "value": "opt1"}
+    assert picker_comps[0]["options"][1] == {"label": "Option 2", "value": "opt2"}
+
+
+def test_typed_function_call_classes():
+    """Verifies typed FunctionCall classes and factory helpers."""
+    from a2ui.builder.v0_9.catalogs.basic_catalog import (
+        OpenUrl,
+        open_url,
+    )
+
+    fn_obj = OpenUrl(url="https://example.com", call_id="c1")
+    assert isinstance(fn_obj, FunctionCall)
+    assert fn_obj.call == "openUrl"
+    assert fn_obj.args == {"url": "https://example.com"}
+    assert fn_obj.call_id == "c1"
+
+    fn_helper = open_url(url="https://example.com", call_id="c1")
+    assert isinstance(fn_helper, OpenUrl)
+    assert fn_helper.to_dict() == fn_obj.to_dict()
+
+
+

@@ -29,7 +29,17 @@ from pydantic import (
 from ..core.base_node import ComponentBuilderNode
 
 
-class DataBinding(BaseModel):
+class A2uiExpression(BaseModel):
+    """Base model for reactive expressions (bindings and function calls)."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
+
+
+class DataBinding(A2uiExpression):
     """A two-way binding to a path in the client data model."""
 
     model_config = ConfigDict(
@@ -77,7 +87,7 @@ class AccessibilityAttributes(BaseModel):
         return self.model_dump(exclude_none=True, by_alias=True)
 
 
-class FunctionCall(BaseModel):
+class FunctionCall(A2uiExpression):
     """Invocation of a client-side catalog function."""
 
     model_config = ConfigDict(
@@ -202,13 +212,11 @@ class DynamicChildList(BaseModel):
 
 
 # Canonical Protocol Type Aliases
-DynamicString = Union[str, DataBinding, FunctionCall]
-DynamicNumber = Union[int, float, DataBinding, FunctionCall]
-DynamicBoolean = Union[bool, DataBinding, FunctionCall]
-DynamicStringList = Union[Sequence[str], DataBinding, FunctionCall]
-DynamicValue = Union[Any, DataBinding, FunctionCall]
+DynamicString = Union[str, A2uiExpression]
+DynamicNumber = Union[int, float, A2uiExpression]
+DynamicBoolean = Union[bool, A2uiExpression]
+DynamicStringList = Union[Sequence[str], A2uiExpression]
+DynamicValue = Union[Any, A2uiExpression]
 
-Slot: TypeAlias = ComponentBuilderNode
-SlotList: TypeAlias = Sequence[Slot]
-Child = Slot
-ChildList = Union[Sequence[ComponentBuilderNode], DynamicChildList]
+Child: TypeAlias = ComponentBuilderNode
+ChildList: TypeAlias = Union[Sequence[ComponentBuilderNode], DynamicChildList]

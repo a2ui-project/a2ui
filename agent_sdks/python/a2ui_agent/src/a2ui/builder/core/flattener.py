@@ -51,7 +51,37 @@ def flatten_component_tree(
         return []
 
     prefix = root_id or (root.id if root.id else "root")
-    allocator = IdAllocator(scope_prefix=prefix)
+    existing_ids: set[str] = set()
+    if root_id:
+        existing_ids.add(root_id)
+
+    # Pre-scan existing user-provided IDs to avoid collisions
+    def scan_existing_ids(node: ComponentBuilderNode) -> None:
+        if node.id:
+            existing_ids.add(node.id)
+            existing_ids.add(f"{prefix}__{node.id}")
+        attrs = dict(node.__dict__)
+        extra = getattr(node, "__pydantic_extra__", None)
+        if extra is not None:
+            attrs.update(extra)
+        for k, v in attrs.items():
+            if k in ("component_name", "component", "id"):
+                continue
+            if isinstance(v, ComponentBuilderNode):
+                scan_existing_ids(v)
+            elif isinstance(v, Mapping):
+                for sub in v.values():
+                    if isinstance(sub, ComponentBuilderNode):
+                        scan_existing_ids(sub)
+            elif isinstance(v, Sequence) and not isinstance(v, (str, bytes)):
+                for sub in v:
+                    if isinstance(sub, ComponentBuilderNode):
+                        scan_existing_ids(sub)
+            elif hasattr(v, "template") and isinstance(v.template, ComponentBuilderNode):
+                scan_existing_ids(v.template)
+
+    scan_existing_ids(root)
+    allocator = IdAllocator(scope_prefix=prefix, existing_ids=existing_ids)
     id_map: dict[int, str] = {}
 
     # Phase 1: Assign IDs to all nodes
@@ -66,7 +96,7 @@ def flatten_component_tree(
             id_map[node_key] = assigned
             return assigned
 
-        comp_name = node.component_name or node.component
+        comp_name = node.component
         if is_root:
             assigned = (
                 root_id
@@ -92,6 +122,9 @@ def flatten_component_tree(
                 val.template, ComponentBuilderNode
             ):
                 traverse(val.template)
+            elif isinstance(val, BaseModel):
+                for v in val.__dict__.values():
+                    traverse(v)
 
         attrs = dict(node.__dict__)
         extra = getattr(node, "__pydantic_extra__", None)
@@ -114,7 +147,7 @@ def flatten_component_tree(
             return
         visited_nodes.add(node_key)
 
-        comp_name = node.component_name or node.component
+        comp_name = node.component
         d: dict[str, Any] = {"component": comp_name, "id": id_map[node_key]}
 
         def traverse_and_serialize(val: Any) -> Any:
@@ -133,6 +166,23 @@ def flatten_component_tree(
                     return val.model_dump(exclude_none=True, by_alias=True)
                 return val.to_dict() if hasattr(val, "to_dict") else val
             elif isinstance(val, BaseModel):
+                has_child_node = any(
+                    isinstance(v, ComponentBuilderNode)
+                    or (
+                        isinstance(v, Sequence)
+                        and not isinstance(v, (str, bytes))
+                        and any(isinstance(x, ComponentBuilderNode) for x in v)
+                    )
+                    for v in val.__dict__.values()
+                )
+                if has_child_node:
+                    fields = {}
+                    for k, v in val.__dict__.items():
+                        if not k.startswith("_") and v is not None:
+                            fields[k] = traverse_and_serialize(v)
+                    return fields
+                if hasattr(val, "to_dict"):
+                    return val.to_dict()
                 return val.model_dump(exclude_none=True, by_alias=True)
             elif hasattr(val, "to_dict"):
                 return val.to_dict()

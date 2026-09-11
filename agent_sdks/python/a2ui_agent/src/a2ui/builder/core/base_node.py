@@ -26,6 +26,7 @@ class ComponentBuilderNode(BaseModel):
     model_config = ConfigDict(
         # Strict authoring validation: catches typos (e.g. lable="Save") at runtime and edit-time.
         # Loose parsing will be handled by dedicated deserialization constructors in Phase 2 (#2571).
+        # TODO: change to extra="allow" if using for deserialization as well to preserve unknown fields for round-tripping
         extra="forbid",
         # Arbitrary types forbidden to enforce strict typing on builder inputs
         arbitrary_types_allowed=False,
@@ -42,13 +43,9 @@ class ComponentBuilderNode(BaseModel):
     def component_name(self) -> str:
         return self.component
 
-    @component_name.setter
-    def component_name(self, value: str) -> None:
-        self.component = value
-
     def to_dict(self) -> dict[str, Any]:
         """Serializes this component into an A2UI wire format dictionary."""
-        d: dict[str, Any] = {"component": self.component_name or self.component}
+        d: dict[str, Any] = {"component": self.component}
         if self.id is not None:
             d["id"] = self.id
         return d

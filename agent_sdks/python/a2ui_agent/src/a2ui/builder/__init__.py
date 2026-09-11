@@ -18,5 +18,5 @@ To prevent breaking changes across protocol versions, builder models are explici
 Import from the specific protocol version package:
 
     from a2ui.builder.v0_9 import Action, ComponentRef, create_surface, bind
-    from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Row, Text
+    from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Card, Column, Row, Text
 """
