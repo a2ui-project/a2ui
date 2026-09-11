@@ -126,7 +126,7 @@ export class DataContext {
       const call = value as FunctionCall;
       const args: Record<string, any> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(call.args ?? {})) {
         args[key] = this.resolveDynamicValue(argVal);
       }
 
@@ -228,7 +228,7 @@ export class DataContext {
       const call = value as FunctionCall;
       const argSignals: Record<string, Signal<any>> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(call.args ?? {})) {
         argSignals[key] = this.resolveSignal(argVal);
       }
 
