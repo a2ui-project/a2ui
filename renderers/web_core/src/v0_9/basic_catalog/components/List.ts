@@ -19,7 +19,7 @@ import {customElement} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {ListApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation, ResolvedChildList} from '../../universal/index.js';
+import {type ResolvedChildList, createWebComponentImplementation} from '../../universal/index.js';
 
 function getChildKey(child: any): string {
   return typeof child === 'object' && child !== null
@@ -90,7 +90,4 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> 
   }
 }
 
-export const A2uiList: WebComponentImplementation = {
-  ...ListApi,
-  tagName: 'a2ui-list',
-};
+export const A2uiList = createWebComponentImplementation(ListApi, A2uiListElement);

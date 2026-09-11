@@ -14,15 +14,19 @@
  * limitations under the License.
  */
 
-export {
-  A2uiLitElement,
-  type ResolvedChildList,
-  type A2uiChildRef,
-  type ResolvedChildRef,
-} from './a2ui-lit-element.js';
-export {A2uiController} from './a2ui-controller.js';
-export type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
-export {createWebComponentImplementation} from './create_web_component_implementation.js';
-export {isWebComponentImplementation} from './is_web_component_implementation.js';
-export {renderA2uiNode} from './render-a2ui-node.js';
-export type {WebComponentImplementation} from './web_component_implementation.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
+
+/**
+ * Type guard to check if a component API or implementation is a WebComponentImplementation.
+ *
+ * @param api The object to check
+ * @returns true if the object implements WebComponentImplementation
+ */
+export function isWebComponentImplementation(api: unknown): api is WebComponentImplementation {
+  return (
+    typeof api === 'object' &&
+    api !== null &&
+    'tagName' in api &&
+    typeof (api as {tagName?: unknown}).tagName === 'string'
+  );
+}

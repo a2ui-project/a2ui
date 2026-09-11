@@ -19,7 +19,7 @@ import {customElement} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {ColumnApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation, ResolvedChildList} from '../../universal/index.js';
+import {type ResolvedChildList, createWebComponentImplementation} from '../../universal/index.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -93,7 +93,4 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
   }
 }
 
-export const A2uiColumn: WebComponentImplementation = {
-  ...ColumnApi,
-  tagName: 'a2ui-basic-column',
-};
+export const A2uiColumn = createWebComponentImplementation(ColumnApi, A2uiBasicColumnElement);

@@ -22,7 +22,7 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import {Context} from '../context/context.js';
 import type {MarkdownRenderer} from '../context/markdown.js';
 import {markdown} from '../directives/directives.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
+import {createWebComponentImplementation} from '../../universal/create_web_component_implementation.js';
 
 const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
@@ -139,7 +139,4 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
   }
 }
 
-export const A2uiText: WebComponentImplementation = {
-  ...TextApi,
-  tagName: 'a2ui-basic-text',
-};
+export const A2uiText = createWebComponentImplementation(TextApi, A2uiBasicTextElement);

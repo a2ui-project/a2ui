@@ -17,8 +17,8 @@
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {DateTimeInputApi} from './basic_components.js';
+import {createWebComponentImplementation} from '../../universal/create_web_component_implementation.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
 
 /**
  * Returns the current date formatted as YYYY-MM-DD in the user's local timezone.
@@ -191,7 +191,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
   }
 }
 
-export const A2uiDateTimeInput: WebComponentImplementation = {
-  ...DateTimeInputApi,
-  tagName: 'a2ui-datetimeinput',
-};
+export const A2uiDateTimeInput = createWebComponentImplementation(
+  DateTimeInputApi,
+  A2uiDateTimeInputElement,
+);

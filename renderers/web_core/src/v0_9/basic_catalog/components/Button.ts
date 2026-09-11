@@ -18,8 +18,8 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {ButtonApi} from './basic_components.js';
+import {createWebComponentImplementation} from '../../universal/create_web_component_implementation.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
 
 /**
  * A button component that can be used to trigger an action.
@@ -116,7 +116,4 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
   }
 }
 
-export const A2uiButton: WebComponentImplementation = {
-  ...ButtonApi,
-  tagName: 'a2ui-basic-button',
-};
+export const A2uiButton = createWebComponentImplementation(ButtonApi, A2uiBasicButtonElement);
