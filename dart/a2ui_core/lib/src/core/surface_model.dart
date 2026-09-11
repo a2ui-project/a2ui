@@ -18,7 +18,7 @@ import '../primitives/event_notifier.dart';
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
-import 'contexts.dart';
+import 'data_context.dart';
 import 'data_model.dart';
 import 'messages.dart';
 

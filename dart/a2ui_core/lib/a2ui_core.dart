@@ -23,9 +23,8 @@ export 'src/core/catalog.dart';
 export 'src/core/common.dart';
 export 'src/core/common_schemas.dart';
 export 'src/core/component_model.dart';
-// Rendering support.
-export 'src/core/contexts.dart';
 // State management.
+export 'src/core/data_context.dart';
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';
 export 'src/core/minimal_catalog.dart';
@@ -45,7 +44,9 @@ export 'src/processing/basic_functions.dart';
 export 'src/processing/expressions.dart';
 // Processing & expressions.
 export 'src/processing/processor.dart';
+// Rendering support.
 export 'src/rendering/binder.dart';
+export 'src/rendering/component_context.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `A2uiValidator` is the entry point.
 export 'src/validation/validator.dart';
