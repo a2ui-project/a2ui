@@ -1,0 +1,81 @@
+{
+  "name": "@a2ui/agent",
+  "version": "1.0.0",
+  "description": "A2UI Agent SDK for TypeScript and Node.js",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "wireit",
+    "build:tsc": "wireit",
+    "test": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "wireit",
+    "format:check": "wireit",
+    "clean": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:tsc"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "files": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/",
+        "!dist/**/*.min.js{,.map}"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "test": {
+      "command": "node --test \"dist/tests/**/*.test.js\"",
+      "dependencies": [
+        "build"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
+    },
+    "format": {
+      "command": "prettier --write .",
+      "files": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "format:check": {
+      "command": "prettier --check .",
+      "files": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "package.json",
+        "tsconfig.json"
+      ]
+    }
+  },
+  "author": "Google",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2"
+  },
+  "dependencies": {
+    "@a2ui/web_core": "workspace:*"
+  }
+}
