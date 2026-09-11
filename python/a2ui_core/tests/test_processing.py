@@ -1221,7 +1221,7 @@ def test_message_processor_call_renderer_function_incompatible_catalog_version(
 
 
 def test_message_processor_disposal_cancels_pending_calls(mock_catalog):
-    from a2ui.core.exceptions import A2uiRpcError
+    from a2ui.core.exceptions import A2uiRpcError, RpcErrorCode
 
     options = MessageProcessorOptions(outbound_listener=lambda msg: None)
     processor = MessageProcessor(catalogs=[mock_catalog], options=options)
@@ -1242,7 +1242,7 @@ def test_message_processor_disposal_cancels_pending_calls(mock_catalog):
     assert fut2.done()
     with pytest.raises(A2uiRpcError) as exc_info:
         fut1.result()
-    assert exc_info.value.code == "CANCELLED"
+    assert exc_info.value.code == RpcErrorCode.DISPOSED.value
     assert exc_info.value.function_call_id == "call_1"
     assert "Surface closed" in str(exc_info.value)
 

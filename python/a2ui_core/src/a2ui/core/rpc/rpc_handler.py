@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import concurrent.futures
 import inspect
 import logging
 import uuid
@@ -133,7 +134,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
                 A2uiRpcError(
                     f"RpcHandler disposed while call '{call_id}' was pending: {reason}",
                     function_call_id=call_id,
-                    code=RpcErrorCode.CANCELLED.value,
+                    code=RpcErrorCode.DISPOSED.value,
                 )
             )
         self._pending_agent_calls.clear()
@@ -397,17 +398,15 @@ class RpcHandler(Generic[TComponent, TFunction]):
                 try:
                     loop = asyncio.get_running_loop()
                     if loop.is_running():
-                        raise RuntimeError(
-                            f"Cannot execute async function '{call_name}'"
-                            " synchronously when an event loop is running. Use"
-                            " handle_call_renderer_function_async instead."
-                        )
-                except RuntimeError as re:
-                    if (
-                        "no running event loop" not in str(re).lower()
-                        and "running" in str(re).lower()
-                    ):
-                        raise re
+                        with concurrent.futures.ThreadPoolExecutor(
+                            max_workers=1
+                        ) as executor:
+                            val = executor.submit(
+                                asyncio.run, cast(Any, raw_res)
+                            ).result()
+                    else:
+                        val = asyncio.run(cast(Any, raw_res))
+                except RuntimeError:
                     val = asyncio.run(cast(Any, raw_res))
             else:
                 val = raw_res

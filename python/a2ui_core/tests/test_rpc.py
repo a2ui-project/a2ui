@@ -418,3 +418,30 @@ def test_rpc_handler_unknown_function_error_code() -> None:
         == RpcErrorCode.INVALID_FUNCTION_CALL.value
     )
     assert "Function not found" in resp["rendererFunctionResponse"]["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_rpc_handler_sync_execution_of_async_function_in_running_loop() -> None:
+    async def async_fn(args: dict[str, Any], context: DataContext | None = None) -> str:
+        await asyncio.sleep(0.01)
+        return "Async via sync bridge"
+
+    func_impl = FunctionImplementation(
+        name="asyncBridgeFunc",
+        execute=async_fn,
+        allowed_callers="agentOnly",
+    )
+    cat = Catalog("basic", protocol_version="v1.0", functions=[func_impl])
+    handler = RpcHandler([cat])
+
+    # Call sync handle_call_renderer_function while an asyncio event loop is running
+    resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="v1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-bridge-1",
+                call_function=FunctionCall(call="asyncBridgeFunc", catalog_id="basic"),
+            ),
+        )
+    )
+    assert resp["rendererFunctionResponse"]["value"] == "Async via sync bridge"
