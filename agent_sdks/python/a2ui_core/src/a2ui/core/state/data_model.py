@@ -16,6 +16,7 @@ import copy
 import re
 from typing import Any, Callable, Dict, List, Optional, Set
 from ..common.events import Subscription
+from ..exceptions import A2uiDataError
 
 # Regex to check if path segment is numeric (representing array index)
 NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
@@ -27,6 +28,9 @@ class DataModel:
     def __init__(self, initial_data: Optional[Dict[str, Any]] = None):
         self._data = copy.deepcopy(initial_data or {})
         self._listeners: Dict[str, Set[Callable[[Any], None]]] = {}
+        # The value each watched path last reported, so that a write which
+        # leaves a watched path alone does not wake its observers.
+        self._last_values: Dict[str, Any] = {}
 
     @staticmethod
     def _parse_pointer(path: str) -> List[str]:
@@ -38,6 +42,12 @@ class DataModel:
             return [t.replace("~1", "/").replace("~0", "~") for t in path.split("/")]
 
         tokens = path[1:].split("/")
+        # `/foo/` addresses `/foo`, not a child under an empty key. RFC 6901
+        # would read the empty token as a key of its own, but no A2UI
+        # implementation exposes one, and both the Dart client and web_core
+        # normalise the trailing slash away.
+        if len(tokens) > 1 and tokens[-1] == "":
+            tokens.pop()
         return [t.replace("~1", "/").replace("~0", "~") for t in tokens]
 
     @staticmethod
@@ -103,19 +113,41 @@ class DataModel:
             is_next_numeric = bool(NUMERIC_PATTERN.match(next_token))
 
             if isinstance(current, dict):
-                if token not in current or not isinstance(current[token], (dict, list)):
+                existing = current.get(token)
+                # Only an absent or null segment is filled in. A primitive is a
+                # value someone put there, and writing a path through it would
+                # destroy it silently.
+                if existing is not None and not isinstance(existing, (dict, list)):
+                    raise A2uiDataError(
+                        f"Cannot set path '{path}': segment '{token}' is a "
+                        "primitive value."
+                    )
+                if token not in current or existing is None:
                     current[token] = [] if is_next_numeric else {}
                 current = current[token]
-            elif isinstance(current, list) and NUMERIC_PATTERN.match(token):
+            elif isinstance(current, list):
+                if not NUMERIC_PATTERN.match(token):
+                    raise A2uiDataError(
+                        f"Cannot use non-numeric segment '{token}' on a list."
+                    )
                 idx = int(token)
                 # Expand array if index exceeds size
                 while len(current) <= idx:
                     current.append(None)
-                if current[idx] is None or not isinstance(current[idx], (dict, list)):
+                existing = current[idx]
+                if existing is not None and not isinstance(existing, (dict, list)):
+                    raise A2uiDataError(
+                        f"Cannot set path '{path}': segment '{token}' is a "
+                        "primitive value."
+                    )
+                if existing is None:
                     current[idx] = [] if is_next_numeric else {}
                 current = current[idx]
             else:
-                raise ValueError(f"Cannot traverse path segment: {token} in {path}")
+                raise A2uiDataError(
+                    f"Cannot set path '{path}': intermediate segment '{token}' "
+                    "is a primitive."
+                )
 
         # Set final leaf value
         last_token = tokens[-1]
@@ -124,13 +156,22 @@ class DataModel:
                 current.pop(last_token, None)
             else:
                 current[last_token] = copy.deepcopy(value)
-        elif isinstance(current, list) and NUMERIC_PATTERN.match(last_token):
+        elif isinstance(current, list):
+            if not NUMERIC_PATTERN.match(last_token):
+                raise A2uiDataError(
+                    f"Cannot use non-numeric segment '{last_token}' on a list."
+                )
             idx = int(last_token)
             while len(current) <= idx:
                 current.append(None)
             current[idx] = copy.deepcopy(value)
         else:
-            raise ValueError(f"Leaf segment is not a container: {last_token}")
+            # The parent resolved to a primitive, so there is nothing to write
+            # into. Dropping the write would hide a malformed path.
+            raise A2uiDataError(
+                f"Cannot set path '{path}': '{last_token}' is a property of a "
+                "primitive value."
+            )
 
         # Trigger notification cascade
         self._trigger_cascade(tokens)
@@ -143,18 +184,29 @@ class DataModel:
 
         # Return subscription armed with unsubscription and initial value
         initial = self.get(norm_path)
+        self._last_values[norm_path] = copy.deepcopy(initial)
         return Subscription(
             lambda: self._listeners.get(norm_path, set()).discard(on_change),
             initial_value=initial,
         )
 
     def _trigger_listeners(self, path: str, value: Any) -> None:
-        if path in self._listeners:
-            for listener in list(self._listeners[path]):
-                try:
-                    listener(value)
-                except Exception:
-                    pass
+        listeners = self._listeners.get(path)
+        if not listeners:
+            return
+        # A write that stores the same value, or that replaces a container
+        # without touching this path, is not a change to report. The cascade
+        # reaches every ancestor and descendant of the written path, so without
+        # this an observer of `/a/b` wakes up whenever anything under `/a`
+        # moves.
+        if path in self._last_values and self._last_values[path] == value:
+            return
+        self._last_values[path] = copy.deepcopy(value)
+        for listener in list(listeners):
+            try:
+                listener(value)
+            except Exception:
+                pass
 
     def _trigger_cascade(self, tokens: List[str]) -> None:
         """Notifies listeners cascading both bubble-up (parents) and cascade-down (children)."""
@@ -173,3 +225,4 @@ class DataModel:
     def dispose(self) -> None:
         """Disposes of the data model and all its listeners."""
         self._listeners.clear()
+        self._last_values.clear()
