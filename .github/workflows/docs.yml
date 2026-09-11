@@ -37,6 +37,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   changes:
     if: github.repository == 'a2ui-project/a2ui'
