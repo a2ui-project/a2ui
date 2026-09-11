@@ -15,21 +15,12 @@
 name: Quickstart Demos E2E
 
 on:
-  pull_request:
-    paths:
-      - "samples/**"
-      - "renderers/**"
-      - "agent_sdks/**"
-      - "scripts/test_demos.sh"
-      - ".github/workflows/quickstart_demos_e2e.yml"
+  release:
+    types: [published]
   push:
-    branches:
-      - main
-      - "release/**"
     tags:
       - "v*.*.*"
-  release:
-    types: [published, prereleased]
+      - "v*"
   workflow_dispatch:
     inputs:
       demo_target:
