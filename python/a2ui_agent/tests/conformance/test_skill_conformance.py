@@ -24,17 +24,6 @@ from a2ui.skill import Skill, SkillGenerator, SkillSet
 
 from a2ui.schema.utils import find_repo_root
 
-REPO_ROOT = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "..",
-        "..",
-        "..",
-    )
-)
-
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_YAML_PATH = os.path.join(REPO_ROOT, "conformance", "agent", "skill.yaml")
 GOLDENS_DIR = os.path.join(REPO_ROOT, "conformance", "test_data", "skills")

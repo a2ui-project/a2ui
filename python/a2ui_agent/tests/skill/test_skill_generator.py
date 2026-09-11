@@ -17,6 +17,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import MagicMock
 
 from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
@@ -25,18 +26,6 @@ from a2ui.skill import SkillGenerator
 from a2ui.schema.utils import find_repo_root
 
 # Locate standard basic catalog in repository
-SPEC_DIR = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "..",
-        "..",
-        "..",
-        "specification",
-        "v1_0",
-    )
-)
 _repo_root = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = os.path.join(_repo_root, "specification", "v1_0")
 CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
@@ -187,6 +176,24 @@ class TestSkillGenerator(unittest.TestCase):
         mono_skill = self.generator.generate_skill(catalogs=[testing_catalog])
         self.assertIn("TestComponent(value)", mono_skill.content)
         self.assertNotIn("Button(", mono_skill.content)
+
+    def test_generate_core_skill_with_none_rules(self):
+        """Verifies generate_core_skill() handles prompt_generator returning None defensively."""
+        mock_fmt = MagicMock()
+        mock_fmt.prompt_generator.generate_base_rules.return_value = None
+        gen = SkillGenerator(mock_fmt)
+        skill = gen.generate_core_skill()
+        self.assertEqual(skill.content, "\n")
+
+    def test_generate_catalog_skill_with_none_instructions(self):
+        """Verifies generate_catalog_skill() handles prompt_generator returning None defensively."""
+        mock_fmt = MagicMock()
+        mock_fmt.prompt_generator.generate_catalog_instructions.return_value = None
+        mock_fmt.prompt_generator.generate_examples.return_value = None
+        mock_fmt.catalogs = [self.catalog]
+        gen = SkillGenerator(mock_fmt)
+        skill = gen.generate_catalog_skill(self.catalog)
+        self.assertEqual(skill.content, "\n")
 
 
 if __name__ == "__main__":

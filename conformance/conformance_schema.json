@@ -10,10 +10,7 @@
   "$defs": {
     "TestCase": {
       "type": "object",
-      "required": [
-        "name",
-        "action"
-      ],
+      "required": ["name", "action"],
       "properties": {
         "name": {
           "type": "string",
@@ -199,12 +196,7 @@
     },
     "ProtocolVersion": {
       "type": "string",
-      "enum": [
-        "v0.8",
-        "v0.9",
-        "v0.9.1",
-        "v1.0"
-      ],
+      "enum": ["v0.8", "v0.9", "v0.9.1", "v1.0"],
       "description": "Supported A2UI protocol versions."
     },
     "Catalog": {
@@ -273,10 +265,7 @@
     },
     "CatalogConfig": {
       "type": "object",
-      "required": [
-        "name",
-        "path"
-      ],
+      "required": ["name", "path"],
       "properties": {
         "name": {
           "type": "string",
@@ -311,12 +300,7 @@
         },
         "op": {
           "type": "string",
-          "enum": [
-            "get",
-            "set",
-            "delete",
-            "dispose"
-          ],
+          "enum": ["get", "set", "delete", "dispose"],
           "description": "The operation to apply."
         },
         "path": {
@@ -344,10 +328,7 @@
         },
         "expect_type": {
           "type": "string",
-          "enum": [
-            "list",
-            "object"
-          ],
+          "enum": ["list", "object"],
           "description": "Structural type the path is expected to hold. Only meaningful for get."
         },
         "expect_values": {
@@ -394,11 +375,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "action",
-        "args",
-        "expected_file"
-      ]
+      "required": ["action", "args", "expected_file"]
     },
     "CoreSyntaxTest": {
       "type": "object",
@@ -413,11 +390,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "action",
-        "args",
-        "expected_file"
-      ]
+      "required": ["action", "args", "expected_file"]
     },
     "FromCatalogTest": {
       "type": "object",
@@ -432,11 +405,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "action",
-        "args",
-        "expected_file"
-      ]
+      "required": ["action", "args", "expected_file"]
     },
     "SkillSetTest": {
       "type": "object",
@@ -454,11 +423,7 @@
           }
         }
       },
-      "required": [
-        "action",
-        "args",
-        "expected_skills"
-      ]
+      "required": ["action", "args", "expected_skills"]
     },
     "ExpectError": {
       "description": "Expected error specification (error message string, regex, or structured error object).",

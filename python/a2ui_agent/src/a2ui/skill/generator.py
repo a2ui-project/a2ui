@@ -98,7 +98,9 @@ class SkillGenerator:
         skill_name = name or f"a2ui-{clean_name}"
         prompt_gen = self.fmt.prompt_generator
 
-        cat_body = prompt_gen.generate_catalog_instructions(catalog=target_catalog)
+        cat_body = (
+            prompt_gen.generate_catalog_instructions(catalog=target_catalog) or ""
+        )
         if include_examples:
             ex = prompt_gen.generate_examples(catalog=target_catalog)
             if ex:
@@ -124,7 +126,7 @@ class SkillGenerator:
     ) -> Skill:
         """Compiles core syntax rules for an inference format into a base core skill."""
         prompt_gen = self.fmt.prompt_generator
-        base_rules = prompt_gen.generate_base_rules()
+        base_rules = prompt_gen.generate_base_rules() or ""
         desc = (
             description
             or "Core A2UI protocol instructions and syntax rules for UI generation."
