@@ -47,10 +47,10 @@ yarn eval --model=<model_name> --prompt=<prompt_name>
 
 ### Example
 
-To run the test with the `gemini-2.5-flash-lite` model and the `loginForm` prompt, use the following command:
+To run the test with the `gemini-flash-lite-latest` model and the `loginForm` prompt, use the following command:
 
 ```bash
-yarn eval --model=gemini-2.5-flash-lite --prompt=loginForm
+yarn eval --model=gemini-flash-lite-latest --prompt=loginForm
 ```
 
 ## Controlling Output

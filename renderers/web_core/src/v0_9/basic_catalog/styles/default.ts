@@ -128,8 +128,6 @@ function getDefaultStyleSheet(): CSSStyleSheet {
  * Users may redefine the values of the CSS variables exposed in the default
  * stylesheet above (and the specific ones exposed by each basic catalog
  * package) to customize the appearance of the items of the basic catalog.
- *
- * @internal
  */
 export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot) {
   if (typeof document === 'undefined') return;
@@ -205,8 +203,6 @@ export function computeColorVariant(type: 'hover', options: ColorVariantHoverOpt
  * @param type The type of variant to compute ('light', 'dark', 'hover').
  * @param options Options containing variable names, percentages, and optional mix color.
  * @returns The CSS formula string.
- *
- * @internal
  */
 export function computeColorVariant(
   type: 'light' | 'dark' | 'hover',
