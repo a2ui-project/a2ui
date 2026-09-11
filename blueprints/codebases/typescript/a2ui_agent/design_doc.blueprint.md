@@ -1,12 +1,12 @@
 ---
 associated_module: a2ui_agent
-codebase_path: typescript/agent
+codebase_path: typescript/a2ui_agent
 ---
 
 # **TypeScript Agent SDK Codebase Blueprint**
 
 ## **Overview**
-This codebase implements the `a2ui_agent` module blueprint for Node.js and TypeScript environments. The package is named `@a2ui/agent` and resides in `typescript/agent`. 
+This codebase implements the `a2ui_agent` module blueprint for Node.js and TypeScript environments. The package is named `@a2ui/agent` and resides in `typescript/a2ui_agent`. 
 
 The SDK provides catalog management, capability negotiation, prompt engineering, parsing, and payload validation for AI agents generating A2UI components.
 
@@ -20,7 +20,7 @@ This SDK heavily leverages the existing `@a2ui/web_core` package to prevent dupl
 ### **1. Package Structure**
 The directory layout mirrors the Python SDK while adopting TypeScript idioms:
 ```
-typescript/agent/
+typescript/a2ui_agent/
 ├── src/
 │   ├── processor/          # A2uiGenerator, A2uiRequestProcessor, CatalogConfig, Providers
 │   ├── inference_formats/  # Inference formats (Express)
@@ -116,9 +116,9 @@ We implement the `CatalogProvider` interface to ingest schema definitions:
 
 ## **Implementation Steps**
 
-*Note: During all implementation steps, we must ensure we are creating and maintaining the `typescript/agent/codebase.blueprint.md` file, tracking module compliance exactly as outlined in the `docs/proposals/spec_driven_development.md` guidelines.*
+*Note: During all implementation steps, we must ensure we are creating and maintaining the `typescript/a2ui_agent/codebase.blueprint.md` file, tracking module compliance exactly as outlined in the `docs/proposals/spec_driven_development.md` guidelines.*
 
-1. **Initialize Workspace**: Setup `typescript/agent` with `package.json` utilizing `wireit`, `eslint`, and `prettier` per A2UI repository standards. Link `@a2ui/web_core` as a workspace dependency.
+1. **Initialize Workspace**: Setup `typescript/a2ui_agent` with `package.json` utilizing `wireit`, `eslint`, and `prettier` per A2UI repository standards. Link `@a2ui/web_core` as a workspace dependency.
 2. **Base Contracts**: Define `CatalogTransformer`, `Parser`, `PromptGenerator`, and the response part structures (`TextPart`, `A2uiPart`).
 3. **Transformers**: Implement `ComponentPruningTransformer` and `FunctionPruningTransformer`. These transformers allow the agent to filter/prune down the catalog schema (e.g., dropping components or functions not needed for the current application) to save context tokens and simplify LLM prompts.
 4. **Express Format**: Implement `ExpressCompiler` and `ExpressParser`. Build the tokenizer and AST parser for the `<a2ui-express>` DSL.
