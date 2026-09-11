@@ -23,6 +23,7 @@ from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
 from a2ui.core.validation import RELAXED_VALIDATION
+from a2ui.core import A2uiValidationError
 
 if TYPE_CHECKING:
     from a2ui.schema.catalog import A2uiCatalog
@@ -57,6 +58,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                 MSG_TYPE_CREATE_SURFACE,
                 MSG_TYPE_UPDATE_COMPONENTS,
                 MSG_TYPE_UPDATE_DATA_MODEL,
+                MSG_TYPE_DELETE_SURFACE,
             )
         )
 
@@ -96,7 +98,15 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         if not isinstance(obj, dict):
             return False
 
-        # TODO: Leverage MessageProcessor to validate the json data.
+        if self._validator:
+            v = self._get_s2c_validator()
+            if v:
+                from jsonschema.exceptions import best_match
+
+                errors = list(v.iter_errors(obj))
+                if errors:
+                    err = best_match(errors) or errors[0]
+                    raise A2uiValidationError(f'Validation failed: {err.message}')
 
         # Update state based on the message content
         surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)
@@ -117,6 +127,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
             val = obj[MSG_TYPE_CREATE_SURFACE]
             if isinstance(val, dict):
                 self.root_id = val.get('root', self.root_id or DEFAULT_ROOT_ID)
+                self._record_inline_components(sid, val.get('components'))
             self._buffered_start_message = obj
 
             # Yield createSurface immediately when it completes
@@ -229,19 +240,33 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                             # Do NOT update _yielded_data_model here, let update_data_model do it when complete
                             # Wait! If we don't update it, will we over-yield it in the next chunk?
                             # Yes, we might. So we should update it or track it!
-                            # The base class updates it (line 644 approx). So we should update it too!
                             self._yielded_data_model.update(delta)
+
+    def _record_inline_components(self, sid: str, components: Any) -> None:
+        """Records inline components from createSurface as already yielded."""
+        if not isinstance(components, list):
+            return
+        seen_components = self._components_by_surface.setdefault(sid, {})
+        for comp in components:
+            if isinstance(comp, dict) and 'id' in comp:
+                cid = comp['id']
+                seen_components[cid] = comp
+                self._yielded_ids.setdefault(sid, set()).add(cid)
+                self._yielded_contents[(sid, cid)] = json.dumps(comp, sort_keys=True)
 
     def _construct_partial_message(
         self, processed_components: list[dict[str, Any]], active_msg_type: str
     ) -> dict[str, Any]:
-        """Constructs a partial message for v0.9 (updateComponents)."""
+        """Constructs a partial message for v0.9/v1.0 (updateComponents)."""
         payload: dict[str, Any] = {
             CATALOG_COMPONENTS_KEY: processed_components,
         }
         if self.surface_id:
             payload[SURFACE_ID_KEY] = self.surface_id
-        return {'version': 'v0.9', MSG_TYPE_UPDATE_COMPONENTS: payload}
+        version = getattr(self._catalog, 'version', None) or 'v0.9'
+        if not str(version).startswith('v'):
+            version = f'v{version}'
+        return {'version': version, MSG_TYPE_UPDATE_COMPONENTS: payload}
 
     @property
     def _yielded_surfaces_set(self) -> set[str]:

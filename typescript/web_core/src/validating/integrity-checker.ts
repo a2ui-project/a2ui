@@ -68,8 +68,6 @@ function* extractPointers(val: unknown, currentPath: string): Generator<[string,
     const obj = val as Record<string, unknown>;
     if ('componentId' in obj && typeof obj.componentId === 'string' && 'path' in obj) {
       yield [obj.componentId, `${currentPath}.componentId`];
-    } else if ('child' in obj && typeof obj.child === 'string') {
-      yield [obj.child, `${currentPath}.child`];
     } else {
       for (const [subKey, subVal] of Object.entries(obj)) {
         yield* extractPointers(subVal, `${currentPath}.${subKey}`);

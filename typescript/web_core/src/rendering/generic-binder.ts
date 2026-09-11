@@ -412,15 +412,74 @@ export class GenericBinder<T> {
     return bound.value;
   }
 
-  private resolveDeepSync(val: unknown): unknown {
+  /**
+   * Synchronously evaluates dynamic expressions within a nested object tree.
+   *
+   * Traverses objects and arrays, resolving JSON pointer paths and function calls
+   * against the current data context without creating persistent reactive subscriptions.
+   *
+   * @param val Raw value, nested object, or dynamic expression to evaluate.
+   * @param isActionRoot When true, preserves action wrappers (`functionCall`, `event`,
+   *   `call`, `name`) while resolving nested arguments/context, ensuring actions are
+   *   evaluated at invocation time rather than immediately flattened.
+   * @returns Evaluated data structure with dynamic expressions resolved.
+   */
+  private resolveDeepSync(val: unknown, isActionRoot = true): unknown {
     if (typeof val !== 'object' || val === null) return val;
+
+    if (isActionRoot) {
+      const obj = val as Record<string, unknown>;
+      if (
+        'functionCall' in obj &&
+        typeof obj.functionCall === 'object' &&
+        obj.functionCall !== null
+      ) {
+        const fc = obj.functionCall as Record<string, unknown>;
+        return {
+          functionCall: {
+            ...fc,
+            args: fc.args
+              ? (this.resolveDeepSync(fc.args, false) as Record<string, unknown>)
+              : undefined,
+          },
+        };
+      }
+      if ('event' in obj && typeof obj.event === 'object' && obj.event !== null) {
+        const ev = obj.event as Record<string, unknown>;
+        return {
+          event: {
+            ...ev,
+            context: ev.context
+              ? (this.resolveDeepSync(ev.context, false) as Record<string, unknown>)
+              : undefined,
+          },
+        };
+      }
+      if ('call' in obj) {
+        return {
+          ...obj,
+          args: obj.args
+            ? (this.resolveDeepSync(obj.args, false) as Record<string, unknown>)
+            : undefined,
+        };
+      }
+      if ('name' in obj) {
+        return {
+          ...obj,
+          context: obj.context
+            ? (this.resolveDeepSync(obj.context, false) as Record<string, unknown>)
+            : undefined,
+        };
+      }
+    }
+
     if ('path' in val || 'call' in val) {
       return this.context.dataContext.resolveDynamicValue(val);
     }
-    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item));
+    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, false));
     const res: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val)) {
-      res[k] = this.resolveDeepSync(v);
+      res[k] = this.resolveDeepSync(v, false);
     }
     return res;
   }

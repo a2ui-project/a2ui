@@ -106,3 +106,23 @@ def test_handles_parsing_paths_with_special_characters(parser):
 def test_returns_error_on_missing_colon_in_function_args(parser):
     with pytest.raises(ValueError, match="Expected ':'"):
         parser.parse_expression("add(a 10, b: 20)")
+
+
+def test_parses_valid_numeric_literals_including_trailing_point(parser):
+    assert parser.parse_expression("42") == 42
+    assert parser.parse_expression("-42") == -42
+    assert parser.parse_expression("+42") == 42
+    assert parser.parse_expression("3.14") == 3.14
+    assert parser.parse_expression("-0.5") == -0.5
+    assert parser.parse_expression("1e5") == 100000.0
+    assert parser.parse_expression("-2.5e-3") == -0.0025
+    assert parser.parse_expression("1.") == 1.0
+    assert parser.parse_expression("-42.") == -42.0
+    assert parser.parse_expression("+0.") == 0.0
+
+
+def test_rejects_numbers_with_multiple_decimal_dots(parser):
+    from a2ui.core.exceptions import A2uiExpressionError
+
+    with pytest.raises(A2uiExpressionError, match="Invalid number literal"):
+        parser.parse_expression("1.2.3")

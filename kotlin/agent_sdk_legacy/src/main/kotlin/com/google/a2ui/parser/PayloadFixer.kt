@@ -74,7 +74,18 @@ object PayloadFixer {
       }
     } catch (e: Exception) {
       logger.severe("Failed to parse JSON: ${e.message}")
-      throw A2uiParseException("Failed to parse JSON: ${e.message}", e)
+      val msg = e.message ?: ""
+      val hint =
+        if (
+          msg.contains("escape", ignoreCase = true) ||
+            msg.contains("Invalid escaped char", ignoreCase = true) ||
+            payload.contains(Regex("""\\[^"\\/bfnrtu]"""))
+        ) {
+          " - Help: Unescaped backslash found. In JSON strings, all backslashes must be escaped as '\\\\' (e.g. '\\\\approx', '\\\\alpha')."
+        } else {
+          ""
+        }
+      throw A2uiParseException("Failed to parse JSON: ${e.message}$hint", e)
     }
 
   /**

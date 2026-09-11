@@ -83,6 +83,20 @@ class MessageProcessorOptions:
     default_timeout_ms: float = 30000.0
 
 
+def _resolve_awaitable(res: Any) -> Any:
+    if not inspect.isawaitable(res):
+        return res
+    try:
+        loop = asyncio.get_running_loop()
+        return loop.run_until_complete(res)
+    except RuntimeError:
+
+        async def _run_coro() -> Any:
+            return await res
+
+        return asyncio.run(_run_coro())
+
+
 class MessageProcessor:
     """Core processor for handling A2UI messages, updating state, and executing operations."""
 
@@ -119,6 +133,12 @@ class MessageProcessor:
         callback: PendingAgentCallCallback,
     ) -> None:
         """Registers a pending callback for an outbound callAgentFunction invocation."""
+        if function_call_id in self._pending_agent_calls:
+            raise A2uiRpcError(
+                f"A call with functionCallId '{function_call_id}' is already pending.",
+                function_call_id=function_call_id,
+                code=RpcErrorCode.DUPLICATE.value,
+            )
         self._pending_agent_calls[function_call_id] = callback
 
     def register_pending_future(
@@ -420,21 +440,11 @@ class MessageProcessor:
             )
 
         try:
-            val = None
-            if hasattr(fn, "execute"):
-                res = fn.execute(op.args)
-                if inspect.isawaitable(res):
-                    try:
-                        loop = asyncio.get_running_loop()
-                        val = loop.run_until_complete(res)
-                    except RuntimeError:
-
-                        async def _run_coro() -> Any:
-                            return await res
-
-                        val = asyncio.run(_run_coro())
-                else:
-                    val = res
+            val = (
+                _resolve_awaitable(fn.execute(op.args))
+                if hasattr(fn, "execute")
+                else None
+            )
 
             resp = RendererFunctionResponseMessage(
                 version=cast(Any, version),

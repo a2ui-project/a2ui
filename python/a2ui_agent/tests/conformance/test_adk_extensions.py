@@ -79,3 +79,98 @@ def test_adk_extensions_conformance(name, test_case):
             err_contains = expect.get("errorContains")
             if err_contains:
                 assert err_contains in result["error"]
+
+    elif action == "convert_event":
+        # Handle Subagent Map or Event Converter
+        if "subagent" in args and "message" in args:
+            from a2ui.adk.orchestration.a2ui_subagent_map import (
+                A2uiSubagentMap,
+                SurfaceIdAlreadyExistsError,
+            )
+            from a2ui.a2a.parts import create_a2ui_part
+            from unittest.mock import AsyncMock, MagicMock
+            from google.adk.sessions.session import Session
+
+            subagent = args["subagent"]
+            state = args.get("state", {})
+            message = args["message"]
+
+            a2a_part = create_a2ui_part(message)
+
+            session_service = AsyncMock()
+            session = MagicMock(spec=Session)
+            session.state = dict(state)
+
+            expect_error = test_case.get("expectError")
+            if expect_error:
+                with pytest.raises(SurfaceIdAlreadyExistsError) as exc_info:
+                    asyncio.run(
+                        A2uiSubagentMap.update_from_server_event(
+                            a2a_part, subagent, session_service, session
+                        )
+                    )
+                msg = (
+                    expect_error.get("message", "")
+                    if isinstance(expect_error, dict)
+                    else expect_error
+                )
+                if msg:
+                    assert msg in str(exc_info.value)
+            else:
+                asyncio.run(
+                    A2uiSubagentMap.update_from_server_event(
+                        a2a_part, subagent, session_service, session
+                    )
+                )
+                expect = test_case["expect"]
+                if "stateDelta" in expect:
+                    session_service.append_event.assert_called_once()
+                    call_args = session_service.append_event.call_args[0]
+                    event = call_args[1]
+                    assert event.actions.state_delta == expect["stateDelta"]
+
+    elif action == "data_model":
+        from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+        import copy
+
+        subagent = args.get("subagent")
+        state = args.get("state", {})
+        client_data_model = copy.deepcopy(args.get("clientDataModel", {}))
+
+        asyncio.run(
+            A2uiSubagentMap.strip_unowned_surfaces_from_data_model(
+                subagent, client_data_model, state
+            )
+        )
+
+        expected = test_case["expect"]
+        if "clientDataModel" in expected:
+            assert client_data_model == expected["clientDataModel"]
+
+    elif action == "resolve_path":
+        from a2ui.extensions.file_resolve import (
+            FileResolver,
+            FileResolverSecurityError,
+        )
+
+        resolver = FileResolver()
+        file_info = args["fileInfo"]
+
+        expect_error = test_case.get("expectError")
+        if expect_error:
+            with pytest.raises((FileResolverSecurityError, Exception)) as exc_info:
+                asyncio.run(resolver.resolve_bytes(file_info))
+            msg = (
+                expect_error.get("message", "")
+                if isinstance(expect_error, dict)
+                else expect_error
+            )
+            if msg:
+                assert msg in str(exc_info.value)
+        else:
+            raw_bytes, detected_mime = asyncio.run(resolver.resolve_bytes(file_info))
+            expected = test_case["expect"]
+            if "text" in expected:
+                assert raw_bytes.decode("utf-8") == expected["text"]
+            if "mimeType" in expected:
+                assert detected_mime == expected["mimeType"]

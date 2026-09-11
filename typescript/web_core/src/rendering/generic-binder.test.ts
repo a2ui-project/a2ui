@@ -252,6 +252,114 @@ describe('GenericBinder Checkable Trait', () => {
     });
   });
 
+  it('should resolve functionCall ACTION binding and dispatch resolved payload without local execution', () => {
+    const {surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/order/id', 'ORD-987');
+    surface.dataModel.set('/order/total', 49.99);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_fc',
+      'Button',
+      {
+        onTap: {
+          functionCall: {
+            call: 'submitOrder',
+            args: {
+              orderId: {path: '/order/id'},
+              total: {path: '/order/total'},
+            },
+          },
+        },
+      },
+      surface.catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: {
+      name?: string;
+      sourceComponentId?: string;
+      context?: Record<string, unknown>;
+    } | null = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act as {
+        name?: string;
+        sourceComponentId?: string;
+        context?: Record<string, unknown>;
+      };
+    });
+
+    const context = new ComponentContext(surface, 'c5_fc');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    binder.snapshot.onTap?.();
+
+    assert.ok(dispatchedAction);
+    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'submitOrder');
+    assert.strictEqual(
+      (dispatchedAction as {sourceComponentId?: string})?.sourceComponentId,
+      'c5_fc',
+    );
+    assert.deepStrictEqual((dispatchedAction as {context?: Record<string, unknown>})?.context, {
+      orderId: 'ORD-987',
+      total: 49.99,
+    });
+  });
+
+  it('should resolve functionCall ACTION without args and not execute prematurely during binding', () => {
+    const {surface} = setupSurfaceAndMocks();
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_zero_arg',
+      'Button',
+      {
+        onTap: {
+          functionCall: {
+            call: 'refreshData',
+          },
+        },
+      },
+      surface.catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: {
+      name?: string;
+      sourceComponentId?: string;
+      context?: Record<string, unknown>;
+    } | null = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act as {
+        name?: string;
+        sourceComponentId?: string;
+        context?: Record<string, unknown>;
+      };
+    });
+
+    const context = new ComponentContext(surface, 'c5_zero_arg');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    // Binding must create action closure, not execute functionCall prematurely
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    assert.strictEqual(dispatchedAction, null);
+
+    binder.snapshot.onTap?.();
+    assert.ok(dispatchedAction);
+    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'refreshData');
+    assert.strictEqual(
+      (dispatchedAction as {sourceComponentId?: string})?.sourceComponentId,
+      'c5_zero_arg',
+    );
+  });
+
   it('should resolve STRUCTURAL ChildList bindings and update dynamically', async () => {
     const {surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/items', [{title: 'Item 1'}, {title: 'Item 2'}]);

@@ -692,3 +692,165 @@ def test_computed_catalog_schema():
     assert schema["$defs"]["anyFunction"] == {
         "oneOf": [{"$ref": "#/functions/openUrl"}],
     }
+
+
+def test_catalog_from_json_preserves_custom_defs():
+    """Verifies that custom $defs in raw JSON catalog schema are preserved in Catalog and catalog_schema."""
+    catalog_json = {
+        "catalogId": "https://a2ui.org/catalogs/custom",
+        "protocolVersion": "v1.0",
+        "$defs": {
+            "CustomType": {
+                "type": "string",
+                "enum": ["primary", "secondary"],
+            }
+        },
+        "components": {
+            "Badge": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Badge"},
+                    "variant": {"$ref": "#/$defs/CustomType"},
+                },
+                "required": ["component", "variant"],
+            }
+        },
+    }
+    cat = Catalog.from_json(catalog_json)
+    assert "CustomType" in cat.defs
+    assert cat.defs["CustomType"] == {
+        "type": "string",
+        "enum": ["primary", "secondary"],
+    }
+    schema = cat.catalog_schema
+    assert "$defs" in schema
+    assert "CustomType" in schema["$defs"]
+
+
+def test_payload_validator_bare_refs_self_contained():
+    """Verifies PayloadValidator validates components using in-memory bare refs without disk I/O or registry."""
+    catalog_json = {
+        "catalogId": "https://a2ui.org/catalogs/self_contained",
+        "protocolVersion": "v1.0",
+        "$defs": {
+            "StatusEnum": {
+                "type": "string",
+                "enum": ["active", "inactive"],
+            }
+        },
+        "components": {
+            "StatusBadge": {
+                "type": "object",
+                "properties": {
+                    "id": {"$ref": "#/$defs/ComponentId"},
+                    "component": {"const": "StatusBadge"},
+                    "status": {"$ref": "#/$defs/StatusEnum"},
+                },
+                "required": ["id", "component", "status"],
+            }
+        },
+    }
+    cat = Catalog.from_json(catalog_json)
+    validator = PayloadValidator(catalog=cat)
+
+    # Valid payload
+    errors = validator.validate_component(
+        {"id": "b1", "component": "StatusBadge", "status": "active"}
+    )
+    assert errors == []
+
+    # Invalid payload (violates enum in StatusEnum)
+    errors = validator.validate_component(
+        {"id": "b2", "component": "StatusBadge", "status": "unknown"}
+    )
+    assert len(errors) == 1
+    assert errors[0].code == "type_mismatch"
+
+
+def test_payload_validator_recursive_bare_refs():
+    """Verifies PayloadValidator validates nested / recursive bare refs in $defs."""
+    catalog_json = {
+        "catalogId": "https://a2ui.org/catalogs/recursive",
+        "protocolVersion": "v1.0",
+        "$defs": {
+            "TreeNode": {
+                "type": "object",
+                "properties": {
+                    "label": {"type": "string"},
+                    "children": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/TreeNode"},
+                    },
+                },
+                "required": ["label"],
+            }
+        },
+        "components": {
+            "TreeView": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "TreeView"},
+                    "root": {"$ref": "#/$defs/TreeNode"},
+                },
+                "required": ["id", "component", "root"],
+            }
+        },
+    }
+    cat = Catalog.from_json(catalog_json)
+    validator = PayloadValidator(catalog=cat)
+
+    # Valid recursive tree
+    valid_tree = {
+        "id": "t1",
+        "component": "TreeView",
+        "root": {
+            "label": "root",
+            "children": [{
+                "label": "child1",
+                "children": [{"label": "grandchild"}],
+            }],
+        },
+    }
+    errors = validator.validate_component(valid_tree)
+    assert errors == []
+
+    # Invalid recursive tree
+    invalid_tree = {
+        "id": "t2",
+        "component": "TreeView",
+        "root": {
+            "label": "root",
+            "children": [{"children": []}],  # missing 'label'
+        },
+    }
+    errors = validator.validate_component(invalid_tree)
+    assert len(errors) == 1
+    assert errors[0].code == "missing_field"
+
+
+def test_payload_validator_unresolvable_bare_ref_error():
+    """Verifies PayloadValidator gracefully handles unresolvable bare refs and records invalid_reference error."""
+    catalog_json = {
+        "catalogId": "https://a2ui.org/catalogs/broken_ref",
+        "protocolVersion": "v1.0",
+        "components": {
+            "BrokenComp": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "BrokenComp"},
+                    "field": {"$ref": "#/$defs/NonExistentType"},
+                },
+                "required": ["id", "component", "field"],
+            }
+        },
+    }
+    cat = Catalog.from_json(catalog_json)
+    validator = PayloadValidator(catalog=cat)
+
+    errors = validator.validate_component(
+        {"id": "c1", "component": "BrokenComp", "field": "val"}
+    )
+    assert len(errors) == 1
+    assert errors[0].code == "invalid_reference"

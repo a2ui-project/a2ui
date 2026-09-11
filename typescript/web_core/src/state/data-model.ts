@@ -206,6 +206,18 @@ export class DataModel {
   }
 
   /**
+   * Deletes the value at the specified JSON pointer path.
+   *
+   * If `path` is `'/'` or empty, resets the root data model to an empty object.
+   *
+   * @param path The JSON pointer path to remove.
+   * @returns This `DataModel` instance for chaining.
+   */
+  delete(path: string): this {
+    return this.set(path, undefined);
+  }
+
+  /**
    * Resolves a relative path against a base context path.
    *
    * @param path The path to resolve.

@@ -271,7 +271,7 @@
           type: object
           properties:
             child:
-              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+              $ref: "#/$defs/ComponentId"
   messages:
     - version: "v0.9"
       createSurface:
@@ -299,7 +299,7 @@
           type: object
           properties:
             child:
-              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+              $ref: "#/$defs/ComponentId"
           required:
             - component
             - child
@@ -333,7 +333,7 @@
           type: object
           properties:
             child:
-              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+              $ref: "#/$defs/ComponentId"
           required:
             - component
             - child
@@ -370,7 +370,7 @@
           type: object
           properties:
             child:
-              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+              $ref: "#/$defs/ComponentId"
           required:
             - component
             - child
@@ -401,7 +401,7 @@
           type: object
           properties:
             child:
-              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+              $ref: "#/$defs/ComponentId"
           required:
             - component
             - child
@@ -432,7 +432,7 @@
           type: object
           properties:
             child:
-              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+              $ref: "#/$defs/ComponentId"
           required:
             - component
             - child

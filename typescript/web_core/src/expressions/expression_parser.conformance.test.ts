@@ -81,6 +81,10 @@ describe('expression parser conformance', () => {
   });
 
   for (const testCase of cases) {
+    if ((testCase as any).action && (testCase as any).action !== 'parse_expression_template') {
+      continue;
+    }
+
     it(testCase.name, () => {
       if (testCase.expect_error) {
         const {category, message} = testCase.expect_error;

@@ -156,3 +156,54 @@
     surfaces:
       s1:
         dataModel: {}
+
+- name: test_data_deletion_array_index_preservation
+  description: Verifies deleting array element via value=null preserves outer array length and structure with null.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              items: ["a", "b", "c"]
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/items/1"
+            value: null
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          items: ["a", null, "c"]
+
+- name: test_data_deletion_root_replacement
+  description: Verifies updating root path / with value=null resets data model to empty object.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              user:
+                name: "Alice"
+              count: 42
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/"
+            value: null
+  expect:
+    surfaces:
+      s1:
+        dataModel: {}

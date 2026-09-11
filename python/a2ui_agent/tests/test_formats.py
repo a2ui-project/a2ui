@@ -243,3 +243,22 @@ def test_decompiler_delegation(test_catalog):
     # Verify empty pruned components and messages fallback
     assert test_catalog._with_pruned_components([]) is test_catalog
     assert test_catalog._with_pruned_messages([]) is test_catalog
+
+
+def test_direct_json_stream_parser_record_inline_components_surface_id(
+    test_catalog,
+):
+    from a2ui.inference_formats.direct_json.streaming_v09 import (
+        DirectJsonStreamParserV09,
+    )
+
+    parser = DirectJsonStreamParserV09(catalog=test_catalog)
+    parser.surface_id = "main_surface"
+    parser._record_inline_components(
+        "custom_surface", [{"id": "c1", "component": "Text"}]
+    )
+
+    assert "c1" in parser._components_by_surface.get("custom_surface", {})
+    assert "c1" in parser._yielded_ids.get("custom_surface", set())
+    assert ("custom_surface", "c1") in parser._yielded_contents
+    assert "c1" not in parser._components_by_surface.get("main_surface", {})

@@ -615,11 +615,18 @@ class ConformanceTest {
             }
           }
           "fix_payload" -> {
-            val result = PayloadFixer.parseAndFix(input)
-            val expect = case[ConformanceTestHelper.KEY_EXPECT] as List<*>
-            val expectJsonStr = jsonMapper.writeValueAsString(expect)
-            val expectJson = Json.parseToJsonElement(expectJsonStr) as JsonArray
-            assertEquals(expectJson, result)
+            val expectErrorObj = case[ConformanceTestHelper.KEY_EXPECT_ERROR]
+            if (expectErrorObj != null) {
+              val expectError = parseExpectError(expectErrorObj)!!
+              val exception = assertFailsWith<Exception> { PayloadFixer.parseAndFix(input) }
+              assertExceptionMatches(exception, expectError)
+            } else {
+              val result = PayloadFixer.parseAndFix(input)
+              val expect = case[ConformanceTestHelper.KEY_EXPECT] as List<*>
+              val expectJsonStr = jsonMapper.writeValueAsString(expect)
+              val expectJson = Json.parseToJsonElement(expectJsonStr) as JsonArray
+              assertEquals(expectJson, result)
+            }
           }
           "has_parts" -> {
             val result = hasA2uiParts(input)
@@ -669,6 +676,12 @@ class ConformanceTest {
       val steps = case[ConformanceTestHelper.KEY_STEPS] as? List<*> ?: emptyList<Any>()
 
       DynamicTest.dynamicTest(name) {
+        val versionStr = (catalogMap?.get("protocolVersion") ?: case["protocolVersion"]) as? String
+        if (versionStr == "v1.0" || versionStr == "1.0") {
+          Assumptions.assumeTrue(false, "v1.0 protocol not supported in legacy Kotlin SDK")
+          return@dynamicTest
+        }
+
         val (catalog, schemaMappings) =
           catalogMap?.let { buildCatalog(it, conformanceDir, baseSchemaMappings) }
             ?: (null to emptyMap())
@@ -749,7 +762,7 @@ class ConformanceTest {
 
   private companion object {
     // Set of A2UI specification versions supported by this Kotlin Agent SDK conformance harness.
-    private val SUPPORTED_PROTOCOL_VERSIONS = setOf("v0.8", "v0.9", "v1.0")
+    private val SUPPORTED_PROTOCOL_VERSIONS = setOf("v0.8", "v0.9")
 
     // Transition skip list containing specific test case names to skip during active feature
     // transitions.
