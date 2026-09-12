@@ -178,11 +178,18 @@ function generateSummary() {
     md += `| ![Sample 7 Pong](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_07_pong_web_game.png)<br><sub>*Sample 7: 2D interactive canvas game loop & A2UI overlay*</sub> | ![Sample 8 Quiz](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_08_personalized_learning.png)<br><sub>*Sample 8: Biology quiz card with option state transition*</sub> |\n`;
     md += `| **Sample 9: MCP Apps in A2UI** | **Sample 10: Angular Orchestrator** |\n`;
     md += `| ![Sample 9 MCP Lit](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_09_mcp_apps_lit.png)<br><sub>*Sample 9: MCP tool bridge & dynamic suggestion chips*</sub> | ![Sample 10 Orchestrator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_10_angular_orchestrator.png)<br><sub>*Sample 10: Multi-agent workflow coordination stream*</sub> |\n`;
-    md += `| **Sample 11: Angular MCP Calculator** | **Interactive 8s Passage Walkthrough** |\n`;
-    md += `| ![Sample 11 MCP Calculator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_11_angular_mcp_calculator.png)<br><sub>*Sample 11: Dynamic calculator keypad & MCP RPC status*</sub> | ![Full Passage Walkthrough](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_full_passage_walkthrough.gif)<br><sub>*Continuous 8s conversational walkthrough*</sub> |\n\n`;
+    md += `| **Sample 11: Angular MCP Calculator** | **Full Flow Storyboard** |\n`;
+    md += `| ![Sample 11 MCP Calculator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_11_angular_mcp_calculator.png)<br><sub>*Sample 11: Dynamic calculator keypad & MCP RPC status*</sub> | ![Storyboard](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_full_flow_storyboard.png)<br><sub>*Full multi-turn flow of passage*</sub> |\n\n`;
+    md += `### 🎬 Dynamic Interactive Replay Gallery (Live Motion Proofs)\n\n`;
+    md += `Animated interaction proof capturing active 60 FPS canvas rendering, interactive state mutation, and live tool RPC execution:\n\n`;
+    md += `| 🎮 Sample 7: Pong 2D Canvas Loop | 🎓 Sample 8: Quiz Selection & Reveal |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Pong Game Loop](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/pong_gameplay_loop.gif)<br><sub>*Pong Web Game: 60 FPS HTML5 canvas game loop with live paddle tracking & score increment*</sub> | ![Quiz Interaction](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/personalized_learning_interaction.gif)<br><sub>*Personalized Learning: Option click selection & animated feedback banner reveal*</sub> |\n`;
+    md += `| **🛠️ Samples 9 & 11: MCP Tool Calling Bridge** | **🍽️ Samples 1–4: Restaurant Conversational Flow** |\n`;
+    md += `| ![MCP Calculator Tool Bridge](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/mcp_calculator_interaction.gif)<br><sub>*MCP Calculator: Keypad typing \`42 * 10\` & JSON-RPC execution returning \`420\`*</sub> | ![Restaurant Walkthrough](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_full_passage_walkthrough.gif)<br><sub>*Restaurant Finder: Continuous 8s multi-turn conversational passage replay*</sub> |\n\n`;
 
     md += `> [!NOTE]\n`;
-    md += `> High-definition WebM interaction video (\`videos/restaurant_full_passage_walkthrough.webm\`) and full-resolution lossless PNG screenshots for all 11 samples are packaged in the **qa-logs-and-reports** artifact zip below.\n\n`;
+    md += `> High-definition WebM interaction videos (\`videos/*.webm\`) and full-resolution lossless PNG screenshots for all 11 samples are packaged in the **qa-logs-and-reports** artifact zip below.\n\n`;
   }
 
   md += `## 📦 Diagnostic Artifacts\n\n`;

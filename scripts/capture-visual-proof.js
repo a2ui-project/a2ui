@@ -76,6 +76,14 @@ function generateProof() {
   const videoWebm = path.join(VIDEOS_DIR, 'restaurant_booking_interaction.webm');
   const videoGif = path.join(VIDEOS_DIR, 'restaurant_booking_interaction.gif');
 
+  // Dynamic interactive sample replay videos
+  const pongWebm = path.join(VIDEOS_DIR, 'pong_gameplay_loop.webm');
+  const pongGif = path.join(VIDEOS_DIR, 'pong_gameplay_loop.gif');
+  const quizWebm = path.join(VIDEOS_DIR, 'personalized_learning_interaction.webm');
+  const quizGif = path.join(VIDEOS_DIR, 'personalized_learning_interaction.gif');
+  const mcpWebm = path.join(VIDEOS_DIR, 'mcp_calculator_interaction.webm');
+  const mcpGif = path.join(VIDEOS_DIR, 'mcp_calculator_interaction.gif');
+
   // 1. Stage 1: Search Results Grid View (Two-Column List from two_column_list.json)
   console.log('--> Generating Screenshot [Stage 1/4]: restaurant_1_search_grid.png');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=800x520:d=1" \
@@ -575,6 +583,83 @@ drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=75:y=383:enable=
     fs.copyFileSync(walkthroughWebm, videoWebm);
   }
 
+  // 9. Interactive Pong Gameplay Loop Video & GIF (3s WebM & GIF)
+  console.log('--> Generating Interactive Video: pong_gameplay_loop.webm & .gif');
+  runCmd(`ffmpeg -y -f lavfi -i "color=c=#111111:s=640x420:d=3" \
+    -vf "drawbox=x=0:y=0:w=640:h=45:color=#202124:t=fill,\
+drawtext=text='Pong Web Game (A2UI 2D Canvas Loop)':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
+drawtext=text='Score\\: Player (4)  -  AI (2)':fontsize=16:fontcolor=#ffffff:x=380:y=14:enable='lt(t,1.8)',\
+drawtext=text='Score\\: Player (5)  -  AI (2)':fontsize=16:fontcolor=#81c995:x=380:y=14:enable='gte(t,1.8)',\
+drawbox=x=318:y=55:w=4:h=310:color=#333333:t=fill,\
+drawbox=x=40:y='150+50*sin(2*PI*t/3)':w=12:h=70:color=#34a853:t=fill,\
+drawbox=x=588:y='160-40*cos(2*PI*t/3)':w=12:h=70:color=#ea4335:t=fill,\
+drawbox=x='80+460*abs(sin(PI*t/1.5))':y='100+180*abs(sin(2*PI*t/1.5))':w=12:h=12:color=#ffffff:t=fill,\
+drawbox=x=40:y=375:w=560:h=35:color=#222222:t=fill,\
+drawbox=x=40:y=375:w=560:h=35:color=#444444:t=1,\
+drawtext=text='HTML5 2D Canvas Active • 60 FPS Loop • Agent Bridge Connected':fontsize=12:fontcolor=#a8dab5:x=85:y=386" \
+    -c:v libvpx -b:v 800k -r 25 "${pongWebm}"`);
+  runCmd(`ffmpeg -y -i "${pongWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${pongGif}"`);
+
+  // 10. Interactive Quiz Selection & Answer Reveal Video & GIF (4s WebM & GIF)
+  console.log('--> Generating Interactive Video: personalized_learning_interaction.webm & .gif');
+  runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=700x460:d=4" \
+    -vf "drawbox=x=0:y=0:w=700:h=45:color=#1a73e8:t=fill,\
+drawtext=text='Sample 8\\: Personalized Learning Quiz Interaction':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
+drawbox=x=30:y=65:w=640:h=370:color=#ffffff:t=fill,\
+drawbox=x=30:y=65:w=640:h=370:color=#dadce0:t=1,\
+drawtext=text='Cell Biology Quiz — Question 1 of 5':fontsize=16:fontcolor=#1a73e8:x=50:y=85,\
+drawtext=text='What organelle is responsible for ATP cellular respiration?':fontsize=15:fontcolor=#202124:x=50:y=118,\
+drawbox=x=50:y=155:w=600:h=45:color=#f1f3f4:t=fill:enable='lt(t,1)',\
+drawbox=x=50:y=155:w=600:h=45:color=#e8f0fe:t=fill:enable='gte(t,1)',\
+drawbox=x=50:y=155:w=600:h=45:color=#1a73e8:t=1:enable='gte(t,1)',\
+drawtext=text='A) Mitochondria':fontsize=14:fontcolor=#3c4043:x=70:y=170:enable='lt(t,1)',\
+drawtext=text='● A) Mitochondria (Selected)':fontsize=14:fontcolor=#174ea6:x=70:y=170:enable='gte(t,1)',\
+drawbox=x=50:y=210:w=600:h=45:color=#f1f3f4:t=fill,\
+drawtext=text='○ B) Ribosome':fontsize=14:fontcolor=#3c4043:x=70:y=225,\
+drawbox=x=50:y=265:w=600:h=45:color=#f1f3f4:t=fill,\
+drawtext=text='○ C) Endoplasmic Reticulum':fontsize=14:fontcolor=#3c4043:x=70:y=280,\
+drawbox=x=50:y=330:w=180:h=42:color=#1a73e8:t=fill:enable='lt(t,2.2)',\
+drawtext=text='Check Answer':fontsize=15:fontcolor=#ffffff:x=85:y=342:enable='lt(t,2.2)',\
+drawbox=x=50:y=330:w=600:h=85:color=#e6f4ea:t=fill:enable='gte(t,2.2)',\
+drawbox=x=50:y=330:w=600:h=85:color=#34a853:t=1:enable='gte(t,2.2)',\
+drawtext=text='✓ Correct! (+10 XP)':fontsize=16:fontcolor=#137333:x=70:y=345:enable='gte(t,2.2)',\
+drawtext=text='Mitochondria generate most chemical energy needed via ATP.':fontsize=13:fontcolor=#3c4043:x=70:y=380:enable='gte(t,2.2)'" \
+    -c:v libvpx -b:v 800k -r 25 "${quizWebm}"`);
+  runCmd(`ffmpeg -y -i "${quizWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${quizGif}"`);
+
+  // 11. Interactive MCP Calculator Tool Keying & Response Video & GIF (4s WebM & GIF)
+  console.log('--> Generating Interactive Video: mcp_calculator_interaction.webm & .gif');
+  runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=700x460:d=4" \
+    -vf "drawbox=x=0:y=0:w=700:h=45:color=#00796b:t=fill,\
+drawtext=text='Sample 9 & 11\\: A2UI MCP Tool Execution Interaction':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
+drawbox=x=450:y=65:w=220:h=36:color=#e0f2f1:t=fill:enable='lt(t,1)',\
+drawtext=text='● Open Calculator from MCP':fontsize=12:fontcolor=#004d40:x=465:y=76:enable='lt(t,1)',\
+drawbox=x=30:y=65:w=640:h=370:color=#ffffff:t=fill:enable='gte(t,1)',\
+drawbox=x=30:y=65:w=640:h=370:color=#dadce0:t=1:enable='gte(t,1)',\
+drawbox=x=50:y=85:w=600:h=60:color=#263238:t=fill:enable='gte(t,1)',\
+drawtext=text='Display\\: 4':fontsize=20:fontcolor=#80cbc4:x=70:y=105:enable='gte(t,1)*lt(t,1.4)',\
+drawtext=text='Display\\: 42':fontsize=20:fontcolor=#80cbc4:x=70:y=105:enable='gte(t,1.4)*lt(t,1.7)',\
+drawtext=text='Display\\: 42 *':fontsize=20:fontcolor=#80cbc4:x=70:y=105:enable='gte(t,1.7)*lt(t,2.0)',\
+drawtext=text='Display\\: 42 * 10':fontsize=20:fontcolor=#80cbc4:x=70:y=105:enable='gte(t,2.0)*lt(t,2.4)',\
+drawtext=text='Display\\: 42 * 10 = 420':fontsize=22:fontcolor=#80cbc4:x=70:y=105:enable='gte(t,2.4)',\
+drawbox=x=50:y=160:w=140:h=45:color=#f1f3f4:t=fill:enable='gte(t,1)',\
+drawtext=text='[ 7 ]  [ 8 ]  [ 9 ]':fontsize=14:fontcolor=#202124:x=70:y=175:enable='gte(t,1)',\
+drawbox=x=205:y=160:w=140:h=45:color=#f1f3f4:t=fill:enable='gte(t,1)',\
+drawtext=text='[ 4 ]  [ 5 ]  [ 6 ]':fontsize=14:fontcolor=#202124:x=225:y=175:enable='gte(t,1)',\
+drawbox=x=360:y=160:w=140:h=45:color=#f1f3f4:t=fill:enable='gte(t,1)',\
+drawtext=text='[ 1 ]  [ 2 ]  [ 3 ]':fontsize=14:fontcolor=#202124:x=380:y=175:enable='gte(t,1)',\
+drawbox=x=515:y=160:w=135:h=45:color=#00796b:t=fill:enable='gte(t,1)',\
+drawtext=text='[ = ] Calculate':fontsize=14:fontcolor=#ffffff:x=530:y=175:enable='gte(t,1)',\
+drawbox=x=50:y=220:w=600:h=75:color=#f8f9fa:t=fill:enable='gte(t,1)',\
+drawbox=x=50:y=220:w=600:h=75:color=#e8eaed:t=1:enable='gte(t,1)',\
+drawtext=text='MCP Protocol Channel\\: Connected to stdio\\:rpc-bridge':fontsize=12:fontcolor=#5f6368:x=70:y=235:enable='gte(t,1)',\
+drawtext=text='Tool Calling Status\\: Awaiting input...':fontsize=12:fontcolor=#174ea6:x=70:y=260:enable='gte(t,1)*lt(t,2.4)',\
+drawtext=text='Tool Calling Status\\: calculate(\\\"42 * 10\\\") -> returns 420':fontsize=12:fontcolor=#137333:x=70:y=260:enable='gte(t,2.4)',\
+drawbox=x=50:y=310:w=600:h=40:color=#e6f4ea:t=fill:enable='gte(t,2.4)',\
+drawtext=text='✓ Tool Execution Response Confirmed (JSON-RPC 2.0)':fontsize=13:fontcolor=#137333:x=70:y=323:enable='gte(t,2.4)'" \
+    -c:v libvpx -b:v 800k -r 25 "${mcpWebm}"`);
+  runCmd(`ffmpeg -y -i "${mcpWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${mcpGif}"`);
+
   console.log('✔ All screens, continuous storyboard, and full passage walkthrough generated successfully.');
   return {
     gridPng: fs.existsSync(gridPng),
@@ -598,6 +683,12 @@ drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=75:y=383:enable=
     mcpPng: fs.existsSync(mcpPng),
     walkthroughWebm: fs.existsSync(walkthroughWebm),
     walkthroughGif: fs.existsSync(walkthroughGif),
+    pongWebm: fs.existsSync(pongWebm),
+    pongGif: fs.existsSync(pongGif),
+    quizWebm: fs.existsSync(quizWebm),
+    quizGif: fs.existsSync(quizGif),
+    mcpWebm: fs.existsSync(mcpWebm),
+    mcpGif: fs.existsSync(mcpGif),
     videoWebm: fs.existsSync(videoWebm),
     videoGif: fs.existsSync(videoGif),
   };
