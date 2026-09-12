@@ -61,6 +61,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
       - name: Run E2E Component QA (test-case-1.js)
         id: run_tests
         continue-on-error: true
