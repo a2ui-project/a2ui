@@ -585,19 +585,24 @@ drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=75:y=383:enable=
 
   // 9. Interactive Pong Gameplay Loop Video & GIF (3s WebM & GIF)
   console.log('--> Generating Interactive Video: pong_gameplay_loop.webm & .gif');
-  runCmd(`ffmpeg -y -f lavfi -i "color=c=#111111:s=640x420:d=3" \
-    -vf "drawbox=x=0:y=0:w=640:h=45:color=#202124:t=fill,\
+  runCmd(`ffmpeg -y \
+    -f lavfi -i "color=c=#111111:s=640x420:d=3" \
+    -f lavfi -i "color=c=#34a853:s=12x75:d=3" \
+    -f lavfi -i "color=c=#ea4335:s=12x75:d=3" \
+    -f lavfi -i "color=c=#ffffff:s=14x14:d=3" \
+    -filter_complex "\
+[0:v]drawbox=x=0:y=0:w=640:h=45:color=#202124:t=fill,\
 drawtext=text='Pong Web Game (A2UI 2D Canvas Loop)':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
-drawtext=text='Score\\: Player (4)  -  AI (2)':fontsize=16:fontcolor=#ffffff:x=380:y=14:enable='lt(t,1.8)',\
-drawtext=text='Score\\: Player (5)  -  AI (2)':fontsize=16:fontcolor=#81c995:x=380:y=14:enable='gte(t,1.8)',\
+drawtext=text='Score\\: Player (4)  -  AI (2)':fontsize=16:fontcolor=#ffffff:x=380:y=14:enable='lt(t,1.5)',\
+drawtext=text='Score\\: Player (5)  -  AI (2)':fontsize=16:fontcolor=#81c995:x=380:y=14:enable='gte(t,1.5)',\
 drawbox=x=318:y=55:w=4:h=310:color=#333333:t=fill,\
-drawbox=x=40:y='150+50*sin(2*PI*t/3)':w=12:h=70:color=#34a853:t=fill,\
-drawbox=x=588:y='160-40*cos(2*PI*t/3)':w=12:h=70:color=#ea4335:t=fill,\
-drawbox=x='80+460*abs(sin(PI*t/1.5))':y='100+180*abs(sin(2*PI*t/1.5))':w=12:h=12:color=#ffffff:t=fill,\
 drawbox=x=40:y=375:w=560:h=35:color=#222222:t=fill,\
 drawbox=x=40:y=375:w=560:h=35:color=#444444:t=1,\
-drawtext=text='HTML5 2D Canvas Active • 60 FPS Loop • Agent Bridge Connected':fontsize=12:fontcolor=#a8dab5:x=85:y=386" \
-    -c:v libvpx -b:v 800k -r 25 "${pongWebm}"`);
+drawtext=text='HTML5 2D Canvas Active • 60 FPS Loop • Agent Bridge Connected':fontsize=12:fontcolor=#a8dab5:x=85:y=386[bg];\
+[bg][1:v]overlay=x=40:y='150+60*sin(2*PI*t/1.5)':eval=frame[p1];\
+[p1][2:v]overlay=x=588:y='160-50*cos(2*PI*t/1.5)':eval=frame[p2];\
+[p2][3:v]overlay=x='60+510*abs(sin(PI*t/1.5))':y='80+240*abs(sin(2*PI*t/1.5))':eval=frame[out]" \
+    -map "[out]" -c:v libvpx -b:v 800k -r 25 "${pongWebm}"`);
   runCmd(`ffmpeg -y -i "${pongWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${pongGif}"`);
 
   // 10. Interactive Quiz Selection & Answer Reveal Video & GIF (4s WebM & GIF)
