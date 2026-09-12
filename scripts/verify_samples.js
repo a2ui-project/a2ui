@@ -36,7 +36,7 @@ function log(msg) {
   logStream.write(line);
 }
 
-log('=== Starting E2E QA Test Suite (test-case-1.js) ===');
+log('=== Starting E2E QA Test Suite (verify_samples.js) ===');
 log(`Repository Root: ${REPO_ROOT}`);
 
 // Sample targets across the monorepo
@@ -229,7 +229,7 @@ async function runValidation() {
   log('--> Generating screenshots and interaction clips...');
   let visualProof = null;
   try {
-    const { generateProof } = require('./capture-visual-proof');
+    const { generateProof } = require('./capture_visual_proof');
     visualProof = generateProof();
     log('    ✔ Visual assets generated');
   } catch (err) {

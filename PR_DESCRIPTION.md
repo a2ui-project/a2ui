@@ -9,9 +9,9 @@ Adds an end-to-end QA verification workflow (`.github/workflows/e2e_qa_verificat
    - Job 2 (`fullstack-demos`): Matrix job that builds and verifies the 4 Getting Started demos (Lit, React, Angular, Flutter) against the Python agent backend.
    - Attaches screenshot and interaction clip artifacts and writes a summary report to `$GITHUB_STEP_SUMMARY`.
 2. **Test and reporting scripts**:
-   - `scripts/test-case-1.js`: Test runner checking static conformance, Lit client streaming guard, interactive actions, and quickstart prompts.
-   - `scripts/analyze-logs.js`: Parses test results and formats a concise markdown report.
-   - `scripts/capture-visual-proof.js`: Generates visual proof assets (sample screenshots, cross-framework comparison, and interaction recordings for Pong, Quiz, MCP Calculator, and the Restaurant Finder flow).
+   - `scripts/verify_samples.js`: Test runner checking static conformance, Lit client streaming guard, interactive actions, and quickstart prompts.
+   - `scripts/generate_qa_summary.js`: Parses test results and formats a concise markdown report.
+   - `scripts/capture_visual_proof.js`: Generates visual proof assets (sample screenshots, cross-framework comparison, and interaction recordings for Pong, Quiz, MCP Calculator, and the Restaurant Finder flow).
    - `scripts/test_demos.sh`: Helper script for building and verifying the 4 Getting Started demos locally or in CI.
 
 ### Why:

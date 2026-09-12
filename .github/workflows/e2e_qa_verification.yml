@@ -65,16 +65,16 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
-      - name: Run E2E Component QA (test-case-1.js)
+      - name: Run Sample QA (verify_samples.js)
         id: run_tests
         continue-on-error: true
         run: |
-          node scripts/test-case-1.js
+          node scripts/verify_samples.js
 
-      - name: Analyze Logs & Generate Summary (analyze-logs.js)
+      - name: Generate QA Summary (generate_qa_summary.js)
         if: always()
         run: |
-          node scripts/analyze-logs.js
+          node scripts/generate_qa_summary.js
 
       - name: Add Job Summary
         if: always()
