@@ -151,3 +151,5 @@ express_live_demo_output.txt
 # QA Logs and Reports
 logs/
 summary.md
+screenshots/
+videos/
