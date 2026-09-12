@@ -147,3 +147,9 @@ eval/iterative_format_optimizer/skills/inference-format-optimizer/logs/
 # VS Code workspaces
 *.code-workspace
 express_live_demo_output.txt
+
+# QA Logs and Reports
+logs/
+summary.md
+screenshots/
+videos/
