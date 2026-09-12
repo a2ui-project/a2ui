@@ -19,12 +19,12 @@ Verifying that changes do not break client renderers across the monorepo current
 
 ### Testing:
 - Tested locally on Linux.
-- Tested on fork (`rohityan/a2ui`) with all 5 workflow jobs passing:
-  - Component & Button QA (11 Samples): passed (44s)
-  - Verify Demo (flutter): passed (2m27s)
-  - Verify Demo (angular): passed (2m10s)
-  - Verify Demo (react): passed (1m43s)
-  - Verify Demo (lit): passed (3m19s)
+- Tested on fork (`rohityan/a2ui`) with all 5 workflow jobs passing ([Run #34682886291](https://github.com/rohityan/a2ui/actions/runs/34682886291)):
+  - Component & Button QA (11 Samples): passed (36s)
+  - Verify Demo (flutter): passed (2m19s)
+  - Verify Demo (react): passed (2m08s)
+  - Verify Demo (angular): passed (1m57s)
+  - Verify Demo (lit): passed (1m38s)
 
 ## Pre-launch Checklist
 
