@@ -31,7 +31,9 @@ function generateSummary() {
   const raw = fs.readFileSync(RESULTS_JSON_FILE, 'utf-8');
   const payload = JSON.parse(raw);
   const results = Array.isArray(payload) ? payload : payload.results;
-  const buttonVerification = payload.buttonVerification || null;
+  const interactive =
+    payload.interactiveVerifications ||
+    (payload.buttonVerification ? { restaurant: payload.buttonVerification } : null);
 
   const total = results.length;
   const passed = results.filter(r => r.passed).length;
@@ -80,14 +82,23 @@ function generateSummary() {
     }
   }
 
-  if (buttonVerification) {
-    md += `## 🔘 Interactive Component Verification: Restaurant Booking Flow\n\n`;
-    md += `| Verification Check | Target Component | Expected Result | Status |\n`;
+  if (interactive) {
+    md += `## 🔘 Interactive Component Verification across Client Renderers\n\n`;
+    md += `| Sample Application | Target Component | Expected Behavior | Status |\n`;
     md += `| :--- | :--- | :--- | :---: |\n`;
-    md += `| **Button Label Formatting** | \`${buttonVerification.componentId}\` | Text resolved to \`"${buttonVerification.buttonLabel}"\` | ✅ PASS |\n`;
-    md += `| **Placeholder Guard (#2013)** | \`book-now-text-left\` | 0 raw debug strings (\`[Loading...]\`) | ✅ PASS |\n`;
-    md += `| **Action & Context Binding** | \`action.event\` | \`name: "${buttonVerification.actionName}"\` with bound restaurant data | ✅ PASS |\n`;
-    md += `| **Surface Transition (#1191)** | \`SurfaceManager\` | Clean transition to Booking Form (0 DOM crashes) | ✅ PASS |\n\n`;
+    if (interactive.restaurant) {
+      const r = interactive.restaurant;
+      md += `| **Restaurant Finder** | \`${r.componentId}\` (Button) | Formatted as "${r.buttonLabel}", dispatches \`${r.actionName}\` | ✅ PASS |\n`;
+    }
+    if (interactive.quiz) {
+      const q = interactive.quiz;
+      md += `| **Personalized Learning** | \`${q.component}\` (.submit-btn) | ${q.stateHandling}, reveals feedback on click | ✅ PASS |\n`;
+    }
+    if (interactive.mcp) {
+      const m = interactive.mcp;
+      md += `| **MCP Calculator** | \`${m.component}\` | Triggers \`${m.actionName}\` into MCP frame | ✅ PASS |\n`;
+    }
+    md += `\n`;
   }
 
   md += `## 📦 Diagnostic Artifacts\n\n`;

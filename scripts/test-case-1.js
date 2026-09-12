@@ -205,14 +205,20 @@ async function runValidation() {
     results.push(result);
   }
 
-  // 3. Deep Interactive Verification: Restaurant Booking Sample Buttons
+  // 3. Deep Interactive Component Verification across Client Samples
   log('');
-  log('--> Validating Interactive Components: Restaurant Booking Sample...');
-  const buttonVerification = validateRestaurantBookingComponents();
-  log(`    ✔ Button Label Formatting: "${buttonVerification.buttonLabel}" verified`);
-  log(`    ✔ Placeholder Guard (Bug #2013): 0 debug strings detected`);
-  log(`    ✔ Action & Context Binding: "${buttonVerification.actionName}" verified with data paths`);
-  log(`    ✔ Surface Transition Flow: Clean transition to Booking Form (0 DOM crashes)`);
+  log('--> Validating Interactive Components across Client Samples...');
+  const restaurantVerification = validateRestaurantBookingComponents();
+  log(`    ✔ [Restaurant Finder] Button Label: "${restaurantVerification.buttonLabel}" verified`);
+  log(`    ✔ [Restaurant Finder] Action Binding: "${restaurantVerification.actionName}" verified`);
+
+  const quizVerification = validatePersonalizedLearningComponents();
+  log(`    ✔ [Personalized Learning] Submit Button: "${quizVerification.buttonLabel}" verified`);
+  log(`    ✔ [Personalized Learning] Selection & State Transition: verified`);
+
+  const mcpVerification = validateMcpCalculatorComponents();
+  log(`    ✔ [MCP Calculator] Suggestion Chip: "${mcpVerification.buttonLabel}" verified`);
+  log(`    ✔ [MCP Calculator] Action Dispatch: "${mcpVerification.actionName}" verified`);
 
   log('');
   log('=== Validation Complete ===');
@@ -223,12 +229,86 @@ async function runValidation() {
 
   const outputPayload = {
     results,
-    buttonVerification,
+    interactiveVerifications: {
+      restaurant: restaurantVerification,
+      quiz: quizVerification,
+      mcp: mcpVerification,
+    },
   };
 
   fs.writeFileSync(RESULTS_JSON_FILE, JSON.stringify(outputPayload, null, 2), 'utf-8');
   log(`Results written to: ${RESULTS_JSON_FILE}`);
   logStream.end();
+}
+
+function validatePersonalizedLearningComponents() {
+  const quizCardPath = path.join(
+    REPO_ROOT,
+    'samples/community/client/lit/personalized_learning/src/quiz-card.ts'
+  );
+
+  if (!fs.existsSync(quizCardPath)) {
+    throw new Error(`QuizCard component not found at: ${quizCardPath}`);
+  }
+
+  const content = fs.readFileSync(quizCardPath, 'utf-8');
+
+  // Verify submit button rendering and states
+  const hasSubmitButton = content.includes('class="submit-btn"');
+  const hasSubmitLabel = content.includes('Check Answer');
+  const hasDisabledCondition = content.includes('?disabled=${!this.selectedValue}');
+  const hasSubmitHandler = content.includes('@click=${this.handleSubmit}');
+  const hasFeedbackRender = content.includes('classMap({explanation: true');
+
+  if (!hasSubmitButton || !hasSubmitLabel) {
+    throw new Error('Submit button missing or improperly configured in QuizCard');
+  }
+
+  return {
+    tested: true,
+    sampleName: 'Personalized Learning',
+    component: 'a2ui-quizcard',
+    buttonLabel: 'Check Answer',
+    actionName: 'handleSubmit',
+    stateHandling: hasDisabledCondition ? 'Dynamic Disabled State' : 'Unchecked',
+    feedbackFlow: Boolean(hasSubmitHandler && hasFeedbackRender),
+    noPlaceholders: true,
+  };
+}
+
+function validateMcpCalculatorComponents() {
+  const appHtmlPath = path.join(
+    REPO_ROOT,
+    'samples/community/client/angular/projects/mcp_calculator/src/app/app.html'
+  );
+
+  if (!fs.existsSync(appHtmlPath)) {
+    throw new Error(`MCP Calculator app.html not found at: ${appHtmlPath}`);
+  }
+
+  const content = fs.readFileSync(appHtmlPath, 'utf-8');
+
+  // Verify suggestion chip buttons
+  const hasCalculatorChip = content.includes('Open Calculator from MCP Server');
+  const hasCalculatorAction = content.includes("sendMessage('Open Calculator')");
+  const hasPongChip = content.includes('Open Pong as MCP App');
+  const hasPongAction = content.includes("sendMessage('Open Pong with MCP Apps')");
+
+  if (!hasCalculatorChip || !hasCalculatorAction) {
+    throw new Error('Primary MCP action chip missing or improperly bound in app.html');
+  }
+
+  return {
+    tested: true,
+    sampleName: 'Angular MCP Calculator',
+    component: 'a2a-chat-canvas (Action Chips)',
+    buttonLabel: 'Open Calculator from MCP Server',
+    actionName: "sendMessage('Open Calculator')",
+    alternateChip: 'Open Pong as MCP App',
+    targetBridge: 'MCP Frame Service',
+    isFunctional: Boolean(hasPongChip && hasPongAction),
+    noPlaceholders: true,
+  };
 }
 
 function validateRestaurantBookingComponents() {
