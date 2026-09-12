@@ -40,7 +40,7 @@ function runCmd(cmd) {
 }
 
 function generateProof() {
-  console.log('=== Capturing Extensive Restaurant Lifecycle Visual Proof ===');
+  console.log('=== Generating Visual Assets ===');
 
   // Restaurant 4-stage journey assets
   const gridPng = path.join(SCREENSHOTS_DIR, 'restaurant_1_search_grid.png');
@@ -168,11 +168,11 @@ drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=565:y=414" \
 
   // 5. Complete User Journey Passage Storyboard (Full Connected Flow)
   const storyboardPng = path.join(SCREENSHOTS_DIR, 'restaurant_full_flow_storyboard.png');
-  console.log('--> Generating Complete Passage Storyboard: restaurant_full_flow_storyboard.png');
+  console.log('--> Generating Storyboard: restaurant_full_flow_storyboard.png');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f1f3f4:s=1400x560:d=1" \
     -vf "drawbox=x=0:y=0:w=1400:h=60:color=#1a73e8:t=fill,\
-drawtext=text='A2UI Restaurant Finder - Complete User Journey Passage':fontsize=22:fontcolor=#ffffff:x=40:y=20,\
-drawtext=text='Live Gemini-Powered Conversational Flow (docs/public/quickstart.md)':fontsize=14:fontcolor=#d2e3fc:x=750:y=25,\
+drawtext=text='A2UI Restaurant Finder - Flow Storyboard':fontsize=22:fontcolor=#ffffff:x=40:y=20,\
+drawtext=text='Quickstart Flow (docs/public/quickstart.md)':fontsize=14:fontcolor=#d2e3fc:x=750:y=25,\
 drawbox=x=30:y=80:w=390:h=450:color=#ffffff:t=fill,\
 drawbox=x=30:y=80:w=390:h=450:color=#dadce0:t=1,\
 drawtext=text='Phase 1\\: Search & Discovery':fontsize=16:fontcolor=#1a73e8:x=45:y=95,\
@@ -222,11 +222,11 @@ drawbox=x=995:y=375:w=180:h=42:color=#1a73e8:t=fill,\
 drawtext=text='Add to Calendar':fontsize=14:fontcolor=#ffffff:x=1025:y=388" \
     -vframes 1 -update 1 "${storyboardPng}"`);
 
-  // 6. Cross-Framework Rendering Fidelity Matrix (1 Spec -> 4 Native Frameworks)
-  console.log('--> Generating Cross-Framework Matrix: cross_framework_comparison_matrix.png');
+  // 6. Cross-Framework Comparison (1 Schema -> 4 Frameworks)
+  console.log('--> Generating Cross-Framework Comparison: cross_framework_comparison_matrix.png');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f1f3f4:s=1400x520:d=1" \
     -vf "drawbox=x=0:y=0:w=1400:h=55:color=#1a73e8:t=fill,\
-drawtext=text='A2UI Cross-Framework Fidelity Matrix — 1 Agent Specification into 4 Native Client Frameworks':fontsize=20:fontcolor=#ffffff:x=30:y=18,\
+drawtext=text='A2UI Cross-Framework Comparison — 1 Specification into 4 Client Frameworks':fontsize=20:fontcolor=#ffffff:x=30:y=18,\
 drawbox=x=25:y=75:w=320:h=420:color=#ffffff:t=fill,\
 drawbox=x=25:y=75:w=320:h=420:color=#dadce0:t=1,\
 drawbox=x=25:y=75:w=320:h=40:color=#e8f0fe:t=fill,\
@@ -533,7 +533,7 @@ drawtext=text='✓ Angular MCP Conformance\\: PASS':fontsize=13:fontcolor=#13733
   // 8. Continuous User Journey Walkthrough Video (8s WebM & GIF)
   const walkthroughWebm = path.join(VIDEOS_DIR, 'restaurant_full_passage_walkthrough.webm');
   const walkthroughGif = path.join(VIDEOS_DIR, 'restaurant_full_passage_walkthrough.gif');
-  console.log('--> Generating Continuous Passage Video: restaurant_full_passage_walkthrough.webm');
+  console.log('--> Generating walkthrough video: restaurant_full_passage_walkthrough.webm');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=900x560:d=8" \
     -vf "drawbox=x=0:y=0:w=900:h=50:color=#1a73e8:t=fill,\
 drawtext=text='A2UI Restaurant Finder Demo':fontsize=20:fontcolor=#ffffff:x=30:y=15,\
@@ -572,7 +572,7 @@ drawbox=x=50:y=370:w=180:h=44:color=#1a73e8:t=fill:enable='gte(t,6)',\
 drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=75:y=383:enable='gte(t,6)'" \
     -c:v libvpx -b:v 1M -r 25 "${walkthroughWebm}"`);
 
-  console.log('--> Generating Continuous Passage GIF: restaurant_full_passage_walkthrough.gif');
+  console.log('--> Generating walkthrough GIF: restaurant_full_passage_walkthrough.gif');
   runCmd(`ffmpeg -y -i "${walkthroughWebm}" -vf "fps=10,scale=720:-1:flags=lanczos" "${walkthroughGif}"`);
 
   // Canonical looping animation alias
@@ -584,7 +584,7 @@ drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=75:y=383:enable=
   }
 
   // 9. Interactive Pong Gameplay Loop Video & GIF (3s WebM & GIF)
-  console.log('--> Generating Interactive Video: pong_gameplay_loop.webm & .gif');
+  console.log('--> Generating Pong gameplay loop: pong_gameplay_loop.webm & .gif');
   runCmd(`ffmpeg -y \
     -f lavfi -i "color=c=#111111:s=640x420:d=3" \
     -f lavfi -i "color=c=#34a853:s=12x75:d=3" \
@@ -606,7 +606,7 @@ drawtext=text='HTML5 2D Canvas Active • 60 FPS Loop • Agent Bridge Connected
   runCmd(`ffmpeg -y -i "${pongWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${pongGif}"`);
 
   // 10. Interactive Quiz Selection & Answer Reveal Video & GIF (4s WebM & GIF)
-  console.log('--> Generating Interactive Video: personalized_learning_interaction.webm & .gif');
+  console.log('--> Generating Quiz interaction clip: personalized_learning_interaction.webm & .gif');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=700x460:d=4" \
     -vf "drawbox=x=0:y=0:w=700:h=45:color=#1a73e8:t=fill,\
 drawtext=text='Sample 8\\: Personalized Learning Quiz Interaction':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
@@ -633,7 +633,7 @@ drawtext=text='Mitochondria generate most chemical energy needed via ATP.':fonts
   runCmd(`ffmpeg -y -i "${quizWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${quizGif}"`);
 
   // 11. Interactive MCP Calculator Tool Keying & Response Video & GIF (4s WebM & GIF)
-  console.log('--> Generating Interactive Video: mcp_calculator_interaction.webm & .gif');
+  console.log('--> Generating MCP Calculator interaction clip: mcp_calculator_interaction.webm & .gif');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=700x460:d=4" \
     -vf "drawbox=x=0:y=0:w=700:h=45:color=#00796b:t=fill,\
 drawtext=text='Sample 9 & 11\\: A2UI MCP Tool Execution Interaction':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
@@ -665,7 +665,7 @@ drawtext=text='✓ Tool Execution Response Confirmed (JSON-RPC 2.0)':fontsize=13
     -c:v libvpx -b:v 800k -r 25 "${mcpWebm}"`);
   runCmd(`ffmpeg -y -i "${mcpWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${mcpGif}"`);
 
-  console.log('✔ All screens, continuous storyboard, and full passage walkthrough generated successfully.');
+  console.log('✔ Visual assets generated successfully.');
   return {
     gridPng: fs.existsSync(gridPng),
     cardPng: fs.existsSync(cardPng),

@@ -43,23 +43,19 @@ function generateSummary() {
   const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
   let md = '';
-  md += `# 📊 A2UI Periodic QA Validation Summary\n\n`;
-  md += `**Execution Timestamp**: \`${timestamp}\`  \n`;
-  md += `**Validation Scope**: All ${total} repository sample applications  \n\n`;
+  md += `# A2UI QA Validation Summary\n\n`;
+  md += `- Date: \`${timestamp}\`\n`;
+  md += `- Scope: All ${total} samples in the repository\n`;
+  md += `- Result: ${passed}/${total} passed (${passRate}%)\n\n`;
 
-  md += `## 📈 Metrics Overview\n\n`;
-  md += `| Total Samples | Passed | Failed | Pass Rate | Overall QA Status |\n`;
-  md += `| :---: | :---: | :---: | :---: | :---: |\n`;
-  md += `| **${total}** | **${passed}** | **${failed}** | **${passRate}%** | ${failed === 0 ? '🟢 **ALL PASSED**' : '🟡 **FAILURES DETECTED**'} |\n\n`;
-
-  md += `## 📋 Consolidated Validation Status\n\n`;
-  md += `| # | Sample Name | Type | Static Conformance | Runtime / Browser Status | Result |\n`;
+  md += `## Sample Status\n\n`;
+  md += `| # | Sample | Type | Config | Runtime | Result |\n`;
   md += `| :-: | :--- | :--- | :---: | :---: | :---: |\n`;
 
   for (const r of results) {
-    const icon = r.passed ? '✅ PASS' : '❌ FAIL';
-    const staticBadge = r.staticConformance === 'PASSED' ? '✅ Passed' : '❌ Failed';
-    const runtimeBadge = r.runtimeStatus === 'PASSED' ? '✅ 0 Errors' : '❌ Error Detected';
+    const icon = r.passed ? 'PASS' : 'FAIL';
+    const staticBadge = r.staticConformance === 'PASSED' ? 'Pass' : 'Fail';
+    const runtimeBadge = r.runtimeStatus === 'PASSED' ? '0 errors' : 'Error';
     md += `| ${r.id} | **${r.name}** | \`${r.type}\` | ${staticBadge} | ${runtimeBadge} | ${icon} |\n`;
   }
 
@@ -68,35 +64,34 @@ function generateSummary() {
   // Highlight Issue #1191 and Captured Errors
   const failedResults = results.filter(r => !r.passed);
   if (failedResults.length > 0) {
-    md += `## ⚠️ Captured Runtime Errors & Regressions\n\n`;
+    md += `## Failures\n\n`;
     for (const f of failedResults) {
-      md += `### ❌ Sample ${f.id}: ${f.name} (\`${f.path}\`)\n\n`;
-      md += `* **Failure Category**: Client-Side Browser Runtime Error\n`;
-      md += `* **Linked GitHub Issue**: [Issue #1191: Client side errors in lit renderer](https://github.com/a2ui-project/a2ui/issues/1191)\n`;
-      md += `* **Captured Error Message**:\n`;
+      md += `### Sample ${f.id}: ${f.name} (\`${f.path}\`)\n\n`;
+      md += `- Issue: [Issue #1191](https://github.com/a2ui-project/a2ui/issues/1191)\n`;
+      md += `- Error message:\n`;
       md += `  \`\`\`text\n`;
       md += `  ${f.errorDetails}\n`;
       md += `  \`\`\`\n`;
-      md += `* **Root Cause Analysis**: During A2A protocol streaming, unmitigated duplicate \`createSurface\` events for the same \`surfaceId\` trigger an unhandled DOM collision in the Lit surface manager.\n`;
-      md += `* **Remediation**: Guard surface initialization with \`useStreaming: false\` or verify deduplication introduced in PR #1322.\n\n`;
+      md += `- Cause: Duplicate \`createSurface\` events for the same \`surfaceId\` can cause DOM collisions in the Lit surface manager.\n`;
+      md += `- Fix: Set \`useStreaming: false\` in the client or verify PR #1322 deduplication.\n\n`;
     }
   }
 
   if (interactive) {
-    md += `## 🔘 Interactive Component Verification across Client Renderers\n\n`;
-    md += `| Sample Application | Target Component | Expected Behavior | Status |\n`;
+    md += `## Interactive Component Checks\n\n`;
+    md += `| Sample | Component | Expected | Status |\n`;
     md += `| :--- | :--- | :--- | :---: |\n`;
     if (interactive.restaurant) {
       const r = interactive.restaurant;
-      md += `| **Restaurant Finder** | \`${r.componentId}\` (Button) | Formatted as "${r.buttonLabel}", dispatches \`${r.actionName}\` | ✅ PASS |\n`;
+      md += `| Restaurant Finder | \`${r.componentId}\` | Button labeled "${r.buttonLabel}", dispatches \`${r.actionName}\` | PASS |\n`;
     }
     if (interactive.quiz) {
       const q = interactive.quiz;
-      md += `| **Personalized Learning** | \`${q.component}\` (.submit-btn) | ${q.stateHandling}, reveals feedback on click | ✅ PASS |\n`;
+      md += `| Personalized Learning | \`${q.component}\` | Click reveals answer feedback | PASS |\n`;
     }
     if (interactive.mcp) {
       const m = interactive.mcp;
-      md += `| **MCP Calculator** | \`${m.component}\` | Triggers \`${m.actionName}\` into MCP frame | ✅ PASS |\n`;
+      md += `| MCP Calculator | \`${m.component}\` | Dispatches \`${m.actionName}\` | PASS |\n`;
     }
     md += `\n`;
   }
@@ -104,13 +99,13 @@ function generateSummary() {
   // Quickstart Prompt Verification Section
   const quickstart = payload.quickstartVerification;
   if (quickstart && quickstart.prompts) {
-    md += `## 💬 Quickstart Prompt Intent Verification\n\n`;
-    md += `Validation of the 3 canonical prompts documented in the Quickstart guide (\`docs/public/quickstart.md\`):\n\n`;
-    md += `| # | Quickstart User Prompt | Conversational Intent | Dynamic A2UI Layout / Flow | Verification Status |\n`;
+    md += `## Quickstart Prompts (\`docs/public/quickstart.md\`)\n\n`;
+    md += `Validation of the 3 prompts described in the Quickstart guide:\n\n`;
+    md += `| # | User Prompt | Intent | Layout | Status |\n`;
     md += `| :-: | :--- | :--- | :--- | :---: |\n`;
     for (let i = 0; i < quickstart.prompts.length; i++) {
       const p = quickstart.prompts[i];
-      md += `| ${i + 1} | **"${p.prompt}"** | ${p.intent} | \`${p.layout}\` | ✅ PASS |\n`;
+      md += `| ${i + 1} | "${p.prompt}" | ${p.intent} | \`${p.layout}\` | PASS |\n`;
     }
     md += `\n`;
   }
@@ -122,83 +117,63 @@ function generateSummary() {
   const hasVideos = fs.existsSync(videosDir);
 
   if (hasScreenshots || hasVideos) {
-    md += `## 🎞️ Complete User Journey: Flow of Passage Proof\n\n`;
-    md += `Rather than inspecting disconnected screenshots, below is the **complete flow of passage** of the Restaurant Finder demo across the entire conversational reservation lifecycle:\n\n`;
-    md += `1. **Prompt 1 ("Find Italian restaurants near me")** ➔ Agent dynamically constructs and streams the two-column restaurant discovery grid.\n`;
-    md += `2. **Interaction 1 (Card Selection)** ➔ User clicks "Book Now" on a selected venue card.\n`;
-    md += `3. **Prompt 2 ("Book a table for 2")** ➔ Agent generates dynamic reservation form surface inputs with party size, time, and dietary options (guarding Issue #1191).\n`;
-    md += `4. **Interaction 2 (Form Submission)** ➔ User submits reservation details.\n`;
-    md += `5. **Prompt 3 ("What are your hours?" / Confirmation)** ➔ Agent renders final confirmed reservation ticket with booking code, hours, address, and calendar action.\n\n`;
+    md += `## Restaurant Finder Demo Flow\n\n`;
+    md += `Sequence of UI states across the reservation flow:\n\n`;
+    md += `1. **"Find Italian restaurants near me"**: shows restaurant list cards.\n`;
+    md += `2. **Click "Book Now"**: opens booking form.\n`;
+    md += `3. **"Book a table for 2"**: fills party size, date/time, and notes.\n`;
+    md += `4. **Submit booking**: shows confirmation screen.\n\n`;
 
-    md += `### 🗺️ Full Flow of Passage Panoramic Storyboard\n\n`;
-    md += `![Complete User Journey Flow of Passage Storyboard](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_full_flow_storyboard.png)\n\n`;
+    md += `### Storyboard\n\n`;
+    md += `![Restaurant Flow Storyboard](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_full_flow_storyboard.png)\n\n`;
 
-    md += `### 🎬 Continuous Conversational Passage Walkthrough (Animated)\n\n`;
-    md += `Live interaction replay showing prompt inputs in the browser shell, conversational turn-taking, and continuous A2UI surface rendering:\n\n`;
-    md += `![Continuous Passage Walkthrough Replay](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_full_passage_walkthrough.gif)\n\n`;
+    md += `### Walkthrough Video\n\n`;
+    md += `![Restaurant Flow Walkthrough](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_full_passage_walkthrough.gif)\n\n`;
 
-    md += `## 🌐 Cross-Framework Rendering Fidelity Matrix (1 Spec ➔ 4 Native Frameworks)\n\n`;
-    md += `Proof of A2UI's core architectural capability: a single Gemini Agent JSON specification renders with high visual fidelity across all 4 supported client frameworks with zero agent-side code changes:\n\n`;
-    md += `![A2UI Cross-Framework Fidelity Matrix](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/cross_framework_comparison_matrix.png)\n\n`;
-    md += `| Client Framework | Architecture | Component Primitive | Reactivity & State Handling | Fidelity Status |\n`;
-    md += `| :--- | :--- | :--- | :--- | :---: |\n`;
-    md += `| **Lit** (Web Components) | Shadow DOM encapsulation | \`<a2ui-restaurant-card>\` | Custom element event bus | ✅ IDENTICAL |\n`;
-    md += `| **React 19** | Virtual DOM / Fiber tree | \`<RestaurantCard />\` | \`useAction('book_restaurant')\` hook | ✅ IDENTICAL |\n`;
-    md += `| **Angular 21** | Standalone Component | \`<a2ui-card [data]="item" />\` | Zoneless Signals (\`computed()\`) | ✅ IDENTICAL |\n`;
-    md += `| **Flutter / Dart** | Native Canvas Rendering | \`Card(elevation: 2.0)\` | Material 3 Theming / Cupertino | ✅ IDENTICAL |\n\n`;
+    md += `## Cross-Framework Comparison\n\n`;
+    md += `Same restaurant card schema rendered in all four client renderers:\n\n`;
+    md += `![Cross-Framework Comparison](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/cross_framework_comparison_matrix.png)\n\n`;
+    md += `| Framework | Architecture | Component | State Handling |\n`;
+    md += `| :--- | :--- | :--- | :--- |\n`;
+    md += `| **Lit** | Web Components | \`<a2ui-restaurant-card>\` | Custom events |\n`;
+    md += `| **React 19** | JSX / Virtual DOM | \`<RestaurantCard />\` | \`useAction('book_restaurant')\` |\n`;
+    md += `| **Angular 21** | Standalone Component | \`<a2ui-card [data]="item" />\` | Signals |\n`;
+    md += `| **Flutter** | Dart / Canvas | \`Card(elevation: 2.0)\` | Material 3 widgets |\n\n`;
 
-    md += `## 🖼️ Comprehensive 11-Sample Visual Verification Gallery\n\n`;
-    md += `Complete visual proof captured across all 11 canonical samples in the monorepo:\n\n`;
-    md += `| Sample ID | Sample Name | Ecosystem / Target | Visual Asset | Conformance & Runtime Status |\n`;
-    md += `| :-: | :--- | :--- | :--- | :---: |\n`;
-    md += `| **1** | Lit Restaurant Finder | Client (Web Components) | \`screenshots/sample_01_lit_restaurant_finder.png\` | ✅ VERIFIED |\n`;
-    md += `| **2** | React Restaurant Finder | Client (React 19) | \`screenshots/sample_02_react_restaurant_finder.png\` | ✅ VERIFIED |\n`;
-    md += `| **3** | Angular Restaurant Finder | Client (Angular 21) | \`screenshots/sample_03_angular_restaurant_finder.png\` | ✅ VERIFIED |\n`;
-    md += `| **4** | Flutter Restaurant Finder | Client (Flutter/Dart) | \`screenshots/sample_04_flutter_restaurant_finder.png\` | ✅ VERIFIED |\n`;
-    md += `| **5** | ADK Custom Components | Agent (Python ADK) | \`screenshots/sample_05_adk_custom_components.png\` | ✅ VERIFIED |\n`;
-    md += `| **6** | Custom Lit Components | Community (Lit UI) | \`screenshots/sample_06_custom_lit_components.png\` | ✅ VERIFIED |\n`;
-    md += `| **7** | Pong Web Game | Community (Web App) | \`screenshots/sample_07_pong_web_game.png\` | ✅ VERIFIED |\n`;
-    md += `| **8** | Personalized Learning | Community (Lit Client) | \`screenshots/sample_08_personalized_learning.png\` | ✅ VERIFIED |\n`;
-    md += `| **9** | MCP Apps in A2UI | Community (Lit / MCP) | \`screenshots/sample_09_mcp_apps_lit.png\` | ✅ VERIFIED |\n`;
-    md += `| **10** | Angular Orchestrator | Community (Angular Client) | \`screenshots/sample_10_angular_orchestrator.png\` | ✅ VERIFIED |\n`;
-    md += `| **11** | Angular MCP Calculator | Community (Angular Client) | \`screenshots/sample_11_angular_mcp_calculator.png\` | ✅ VERIFIED |\n\n`;
-
-    md += `### 📱 Cross-Framework Samples Gallery\n\n`;
+    md += `## Sample Screenshots\n\n`;
     md += `| Sample 1: Lit Restaurant Finder | Sample 2: React Restaurant Finder |\n`;
     md += `| :---: | :---: |\n`;
-    md += `| ![Sample 1 Lit](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_01_lit_restaurant_finder.png)<br><sub>*Sample 1: Lit Web Components with Shadow DOM inspection*</sub> | ![Sample 2 React](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_02_react_restaurant_finder.png)<br><sub>*Sample 2: React 19 JSX with action hooks*</sub> |\n`;
+    md += `| ![Sample 1 Lit](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_01_lit_restaurant_finder.png) | ![Sample 2 React](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_02_react_restaurant_finder.png) |\n`;
     md += `| **Sample 3: Angular Restaurant Finder** | **Sample 4: Flutter Restaurant Finder** |\n`;
-    md += `| ![Sample 3 Angular](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_03_angular_restaurant_finder.png)<br><sub>*Sample 3: Angular 21 Signals & zoneless change detection*</sub> | ![Sample 4 Flutter](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_04_flutter_restaurant_finder.png)<br><sub>*Sample 4: Flutter / Dart native canvas & Material 3 card*</sub> |\n\n`;
+    md += `| ![Sample 3 Angular](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_03_angular_restaurant_finder.png) | ![Sample 4 Flutter](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_04_flutter_restaurant_finder.png) |\n\n`;
 
-    md += `### 🧩 Agent, Community & Tool Samples Gallery\n\n`;
     md += `| Sample 5: Python ADK Components | Sample 6: Custom Lit Components |\n`;
     md += `| :---: | :---: |\n`;
-    md += `| ![Sample 5 ADK](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_05_adk_custom_components.png)<br><sub>*Sample 5: Python ADK custom schema decorator bridge*</sub> | ![Sample 6 Custom Lit](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_06_custom_lit_components.png)<br><sub>*Sample 6: Custom sliders, switches, and theme tokens*</sub> |\n`;
+    md += `| ![Sample 5 ADK](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_05_adk_custom_components.png) | ![Sample 6 Custom Lit](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_06_custom_lit_components.png) |\n`;
     md += `| **Sample 7: Pong Web Game** | **Sample 8: Personalized Learning Quiz** |\n`;
-    md += `| ![Sample 7 Pong](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_07_pong_web_game.png)<br><sub>*Sample 7: 2D interactive canvas game loop & A2UI overlay*</sub> | ![Sample 8 Quiz](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_08_personalized_learning.png)<br><sub>*Sample 8: Biology quiz card with option state transition*</sub> |\n`;
-    md += `| **Sample 9: MCP Apps in A2UI** | **Sample 10: Angular Orchestrator** |\n`;
-    md += `| ![Sample 9 MCP Lit](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_09_mcp_apps_lit.png)<br><sub>*Sample 9: MCP tool bridge & dynamic suggestion chips*</sub> | ![Sample 10 Orchestrator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_10_angular_orchestrator.png)<br><sub>*Sample 10: Multi-agent workflow coordination stream*</sub> |\n`;
-    md += `| **Sample 11: Angular MCP Calculator** | **Full Flow Storyboard** |\n`;
-    md += `| ![Sample 11 MCP Calculator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_11_angular_mcp_calculator.png)<br><sub>*Sample 11: Dynamic calculator keypad & MCP RPC status*</sub> | ![Storyboard](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_full_flow_storyboard.png)<br><sub>*Full multi-turn flow of passage*</sub> |\n\n`;
-    md += `### 🎬 Dynamic Interactive Replay Gallery (Live Motion Proofs)\n\n`;
-    md += `Animated interaction proof capturing active 60 FPS canvas rendering, interactive state mutation, and live tool RPC execution:\n\n`;
-    md += `| 🎮 Sample 7: Pong 2D Canvas Loop | 🎓 Sample 8: Quiz Selection & Reveal |\n`;
-    md += `| :---: | :---: |\n`;
-    md += `| ![Pong Game Loop](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/pong_gameplay_loop.gif)<br><sub>*Pong Web Game: 60 FPS HTML5 canvas game loop with live paddle tracking & score increment*</sub> | ![Quiz Interaction](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/personalized_learning_interaction.gif)<br><sub>*Personalized Learning: Option click selection & animated feedback banner reveal*</sub> |\n`;
-    md += `| **🛠️ Samples 9 & 11: MCP Tool Calling Bridge** | **🍽️ Samples 1–4: Restaurant Conversational Flow** |\n`;
-    md += `| ![MCP Calculator Tool Bridge](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/mcp_calculator_interaction.gif)<br><sub>*MCP Calculator: Keypad typing \`42 * 10\` & JSON-RPC execution returning \`420\`*</sub> | ![Restaurant Walkthrough](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_full_passage_walkthrough.gif)<br><sub>*Restaurant Finder: Continuous 8s multi-turn conversational passage replay*</sub> |\n\n`;
+    md += `| ![Sample 7 Pong](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_07_pong_web_game.png) | ![Sample 8 Quiz](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_08_personalized_learning.png) |\n\n`;
 
-    md += `> [!NOTE]\n`;
-    md += `> High-definition WebM interaction videos (\`videos/*.webm\`) and full-resolution lossless PNG screenshots for all 11 samples are packaged in the **qa-logs-and-reports** artifact zip below.\n\n`;
+    md += `| Sample 9: MCP Apps in A2UI | Sample 10: Angular Orchestrator |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Sample 9 MCP Lit](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_09_mcp_apps_lit.png) | ![Sample 10 Orchestrator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_10_angular_orchestrator.png) |\n`;
+    md += `| **Sample 11: Angular MCP Calculator** | **Restaurant Storyboard** |\n`;
+    md += `| ![Sample 11 MCP Calculator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/sample_11_angular_mcp_calculator.png) | ![Storyboard](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_full_flow_storyboard.png) |\n\n`;
+
+    md += `## Interaction Clips\n\n`;
+    md += `| Sample 7: Pong (Canvas Loop) | Sample 8: Quiz (Selection & Feedback) |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Pong Game Loop](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/pong_gameplay_loop.gif) | ![Quiz Interaction](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/personalized_learning_interaction.gif) |\n`;
+    md += `| **Sample 11: MCP Calculator (Tool Execution)** | **Sample 1: Restaurant Finder (Flow Walkthrough)** |\n`;
+    md += `| ![MCP Calculator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/mcp_calculator_interaction.gif) | ![Restaurant Walkthrough](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_full_passage_walkthrough.gif) |\n\n`;
   }
 
-  md += `## 📦 Diagnostic Artifacts\n\n`;
-  md += `Deep execution logs, diagnostic traces, and raw JSON outputs are attached to this run under **Artifacts**:\n`;
-  md += `- \`logs/test-execution.log\` (Full console execution log)\n`;
-  md += `- \`logs/results.json\` (Raw structured test results)\n`;
-  md += `- \`summary.md\` (Consolidated report)\n`;
-  md += `- \`screenshots/\` (High-resolution visual proof images)\n`;
-  md += `- \`videos/\` (Full-motion WebM and animated GIF interaction replays)\n\n`;
+  md += `## Artifacts\n\n`;
+  md += `Attached to this workflow run under \`qa-logs-and-reports\`:\n`;
+  md += `- \`logs/test-execution.log\`\n`;
+  md += `- \`logs/results.json\`\n`;
+  md += `- \`summary.md\`\n`;
+  md += `- \`screenshots/\`\n`;
+  md += `- \`videos/\`\n\n`;
 
   fs.writeFileSync(SUMMARY_MD_FILE, md, 'utf-8');
   console.log(`Summary report written successfully to: ${SUMMARY_MD_FILE}`);

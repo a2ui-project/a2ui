@@ -39,7 +39,7 @@ function log(msg) {
 log('=== Starting E2E QA Test Suite (test-case-1.js) ===');
 log(`Repository Root: ${REPO_ROOT}`);
 
-// Define the 11 canonical A2UI sample targets across the monorepo
+// Sample targets across the monorepo
 const SAMPLES = [
   {
     id: 1,
@@ -205,38 +205,35 @@ async function runValidation() {
     results.push(result);
   }
 
-  // 3. Deep Interactive Component Verification across Client Samples
+  // 3. Interactive Component Checks
   log('');
-  log('--> Validating Interactive Components across Client Samples...');
+  log('--> Checking interactive components...');
   const restaurantVerification = validateRestaurantBookingComponents();
-  log(`    ✔ [Restaurant Finder] Button Label: "${restaurantVerification.buttonLabel}" verified`);
-  log(`    ✔ [Restaurant Finder] Action Binding: "${restaurantVerification.actionName}" verified`);
+  log(`    ✔ [Restaurant Finder] Button: "${restaurantVerification.buttonLabel}" (${restaurantVerification.actionName})`);
 
   const quizVerification = validatePersonalizedLearningComponents();
-  log(`    ✔ [Personalized Learning] Submit Button: "${quizVerification.buttonLabel}" verified`);
-  log(`    ✔ [Personalized Learning] Selection & State Transition: verified`);
+  log(`    ✔ [Personalized Learning] Button: "${quizVerification.buttonLabel}"`);
 
   const mcpVerification = validateMcpCalculatorComponents();
-  log(`    ✔ [MCP Calculator] Suggestion Chip: "${mcpVerification.buttonLabel}" verified`);
-  log(`    ✔ [MCP Calculator] Action Dispatch: "${mcpVerification.actionName}" verified`);
+  log(`    ✔ [MCP Calculator] Chip: "${mcpVerification.buttonLabel}"`);
 
-  // 4. Validate Canonical Quickstart Prompts (docs/public/quickstart.md)
+  // 4. Quickstart Prompts (docs/public/quickstart.md)
   log('');
-  log('--> Validating Canonical Quickstart Prompts (docs/public/quickstart.md)...');
+  log('--> Checking quickstart prompts (docs/public/quickstart.md)...');
   const quickstartVerification = validateQuickstartPrompts();
-  log(`    ✔ [Prompt 1] "Find Italian restaurants near me" -> Dynamic Search Results Verified`);
-  log(`    ✔ [Prompt 2] "Book a table for 2" -> Interactive Reservation Form Verified`);
-  log(`    ✔ [Prompt 3] "What are your hours?" -> Detail & Operating Hours Intent Verified`);
+  log(`    ✔ [Prompt 1] "Find Italian restaurants near me"`);
+  log(`    ✔ [Prompt 2] "Book a table for 2"`);
+  log(`    ✔ [Prompt 3] "What are your hours?"`);
 
   log('');
-  log('--> Capturing Visual Rendering Proof (Screenshots & Interaction Video)...');
+  log('--> Generating screenshots and interaction clips...');
   let visualProof = null;
   try {
     const { generateProof } = require('./capture-visual-proof');
     visualProof = generateProof();
-    log('    ✔ Visual proof assets generated successfully');
+    log('    ✔ Visual assets generated');
   } catch (err) {
-    log(`    ⚠ Visual proof generation skipped or encountered warning: ${err.message}`);
+    log(`    ⚠ Visual asset generation warning: ${err.message}`);
   }
 
   log('');
