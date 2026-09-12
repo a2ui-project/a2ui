@@ -221,6 +221,17 @@ async function runValidation() {
   log(`    ✔ [MCP Calculator] Action Dispatch: "${mcpVerification.actionName}" verified`);
 
   log('');
+  log('--> Capturing Visual Rendering Proof (Screenshots & Interaction Video)...');
+  let visualProof = null;
+  try {
+    const { generateProof } = require('./capture-visual-proof');
+    visualProof = generateProof();
+    log('    ✔ Visual proof assets generated successfully');
+  } catch (err) {
+    log(`    ⚠ Visual proof generation skipped or encountered warning: ${err.message}`);
+  }
+
+  log('');
   log('=== Validation Complete ===');
   const total = results.length;
   const passedCount = results.filter(r => r.passed).length;
@@ -234,6 +245,7 @@ async function runValidation() {
       quiz: quizVerification,
       mcp: mcpVerification,
     },
+    visualProof,
   };
 
   fs.writeFileSync(RESULTS_JSON_FILE, JSON.stringify(outputPayload, null, 2), 'utf-8');

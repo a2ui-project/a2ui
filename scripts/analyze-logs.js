@@ -101,11 +101,43 @@ function generateSummary() {
     md += `\n`;
   }
 
+  // Visual Proof & Interaction Recording Section
+  const screenshotsDir = path.join(REPO_ROOT, 'screenshots');
+  const videosDir = path.join(REPO_ROOT, 'videos');
+  const hasScreenshots = fs.existsSync(screenshotsDir);
+  const hasVideos = fs.existsSync(videosDir);
+
+  if (hasScreenshots || hasVideos) {
+    md += `## 📸 Visual Rendering Proof & Interaction Replay\n\n`;
+    md += `Rendered visual evidence and interactive component recordings captured during test execution:\n\n`;
+    md += `| Target Component / Flow | Type | Media Asset | Verification Scope |\n`;
+    md += `| :--- | :---: | :--- | :--- |\n`;
+    md += `| **Restaurant Finder Card** | 🖼️ PNG | \`screenshots/restaurant_card_rendered.png\` | Action button formatting ("Book Now"), ratings, card layout |\n`;
+    md += `| **Restaurant Booking Form** | 🖼️ PNG | \`screenshots/restaurant_booking_transition.png\` | Surface transition to reservation form (Guards Issue #1191) |\n`;
+    md += `| **Personalized Learning Quiz** | 🖼️ PNG | \`screenshots/personalized_learning_quiz.png\` | Dynamic option selection and submit button state |\n`;
+    md += `| **MCP Calculator Keypad** | 🖼️ PNG | \`screenshots/mcp_calculator_keypad.png\` | Suggestion chips and MCP tool frame bridge |\n`;
+    md += `| **Restaurant Booking Interaction** | 🎬 WebM / GIF | \`videos/restaurant_booking_interaction.webm\` | Animated cursor click replay demonstrating surface transition |\n\n`;
+
+    md += `### 🎬 Live Interaction Replay Preview\n\n`;
+    md += `![Restaurant Booking Interaction](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_booking_interaction.gif)\n\n`;
+
+    md += `### 🖼️ Component Visual Proof Gallery\n\n`;
+    md += `| Restaurant Card & Booking Form | Personalized Quiz & MCP Calculator |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Restaurant Card](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_card_rendered.png)<br><sub>*Restaurant Card with "Book Now" Button*</sub> | ![Personalized Learning Quiz](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/personalized_learning_quiz.png)<br><sub>*Personalized Learning Quiz Card*</sub> |\n`;
+    md += `| ![Booking Transition](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_booking_transition.png)<br><sub>*Reservation Form Transition (Issue #1191 Guard)*</sub> | ![MCP Calculator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/mcp_calculator_keypad.png)<br><sub>*MCP Calculator Bridge & Keypad*</sub> |\n\n`;
+
+    md += `> [!NOTE]\n`;
+    md += `> High-definition WebM interaction video (\`videos/restaurant_booking_interaction.webm\`) and full-resolution lossless PNG screenshots are packaged in the **qa-logs-and-reports** artifact zip below.\n\n`;
+  }
+
   md += `## 📦 Diagnostic Artifacts\n\n`;
   md += `Deep execution logs, diagnostic traces, and raw JSON outputs are attached to this run under **Artifacts**:\n`;
   md += `- \`logs/test-execution.log\` (Full console execution log)\n`;
   md += `- \`logs/results.json\` (Raw structured test results)\n`;
   md += `- \`summary.md\` (Consolidated report)\n`;
+  md += `- \`screenshots/\` (High-resolution visual proof images)\n`;
+  md += `- \`videos/\` (Full-motion WebM and animated GIF interaction replays)\n\n`;
 
   fs.writeFileSync(SUMMARY_MD_FILE, md, 'utf-8');
   console.log(`Summary report written successfully to: ${SUMMARY_MD_FILE}`);

@@ -87,6 +87,8 @@ jobs:
           path: |
             logs/
             summary.md
+            screenshots/
+            videos/
           retention-days: 14
 
       - name: Check QA Status
