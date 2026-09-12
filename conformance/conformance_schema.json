@@ -619,7 +619,20 @@
           "items": {"type": "string"},
           "description": "Substrings the generated system prompt snippet must contain."
         },
-        "expect": {"type": "array", "description": "Expected response parts, in order."},
+        "expect": {
+          "type": "array",
+          "description": "Expected response parts, in order.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {"type": "string"},
+              "a2ui": {
+                "type": "array",
+                "items": {"type": "object"}
+              }
+            }
+          }
+        },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["args"]
@@ -639,7 +652,11 @@
                 "type": "object",
                 "properties": {
                   "catalog_schema": {
-                    "description": "An inline catalog document, or a path to one relative to the conformance directory."
+                    "description": "An inline catalog document, or a path to one relative to the conformance directory.",
+                    "oneOf": [
+                      {"type": "string", "description": "Path to catalog file."},
+                      {"type": "object", "description": "Inlined catalog object."}
+                    ]
                   },
                   "allowed_components": {
                     "type": "array",

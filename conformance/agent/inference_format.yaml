@@ -137,7 +137,6 @@
     include_schema: true
     client_ui_capabilities:
       supportedCatalogIds: ["https://a2ui.org/specification/v0_8/standard_catalog_definition.json"]
-
     allowed_components: ["Text"]
   expect_contains:
     - "Role"
