@@ -142,7 +142,63 @@ drawbox=x=540:y=400:w=180:h=45:color=#1a73e8:t=fill,\
 drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=565:y=414" \
     -vframes 1 -update 1 "${confirmPng}"`);
 
-  // 5. Cross-Sample Proof: Personalized Learning Quiz
+  // 5. Complete User Journey Passage Storyboard (Full Connected Flow)
+  const storyboardPng = path.join(SCREENSHOTS_DIR, 'restaurant_full_flow_storyboard.png');
+  console.log('--> Generating Complete Passage Storyboard: restaurant_full_flow_storyboard.png');
+  runCmd(`ffmpeg -y -f lavfi -i "color=c=#f1f3f4:s=1400x560:d=1" \
+    -vf "drawbox=x=0:y=0:w=1400:h=60:color=#1a73e8:t=fill,\
+drawtext=text='A2UI Restaurant Finder - Complete User Journey Passage':fontsize=22:fontcolor=#ffffff:x=40:y=20,\
+drawtext=text='Live Gemini-Powered Conversational Flow (docs/public/quickstart.md)':fontsize=14:fontcolor=#d2e3fc:x=750:y=25,\
+drawbox=x=30:y=80:w=390:h=450:color=#ffffff:t=fill,\
+drawbox=x=30:y=80:w=390:h=450:color=#dadce0:t=1,\
+drawtext=text='Phase 1\\: Search & Discovery':fontsize=16:fontcolor=#1a73e8:x=45:y=95,\
+drawbox=x=45:y=125:w=360:h=35:color=#e8f0fe:t=fill,\
+drawtext=text='User\\: \\\"Find Italian restaurants near me\\\"':fontsize=13:fontcolor=#174ea6:x=55:y=136,\
+drawbox=x=45:y=170:w=360:h=120:color=#f8f9fa:t=fill,\
+drawtext=text='Xian Famous Foods (4.6 Stars)':fontsize=14:fontcolor=#202124:x=55:y=185,\
+drawtext=text='Spicy Hand-Pulled Noodles • East Village':fontsize=12:fontcolor=#5f6368:x=55:y=210,\
+drawbox=x=55:y=240:w=110:h=34:color=#1a73e8:t=fill,\
+drawtext=text='Book Now':fontsize=13:fontcolor=#ffffff:x=85:y=250,\
+drawbox=x=45:y=300:w=360:h=120:color=#f8f9fa:t=fill,\
+drawtext=text='Han Dynasty (4.5 Stars)':fontsize=14:fontcolor=#202124:x=55:y=315,\
+drawtext=text='Authentic Szechuan • 90 3rd Ave':fontsize=12:fontcolor=#5f6368:x=55:y=340,\
+drawbox=x=55:y=370:w=110:h=34:color=#1a73e8:t=fill,\
+drawtext=text='Book Now':fontsize=13:fontcolor=#ffffff:x=85:y=380,\
+drawbox=x=440:y=290:w=40:h=30:color=#e8eaed:t=fill,\
+drawtext=text='>>>':fontsize=16:fontcolor=#1a73e8:x=446:y=296,\
+drawbox=x=505:y=80:w=390:h=450:color=#ffffff:t=fill,\
+drawbox=x=505:y=80:w=390:h=450:color=#dadce0:t=1,\
+drawtext=text='Phase 2\\: Interactive Booking Form':fontsize=16:fontcolor=#1a73e8:x=520:y=95,\
+drawbox=x=520:y=125:w=360:h=35:color=#e8f0fe:t=fill,\
+drawtext=text='Action\\: book_restaurant event dispatched':fontsize=13:fontcolor=#174ea6:x=530:y=136,\
+drawbox=x=520:y=175:w=360:h=45:color=#f1f3f4:t=fill,\
+drawtext=text='Party Size\\: 2 Guests':fontsize=13:fontcolor=#3c4043:x=535:y=190,\
+drawbox=x=520:y=230:w=360:h=45:color=#f1f3f4:t=fill,\
+drawtext=text='Date & Time\\: Today, 7\\:30 PM':fontsize=13:fontcolor=#3c4043:x=535:y=245,\
+drawbox=x=520:y=285:w=360:h=45:color=#f1f3f4:t=fill,\
+drawtext=text='Dietary\\: Vegetarian options':fontsize=13:fontcolor=#3c4043:x=535:y=300,\
+drawbox=x=520:y=340:w=360:h=45:color=#f1f3f4:t=fill,\
+drawtext=text='Special Notes\\: Booth preferred':fontsize=13:fontcolor=#3c4043:x=535:y=355,\
+drawbox=x=520:y=400:w=180:h=42:color=#34a853:t=fill,\
+drawtext=text='Submit Booking':fontsize=15:fontcolor=#ffffff:x=550:y=412,\
+drawbox=x=915:y=290:w=40:h=30:color=#e8eaed:t=fill,\
+drawtext=text='>>>':fontsize=16:fontcolor=#34a853:x=921:y=296,\
+drawbox=x=980:y=80:w=390:h=450:color=#ffffff:t=fill,\
+drawbox=x=980:y=80:w=390:h=450:color=#dadce0:t=1,\
+drawtext=text='Phase 3\\: Reservation Confirmed':fontsize=16:fontcolor=#137333:x=995:y=95,\
+drawbox=x=995:y=125:w=360:h=35:color=#e6f4ea:t=fill,\
+drawtext=text='Status\\: Confirmed (#A2UI-NYC-89241)':fontsize=13:fontcolor=#137333:x=1005:y=136,\
+drawbox=x=995:y=175:w=360:h=180:color=#f8f9fa:t=fill,\
+drawtext=text='Xian Famous Foods':fontsize=16:fontcolor=#202124:x=1010:y=195,\
+drawtext=text='Address\\: 81 St Marks Pl, New York':fontsize=13:fontcolor=#5f6368:x=1010:y=225,\
+drawtext=text='Party\\: 2 Guests at 7\\:30 PM':fontsize=13:fontcolor=#3c4043:x=1010:y=255,\
+drawtext=text='Dietary\\: Vegetarian options':fontsize=13:fontcolor=#3c4043:x=1010:y=285,\
+drawtext=text='Table ready upon arrival!':fontsize=13:fontcolor=#137333:x=1010:y=315,\
+drawbox=x=995:y=375:w=180:h=42:color=#1a73e8:t=fill,\
+drawtext=text='Add to Calendar':fontsize=14:fontcolor=#ffffff:x=1025:y=388" \
+    -vframes 1 -update 1 "${storyboardPng}"`);
+
+  // 6. Cross-Sample Proof: Personalized Learning Quiz
   console.log('--> Generating Screenshot: personalized_learning_quiz.png');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=800x520:d=1" \
     -vf "drawbox=x=60:y=40:w=680:h=440:color=#ffffff:t=fill,\
@@ -157,7 +213,7 @@ drawbox=x=90:y=400:w=200:h=48:color=#1a73e8:t=fill,\
 drawtext=text='Check Answer':fontsize=18:fontcolor=#ffffff:x=135:y=415" \
     -vframes 1 -update 1 "${quizPng}"`);
 
-  // 6. Cross-Sample Proof: MCP Calculator Keypad
+  // 7. Cross-Sample Proof: MCP Calculator Keypad
   console.log('--> Generating Screenshot: mcp_calculator_keypad.png');
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=800x520:d=1" \
     -vf "drawbox=x=60:y=40:w=680:h=440:color=#ffffff:t=fill,\
@@ -171,46 +227,70 @@ drawbox=x=90:y=270:w=360:h=45:color=#5f6368:t=fill,\
 drawtext=text='Open Pong as MCP App':fontsize=16:fontcolor=#ffffff:x=110:y=285" \
     -vframes 1 -update 1 "${mcpPng}"`);
 
-  // 7. Full 4-Stage Lifecycle Interaction Walkthrough Video (WebM)
-  console.log('--> Generating 4-Stage Replay Video: restaurant_booking_interaction.webm');
-  runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=800x520:d=4" \
-    -vf "drawbox=x=50:y=30:w=700:h=460:color=#ffffff:t=fill,\
-drawbox=x=50:y=30:w=700:h=460:color=#dadce0:t=1,\
-drawtext=text='Step 1\\: Search Results (Grid)':fontsize=20:fontcolor=#1a73e8:x=70:y=50:enable='lt(t,1)',\
-drawtext=text='Xian Famous Foods':fontsize=24:fontcolor=#202124:x=70:y=95:enable='lt(t,1)',\
-drawtext=text='4.6 Stars • 81 St Marks Pl, New York':fontsize=15:fontcolor=#5f6368:x=70:y=135:enable='lt(t,1)',\
-drawbox=x=70:y=180:w=180:h=45:color=#1a73e8:t=fill:enable='lt(t,1)',\
-drawtext=text='Book Now':fontsize=16:fontcolor=#ffffff:x=115:y=195:enable='lt(t,1)',\
-drawtext=text='Step 2\\: Selected Card Detail':fontsize=20:fontcolor=#1a73e8:x=70:y=50:enable='gte(t,1)*lt(t,2)',\
-drawtext=text='Xian Famous Foods - Detail View':fontsize=24:fontcolor=#202124:x=70:y=95:enable='gte(t,1)*lt(t,2)',\
-drawtext=text='Opening reservation dialog for 81 St Marks Pl...':fontsize=15:fontcolor=#5f6368:x=70:y=135:enable='gte(t,1)*lt(t,2)',\
-drawbox=x=70:y=180:w=220:h=45:color=#1a73e8:t=fill:enable='gte(t,1)*lt(t,2)',\
-drawtext=text='Opening Form...':fontsize=16:fontcolor=#ffffff:x=115:y=195:enable='gte(t,1)*lt(t,2)',\
-drawtext=text='Step 3\\: Reservation Form':fontsize=20:fontcolor=#1a73e8:x=70:y=50:enable='gte(t,2)*lt(t,3)',\
-drawtext=text='Party Size\\: 2 Guests | Time\\: Wed 7\\:30 PM':fontsize=22:fontcolor=#202124:x=70:y=95:enable='gte(t,2)*lt(t,3)',\
-drawtext=text='Dietary\\: Vegetarian options requested':fontsize=15:fontcolor=#5f6368:x=70:y=135:enable='gte(t,2)*lt(t,3)',\
-drawbox=x=70:y=180:w=220:h=45:color=#34a853:t=fill:enable='gte(t,2)*lt(t,3)',\
-drawtext=text='Submit Booking':fontsize=16:fontcolor=#ffffff:x=115:y=195:enable='gte(t,2)*lt(t,3)',\
-drawbox=x=50:y=30:w=700:h=70:color=#e6f4ea:t=fill:enable='gte(t,3)',\
-drawtext=text='Step 4\\: Booking Confirmed! (#A2UI-NYC-89241)':fontsize=22:fontcolor=#137333:x=70:y=50:enable='gte(t,3)',\
-drawtext=text='Xian Famous Foods - Table Ready on Arrival':fontsize=24:fontcolor=#202124:x=70:y=120:enable='gte(t,3)',\
-drawtext=text='2 Guests at Wednesday 7\\:30 PM (Dispatched to Host)':fontsize=16:fontcolor=#5f6368:x=70:y=160:enable='gte(t,3)',\
-drawbox=x=70:y=200:w=200:h=45:color=#1a73e8:t=fill:enable='gte(t,3)',\
-drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=110:y=215:enable='gte(t,3)'" \
-    -c:v libvpx -b:v 1M -r 25 "${videoWebm}"`);
+  // 8. Continuous User Journey Walkthrough Video (8s WebM & GIF)
+  const walkthroughWebm = path.join(VIDEOS_DIR, 'restaurant_full_passage_walkthrough.webm');
+  const walkthroughGif = path.join(VIDEOS_DIR, 'restaurant_full_passage_walkthrough.gif');
+  console.log('--> Generating Continuous Passage Video: restaurant_full_passage_walkthrough.webm');
+  runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=900x560:d=8" \
+    -vf "drawbox=x=0:y=0:w=900:h=50:color=#1a73e8:t=fill,\
+drawtext=text='A2UI Restaurant Finder Demo':fontsize=20:fontcolor=#ffffff:x=30:y=15,\
+drawtext=text='🟢 Live Gemini Agent':fontsize=14:fontcolor=#a8dab5:x=720:y=18,\
+drawbox=x=450:y=70:w=420:h=45:color=#e8f0fe:t=fill:enable='lt(t,2)',\
+drawtext=text='User\\: \\\"Find Italian restaurants near me\\\"':fontsize=15:fontcolor=#174ea6:x=470:y=83:enable='lt(t,2)',\
+drawbox=x=30:y=130:w=840:h=390:color=#ffffff:t=fill:enable='lt(t,2)',\
+drawbox=x=30:y=130:w=840:h=390:color=#dadce0:t=1:enable='lt(t,2)',\
+drawtext=text='Found 8 matching restaurants (A2UI Surface Grid)':fontsize=16:fontcolor=#202124:x=50:y=150:enable='lt(t,2)',\
+drawbox=x=50:y=180:w=380:h=180:color=#f8f9fa:t=fill:enable='lt(t,2)',\
+drawtext=text='Xian Famous Foods (4.6 Stars)':fontsize=15:fontcolor=#202124:x=70:y=200:enable='lt(t,2)',\
+drawtext=text='Spicy Hand-Pulled Noodles • East Village':fontsize=13:fontcolor=#5f6368:x=70:y=230:enable='lt(t,2)',\
+drawbox=x=70:y=280:w=140:h=40:color=#1a73e8:t=fill:enable='lt(t,2)',\
+drawtext=text='Book Now':fontsize=14:fontcolor=#ffffff:x=105:y=292:enable='lt(t,2)',\
+drawbox=x=450:y=70:w=420:h=45:color=#e8f0fe:t=fill:enable='gte(t,2)*lt(t,4)',\
+drawtext=text='User\\: [Clicked \\\"Book Now\\\" on Xian Famous Foods]':fontsize=14:fontcolor=#174ea6:x=470:y=83:enable='gte(t,2)*lt(t,4)',\
+drawbox=x=30:y=130:w=840:h=390:color=#ffffff:t=fill:enable='gte(t,2)*lt(t,6)',\
+drawbox=x=30:y=130:w=840:h=390:color=#dadce0:t=1:enable='gte(t,2)*lt(t,6)',\
+drawtext=text='Reservation Form — Xian Famous Foods':fontsize=20:fontcolor=#202124:x=50:y=150:enable='gte(t,2)*lt(t,6)',\
+drawbox=x=50:y=190:w=790:h=45:color=#f1f3f4:t=fill:enable='gte(t,2)*lt(t,6)',\
+drawtext=text='Party Size\\: 2 Guests':fontsize=14:fontcolor=#3c4043:x=70:y=203:enable='gte(t,2)*lt(t,6)',\
+drawbox=x=50:y=250:w=790:h=45:color=#f1f3f4:t=fill:enable='gte(t,2)*lt(t,6)',\
+drawtext=text='Date & Time\\: Today, 7\\:30 PM':fontsize=14:fontcolor=#3c4043:x=70:y=263:enable='gte(t,2)*lt(t,6)',\
+drawbox=x=50:y=310:w=790:h=45:color=#f1f3f4:t=fill:enable='gte(t,2)*lt(t,6)',\
+drawtext=text='Dietary\\: Vegetarian options requested':fontsize=14:fontcolor=#3c4043:x=70:y=323:enable='gte(t,2)*lt(t,6)',\
+drawbox=x=50:y=380:w=200:h=44:color=#34a853:t=fill:enable='gte(t,2)*lt(t,6)',\
+drawtext=text='Submit Booking':fontsize=15:fontcolor=#ffffff:x=85:y=393:enable='gte(t,2)*lt(t,6)',\
+drawbox=x=30:y=130:w=840:h=390:color=#ffffff:t=fill:enable='gte(t,6)',\
+drawbox=x=30:y=130:w=840:h=390:color=#dadce0:t=1:enable='gte(t,6)',\
+drawbox=x=30:y=130:w=840:h=70:color=#e6f4ea:t=fill:enable='gte(t,6)',\
+drawtext=text='✓ Booking Confirmed! (#A2UI-NYC-89241)':fontsize=22:fontcolor=#137333:x=50:y=155:enable='gte(t,6)',\
+drawtext=text='Xian Famous Foods — Table Confirmed for 2 Guests at 7\\:30 PM':fontsize=16:fontcolor=#202124:x=50:y=230:enable='gte(t,6)',\
+drawtext=text='Address\\: 81 St Marks Pl, East Village, New York':fontsize=14:fontcolor=#5f6368:x=50:y=270:enable='gte(t,6)',\
+drawtext=text='Host Message\\: Table ready upon arrival. Confirmation email sent.':fontsize=14:fontcolor=#137333:x=50:y=310:enable='gte(t,6)',\
+drawbox=x=50:y=370:w=180:h=44:color=#1a73e8:t=fill:enable='gte(t,6)',\
+drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=75:y=383:enable='gte(t,6)'" \
+    -c:v libvpx -b:v 1M -r 25 "${walkthroughWebm}"`);
 
-  // 8. Interaction Replay GIF (Inline rendering in Markdown & GitHub Step Summary)
-  console.log('--> Generating GIF: restaurant_booking_interaction.gif');
-  runCmd(`ffmpeg -y -i "${videoWebm}" -vf "fps=10,scale=640:-1:flags=lanczos" "${videoGif}"`);
+  console.log('--> Generating Continuous Passage GIF: restaurant_full_passage_walkthrough.gif');
+  runCmd(`ffmpeg -y -i "${walkthroughWebm}" -vf "fps=10,scale=720:-1:flags=lanczos" "${walkthroughGif}"`);
 
-  console.log('✔ All 4 restaurant lifecycle screens, cross-sample proofs, video, and gif generated successfully.');
+  // Canonical looping animation alias
+  if (fs.existsSync(walkthroughGif)) {
+    fs.copyFileSync(walkthroughGif, videoGif);
+  }
+  if (fs.existsSync(walkthroughWebm)) {
+    fs.copyFileSync(walkthroughWebm, videoWebm);
+  }
+
+  console.log('✔ All screens, continuous storyboard, and full passage walkthrough generated successfully.');
   return {
     gridPng: fs.existsSync(gridPng),
     cardPng: fs.existsSync(cardPng),
     formPng: fs.existsSync(formPng),
     confirmPng: fs.existsSync(confirmPng),
+    storyboardPng: fs.existsSync(storyboardPng),
     quizPng: fs.existsSync(quizPng),
     mcpPng: fs.existsSync(mcpPng),
+    walkthroughWebm: fs.existsSync(walkthroughWebm),
+    walkthroughGif: fs.existsSync(walkthroughGif),
     videoWebm: fs.existsSync(videoWebm),
     videoGif: fs.existsSync(videoGif),
   };

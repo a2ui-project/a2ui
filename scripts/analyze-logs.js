@@ -122,20 +122,32 @@ function generateSummary() {
   const hasVideos = fs.existsSync(videosDir);
 
   if (hasScreenshots || hasVideos) {
-    md += `## 📸 Comprehensive Restaurant Lifecycle Visual Proof\n\n`;
-    md += `The Restaurant Finder sample is an end-to-end multi-state conversational reservation app. Below is the visual evidence across all 4 lifecycle states:\n\n`;
+    md += `## 🎞️ Complete User Journey: Flow of Passage Proof\n\n`;
+    md += `Rather than inspecting disconnected screenshots, below is the **complete flow of passage** of the Restaurant Finder demo across the entire conversational reservation lifecycle:\n\n`;
+    md += `1. **Prompt 1 ("Find Italian restaurants near me")** ➔ Agent dynamically constructs and streams the two-column restaurant discovery grid.\n`;
+    md += `2. **Interaction 1 (Card Selection)** ➔ User clicks "Book Now" on a selected venue card.\n`;
+    md += `3. **Prompt 2 ("Book a table for 2")** ➔ Agent generates dynamic reservation form surface inputs with party size, time, and dietary options (guarding Issue #1191).\n`;
+    md += `4. **Interaction 2 (Form Submission)** ➔ User submits reservation details.\n`;
+    md += `5. **Prompt 3 ("What are your hours?" / Confirmation)** ➔ Agent renders final confirmed reservation ticket with booking code, hours, address, and calendar action.\n\n`;
+
+    md += `### 🗺️ Full Flow of Passage Panoramic Storyboard\n\n`;
+    md += `![Complete User Journey Flow of Passage Storyboard](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_full_flow_storyboard.png)\n\n`;
+
+    md += `### 🎬 Continuous Conversational Passage Walkthrough (Animated)\n\n`;
+    md += `Live interaction replay showing prompt inputs in the browser shell, conversational turn-taking, and continuous A2UI surface rendering:\n\n`;
+    md += `![Continuous Passage Walkthrough Replay](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_full_passage_walkthrough.gif)\n\n`;
+
+    md += `### 📸 Lifecycle Stage Media Manifest\n\n`;
     md += `| Lifecycle Stage | Type | Media Asset | Verification Scope |\n`;
     md += `| :--- | :---: | :--- | :--- |\n`;
+    md += `| **Full Flow Storyboard** | 🖼️ Panoramic PNG | \`screenshots/restaurant_full_flow_storyboard.png\` | 1400x560 multi-stage journey map connecting all 4 phases with arrows & chat bubbles |\n`;
+    md += `| **Full Passage Walkthrough** | 🎬 Animated GIF / WebM | \`videos/restaurant_full_passage_walkthrough.gif\` | 900x560 continuous animated walkthrough with prompt input, clicks, and transitions |\n`;
     md += `| **Stage 1: Search Results Grid** | 🖼️ PNG | \`screenshots/restaurant_1_search_grid.png\` | Two-column cards (Xian Famous Foods & Han Dynasty), cuisine, stars, "Book Now" |\n`;
     md += `| **Stage 2: Restaurant Detail Card** | 🖼️ PNG | \`screenshots/restaurant_2_card_detail.png\` | Selected restaurant featured card, operating hours, action event binding |\n`;
     md += `| **Stage 3: Interactive Reservation Form** | 🖼️ PNG | \`screenshots/restaurant_3_booking_form.png\` | Inputs (Party Size, Time, Dietary notes, Submit button) - Guards Issue #1191 |\n`;
-    md += `| **Stage 4: Confirmed Reservation Ticket** | 🖼️ PNG | \`screenshots/restaurant_4_confirmation_ticket.png\` | Final confirmation pass with reservation code and "Add to Calendar" button |\n`;
-    md += `| **Interactive Walkthrough Replay** | 🎬 GIF / WebM | \`videos/restaurant_booking_interaction.gif\` | Animated 4-stage interaction replay walking through the complete booking flow |\n\n`;
+    md += `| **Stage 4: Confirmed Reservation Ticket** | 🖼️ PNG | \`screenshots/restaurant_4_confirmation_ticket.png\` | Final confirmation pass with reservation code and "Add to Calendar" button |\n\n`;
 
-    md += `### 🎬 End-to-End Restaurant Booking Interaction Replay\n\n`;
-    md += `![Restaurant Booking Interaction](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_booking_interaction.gif)\n\n`;
-
-    md += `### 🖼️ Restaurant Flow: Full 4-Stage Visual Gallery\n\n`;
+    md += `### 🖼️ High-Resolution Stage Gallery\n\n`;
     md += `| Stage 1: Search Results Grid | Stage 2: Selected Restaurant Detail |\n`;
     md += `| :---: | :---: |\n`;
     md += `| ![Search Grid](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_1_search_grid.png)<br><sub>*Stage 1: Two-column restaurant search results grid*</sub> | ![Card Detail](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_2_card_detail.png)<br><sub>*Stage 2: Selected restaurant featured card with "Book Now"*</sub> |\n`;
@@ -148,7 +160,7 @@ function generateSummary() {
     md += `| ![Quiz Card](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/personalized_learning_quiz.png)<br><sub>*Personalized Learning: Dynamic quiz option selection*</sub> | ![MCP Keypad](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/mcp_calculator_keypad.png)<br><sub>*MCP Calculator: Suggestion chips & frame bridge*</sub> |\n\n`;
 
     md += `> [!NOTE]\n`;
-    md += `> High-definition WebM interaction video (\`videos/restaurant_booking_interaction.webm\`) and full-resolution lossless PNG screenshots are packaged in the **qa-logs-and-reports** artifact zip below.\n\n`;
+    md += `> High-definition WebM interaction video (\`videos/restaurant_full_passage_walkthrough.webm\`) and full-resolution lossless PNG screenshots are packaged in the **qa-logs-and-reports** artifact zip below.\n\n`;
   }
 
   md += `## 📦 Diagnostic Artifacts\n\n`;
