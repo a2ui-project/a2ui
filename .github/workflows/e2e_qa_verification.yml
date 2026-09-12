@@ -65,6 +65,10 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
+      - name: Run Script Unit Tests
+        run: |
+          node --test scripts/qa_scripts.test.mjs
+
       - name: Run Sample QA (verify_samples.js)
         id: run_tests
         continue-on-error: true

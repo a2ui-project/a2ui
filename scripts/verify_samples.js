@@ -414,17 +414,12 @@ function validateQuickstartPrompts() {
   const formJson = JSON.parse(fs.readFileSync(formPath, 'utf-8'));
 
   // Prompt 1: "Find Italian restaurants near me" -> dynamic search results
-  const searchComponents =
-    (searchJson[1] &&
-      searchJson[1].updateComponents &&
-      searchJson[1].updateComponents.components) ||
-    [];
+  const searchComponents = searchJson[1]?.updateComponents?.components || [];
   const hasCardTemplate = searchComponents.some(c => c.component === 'Card');
   const hasBookButton = searchComponents.some(c => c.component === 'Button');
 
   // Prompt 2: "Book a table for 2" -> interactive booking form
-  const formComponents =
-    (formJson[1] && formJson[1].updateComponents && formJson[1].updateComponents.components) || [];
+  const formComponents = formJson[1]?.updateComponents?.components || [];
   const hasPartyField = formComponents.some(
     c => c.id === 'party-size-field' && c.component === 'TextField',
   );
@@ -470,7 +465,18 @@ function validateQuickstartPrompts() {
   };
 }
 
-runValidation().catch(err => {
-  log(`FATAL ERROR: ${err.message}`);
-  process.exit(1);
-});
+if (process.argv[1] && process.argv[1].endsWith('verify_samples.js')) {
+  runValidation().catch(err => {
+    log(`FATAL ERROR: ${err.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  SAMPLES,
+  validatePersonalizedLearningComponents,
+  validateMcpCalculatorComponents,
+  validateRestaurantBookingComponents,
+  validateQuickstartPrompts,
+  runValidation,
+};

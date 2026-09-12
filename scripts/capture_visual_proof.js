@@ -711,6 +711,6 @@ drawtext=text='✓ Tool Execution Response Confirmed (JSON-RPC 2.0)':fontsize=13
 
 module.exports = {generateProof};
 
-if (require.main === module) {
+if (process.argv[1] && process.argv[1].endsWith('capture_visual_proof.js')) {
   generateProof();
 }

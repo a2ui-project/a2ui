@@ -22,25 +22,20 @@ const LOGS_DIR = path.join(REPO_ROOT, 'logs');
 const RESULTS_JSON_FILE = path.join(LOGS_DIR, 'results.json');
 const SUMMARY_MD_FILE = path.join(REPO_ROOT, 'summary.md');
 
-function generateSummary() {
-  if (!fs.existsSync(RESULTS_JSON_FILE)) {
-    console.error(`Results file not found at ${RESULTS_JSON_FILE}`);
-    process.exit(1);
-  }
-
-  const raw = fs.readFileSync(RESULTS_JSON_FILE, 'utf-8');
-  const payload = JSON.parse(raw);
-  const results = Array.isArray(payload) ? payload : payload.results || [];
+function buildSummaryMarkdown(payload, customTimestamp) {
+  const data = payload || {};
+  const results = Array.isArray(data) ? data : data.results || [];
   const interactive =
-    payload.interactiveVerifications ||
-    (payload.buttonVerification ? {restaurant: payload.buttonVerification} : null);
+    data.interactiveVerifications ||
+    (data.buttonVerification ? {restaurant: data.buttonVerification} : null);
 
   const total = results.length;
   const passed = results.filter(r => r.passed).length;
   const failed = total - passed;
-  const passRate = ((passed / total) * 100).toFixed(1);
+  const passRate = total > 0 ? ((passed / total) * 100).toFixed(1) : '0.0';
 
-  const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+  const timestamp =
+    customTimestamp || new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
   let md = '';
   md += `# A2UI QA Validation Summary\n\n`;
@@ -97,7 +92,7 @@ function generateSummary() {
   }
 
   // Quickstart Prompt Verification Section
-  const quickstart = payload.quickstartVerification;
+  const quickstart = data.quickstartVerification;
   if (quickstart && quickstart.prompts) {
     md += `## Quickstart Prompts (\`docs/public/quickstart.md\`)\n\n`;
     md += `Validation of the 3 prompts described in the Quickstart guide:\n\n`;
@@ -179,8 +174,34 @@ function generateSummary() {
   md += `- \`screenshots/\`\n`;
   md += `- \`videos/\`\n\n`;
 
-  fs.writeFileSync(SUMMARY_MD_FILE, md, 'utf-8');
-  console.log(`Summary report written successfully to: ${SUMMARY_MD_FILE}`);
+  return md;
 }
 
-generateSummary();
+function generateSummary(resultsFile = RESULTS_JSON_FILE, summaryFile = SUMMARY_MD_FILE) {
+  if (!fs.existsSync(resultsFile)) {
+    console.error(`Results file not found at ${resultsFile}`);
+    process.exit(1);
+  }
+
+  const raw = fs.readFileSync(resultsFile, 'utf-8');
+  let payload = {};
+  try {
+    payload = JSON.parse(raw) || {};
+  } catch (err) {
+    console.error(`Failed to parse results JSON: ${err.message}`);
+  }
+
+  const md = buildSummaryMarkdown(payload);
+  fs.writeFileSync(summaryFile, md, 'utf-8');
+  console.log(`Summary report written successfully to: ${summaryFile}`);
+  return md;
+}
+
+if (process.argv[1] && process.argv[1].endsWith('generate_qa_summary.js')) {
+  generateSummary();
+}
+
+module.exports = {
+  buildSummaryMarkdown,
+  generateSummary,
+};

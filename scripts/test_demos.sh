@@ -156,7 +156,10 @@ cleanup() {
   if command -v fuser >/dev/null 2>&1; then
     fuser -k 10002/tcp 2>/dev/null || true
   elif command -v lsof >/dev/null 2>&1; then
-    lsof -t -i:10002 | xargs kill -9 2>/dev/null || true
+    pids=$(lsof -t -i:10002)
+    if [ -n "$pids" ]; then
+      kill -9 $pids 2>/dev/null || true
+    fi
   fi
 }
 trap cleanup EXIT
@@ -164,7 +167,7 @@ trap cleanup EXIT
 echo "--> Waiting for agent card readiness at http://127.0.0.1:10002/.well-known/agent-card.json..."
 READY=false
 for i in $(seq 1 30); do
-  if curl -s http://127.0.0.1:10002/.well-known/agent-card.json | grep -q "capabilities"; then
+  if curl -s --max-time 2 http://127.0.0.1:10002/.well-known/agent-card.json | grep -q "capabilities"; then
     READY=true
     echo "✔ Agent server is ready! (Attempt $i)"
     break
