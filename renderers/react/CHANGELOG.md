@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Fix the basic catalog rendering unstyled from the published package: `Text`, `Button`, `TextField`, and `ChoicePicker` no longer use CSS modules (which the build shipped as empty class maps and dead CSS) and instead carry literal `a2ui-*` class names, with their rules injected at runtime alongside the `@a2ui/web_core` design tokens ([#1307](https://github.com/a2ui-project/a2ui/issues/1307)).
+
 ## 0.11.1
 
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` is now unique per rendered instance instead of derived from the surface-scoped component id ([#2447](https://github.com/a2ui-project/a2ui/issues/2447)).

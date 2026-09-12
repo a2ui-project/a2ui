@@ -17,14 +17,17 @@
 import type React from 'react';
 import {useEffect} from 'react';
 import {injectBasicCatalogStyles} from '@a2ui/web_core/v0_9/basic_catalog';
+import {injectBasicCatalogComponentStyles} from './styles';
 
 /**
- * Hook to automatically inject the web_core basic catalog styles.
+ * Hook to automatically inject the web_core basic catalog styles and the
+ * component rules of this package's basic catalog.
  */
 export const useBasicCatalogStyles = () => {
   useEffect(() => {
     if (typeof document !== 'undefined' && document.adoptedStyleSheets) {
       injectBasicCatalogStyles();
+      injectBasicCatalogComponentStyles();
     }
   }, []);
 };

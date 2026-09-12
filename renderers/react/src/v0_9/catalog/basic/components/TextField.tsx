@@ -18,7 +18,6 @@ import React from 'react';
 import {createComponentImplementation} from '../../../adapter';
 import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
-import styles from './TextField.module.css';
 
 export const TextField = createComponentImplementation(TextFieldApi, ({props}) => {
   useBasicCatalogStyles();
@@ -32,12 +31,12 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
 
   const uniqueId = React.useId();
   const hasError = props.validationErrors && props.validationErrors.length > 0;
-  const inputClasses = `${styles.input} ${hasError ? styles.invalid : ''}`;
+  const inputClasses = `a2ui-field-input${hasError ? ' invalid' : ''}`;
 
   return (
-    <div className={styles.host}>
+    <div className="a2ui-text-field-container">
       {props.label && (
-        <label htmlFor={uniqueId} className={styles.label}>
+        <label htmlFor={uniqueId} className="a2ui-field-label">
           {props.label}
         </label>
       )}
@@ -57,7 +56,7 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           onChange={onChange}
         />
       )}
-      {hasError && <span className={styles.error}>{props.validationErrors![0]}</span>}
+      {hasError && <span className="a2ui-error-message">{props.validationErrors![0]}</span>}
     </div>
   );
 });
