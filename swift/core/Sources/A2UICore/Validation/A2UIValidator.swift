@@ -36,10 +36,21 @@ public final class A2UIValidator: Sendable {
     config: ValidationConfig = .strict
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
-    self.catalogs = Dictionary(
-      anyCatalogs.map { ($0.id, $0) },
-      uniquingKeysWith: { _, last in last }
-    )
+    var catalogMap: [String: AnyCatalog] = [:]
+    for cat in anyCatalogs {
+      catalogMap[cat.id] = cat
+    }
+    for cat in anyCatalogs {
+      if let url = URL(string: cat.id), url.lastPathComponent == "catalog.json" {
+        let shorthand = url.deletingLastPathComponent().lastPathComponent
+        if !shorthand.isEmpty {
+          if catalogMap[shorthand] == nil || cat.isV10 {
+            catalogMap[shorthand] = cat
+          }
+        }
+      }
+    }
+    self.catalogs = catalogMap
     self.config = config
   }
 
@@ -75,6 +86,7 @@ public final class A2UIValidator: Sendable {
 
     var details: [A2UIErrorDetail] = []
     var allComponentsToValidate: [[String: JSONValue]] = []
+    var defaultCatalogID: String?
 
     for (index, messageValue) in messagesArray.enumerated() {
       guard let messageDictionary = messageValue.objectValue else {
@@ -88,6 +100,12 @@ public final class A2UIValidator: Sendable {
         continue
       }
 
+      if let createSurface = messageDictionary["createSurface"]?.objectValue {
+        if let catID = createSurface["catalogId"]?.stringValue {
+          defaultCatalogID = catID
+        }
+      }
+
       validateMessageEnvelope(messageDictionary, index: index, details: &details)
       collectComponents(from: messageDictionary, into: &allComponentsToValidate)
       try validatePathsAndRecursion(messageValue)
@@ -99,14 +117,16 @@ public final class A2UIValidator: Sendable {
     }
 
     // Component schema validation against registered catalogs
-    try validateComponentSchemas(allComponentsToValidate)
+    try validateComponentSchemas(allComponentsToValidate, defaultCatalogID: defaultCatalogID)
 
     // Component graph topology and completeness validation
     if !allComponentsToValidate.isEmpty {
       try GraphTopologyValidator.validate(
         components: allComponentsToValidate,
         rootID: "root",
-        config: config
+        config: config,
+        catalogs: catalogs,
+        defaultCatalogID: defaultCatalogID
       )
     }
   }
@@ -147,11 +167,7 @@ public final class A2UIValidator: Sendable {
       return
     }
 
-    if versionString != "v0.9"
-      && versionString != "v0.9.1"
-      && versionString != "0.9"
-      && versionString != "0.9.1"
-    {
+    if A2UIProtocolVersion(rawValue: versionString) == nil {
       details.append(
         A2UIErrorDetail(
           path: "messages.\(index).version",
@@ -205,6 +221,7 @@ public final class A2UIValidator: Sendable {
       actionKey: actionKey,
       payload: actionObject,
       index: index,
+      message: message,
       details: &details
     )
   }
@@ -213,6 +230,7 @@ public final class A2UIValidator: Sendable {
     actionKey: String,
     payload: OrderedDictionary<String, JSONValue>,
     index: Int,
+    message: OrderedDictionary<String, JSONValue>,
     details: inout [A2UIErrorDetail]
   ) {
     switch actionKey {
@@ -223,12 +241,67 @@ public final class A2UIValidator: Sendable {
         path: "messages.\(index).createSurface.surfaceId",
         details: &details
       )
-      validateRequiredString(
-        in: payload,
-        key: "catalogId",
-        path: "messages.\(index).createSurface.catalogId",
-        details: &details
-      )
+      if let catalogIdVal = payload["catalogId"] {
+        if catalogIdVal.stringValue == nil {
+          details.append(
+            A2UIErrorDetail(
+              path: "messages.\(index).createSurface.catalogId",
+              code: "type_mismatch",
+              message: "Field 'catalogId' must be a string"
+            )
+          )
+        }
+      } else {
+        let version =
+          message["version"]?.stringValue.flatMap { A2UIProtocolVersion(rawValue: $0) }
+          ?? config.protocolVersion
+        if version != .v10 {
+          details.append(
+            A2UIErrorDetail(
+              path: "messages.\(index).createSurface.catalogId",
+              code: "missing_field",
+              message: "Field 'catalogId' is required"
+            )
+          )
+        }
+      }
+
+      if let componentsValue = payload["components"] {
+        if let componentsArray = componentsValue.arrayValue {
+          for (componentIndex, componentValue) in componentsArray.enumerated() {
+            if let componentDictionary = componentValue.objectValue {
+              validateRequiredString(
+                in: componentDictionary,
+                key: "id",
+                path: "messages.\(index).createSurface.components.\(componentIndex).id",
+                details: &details
+              )
+              validateRequiredString(
+                in: componentDictionary,
+                key: "component",
+                path: "messages.\(index).createSurface.components.\(componentIndex).component",
+                details: &details
+              )
+            } else {
+              details.append(
+                A2UIErrorDetail(
+                  path: "messages.\(index).createSurface.components.\(componentIndex)",
+                  code: "type_mismatch",
+                  message: "Component definition must be an object"
+                )
+              )
+            }
+          }
+        } else {
+          details.append(
+            A2UIErrorDetail(
+              path: "messages.\(index).createSurface.components",
+              code: "type_mismatch",
+              message: "Components must be an array"
+            )
+          )
+        }
+      }
 
     case "updateComponents":
       validateRequiredString(
@@ -298,8 +371,123 @@ public final class A2UIValidator: Sendable {
         details: &details
       )
 
+    case "callRendererFunction":
+      let version =
+        message["version"]?.stringValue.flatMap { A2UIProtocolVersion(rawValue: $0) }
+        ?? config.protocolVersion
+      if version != .v10 {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index)",
+            code: "invalid_value",
+            message: "Action 'callRendererFunction' is only supported in protocol version v1.0"
+          )
+        )
+        return
+      }
+      validateRequiredString(
+        in: payload,
+        key: "functionCallId",
+        path: "messages.\(index).callRendererFunction.functionCallId",
+        details: &details
+      )
+      guard let callFunction = payload["callFunction"]?.objectValue else {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index).callRendererFunction.callFunction",
+            code: payload["callFunction"] == nil ? "missing_field" : "type_mismatch",
+            message: payload["callFunction"] == nil
+              ? "Missing required property 'callFunction'"
+              : "Field 'callFunction' must be an object"
+          )
+        )
+        return
+      }
+      validateRequiredString(
+        in: callFunction,
+        key: "call",
+        path: "messages.\(index).callRendererFunction.callFunction.call",
+        details: &details
+      )
+      validateRequiredString(
+        in: callFunction,
+        key: "catalogId",
+        path: "messages.\(index).callRendererFunction.callFunction.catalogId",
+        details: &details
+      )
+
+    case "agentFunctionResponse":
+      let version =
+        message["version"]?.stringValue.flatMap { A2UIProtocolVersion(rawValue: $0) }
+        ?? config.protocolVersion
+      if version != .v10 {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index)",
+            code: "invalid_value",
+            message: "Action 'agentFunctionResponse' is only supported in protocol version v1.0"
+          )
+        )
+        return
+      }
+      validateRequiredString(
+        in: payload,
+        key: "functionCallId",
+        path: "messages.\(index).agentFunctionResponse.functionCallId",
+        details: &details
+      )
+      let hasValue = payload["value"] != nil
+      let hasError = payload["error"] != nil
+      if !hasValue && !hasError {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index).agentFunctionResponse",
+            code: "missing_field",
+            message: "FunctionResponse must contain either 'value' or 'error'"
+          )
+        )
+      } else if hasValue && hasError {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index).agentFunctionResponse",
+            code: "invalid_value",
+            message: "FunctionResponse cannot contain both 'value' and 'error'"
+          )
+        )
+      }
+      if let errorVal = payload["error"] {
+        guard let errorObj = errorVal.objectValue else {
+          details.append(
+            A2UIErrorDetail(
+              path: "messages.\(index).agentFunctionResponse.error",
+              code: "type_mismatch",
+              message: "Field 'error' must be an object"
+            )
+          )
+          return
+        }
+        validateRequiredString(
+          in: errorObj,
+          key: "code",
+          path: "messages.\(index).agentFunctionResponse.error.code",
+          details: &details
+        )
+        validateRequiredString(
+          in: errorObj,
+          key: "message",
+          path: "messages.\(index).agentFunctionResponse.error.message",
+          details: &details
+        )
+      }
+
     default:
-      break
+      details.append(
+        A2UIErrorDetail(
+          path: "messages.\(index)",
+          code: "invalid_value",
+          message: "Unrecognized message action '\(actionKey)'"
+        )
+      )
     }
   }
 
@@ -345,15 +533,45 @@ public final class A2UIValidator: Sendable {
         }
       }
     }
+    if let createSurfaceAction = message["createSurface"]?.objectValue,
+      let componentsArray = createSurfaceAction["components"]?.arrayValue
+    {
+      for componentValue in componentsArray {
+        if let componentObject = componentValue.objectValue {
+          components.append(
+            Dictionary(uniqueKeysWithValues: componentObject.map { ($0.key, $0.value) })
+          )
+        }
+      }
+    }
   }
 
-  private func validateComponentSchemas(_ components: [[String: JSONValue]]) throws {
+  private func findCatalog(_ catalogID: String?) -> AnyCatalog? {
+    guard let catalogID else { return catalogs.values.first }
+    if let cat = catalogs[catalogID] { return cat }
+    if let cat = catalogs.values.first(where: {
+      $0.id.hasSuffix("/\(catalogID)/catalog.json")
+        && $0.isV10
+    }) {
+      return cat
+    }
+    return catalogs.values.first {
+      $0.id.hasSuffix("/\(catalogID)/catalog.json")
+    }
+  }
+
+  private func validateComponentSchemas(
+    _ components: [[String: JSONValue]],
+    defaultCatalogID: String? = nil
+  ) throws {
     guard !catalogs.isEmpty else { return }
 
     for component in components {
       guard let type = component["component"]?.stringValue else { continue }
+      let targetCatalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
       let catalog =
-        component["catalogId"]?.stringValue.flatMap { catalogs[$0] }
+        targetCatalogID.flatMap { findCatalog($0) }
+        ?? catalogs["basic"]
         ?? (catalogs.count == 1
           ? catalogs.values.first
           : catalogs[catalogs.keys.sorted().first ?? ""])

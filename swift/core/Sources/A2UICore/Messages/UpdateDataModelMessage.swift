@@ -47,4 +47,17 @@ public struct UpdateDataModelMessage: Codable, Sendable, Equatable {
       value = nil
     }
   }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(surfaceID, forKey: .surfaceID)
+    if path != "/" {
+      try container.encode(path, forKey: .path)
+    }
+    if let value {
+      try container.encode(value, forKey: .value)
+    } else {
+      try container.encodeNil(forKey: .value)
+    }
+  }
 }

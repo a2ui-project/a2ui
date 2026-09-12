@@ -31,13 +31,23 @@ public struct FunctionAPI: Sendable, Equatable {
   /// The JSON Schema for the function's arguments.
   public var schema: Schema
 
+  /// Specifies which roles are authorized to invoke this function.
+  public var allowedCallers: AllowedCallers
+
+  /// Specifies whether this function requires a user activation context to execute.
+  public var requiresUserActivation: Bool
+
   public init(
     name: String,
     returnType: FunctionReturnType,
-    schema: Schema
+    schema: Schema,
+    allowedCallers: AllowedCallers = .rendererOnly,
+    requiresUserActivation: Bool = false
   ) {
     self.name = name
     self.returnType = returnType
     self.schema = schema
+    self.allowedCallers = allowedCallers
+    self.requiresUserActivation = requiresUserActivation
   }
 }

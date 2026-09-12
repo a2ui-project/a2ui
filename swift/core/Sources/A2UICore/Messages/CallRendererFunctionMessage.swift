@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The set of return types a local function can produce.
-///
-/// Mirrors `A2uiReturnType` in the core blueprint and `web_core`.
-public enum FunctionReturnType: String, Sendable {
-  case string
-  case number
-  case boolean
-  case array
-  case object
-  case validationResult = "validationResult"
-  case any
-  case void
+import Foundation
+
+/// A message commanding the renderer to execute a function locally on behalf of the agent.
+public struct CallRendererFunctionMessage: Codable, Sendable, Equatable {
+  public let functionCallID: String
+  public let callFunction: CallFunctionPayload
+
+  private enum CodingKeys: String, CodingKey {
+    case functionCallID = "functionCallId"
+    case callFunction
+  }
+
+  public init(functionCallID: String, callFunction: CallFunctionPayload) {
+    self.functionCallID = functionCallID
+    self.callFunction = callFunction
+  }
 }

@@ -22,10 +22,10 @@ public protocol ActionHandling: AnyObject, Sendable {
   ///   - surfaceID: The ID of the surface that triggered the action.
   func handle(action: ResolvedAction, from surfaceID: String)
 
-  /// Handles a client-side or validation error.
+  /// Handles a renderer-side or validation error.
   ///
   /// - Parameters:
   ///   - error: The error to handle.
   ///   - surfaceID: The ID of the surface that produced the error.
-  func handle(error: ClientServerError, from surfaceID: String)
+  func handle(error: RendererError, from surfaceID: String)
 }

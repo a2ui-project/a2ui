@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The set of return types a local function can produce.
-///
-/// Mirrors `A2uiReturnType` in the core blueprint and `web_core`.
-public enum FunctionReturnType: String, Sendable {
-  case string
-  case number
-  case boolean
-  case array
-  case object
-  case validationResult = "validationResult"
-  case any
-  case void
+/// Supported A2UI protocol versions.
+public enum A2UIProtocolVersion: String, Codable, Sendable, CaseIterable, Comparable {
+  case v09 = "v0.9"
+  case v091 = "v0.9.1"
+  case v10 = "v1.0"
+
+  /// The default active protocol version for outgoing messages.
+  public static let `default`: A2UIProtocolVersion = .v10
+
+  public static func < (lhs: A2UIProtocolVersion, rhs: A2UIProtocolVersion) -> Bool {
+    guard let lhsIndex = allCases.firstIndex(of: lhs),
+      let rhsIndex = allCases.firstIndex(of: rhs)
+    else {
+      return false
+    }
+    return lhsIndex < rhsIndex
+  }
 }

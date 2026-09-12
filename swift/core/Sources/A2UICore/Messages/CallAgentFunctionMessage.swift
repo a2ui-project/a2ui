@@ -12,35 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Represents a structured validation failure.
-public struct ValidationFailedError: Error, Equatable, Codable, Sendable {
-  public enum Code: String, Codable, Sendable, CaseIterable {
-    case validationFailed = "VALIDATION_FAILED"
-    case unallowedParent = "UNALLOWED_PARENT"
-    case unallowedChild = "UNALLOWED_CHILD"
-  }
+import Foundation
 
-  public let code: Code
+/// Signals the agent to execute a function remotely on behalf of the renderer.
+public struct CallAgentFunctionMessage: Codable, Sendable, Equatable {
   public let surfaceID: String
-  public let path: String
-  public let message: String
+  public let functionCallID: String
+  public let callFunction: CallFunctionPayload
 
   private enum CodingKeys: String, CodingKey {
-    case code
     case surfaceID = "surfaceId"
-    case path
-    case message
+    case functionCallID = "functionCallId"
+    case callFunction
   }
 
   public init(
-    code: Code = .validationFailed,
     surfaceID: String,
-    path: String,
-    message: String
+    functionCallID: String,
+    callFunction: CallFunctionPayload
   ) {
-    self.code = code
     self.surfaceID = surfaceID
-    self.path = path
-    self.message = message
+    self.functionCallID = functionCallID
+    self.callFunction = callFunction
   }
 }

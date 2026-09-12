@@ -16,42 +16,52 @@ import A2UICore
 import JSONSchema
 
 public final class LengthFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "length",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "string" },
-            "min": { "type": "integer", "minimum": 0 },
-            "max": { "type": "integer", "minimum": 0 }
-          },
-          "required": ["value"],
-          "anyOf": [
-            { "required": ["min"] },
-            { "required": ["max"] }
-          ]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
+  private let returnValidationResult: Bool
 
-  public init() {}
+  public init(returnValidationResult: Bool = false) {
+    self.returnValidationResult = returnValidationResult
+    self.api = FunctionAPI(
+      name: "length",
+      returnType: returnValidationResult ? .validationResult : .boolean,
+      schema: try! Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "min": { "type": "integer", "minimum": 0 },
+              "max": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["value"],
+            "anyOf": [
+              { "required": ["min"] },
+              { "required": ["max"] }
+            ]
+          }
+          """
+      )
+    )
+  }
+
+  public convenience init(protocolVersion: String) {
+    self.init(returnValidationResult: protocolVersion == "v1.0" || protocolVersion == "1.0")
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let valueStr = arguments["value"]?.stringValue else { return .boolean(false) }
+    guard let valueStr = arguments["value"]?.stringValue else {
+      return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
+    }
     let count = valueStr.count
 
     if let minVal = arguments["min"]?.intValue, count < minVal {
-      return .boolean(false)
+      return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
     }
 
     if let maxVal = arguments["max"]?.intValue, count > maxVal {
-      return .boolean(false)
+      return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
     }
 
-    return .boolean(true)
+    return returnValidationResult ? .object(["valid": .boolean(true)]) : .boolean(true)
   }
 }

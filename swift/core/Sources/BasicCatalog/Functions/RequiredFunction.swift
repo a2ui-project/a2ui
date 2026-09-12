@@ -16,37 +16,53 @@ import A2UICore
 import JSONSchema
 
 public final class RequiredFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "required",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": {}
-          },
-          "required": ["value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
+  private let returnValidationResult: Bool
 
-  public init() {}
+  public init(returnValidationResult: Bool = false) {
+    self.returnValidationResult = returnValidationResult
+    self.api = FunctionAPI(
+      name: "required",
+      returnType: returnValidationResult ? .validationResult : .boolean,
+      schema: try! Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": {}
+            },
+            "required": ["value"]
+          }
+          """
+      )
+    )
+  }
+
+  public convenience init(protocolVersion: String) {
+    self.init(returnValidationResult: protocolVersion == "v1.0" || protocolVersion == "1.0")
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let value = arguments["value"] else { return .boolean(false) }
+    guard let value = arguments["value"] else {
+      return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
+    }
+    let isValid: Bool
     switch value {
     case .null:
-      return .boolean(false)
+      isValid = false
     case .string(let str):
-      return .boolean(!str.isEmpty)
+      isValid = !str.isEmpty
     case .array(let arr):
-      return .boolean(!arr.isEmpty)
+      isValid = !arr.isEmpty
     case .object(let dict):
-      return .boolean(!dict.isEmpty)
+      isValid = !dict.isEmpty
     default:
-      return .boolean(true)
+      isValid = true
     }
+
+    if returnValidationResult {
+      return .object(["valid": .boolean(isValid)])
+    }
+    return .boolean(isValid)
   }
 }

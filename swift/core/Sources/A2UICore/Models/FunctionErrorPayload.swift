@@ -12,35 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Represents a structured validation failure.
-public struct ValidationFailedError: Error, Equatable, Codable, Sendable {
+import Foundation
+
+/// Represents an error returned by a function invocation.
+public struct FunctionErrorPayload: Codable, Sendable, Equatable {
+  /// Known standard machine-readable error codes for function errors.
   public enum Code: String, Codable, Sendable, CaseIterable {
-    case validationFailed = "VALIDATION_FAILED"
-    case unallowedParent = "UNALLOWED_PARENT"
-    case unallowedChild = "UNALLOWED_CHILD"
+    case invalidFunctionCall = "INVALID_FUNCTION_CALL"
+    case executionError = "EXECUTION_ERROR"
+    case timeout = "TIMEOUT"
+    case unknownFunction = "UNKNOWN_FUNCTION"
   }
 
-  public let code: Code
-  public let surfaceID: String
-  public let path: String
+  public let code: String
   public let message: String
 
-  private enum CodingKeys: String, CodingKey {
-    case code
-    case surfaceID = "surfaceId"
-    case path
-    case message
+  /// The strongly typed standard error code, or nil if a custom error code was provided.
+  public var structuredCode: Code? {
+    Code(rawValue: code)
   }
 
-  public init(
-    code: Code = .validationFailed,
-    surfaceID: String,
-    path: String,
-    message: String
-  ) {
+  public init(code: String, message: String) {
     self.code = code
-    self.surfaceID = surfaceID
-    self.path = path
+    self.message = message
+  }
+
+  public init(code: Code, message: String) {
+    self.code = code.rawValue
     self.message = message
   }
 }
