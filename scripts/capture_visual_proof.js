@@ -31,7 +31,7 @@ if (!fs.existsSync(VIDEOS_DIR)) {
 
 function runCmd(cmd) {
   try {
-    execSync(cmd, {stdio: 'pipe'});
+    execSync(cmd, {stdio: 'ignore'});
     return true;
   } catch (err) {
     console.error('Command failed:', err.message);
@@ -40,6 +40,10 @@ function runCmd(cmd) {
 }
 
 function generateProof() {
+  if (!runCmd('ffmpeg -version')) {
+    throw new Error('ffmpeg is required but not installed or not in PATH.');
+  }
+
   console.log('=== Generating Visual Assets ===');
 
   // Restaurant 4-stage journey assets

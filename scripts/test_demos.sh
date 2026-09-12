@@ -151,10 +151,16 @@ cleanup() {
   if [ -f /tmp/a2ui_agent_pid.txt ]; then
     AGENT_PID=$(cat /tmp/a2ui_agent_pid.txt)
     echo "Shutting down agent process (PID: $AGENT_PID)..."
+    kill "$AGENT_PID" 2>/dev/null || true
+    sleep 2
     kill -9 "$AGENT_PID" 2>/dev/null || true
     rm -f /tmp/a2ui_agent_pid.txt
   fi
-  fuser -k 10002/tcp 2>/dev/null || true
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k 10002/tcp 2>/dev/null || true
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -t -i:10002 | xargs kill -9 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 

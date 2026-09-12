@@ -357,7 +357,7 @@ function validateRestaurantBookingComponents() {
     if (msg.updateDataModel && msg.updateDataModel.data) {
       dataModel = msg.updateDataModel.data;
     }
-    if (msg.updateComponents && msg.updateComponents.components) {
+    if (msg.updateComponents && Array.isArray(msg.updateComponents.components)) {
       for (const comp of msg.updateComponents.components) {
         if (comp.component === 'Button') {
           buttonComponent = comp;

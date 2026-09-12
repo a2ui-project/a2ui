@@ -30,7 +30,7 @@ function generateSummary() {
 
   const raw = fs.readFileSync(RESULTS_JSON_FILE, 'utf-8');
   const payload = JSON.parse(raw);
-  const results = Array.isArray(payload) ? payload : payload.results;
+  const results = Array.isArray(payload) ? payload : payload.results || [];
   const interactive =
     payload.interactiveVerifications ||
     (payload.buttonVerification ? {restaurant: payload.buttonVerification} : null);
