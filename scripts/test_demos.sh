@@ -211,12 +211,27 @@ for idx in "${!QUICKSTART_PROMPTS[@]}"; do
 EOF
   )
 
-  MSG_RESPONSE=$(curl -s -X POST http://127.0.0.1:10002/ \
-    -H "Content-Type: application/json" \
-    -d "$QUERY_PAYLOAD")
+  SUCCESS=false
+  for attempt in 1 2 3 4 5; do
+    MSG_RESPONSE=$(curl -s -X POST http://127.0.0.1:10002/ \
+      -H "Content-Type: application/json" \
+      -d "$QUERY_PAYLOAD")
 
-  if ! echo "$MSG_RESPONSE" | grep -q "parts"; then
-    echo "ERROR: Agent response for prompt \"$PROMPT\" did not contain expected parts:"
+    if echo "$MSG_RESPONSE" | grep -q "parts"; then
+      SUCCESS=true
+      break
+    fi
+
+    echo "  ⚠ Attempt $attempt failed. Response: $MSG_RESPONSE"
+    if [ $attempt -lt 5 ]; then
+      BACKOFF=$((attempt * 4))
+      echo "  Retrying in ${BACKOFF}s..."
+      sleep "$BACKOFF"
+    fi
+  done
+
+  if [ "$SUCCESS" = false ]; then
+    echo "ERROR: Agent response for prompt \"$PROMPT\" did not contain expected parts after 5 attempts:"
     echo "$MSG_RESPONSE"
     exit 1
   fi
