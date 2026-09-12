@@ -108,24 +108,30 @@ function generateSummary() {
   const hasVideos = fs.existsSync(videosDir);
 
   if (hasScreenshots || hasVideos) {
-    md += `## 📸 Visual Rendering Proof & Interaction Replay\n\n`;
-    md += `Rendered visual evidence and interactive component recordings captured during test execution:\n\n`;
-    md += `| Target Component / Flow | Type | Media Asset | Verification Scope |\n`;
+    md += `## 📸 Comprehensive Restaurant Lifecycle Visual Proof\n\n`;
+    md += `The Restaurant Finder sample is an end-to-end multi-state conversational reservation app. Below is the visual evidence across all 4 lifecycle states:\n\n`;
+    md += `| Lifecycle Stage | Type | Media Asset | Verification Scope |\n`;
     md += `| :--- | :---: | :--- | :--- |\n`;
-    md += `| **Restaurant Finder Card** | 🖼️ PNG | \`screenshots/restaurant_card_rendered.png\` | Action button formatting ("Book Now"), ratings, card layout |\n`;
-    md += `| **Restaurant Booking Form** | 🖼️ PNG | \`screenshots/restaurant_booking_transition.png\` | Surface transition to reservation form (Guards Issue #1191) |\n`;
-    md += `| **Personalized Learning Quiz** | 🖼️ PNG | \`screenshots/personalized_learning_quiz.png\` | Dynamic option selection and submit button state |\n`;
-    md += `| **MCP Calculator Keypad** | 🖼️ PNG | \`screenshots/mcp_calculator_keypad.png\` | Suggestion chips and MCP tool frame bridge |\n`;
-    md += `| **Restaurant Booking Interaction** | 🎬 WebM / GIF | \`videos/restaurant_booking_interaction.webm\` | Animated cursor click replay demonstrating surface transition |\n\n`;
+    md += `| **Stage 1: Search Results Grid** | 🖼️ PNG | \`screenshots/restaurant_1_search_grid.png\` | Two-column cards (Xian Famous Foods & Han Dynasty), cuisine, stars, "Book Now" |\n`;
+    md += `| **Stage 2: Restaurant Detail Card** | 🖼️ PNG | \`screenshots/restaurant_2_card_detail.png\` | Selected restaurant featured card, operating hours, action event binding |\n`;
+    md += `| **Stage 3: Interactive Reservation Form** | 🖼️ PNG | \`screenshots/restaurant_3_booking_form.png\` | Inputs (Party Size, Time, Dietary notes, Submit button) - Guards Issue #1191 |\n`;
+    md += `| **Stage 4: Confirmed Reservation Ticket** | 🖼️ PNG | \`screenshots/restaurant_4_confirmation_ticket.png\` | Final confirmation pass with reservation code and "Add to Calendar" button |\n`;
+    md += `| **Interactive Walkthrough Replay** | 🎬 GIF / WebM | \`videos/restaurant_booking_interaction.gif\` | Animated 4-stage interaction replay walking through the complete booking flow |\n\n`;
 
-    md += `### 🎬 Live Interaction Replay Preview\n\n`;
+    md += `### 🎬 End-to-End Restaurant Booking Interaction Replay\n\n`;
     md += `![Restaurant Booking Interaction](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/videos/restaurant_booking_interaction.gif)\n\n`;
 
-    md += `### 🖼️ Component Visual Proof Gallery\n\n`;
-    md += `| Restaurant Card & Booking Form | Personalized Quiz & MCP Calculator |\n`;
+    md += `### 🖼️ Restaurant Flow: Full 4-Stage Visual Gallery\n\n`;
+    md += `| Stage 1: Search Results Grid | Stage 2: Selected Restaurant Detail |\n`;
     md += `| :---: | :---: |\n`;
-    md += `| ![Restaurant Card](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_card_rendered.png)<br><sub>*Restaurant Card with "Book Now" Button*</sub> | ![Personalized Learning Quiz](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/personalized_learning_quiz.png)<br><sub>*Personalized Learning Quiz Card*</sub> |\n`;
-    md += `| ![Booking Transition](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_booking_transition.png)<br><sub>*Reservation Form Transition (Issue #1191 Guard)*</sub> | ![MCP Calculator](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/mcp_calculator_keypad.png)<br><sub>*MCP Calculator Bridge & Keypad*</sub> |\n\n`;
+    md += `| ![Search Grid](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_1_search_grid.png)<br><sub>*Stage 1: Two-column restaurant search results grid*</sub> | ![Card Detail](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_2_card_detail.png)<br><sub>*Stage 2: Selected restaurant featured card with "Book Now"*</sub> |\n`;
+    md += `| **Stage 3: Interactive Reservation Form** | **Stage 4: Confirmed Reservation Ticket** |\n`;
+    md += `| ![Booking Form](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_3_booking_form.png)<br><sub>*Stage 3: Reservation form inputs & submit button*</sub> | ![Confirmation Ticket](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/restaurant_4_confirmation_ticket.png)<br><sub>*Stage 4: Booking confirmation ticket & calendar action*</sub> |\n\n`;
+
+    md += `### 🧩 Cross-Sample Component Verification\n\n`;
+    md += `| Personalized Learning Quiz Card | MCP Calculator Tool Keypad Bridge |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Quiz Card](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/personalized_learning_quiz.png)<br><sub>*Personalized Learning: Dynamic quiz option selection*</sub> | ![MCP Keypad](https://raw.githubusercontent.com/rohityan/a2ui/ci/demos-workflow/screenshots/mcp_calculator_keypad.png)<br><sub>*MCP Calculator: Suggestion chips & frame bridge*</sub> |\n\n`;
 
     md += `> [!NOTE]\n`;
     md += `> High-definition WebM interaction video (\`videos/restaurant_booking_interaction.webm\`) and full-resolution lossless PNG screenshots are packaged in the **qa-logs-and-reports** artifact zip below.\n\n`;
