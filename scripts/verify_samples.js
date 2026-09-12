@@ -27,17 +27,16 @@ if (!fs.existsSync(LOGS_DIR)) {
 const EXEC_LOG_FILE = path.join(LOGS_DIR, 'test-execution.log');
 const RESULTS_JSON_FILE = path.join(LOGS_DIR, 'results.json');
 
-const logStream = fs.createWriteStream(EXEC_LOG_FILE, {flags: 'w'});
+let logStream = null;
 
 function log(msg) {
   const timestamp = new Date().toISOString();
   const line = `[${timestamp}] ${msg}\n`;
   process.stdout.write(line);
-  logStream.write(line);
+  if (logStream) {
+    logStream.write(line);
+  }
 }
-
-log('=== Starting E2E QA Test Suite (verify_samples.js) ===');
-log(`Repository Root: ${REPO_ROOT}`);
 
 // Sample targets across the monorepo
 const SAMPLES = [
@@ -132,6 +131,9 @@ const SAMPLES = [
 ];
 
 async function runValidation() {
+  logStream = fs.createWriteStream(EXEC_LOG_FILE, {flags: 'w'});
+  log('=== Starting E2E QA Test Suite (verify_samples.js) ===');
+  log(`Repository Root: ${REPO_ROOT}`);
   const results = [];
 
   for (const sample of SAMPLES) {
@@ -374,7 +376,8 @@ function validateRestaurantBookingComponents() {
     throw new Error('Button component not found in restaurant card definition');
   }
 
-  const buttonLabel = textComponent ? textComponent.text : '';
+  const buttonLabel =
+    textComponent && typeof textComponent.text === 'string' ? textComponent.text : '';
   const actionName =
     buttonComponent.action && buttonComponent.action.event ? buttonComponent.action.event.name : '';
 
@@ -414,12 +417,12 @@ function validateQuickstartPrompts() {
   const formJson = JSON.parse(fs.readFileSync(formPath, 'utf-8'));
 
   // Prompt 1: "Find Italian restaurants near me" -> dynamic search results
-  const searchComponents = searchJson[1]?.updateComponents?.components || [];
+  const searchComponents = (searchJson && searchJson[1])?.updateComponents?.components || [];
   const hasCardTemplate = searchComponents.some(c => c.component === 'Card');
   const hasBookButton = searchComponents.some(c => c.component === 'Button');
 
   // Prompt 2: "Book a table for 2" -> interactive booking form
-  const formComponents = formJson[1]?.updateComponents?.components || [];
+  const formComponents = (formJson && formJson[1])?.updateComponents?.components || [];
   const hasPartyField = formComponents.some(
     c => c.id === 'party-size-field' && c.component === 'TextField',
   );

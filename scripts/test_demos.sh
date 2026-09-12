@@ -140,6 +140,10 @@ fi
 
 echo ""
 echo "--> Starting Python Restaurant Finder Agent on port 10002..."
+if ! command -v uv >/dev/null 2>&1; then
+  echo "ERROR: 'uv' command not found. Please install uv (https://github.com/astral-sh/uv) to run the agent."
+  exit 1
+fi
 AGENT_DIR="$REPO_ROOT/samples/agent/adk/restaurant_finder"
 pushd "$AGENT_DIR" >/dev/null
 uv run . &
