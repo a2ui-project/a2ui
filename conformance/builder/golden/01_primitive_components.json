@@ -1,0 +1,19 @@
+[
+  {
+    "component": "Text",
+    "id": "header_text",
+    "text": "Welcome to A2UI",
+    "variant": "h1"
+  },
+  {
+    "component": "Divider",
+    "id": "divider_0",
+    "axis": "horizontal"
+  },
+  {
+    "component": "Text",
+    "id": "body_text",
+    "text": "This is a simple text component.",
+    "variant": "body"
+  }
+]

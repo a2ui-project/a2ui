@@ -1,0 +1,12 @@
+{
+  "condition": {
+    "call": "regex",
+    "args": {
+      "value": {
+        "path": "/user/zip"
+      },
+      "pattern": "^[0-9]{5}$"
+    }
+  },
+  "message": "ZIP code must be 5 digits"
+}

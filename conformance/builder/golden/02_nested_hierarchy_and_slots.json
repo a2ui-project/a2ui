@@ -1,0 +1,54 @@
+[
+  {
+    "component": "Text",
+    "id": "main_card__title",
+    "text": "Dashboard",
+    "variant": "h2"
+  },
+  {
+    "component": "Divider",
+    "id": "main_card__div_1",
+    "axis": "horizontal"
+  },
+  {
+    "component": "Icon",
+    "id": "main_card__save_icon",
+    "name": "check"
+  },
+  {
+    "component": "Text",
+    "id": "main_card__btn_save_text",
+    "text": "Save Changes",
+    "variant": "body"
+  },
+  {
+    "component": "Button",
+    "id": "main_card__btn_save",
+    "child": "main_card__btn_save_text",
+    "variant": "primary",
+    "action": {
+      "event": {
+        "name": "save_changes"
+      }
+    }
+  },
+  {
+    "component": "Row",
+    "id": "main_card__action_row",
+    "children": ["main_card__save_icon", "main_card__btn_save"],
+    "justify": "start",
+    "align": "stretch"
+  },
+  {
+    "component": "Column",
+    "id": "main_card__main_col",
+    "children": ["main_card__title", "main_card__div_1", "main_card__action_row"],
+    "justify": "start",
+    "align": "stretch"
+  },
+  {
+    "component": "Card",
+    "id": "main_card",
+    "child": "main_card__main_col"
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "component": "Text",
+    "id": "profile_card__user_greeting",
+    "text": {
+      "path": "/user/displayName"
+    },
+    "variant": "h3"
+  },
+  {
+    "component": "Text",
+    "id": "profile_card__user_balance",
+    "text": {
+      "path": "/account/balance"
+    },
+    "variant": "body"
+  },
+  {
+    "component": "Column",
+    "id": "profile_card__profile_col",
+    "children": ["profile_card__user_greeting", "profile_card__user_balance"],
+    "justify": "start",
+    "align": "stretch"
+  },
+  {
+    "component": "Card",
+    "id": "profile_card",
+    "child": "profile_card__profile_col"
+  }
+]
