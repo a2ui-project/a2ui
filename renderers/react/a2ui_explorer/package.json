@@ -88,7 +88,7 @@
     }
   },
   "dependencies": {
-    "@a2ui/markdown-it": "*",
+    "@a2ui/markdown-it": "workspace:*",
     "@a2ui/react": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "react": "^19.2.7",

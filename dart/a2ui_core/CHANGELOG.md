@@ -2,6 +2,18 @@
 
 ## 0.2.0
 
+- An invalid number literal in an expression, such as `${1.2.3}`, now throws
+  `A2uiExpressionError` instead of a `FormatException` from `num.parse` — an error
+  outside the `A2uiError` hierarchy that `avoid_catching_errors` discourages catching.
+  The accepted shape is stated in the parser rather than inherited from the platform's
+  number parser, so every implementation accepts the same literals.
+- The expression parser now runs the shared conformance suite at
+  `conformance/core/expressions.yaml`, alongside the TypeScript client.
+- The expression parser's nesting limit is now enforced. The depth guard sat in
+  `parse()`, which is only entered at depth 0, so neither nested interpolations nor
+  function-call arguments were ever counted: a deeply nested template recursed until
+  the stack overflowed, raising `StackOverflowError` rather than the intended
+  `A2uiExpressionError`. The limit is also raised from 10 to 100, matching web_core.
 - **Breaking:** `MessageProcessor` validates messages as it processes them.
   A message that does not match its catalog now throws instead of being
   applied. Added `processPayload` and an optional `validator` constructor

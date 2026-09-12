@@ -145,14 +145,14 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def test_catalog_description_before_generate(self):
         elemental_format = ElementalFormat(catalog=self.catalog)
         generator = elemental_format.prompt_generator
-        desc = generator.catalog_description(include_schema=True)
+        desc = generator.generate_catalog_instructions(include_schema=True)
         self.assertIn("interface Text {", desc)
 
     def test_catalog_description_no_schema(self):
         """Verifies catalog_description returns an empty string when include_schema is False."""
         fmt = ElementalFormat(catalog=self.catalog)
         generator = fmt.prompt_generator
-        desc = generator.catalog_description(include_schema=False)
+        desc = generator.generate_catalog_instructions(include_schema=False)
         self.assertEqual(desc, "")
 
     def test_catalog_description_initializes_helper_and_decompiles_instructions(self):
@@ -190,7 +190,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         fmt = ElementalFormat(catalog=custom_catalog)
         generator = fmt.prompt_generator
 
-        desc = generator.catalog_description(include_schema=True)
+        desc = generator.generate_catalog_instructions(include_schema=True)
 
         # Verify JSON block in catalog instructions is decompiled to HTML block
         self.assertIn("## Catalog Instructions", desc)
@@ -237,7 +237,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         fmt = ElementalFormat(catalog=custom_catalog)
         generator = fmt.prompt_generator
 
-        desc = generator.catalog_description(include_schema=True)
+        desc = generator.generate_catalog_instructions(include_schema=True)
 
         self.assertIn("## Catalog Instructions", desc)
         self.assertIn("```html", desc)

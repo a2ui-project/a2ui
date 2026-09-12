@@ -116,8 +116,16 @@ export class DataModel {
     const segments = this.parsePath(path);
     const lastSegment = segments.pop()!;
 
-    if (!this.data) {
+    // Only an absent root is replaced with a container. A primitive root is a
+    // value the caller put there, and writing a path through it is the same
+    // error as writing through a primitive at any other depth.
+    if (this.data === undefined || this.data === null) {
       this.data = {};
+    } else if (typeof this.data !== 'object') {
+      throw new A2uiDataError(
+        `Cannot set path '${path}': the data model root is a primitive value.`,
+        path,
+      );
     }
     let current: any = this.data;
     for (let i = 0; i < segments.length; i++) {

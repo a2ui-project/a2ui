@@ -14,10 +14,22 @@
 
 import '../primitives/errors.dart';
 
+/// Digits, an optional decimal point, and optional further digits.
+///
+/// Every client implementation accepts a trailing point (`1.`) today and none
+/// accepts a second point (`1.2.3`), so the grammar is written to keep that.
+final RegExp _numberLiteral = RegExp(r'^\d+\.?\d*$');
+
 /// A parser for A2UI expressions, supporting string interpolation
 /// and function calls.
 class ExpressionParser {
-  static const int maxDepth = 10;
+  /// The maximum nesting depth allowed in a single expression.
+  ///
+  /// Nesting comes from two sources: interpolations inside an interpolation
+  /// (`${${...}}`) and function-call arguments that are themselves expressions
+  /// (`f(a: g(b: ...))`). Both are counted, so the limit bounds the recursion
+  /// this parser can be driven into by an agent-supplied template.
+  static const int maxDepth = 100;
 
   /// Parses an input string into a list of components (literals or
   /// [Map] representations of expressions).
@@ -115,6 +127,9 @@ class ExpressionParser {
   }
 
   Object? _parseExpressionInternal(_Scanner scanner, int depth) {
+    if (depth > maxDepth) {
+      throw A2uiExpressionError('Max recursion depth reached in parse');
+    }
     scanner.skipWhitespace();
     if (scanner.isAtEnd) return '';
 
@@ -177,7 +192,7 @@ class ExpressionParser {
       }
       scanner.skipWhitespace();
 
-      args[argName] = _parseExpressionInternal(scanner, depth);
+      args[argName] = _parseExpressionInternal(scanner, depth + 1);
 
       scanner.skipWhitespace();
       if (scanner.peek() == ',') {
@@ -235,7 +250,13 @@ class ExpressionParser {
         (_isDigit(scanner.peek()) || scanner.peek() == '.')) {
       scanner.advance();
     }
-    return num.parse(scanner.input.substring(start, scanner.pos));
+    final String text = scanner.input.substring(start, scanner.pos);
+    // The grammar is spelled out here rather than delegated to the platform's
+    // number parser, so that every implementation accepts the same literals.
+    if (!_numberLiteral.hasMatch(text)) {
+      throw A2uiExpressionError("Invalid number literal: '$text'");
+    }
+    return num.parse(text);
   }
 
   bool _isAlnum(String c) {

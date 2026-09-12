@@ -60,7 +60,9 @@ Two of these labels are automated: `status: needs-triage` is managed entirely by
 
 The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It reconciles `status: needs-triage` across all open items according to the following rules:
 
-1. **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once the author posts a comment or review submitted after the label was added.
+1. **Skipped items**: The automation skips the following items:
+    - **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once an external contributor posts a comment, review or review comment after the label was added.
+    - **Assigned issues**: When an issue is assigned, it is assumed that a team member is looking into it.
 2. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
     - **No priority**: The issue lacks a priority label (`P0`–`P4`).
     - **Unassigned high priority**: Labeled `P0` or `P1` without an assignee.
@@ -69,8 +71,9 @@ The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag iss
         - `P1`: stale for > 30 days
         - `P2`: stale for > 90 days
         - (`P3` and `P4` issues are never flagged for staleness)
-    - **Unanswered external comment**: The latest human comment is from an external contributor and has been unanswered by a maintainer for > 1 day.
-3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution for > 1 day. (Maintainer-authored PRs are not flagged).
+    - **Unanswered external comment**: The latest human comment is from an external contributor.
+3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution. (Maintainer-authored PRs are not flagged).
+4. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
 

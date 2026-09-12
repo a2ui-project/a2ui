@@ -24,9 +24,17 @@ import {A2uiExpressionError} from '../../errors.js';
  * It supports literals (strings, numbers, booleans), path-based data bindings, and
  * nested function calls with named arguments.
  */
+/**
+ * Digits, an optional decimal point, and optional further digits.
+ *
+ * Every client implementation accepts a trailing point (`1.`) today and none
+ * accepts a second point (`1.2.3`), so the grammar is written to keep that.
+ */
+const NUMBER_LITERAL = /^\d+\.?\d*$/;
+
 export class ExpressionParser {
   /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
-  private static readonly MAX_DEPTH = 10;
+  public static readonly MAX_DEPTH = 100;
 
   /**
    * Parses an input string into an array of DynamicValues.
@@ -127,6 +135,11 @@ export class ExpressionParser {
   }
 
   private parseExpressionInternal(scanner: Scanner, depth: number): DynamicValue {
+    // Both recursive paths pass through here: interpolations nested inside an interpolation,
+    // and function-call arguments that are themselves expressions. Checking here counts both.
+    if (depth > ExpressionParser.MAX_DEPTH) {
+      throw new A2uiExpressionError('Max recursion depth reached in parse');
+    }
     scanner.skipWhitespace();
     if (scanner.isAtEnd()) return '';
 
@@ -195,7 +208,7 @@ export class ExpressionParser {
       }
       scanner.skipWhitespace();
 
-      args[argName] = this.parseExpressionInternal(scanner, depth);
+      args[argName] = this.parseExpressionInternal(scanner, depth + 1);
 
       scanner.skipWhitespace();
       if (scanner.peek() === ',') {
@@ -244,7 +257,13 @@ export class ExpressionParser {
     while (!scanner.isAtEnd() && (this.isDigit(scanner.peek()) || scanner.peek() === '.')) {
       scanner.advance();
     }
-    return Number(scanner.input.substring(start, scanner.pos));
+    const text = scanner.input.substring(start, scanner.pos);
+    // The grammar is spelled out here rather than delegated to the platform's
+    // number parser, so that every implementation accepts the same literals.
+    if (!NUMBER_LITERAL.test(text)) {
+      throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
+    }
+    return Number(text);
   }
 
   private isAlnum(c: string): boolean {

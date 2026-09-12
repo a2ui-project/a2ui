@@ -226,7 +226,7 @@ class TestRunnerAndReporter(unittest.TestCase):
     def test_run_evaluation(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0)
         res = run_evaluation(
-            "atom", "google/gemini-3.5-flash", ["loginForm"], True, "/tmp/logs"
+            "atom", "google/gemini-3.8-flash", ["loginForm"], True, "/tmp/logs"
         )
         self.assertTrue(res)
 
@@ -308,7 +308,7 @@ class TestRunnerAndReporter(unittest.TestCase):
             baseline_data=None,
             git_diff="active diff",
             format_name="atom",
-            model="google/gemini-3.5-flash",
+            model="google/gemini-3.8-flash",
         )
         self.assertIn("# Inference Format Optimization Report", report)
         self.assertIn("Pytest Unit Test Failures", report)
@@ -345,7 +345,7 @@ class TestRunnerAndReporter(unittest.TestCase):
             baseline_data=baseline_data,
             git_diff="",
             format_name="atom",
-            model="google/gemini-3.5-flash",
+            model="google/gemini-3.8-flash",
         )
         self.assertIn("## Summary Table", report)
         self.assertIn("Overall Pass Rate", report)
@@ -449,7 +449,7 @@ class TestRunnerAndReporter(unittest.TestCase):
         mock_run.return_value = MagicMock(returncode=0)
         res = run_evaluation(
             format_name="atom",
-            model="google/gemini-3.5-flash",
+            model="google/gemini-3.8-flash",
             prompts=["prompt1", "prompt2"],
             sanity=True,
             log_dir="/tmp/logs",

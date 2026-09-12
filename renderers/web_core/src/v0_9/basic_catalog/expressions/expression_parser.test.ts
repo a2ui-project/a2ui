@@ -69,12 +69,54 @@ describe('ExpressionParser', () => {
 
   it('returns error on max depth exceeded', () => {
     assert.throws(() => {
-      parser.parse('depth', 11);
+      parser.parse('depth', ExpressionParser.MAX_DEPTH + 1);
     }, /Max recursion depth reached/);
   });
 
   it('handles deep recursion gracefully', () => {
     assert.deepStrictEqual(parser.parse('${${"hello"}}'), ['hello']);
+  });
+
+  describe('nesting depth', () => {
+    const MAX_DEPTH = ExpressionParser.MAX_DEPTH;
+
+    // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so this
+    // nests `calls + 1` deep.
+    const nestedCalls = (calls: number) => `\${${'f(a: '.repeat(calls)}1${')'.repeat(calls)}}`;
+
+    // '${${ ... x ... }}', nesting `depth` levels deep.
+    const nestedInterpolations = (depth: number) => `${'${'.repeat(depth)}x${'}'.repeat(depth)}`;
+
+    it('accepts nesting up to the maximum depth', () => {
+      assert.doesNotThrow(() => parser.parse(nestedCalls(MAX_DEPTH - 1)));
+      assert.doesNotThrow(() => parser.parse(nestedInterpolations(MAX_DEPTH)));
+    });
+
+    it('rejects function arguments one level past the maximum depth', () => {
+      assert.throws(() => {
+        parser.parse(nestedCalls(MAX_DEPTH));
+      }, /Max recursion depth reached/);
+    });
+
+    it('rejects interpolations one level past the maximum depth', () => {
+      assert.throws(() => {
+        parser.parse(nestedInterpolations(MAX_DEPTH + 1));
+      }, /Max recursion depth reached/);
+    });
+
+    it('rejects pathological nesting instead of overflowing the stack', () => {
+      // Deep enough to exhaust the stack while the guard was unreachable. Asserted on the
+      // error kind rather than its message, so that any earlier bound on the input (a length
+      // cap, say) still satisfies the point: a pathological template is rejected with a
+      // protocol error rather than collapsing the runtime.
+      const expressionError = {name: 'A2uiExpressionError', code: 'EXPRESSION_ERROR'};
+      assert.throws(() => {
+        parser.parse(nestedCalls(50000));
+      }, expressionError);
+      assert.throws(() => {
+        parser.parse(nestedInterpolations(50000));
+      }, expressionError);
+    });
   });
 
   it('returns error on unclosed interpolation', () => {

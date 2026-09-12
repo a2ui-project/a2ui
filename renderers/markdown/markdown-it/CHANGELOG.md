@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.1.2
+
+- Bump dependencies so the package is compatible with `@a2ui/web_core: ^0.11.0`.
+
 ## 0.1.1
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

@@ -146,19 +146,54 @@ class ExpressPromptGenerator(PromptGenerator):
         self.helper = CatalogSchemaHelper(format_inst.catalog)
         self.parser: Optional[ExpressParser] = None
 
-    def generate_component_signatures(self) -> str:
+    def generate_base_rules(self) -> str:
+        """Returns the core syntax contract and grammar rules for A2UI Express."""
+        return EXPRESS_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles positional signatures and instructions for a catalog."""
+        if not include_schema:
+            return ""
+        return self._catalog_description(include_schema=True, catalog=catalog)
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Express DSL examples."""
+        target_catalog = catalog or self.catalog
+        if not target_catalog or not self._format or not self._format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self._format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
+
+    def _generate_component_signatures(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles component definitions into clean function-like signatures.
 
         Returns:
             A plain-text multi-line list of component signatures.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         signatures = []
-        for name in sorted(self.helper.component_properties.keys()):
-            props = self.helper.get_component_properties(name)
-            reqs = self.helper.get_component_required(name)
+        for name in sorted(h.component_properties.keys()):
+            props = h.get_component_properties(name)
+            reqs = h.get_component_required(name)
 
             # Retrieve component-level description
-            comp_desc = self.helper.get_component_description(name)
+            comp_desc = h.get_component_description(name)
 
             ordered_args = []
             prop_details = []
@@ -166,7 +201,7 @@ class ExpressPromptGenerator(PromptGenerator):
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
 
-                p_schema = self.helper.get_property_schema(name, p)
+                p_schema = h.get_property_schema(name, p)
 
                 # Determine signature argument label
                 arg_label = f"{p}{opt_suffix}"
@@ -250,24 +285,29 @@ class ExpressPromptGenerator(PromptGenerator):
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def generate_function_signatures(self) -> str:
+    def _generate_function_signatures(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles function definitions into clean signatures.
 
         Returns:
             A plain-text multi-line list of function signatures.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         signatures = []
-        for name in sorted(self.helper.function_properties.keys()):
-            props = self.helper.get_function_properties(name)
-            reqs = self.helper.get_function_required(name)
+        for name in sorted(h.function_properties.keys()):
+            props = h.get_function_properties(name)
+            reqs = h.get_function_required(name)
 
             # Retrieve function-level description
-            f_desc = self.helper.get_function_description(name)
+            f_desc = h.get_function_description(name)
 
             ordered_args = []
             prop_details = []
 
-            func_schema = self.helper.functions.get(name, {})
+            func_schema = h.functions.get(name, {})
             args_properties = (
                 func_schema.get("properties", {}).get("args", {}).get("properties", {})
             )
@@ -294,13 +334,16 @@ class ExpressPromptGenerator(PromptGenerator):
         return "\n".join(signatures)
 
     def _build_schema_prompt(self) -> str:
-        return self.catalog_description(include_schema=True)
+        return self._catalog_description(include_schema=True)
 
-    def catalog_description(self, include_schema: bool = True) -> str:
+    def _catalog_description(
+        self, include_schema: bool = True, catalog: Optional[Any] = None
+    ) -> str:
         """Assembles the system prompt component catalog signatures block.
 
         Args:
             include_schema: Whether to include the schema description.
+            catalog: Optional catalog override to render signatures for.
 
         Returns:
             The rendered LLM instructions string block containing positional signatures.
@@ -308,11 +351,10 @@ class ExpressPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
 
-        comp_sigs = self.generate_component_signatures()
-        func_sigs = self.generate_function_signatures()
-        catalog_instructions = (
-            self.helper.catalog.get("instructions", "") if self.helper else ""
-        )
+        h = CatalogSchemaHelper(catalog) if catalog else self.helper
+        comp_sigs = self._generate_component_signatures(helper=h)
+        func_sigs = self._generate_function_signatures(helper=h)
+        catalog_instructions = h.catalog.get("instructions", "") if h else ""
 
         # Translate json examples in catalog instructions into A2UI Express DSL
         if catalog_instructions:
@@ -486,26 +528,14 @@ class ExpressPromptGenerator(PromptGenerator):
             self.helper = CatalogSchemaHelper(catalog) if catalog else None
             self.parser = ExpressParser(catalog) if catalog else None
 
-        parts = [role_description]
-
-        rules = EXPRESS_RULES
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
-        parts.append(f"## Workflow Description:\n{rules}")
-
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
-        if include_schema and self.helper:
-            prompt = self._build_schema_prompt()
-            parts.append(prompt)
-
-        if include_examples and self._format and self._format.examples_path and catalog:
-            raw_examples = catalog.load_examples(
-                self._format.examples_path, validate=validate_examples
-            )
-            if raw_examples:
-                formatted_examples = self.transform_examples(raw_examples)
-                parts.append(f"### Examples:\n{formatted_examples}")
-
-        return "\n\n".join(parts)
+        return super().generate(
+            role_description=role_description,
+            workflow_description=workflow_description,
+            ui_description=ui_description,
+            client_ui_capabilities=client_ui_capabilities,
+            allowed_components=allowed_components,
+            allowed_messages=allowed_messages,
+            include_schema=include_schema,
+            include_examples=include_examples,
+            validate_examples=validate_examples,
+        )
