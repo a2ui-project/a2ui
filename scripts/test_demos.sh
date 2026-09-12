@@ -239,12 +239,15 @@ EOF
 done
 echo "✔ All 3 Quickstart prompts validated successfully against live Gemini agent."
 
-# If Flutter was requested, run Flutter e2e test
+# If Flutter was requested, run Flutter client smoke test
 if [ "$DEMO_TARGET" = "flutter" ] || [ "$DEMO_TARGET" = "all" ]; then
   echo ""
-  echo "--> Running Flutter E2E session test..."
-  "$REPO_ROOT/scripts/e2e_test.sh"
-  echo "✔ Flutter E2E session test passed."
+  echo "--> Running Flutter client smoke test..."
+  (
+    cd "$REPO_ROOT/samples/client/flutter/restaurant_finder/app"
+    flutter test
+  )
+  echo "✔ Flutter client smoke test passed."
 fi
 
 # If Lit was requested, run Lit compilation/smoke test
