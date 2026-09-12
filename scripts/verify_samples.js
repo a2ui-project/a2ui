@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,13 +21,13 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const LOGS_DIR = path.join(REPO_ROOT, 'logs');
 
 if (!fs.existsSync(LOGS_DIR)) {
-  fs.mkdirSync(LOGS_DIR, { recursive: true });
+  fs.mkdirSync(LOGS_DIR, {recursive: true});
 }
 
 const EXEC_LOG_FILE = path.join(LOGS_DIR, 'test-execution.log');
 const RESULTS_JSON_FILE = path.join(LOGS_DIR, 'results.json');
 
-const logStream = fs.createWriteStream(EXEC_LOG_FILE, { flags: 'w' });
+const logStream = fs.createWriteStream(EXEC_LOG_FILE, {flags: 'w'});
 
 function log(msg) {
   const timestamp = new Date().toISOString();
@@ -186,14 +186,19 @@ async function runValidation() {
       }
 
       if (!clientGuarded) {
-        const errorMsg = "Error: Surface default already exists (Issue #1191 regression: useStreaming guard missing in Lit client)";
+        const errorMsg =
+          'Error: Surface default already exists (Issue #1191 regression: useStreaming guard missing in Lit client)';
         result.runtimeStatus = 'FAILED';
         result.consoleErrors.push(errorMsg);
         result.errorDetails = errorMsg;
         result.passed = false;
         log(`    ✖ Browser Console Error Captured: ${errorMsg}`);
-        log(`      [Stack Trace] at SurfaceManager.createSurface (samples/client/lit/shell/src/surface.ts:84)`);
-        log(`      [Stack Trace] at A2UIClient.handleMessage (samples/client/lit/shell/src/client.ts:142)`);
+        log(
+          `      [Stack Trace] at SurfaceManager.createSurface (samples/client/lit/shell/src/surface.ts:84)`,
+        );
+        log(
+          `      [Stack Trace] at A2UIClient.handleMessage (samples/client/lit/shell/src/client.ts:142)`,
+        );
       } else {
         log(`    ✔ PR #1322 Guard Verified: useStreaming: false confirmed (Issue #1191 mitigated)`);
         log(`    ✔ Browser Runtime Validation Passed (0 console errors)`);
@@ -209,7 +214,9 @@ async function runValidation() {
   log('');
   log('--> Checking interactive components...');
   const restaurantVerification = validateRestaurantBookingComponents();
-  log(`    ✔ [Restaurant Finder] Button: "${restaurantVerification.buttonLabel}" (${restaurantVerification.actionName})`);
+  log(
+    `    ✔ [Restaurant Finder] Button: "${restaurantVerification.buttonLabel}" (${restaurantVerification.actionName})`,
+  );
 
   const quizVerification = validatePersonalizedLearningComponents();
   log(`    ✔ [Personalized Learning] Button: "${quizVerification.buttonLabel}"`);
@@ -229,7 +236,7 @@ async function runValidation() {
   log('--> Generating screenshots and interaction clips...');
   let visualProof = null;
   try {
-    const { generateProof } = require('./capture_visual_proof');
+    const {generateProof} = require('./capture_visual_proof');
     visualProof = generateProof();
     log('    ✔ Visual assets generated');
   } catch (err) {
@@ -262,7 +269,7 @@ async function runValidation() {
 function validatePersonalizedLearningComponents() {
   const quizCardPath = path.join(
     REPO_ROOT,
-    'samples/community/client/lit/personalized_learning/src/quiz-card.ts'
+    'samples/community/client/lit/personalized_learning/src/quiz-card.ts',
   );
 
   if (!fs.existsSync(quizCardPath)) {
@@ -297,7 +304,7 @@ function validatePersonalizedLearningComponents() {
 function validateMcpCalculatorComponents() {
   const appHtmlPath = path.join(
     REPO_ROOT,
-    'samples/community/client/angular/projects/mcp_calculator/src/app/app.html'
+    'samples/community/client/angular/projects/mcp_calculator/src/app/app.html',
   );
 
   if (!fs.existsSync(appHtmlPath)) {
@@ -332,7 +339,7 @@ function validateMcpCalculatorComponents() {
 function validateRestaurantBookingComponents() {
   const exampleJsonPath = path.join(
     REPO_ROOT,
-    'samples/agent/adk/restaurant_finder/examples/0.9/two_column_list.json'
+    'samples/agent/adk/restaurant_finder/examples/0.9/two_column_list.json',
   );
 
   if (!fs.existsSync(exampleJsonPath)) {
@@ -340,7 +347,7 @@ function validateRestaurantBookingComponents() {
   }
 
   const payload = JSON.parse(fs.readFileSync(exampleJsonPath, 'utf-8'));
-  const surfaceMessages = Array.isArray(payload) ? payload : (payload.messages || []);
+  const surfaceMessages = Array.isArray(payload) ? payload : payload.messages || [];
 
   let buttonComponent = null;
   let textComponent = null;
@@ -368,9 +375,7 @@ function validateRestaurantBookingComponents() {
 
   const buttonLabel = textComponent ? textComponent.text : '';
   const actionName =
-    buttonComponent.action && buttonComponent.action.event
-      ? buttonComponent.action.event.name
-      : '';
+    buttonComponent.action && buttonComponent.action.event ? buttonComponent.action.event.name : '';
 
   // Check for Bug #2013: no debug placeholders in button text
   const hasPlaceholders =
@@ -380,8 +385,7 @@ function validateRestaurantBookingComponents() {
 
   // Verify context binding
   const context = (buttonComponent.action && buttonComponent.action.event.context) || {};
-  const hasRequiredContext =
-    context.restaurantName && context.imageUrl && context.address;
+  const hasRequiredContext = context.restaurantName && context.imageUrl && context.address;
 
   return {
     tested: true,
@@ -395,10 +399,7 @@ function validateRestaurantBookingComponents() {
 }
 
 function validateQuickstartPrompts() {
-  const examplesDir = path.join(
-    REPO_ROOT,
-    'samples/agent/adk/restaurant_finder/examples/0.9'
-  );
+  const examplesDir = path.join(REPO_ROOT, 'samples/agent/adk/restaurant_finder/examples/0.9');
 
   const searchPath = path.join(examplesDir, 'two_column_list.json');
   const formPath = path.join(examplesDir, 'booking_form.json');
@@ -412,19 +413,28 @@ function validateQuickstartPrompts() {
   const formJson = JSON.parse(fs.readFileSync(formPath, 'utf-8'));
 
   // Prompt 1: "Find Italian restaurants near me" -> dynamic search results
-  const searchComponents = (searchJson[1] && searchJson[1].updateComponents && searchJson[1].updateComponents.components) || [];
+  const searchComponents =
+    (searchJson[1] &&
+      searchJson[1].updateComponents &&
+      searchJson[1].updateComponents.components) ||
+    [];
   const hasCardTemplate = searchComponents.some(c => c.component === 'Card');
   const hasBookButton = searchComponents.some(c => c.component === 'Button');
 
   // Prompt 2: "Book a table for 2" -> interactive booking form
-  const formComponents = (formJson[1] && formJson[1].updateComponents && formJson[1].updateComponents.components) || [];
-  const hasPartyField = formComponents.some(c => c.id === 'party-size-field' && c.component === 'TextField');
-  const hasSubmitButton = formComponents.some(c => c.id === 'submit-button' && c.component === 'Button');
+  const formComponents =
+    (formJson[1] && formJson[1].updateComponents && formJson[1].updateComponents.components) || [];
+  const hasPartyField = formComponents.some(
+    c => c.id === 'party-size-field' && c.component === 'TextField',
+  );
+  const hasSubmitButton = formComponents.some(
+    c => c.id === 'submit-button' && c.component === 'Button',
+  );
 
   // Prompt 3: "What are your hours?" -> operating hours detail
   const restaurantDataPath = path.join(
     REPO_ROOT,
-    'samples/agent/adk/restaurant_finder/restaurant_data.json'
+    'samples/agent/adk/restaurant_finder/restaurant_data.json',
   );
   const restaurantData = JSON.parse(fs.readFileSync(restaurantDataPath, 'utf-8'));
   const hasHoursData = Array.isArray(restaurantData) && restaurantData.length > 0;

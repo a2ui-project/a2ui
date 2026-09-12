@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,22 +16,22 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const {execSync} = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SCREENSHOTS_DIR = path.join(REPO_ROOT, 'screenshots');
 const VIDEOS_DIR = path.join(REPO_ROOT, 'videos');
 
 if (!fs.existsSync(SCREENSHOTS_DIR)) {
-  fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+  fs.mkdirSync(SCREENSHOTS_DIR, {recursive: true});
 }
 if (!fs.existsSync(VIDEOS_DIR)) {
-  fs.mkdirSync(VIDEOS_DIR, { recursive: true });
+  fs.mkdirSync(VIDEOS_DIR, {recursive: true});
 }
 
 function runCmd(cmd) {
   try {
-    execSync(cmd, { stdio: 'pipe' });
+    execSync(cmd, {stdio: 'pipe'});
     return true;
   } catch (err) {
     console.error('Command failed:', err.message);
@@ -573,7 +573,9 @@ drawtext=text='Add to Calendar':fontsize=15:fontcolor=#ffffff:x=75:y=383:enable=
     -c:v libvpx -b:v 1M -r 25 "${walkthroughWebm}"`);
 
   console.log('--> Generating walkthrough GIF: restaurant_full_passage_walkthrough.gif');
-  runCmd(`ffmpeg -y -i "${walkthroughWebm}" -vf "fps=10,scale=720:-1:flags=lanczos" "${walkthroughGif}"`);
+  runCmd(
+    `ffmpeg -y -i "${walkthroughWebm}" -vf "fps=10,scale=720:-1:flags=lanczos" "${walkthroughGif}"`,
+  );
 
   // Canonical looping animation alias
   if (fs.existsSync(walkthroughGif)) {
@@ -606,7 +608,9 @@ drawtext=text='HTML5 2D Canvas Active • 60 FPS Loop • Agent Bridge Connected
   runCmd(`ffmpeg -y -i "${pongWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${pongGif}"`);
 
   // 10. Interactive Quiz Selection & Answer Reveal Video & GIF (4s WebM & GIF)
-  console.log('--> Generating Quiz interaction clip: personalized_learning_interaction.webm & .gif');
+  console.log(
+    '--> Generating Quiz interaction clip: personalized_learning_interaction.webm & .gif',
+  );
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=700x460:d=4" \
     -vf "drawbox=x=0:y=0:w=700:h=45:color=#1a73e8:t=fill,\
 drawtext=text='Sample 8\\: Personalized Learning Quiz Interaction':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
@@ -633,7 +637,9 @@ drawtext=text='Mitochondria generate most chemical energy needed via ATP.':fonts
   runCmd(`ffmpeg -y -i "${quizWebm}" -vf "fps=12,scale=560:-1:flags=lanczos" "${quizGif}"`);
 
   // 11. Interactive MCP Calculator Tool Keying & Response Video & GIF (4s WebM & GIF)
-  console.log('--> Generating MCP Calculator interaction clip: mcp_calculator_interaction.webm & .gif');
+  console.log(
+    '--> Generating MCP Calculator interaction clip: mcp_calculator_interaction.webm & .gif',
+  );
   runCmd(`ffmpeg -y -f lavfi -i "color=c=#f8f9fa:s=700x460:d=4" \
     -vf "drawbox=x=0:y=0:w=700:h=45:color=#00796b:t=fill,\
 drawtext=text='Sample 9 & 11\\: A2UI MCP Tool Execution Interaction':fontsize=16:fontcolor=#ffffff:x=20:y=14,\
@@ -699,7 +705,7 @@ drawtext=text='✓ Tool Execution Response Confirmed (JSON-RPC 2.0)':fontsize=13
   };
 }
 
-module.exports = { generateProof };
+module.exports = {generateProof};
 
 if (require.main === module) {
   generateProof();

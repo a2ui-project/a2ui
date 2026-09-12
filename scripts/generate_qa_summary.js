@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,7 @@ function generateSummary() {
   const results = Array.isArray(payload) ? payload : payload.results;
   const interactive =
     payload.interactiveVerifications ||
-    (payload.buttonVerification ? { restaurant: payload.buttonVerification } : null);
+    (payload.buttonVerification ? {restaurant: payload.buttonVerification} : null);
 
   const total = results.length;
   const passed = results.filter(r => r.passed).length;

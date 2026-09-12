@@ -3,6 +3,7 @@
 Adds an end-to-end QA verification workflow (`.github/workflows/e2e_qa_verification.yml`) and verification scripts to test client renderers and sample apps across the repository.
 
 ### What is added:
+
 1. **GitHub Actions workflow (`e2e_qa_verification.yml`)**:
    - Triggers on published releases, version tags (`v*`), or manual `workflow_dispatch`. Does not run automatically on regular PR pushes to conserve runner minutes.
    - Job 1 (`component-qa`): Node.js runner that tests all 11 samples in the repo for config file validity, runtime health, regression guards (e.g. Issue #1191 in the Lit client), interactive button bindings, and Quickstart prompts.
@@ -15,9 +16,11 @@ Adds an end-to-end QA verification workflow (`.github/workflows/e2e_qa_verificat
    - `scripts/test_demos.sh`: Helper script for building and verifying the 4 Getting Started demos locally or in CI.
 
 ### Why:
+
 Verifying that changes do not break client renderers across the monorepo currently requires running each sample manually. This gives maintainers a release-triggered or on-demand check that verifies all 11 samples and the 4 Getting Started demos with visual proof.
 
 ### Testing:
+
 - Tested locally on Linux.
 - Tested on fork (`rohityan/a2ui`) with all 5 workflow jobs passing ([Run #34682886291](https://github.com/rohityan/a2ui/actions/runs/34682886291)):
   - Component & Button QA (11 Samples): passed (36s)
