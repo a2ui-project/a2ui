@@ -147,3 +147,23 @@
   action: fix_payload
   input: '[{"a": [1, 2, 3,]}]'
   expect: [{"a": [1, 2, 3]}]
+
+# --- Basic catalog payloads (v0.9) ---
+
+- name: test_parse_response_v0_9_basic_catalog_surface
+  description: Parses a v0.9 payload that creates a surface against the basic catalog.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: parse_full
+  input: >-
+    Here you go.<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId":
+    "s1", "catalogId":
+    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}]</a2ui-json>
+  expect:
+    - text: "Here you go."
+      a2ui:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"

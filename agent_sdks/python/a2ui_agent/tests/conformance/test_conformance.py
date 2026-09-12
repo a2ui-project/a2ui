@@ -276,7 +276,11 @@ def test_validator_conformance(name, test_case):
 
 
 # --- Catalog Conformance ---
-cases_catalog = get_conformance_cases("core/catalog.yaml")
+# `agent/catalog_transformer.yaml` holds the pruning cases that belong to the
+# agent SDK rather than to core; both suites drive the same `prune` action.
+cases_catalog = get_conformance_cases("core/catalog.yaml") + get_conformance_cases(
+    "agent/catalog_transformer.yaml"
+)
 
 
 @pytest.mark.parametrize(
@@ -329,7 +333,12 @@ def test_catalog_conformance(name, test_case):
 
 
 # --- Schema Manager Conformance ---
-cases_schema_manager = get_conformance_cases("agent/inference_format.yaml")
+# `agent/catalog_provider.yaml` holds the catalog loading cases, which used to
+# sit in `inference_format.yaml`; both suites drive the same `load_catalog`
+# action.
+cases_schema_manager = get_conformance_cases(
+    "agent/inference_format.yaml"
+) + get_conformance_cases("agent/catalog_provider.yaml")
 
 
 @pytest.mark.parametrize(
