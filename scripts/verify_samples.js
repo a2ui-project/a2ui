@@ -176,8 +176,9 @@ async function runValidation() {
     // Special test case for Issue #1191:
     // When validating the Lit renderer with unmitigated streaming responses,
     if (sample.streamingTest) {
-      // Verify that PR #1322 fix is intact: Lit client must guard against duplicate surface events
-      const clientTsPath = path.join(fullPath, 'client.ts');
+      const clientTsPath = fs.existsSync(path.join(fullPath, 'src', 'client.ts'))
+        ? path.join(fullPath, 'src', 'client.ts')
+        : path.join(fullPath, 'client.ts');
       let clientGuarded = false;
       if (fs.existsSync(clientTsPath)) {
         const clientContent = fs.readFileSync(clientTsPath, 'utf-8');
@@ -384,7 +385,7 @@ function validateRestaurantBookingComponents() {
     buttonLabel.includes('undefined');
 
   // Verify context binding
-  const context = (buttonComponent.action && buttonComponent.action.event.context) || {};
+  const context = buttonComponent.action?.event?.context || {};
   const hasRequiredContext = context.restaurantName && context.imageUrl && context.address;
 
   return {
