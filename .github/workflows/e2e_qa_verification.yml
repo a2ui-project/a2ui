@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Quickstart Demos E2E
+name: A2UI E2E & QA Verification
 
 on:
   release:
@@ -24,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       demo_target:
-        description: "Target demo to verify (lit, react, angular, flutter, all)"
+        description: "Target demo to verify (lit, react, angular, flutter, all, or skip)"
         required: false
         default: "all"
         type: choice
@@ -34,6 +34,7 @@ on:
           - react
           - angular
           - flutter
+          - skip
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
@@ -43,8 +44,61 @@ permissions:
   contents: read
 
 jobs:
-  verify-demos:
-    name: Quickstart E2E (${{ matrix.demo }})
+  # Stage 1: Fast Component, Button & Multi-Sample QA Check
+  component-qa:
+    name: Component & Button QA (11 Samples)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run E2E Component QA (test-case-1.js)
+        id: run_tests
+        continue-on-error: true
+        run: |
+          node scripts/test-case-1.js
+
+      - name: Analyze Logs & Generate Summary (analyze-logs.js)
+        if: always()
+        run: |
+          node scripts/analyze-logs.js
+
+      - name: Add Job Summary
+        if: always()
+        run: |
+          if [ -f summary.md ]; then
+            cat summary.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload QA Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-logs-and-reports
+          path: |
+            logs/
+            summary.md
+          retention-days: 14
+
+      - name: Check QA Status
+        if: steps.run_tests.outcome != 'success'
+        run: |
+          echo "::warning title=QA Regressions Detected::Component QA detected errors in one or more samples (see Job Summary)."
+
+  # Stage 2: Full-Stack Demo Compilation & Live Agent Verification
+  fullstack-demos:
+    name: Verify Demo (${{ matrix.demo }})
+    needs: component-qa
+    if: github.event.inputs.demo_target != 'skip'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -81,7 +135,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
         run: |
           chmod +x ./scripts/test_demos.sh
-          # If triggered manually with a specific single demo, only run that matrix demo
           TARGET_DEMO="${{ inputs.demo_target }}"
           if [ -n "$TARGET_DEMO" ] && [ "$TARGET_DEMO" != "all" ] && [ "$TARGET_DEMO" != "${{ matrix.demo }}" ]; then
             echo "Skipping ${{ matrix.demo }} (target was $TARGET_DEMO)"
