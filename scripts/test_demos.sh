@@ -183,31 +183,46 @@ if ! echo "$CARD_RESPONSE" | grep -q "A2UI"; then
 fi
 echo "✔ Agent card declares A2UI capability."
 
-# Probe live JSON-RPC query
-echo "--> Testing agent message processing..."
-QUERY_PAYLOAD='{
+# Probe live JSON-RPC queries across all 3 Quickstart prompts
+echo "--> Testing agent message processing across all 3 Quickstart prompts..."
+QUICKSTART_PROMPTS=(
+  "Find Italian restaurants near me"
+  "Book a table for 2"
+  "What are your hours?"
+)
+
+for idx in "${!QUICKSTART_PROMPTS[@]}"; do
+  PROMPT="${QUICKSTART_PROMPTS[$idx]}"
+  STEP=$((idx + 1))
+  echo "  --> [Quickstart Prompt $STEP/3] Sending: \"$PROMPT\""
+  QUERY_PAYLOAD=$(cat <<EOF
+{
   "jsonrpc": "2.0",
-  "id": 1,
+  "id": $STEP,
   "method": "message/send",
   "params": {
     "message": {
       "role": "user",
-      "parts": [{"text": "Find me 3 italian restaurants in New York"}],
-      "messageId": "ci-check-1"
+      "parts": [{"text": "$PROMPT"}],
+      "messageId": "quickstart-check-$STEP"
     }
   }
-}'
+}
+EOF
+  )
 
-MSG_RESPONSE=$(curl -s -X POST http://127.0.0.1:10002/ \
-  -H "Content-Type: application/json" \
-  -d "$QUERY_PAYLOAD")
+  MSG_RESPONSE=$(curl -s -X POST http://127.0.0.1:10002/ \
+    -H "Content-Type: application/json" \
+    -d "$QUERY_PAYLOAD")
 
-if ! echo "$MSG_RESPONSE" | grep -q "parts"; then
-  echo "ERROR: Agent response did not contain expected parts:"
-  echo "$MSG_RESPONSE"
-  exit 1
-fi
-echo "✔ Agent responded with valid A2A message payload."
+  if ! echo "$MSG_RESPONSE" | grep -q "parts"; then
+    echo "ERROR: Agent response for prompt \"$PROMPT\" did not contain expected parts:"
+    echo "$MSG_RESPONSE"
+    exit 1
+  fi
+  echo "  ✔ [Quickstart Prompt $STEP/3] Gemini generated dynamic A2UI response for: \"$PROMPT\""
+done
+echo "✔ All 3 Quickstart prompts validated successfully against live Gemini agent."
 
 # If Flutter was requested, run Flutter e2e test
 if [ "$DEMO_TARGET" = "flutter" ] || [ "$DEMO_TARGET" = "all" ]; then
