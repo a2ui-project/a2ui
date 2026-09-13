@@ -55,6 +55,7 @@
         "default": "./dist/v0_9/index.cjs"
       }
     },
+    "./v0_9/index.css": "./dist/v0_9/index.css",
     "./styles": {
       "import": {
         "types": "./dist/styles/index.d.ts",
