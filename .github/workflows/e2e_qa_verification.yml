@@ -151,4 +151,4 @@ jobs:
             exit 0
           fi
 
-          ./scripts/test_demos.sh "" "${{ matrix.demo }}"
+          ./scripts/test_demos.sh "${{ matrix.demo }}"

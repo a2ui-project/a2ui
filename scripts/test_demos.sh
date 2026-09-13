@@ -30,6 +30,10 @@ BUILD_ONLY=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    "")
+      # Ignore empty argument if passed from callers
+      shift
+      ;;
     --build-only)
       BUILD_ONLY=true
       shift
