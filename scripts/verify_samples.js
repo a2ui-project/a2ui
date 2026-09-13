@@ -426,12 +426,18 @@ function validateQuickstartPrompts(overrides = {}) {
     : (formPayload && formPayload.messages) || [];
 
   // Prompt 1: "Find Italian restaurants near me" -> dynamic search results
-  const searchComponents = (searchJson && searchJson[1])?.updateComponents?.components || [];
+  const searchComponents =
+    (Array.isArray(searchJson)
+      ? searchJson.find(m => m?.updateComponents)?.updateComponents?.components
+      : null) || [];
   const hasCardTemplate = searchComponents.some(c => c.component === 'Card');
   const hasBookButton = searchComponents.some(c => c.component === 'Button');
 
   // Prompt 2: "Book a table for 2" -> interactive booking form
-  const formComponents = (formJson && formJson[1])?.updateComponents?.components || [];
+  const formComponents =
+    (Array.isArray(formJson)
+      ? formJson.find(m => m?.updateComponents)?.updateComponents?.components
+      : null) || [];
   const hasPartyField = formComponents.some(
     c => c.id === 'party-size-field' && c.component === 'TextField',
   );

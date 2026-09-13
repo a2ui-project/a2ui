@@ -86,8 +86,32 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
     );
     assert.ok(md.includes('## Failures'));
     assert.ok(md.includes('Mock runtime failure'));
+    assert.ok(!md.includes('Issue #1191'));
+    assert.ok(md.includes('Conformance or runtime validation failure'));
     assert.ok(md.includes('## Interactive Component Checks'));
     assert.ok(md.includes('booking-btn'));
+  });
+
+  it('conditionally includes Issue #1191 details when error relates to Issue #1191', () => {
+    const payload = {
+      results: [
+        {
+          id: 1,
+          name: 'Lit Restaurant Finder',
+          type: 'Client (Web Components)',
+          staticConformance: 'PASSED',
+          runtimeStatus: 'FAILED',
+          errorDetails:
+            'Error: Surface default already exists (Issue #1191 regression: useStreaming guard missing in Lit client)',
+          passed: false,
+        },
+      ],
+    };
+
+    const md = buildSummaryMarkdown(payload);
+    assert.ok(md.includes('## Failures'));
+    assert.ok(md.includes('Issue: [Issue #1191]'));
+    assert.ok(md.includes('Duplicate `createSurface` events'));
   });
 
   it('documents visual proof assets without broken image links', () => {
@@ -199,6 +223,36 @@ describe('verify_samples', () => {
         },
       ],
     };
+    const result = validateQuickstartPrompts({
+      searchPayload: mockSearchPayload,
+      formPayload: mockFormPayload,
+    });
+    assert.equal(result.tested, true);
+    assert.equal(result.prompts[0].status, 'PASSED');
+    assert.equal(result.prompts[1].status, 'PASSED');
+  });
+
+  it('locates updateComponents robustly using Array.prototype.find regardless of array index', () => {
+    const mockSearchPayload = [
+      {metadata: 'prepended info'},
+      {userMessage: 'Find Italian restaurants near me'},
+      {
+        updateComponents: {
+          components: [{component: 'Card'}, {component: 'Button'}],
+        },
+      },
+    ];
+    const mockFormPayload = [
+      {
+        updateComponents: {
+          components: [
+            {id: 'party-size-field', component: 'TextField'},
+            {id: 'submit-button', component: 'Button'},
+          ],
+        },
+      },
+      {metadata: 'trailing info'},
+    ];
     const result = validateQuickstartPrompts({
       searchPayload: mockSearchPayload,
       formPayload: mockFormPayload,

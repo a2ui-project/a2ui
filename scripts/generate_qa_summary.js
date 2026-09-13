@@ -62,13 +62,17 @@ function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
     md += `## Failures\n\n`;
     for (const f of failedResults) {
       md += `### Sample ${f.id}: ${f.name} (\`${f.path}\`)\n\n`;
-      md += `- Issue: [Issue #1191](https://github.com/a2ui-project/a2ui/issues/1191)\n`;
       md += `- Error message:\n`;
       md += `  \`\`\`text\n`;
       md += `  ${f.errorDetails}\n`;
       md += `  \`\`\`\n`;
-      md += `- Cause: Duplicate \`createSurface\` events for the same \`surfaceId\` can cause DOM collisions in the Lit surface manager.\n`;
-      md += `- Fix: Set \`useStreaming: false\` in the client or verify PR #1322 deduplication.\n\n`;
+      if (f.errorDetails && f.errorDetails.includes('Issue #1191')) {
+        md += `- Issue: [Issue #1191](https://github.com/a2ui-project/a2ui/issues/1191)\n`;
+        md += `- Cause: Duplicate \`createSurface\` events for the same \`surfaceId\` can cause DOM collisions in the Lit surface manager.\n`;
+        md += `- Fix: Set \`useStreaming: false\` in the client or verify PR #1322 deduplication.\n\n`;
+      } else {
+        md += `- Cause: Conformance or runtime validation failure. Please check the logs.\n\n`;
+      }
     }
   }
 

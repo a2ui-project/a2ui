@@ -191,7 +191,7 @@ cleanup() {
   if command -v fuser >/dev/null 2>&1; then
     fuser -k 10002/tcp 2>/dev/null || true
   elif command -v lsof >/dev/null 2>&1; then
-    pids=$(lsof -t -i:10002)
+    pids=$(lsof -t -i:10002 || true)
     if [ -n "$pids" ]; then
       kill -9 $pids 2>/dev/null || true
     fi
