@@ -1,0 +1,102 @@
+{
+  "templateId": "TeamCard",
+  "description": "Card showing team header and unrolled member cards.",
+  "parameters": {
+    "teamName": {
+      "type": "string",
+      "title": "Team Name",
+      "description": "The display name of the team."
+    },
+    "members": {
+      "type": "array",
+      "title": "Team Members List",
+      "description": "Array of team member objects.",
+      "items": {
+        "type": "object",
+        "title": "Team Member",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "User ID",
+            "description": "Unique identifier of the user."
+          },
+          "userName": {
+            "type": "string",
+            "title": "User Name",
+            "description": "Full name of the user."
+          },
+          "role": {
+            "type": "string",
+            "title": "Role Name",
+            "description": "Role or title of the user.",
+            "default": "Member"
+          }
+        },
+        "required": ["userId", "userName"]
+      }
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "col"
+    },
+    {
+      "id": "col",
+      "component": "Column",
+      "children": ["header_row", "divider", "members_col"]
+    },
+    {
+      "id": "header_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["team_title", "team_icon"]
+    },
+    {
+      "id": "team_title",
+      "component": "Text",
+      "text": {"param": "teamName"},
+      "variant": "h3"
+    },
+    {
+      "id": "team_icon",
+      "component": "Icon",
+      "name": "person"
+    },
+    {
+      "id": "divider",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "members_col",
+      "component": "Column",
+      "children": {
+        "param": "members",
+        "template": "UserProfile"
+      }
+    }
+  ],
+  "sampleData": {
+    "teamName": "Antigravity Devs",
+    "members": [
+      {
+        "userId": "usr_101",
+        "userName": "Alice Smith",
+        "role": "Lead Architect"
+      },
+      {
+        "userId": "usr_102",
+        "userName": "Bob Jones",
+        "role": "Senior Engineer"
+      },
+      {
+        "userId": "usr_103",
+        "userName": "Charlie Brown",
+        "role": "Product Manager"
+      }
+    ]
+  }
+}

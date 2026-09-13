@@ -1,0 +1,197 @@
+{
+  "templateId": "SalaryCard",
+  "description": "Layout card for employee compensation package with security verification badge.",
+  "parameters": {
+    "employeeName": {
+      "type": "string",
+      "title": "Employee Full Name",
+      "description": "Full name of the verified employee."
+    },
+    "role": {
+      "type": "string",
+      "title": "Job Title",
+      "description": "Official company role."
+    },
+    "baseSalary": {
+      "type": "string",
+      "title": "Base Salary",
+      "description": "Annual base compensation."
+    },
+    "annualBonus": {
+      "type": "string",
+      "title": "Annual Bonus",
+      "description": "Target annual incentive bonus."
+    },
+    "equity": {
+      "type": "string",
+      "title": "Equity Grants",
+      "description": "Stock units or RSU package."
+    },
+    "clearanceLevel": {
+      "type": "string",
+      "title": "Security Clearance",
+      "description": "Confidentiality level.",
+      "default": "Level 4 - Confidential"
+    },
+    "verifiedAt": {
+      "type": "string",
+      "title": "Verification Date",
+      "description": "Timestamp of record retrieval.",
+      "default": "2026-08-13"
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "main_col"
+    },
+    {
+      "id": "main_col",
+      "component": "Column",
+      "children": ["badge_row", "name_col", "divider_1", "stats_row", "divider_2", "footer_row"]
+    },
+    {
+      "id": "badge_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["badge_left", "badge_tag"]
+    },
+    {
+      "id": "badge_left",
+      "component": "Row",
+      "align": "center",
+      "children": ["lock_icon", "badge_label"]
+    },
+    {
+      "id": "lock_icon",
+      "component": "Icon",
+      "name": "lock"
+    },
+    {
+      "id": "badge_label",
+      "component": "Text",
+      "text": "Verified Compensation",
+      "variant": "caption"
+    },
+    {
+      "id": "badge_tag",
+      "component": "Text",
+      "text": {"param": "clearanceLevel"},
+      "variant": "caption"
+    },
+    {
+      "id": "name_col",
+      "component": "Column",
+      "children": ["name_txt", "role_txt"]
+    },
+    {
+      "id": "name_txt",
+      "component": "Text",
+      "text": {"param": "employeeName"},
+      "variant": "h3"
+    },
+    {
+      "id": "role_txt",
+      "component": "Text",
+      "text": {"param": "role"},
+      "variant": "body"
+    },
+    {
+      "id": "divider_1",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "stats_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "children": ["sal_col", "bon_col", "eq_col"]
+    },
+    {
+      "id": "sal_col",
+      "component": "Column",
+      "children": ["sal_lbl", "sal_val"]
+    },
+    {
+      "id": "sal_lbl",
+      "component": "Text",
+      "text": "Base Salary",
+      "variant": "caption"
+    },
+    {
+      "id": "sal_val",
+      "component": "Text",
+      "text": {"param": "baseSalary"},
+      "variant": "h4"
+    },
+    {
+      "id": "bon_col",
+      "component": "Column",
+      "children": ["bon_lbl", "bon_val"]
+    },
+    {
+      "id": "bon_lbl",
+      "component": "Text",
+      "text": "Annual Bonus",
+      "variant": "caption"
+    },
+    {
+      "id": "bon_val",
+      "component": "Text",
+      "text": {"param": "annualBonus"},
+      "variant": "h4"
+    },
+    {
+      "id": "eq_col",
+      "component": "Column",
+      "children": ["eq_lbl", "eq_val"]
+    },
+    {
+      "id": "eq_lbl",
+      "component": "Text",
+      "text": "Equity Grants",
+      "variant": "caption"
+    },
+    {
+      "id": "eq_val",
+      "component": "Text",
+      "text": {"param": "equity"},
+      "variant": "h4"
+    },
+    {
+      "id": "divider_2",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "footer_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["footer_text", "date_text"]
+    },
+    {
+      "id": "footer_text",
+      "component": "Text",
+      "text": "🔒 Fetched live from secure HR database",
+      "variant": "caption"
+    },
+    {
+      "id": "date_text",
+      "component": "Text",
+      "text": {"concat": ["Verified: ", {"param": "verifiedAt"}]},
+      "variant": "caption"
+    }
+  ],
+  "sampleData": {
+    "employeeName": "Dr. Elena Vance",
+    "role": "Principal Systems Architect",
+    "baseSalary": "$215,000",
+    "annualBonus": "$45,000",
+    "equity": "3,500 RSUs",
+    "clearanceLevel": "Level 5 - Confidential",
+    "verifiedAt": "2026-08-13"
+  }
+}
