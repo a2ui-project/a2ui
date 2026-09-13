@@ -190,7 +190,7 @@ async function runValidation() {
       } else {
         const clientContent = fs.readFileSync(clientTsPath, 'utf-8');
         // PR #1322 fix: Lit client sets useStreaming: false to avoid duplicate surface messages
-        const clientGuarded = clientContent.includes('useStreaming: false');
+        const clientGuarded = /useStreaming\s*:\s*false/.test(clientContent);
         if (!clientGuarded) {
           const errorMsg =
             'Error: Surface default already exists (Issue #1191 regression: useStreaming guard missing in Lit client)';
@@ -222,24 +222,48 @@ async function runValidation() {
   // 3. Interactive Component Checks
   log('');
   log('--> Checking interactive components...');
-  const restaurantVerification = validateRestaurantBookingComponents();
-  log(
-    `    ✔ [Restaurant Finder] Button: "${restaurantVerification.buttonLabel}" (${restaurantVerification.actionName})`,
-  );
+  let restaurantVerification;
+  try {
+    restaurantVerification = validateRestaurantBookingComponents();
+    log(
+      `    ✔ [Restaurant Finder] Button: "${restaurantVerification.buttonLabel}" (${restaurantVerification.actionName})`,
+    );
+  } catch (err) {
+    log(`    ✖ [Restaurant Finder] Validation failed: ${err.message}`);
+    restaurantVerification = {tested: false, error: err.message};
+  }
 
-  const quizVerification = validatePersonalizedLearningComponents();
-  log(`    ✔ [Personalized Learning] Button: "${quizVerification.buttonLabel}"`);
+  let quizVerification;
+  try {
+    quizVerification = validatePersonalizedLearningComponents();
+    log(`    ✔ [Personalized Learning] Button: "${quizVerification.buttonLabel}"`);
+  } catch (err) {
+    log(`    ✖ [Personalized Learning] Validation failed: ${err.message}`);
+    quizVerification = {tested: false, error: err.message};
+  }
 
-  const mcpVerification = validateMcpCalculatorComponents();
-  log(`    ✔ [MCP Calculator] Chip: "${mcpVerification.buttonLabel}"`);
+  let mcpVerification;
+  try {
+    mcpVerification = validateMcpCalculatorComponents();
+    log(`    ✔ [MCP Calculator] Chip: "${mcpVerification.buttonLabel}"`);
+  } catch (err) {
+    log(`    ✖ [MCP Calculator] Validation failed: ${err.message}`);
+    mcpVerification = {tested: false, error: err.message};
+  }
 
   // 4. Quickstart Prompts (docs/public/quickstart.md)
   log('');
   log('--> Checking quickstart prompts (docs/public/quickstart.md)...');
-  const quickstartVerification = validateQuickstartPrompts();
-  log(`    ✔ [Prompt 1] "Find Italian restaurants near me"`);
-  log(`    ✔ [Prompt 2] "Book a table for 2"`);
-  log(`    ✔ [Prompt 3] "What are your hours?"`);
+  let quickstartVerification;
+  try {
+    quickstartVerification = validateQuickstartPrompts();
+    log(`    ✔ [Prompt 1] "Find Italian restaurants near me"`);
+    log(`    ✔ [Prompt 2] "Book a table for 2"`);
+    log(`    ✔ [Prompt 3] "What are your hours?"`);
+  } catch (err) {
+    log(`    ✖ Quickstart prompts validation failed: ${err.message}`);
+    quickstartVerification = {tested: false, error: err.message};
+  }
 
   log('');
   log('--> Generating screenshots and interaction clips...');
@@ -458,12 +482,22 @@ function validateQuickstartPrompts(overrides = {}) {
   );
 
   // Prompt 3: "What are your hours?" -> operating hours detail
-  const restaurantDataPath = path.join(
-    REPO_ROOT,
-    'samples/agent/adk/restaurant_finder/restaurant_data.json',
-  );
-  const restaurantData = JSON.parse(fs.readFileSync(restaurantDataPath, 'utf-8'));
-  const hasHoursData = Array.isArray(restaurantData) && restaurantData.length > 0;
+  const restaurantDataPath =
+    overrides.restaurantDataPath ||
+    path.join(REPO_ROOT, 'samples/agent/adk/restaurant_finder/restaurant_data.json');
+  const hasHoursData =
+    overrides.restaurantData !== undefined
+      ? Array.isArray(overrides.restaurantData) && overrides.restaurantData.length > 0
+      : fs.existsSync(restaurantDataPath)
+        ? (() => {
+            try {
+              const restaurantData = JSON.parse(fs.readFileSync(restaurantDataPath, 'utf-8'));
+              return Array.isArray(restaurantData) && restaurantData.length > 0;
+            } catch {
+              return false;
+            }
+          })()
+        : false;
 
   return {
     tested: true,

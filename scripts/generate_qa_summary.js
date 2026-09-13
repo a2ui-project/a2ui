@@ -82,29 +82,47 @@ function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
     md += `| :--- | :--- | :--- | :---: |\n`;
     if (interactive.restaurant) {
       const r = interactive.restaurant;
-      md += `| Restaurant Finder | \`${r.componentId}\` | Button labeled "${r.buttonLabel}", dispatches \`${r.actionName}\` | PASS |\n`;
+      if (r.error) {
+        md += `| Restaurant Finder | \`N/A\` | Validation failed: ${r.error} | FAIL |\n`;
+      } else {
+        md += `| Restaurant Finder | \`${r.componentId}\` | Button labeled "${r.buttonLabel}", dispatches \`${r.actionName}\` | PASS |\n`;
+      }
     }
     if (interactive.quiz) {
       const q = interactive.quiz;
-      md += `| Personalized Learning | \`${q.component}\` | Click reveals answer feedback | PASS |\n`;
+      if (q.error) {
+        md += `| Personalized Learning | \`N/A\` | Validation failed: ${q.error} | FAIL |\n`;
+      } else {
+        md += `| Personalized Learning | \`${q.component}\` | Click reveals answer feedback | PASS |\n`;
+      }
     }
     if (interactive.mcp) {
       const m = interactive.mcp;
-      md += `| MCP Calculator | \`${m.component}\` | Dispatches \`${m.actionName}\` | PASS |\n`;
+      if (m.error) {
+        md += `| MCP Calculator | \`N/A\` | Validation failed: ${m.error} | FAIL |\n`;
+      } else {
+        md += `| MCP Calculator | \`${m.component}\` | Dispatches \`${m.actionName}\` | PASS |\n`;
+      }
     }
     md += `\n`;
   }
 
   // Quickstart Prompt Verification Section
   const quickstart = data.quickstartVerification;
-  if (quickstart && quickstart.prompts) {
+  if (quickstart && quickstart.error) {
+    md += `## Quickstart Prompts (\`docs/public/quickstart.md\`)\n\n`;
+    md += `Validation of the 3 prompts described in the Quickstart guide:\n\n`;
+    md += `> [!WARNING]\n`;
+    md += `> Quickstart prompts validation failed: ${quickstart.error}\n\n`;
+  } else if (quickstart && quickstart.prompts) {
     md += `## Quickstart Prompts (\`docs/public/quickstart.md\`)\n\n`;
     md += `Validation of the 3 prompts described in the Quickstart guide:\n\n`;
     md += `| # | User Prompt | Intent | Layout | Status |\n`;
     md += `| :-: | :--- | :--- | :--- | :---: |\n`;
     for (let i = 0; i < quickstart.prompts.length; i++) {
       const p = quickstart.prompts[i];
-      md += `| ${i + 1} | "${p.prompt}" | ${p.intent} | \`${p.layout}\` | PASS |\n`;
+      const status = p.status === 'FAILED' ? 'FAIL' : 'PASS';
+      md += `| ${i + 1} | "${p.prompt}" | ${p.intent} | \`${p.layout}\` | ${status} |\n`;
     }
     md += `\n`;
   }

@@ -147,6 +147,35 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
     assert.ok(!md.includes('## Visual Proof & Interaction Artifacts'));
     assert.ok(!md.includes('### Restaurant Finder Demo Flow'));
   });
+
+  it('handles error states in interactive and quickstart checks gracefully', () => {
+    const payload = {
+      results: [],
+      interactiveVerifications: {
+        restaurant: {error: 'Mock restaurant failure'},
+        quiz: {error: 'Mock quiz failure'},
+        mcp: {error: 'Mock mcp failure'},
+      },
+      quickstartVerification: {
+        error: 'Mock quickstart failure',
+      },
+    };
+    const md = buildSummaryMarkdown(payload);
+    assert.ok(
+      md.includes(
+        '| Restaurant Finder | `N/A` | Validation failed: Mock restaurant failure | FAIL |',
+      ),
+    );
+    assert.ok(
+      md.includes(
+        '| Personalized Learning | `N/A` | Validation failed: Mock quiz failure | FAIL |',
+      ),
+    );
+    assert.ok(
+      md.includes('| MCP Calculator | `N/A` | Validation failed: Mock mcp failure | FAIL |'),
+    );
+    assert.ok(md.includes('Quickstart prompts validation failed: Mock quickstart failure'));
+  });
 });
 
 describe('verify_samples', () => {
@@ -275,6 +304,36 @@ describe('verify_samples', () => {
     assert.equal(result.tested, true);
     assert.equal(result.prompts[0].status, 'PASSED');
     assert.equal(result.prompts[1].status, 'PASSED');
+  });
+
+  it('handles missing or malformed restaurant_data.json defensively in validateQuickstartPrompts', () => {
+    const mockSearchPayload = [
+      {
+        updateComponents: {
+          components: [{component: 'Card'}, {component: 'Button'}],
+        },
+      },
+    ];
+    const mockFormPayload = [
+      {
+        updateComponents: {
+          components: [
+            {id: 'party-size-field', component: 'TextField'},
+            {id: 'submit-button', component: 'Button'},
+          ],
+        },
+      },
+    ];
+    const result = validateQuickstartPrompts({
+      searchPayload: mockSearchPayload,
+      formPayload: mockFormPayload,
+      restaurantDataPath: '/non/existent/path/restaurant_data.json',
+      restaurantData: [],
+    });
+    assert.equal(result.tested, true);
+    assert.equal(result.prompts[2].prompt, 'What are your hours?');
+    assert.equal(result.prompts[2].status, 'FAILED');
+    assert.equal(result.prompts[2].hasHoursData, false);
   });
 });
 
