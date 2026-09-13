@@ -10,7 +10,9 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 import io
+import json
 import pytest
+
 from unittest.mock import patch, MagicMock
 from a2ui.core import A2uiCatalogError
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
@@ -155,3 +157,96 @@ def test_direct_json_parser_no_supported_catalogs():
     direct_json_format._supported_catalogs = []
     with pytest.raises(A2uiCatalogError, match="No supported catalogs configured"):
         _ = direct_json_format.parser
+
+
+def test_select_catalog_rebuilds_any_component_with_inline_catalogs():
+    from a2ui.schema.constants import VERSION_0_9
+
+    fmt = DirectJsonFormat(
+        VERSION_0_9,
+        catalogs=[BasicCatalog.get_config(VERSION_0_9)],
+        accepts_inline_catalogs=True,
+    )
+
+    caps = {
+        "supportedCatalogIds": [
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        ],
+        "inlineCatalogs": [{
+            "catalogId": "example_inline",
+            "components": {
+                "StatusChip": {
+                    "type": "object",
+                    "allOf": [
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
+                        {"$ref": "#/$defs/CatalogComponentCommon"},
+                        {
+                            "type": "object",
+                            "properties": {
+                                "component": {"const": "StatusChip"},
+                                "label": {
+                                    "$ref": (
+                                        "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                                    )
+                                },
+                            },
+                            "required": ["component", "label"],
+                        },
+                    ],
+                }
+            },
+        }],
+    }
+
+    catalog = fmt.get_selected_catalog(client_ui_capabilities=caps)
+
+    # 1. Custom component is in components map
+    assert "StatusChip" in catalog.catalog_schema["components"]
+
+    # 2. $defs.anyComponent.oneOf contains reference to StatusChip
+    any_comp = catalog.catalog_schema.get("$defs", {}).get("anyComponent", {})
+    one_of_refs = [
+        item.get("$ref") for item in any_comp.get("oneOf", []) if isinstance(item, dict)
+    ]
+    assert "#/components/StatusChip" in one_of_refs
+    assert "#/components/Text" in one_of_refs
+
+    # 3. Payload with StatusChip validates successfully
+    test_message = {
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "root",
+                "component": "StatusChip",
+                "label": "OK",
+            }],
+        },
+    }
+    catalog.validator.validate(test_message)
+
+    # 4. Streaming parser processes payload containing StatusChip
+    parser = DirectJsonParser(catalog)
+    cat_id = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    messages = [
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "main", "catalogId": cat_id},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [
+                    {"id": "root", "component": "StatusChip", "label": "OK"}
+                ],
+            },
+        },
+    ]
+    payload_str = f"<a2ui-json>\n{json.dumps(messages)}\n</a2ui-json>"
+    parts = parser.process_chunk(payload_str)
+    assert len(parts) >= 1
