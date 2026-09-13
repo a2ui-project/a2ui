@@ -1,0 +1,62 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+version: "0.1"
+templateId: FeedbackItem
+description: Card showing feedback note, author, and rating.
+parameters:
+  author:
+    type: string
+    title: Author Name
+    description: The name of the colleague or customer providing feedback.
+  note:
+    type: string
+    title: Feedback Note
+    description: The written feedback or retrospective comment.
+  rating:
+    type: number
+    title: Feedback Rating
+    description: Score from 1 to 5.
+    minimum: 1
+    maximum: 5
+    default: 5
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Text
+        text: "{{ note }}"
+
+        variant: body
+      - component: Divider
+        axis: horizontal
+      - component: Row
+        justify: spaceBetween
+        align: center
+        children:
+          - component: Text
+            text: "{{ author }}"
+
+            variant: caption
+          - component: Text
+            text: "Rating: {{ rating }}/5"
+            variant: caption
+sampleData:
+  author: Dr. Elena Vance
+  note: A2UI templates are fast and easy to compose.
+  rating: 5
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: FeedbackItem
