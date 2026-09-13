@@ -367,12 +367,8 @@ function validateRestaurantBookingComponents(overrides = {}) {
 
   let buttonComponent = null;
   let textComponent = null;
-  let dataModel = null;
 
   for (const msg of surfaceMessages) {
-    if (msg?.updateDataModel?.data) {
-      dataModel = msg.updateDataModel.data;
-    }
     if (msg?.updateComponents && Array.isArray(msg.updateComponents.components)) {
       for (const comp of msg.updateComponents.components) {
         if (comp?.id === 'template-book-button-left') {
@@ -419,11 +415,10 @@ function validateQuickstartPrompts(overrides = {}) {
 
   const searchPath = path.join(examplesDir, 'two_column_list.json');
   const formPath = path.join(examplesDir, 'booking_form.json');
-  const confirmPath = path.join(examplesDir, 'confirmation.json');
 
   if (
-    !overrides.searchPayload &&
-    (!fs.existsSync(searchPath) || !fs.existsSync(formPath) || !fs.existsSync(confirmPath))
+    (!overrides.searchPayload && !fs.existsSync(searchPath)) ||
+    (!overrides.formPayload && !fs.existsSync(formPath))
   ) {
     throw new Error('Quickstart prompt example JSON definitions missing in restaurant_finder');
   }
