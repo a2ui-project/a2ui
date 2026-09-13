@@ -225,7 +225,7 @@ EOF
   for attempt in 1 2 3 4 5; do
     MSG_RESPONSE=$(curl -s -X POST http://127.0.0.1:10002/ \
       -H "Content-Type: application/json" \
-      -d "$QUERY_PAYLOAD")
+      -d "$QUERY_PAYLOAD" || true)
 
     if echo "$MSG_RESPONSE" | grep -q "parts"; then
       SUCCESS=true

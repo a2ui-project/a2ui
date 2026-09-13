@@ -402,19 +402,29 @@ function validateRestaurantBookingComponents() {
   };
 }
 
-function validateQuickstartPrompts() {
+function validateQuickstartPrompts(overrides = {}) {
   const examplesDir = path.join(REPO_ROOT, 'samples/agent/adk/restaurant_finder/examples/0.9');
 
   const searchPath = path.join(examplesDir, 'two_column_list.json');
   const formPath = path.join(examplesDir, 'booking_form.json');
   const confirmPath = path.join(examplesDir, 'confirmation.json');
 
-  if (!fs.existsSync(searchPath) || !fs.existsSync(formPath) || !fs.existsSync(confirmPath)) {
+  if (
+    !overrides.searchPayload &&
+    (!fs.existsSync(searchPath) || !fs.existsSync(formPath) || !fs.existsSync(confirmPath))
+  ) {
     throw new Error('Quickstart prompt example JSON definitions missing in restaurant_finder');
   }
 
-  const searchJson = JSON.parse(fs.readFileSync(searchPath, 'utf-8'));
-  const formJson = JSON.parse(fs.readFileSync(formPath, 'utf-8'));
+  const searchPayload = overrides.searchPayload || JSON.parse(fs.readFileSync(searchPath, 'utf-8'));
+  const searchJson = Array.isArray(searchPayload)
+    ? searchPayload
+    : (searchPayload && searchPayload.messages) || [];
+
+  const formPayload = overrides.formPayload || JSON.parse(fs.readFileSync(formPath, 'utf-8'));
+  const formJson = Array.isArray(formPayload)
+    ? formPayload
+    : (formPayload && formPayload.messages) || [];
 
   // Prompt 1: "Find Italian restaurants near me" -> dynamic search results
   const searchComponents = (searchJson && searchJson[1])?.updateComponents?.components || [];

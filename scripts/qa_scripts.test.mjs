@@ -127,6 +127,23 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
       }
     }
   });
+
+  it('omits visual proof section when visual asset directories are empty or absent', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const screenshotsDir = path.join(process.cwd(), 'screenshots');
+    const hasFiles = fs.existsSync(screenshotsDir) && fs.readdirSync(screenshotsDir).length > 0;
+
+    const payload = {
+      results: [{id: 1, name: 'Sample', type: 'App', passed: true}],
+    };
+    const md = buildSummaryMarkdown(payload);
+
+    if (!hasFiles) {
+      assert.ok(!md.includes('## Restaurant Finder Demo Flow'));
+      assert.ok(!md.includes('### Storyboard'));
+    }
+  });
 });
 
 describe('verify_samples', () => {
@@ -177,6 +194,39 @@ describe('verify_samples', () => {
     assert.equal(result.prompts[1].status, 'PASSED');
     assert.equal(result.prompts[2].prompt, 'What are your hours?');
     assert.equal(result.prompts[2].status, 'PASSED');
+  });
+
+  it('handles prompt examples formatted as objects with messages property', () => {
+    const mockSearchPayload = {
+      messages: [
+        {},
+        {
+          updateComponents: {
+            components: [{component: 'Card'}, {component: 'Button'}],
+          },
+        },
+      ],
+    };
+    const mockFormPayload = {
+      messages: [
+        {},
+        {
+          updateComponents: {
+            components: [
+              {id: 'party-size-field', component: 'TextField'},
+              {id: 'submit-button', component: 'Button'},
+            ],
+          },
+        },
+      ],
+    };
+    const result = validateQuickstartPrompts({
+      searchPayload: mockSearchPayload,
+      formPayload: mockFormPayload,
+    });
+    assert.equal(result.tested, true);
+    assert.equal(result.prompts[0].status, 'PASSED');
+    assert.equal(result.prompts[1].status, 'PASSED');
   });
 });
 

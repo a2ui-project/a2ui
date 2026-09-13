@@ -22,13 +22,6 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const SCREENSHOTS_DIR = path.join(REPO_ROOT, 'screenshots');
 const VIDEOS_DIR = path.join(REPO_ROOT, 'videos');
 
-if (!fs.existsSync(SCREENSHOTS_DIR)) {
-  fs.mkdirSync(SCREENSHOTS_DIR, {recursive: true});
-}
-if (!fs.existsSync(VIDEOS_DIR)) {
-  fs.mkdirSync(VIDEOS_DIR, {recursive: true});
-}
-
 function runCmd(cmd) {
   try {
     execSync(cmd, {stdio: 'ignore'});
@@ -40,6 +33,16 @@ function runCmd(cmd) {
 }
 
 function generateProof() {
+  if (fs.existsSync(SCREENSHOTS_DIR)) {
+    fs.rmSync(SCREENSHOTS_DIR, {recursive: true, force: true});
+  }
+  fs.mkdirSync(SCREENSHOTS_DIR, {recursive: true});
+
+  if (fs.existsSync(VIDEOS_DIR)) {
+    fs.rmSync(VIDEOS_DIR, {recursive: true, force: true});
+  }
+  fs.mkdirSync(VIDEOS_DIR, {recursive: true});
+
   if (!runCmd('ffmpeg -version')) {
     throw new Error('ffmpeg is required but not installed or not in PATH.');
   }

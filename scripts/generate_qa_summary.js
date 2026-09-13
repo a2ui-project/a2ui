@@ -108,8 +108,8 @@ function buildSummaryMarkdown(payload, customTimestamp) {
   // Visual Proof & Interaction Recording Section
   const screenshotsDir = path.join(REPO_ROOT, 'screenshots');
   const videosDir = path.join(REPO_ROOT, 'videos');
-  const hasScreenshots = fs.existsSync(screenshotsDir);
-  const hasVideos = fs.existsSync(videosDir);
+  const hasScreenshots = fs.existsSync(screenshotsDir) && fs.readdirSync(screenshotsDir).length > 0;
+  const hasVideos = fs.existsSync(videosDir) && fs.readdirSync(videosDir).length > 0;
 
   if (hasScreenshots || hasVideos) {
     const repo = process.env.GITHUB_REPOSITORY || 'a2ui-project/a2ui';
