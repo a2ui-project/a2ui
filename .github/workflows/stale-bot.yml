@@ -1,0 +1,65 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Stale Issue Auditor (JS)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  audit-stale-issues:
+    if: github.repository == 'google/A2UI'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: samples/adk-stale-agent/package-lock.json
+
+      - name: Install dependencies
+        working-directory: samples/adk-stale-agent
+        run: npm ci
+
+      - name: Run Auditor Agent Script
+        working-directory: samples/adk-stale-agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CONCURRENCY_LIMIT: ${{ secrets.CONCURRENCY_LIMIT }}
+          LLM_MODEL_NAME: ${{ secrets.LLM_MODEL_NAME }}
+          NODE_PATH: .
+          OWNER: ${{ secrets.OWNER }}
+          REPO: ${{ secrets.REPO }}
+          STALE_LABEL_NAME: ${{ secrets.STALE_LABEL_NAME }}
+          REQUEST_CLARIFICATION_LABEL: ${{ secrets.REQUEST_CLARIFICATION_LABEL }}
+          STALE_HOURS_THRESHOLD: ${{ secrets.STALE_HOURS_THRESHOLD }}
+          CLOSE_HOURS_AFTER_STALE_THRESHOLD: ${{ secrets.CLOSE_HOURS_AFTER_STALE_THRESHOLD }}
+          GRAPHQL_COMMENT_LIMIT: ${{ secrets.GRAPHQL_COMMENT_LIMIT }}
+          GRAPHQL_EDIT_LIMIT: ${{ secrets.GRAPHQL_EDIT_LIMIT }}
+          GRAPHQL_TIMELINE_LIMIT: ${{ secrets.GRAPHQL_TIMELINE_LIMIT }}
+          SLEEP_BETWEEN_CHUNKS: ${{ secrets.SLEEP_BETWEEN_CHUNKS }}
+        run: npx tsx main.ts
