@@ -28,7 +28,7 @@ function runCmd(cmd) {
     return true;
   } catch (err) {
     console.error('Command failed:', err.message);
-    return false;
+    throw new Error(`Command execution failed: ${cmd}`);
   }
 }
 
@@ -43,7 +43,9 @@ function generateProof() {
   }
   fs.mkdirSync(VIDEOS_DIR, {recursive: true});
 
-  if (!runCmd('ffmpeg -version')) {
+  try {
+    execSync('ffmpeg -version', {stdio: 'ignore'});
+  } catch {
     throw new Error('ffmpeg is required but not installed or not in PATH.');
   }
 
@@ -712,7 +714,7 @@ drawtext=text='✓ Tool Execution Response Confirmed (JSON-RPC 2.0)':fontsize=13
   };
 }
 
-module.exports = {generateProof};
+module.exports = {generateProof, runCmd};
 
 if (process.argv[1] && process.argv[1].endsWith('capture_visual_proof.js')) {
   generateProof();

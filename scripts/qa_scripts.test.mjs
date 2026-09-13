@@ -30,7 +30,7 @@ const {
   validateRestaurantBookingComponents,
   validateQuickstartPrompts,
 } = require('./verify_samples.js');
-const {generateProof} = require('./capture_visual_proof.js');
+const {generateProof, runCmd} = require('./capture_visual_proof.js');
 
 describe('generate_qa_summary (buildSummaryMarkdown)', () => {
   it('handles empty or null payload defensively without throwing', () => {
@@ -229,5 +229,9 @@ describe('verify_samples', () => {
 describe('capture_visual_proof', () => {
   it('exports generateProof function', () => {
     assert.equal(typeof generateProof, 'function');
+  });
+
+  it('throws an error when command execution fails in runCmd', () => {
+    assert.throws(() => runCmd('non_existent_command_xyz_123'), /Command execution failed/);
   });
 });

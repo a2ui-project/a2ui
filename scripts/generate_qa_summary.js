@@ -195,6 +195,7 @@ function generateSummary(resultsFile = RESULTS_JSON_FILE, summaryFile = SUMMARY_
     payload = JSON.parse(raw) || {};
   } catch (err) {
     console.error(`Failed to parse results JSON: ${err.message}`);
+    process.exit(1);
   }
 
   const md = buildSummaryMarkdown(payload);

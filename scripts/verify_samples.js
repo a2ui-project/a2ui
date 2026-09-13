@@ -378,8 +378,7 @@ function validateRestaurantBookingComponents() {
 
   const buttonLabel =
     textComponent && typeof textComponent.text === 'string' ? textComponent.text : '';
-  const actionName =
-    buttonComponent.action && buttonComponent.action.event ? buttonComponent.action.event.name : '';
+  const actionName = buttonComponent.action?.event?.name || '';
 
   // Check for Bug #2013: no debug placeholders in button text
   const hasPlaceholders =
