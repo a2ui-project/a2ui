@@ -22,13 +22,13 @@ This PR introduces an automated release-gate and on-demand verification workflow
 
 ### Testing
 - Tested locally on Linux across all 11 samples and 4 demo builds.
-- Unit tests passed via Node test runner (`node --test scripts/qa_scripts.test.mjs`, 9/9 passing).
-- Verified on fork with all 5 workflow jobs passing ([Run #34726440713](https://github.com/rohityan/a2ui/actions/runs/34726440713)):
+- Unit tests passed via Node test runner (`node --test scripts/qa_scripts.test.mjs`, 11/11 passing).
+- Verified on fork with all 5 workflow jobs passing ([Run #34735268453](https://github.com/rohityan/a2ui/actions/runs/34735268453)):
   - Component & Button QA (11 Samples): passed (40s)
-  - Verify Demo (flutter): passed (2m16s)
-  - Verify Demo (react): passed (1m45s)
-  - Verify Demo (angular): passed (1m57s)
-  - Verify Demo (lit): passed (1m26s)
+  - Verify Demo (lit): passed (1m39s)
+  - Verify Demo (react): passed (1m34s)
+  - Verify Demo (angular): passed (1m54s)
+  - Verify Demo (flutter): passed (3m53s)
 
 ## Pre-launch Checklist
 
