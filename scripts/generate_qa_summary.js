@@ -22,7 +22,7 @@ const LOGS_DIR = path.join(REPO_ROOT, 'logs');
 const RESULTS_JSON_FILE = path.join(LOGS_DIR, 'results.json');
 const SUMMARY_MD_FILE = path.join(REPO_ROOT, 'summary.md');
 
-function buildSummaryMarkdown(payload, customTimestamp) {
+function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
   const data = payload || {};
   const results = Array.isArray(data) ? data : data.results || [];
   const interactive =
@@ -106,10 +106,16 @@ function buildSummaryMarkdown(payload, customTimestamp) {
   }
 
   // Visual Proof & Interaction Recording Section
-  const screenshotsDir = path.join(REPO_ROOT, 'screenshots');
-  const videosDir = path.join(REPO_ROOT, 'videos');
-  const hasScreenshots = fs.existsSync(screenshotsDir) && fs.readdirSync(screenshotsDir).length > 0;
-  const hasVideos = fs.existsSync(videosDir) && fs.readdirSync(videosDir).length > 0;
+  const screenshotsDir = options.screenshotsDir || path.join(REPO_ROOT, 'screenshots');
+  const videosDir = options.videosDir || path.join(REPO_ROOT, 'videos');
+  const hasScreenshots =
+    options.hasScreenshots !== undefined
+      ? options.hasScreenshots
+      : fs.existsSync(screenshotsDir) && fs.readdirSync(screenshotsDir).length > 0;
+  const hasVideos =
+    options.hasVideos !== undefined
+      ? options.hasVideos
+      : fs.existsSync(videosDir) && fs.readdirSync(videosDir).length > 0;
 
   if (hasScreenshots || hasVideos) {
     const repo = process.env.GITHUB_REPOSITORY || 'a2ui-project/a2ui';

@@ -101,7 +101,7 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
       const payload = {
         results: [{id: 1, name: 'Sample', type: 'App', passed: true}],
       };
-      const md = buildSummaryMarkdown(payload);
+      const md = buildSummaryMarkdown(payload, null, {hasScreenshots: true});
 
       // Verify that the markdown uses the environment-provided repo and sha
       assert.ok(
@@ -129,20 +129,16 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
   });
 
   it('omits visual proof section when visual asset directories are empty or absent', () => {
-    const fs = require('fs');
-    const path = require('path');
-    const screenshotsDir = path.join(process.cwd(), 'screenshots');
-    const hasFiles = fs.existsSync(screenshotsDir) && fs.readdirSync(screenshotsDir).length > 0;
-
     const payload = {
       results: [{id: 1, name: 'Sample', type: 'App', passed: true}],
     };
-    const md = buildSummaryMarkdown(payload);
+    const md = buildSummaryMarkdown(payload, null, {
+      hasScreenshots: false,
+      hasVideos: false,
+    });
 
-    if (!hasFiles) {
-      assert.ok(!md.includes('## Restaurant Finder Demo Flow'));
-      assert.ok(!md.includes('### Storyboard'));
-    }
+    assert.ok(!md.includes('## Restaurant Finder Demo Flow'));
+    assert.ok(!md.includes('### Storyboard'));
   });
 });
 
