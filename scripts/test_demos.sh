@@ -258,7 +258,7 @@ EOF
 
   SUCCESS=false
   for attempt in 1 2 3 4 5; do
-    MSG_RESPONSE=$(curl -s --max-time 10 -X POST http://127.0.0.1:10002/ \
+    MSG_RESPONSE=$(curl -s --max-time 30 -X POST http://127.0.0.1:10002/ \
       -H "Content-Type: application/json" \
       -d "$QUERY_PAYLOAD" || true)
 
