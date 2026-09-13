@@ -170,6 +170,21 @@ describe('verify_samples', () => {
     assert.equal(result.contextBound, true);
   });
 
+  it('handles null, undefined, or empty payload in validateRestaurantBookingComponents gracefully', () => {
+    assert.throws(
+      () => validateRestaurantBookingComponents({payload: null}),
+      /Button component not found/,
+    );
+    assert.throws(
+      () => validateRestaurantBookingComponents({payload: {}}),
+      /Button component not found/,
+    );
+    assert.throws(
+      () => validateRestaurantBookingComponents({payload: {messages: 'not-an-array'}}),
+      /Button component not found/,
+    );
+  });
+
   it('validates Personalized Learning Quiz interactive components', () => {
     const result = validatePersonalizedLearningComponents();
     assert.equal(result.tested, true);

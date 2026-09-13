@@ -181,30 +181,36 @@ async function runValidation() {
       const clientTsPath = fs.existsSync(path.join(fullPath, 'src', 'client.ts'))
         ? path.join(fullPath, 'src', 'client.ts')
         : path.join(fullPath, 'client.ts');
-      let clientGuarded = false;
-      if (fs.existsSync(clientTsPath)) {
+
+      if (!fs.existsSync(clientTsPath)) {
+        result.runtimeStatus = 'FAILED';
+        result.errorDetails = 'Required client file missing: ' + clientTsPath;
+        result.passed = false;
+        log('    ✖ Runtime Validation Failed: Client file missing');
+      } else {
         const clientContent = fs.readFileSync(clientTsPath, 'utf-8');
         // PR #1322 fix: Lit client sets useStreaming: false to avoid duplicate surface messages
-        clientGuarded = clientContent.includes('useStreaming: false');
-      }
-
-      if (!clientGuarded) {
-        const errorMsg =
-          'Error: Surface default already exists (Issue #1191 regression: useStreaming guard missing in Lit client)';
-        result.runtimeStatus = 'FAILED';
-        result.consoleErrors.push(errorMsg);
-        result.errorDetails = errorMsg;
-        result.passed = false;
-        log(`    ✖ Browser Console Error Captured: ${errorMsg}`);
-        log(
-          `      [Stack Trace] at SurfaceManager.createSurface (samples/client/lit/shell/src/surface.ts:84)`,
-        );
-        log(
-          `      [Stack Trace] at A2UIClient.handleMessage (samples/client/lit/shell/src/client.ts:142)`,
-        );
-      } else {
-        log(`    ✔ PR #1322 Guard Verified: useStreaming: false confirmed (Issue #1191 mitigated)`);
-        log(`    ✔ Browser Runtime Validation Passed (0 console errors)`);
+        const clientGuarded = clientContent.includes('useStreaming: false');
+        if (!clientGuarded) {
+          const errorMsg =
+            'Error: Surface default already exists (Issue #1191 regression: useStreaming guard missing in Lit client)';
+          result.runtimeStatus = 'FAILED';
+          result.consoleErrors.push(errorMsg);
+          result.errorDetails = errorMsg;
+          result.passed = false;
+          log(`    ✖ Browser Console Error Captured: ${errorMsg}`);
+          log(
+            `      [Stack Trace] at SurfaceManager.createSurface (samples/client/lit/shell/src/surface.ts:84)`,
+          );
+          log(
+            `      [Stack Trace] at A2UIClient.handleMessage (samples/client/lit/shell/src/client.ts:142)`,
+          );
+        } else {
+          log(
+            '    ✔ PR #1322 Guard Verified: useStreaming: false confirmed (Issue #1191 mitigated)',
+          );
+          log('    ✔ Browser Runtime Validation Passed (0 console errors)');
+        }
       }
     } else {
       log(`    ✔ Browser Runtime Validation Passed (0 console errors)`);
@@ -339,33 +345,40 @@ function validateMcpCalculatorComponents() {
   };
 }
 
-function validateRestaurantBookingComponents() {
+function validateRestaurantBookingComponents(overrides = {}) {
   const exampleJsonPath = path.join(
     REPO_ROOT,
     'samples/agent/adk/restaurant_finder/examples/0.9/two_column_list.json',
   );
 
-  if (!fs.existsSync(exampleJsonPath)) {
+  if (!overrides.payload && !fs.existsSync(exampleJsonPath)) {
     throw new Error(`Restaurant example JSON not found at: ${exampleJsonPath}`);
   }
 
-  const payload = JSON.parse(fs.readFileSync(exampleJsonPath, 'utf-8'));
-  const surfaceMessages = Array.isArray(payload) ? payload : payload.messages || [];
+  const payload =
+    overrides.payload !== undefined
+      ? overrides.payload
+      : JSON.parse(fs.readFileSync(exampleJsonPath, 'utf-8'));
+  const surfaceMessages = Array.isArray(payload)
+    ? payload
+    : payload && Array.isArray(payload.messages)
+      ? payload.messages
+      : [];
 
   let buttonComponent = null;
   let textComponent = null;
   let dataModel = null;
 
   for (const msg of surfaceMessages) {
-    if (msg.updateDataModel && msg.updateDataModel.data) {
+    if (msg?.updateDataModel?.data) {
       dataModel = msg.updateDataModel.data;
     }
-    if (msg.updateComponents && Array.isArray(msg.updateComponents.components)) {
+    if (msg?.updateComponents && Array.isArray(msg.updateComponents.components)) {
       for (const comp of msg.updateComponents.components) {
-        if (comp.component === 'Button') {
+        if (comp?.id === 'template-book-button-left') {
           buttonComponent = comp;
         }
-        if (comp.id === 'book-now-text-left') {
+        if (comp?.id === 'book-now-text-left') {
           textComponent = comp;
         }
       }
@@ -418,12 +431,16 @@ function validateQuickstartPrompts(overrides = {}) {
   const searchPayload = overrides.searchPayload || JSON.parse(fs.readFileSync(searchPath, 'utf-8'));
   const searchJson = Array.isArray(searchPayload)
     ? searchPayload
-    : (searchPayload && searchPayload.messages) || [];
+    : searchPayload && Array.isArray(searchPayload.messages)
+      ? searchPayload.messages
+      : [];
 
   const formPayload = overrides.formPayload || JSON.parse(fs.readFileSync(formPath, 'utf-8'));
   const formJson = Array.isArray(formPayload)
     ? formPayload
-    : (formPayload && formPayload.messages) || [];
+    : formPayload && Array.isArray(formPayload.messages)
+      ? formPayload.messages
+      : [];
 
   // Prompt 1: "Find Italian restaurants near me" -> dynamic search results
   const searchComponents =
