@@ -90,42 +90,25 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
     assert.ok(md.includes('booking-btn'));
   });
 
-  it('dynamically resolves asset URLs from environment variables', () => {
-    const origRepo = process.env.GITHUB_REPOSITORY;
-    const origSha = process.env.GITHUB_SHA;
+  it('documents visual proof assets without broken image links', () => {
+    const payload = {
+      results: [{id: 1, name: 'Sample', type: 'App', passed: true}],
+    };
+    const md = buildSummaryMarkdown(payload, null, {hasScreenshots: true});
 
-    try {
-      process.env.GITHUB_REPOSITORY = 'test-org/custom-a2ui';
-      process.env.GITHUB_SHA = 'abc123def456';
-
-      const payload = {
-        results: [{id: 1, name: 'Sample', type: 'App', passed: true}],
-      };
-      const md = buildSummaryMarkdown(payload, null, {hasScreenshots: true});
-
-      // Verify that the markdown uses the environment-provided repo and sha
-      assert.ok(
-        md.includes(
-          'https://raw.githubusercontent.com/test-org/custom-a2ui/abc123def456/screenshots/',
-        ),
-        'Expected dynamic URL to resolve from environment variables',
-      );
-      assert.ok(
-        !md.includes('rohityan/a2ui/ci/demos-workflow'),
-        'Must not contain hardcoded personal fork',
-      );
-    } finally {
-      if (origRepo) {
-        process.env.GITHUB_REPOSITORY = origRepo;
-      } else {
-        delete process.env.GITHUB_REPOSITORY;
-      }
-      if (origSha) {
-        process.env.GITHUB_SHA = origSha;
-      } else {
-        delete process.env.GITHUB_SHA;
-      }
-    }
+    assert.ok(
+      md.includes('## Visual Proof & Interaction Artifacts'),
+      'Expected visual proof section header',
+    );
+    assert.ok(md.includes('qa-logs-and-reports'), 'Expected reference to workflow artifact');
+    assert.ok(
+      md.includes('screenshots/restaurant_full_flow_storyboard.png'),
+      'Expected reference to storyboard asset',
+    );
+    assert.ok(
+      !md.includes('https://raw.githubusercontent.com'),
+      'Must not contain uncommitted raw github image links that 404',
+    );
   });
 
   it('omits visual proof section when visual asset directories are empty or absent', () => {
@@ -137,8 +120,8 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
       hasVideos: false,
     });
 
-    assert.ok(!md.includes('## Restaurant Finder Demo Flow'));
-    assert.ok(!md.includes('### Storyboard'));
+    assert.ok(!md.includes('## Visual Proof & Interaction Artifacts'));
+    assert.ok(!md.includes('### Restaurant Finder Demo Flow'));
   });
 });
 

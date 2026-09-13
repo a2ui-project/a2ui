@@ -24,10 +24,13 @@ const VIDEOS_DIR = path.join(REPO_ROOT, 'videos');
 
 function runCmd(cmd) {
   try {
-    execSync(cmd, {stdio: 'ignore'});
+    execSync(cmd, {stdio: 'pipe'});
     return true;
   } catch (err) {
     console.error('Command failed:', err.message);
+    if (err.stderr) {
+      console.error('Command stderr:', err.stderr.toString());
+    }
     throw new Error(`Command execution failed: ${cmd}`);
   }
 }

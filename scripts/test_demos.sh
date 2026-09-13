@@ -25,12 +25,39 @@
 set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEMO_TARGET="${2:-all}"
+DEMO_TARGET="all"
 BUILD_ONLY=false
 
-if [ "$1" = "--build-only" ]; then
-  BUILD_ONLY=true
-fi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --build-only)
+      BUILD_ONLY=true
+      shift
+      ;;
+    --demo)
+      DEMO_TARGET="$2"
+      shift 2
+      ;;
+    lit|react|angular|flutter|all)
+      DEMO_TARGET="$1"
+      shift
+      ;;
+    *)
+      echo "ERROR: Unknown option or target: $1"
+      echo "Usage: $0 [--build-only] [--demo lit|react|angular|flutter|all]"
+      exit 1
+      ;;
+  esac
+done
+
+case "$DEMO_TARGET" in
+  lit|react|angular|flutter|all)
+    ;;
+  *)
+    echo "ERROR: Unknown demo target: $DEMO_TARGET. Valid options: lit, react, angular, flutter, all"
+    exit 1
+    ;;
+esac
 
 echo "========================================="
 echo " A2UI Quickstart Demos E2E Verification"
@@ -171,6 +198,10 @@ trap cleanup EXIT
 echo "--> Waiting for agent card readiness at http://127.0.0.1:10002/.well-known/agent-card.json..."
 READY=false
 for i in $(seq 1 30); do
+  if ! kill -0 "$AGENT_PID" 2>/dev/null; then
+    echo "ERROR: Agent process (PID: $AGENT_PID) died unexpectedly."
+    exit 1
+  fi
   if curl -s --max-time 2 http://127.0.0.1:10002/.well-known/agent-card.json | grep -q "capabilities"; then
     READY=true
     echo "✔ Agent server is ready! (Attempt $i)"
