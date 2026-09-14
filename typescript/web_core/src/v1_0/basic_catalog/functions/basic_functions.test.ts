@@ -406,6 +406,24 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
       // reachable by calling the implementation directly.
       assert.strictEqual(FormatDateImplementation.execute({value: sunday}, context), '2025-03-09');
     });
+
+    it('names months and weekdays in the configured locale', () => {
+      const deCatalog = new Catalog<ComponentApi>(
+        'test-de-date',
+        [],
+        createBasicCatalogFunctions({locale: 'de-DE'}),
+      );
+      const deContext = createTestDataContext(dataModel, '/', deCatalog.invoker);
+      assert.strictEqual(
+        deCatalog.invoker('formatDate', {value: sunday, format: 'EEEE MMMM'}, deContext),
+        'Sonntag März',
+      );
+      // Numeric tokens read the same in any locale.
+      assert.strictEqual(
+        deCatalog.invoker('formatDate', {value: sunday, format: 'yyyy-MM-dd'}, deContext),
+        '2025-03-09',
+      );
+    });
   });
 
   describe('pluralize', () => {

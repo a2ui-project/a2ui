@@ -228,31 +228,51 @@ export function createFormatCurrencyImplementation(locale?: string): FunctionImp
  */
 export const FormatCurrencyImplementation = createFormatCurrencyImplementation();
 
-const MONTHS_LONG = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-const MONTHS_SHORT = MONTHS_LONG.map(m => m.slice(0, 3));
-const WEEKDAYS_LONG = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-const WEEKDAYS_SHORT = WEEKDAYS_LONG.map(d => d.slice(0, 3));
+/** Month and weekday names for one locale, indexed as `formatDate` needs them. */
+interface DateNames {
+  /** Full month names, January first. */
+  monthsLong: string[];
+  /** Abbreviated month names, January first. */
+  monthsShort: string[];
+  /** Full weekday names, Monday first. */
+  weekdaysLong: string[];
+  /** Abbreviated weekday names, Monday first. */
+  weekdaysShort: string[];
+}
+
+const dateNamesCache = new Map<string, DateNames>();
+
+/**
+ * Builds the month and weekday name tables for a locale.
+ *
+ * Read from `Intl` rather than hardcoded, so `formatDate` honours the locale a
+ * catalog was built with. The names agree with the table the Python reference
+ * carries for the locales it supports.
+ *
+ * @param locale BCP 47 language tag.
+ * @returns The cached name tables for that locale.
+ */
+function getDateNames(locale: string): DateNames {
+  let names = dateNamesCache.get(locale);
+  if (!names) {
+    const render = (options: Intl.DateTimeFormatOptions, dates: Date[]) => {
+      const formatter = new Intl.DateTimeFormat(locale, {...options, timeZone: 'UTC'});
+      return dates.map(d => formatter.format(d));
+    };
+    // Mid-month, so no month-length edge case can shift the result.
+    const months = Array.from({length: 12}, (_, i) => new Date(Date.UTC(2021, i, 15)));
+    // 2021-03-01 was a Monday, which gives the Monday-first ordering directly.
+    const weekdays = Array.from({length: 7}, (_, i) => new Date(Date.UTC(2021, 2, 1 + i)));
+    names = {
+      monthsLong: render({month: 'long'}, months),
+      monthsShort: render({month: 'short'}, months),
+      weekdaysLong: render({weekday: 'long'}, weekdays),
+      weekdaysShort: render({weekday: 'short'}, weekdays),
+    };
+    dateNamesCache.set(locale, names);
+  }
+  return names;
+}
 
 const DATE_TOKENS = /yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a/g;
 const ISO_OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/;
@@ -286,12 +306,14 @@ function parseTimestamp(value: string): {shifted: Date; instant: Date} | null {
 /**
  * Creates the date formatting function implementation for a specific locale.
  *
- * @param locale Optional BCP 47 language tag. Reserved for future month and
- *   weekday name tables; only `en-US` names are currently available.
+ * The locale selects the month and weekday names. Every other token is
+ * numeric, so it reads the same in any locale.
+ *
+ * @param locale Optional BCP 47 language tag. Defaults to `en-US`.
  * @returns The function implementation.
  */
 export function createFormatDateImplementation(locale?: string): FunctionImplementation {
-  void locale;
+  const resolvedLocale = locale ?? DEFAULT_LOCALE;
   return createFunctionImplementation(FormatDateApi, args => {
     if (!args.value) return '';
     const parsed = parseTimestamp(String(args.value));
@@ -301,6 +323,7 @@ export function createFormatDateImplementation(locale?: string): FunctionImpleme
     const pattern = args.format ? String(args.format) : 'yyyy-MM-dd';
     if (pattern === 'ISO') return instant.toISOString();
 
+    const names = getDateNames(resolvedLocale);
     // Monday-based to match the Python reference, which uses date.weekday().
     const weekdayIndex = (shifted.getUTCDay() + 6) % 7;
     const hours = shifted.getUTCHours();
@@ -313,17 +336,17 @@ export function createFormatDateImplementation(locale?: string): FunctionImpleme
         case 'yy':
           return String(shifted.getUTCFullYear()).slice(-2);
         case 'MMMM':
-          return MONTHS_LONG[shifted.getUTCMonth()];
+          return names.monthsLong[shifted.getUTCMonth()];
         case 'MMM':
-          return MONTHS_SHORT[shifted.getUTCMonth()];
+          return names.monthsShort[shifted.getUTCMonth()];
         case 'MM':
           return String(shifted.getUTCMonth() + 1).padStart(2, '0');
         case 'M':
           return String(shifted.getUTCMonth() + 1);
         case 'EEEE':
-          return WEEKDAYS_LONG[weekdayIndex];
+          return names.weekdaysLong[weekdayIndex];
         case 'E':
-          return WEEKDAYS_SHORT[weekdayIndex];
+          return names.weekdaysShort[weekdayIndex];
         case 'dd':
           return String(shifted.getUTCDate()).padStart(2, '0');
         case 'd':
