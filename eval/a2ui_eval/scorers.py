@@ -15,25 +15,130 @@
 """Scorers for A2UI evaluation."""
 
 import json
-import os
 import time
+from typing import Any
 from inspect_ai.scorer import (
-    scorer,
+    Metric,
+    SampleScore,
     Score,
     Scorer,
     Target,
     accuracy,
+    metric,
     model_graded_qa,
+    scorer,
 )
 from inspect_ai.solver import TaskState
 from inspect_ai.model._model import sample_model_usage
+from a2ui.core.exceptions import (
+    A2uiCatalogError,
+    A2uiCompileError,
+    A2uiError,
+    A2uiIntegrityError,
+    A2uiParseError,
+    A2uiRecursionError,
+    A2uiValidationError,
+)
+from a2ui.parser.errors import A2uiCompilationError
+
+try:
+    from a2ui.inference_formats.experimental.express.errors import ExpressCompilerError
+except ImportError:
+
+    class ExpressCompilerError(Exception):  # type: ignore[no-redef]
+        pass
+
+
 from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from .shared.utils import GIT_ROOT
 
 
-@scorer(metrics=[accuracy()])
+@metric
+def failure_distribution(normalize: bool = False) -> Metric:
+    """Computes the distribution of failure categories across scored samples.
+
+    Args:
+        normalize: If True, returns proportions relative to total scored samples.
+                   If False (default), returns raw counts for each failure category.
+
+    Returns:
+        A Metric function that aggregates failure categories into a dictionary of counts or proportions.
+    """
+
+    def compute(scores: list[SampleScore]) -> dict[str, int | float]:
+        counts: dict[str, int | float] = {}
+        for s in scores:
+            cat = (s.score.metadata or {}).get("failure_category")
+            if cat:
+                counts[cat] = counts.get(cat, 0) + 1
+
+        if not normalize:
+            return counts
+
+        total = len(scores)
+        denom = float(total) if total > 0 else 1.0
+        return {cat: count / denom for cat, count in counts.items()}
+
+    return compute
+
+
+def classify_exception(e: Exception) -> tuple[str, str]:
+    """Derives coarse and fine failure categories from an exception.
+
+    Args:
+        e: The exception raised during parsing or validation.
+
+    Returns:
+        A tuple of (coarse_category, fine_category).
+    """
+    if isinstance(e, A2uiIntegrityError):
+        return "integrity_error", "integrity_error"
+
+    if isinstance(e, A2uiRecursionError):
+        return "recursion_error", "recursion_error"
+
+    if isinstance(e, A2uiCatalogError):
+        return "catalog_error", "catalog_error"
+
+    if isinstance(e, (A2uiCompileError, A2uiCompilationError, ExpressCompilerError)):
+        return "compile_error", "compile_error"
+
+    if isinstance(e, A2uiValidationError):
+        if getattr(e, "details", None) and e.details and e.details[0].code:
+            return "validation_error", f"validation_error:{e.details[0].code}"
+
+        # If it is a wrapper exception without details, check error message for integrity/recursion
+        msg = str(e).lower()
+        if (
+            "missing root component" in msg
+            or "duplicate component id" in msg
+            or "references non-existent component" in msg
+            or "circular reference" in msg
+        ):
+            return "integrity_error", "integrity_error"
+        if "recursion limit exceeded" in msg:
+            return "recursion_error", "recursion_error"
+
+        return "validation_error", "validation_error"
+
+    if isinstance(e, A2uiParseError):
+        msg = str(e).lower()
+        if "not found in response" in msg or "empty" in msg:
+            return "no_a2ui_payload_found", "no_a2ui_payload_found"
+        return "parse_error", "parse_error"
+
+    if isinstance(e, json.JSONDecodeError):
+        return "parse_error", "parse_error"
+
+    if isinstance(e, A2uiError):
+        return "unknown_a2ui_error", "unknown_a2ui_error"
+
+    return "unknown_error", "unknown_error"
+
+
+@scorer(metrics=[accuracy(), failure_distribution()])
 def a2ui_scorer(version: str) -> Scorer:
     """Scorer for A2UI evaluation using the Python SDK.
 
@@ -47,10 +152,16 @@ def a2ui_scorer(version: str) -> Scorer:
     async def score(
         state: TaskState, target: Target
     ) -> Score:  # pylint: disable=unused-argument
-        if not state.output:
+        if not state.output or not (
+            state.output.completion and state.output.completion.strip()
+        ):
             return Score(
                 value=0.0,
                 explanation="No model output (generation failed or was interrupted)",
+                metadata={
+                    "failure_category": "no_model_output",
+                    "coarse_category": "no_model_output",
+                },
             )
 
         catalog_path = state.metadata["catalog"]
@@ -72,6 +183,10 @@ def a2ui_scorer(version: str) -> Scorer:
                 value=0.0,
                 answer=answer_text,
                 explanation="Format compilation/validation failed during solver step.",
+                metadata={
+                    "failure_category": "solver_step_compilation_failure",
+                    "coarse_category": "solver_step_compilation_failure",
+                },
             )
 
         try:
@@ -91,6 +206,10 @@ def a2ui_scorer(version: str) -> Scorer:
                     explanation=(
                         "No A2UI JSON found in response (tags missing or empty)"
                     ),
+                    metadata={
+                        "failure_category": "no_a2ui_payload_found",
+                        "coarse_category": "no_a2ui_payload_found",
+                    },
                 )
 
             answer_text = json.dumps(all_messages, indent=2)
@@ -99,7 +218,25 @@ def a2ui_scorer(version: str) -> Scorer:
                 value=1.0, answer=answer_text, explanation="Valid A2UI payload"
             )
         except Exception as e:
-            return Score(value=0.0, answer=answer_text, explanation=str(e))
+            coarse, fine = classify_exception(e)
+            metadata: dict[str, Any] = {
+                "failure_category": fine,
+                "coarse_category": coarse,
+                "error_type": type(e).__name__,
+            }
+            if (
+                isinstance(e, A2uiValidationError)
+                and getattr(e, "details", None)
+                and e.details
+            ):
+                metadata["error_code"] = e.details[0].code
+                metadata["error_path"] = e.details[0].path
+            return Score(
+                value=0.0,
+                answer=answer_text,
+                explanation=str(e),
+                metadata=metadata,
+            )
 
     return score
 
