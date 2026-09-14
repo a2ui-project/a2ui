@@ -57,11 +57,8 @@ export class A2uiRecipeApp extends LitElement {
   @state() private accessor connectionStatus: ConnectionStatus = 'disconnected';
   @state() private accessor statusMessage = 'Ready';
 
-  /** Connected MCP clients, keyed by the server name from the handshake. */
-  readonly mcpClients = new Map<string, Client>();
-
-  /** Which server advertised each tool, recorded during `tools/list`. */
-  private readonly toolServers = new Map<string, string>();
+  /** The MCP client serving each tool, recorded during `tools/list`. */
+  readonly clientsByTool = new Map<string, Client>();
 
   /**
    * The host's entire contribution to tool execution.
@@ -70,57 +67,40 @@ export class A2uiRecipeApp extends LitElement {
    * catalog does everything else with the client this returns.
    */
   getMcpClientForTool = (toolName: string): Client => {
-    const server = this.toolServers.get(toolName);
-    if (server) {
-      return this.mcpClients.get(server)!;
+    const client = this.clientsByTool.get(toolName);
+    if (!client) {
+      throw new Error(`No connected MCP server advertises a tool named '${toolName}'.`);
     }
-    // Unknown tools fall back to the first connected server.
-    for (const client of this.mcpClients.values()) {
-      return client;
-    }
-    throw new Error(`No MCP client connected to serve tool '${toolName}'`);
+    return client;
   };
 
-  /**
-   * NOTE ON THE `as any` CASTS IN THIS FILE
-   *
-   * This sample resolves two copies of `@a2ui/web_core`: the published package
-   * under `samples/community/node_modules`, and the monorepo build that the
-   * deep-imported MCP catalog source sees. Their classes are nominally distinct
-   * because of their private fields, so values handed across the boundary need
-   * a cast. Applications installing a single copy do not need any of this.
-   *
-   * The MCP client needs no cast, because the catalog accepts a structural
-   * `Pick` of `Client` rather than the class itself.
-   */
-
-  /**
-   * The catalogs backing `processor`, filled in by the constructor.
-   *
-   * `MessageProcessor` reads this array lazily rather than copying it, so the
-   * processor can be built before the catalog whose function needs it.
-   */
-  private readonly catalogs: Catalog<any>[] = [];
-
-  readonly processor = new MessageProcessor<any>(this.catalogs, action =>
-    this.handleAction(action),
-  );
-
-  private readonly callMcpTool = createCallMcpToolImplementation(
-    this.getMcpClientForTool,
-    this.processor as any,
-  );
+  readonly processor: MessageProcessor<any>;
 
   /** Basic Catalog components and functions, plus MCP tool execution. */
-  private readonly catalog = new Catalog<any>(
-    BASIC_WITH_MCP_CATALOG_ID,
-    Array.from(basicCatalog.components.values()),
-    [...Array.from(basicCatalog.functions.values()), this.callMcpTool as any],
-  );
+  private readonly catalog: Catalog<any>;
 
   constructor() {
     super();
-    this.catalogs.push(this.catalog);
+
+    // `MessageProcessor` reads its catalog array lazily rather than copying it,
+    // so the processor can be built before the catalog whose function needs it.
+    //
+    // The `as any` casts bridge two copies of `@a2ui/web_core`: the published
+    // package under `samples/community/node_modules`, and the monorepo build
+    // that the deep-imported MCP catalog source sees. Their classes are
+    // nominally distinct because of their private fields. Applications
+    // installing a single copy need neither cast.
+    const catalogs: Catalog<any>[] = [];
+    this.processor = new MessageProcessor<any>(catalogs);
+    this.catalog = new Catalog<any>(
+      BASIC_WITH_MCP_CATALOG_ID,
+      Array.from(basicCatalog.components.values()),
+      [
+        ...Array.from(basicCatalog.functions.values()),
+        createCallMcpToolImplementation(this.getMcpClientForTool, this.processor as any) as any,
+      ],
+    );
+    catalogs.push(this.catalog);
 
     this.processor.onSurfaceCreated(surface => {
       this.requestUpdate();
@@ -132,13 +112,18 @@ export class A2uiRecipeApp extends LitElement {
     });
   }
 
-  /**
-   * Connects to an MCP server over SSE and records which tools it serves.
-   *
-   * @param sseUrl The SSE endpoint URL of the MCP server.
-   * @returns The registered server name.
-   */
-  async connectServer(sseUrl: string): Promise<string> {
+  /** Retrieves an active A2UI surface model by its ID. */
+  getSurface(surfaceId: string) {
+    return this.processor.model.getSurface(surfaceId);
+  }
+
+  /** Connects to the MCP server, then runs the tool that renders the form. */
+  protected async firstUpdated() {
+    const sseUrl =
+      new URLSearchParams(window.location.search).get('sse_url') ||
+      (import.meta as any).env?.VITE_SSE_URL ||
+      'http://127.0.0.1:8000/sse';
+
     this.connectionStatus = 'connecting';
     this.statusMessage = `Connecting to MCP server at ${sseUrl}...`;
 
@@ -160,79 +145,32 @@ export class A2uiRecipeApp extends LitElement {
         );
       }
 
-      this.mcpClients.set(serverName, client);
-      this.connectionStatus = 'connected';
-      this.statusMessage = `Connected to MCP Server [${serverName}] (${sseUrl})`;
-
-      try {
-        const {tools} = await client.listTools();
-        for (const tool of tools) {
-          const owner = this.toolServers.get(tool.name);
-          if (owner && owner !== serverName) {
-            console.warn(
-              `Tool '${tool.name}' is already provided by server '${owner}'; ` +
-                `ignoring the duplicate advertised by '${serverName}'.`,
-            );
-            continue;
-          }
-          this.toolServers.set(tool.name, serverName);
+      const {tools} = await client.listTools();
+      for (const tool of tools) {
+        if (this.clientsByTool.has(tool.name)) {
+          throw new Error(`Tool '${tool.name}' is advertised more than once.`);
         }
-      } catch (err) {
-        console.warn('Could not list tools:', err);
+        this.clientsByTool.set(tool.name, client);
       }
 
-      return serverName;
+      this.connectionStatus = 'connected';
+      this.statusMessage = `Loading UI from tool '${RECIPE_FORM_TOOL}'...`;
+
+      // Surfaces invoke `callMcpTool` through their own `DataContext`. No
+      // surface exists yet, so the entrypoint tool runs against a scratch
+      // context; its arguments are literals, so nothing binds to it.
+      const context = new DataContext(
+        {dataModel: new DataModel({}), catalog: this.catalog} as any,
+        '/',
+      );
+      await this.catalog.invoker('callMcpTool', {name: RECIPE_FORM_TOOL, arguments: {}}, context);
+
+      this.statusMessage = `Connected to MCP Server [${serverName}] (${sseUrl})`;
     } catch (error: any) {
-      console.error('MCP Connection Error:', error);
+      console.error('Failed to initialize recipe app:', error);
       this.connectionStatus = 'error';
       this.statusMessage = `Connection failed: ${error.message || error}`;
-      throw error;
     }
-  }
-
-  /** Retrieves an active A2UI surface model by its ID. */
-  getSurface(surfaceId: string) {
-    return this.processor.model.getSurface(surfaceId);
-  }
-
-  /**
-   * Invokes the entrypoint tool, which loads the recipe form UI.
-   *
-   * Surfaces invoke `callMcpTool` through their own `DataContext`. There is no
-   * surface yet at startup, so this evaluates the function directly against a
-   * scratch context; the arguments are literals, so nothing is bound to it.
-   */
-  private async loadRecipeForm(): Promise<void> {
-    this.statusMessage = `Loading UI from tool '${RECIPE_FORM_TOOL}'...`;
-    const context = new DataContext(
-      {dataModel: new DataModel({}), catalog: this.catalog} as any,
-      '/',
-    );
-    await this.callMcpTool.execute({name: RECIPE_FORM_TOOL, arguments: {}}, context as any);
-    this.statusMessage = 'Ready';
-  }
-
-  protected async firstUpdated() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sseUrl =
-      urlParams.get('sse_url') ||
-      (import.meta as any).env?.VITE_SSE_URL ||
-      'http://127.0.0.1:8000/sse';
-
-    try {
-      await this.connectServer(sseUrl);
-      await this.loadRecipeForm();
-    } catch (error) {
-      console.error('Failed to initialize recipe app:', error);
-    }
-  }
-
-  /**
-   * Top-level A2UI action router for the recipe application.
-   * MCP tools are evaluated directly as catalog functions (callMcpTool).
-   */
-  private async handleAction(action: any) {
-    console.log('A2UI Action received in recipe app:', action);
   }
 
   static styles = css`

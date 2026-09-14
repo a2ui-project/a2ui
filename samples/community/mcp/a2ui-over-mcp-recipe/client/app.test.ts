@@ -17,17 +17,17 @@
 /**
  * Tests for the host half of the sample.
  *
- * Everything about interpreting a tool result -- template fetching, caching,
- * message extraction -- now lives in the MCP catalog and is tested there. What
- * remains here is what the host still owns: connecting to servers, recording
- * which server advertises which tool, and routing a tool name to a client.
+ * Interpreting a tool result -- template fetching, caching, message extraction
+ * -- belongs to the MCP catalog and is tested there. What remains here is what
+ * the host owns: connecting, recording which client serves which tool, routing
+ * a tool name to a client, and bootstrapping the first surface.
  */
 
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {A2uiRecipeApp, BASIC_WITH_MCP_CATALOG_ID, MCP_CLIENT_NAME, MCP_CLIENT_VERSION} from './app';
 
-const SSE_URL = 'http://127.0.0.1:8000/sse';
+const RECIPE_FORM_TOOL = 'get_recipe_form_a2ui';
 
 let mockClient: {
   connect: ReturnType<typeof vi.fn>;
@@ -49,43 +49,41 @@ vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   }),
 }));
 
-/** Builds the app without letting `firstUpdated` reach the network. */
-function createApp(): A2uiRecipeApp {
-  const app = new A2uiRecipeApp();
-  // `firstUpdated` auto-connects; tests drive connection explicitly instead.
-  vi.spyOn(app as any, 'firstUpdated').mockResolvedValue(undefined);
-  return app;
-}
+/** Runs the connect-and-bootstrap lifecycle the way Lit would. */
+const bootstrap = (app: A2uiRecipeApp) => (app as any).firstUpdated();
 
 describe('A2uiRecipeApp', () => {
+  let app: A2uiRecipeApp;
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockClient = {
       connect: vi.fn().mockResolvedValue(undefined),
       getServerVersion: vi.fn().mockReturnValue({name: 'test-server', version: '1.0.0'}),
-      listTools: vi.fn().mockResolvedValue({tools: [{name: 'get_sample_data'}]}),
+      listTools: vi.fn().mockResolvedValue({tools: [{name: RECIPE_FORM_TOOL}]}),
       request: vi.fn().mockResolvedValue({content: []}),
       readResource: vi.fn().mockResolvedValue({contents: []}),
     };
+
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    app = new A2uiRecipeApp();
   });
 
   describe('initialization', () => {
-    it('starts with no clients and no surfaces', () => {
-      const app = createApp();
-      expect(app.mcpClients.size).toBe(0);
+    it('starts with no tools and no surfaces', () => {
+      expect(app.clientsByTool.size).toBe(0);
       expect(app.getSurface('non-existent')).toBeUndefined();
     });
 
     it('advertises the composite Basic+MCP catalog in its client capabilities', () => {
-      const app = createApp();
       expect(app.processor.getClientCapabilities()['v0.9']?.supportedCatalogIds).toContain(
         BASIC_WITH_MCP_CATALOG_ID,
       );
     });
 
     it('exposes callMcpTool to surfaces built on the composite catalog', () => {
-      const app = createApp();
       app.processor.processMessages([
         {
           version: 'v0.9',
@@ -102,21 +100,22 @@ describe('A2uiRecipeApp', () => {
     });
   });
 
-  describe('connectServer', () => {
-    it('connects, registers the client under its server name, and lists tools', async () => {
-      const app = createApp();
+  describe('startup', () => {
+    it('connects, records the tools the server serves, and runs the entrypoint tool', async () => {
+      await bootstrap(app);
 
-      const serverName = await app.connectServer(SSE_URL);
-
-      expect(serverName).toBe('test-server');
-      expect(app.mcpClients.get('test-server')).toBe(mockClient);
       expect(mockClient.connect).toHaveBeenCalled();
-      expect(mockClient.listTools).toHaveBeenCalled();
+      expect(app.clientsByTool.get(RECIPE_FORM_TOOL)).toBe(mockClient);
+      expect(mockClient.request).toHaveBeenCalledWith(
+        {method: 'tools/call', params: {name: RECIPE_FORM_TOOL, arguments: {}}},
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(consoleError).not.toHaveBeenCalled();
     });
 
     it('identifies itself and its supported catalogs during the handshake', async () => {
-      const app = createApp();
-      await app.connectServer(SSE_URL);
+      await bootstrap(app);
 
       expect(Client).toHaveBeenCalledWith(
         {name: MCP_CLIENT_NAME, version: MCP_CLIENT_VERSION},
@@ -132,82 +131,70 @@ describe('A2uiRecipeApp', () => {
       );
     });
 
-    it('rejects a server that never identifies itself', async () => {
+    it('reports a server that never identifies itself', async () => {
       mockClient.getServerVersion.mockReturnValue(undefined);
-      const app = createApp();
 
-      await expect(app.connectServer(SSE_URL)).rejects.toThrow(
-        'Connected MCP server did not return a valid server name during initialization.',
+      await bootstrap(app);
+
+      expect(app.clientsByTool.size).toBe(0);
+      expect(consoleError).toHaveBeenCalledWith(
+        'Failed to initialize recipe app:',
+        expect.objectContaining({
+          message: expect.stringContaining('did not return a valid server name'),
+        }),
       );
-      expect(app.mcpClients.size).toBe(0);
     });
 
-    it('propagates a transport failure', async () => {
+    it('reports a transport failure', async () => {
       mockClient.connect.mockRejectedValue(new Error('Network error'));
-      const app = createApp();
 
-      await expect(app.connectServer(SSE_URL)).rejects.toThrow('Network error');
-    });
+      await bootstrap(app);
 
-    it('stays connected when tool discovery fails', async () => {
-      mockClient.listTools.mockRejectedValue(new Error('Tool list error'));
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const app = createApp();
-
-      await expect(app.connectServer(SSE_URL)).resolves.toBe('test-server');
-      expect(app.mcpClients.get('test-server')).toBe(mockClient);
-      expect(warn).toHaveBeenCalledWith('Could not list tools:', expect.any(Error));
-      warn.mockRestore();
-    });
-
-    it('keeps the first owner when two servers advertise the same tool', async () => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const app = createApp();
-
-      await app.connectServer(SSE_URL);
-      const firstClient = mockClient;
-      mockClient = {
-        ...mockClient,
-        getServerVersion: vi.fn().mockReturnValue({name: 'second-server'}),
-      };
-      await app.connectServer('http://127.0.0.1:8001/sse');
-
-      expect(app.getMcpClientForTool('get_sample_data')).toBe(firstClient);
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "Tool 'get_sample_data' is already provided by server 'test-server'",
-        ),
+      expect(app.clientsByTool.size).toBe(0);
+      expect(consoleError).toHaveBeenCalledWith(
+        'Failed to initialize recipe app:',
+        expect.objectContaining({message: 'Network error'}),
       );
-      warn.mockRestore();
+    });
+
+    it('reports a failure to list tools rather than continuing half-configured', async () => {
+      mockClient.listTools.mockRejectedValue(new Error('Tool list error'));
+
+      await bootstrap(app);
+
+      expect(app.clientsByTool.size).toBe(0);
+      expect(consoleError).toHaveBeenCalledWith(
+        'Failed to initialize recipe app:',
+        expect.objectContaining({message: 'Tool list error'}),
+      );
+    });
+
+    it('rejects a tool advertised more than once', async () => {
+      mockClient.listTools.mockResolvedValue({
+        tools: [{name: RECIPE_FORM_TOOL}, {name: RECIPE_FORM_TOOL}],
+      });
+
+      await bootstrap(app);
+
+      expect(consoleError).toHaveBeenCalledWith(
+        'Failed to initialize recipe app:',
+        expect.objectContaining({
+          message: `Tool '${RECIPE_FORM_TOOL}' is advertised more than once.`,
+        }),
+      );
     });
   });
 
   describe('getMcpClientForTool', () => {
-    it('throws when nothing is connected', () => {
-      const app = createApp();
-      expect(() => app.getMcpClientForTool('any_tool')).toThrow(
-        "No MCP client connected to serve tool 'any_tool'",
+    it('returns the client that advertised the tool', async () => {
+      await bootstrap(app);
+      expect(app.getMcpClientForTool(RECIPE_FORM_TOOL)).toBe(mockClient);
+    });
+
+    it('throws for a tool no connected server advertises', () => {
+      expect(() => app.getMcpClientForTool('unheard_of_tool')).toThrow(
+        "No connected MCP server advertises a tool named 'unheard_of_tool'.",
       );
-    });
-
-    it('routes a tool to the server that advertised it', async () => {
-      const app = createApp();
-      await app.connectServer(SSE_URL);
-
-      const other = {name: 'other'} as any;
-      app.mcpClients.set('other-server', other);
-
-      expect(app.getMcpClientForTool('get_sample_data')).toBe(mockClient);
-    });
-
-    it('falls back to the first connected client for an unadvertised tool', () => {
-      const app = createApp();
-      const first = {name: 'first'} as any;
-      const second = {name: 'second'} as any;
-      app.mcpClients.set('server-1', first);
-      app.mcpClients.set('server-2', second);
-
-      expect(app.getMcpClientForTool('unheard_of_tool')).toBe(first);
     });
   });
 });
