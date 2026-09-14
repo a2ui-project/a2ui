@@ -19,11 +19,6 @@ const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const LOGS_DIR = path.join(REPO_ROOT, 'logs');
-
-if (!fs.existsSync(LOGS_DIR)) {
-  fs.mkdirSync(LOGS_DIR, {recursive: true});
-}
-
 const EXEC_LOG_FILE = path.join(LOGS_DIR, 'test-execution.log');
 const RESULTS_JSON_FILE = path.join(LOGS_DIR, 'results.json');
 
@@ -131,6 +126,9 @@ const SAMPLES = [
 ];
 
 async function runValidation() {
+  if (!fs.existsSync(LOGS_DIR)) {
+    fs.mkdirSync(LOGS_DIR, {recursive: true});
+  }
   logStream = fs.createWriteStream(EXEC_LOG_FILE, {flags: 'w'});
   log('=== Starting E2E QA Test Suite (verify_samples.js) ===');
   log(`Repository Root: ${REPO_ROOT}`);
@@ -190,7 +188,10 @@ async function runValidation() {
       } else {
         const clientContent = fs.readFileSync(clientTsPath, 'utf-8');
         // PR #1322 fix: Lit client sets useStreaming: false to avoid duplicate surface messages
-        const clientGuarded = /useStreaming\s*:\s*false/.test(clientContent);
+        const uncommentedClient = clientContent
+          .replace(/\/\/.*$/gm, '')
+          .replace(/\/\*[\s\S]*?\*\//g, '');
+        const clientGuarded = /useStreaming\s*:\s*false/.test(uncommentedClient);
         if (!clientGuarded) {
           const errorMsg =
             'Error: Surface default already exists (Issue #1191 regression: useStreaming guard missing in Lit client)';
@@ -297,6 +298,17 @@ async function runValidation() {
   fs.writeFileSync(RESULTS_JSON_FILE, JSON.stringify(outputPayload, null, 2), 'utf-8');
   log(`Results written to: ${RESULTS_JSON_FILE}`);
   logStream.end();
+
+  const hasInteractiveErrors = Boolean(
+    restaurantVerification?.error ||
+    quizVerification?.error ||
+    mcpVerification?.error ||
+    quickstartVerification?.error ||
+    quickstartVerification?.prompts?.some(p => p.status === 'FAILED'),
+  );
+  if (failedCount > 0 || hasInteractiveErrors) {
+    process.exitCode = 1;
+  }
 }
 
 function validatePersonalizedLearningComponents() {

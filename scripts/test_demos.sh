@@ -39,6 +39,10 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     --demo)
+      if [ $# -lt 2 ]; then
+        echo "ERROR: --demo requires a target argument (lit, react, angular, flutter, all)"
+        exit 1
+      fi
       DEMO_TARGET="$2"
       shift 2
       ;;
@@ -221,7 +225,7 @@ fi
 
 # Probe agent card
 echo "--> Verifying agent capabilities..."
-CARD_RESPONSE=$(curl -s --max-time 10 http://127.0.0.1:10002/.well-known/agent-card.json)
+CARD_RESPONSE=$(curl -s --max-time 10 http://127.0.0.1:10002/.well-known/agent-card.json || true)
 if ! echo "$CARD_RESPONSE" | grep -q "A2UI"; then
   echo "ERROR: Agent card does not declare A2UI capability."
   exit 1
@@ -258,6 +262,10 @@ EOF
 
   SUCCESS=false
   for attempt in 1 2 3 4 5; do
+    if ! kill -0 "$AGENT_PID" 2>/dev/null; then
+      echo "ERROR: Agent process (PID: $AGENT_PID) died during prompt verification."
+      exit 1
+    fi
     MSG_RESPONSE=$(curl -s --max-time 30 -X POST http://127.0.0.1:10002/ \
       -H "Content-Type: application/json" \
       -d "$QUERY_PAYLOAD" || true)

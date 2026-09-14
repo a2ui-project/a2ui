@@ -133,11 +133,13 @@ function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
   const hasScreenshots =
     options.hasScreenshots !== undefined
       ? options.hasScreenshots
-      : fs.existsSync(screenshotsDir) && fs.readdirSync(screenshotsDir).length > 0;
+      : fs.existsSync(screenshotsDir) &&
+        fs.readdirSync(screenshotsDir).some(f => f.endsWith('.png'));
   const hasVideos =
     options.hasVideos !== undefined
       ? options.hasVideos
-      : fs.existsSync(videosDir) && fs.readdirSync(videosDir).length > 0;
+      : fs.existsSync(videosDir) &&
+        fs.readdirSync(videosDir).some(f => f.endsWith('.gif') || f.endsWith('.webm'));
 
   if (hasScreenshots || hasVideos) {
     md += `## Visual Proof & Interaction Artifacts\n\n`;
@@ -193,8 +195,7 @@ function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
 
 function generateSummary(resultsFile = RESULTS_JSON_FILE, summaryFile = SUMMARY_MD_FILE) {
   if (!fs.existsSync(resultsFile)) {
-    console.error(`Results file not found at ${resultsFile}`);
-    process.exit(1);
+    throw new Error(`Results file not found at ${resultsFile}`);
   }
 
   const raw = fs.readFileSync(resultsFile, 'utf-8');
@@ -202,8 +203,7 @@ function generateSummary(resultsFile = RESULTS_JSON_FILE, summaryFile = SUMMARY_
   try {
     payload = JSON.parse(raw) || {};
   } catch (err) {
-    console.error(`Failed to parse results JSON: ${err.message}`);
-    process.exit(1);
+    throw new Error(`Failed to parse results JSON: ${err.message}`);
   }
 
   const md = buildSummaryMarkdown(payload);
@@ -213,7 +213,12 @@ function generateSummary(resultsFile = RESULTS_JSON_FILE, summaryFile = SUMMARY_
 }
 
 if (process.argv[1] && process.argv[1].endsWith('generate_qa_summary.js')) {
-  generateSummary();
+  try {
+    generateSummary();
+  } catch (err) {
+    console.error(err.message);
+    process.exit(1);
+  }
 }
 
 module.exports = {

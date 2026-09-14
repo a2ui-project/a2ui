@@ -720,5 +720,10 @@ drawtext=text='✓ Tool Execution Response Confirmed (JSON-RPC 2.0)':fontsize=13
 module.exports = {generateProof, runCmd};
 
 if (process.argv[1] && process.argv[1].endsWith('capture_visual_proof.js')) {
-  generateProof();
+  try {
+    generateProof();
+  } catch (err) {
+    console.error('FATAL ERROR:', err.message);
+    process.exit(1);
+  }
 }

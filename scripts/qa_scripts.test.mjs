@@ -22,7 +22,7 @@ import {createRequire} from 'node:module';
 import {describe, it} from 'node:test';
 
 const require = createRequire(import.meta.url);
-const {buildSummaryMarkdown} = require('./generate_qa_summary.js');
+const {buildSummaryMarkdown, generateSummary} = require('./generate_qa_summary.js');
 const {
   SAMPLES,
   validatePersonalizedLearningComponents,
@@ -175,6 +175,13 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
       md.includes('| MCP Calculator | `N/A` | Validation failed: Mock mcp failure | FAIL |'),
     );
     assert.ok(md.includes('Quickstart prompts validation failed: Mock quickstart failure'));
+  });
+
+  it('throws an error in generateSummary when results file does not exist', () => {
+    assert.throws(
+      () => generateSummary('/non/existent/results.json', '/tmp/summary.md'),
+      /Results file not found/,
+    );
   });
 });
 

@@ -102,7 +102,8 @@ jobs:
       - name: Check QA Status
         if: steps.run_tests.outcome != 'success'
         run: |
-          echo "::warning title=QA Regressions Detected::Component QA detected errors in one or more samples (see Job Summary)."
+          echo "::error title=QA Regressions Detected::Component QA detected errors in one or more samples (see Job Summary)."
+          exit 1
 
   # Stage 2: Full-Stack Demo Compilation & Live Agent Verification
   fullstack-demos:
@@ -143,9 +144,9 @@ jobs:
       - name: Run Demo Verification
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+          TARGET_DEMO: ${{ inputs.demo_target }}
         run: |
           chmod +x ./scripts/test_demos.sh
-          TARGET_DEMO="${{ inputs.demo_target }}"
           if [ -n "$TARGET_DEMO" ] && [ "$TARGET_DEMO" != "all" ] && [ "$TARGET_DEMO" != "${{ matrix.demo }}" ]; then
             echo "Skipping ${{ matrix.demo }} (target was $TARGET_DEMO)"
             exit 0
