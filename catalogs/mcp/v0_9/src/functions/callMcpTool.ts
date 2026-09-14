@@ -43,7 +43,7 @@
  * 3. Messages inside `result.content`, in either an embedded resource block or
  *    a text block whose JSON decodes to an A2UI message or a list of messages.
  *
- * A result that doesn't return A2UI, plain prose for example, renders nothing. 
+ * A result that doesn't return A2UI, plain prose for example, renders nothing.
  * Every successful call returns the raw `CallToolResult` to the caller.
  *
  * ## Failures

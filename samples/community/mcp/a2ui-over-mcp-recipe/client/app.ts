@@ -21,7 +21,7 @@ import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {Catalog, DataContext, DataModel, MessageProcessor} from '@a2ui/web_core/v0_9';
-import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/index.js';
+import {createCallMcpToolImplementation} from '@a2ui/mcp-catalog';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
@@ -87,9 +87,9 @@ export class A2uiRecipeApp extends LitElement {
     //
     // The `as any` casts bridge two copies of `@a2ui/web_core`: the published
     // package under `samples/community/node_modules`, and the monorepo build
-    // that the deep-imported MCP catalog source sees. Their classes are
-    // nominally distinct because of their private fields. Applications
-    // installing a single copy need neither cast.
+    // that `@a2ui/mcp-catalog` is compiled against. Their classes are nominally
+    // distinct because of their private fields. Applications installing a
+    // single copy need neither cast.
     const catalogs: Catalog<any>[] = [];
     this.processor = new MessageProcessor<any>(catalogs);
     this.catalog = new Catalog<any>(

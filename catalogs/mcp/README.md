@@ -153,13 +153,27 @@ An argument key named `path` or `call` stays a literal tool argument. Only a val
 | `v0_9/src/functions/callMcpToolApi.ts` | The `callMcpTool` argument schema                                          |
 | `v0_9/src/dynamic-values.ts`           | Resolution of dynamic values nested in literal containers                  |
 
+## Building
+
+The package is `@a2ui/mcp-catalog`. It compiles to `dist/`, and consumers
+import it by name rather than reaching into `v0_9/src`:
+
+```bash
+# Builds @a2ui/web_core first, then this package
+yarn workspaces foreach -R --from @a2ui/mcp-catalog --topological-dev run build
+
+# Or, if @a2ui/web_core is already built
+yarn workspace @a2ui/mcp-catalog build
+```
+
 ## Running tests
 
-Tests run on Node's test runner with the `tsx` loader:
+Tests run on Node's test runner with the `tsx` loader, directly against the
+TypeScript sources, so they do not require a build:
 
 ```bash
 # Every test in the MCP catalog workspace
-yarn workspace a2ui-mcp-catalog test
+yarn workspace @a2ui/mcp-catalog test
 
 # Or a single file
 node --import tsx --test catalogs/mcp/v0_9/src/functions/callMcpTool.test.ts
