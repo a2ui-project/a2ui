@@ -189,9 +189,10 @@ async function runValidation() {
       } else {
         const clientContent = fs.readFileSync(clientTsPath, 'utf-8');
         // PR #1322 fix: Lit client sets useStreaming: false to avoid duplicate surface messages
-        const uncommentedClient = clientContent
-          .replace(/(?<!:)\/\/.*$/gm, '')
-          .replace(/\/\*[\s\S]*?\*\//g, '');
+        const uncommentedClient = clientContent.replace(
+          /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|(?:\/\*[\s\S]*?\*\/|\/\/.*)/g,
+          (match, group1) => group1 || '',
+        );
         const clientGuarded = /useStreaming\s*:\s*false/.test(uncommentedClient);
         if (!clientGuarded) {
           const errorMsg =
