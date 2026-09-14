@@ -27,6 +27,7 @@ import {
   FormatNumberImplementation,
   PluralizeImplementation,
   createBasicCatalogFunctions,
+  createFormatCurrencyImplementation,
 } from './basic_functions.js';
 import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
 import {DataModel} from '../../../state/data-model.js';
@@ -310,7 +311,33 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
     it('falls back to the code itself when Intl rejects it', () => {
       assert.strictEqual(
         invoke('formatCurrency', {value: 1234.56, currency: 'INVALID-CURRENCY', decimals: 2}),
-        'INVALID-CURRENCY 1,234.56',
+        'INVALID-CURRENCY\u00a01,234.56',
+      );
+    });
+
+    it('places a rejected code where the locale places a currency', () => {
+      // Intl rejects a malformed code, so these take the fallback path. Babel
+      // rejects nothing, so the Python engine lays the code out per the
+      // locale's currency pattern; these are the exact strings it produces,
+      // and the two engines are compared byte for byte by the conformance
+      // suite. Note the U+202F grouping separator in fr-FR.
+      const format = (locale: string) =>
+        createFormatCurrencyImplementation(locale).execute(
+          {value: 1234.56, currency: 'INVALID-CURRENCY', decimals: 2},
+          context,
+        );
+      assert.strictEqual(format('en-US'), 'INVALID-CURRENCY\u00a01,234.56');
+      assert.strictEqual(format('de-DE'), '1.234,56\u00a0INVALID-CURRENCY');
+      assert.strictEqual(format('fr-FR'), '1\u202f234,56\u00a0INVALID-CURRENCY');
+      assert.strictEqual(format('ja-JP'), 'INVALID-CURRENCY\u00a01,234.56');
+    });
+
+    it('leaves a well-formed but unassigned code to Intl', () => {
+      // `XYZ` is unassigned but is three ASCII letters, so Intl accepts it and
+      // uses it as its own symbol. It must not reach the fallback.
+      assert.strictEqual(
+        invoke('formatCurrency', {value: 1234.56, currency: 'XYZ', decimals: 2}),
+        'XYZ\u00a01,234.56',
       );
     });
 
@@ -589,6 +616,61 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
       } finally {
         (global as any).window = originalWindow;
       }
+    });
+  });
+
+  describe('locale fallback', () => {
+    // A malformed tag makes every Intl constructor throw a RangeError, and an
+    // unmatched tag makes Intl format with the host's ambient locale. Both must
+    // resolve to en-US, which is also where the Python engine lands, since
+    // Babel raises for both.
+    for (const locale of ['xx-YY', 'zz', 'en_US', '!!!']) {
+      it(`formats as en-US for the unusable tag "${locale}"`, () => {
+        const catalog = new Catalog<ComponentApi>(
+          `test-${locale}`,
+          [],
+          createBasicCatalogFunctions({locale}),
+        );
+        const localeContext = createTestDataContext(dataModel, '/', catalog.invoker);
+        const call = (name: string, args: Record<string, any>) =>
+          catalog.invoker(name, args, localeContext);
+
+        assert.strictEqual(call('formatNumber', {value: 1234.56, decimals: 2}), '1,234.56');
+        assert.strictEqual(
+          call('formatCurrency', {value: 1234.56, currency: 'USD', decimals: 2}),
+          '$1,234.56',
+        );
+        assert.strictEqual(
+          call('formatDate', {value: '2026-06-10T12:00:00Z', format: 'EEEE, MMMM d, yyyy'}),
+          'Wednesday, June 10, 2026',
+        );
+        assert.strictEqual(call('pluralize', {value: 2, one: 'apple', other: 'apples'}), 'apples');
+      });
+    }
+
+    it('still honours a tag Intl has data for', () => {
+      const catalog = new Catalog<ComponentApi>(
+        'test-de-fallback',
+        [],
+        createBasicCatalogFunctions({locale: 'de-DE'}),
+      );
+      const deContext = createTestDataContext(dataModel, '/', catalog.invoker);
+      assert.strictEqual(
+        catalog.invoker('formatNumber', {value: 1234.56, decimals: 2}, deContext),
+        '1.234,56',
+      );
+    });
+
+    it('does not crash when a malformed tag reaches the currency fallback', () => {
+      // The rejected code sends formatCurrency down the getCurrencyCodeFormat
+      // path, which used to construct a formatter from the raw tag and throw.
+      assert.strictEqual(
+        createFormatCurrencyImplementation('!!!').execute(
+          {value: 1234.56, currency: 'INVALID-CURRENCY', decimals: 2},
+          context,
+        ),
+        'INVALID-CURRENCY\u00a01,234.56',
+      );
     });
   });
 });

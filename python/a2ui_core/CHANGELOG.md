@@ -1,5 +1,39 @@
 ## Unreleased
 
+- **BREAKING**: locale formatting now comes from CLDR by way of `babel`,
+  replacing the hand-rolled locale tables. Currency, number, date month and
+  weekday names, and plural category selection now match what the TypeScript
+  engine gets from `Intl`. That was the point: the two engines previously
+  disagreed for every locale other than `en-US`, on the symbol chosen and on
+  which Unicode space separates it from the amount.
+
+  `a2ui.core.basic_catalog` no longer exports `LocaleFormattingRules`,
+  `register_locale_rules`, `get_locale_rules` or `CURRENCY_SYMBOLS`, and
+  `locale_config.py` is deleted. `register_locale_rules` was the extension
+  point for registering a custom locale; that capability goes away rather than
+  moving, because `babel` resolves locales from CLDR only.
+
+  `babel` is added as a runtime dependency.
+
+  `babel` reads its patterns and symbols from CLDR but does not implement
+  CLDR's `currencySpacing`, which ICU does apply. The package supplies that
+  rule itself, so a currency whose symbol is alphabetic is separated from the
+  amount by U+00A0 as `Intl` separates it: `CHF 1,234.56`, not `CHF1,234.56`.
+  This affects the assigned codes `CHF`, `SEK`, `DKK`, `CZK` and `PLN` among
+  others, in `en-US` as well as elsewhere.
+
+  One difference from `Intl` remains. For Arabic locales such as `ar-EG`,
+  `Intl` shapes digits in Eastern Arabic numerals while `babel` emits Latin
+  ones. `babel` offers no way to close this: requesting the locale's default
+  numbering system converts the separators but not the digits, which agrees
+  with neither engine.
+
+  A locale tag the catalog cannot use falls back to `en_US` rather than
+  raising. `babel` raises for a malformed tag and for a well-formed tag CLDR
+  does not carry, such as `xx-YY`, either of which would otherwise abort every
+  format call made by a catalog built with it. The TypeScript engine falls back
+  for the same tags.
+
 - **BREAKING**: the `Dynamic*` schema aliases no longer coerce a value of the
   wrong primitive type. Each admits one primitive type, a data binding, or a
   function call, matching the TypeScript engine and the specification. What

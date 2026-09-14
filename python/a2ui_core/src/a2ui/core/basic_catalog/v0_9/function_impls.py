@@ -40,7 +40,9 @@ from .function_apis import (
 )
 
 from ..expression_parser import ExpressionParser
-from ..locale_config import get_locale_rules, CURRENCY_SYMBOLS
+from ..locale_formatting import apply_currency_spacing, get_locale
+from babel.numbers import format_decimal, format_currency, get_currency_symbol
+import re as _re
 
 
 def _to_float(val: Any) -> float:
@@ -186,22 +188,15 @@ def _format_numeric_locale(
     grouping: bool,
     locale: str | None,
 ) -> str:
-    rules = get_locale_rules(locale)
-
+    loc = get_locale(locale)
     if decimals is not None:
-        raw_str = f"{val:{',' if grouping else ''}.{decimals}f}"
-    else:
-        raw_str = f"{val:,}" if grouping else str(val)
-
-    if rules.decimal_separator != "." or (grouping and rules.grouping_separator != ","):
-        if rules.decimal_separator == ",":
-            group_sep = rules.grouping_separator
-            return raw_str.replace(",", "~").replace(".", ",").replace("~", group_sep)
-        elif rules.decimal_separator != ".":
-            return raw_str.replace(",", rules.grouping_separator).replace(
-                ".", rules.decimal_separator
-            )
-    return raw_str
+        pat = str(loc.decimal_formats[None].pattern)
+        if decimals == 0:
+            pat = _re.sub(r"0\.[0#]+", "0", pat)
+        else:
+            pat = _re.sub(r"0\.[0#]+", "0." + "0" * decimals, pat)
+        return format_decimal(val, format=pat, locale=loc, group_separator=grouping)
+    return format_decimal(val, locale=loc, group_separator=grouping)
 
 
 def create_format_number_implementation(
@@ -236,20 +231,24 @@ def create_format_currency_implementation(
         decimals = int(args["decimals"]) if args.get("decimals") is not None else 2
         grouping = True if args.get("grouping") is None else bool(args["grouping"])
 
-        num_str = _format_numeric_locale(val, decimals, grouping, locale)
-        symbol = CURRENCY_SYMBOLS.get(currency, currency)
-
-        rules = get_locale_rules(locale)
-
-        space = (
-            " "
-            if rules.currency_space_separated
-            or (len(symbol) > 1 and symbol not in {"$", "£", "€", "¥"})
-            else ""
+        loc = get_locale(locale)
+        pat = loc.currency_formats["standard"].pattern
+        if decimals == 0:
+            pat = _re.sub(r"0\.[0#]+", "0", pat)
+        else:
+            pat = _re.sub(r"0\.[0#]+", "0." + "0" * decimals, pat)
+        # Babel resolves the pattern and symbol from CLDR but skips CLDR's
+        # `currencySpacing`, which `Intl` applies. Without this the two engines
+        # disagree for every alphabetic symbol, `CHF` and `SEK` among them.
+        pat = apply_currency_spacing(pat, get_currency_symbol(currency, locale=loc))
+        return format_currency(
+            val,
+            currency,
+            format=pat,
+            locale=loc,
+            group_separator=grouping,
+            currency_digits=False,
         )
-        if rules.currency_symbol_after:
-            return f"{num_str}{space}{symbol}"
-        return f"{symbol}{space}{num_str}"
 
     return create_function_implementation(FormatCurrencyApi, _format_currency)
 
@@ -276,7 +275,7 @@ def create_format_date_implementation(
             if fmt == "ISO":
                 return dt.isoformat().replace("+00:00", ".000Z")
 
-            rules = get_locale_rules(locale)
+            loc = get_locale(locale)
 
             def _sub(m: re.Match[str]) -> str:
                 tok = m.group(0)
@@ -285,17 +284,17 @@ def create_format_date_implementation(
                 if tok == "yy":
                     return str(dt.year)[-2:]
                 if tok == "MMMM":
-                    return rules.months_long[dt.month]
+                    return str(loc.months["format"]["wide"][dt.month])
                 if tok == "MMM":
-                    return rules.months_short[dt.month]
+                    return str(loc.months["format"]["abbreviated"][dt.month])
                 if tok == "MM":
                     return f"{dt.month:02d}"
                 if tok == "M":
                     return str(dt.month)
                 if tok == "EEEE":
-                    return rules.weekdays_long[dt.weekday()]
+                    return str(loc.days["format"]["wide"][dt.weekday()])
                 if tok == "E":
-                    return rules.weekdays_short[dt.weekday()]
+                    return str(loc.days["format"]["abbreviated"][dt.weekday()])
                 if tok == "dd":
                     return f"{dt.day:02d}"
                 if tok == "d":
@@ -337,7 +336,7 @@ def create_pluralize_implementation(
         abort_signal: AbortSignal | None = None,
     ) -> str:
         val = _to_float(args.get("value", 0))
-        rules = get_locale_rules(locale)
+        loc = get_locale(locale)
 
         category = "other"
         if val == 0 and "zero" in args:
@@ -346,8 +345,8 @@ def create_pluralize_implementation(
             category = "one"
         elif val == 2 and "two" in args:
             category = "two"
-        elif rules.plural_category_selector:
-            category = rules.plural_category_selector(val)
+        else:
+            category = loc.plural_form(val)
 
         res = args.get(category) or args.get("other") or ""
         return str(res)
