@@ -229,6 +229,33 @@ describe('DataContext', () => {
     assert.strictEqual(result, 3);
   });
 
+  it('resolves function calls that omit args', () => {
+    // The spec requires only `call`, so an argument-less call is valid.
+    let receivedArgs: unknown;
+    const fnInvoker = (name: string, args: Record<string, any>) => {
+      receivedArgs = args;
+      return name === 'now' ? 'noon' : null;
+    };
+    const ctx = createTestDataContext(model, '/user', fnInvoker);
+
+    assert.strictEqual(ctx.resolveDynamicValue({call: 'now'} as any), 'noon');
+    assert.deepStrictEqual(receivedArgs, {});
+  });
+
+  it('subscribes to function calls that omit args', () => {
+    let receivedArgs: unknown;
+    const fnInvoker = (name: string, args: Record<string, any>) => {
+      receivedArgs = args;
+      return name === 'now' ? 'noon' : null;
+    };
+    const ctx = createTestDataContext(model, '/user', fnInvoker);
+
+    const sub = ctx.subscribeDynamicValue({call: 'now'} as any, () => {});
+    assert.strictEqual(sub.value, 'noon');
+    assert.deepStrictEqual(receivedArgs, {});
+    sub.unsubscribe();
+  });
+
   it('dispatches generic error on function call without invoker synchronously', () => {
     let dispatchedError: any = null;
     const ctx = createTestDataContext(

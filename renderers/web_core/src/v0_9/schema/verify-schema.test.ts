@@ -26,6 +26,7 @@ import {
   UpdateDataModelMessageSchema,
   DeleteSurfaceMessageSchema,
 } from './server-to-client.js';
+import {FunctionCallSchema} from './common-types.js';
 
 const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/schema');
 const specPathCandidate1 = resolve(currentDir, '../../../../../specification/v0_9/json');
@@ -223,5 +224,26 @@ describe('A2UI Schema Verification v0.9 & v0.9.1', () => {
       deleteSurface: {surfaceId: 'surface-2'},
     };
     assert.deepStrictEqual(A2uiMessageSchema.parse(msgV091), msgV091);
+  });
+
+  it('keeps FunctionCall required fields aligned with the spec', () => {
+    const specDefs = JSON.parse(
+      readFileSync(join(SPEC_DIR_V0_9, 'common_types.json'), 'utf-8'),
+    ).$defs;
+    const generated = zodToJsonSchema(FunctionCallSchema, {
+      target: 'jsonSchema2019-09',
+    }) as {required?: string[]};
+
+    assert.deepStrictEqual(
+      [...(generated.required ?? [])].sort(),
+      [...specDefs.FunctionCall.required].sort(),
+    );
+  });
+
+  it('accepts a function call that omits args, as the spec allows', () => {
+    assert.deepStrictEqual(FunctionCallSchema.parse({call: 'now'}), {
+      call: 'now',
+      returnType: 'boolean',
+    });
   });
 });
