@@ -323,7 +323,17 @@ def create_format_date_implementation(
         try:
             dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
             if fmt == "ISO":
-                return dt.isoformat().replace("+00:00", ".000Z")
+                # Mirror JavaScript's Date.prototype.toISOString(): always the
+                # UTC instant, always exactly three fractional digits. A naive
+                # timestamp is read as UTC so the result never depends on the
+                # host time zone.
+                utc = (
+                    dt.replace(tzinfo=datetime.timezone.utc)
+                    if dt.tzinfo is None
+                    else dt.astimezone(datetime.timezone.utc)
+                )
+                millis = utc.microsecond // 1000
+                return f"{utc.strftime('%Y-%m-%dT%H:%M:%S')}.{millis:03d}Z"
 
             rules = get_locale_rules(locale)
 
@@ -398,7 +408,14 @@ def create_pluralize_implementation(
         elif rules.plural_category_selector:
             category = rules.plural_category_selector(val)
 
-        res = args.get(category) or args.get("other") or ""
+        # Fall back on absence, not falsiness: a caller that supplies an empty
+        # string for a category means "render nothing" for that category, and
+        # the category was already selected above by key presence.
+        res = args.get(category)
+        if res is None:
+            res = args.get("other")
+        if res is None:
+            res = ""
         return str(res)
 
     return create_function_implementation(PluralizeApi, _pluralize)

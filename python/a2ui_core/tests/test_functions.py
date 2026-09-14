@@ -411,6 +411,44 @@ def test_localized_formatting():
     )
 
 
+def test_v10_formatting_matches_web_engine():
+    """Pins the v1.0 cases where this engine used to disagree with web_core."""
+    from a2ui.core.basic_catalog import v1_0
+
+    impls = {impl.name: impl for impl in v1_0.BASIC_FUNCTION_IMPLEMENTATIONS}
+    format_date = impls["formatDate"]
+    pluralize = impls["pluralize"]
+
+    # The ISO pattern yields the UTC instant with exactly three fractional
+    # digits, matching JavaScript's toISOString(). An offset is resolved
+    # rather than echoed back.
+    assert (
+        format_date.execute({"value": "2025-01-01T12:00:00Z", "format": "ISO"})
+        == "2025-01-01T12:00:00.000Z"
+    )
+    assert (
+        format_date.execute({"value": "2025-01-01T12:00:00+02:00", "format": "ISO"})
+        == "2025-01-01T10:00:00.000Z"
+    )
+    assert (
+        format_date.execute({"value": "2025-01-01T12:00:00-05:00", "format": "ISO"})
+        == "2025-01-01T17:00:00.000Z"
+    )
+    # A naive timestamp is read as UTC, so the host time zone cannot affect it.
+    assert (
+        format_date.execute({"value": "2025-01-01T12:00:00", "format": "ISO"})
+        == "2025-01-01T12:00:00.000Z"
+    )
+
+    # An explicitly empty plural form means "render nothing" for that category
+    # rather than "fall through to other".
+    assert pluralize.execute({"value": 0, "zero": "", "other": "cats"}) == ""
+    assert pluralize.execute({"value": 1, "one": "", "other": "cats"}) == ""
+    # An absent category still falls through to other.
+    assert pluralize.execute({"value": 0, "other": "cats"}) == "cats"
+    assert pluralize.execute({"value": 5, "other": "cats"}) == "cats"
+
+
 def test_validation_return_types_v09_vs_v10():
     from a2ui.core.basic_catalog import v0_9, v1_0
 

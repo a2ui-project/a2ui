@@ -393,6 +393,25 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
       );
     });
 
+    it('resolves an offset to UTC for the ISO pattern', () => {
+      assert.strictEqual(
+        invoke('formatDate', {value: '2025-01-01T12:00:00+02:00', format: 'ISO'}),
+        '2025-01-01T10:00:00.000Z',
+      );
+      assert.strictEqual(
+        invoke('formatDate', {value: '2025-01-01T12:00:00-05:00', format: 'ISO'}),
+        '2025-01-01T17:00:00.000Z',
+      );
+    });
+
+    it('reads a naive timestamp as UTC for the ISO pattern', () => {
+      // Without this the result would depend on the host time zone.
+      assert.strictEqual(
+        invoke('formatDate', {value: '2025-01-01T12:00:00', format: 'ISO'}),
+        '2025-01-01T12:00:00.000Z',
+      );
+    });
+
     it('returns an empty string for an unparseable value', () => {
       assert.strictEqual(invoke('formatDate', {value: 'invalid-date', format: 'yyyy'}), '');
     });
@@ -431,6 +450,14 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
       assert.strictEqual(invoke('pluralize', {value: 1, one: 'apple', other: 'apples'}), 'apple');
       assert.strictEqual(invoke('pluralize', {value: 2, one: 'apple', other: 'apples'}), 'apples');
       assert.strictEqual(invoke('pluralize', {value: 5, one: 'apple', other: 'apples'}), 'apples');
+    });
+
+    it('honours an explicitly empty form and falls through only when absent', () => {
+      // Supplying an empty form means "render nothing" for that category.
+      assert.strictEqual(invoke('pluralize', {value: 0, zero: '', other: 'cats'}), '');
+      assert.strictEqual(invoke('pluralize', {value: 1, one: '', other: 'cats'}), '');
+      // An absent category still falls through to other.
+      assert.strictEqual(invoke('pluralize', {value: 0, other: 'cats'}), 'cats');
     });
 
     it('prefers an explicit zero or two form over the CLDR category', () => {

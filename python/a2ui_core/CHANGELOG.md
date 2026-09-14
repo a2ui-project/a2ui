@@ -7,6 +7,17 @@
   they were callable. `a2ui.core.basic_catalog.v1_0` no longer exports their
   API classes or implementations. The v0.9 catalog keeps them.
 
+- The v1.0 `formatDate` `ISO` pattern now returns the UTC instant with exactly
+  three fractional digits, as `web_core` does. It previously echoed back
+  whichever offset the input carried, so `2025-01-01T12:00:00+02:00` formatted
+  as itself instead of `2025-01-01T10:00:00.000Z`. A timestamp without an
+  offset is read as UTC, so the result no longer depends on the host time zone.
+
+- The v1.0 `pluralize` function now falls back to the `other` form only when
+  the selected category is absent, not when its value is empty. A caller that
+  supplies `zero: ""` gets an empty string, matching `web_core`; previously the
+  empty form was discarded and the `other` form rendered in its place.
+
 - `Catalog.from_json` accepts a `common_types_schema` argument and rewrites
   cross-document references such as `common_types.json#/$defs/ChildList` into
   local `#/$defs/...` pointers, satisfying them from the supplied document or
