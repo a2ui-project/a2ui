@@ -18,8 +18,9 @@ import {html, nothing, css} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {ModalApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {WebComponentImplementation} from '../../catalog/types.js';
 
-@customElement('a2ui-modal')
+@customElement('a2ui-basic-modal')
 export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   /**
    * The styles of the modal can be customized by redefining the following
@@ -33,7 +34,7 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
    */
   static override styles = css`
     :host,
-    a2ui-modal {
+    a2ui-basic-modal {
       display: inline-block;
     }
     .a2ui-modal-wrapper {
@@ -128,7 +129,7 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   }
 }
 
-export const A2uiModal = {
+export const A2uiModal: WebComponentImplementation = {
   ...ModalApi,
-  tagName: 'a2ui-modal',
+  tagName: 'a2ui-basic-modal',
 };

@@ -90,7 +90,7 @@ describe('ChoicePicker Component', () => {
   });
 
   it('should render chips when displayStyle is chips', async () => {
-    const el = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const el = document.createElement('a2ui-basic-choicepicker') as A2uiChoicePickerElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'choice_picker_chips');
@@ -135,7 +135,7 @@ describe('ChoicePicker Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const el = document.createElement('a2ui-basic-choicepicker') as A2uiChoicePickerElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'choice_picker_chips_bound');
@@ -193,12 +193,12 @@ describe('ChoicePicker Component', () => {
     const firstContext = new ComponentContext(surface, 'choice_picker_filterable');
     const secondContext = new ComponentContext(secondSurface, 'choice_picker_filterable');
 
-    const firstEl = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const firstEl = document.createElement('a2ui-basic-choicepicker') as A2uiChoicePickerElement;
     firstEl.context = firstContext;
     document.body.appendChild(firstEl);
     await firstEl.updateComplete;
 
-    const secondEl = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const secondEl = document.createElement('a2ui-basic-choicepicker') as A2uiChoicePickerElement;
     secondEl.context = secondContext;
     document.body.appendChild(secondEl);
     await secondEl.updateComplete;
@@ -241,7 +241,7 @@ describe('ChoicePicker Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const el = document.createElement('a2ui-basic-choicepicker') as A2uiChoicePickerElement;
     el.context = new ComponentContext(surface, 'choice_picker_multi');
     document.body.appendChild(el);
     await el.updateComplete;

@@ -21,7 +21,7 @@ import {ImageApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {WebComponentImplementation} from '../../catalog/types.js';
 
-@customElement('a2ui-image')
+@customElement('a2ui-basic-image')
 export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
   /**
    * The styles of the image can be customized by redefining the following
@@ -81,5 +81,5 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
 
 export const A2uiImage: WebComponentImplementation = {
   ...ImageApi,
-  tagName: 'a2ui-image',
+  tagName: 'a2ui-basic-image',
 };

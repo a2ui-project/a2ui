@@ -80,7 +80,7 @@ describe('AudioPlayer Component', () => {
   });
 
   it('should render and attach url correctly', async () => {
-    const el = document.createElement('a2ui-audioplayer') as A2uiAudioPlayerElement;
+    const el = document.createElement('a2ui-basic-audioplayer') as A2uiAudioPlayerElement;
     element = el;
     document.body.appendChild(el);
 

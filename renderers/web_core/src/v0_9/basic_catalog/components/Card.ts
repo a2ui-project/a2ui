@@ -20,7 +20,7 @@ import {CardApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {WebComponentImplementation} from '../../catalog/types.js';
 
-@customElement('a2ui-card')
+@customElement('a2ui-basic-card')
 export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> {
   /**
    * The styles of the card can be customized by redefining the following
@@ -61,5 +61,5 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
 
 export const A2uiCard: WebComponentImplementation = {
   ...CardApi,
-  tagName: 'a2ui-card',
+  tagName: 'a2ui-basic-card',
 };

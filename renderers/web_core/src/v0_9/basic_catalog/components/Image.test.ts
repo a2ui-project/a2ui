@@ -83,7 +83,7 @@ describe('Image Component', () => {
   });
 
   it('should render img element with correct attributes and classes', async () => {
-    const el = document.createElement('a2ui-image') as A2uiImageElement;
+    const el = document.createElement('a2ui-basic-image') as A2uiImageElement;
     element = el;
     document.body.appendChild(el);
 

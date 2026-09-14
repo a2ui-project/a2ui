@@ -76,7 +76,7 @@ describe('CheckBox Component', () => {
   });
 
   it('should render label and reflect true and false checked state', async () => {
-    const el = document.createElement('a2ui-checkbox') as A2uiCheckBoxElement;
+    const el = document.createElement('a2ui-basic-checkbox') as A2uiCheckBoxElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'checkbox_invalid');
@@ -145,7 +145,7 @@ describe('CheckBox Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-checkbox') as A2uiCheckBoxElement;
+    const el = document.createElement('a2ui-basic-checkbox') as A2uiCheckBoxElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'cb_bound');
@@ -167,7 +167,7 @@ describe('CheckBox Component', () => {
   });
 
   it('should render validation error in CheckBox', async () => {
-    const el = document.createElement('a2ui-checkbox') as A2uiCheckBoxElement;
+    const el = document.createElement('a2ui-basic-checkbox') as A2uiCheckBoxElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'checkbox_invalid');

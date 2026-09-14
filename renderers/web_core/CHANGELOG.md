@@ -1,5 +1,25 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9) Namespace the 13 remaining basic catalog custom element tags to `a2ui-basic-*`, finishing the migration that already covered `Text`, `Button`, `TextField`, `Row`, and `Column`. The generic names collided with elements a host page may already own, and because registration happens on import, the collision threw `NotSupportedError` at module-evaluation time and took the application down. There are no aliases: the old tag names stop working. Recommended migration: update any markup, selectors, or styles that target these tags:
+
+  | Old tag              | New tag                    |
+  | -------------------- | -------------------------- |
+  | `a2ui-audioplayer`   | `a2ui-basic-audioplayer`   |
+  | `a2ui-card`          | `a2ui-basic-card`          |
+  | `a2ui-checkbox`      | `a2ui-basic-checkbox`      |
+  | `a2ui-choicepicker`  | `a2ui-basic-choicepicker`  |
+  | `a2ui-datetimeinput` | `a2ui-basic-datetimeinput` |
+  | `a2ui-divider`       | `a2ui-basic-divider`       |
+  | `a2ui-icon`          | `a2ui-basic-icon`          |
+  | `a2ui-image`         | `a2ui-basic-image`         |
+  | `a2ui-list`          | `a2ui-basic-list`          |
+  | `a2ui-modal`         | `a2ui-basic-modal`         |
+  | `a2ui-slider`        | `a2ui-basic-slider`        |
+  | `a2ui-tabs`          | `a2ui-basic-tabs`          |
+  | `a2ui-video`         | `a2ui-basic-video`         |
+
+  CSS class names such as `.a2ui-card` are unchanged. [#2648](https://github.com/a2ui-project/a2ui/pull/2648)
+
 - (v0_9) Fix `TypeError: Cannot read properties of undefined (reading 'props')` when a `Tabs` element updates before a `context` is attached, as in standalone custom element usage, static hydration, or a direct test mount. `Tabs` no longer overrides `willUpdate()`; the active tab index is clamped in `render()`, so a shrinking tabs array falls back to the first tab without mutating the user's selection or scheduling an extra update pass. [#2647](https://github.com/a2ui-project/a2ui/pull/2647)
 - **BREAKING CHANGE**: (v0_9) `A2uiLitElement` now skips the update cycle in `shouldUpdate()` while the element is unbound, instead of returning early from `update()`. The old gate left Lit's cycle pending forever, so an element mounted before its `context` was attached never rendered even once bound, and `updated()` still ran without a controller — which crashed `Row` and `Column`. The controller is now guaranteed in every hook that runs after `super.willUpdate()`. Recommended migration: subclasses that override `shouldUpdate()` must call `super.shouldUpdate()`; subclasses that overrode `update()` to work around the old gate can drop the workaround. [#2652](https://github.com/a2ui-project/a2ui/pull/2652)
 - (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)

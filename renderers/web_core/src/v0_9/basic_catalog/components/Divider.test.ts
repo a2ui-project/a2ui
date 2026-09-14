@@ -79,7 +79,7 @@ describe('Divider Component', () => {
   });
 
   it('should render an hr element', async () => {
-    const el = document.createElement('a2ui-divider') as A2uiDividerElement;
+    const el = document.createElement('a2ui-basic-divider') as A2uiDividerElement;
     element = el;
     document.body.appendChild(el);
 

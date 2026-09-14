@@ -86,7 +86,7 @@ describe('Card Component', () => {
   });
 
   it('should render and display child content', async () => {
-    const el = document.createElement('a2ui-card') as A2uiCardElement;
+    const el = document.createElement('a2ui-basic-card') as A2uiCardElement;
     element = el;
     document.body.appendChild(el);
 

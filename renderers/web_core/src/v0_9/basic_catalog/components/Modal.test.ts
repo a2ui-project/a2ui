@@ -84,7 +84,7 @@ describe('Modal Component', () => {
   });
 
   it('should render trigger initially and open modal on click to render content', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-basic-modal') as A2uiLitModal;
     element = el;
     document.body.appendChild(el);
 
@@ -113,7 +113,7 @@ describe('Modal Component', () => {
   });
 
   it('should close when clicking the close button', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-basic-modal') as A2uiLitModal;
     element = el;
     document.body.appendChild(el);
 
@@ -136,7 +136,7 @@ describe('Modal Component', () => {
   });
 
   it('should close when clicking the outside backdrop', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-basic-modal') as A2uiLitModal;
     element = el;
     document.body.appendChild(el);
 
@@ -158,7 +158,7 @@ describe('Modal Component', () => {
   });
 
   it('should not close when clicking inside', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-basic-modal') as A2uiLitModal;
     element = el;
     document.body.appendChild(el);
 

@@ -84,7 +84,7 @@ describe('Slider Component', () => {
   });
 
   it('should render slider input and header with correct attributes and values', async () => {
-    const el = document.createElement('a2ui-slider') as A2uiSliderElement;
+    const el = document.createElement('a2ui-basic-slider') as A2uiSliderElement;
     element = el;
     document.body.appendChild(el);
 
@@ -138,7 +138,7 @@ describe('Slider Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-slider') as A2uiSliderElement;
+    const el = document.createElement('a2ui-basic-slider') as A2uiSliderElement;
     element = el;
     document.body.appendChild(el);
 

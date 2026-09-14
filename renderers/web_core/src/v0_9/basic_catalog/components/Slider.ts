@@ -20,7 +20,7 @@ import {SliderApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {WebComponentImplementation} from '../../catalog/types.js';
 
-@customElement('a2ui-slider')
+@customElement('a2ui-basic-slider')
 export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
   /**
    * The slider can be customized with the following CSS variables:
@@ -84,5 +84,5 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
 
 export const A2uiSlider: WebComponentImplementation = {
   ...SliderApi,
-  tagName: 'a2ui-slider',
+  tagName: 'a2ui-basic-slider',
 };

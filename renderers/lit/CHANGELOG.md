@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9) The basic catalog custom element tags rendered by `A2uiSurface` are namespaced to `a2ui-basic-*` (`a2ui-card` is now `a2ui-basic-card`, and so on for the 13 previously un-namespaced tags; see the `@a2ui/web_core` changelog for the full mapping). Recommended migration: update any markup, DOM queries, or styles that target these tags. [#2648](https://github.com/a2ui-project/a2ui/pull/2648)
 - **BREAKING CHANGE**: (v0_9) `A2uiLitElement`, re-exported from `@a2ui/web_core/v0_9`, now skips the update cycle in `shouldUpdate()` while the element is unbound, instead of returning early from `update()`. Custom components that override `shouldUpdate()` must call `super.shouldUpdate()`. The controller is guaranteed in `render()` and `updated()`, so `this.controller?.` guards in component code are no longer needed. [#2652](https://github.com/a2ui-project/a2ui/pull/2652)
 
 ## 0.11.0

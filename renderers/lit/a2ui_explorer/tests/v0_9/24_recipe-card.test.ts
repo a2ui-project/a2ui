@@ -53,7 +53,7 @@ describe('Example: Recipe Card', () => {
   });
 
   it('should render icon', async () => {
-    expect(querySelectorAllDeep(surface, 'a2ui-icon')[0] as HTMLElement).toBeTruthy();
+    expect(querySelectorAllDeep(surface, 'a2ui-basic-icon')[0] as HTMLElement).toBeTruthy();
   });
 
   it('should switch to Ingredients tab', async () => {
