@@ -29,7 +29,7 @@ import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,
   extractA2uiMessages,
-  parseA2uiTemplate,
+  parseA2uiMessages,
   readUiResourceUri,
   type McpToolClient,
 } from './callMcpTool.js';
@@ -37,9 +37,9 @@ import {MCP_CATALOG_ID} from '../index.js';
 import mcpCatalogJson from '../../mcp_catalog.json' with {type: 'json'};
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
-const TEMPLATE_URI = 'a2ui://sample-template';
+const UI_RESOURCE_URI = 'a2ui://sample-ui';
 
-const sampleTemplate = [
+const sampleMessages = [
   {createSurface: {surfaceId: 'test-surface', catalogId: SURFACE_CATALOG_ID}},
   {
     updateComponents: {
@@ -49,8 +49,10 @@ const sampleTemplate = [
   },
 ];
 
-const templateResource: ReadResourceResult = {
-  contents: [{uri: TEMPLATE_URI, mimeType: A2UI_MIME_TYPE, text: JSON.stringify(sampleTemplate)}],
+const uiResource: ReadResourceResult = {
+  contents: [
+    {uri: UI_RESOURCE_URI, mimeType: A2UI_MIME_TYPE, text: JSON.stringify(sampleMessages)},
+  ],
 };
 
 interface RecordedCall {
@@ -108,7 +110,7 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
     },
     async readResource({uri}) {
       reads.push(uri);
-      return options.resource ?? templateResource;
+      return options.resource ?? uiResource;
     },
   };
 
@@ -135,7 +137,7 @@ const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '
 };
 
 describe('callMcpTool', () => {
-  /** Surfaces created by templates live under this catalog. */
+  /** Surfaces created from UI resources live under this catalog. */
   let processor: MessageProcessor<any>;
 
   /** Builds the MCP catalog over a fixed client. */
@@ -151,8 +153,8 @@ describe('callMcpTool', () => {
     text: JSON.stringify([{updateDataModel: {surfaceId, value}}]),
   });
 
-  const withTemplateMeta = (content: unknown[] = []) =>
-    ({_meta: {ui: {resourceUri: TEMPLATE_URI}}, content}) as CallToolResult;
+  const withUiResourceMeta = (content: unknown[] = []) =>
+    ({_meta: {ui: {resourceUri: UI_RESOURCE_URI}}, content}) as CallToolResult;
 
   beforeEach(() => {
     processor = new MessageProcessor<any>(
@@ -301,7 +303,7 @@ describe('callMcpTool', () => {
     it('throws A2uiExpressionError when the result is flagged isError, applying nothing', async () => {
       const client = createFakeClient({
         result: {
-          _meta: {ui: {resourceUri: TEMPLATE_URI}},
+          _meta: {ui: {resourceUri: UI_RESOURCE_URI}},
           isError: true,
           content: [{type: 'text', text: 'database connection failed'}],
         },
@@ -367,23 +369,23 @@ describe('callMcpTool', () => {
       );
     };
 
-    it('fetches the template named by result._meta and applies it', async () => {
-      const client = createFakeClient({result: withTemplateMeta()});
+    it('reads the UI resource named by result._meta and applies its messages', async () => {
+      const client = createFakeClient({result: withUiResourceMeta()});
       await invoke(client);
 
-      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+      assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI]);
       assert.ok(processor.model.getSurface('test-surface'));
     });
 
-    it('falls back to the template a tool declares in tools/list', async () => {
+    it('falls back to the UI resource a tool declares in tools/list', async () => {
       const client = createFakeClient({
         result: {content: [dataBlock({title: 'Discovered'})]},
-        tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: TEMPLATE_URI}}}],
+        tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: UI_RESOURCE_URI}}}],
       });
 
       await invoke(client);
 
-      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+      assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI]);
       assert.strictEqual(
         processor.model.getSurface('test-surface')!.dataModel.get('/title'),
         'Discovered',
@@ -392,19 +394,19 @@ describe('callMcpTool', () => {
 
     it('prefers the result _meta URI over the declared one', async () => {
       const client = createFakeClient({
-        result: withTemplateMeta(),
+        result: withUiResourceMeta(),
         tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: 'a2ui://declared'}}}],
       });
 
       await invoke(client);
 
-      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+      assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI]);
     });
 
     it('discovers declared UI resource URIs once per client', async () => {
       const client = createFakeClient({
         result: {content: []},
-        tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: TEMPLATE_URI}}}],
+        tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: UI_RESOURCE_URI}}}],
       });
       const catalog = catalogFor(client);
       const context = createTestDataContext(new DataModel({}), catalog);
@@ -428,8 +430,8 @@ describe('callMcpTool', () => {
       assert.deepStrictEqual(failing.reads, []);
     });
 
-    it('caches a template per URI and reuses the surface it created', async () => {
-      const client = createFakeClient({result: withTemplateMeta([dataBlock({title: 'Second'})])});
+    it('caches messages per resource URI and reuses the surface they created', async () => {
+      const client = createFakeClient({result: withUiResourceMeta([dataBlock({title: 'Second'})])});
       const catalog = catalogFor(client);
       const context = createTestDataContext(new DataModel({}), catalog);
 
@@ -437,14 +439,14 @@ describe('callMcpTool', () => {
       // Re-processing createSurface for a live surface would throw A2uiStateError.
       await catalog.invoker('callMcpTool', {name: 'get_sample_data'}, context);
 
-      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+      assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI]);
       assert.strictEqual(
         processor.model.getSurface('test-surface')!.dataModel.get('/title'),
         'Second',
       );
     });
 
-    it('applies data messages onto a surface the template did not create', async () => {
+    it('applies data messages onto a surface the UI resource did not create', async () => {
       processor.processMessages([
         {version: 'v0.9', createSurface: {surfaceId: 'existing', catalogId: SURFACE_CATALOG_ID}},
       ] as any);
@@ -457,15 +459,15 @@ describe('callMcpTool', () => {
       assert.strictEqual(processor.model.getSurface('existing')!.dataModel.get('/greeting'), 'hi');
     });
 
-    it('surfaces template decoding failures as A2uiExpressionError', async () => {
+    it('surfaces resource decoding failures as A2uiExpressionError', async () => {
       const client = createFakeClient({
-        result: withTemplateMeta(),
-        resource: {contents: [{uri: TEMPLATE_URI, mimeType: 'text/plain', text: 'not a2ui'}]},
+        result: withUiResourceMeta(),
+        resource: {contents: [{uri: UI_RESOURCE_URI, mimeType: 'text/plain', text: 'not a2ui'}]},
       });
 
       await assert.rejects(
         () => invoke(client),
-        /Resource a2ui:\/\/sample-template does not contain valid A2UI JSON template data\./,
+        /Resource a2ui:\/\/sample-ui does not contain valid A2UI JSON messages\./,
       );
     });
   });
@@ -638,10 +640,10 @@ describe('message decoding', () => {
     });
   });
 
-  describe('parseA2uiTemplate', () => {
+  describe('parseA2uiMessages', () => {
     it('decodes the content block declaring the A2UI MIME type', () => {
       const messages = [{createSurface: {surfaceId: 's', catalogId: 'c'}}];
-      const parsed = parseA2uiTemplate(
+      const parsed = parseA2uiMessages(
         {
           contents: [
             {uri: 'a2ui://t', mimeType: 'text/plain', text: 'ignored'},
@@ -656,13 +658,13 @@ describe('message decoding', () => {
     it('throws when no block declares the A2UI MIME type', () => {
       assert.throws(
         () =>
-          parseA2uiTemplate(
+          parseA2uiMessages(
             {contents: [{uri: 'a2ui://t', mimeType: 'text/plain', text: 'nope'}]} as any,
             'a2ui://t',
           ),
-        /Resource a2ui:\/\/t does not contain valid A2UI JSON template data\./,
+        /Resource a2ui:\/\/t does not contain valid A2UI JSON messages\./,
       );
-      assert.throws(() => parseA2uiTemplate(undefined, 'a2ui://t'), /does not contain valid A2UI/);
+      assert.throws(() => parseA2uiMessages(undefined, 'a2ui://t'), /does not contain valid A2UI/);
     });
   });
 });
