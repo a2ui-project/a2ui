@@ -21,6 +21,10 @@ parsing, and payload validation for agents that emit A2UI.
 > questions that are still open across languages, and section 11 records what was
 > verified against the real code.
 
+This document owns design: interface shapes, type signatures, naming, and the reasoning
+behind each decision. It deliberately carries no step ordering, branch names, or
+milestones. Its scope is **both** inference formats, Direct JSON and Express.
+
 ---
 
 ## 1. Dependency on `@a2ui/web_core`
@@ -32,10 +36,46 @@ currently played by `web_core`.
 | Subpath | What we use |
 | --- | --- |
 | `@a2ui/web_core/catalog` | `Catalog`, `CatalogInterface`, `ComponentApi`, `FunctionApi`, `loadCatalogFromSchema` |
-| `@a2ui/web_core/v1_0` | `AgentToRendererMessage`, `AgentToRendererMessageSchema`, `V10RendererCapabilities` |
+| `@a2ui/web_core/v1_0` | `AgentToRendererMessage`, `AgentToRendererMessageSchema`, `RendererToAgentMessage`, `V10RendererCapabilities` |
 | `@a2ui/web_core/v1_0/basic_catalog` | `BASIC_COMPONENTS`, `BASIC_FUNCTION_APIS` |
 | `@a2ui/web_core/validating` | `validateRecursionAndPaths`, `STRICT_VALIDATION`, `getComponentReferences`, `buildComponentRefMap`, `V10_CHILD_REF_OPTIONS` |
 | `@a2ui/web_core/processing` | `MessageProcessor` (see section 6) |
+| `@a2ui/web_core/errors` | `A2uiError`, `A2uiValidationError`, `A2uiIntegrityError`, `A2uiRecursionError`, `A2uiStateError`, `A2uiDataError`, `A2uiExpressionError` |
+
+`RendererToAgentMessage` types the inbound direction — user events and callbacks coming
+back from a renderer. This SDK does not process those; it types them so an agent can
+accept them without redeclaring the shape.
+
+### Core contracts landing in `web_core`
+
+The v1.0 core work defines contracts that each language SDK should find in its core
+package. Four of them are not in `web_core` as of this writing but are being added.
+**This design assumes they exist**, and targets their agreed cross-language names rather
+than working around their absence.
+
+`v1_0_implementation_plan.md`, at the repository root, is the authority on what lands
+and under what name. It settles the validator: `A2uiValidator`, in a `validation/`
+module, in both Python and TypeScript. Python's current
+`a2ui.core.validation.payload_validator.PayloadValidator` is the pre-rename name.
+
+| Contract | State when last checked | This SDK's assumption |
+| --- | --- | --- |
+| `A2uiValidator` | No validator class in `web_core` | Used directly for payload validation, per section 6. Name confirmed by the v1.0 plan |
+| `A2uiRendererCapabilities` | Exists as `V10RendererCapabilities` | Uses the cross-language name once available |
+| `A2uiCatalogError` | Not defined | Imported from core rather than declared locally |
+| `BasicCatalog` | Only `BASIC_COMPONENTS` / `BASIC_FUNCTION_APIS` | Backs `BundledCatalogProvider`, per section 4 |
+
+The same plan renames two `web_core` directories this SDK imports from: `validating/`
+becomes `validation/`, and `errors.ts` becomes `exceptions/`. The subpaths in the table
+above are the ones that resolve today, and will need revisiting when that lands.
+
+Two consequences. First, if any of these land under a different name, the changes here
+are import-level rather than structural. Second, `BasicCatalog` may make the export gap
+below moot: if core exposes a ready-built basic catalog, this SDK never needs to reach
+for the bundled JSON itself.
+
+Errors this SDK raises extend `A2uiError` from `@a2ui/web_core/errors`, so callers can
+catch agent and core failures uniformly. `ParseError` is defined locally on that base.
 
 Two consequences worth calling out.
 
@@ -101,8 +141,8 @@ export entry moves to the new package with the rest of the catalog code.
 
 ## 2. Package structure
 
-The blueprint standardizes the layout across languages. This mirrors it, with `.ts`
-modules where the blueprint names Python modules.
+The blueprint standardizes this layout across languages. The tree below mirrors it, with
+`.ts` modules in place of Python ones.
 
 ```
 typescript/a2ui_agent/
@@ -112,8 +152,15 @@ typescript/a2ui_agent/
 │   │   ├── processor.ts         # A2uiRequestProcessor
 │   │   ├── generator.ts         # A2uiGenerator
 │   │   └── catalog_providers.ts # CatalogProvider implementations
-│   ├── inference_format.ts      # InferenceFormat & InferenceFormatFactory
+│   ├── inference_format/
+│   │   └── base.ts              # InferenceFormat & InferenceFormatFactory
 │   ├── inference_formats/
+│   │   ├── direct_json/         # Self-contained Direct JSON package
+│   │   │   ├── format.ts        # DirectJsonFormat, DirectJsonFormatFactory
+│   │   │   ├── parser.ts        # DirectJsonParser
+│   │   │   ├── streaming.ts     # DirectJsonStreamProcessor
+│   │   │   ├── decompiler.ts
+│   │   │   └── prompt_generator.ts
 │   │   └── express/             # Self-contained Express DSL package
 │   │       ├── format.ts        # ExpressFormat, ExpressFormatFactory
 │   │       ├── compiler.ts      # ExpressCompiler
@@ -124,7 +171,7 @@ typescript/a2ui_agent/
 │   ├── parser/
 │   │   ├── parser.ts            # Abstract Parser
 │   │   ├── response_part.ts     # Response part structures
-│   │   └── errors.ts            # ParseError and friends
+│   │   └── errors.ts            # ParseError, A2uiCatalogError
 │   ├── prompt/
 │   │   └── generator.ts         # Abstract PromptGenerator
 │   ├── catalog_transformers/
@@ -134,6 +181,7 @@ typescript/a2ui_agent/
 │   │   └── catalog_resolver.ts  # resolveCatalogs
 │   └── index.ts
 └── tests/
+    ├── unit/
     └── conformance/             # YAML harness over conformance/agent/
 ```
 
@@ -360,11 +408,11 @@ export class InMemoryCatalogProvider implements CatalogProvider {
 /**
  * Loads the bundled v1.0 basic catalog with no configuration.
  *
- * Not in the module blueprint as a provider, but Python ships the equivalent as
- * `BundledCatalogProvider` behind a `BasicCatalog` helper. Included so that using the
- * standard catalog is a one-liner. Depends on the export gap in section 1.
+ * Not in the module blueprint's provider list, but Python ships this as
+ * `BundledCatalogProvider`. The name is kept identical here for cross-language parity.
+ * Depends on the export gap in section 1.
  */
-export class BasicCatalogProvider implements CatalogProvider {
+export class BundledCatalogProvider implements CatalogProvider {
   constructor(version?: string);
   load(): Promise<SchemaCatalog>;
 }
@@ -453,79 +501,101 @@ export class A2uiRequestProcessor {
 ```
 
 > [!NOTE]
-> The blueprint defaults `A2uiGenerator`'s factory to `DirectJsonFormatFactory`. Since
-> this SDK ships Express only (section 5), the default here is `ExpressFormatFactory`.
+> The default `inferenceFormatFactory` is `DirectJsonFormatFactory`, matching the module
+> blueprint. Callers pass `ExpressFormatFactory` explicitly to opt into the DSL.
 
 ---
 
-## 5. Inference format: Express only
+## 5. Inference formats: Direct JSON, then Express
 
-This SDK implements the Express DSL and does not implement Direct JSON. That is a team
-decision, taken with the tradeoffs below understood.
+This SDK implements both formats behind the `InferenceFormat` seam. Direct JSON is the
+default and the one the rest of this document assumes; Express is built on top of the
+same seam.
 
-### What Express costs
+### Why Direct JSON goes first
 
-Express is not the smaller of the two formats. Measured against the Python reference:
+Three reasons, in descending weight:
 
-| | Express | Direct JSON (v1.0-relevant) |
+1. **It is the only format the conformance suite covers.** All 115 agent cases are
+   written against `<a2ui-json>`. Building it first means the harness has something real
+   to assert against from the beginning rather than skipping almost everything.
+2. **It is the stable format.** Python ships Direct JSON at
+   `inference_formats/direct_json/`, while Express sits under
+   `inference_formats/experimental/`. The module blueprint also defaults
+   `A2uiGenerator` to `DirectJsonFormatFactory`.
+3. **It has no toolchain dependency.** Express needs ANTLR codegen wired into the build;
+   Direct JSON needs nothing beyond `JSON.parse`. Deferring that keeps the first format
+   unblocked.
+
+### Relative cost
+
+Measured against the Python reference, the two are closer than they look, and the work
+is shaped differently:
+
+| | Direct JSON (v1.0-relevant) | Express |
 | --- | --- | --- |
-| Total | ~2,790 lines | ~1,770 lines |
-| Streaming | 113-line parser over the shared lexer | 1,143-line incremental JSON healer |
-| Grammar | ANTLR, generated from `Express.g4` | none |
+| Total | ~1,770 lines | ~2,790 lines |
+| Streaming | 1,143-line incremental JSON healer | 113-line parser over the shared lexer |
+| Grammar | none | ANTLR, generated from `Express.g4` |
 
-So the headline count favors Direct JSON, but the shape of the work differs. Direct
-JSON's bulk sits in incremental JSON repair, which is intricate hand-written logic and
-is exactly where its 76 streaming conformance cases concentrate. Express's bulk sits in
-a compiler generated from a declarative grammar, and its streaming story is close to
-free because the DSL tokenizes cleanly at expression boundaries.
+Direct JSON is less code overall, but its bulk is intricate hand-written JSON repair —
+healing truncated payloads mid-stream — which is where its 76 streaming conformance
+cases concentrate. Express is more code, but most of it is generated from a declarative
+grammar, and its streaming story is nearly free because the DSL tokenizes cleanly at
+expression boundaries. Express also costs meaningfully fewer output tokens at inference
+time, which is the reason to carry both rather than stopping at one.
 
-On that reading, Express-only is a defensible simplification even though it is more
-code.
+### Direct JSON package contents
 
-### The ANTLR dependency
-
-Python generates its Express lexer and parser with ANTLR from
-`specification/inference_formats/express/Express.g4`, and depends on
-`antlr4-python3-runtime`. The grammar is target-agnostic, so TypeScript can generate
-from the same file and stay in lockstep with Python.
-
-That means adding an ANTLR TypeScript runtime and a codegen step to this package.
-Generated sources land in `inference_formats/express/generated/` and should be checked
-in, so that a plain `yarn build` needs no Java toolchain. Regeneration becomes a
-separate script, run when the grammar changes.
-
-Sharing one grammar across languages is a real advantage: divergence between the Python
-and TypeScript Express dialects becomes a grammar change rather than a silent drift.
-The choice of runtime package is listed as open in section 10.
+`DirectJsonFormat` and `DirectJsonFormatFactory`; `DirectJsonPromptGenerator` rendering
+pruned catalog definitions and `<a2ui-json>` output instructions; `DirectJsonParser`
+handling tag unwrapping, payload fixing, and compilation; and `DirectJsonStreamProcessor`
+for incremental chunks with progressive token healing over a configurable
+`progressiveKeys` set.
 
 ### Express package contents
 
-Following the blueprint's Express layout: `ExpressFormat` and `ExpressFormatFactory`;
-`ExpressPromptGenerator` rendering compact positional signatures for catalog components
-and functions; `ExpressCompiler` lexing and parsing `<a2ui-express>` expressions into
-`AgentToRendererMessage` lists; `ExpressDecompiler` for the reverse; and `ExpressParser`
-delegating to both and handling streaming chunks.
+`ExpressFormat` and `ExpressFormatFactory`; `ExpressPromptGenerator` rendering compact
+positional signatures for catalog components and functions; `ExpressCompiler` lexing and
+parsing `<a2ui-express>` expressions into `AgentToRendererMessage` lists;
+`ExpressDecompiler` for the reverse; and `ExpressParser` delegating to both and handling
+streaming chunks.
 
-### Consequence for conformance
+### The ANTLR dependency, for Express
 
-The agent conformance suite is written entirely against Direct JSON, so an Express-only
-SDK cannot run most of it. Section 7 covers what remains reachable.
+Python generates its Express lexer and parser with ANTLR from
+`specification/inference_formats/express/Express.g4`, and depends on
+`antlr4-python3-runtime`. The grammar is target-agnostic, so TypeScript generates from
+the same file and stays in lockstep with Python.
+
+Concretely, the compile path is: strip the `<a2ui-express>` tags, feed the body through
+the generated lexer and parser to get a parse tree, walk it with a hand-written visitor
+into AST nodes, then map those onto `AgentToRendererMessage` objects. ANTLR covers only
+the lexer and parser — roughly 1,400 of the ~2,790 lines. The visitor and compiler are
+hand-written regardless.
+
+This adds an ANTLR TypeScript runtime and a codegen step. Generated sources land in
+`inference_formats/express/generated/` and are checked in, so a plain `yarn build` needs
+no Java toolchain; regeneration is a separate script run when the grammar changes.
+Sharing one grammar makes divergence between the Python and TypeScript Express dialects
+a grammar change rather than a silent drift. The runtime package choice is open in
+section 10.
 
 ---
 
 ## 6. Validation
 
-The blueprint points at `a2ui.core.validating.A2uiValidator`. No such class exists — see
-section 10. TypeScript `web_core` has no validator class at all, so the SDK assembles
-one from the primitives that do exist and exposes it as `PayloadValidator`, matching the
-name Python actually uses:
+Validation uses `A2uiValidator` from core, as the blueprint specifies. It covers protocol version branching, deep structural checks (component
+uniqueness, root reachability, cycle prevention, recursion depth caps), and JSON Pointer
+syntax for data bindings. This SDK adds no validator wrapper of its own.
 
-- **Envelope shape**: `AgentToRendererMessageSchema.parse()`.
-- **Component props**: each `ComponentApi` carries a Zod `schema`, so
-  `catalog.components.get(name)?.schema.parse(props)`.
-- **Structure**: `validateRecursionAndPaths()` for depth and JSON-pointer sanity, plus
-  `getComponentReferences()` and `buildComponentRefMap()` with `V10_CHILD_REF_OPTIONS`
-  for reachability and cycles. `STRICT_VALIDATION` is the config preset.
+`A2uiValidator` is one of the contracts still landing in `web_core` (section 1). If it
+arrives under a different name, only the import changes. If it does not arrive, the
+equivalent can be assembled from primitives that already exist —
+`AgentToRendererMessageSchema.parse()` for envelope shape, each `ComponentApi`'s Zod
+`schema` for component props, and `validateRecursionAndPaths()` plus
+`getComponentReferences()` and `buildComponentRefMap()` with `V10_CHILD_REF_OPTIONS` for
+structure — but that is a fallback, not the plan.
 
 ### Surface state during validation
 
@@ -566,40 +636,47 @@ largest suite, has no v1.0 cases at all.
 
 ### What is actually reachable
 
-Counting by case is misleading, because reachability depends on the action rather than
-the suite. Broken down:
+Counting by suite is misleading, because reachability depends on the action and the
+protocol version, not the file. With Direct JSON implemented and the SDK targeting v1.0
+only:
 
-| Action | Cases | Reachable for a v1.0 Express SDK? |
+| Action | Cases | Reachable? |
 | --- | --- | --- |
-| `select_catalog` | 8 | Yes — format-agnostic capability negotiation |
-| `load_catalog` | 3 | Yes — format-agnostic catalog loading |
-| `has_parts` | 3 | Structure reusable, inputs need Express variants |
-| `parse_full` | 9 | Structure reusable, inputs need Express variants |
-| `generate_prompt` | 8 | No — asserts Direct JSON prompt text |
-| `fix_payload` | 7 | No — JSON repair has no Express analogue |
-| `process_chunk` | 77 | No — v0.8/v0.9 Direct JSON payloads |
+| `select_catalog` | 8 | Yes — format- and version-agnostic |
+| `load_catalog` | 3 | Yes — format- and version-agnostic |
+| `has_parts` | 3 | Yes — unversioned, Direct JSON tags |
+| `parse_full` | 9 | Yes — unversioned, Direct JSON tags |
+| `fix_payload` | 7 | Yes — unversioned JSON repair |
+| `process_chunk` (v1.0) | 1 | Yes |
+| `process_chunk` (v0.8/v0.9) | 76 | No — protocol versions this SDK does not target |
+| `generate_prompt` | 8 | No — see below |
 
-So **11 cases run directly today**: the `select_catalog` and `load_catalog` sets, which
-exercise `resolveCatalogs` and the catalog providers and care nothing about output
-format. A further 12 test logic we want, but feed `<a2ui-json>` inputs that an Express
-parser will not recognize.
+**31 of 115 cases run**, up from 11 under the Express-only plan. Everything now skipped
+is gated on protocol version or on a deprecated API, not on output format.
 
-An earlier draft of this document claimed all 19 `parser.yaml` cases were reachable.
-That was wrong: 7 of them are `fix_payload`, which tests JSON healing that Express does
-not do, and the rest carry Direct JSON inputs.
+The 8 `generate_prompt` cases skip for two compounding reasons: they all specify version
+0.8 or 0.9, and they exercise `generate_system_prompt(roleDescription,
+workflowDescription, uiDescription, ...)`, which Python's own source marks as a
+"deprecated compatibility helper." This SDK does not implement it. Prompt construction
+here is `promptSnippet` plus whatever preamble the calling agent supplies, which is what
+the module blueprint describes.
+
+The 76 skipped streaming cases are the real loss, and they are why authoring v1.0
+streaming cases matters below.
 
 ### Scope
 
 1. **Build the harness** in `tests/conformance/`, following
    `python/a2ui_agent/tests/conformance/test_conformance.py`, declaring both
-   `SUPPORTED_PROTOCOL_VERSIONS` and `SKIP_TEST_NAMES`. The 11 directly runnable cases
-   pass from the start; the rest are skipped and logged.
-2. **Author Express cases** for `has_parts` and `parse_full`, mirroring the existing
-   Direct JSON cases with `<a2ui-express>` inputs, plus Express-specific compile and
-   decompile coverage. These are contributed upstream to `conformance/agent/`, not kept
-   local, so that any later Express implementation inherits them.
-3. **Author v1.0 streaming cases**, since `streaming_parser.yaml` currently stops at
-   v0.9. This is the largest genuine gap in the suite.
+   `SUPPORTED_PROTOCOL_VERSIONS` and `SKIP_TEST_NAMES`. The 31 reachable cases pass; the
+   rest are skipped and logged.
+2. **Author v1.0 streaming cases**, since `streaming_parser.yaml` stops at v0.9. This is
+   the largest genuine gap in the suite, and Direct JSON streaming is where the
+   trickiest logic lives, so the coverage is worth the most here.
+3. **Author Express cases** once Express lands: `has_parts`, `parse_full`, and
+   compile/decompile coverage with `<a2ui-express>` inputs, mirroring the Direct JSON
+   cases. Contributed upstream to `conformance/agent/` rather than kept local, so any
+   later Express implementation inherits them.
 
 Deriving Express cases carries a risk worth naming: a conformance suite written from a
 single implementation encodes that implementation's bugs as the specification. Express
@@ -665,45 +742,37 @@ Cross-language questions this SDK cannot settle alone. Grouped by what kind of d
 each needs. Nothing here blocks starting implementation; items marked **blocking** must
 be resolved before the affected area is finished.
 
-### A. The module blueprint disagrees with every implementation
+### A. The module blueprint and the Python SDK disagree
 
-Conforming to the blueprint literally would be wrong in these cases, so this SDK has
-picked a side. The blueprint should be corrected either way.
+Python's agent SDK has not finished its v1.0 migration: the facades, providers, and
+directory layout the blueprint describes are Stage 4 of `v1_0_implementation_plan.md`,
+and none of it has landed. Comparisons below are against Python as it stands today, so
+the migration may settle some of them on its own.
 
-1. **`A2uiValidator` does not exist.** The blueprint specifies
-   `a2ui.core.validating.A2uiValidator`. Python has
-   `a2ui.core.validation.payload_validator.PayloadValidator` — different module,
-   different class name. TypeScript `web_core` has no validator class at all.
-   *This SDK uses `PayloadValidator`.* Low risk, but the blueprint misleads every new
-   implementer who reads it.
+1. **`CatalogConfig` holds a catalog, or a provider?** The blueprint contradicts itself.
+   Its summary calls `CatalogConfig` a dataclass encapsulating catalog *providers* and
+   examples; its type definition declares an already-resolved `catalog` plus
+   `transformers`. Python matches the summary, taking `name`, `provider`, and
+   `examples_path`. The difference is a real one: whether catalog loading happens when
+   the config is constructed, or is deferred to negotiation.
+   *This SDK follows the type definition.* **Blocking** for the catalog layer, since
+   reversing it later changes when I/O happens and whether construction is async.
 
-2. **`CatalogConfig` holds a catalog, or a provider?** The blueprint says
-   `CatalogConfig(catalog, transformers)` — an already-resolved catalog. Python's takes
-   `name`, `provider`, and `examples_path`, holding an *unresolved* provider. That is a
-   real lifecycle difference: whether loading happens at config construction or is
-   deferred to negotiation.
-   *This SDK follows the blueprint.* **Blocking** for the catalog layer, since reversing
-   it later changes when I/O happens and whether construction is async.
-
-3. **`parseChunk` or `processChunk`?** The blueprint says `parse_chunk(chunk, wrapped)`.
+2. **`parseChunk` or `processChunk`?** The blueprint says `parse_chunk(chunk, wrapped)`.
    Python implements `process_chunk(chunk)` — different name, and no `wrapped`
    parameter. The conformance suite labels the action `process_chunk`.
    *This SDK follows the blueprint (`parseChunk`, with `wrapped`).* Cosmetic, but it is
    the method every SDK's streaming path is named after, so it is worth converging.
 
-4. **The blueprint's `Parser` is missing a content predicate.** Python has
+3. **The blueprint's `Parser` is missing a content predicate.** Python has
    `has_format_content`, and the conformance suite tests it through the `has_parts`
    action, but the blueprint's `Parser` does not declare it. Any SDK written strictly
    from the blueprint will fail those cases.
    *This SDK adds `hasA2uiParts`.* The blueprint should gain the method.
 
-5. **Response part structures.** Already being addressed by the Python migration, noted
-   here only for completeness: the blueprint's structured model is the target, and this
-   SDK models it directly rather than the flat shape Python currently ships.
-
 ### B. Decisions with repository-wide reach
 
-6. **Which ANTLR TypeScript runtime?** Generating from the shared
+4. **Which ANTLR TypeScript runtime?** Generating from the shared
    `specification/inference_formats/express/Express.g4` is decided: a single grammar
    compiled for both languages makes TypeScript/Python dialect divergence structurally
    impossible rather than merely unlikely, which is worth a codegen step. What remains
@@ -712,57 +781,76 @@ picked a side. The blueprint should be corrected either way.
    stories, and the choice sets precedent for any future TS grammar work.
    **Blocking** for the Express compiler.
 
-7. **Should Express graduate out of `proposals/`?** Its specification lives at
+5. **Should Express graduate out of `proposals/`?** Its specification lives at
    `specification/proposals/express/a2ui_express.md` while its grammar sits at
    `specification/inference_formats/express/Express.g4`, and the Python implementation
-   is under `inference_formats/experimental/`. This SDK now ships Express as its *only*
-   format. Shipping a production SDK against a proposal-status spec is worth a
-   deliberate decision rather than drift — either promote the spec, or record that the
-   SDK is knowingly ahead of it.
+   is under `inference_formats/experimental/`. Less urgent now that Direct JSON carries
+   the SDK, but still worth settling before Express ships to users: either promote the
+   spec, or record that implementations are knowingly ahead of it.
 
-8. **Should `BasicCatalogProvider` be in the blueprint?** Python ships the equivalent as
-   `BundledCatalogProvider` behind a `BasicCatalog` helper, and this SDK wants it, so
-   the blueprint's provider list looks incomplete.
+6. **Should `BundledCatalogProvider` be in the blueprint?** Python ships it, this SDK
+   wants it, and `v1_0_implementation_plan.md` schedules v1.0 work on it, so the
+   blueprint's provider list looks incomplete.
 
 ### C. Dependencies on other work
 
-9. **`web_core` export gap.** Adding a `./v1_0/schemas/*` entry so the bundled basic
-   catalog JSON is reachable touches a shared package. Needs sign-off from whoever owns
-   `web_core`, and should fold into the `a2ui_core` split planning rather than being
-   done twice. **Blocking** for `BasicCatalogProvider`.
+7. **Core contracts landing in `web_core`.** This design assumes `A2uiValidator`,
+   `A2uiRendererCapabilities`, `A2uiCatalogError`, and `BasicCatalog`, none of which
+   exist yet (section 1). Only `A2uiValidator` has a confirmed name; the other three
+   need one before the imports can be written once and left alone. **Blocking** for
+   validation and the bundled provider.
 
-10. **Does the YAML expectation format change with structured parts?** Existing cases
-    put `text` and `a2ui` in one entry, which the structured model splits into two
-    parts. This SDK's harness translates (section 7), but if the Python migration also
-    revises the YAML format, the translation should be dropped rather than duplicated
-    in every SDK. Whoever lands the Python change should decide.
+8. **`web_core` export gap.** If `BasicCatalog` lands in core, this may resolve itself —
+   a ready-built catalog means this SDK never reaches for the bundled JSON. If it does
+   not, a `./v1_0/schemas/*` export entry is still needed, and that touches a shared
+   package.
 
-11. **`a2ui_core` package.** Section 1 assumes the framework-agnostic half of
-    `web_core` eventually moves there. Timing affects when this SDK repoints its
-    imports, but nothing here waits on it.
+9. **Does the YAML expectation format change with structured parts?** Existing cases put
+   `text` and `a2ui` in one entry, which the structured model splits into two parts.
+   This SDK's harness translates (section 7), but if the Python migration also revises
+   the YAML format, the translation should be dropped rather than duplicated in every
+   SDK. Whoever lands the Python change should decide.
+
+10. **`a2ui_core` package.** Section 1 assumes the framework-agnostic half of `web_core`
+    eventually moves there. Timing affects when this SDK repoints its imports, but
+    nothing here waits on it.
 
 ### Resolved
 
-- **Which inference format.** Express only, by team decision. Tradeoffs in section 5.
+- **Which inference formats.** Both, with Direct JSON as the default. Rationale in
+  section 5.
 - **Who owns v1.0 and Express conformance cases.** This SDK, per section 7.
 - **Transport packaging.** Deliberately excluded, per section 8.
+- **ANTLR for Express.** Generating from the shared `Express.g4` is settled; only the
+  runtime package remains open (question 4).
+- **The validator's name.** `A2uiValidator`, per section 1.
 
 ---
 
 ## 11. Verification log
 
-Checked against the repository on 2026-09-11, at commit `6e3e9d3`.
+Checked against the repository on 2026-09-11 at commit `6e3e9d3`, and re-checked on
+2026-09-14 at `4b4622ab`, the tip of the `v1_0` branch.
 
 Confirmed present and shaped as documented: `Catalog`, `loadCatalogFromSchema`,
-`AgentToRendererMessage`, `V10RendererCapabilities`, `BASIC_COMPONENTS`,
-`BASIC_FUNCTION_APIS`, `MessageProcessor`, and Node-safe subpath imports for every
-`web_core` path in section 1.
+`AgentToRendererMessage`, `RendererToAgentMessage`, `V10RendererCapabilities`,
+`BASIC_COMPONENTS`, `BASIC_FUNCTION_APIS`, `MessageProcessor`, the `A2uiError` hierarchy
+in `@a2ui/web_core/errors`, and Node-safe subpath imports for every `web_core` path in
+section 1.
 
-Confirmed absent: any `A2uiValidator`, and any export path reaching the bundled v1.0
-basic catalog JSON.
+Confirmed absent as of the re-check, and assumed to be landing: `A2uiValidator`,
+`A2uiCatalogError`, `BasicCatalog`, and the `A2uiRendererCapabilities` alias. Also still
+absent: any export path reaching the bundled v1.0 basic catalog JSON.
 
-Conformance figures in section 7 come from counting cases in `conformance/agent/*.yaml`.
-Line counts in section 5 come from the Python packages under
+Section 10 was reconciled against `v1_0_implementation_plan.md` on 2026-09-14. The
+Python agent SDK is at the end of that plan's Stage 3: `A2uiGenerator`,
+`A2uiRequestProcessor`, and the `processor/`, `catalog_transformers/`, and `utils/`
+packages the blueprint describes do not exist yet.
+
+Conformance figures in section 7 come from counting `action:` and `version:` fields
+across `conformance/agent/*.yaml`. The deprecation of `generate_system_prompt` is quoted
+from its docstring in `python/a2ui_agent/src/a2ui/inference_format.py`. Line counts in
+section 5 come from the Python packages under
 `python/a2ui_agent/src/a2ui/inference_formats/`.
 
 ---
