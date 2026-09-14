@@ -22,16 +22,16 @@ The A2UI Core SDK acts as the central state coordinator. It is designed to repre
 
 Its core responsibilities include:
 
-1. **[Catalog](../../docs/public/concepts/glossary.md#catalog) Representation:** Define `Catalog` structures and pure technical [**component**](../../docs/public/concepts/glossary.md#genui-component) metadata/schemas (`ComponentApi`, `FunctionApi`).
-2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `RendererToAgent`, `AgentToRenderer`, etc.).
-3. **[Surface](../../docs/public/concepts/glossary.md#surface) State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`.
-4. **Message Processor:** Parse inbound message sequences to mutate local state containers via `MessageProcessor`.
-5. **JSON Pointer Scope:** Standardize relative pointer evaluation and reactivity via scoped context managers.
-6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks.
-7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation.
-8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol.
-9. **Multi-Catalog Surface Resolution (v1.0+):** Tracks every catalog a surface may draw from, and resolves per-component and per-function `catalogId` overrides against that set rather than against a single surface-wide default.
-10. **Bidirectional RPC Execution (v1.0+):** Coordinates asynchronous and synchronous remote function calls between renderers and server agents via `RpcHandler` (only available starting from version 1.0), managing correlation IDs, timeouts, cancellation callbacks, permission boundaries, and lifecycle disposal.
+1. **[Catalog](../../docs/public/concepts/glossary.md#catalog) Representation:** Define `Catalog` structures and pure technical [**component**](../../docs/public/concepts/glossary.md#genui-component) metadata/schemas (`ComponentApi`, `FunctionApi`). See [Catalog Layer](#a-catalog-layer-a2uicorecatalog).
+2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `RendererToAgent`, `AgentToRenderer`, etc.). See [Protocol Models & Serialization](#protocol-models--serialization).
+3. **[Surface](../../docs/public/concepts/glossary.md#surface) State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`. See [The State Models](#the-state-models).
+4. **Message Processor:** Parse inbound message sequences to mutate local state containers via `MessageProcessor`. See [`MessageProcessor`](#messageprocessor).
+5. **JSON Pointer Scope:** Standardize relative pointer evaluation and reactivity via scoped context managers. See [`DataModel`](#datamodel).
+6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks. See [Validation Layer](#c-validation-layer-a2uicorevalidation).
+7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation. See [Resolution Layer](#f-resolution-layer-a2uicoreresolution).
+8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol. See [Version Adapters](#version-adapters-a2uicoreprocessingadapters).
+9. **Mixable Catalog Surface Resolution (v1.0+):** Tracks every catalog a surface may draw from, and resolves per-component and per-function `catalogId` overrides against that set rather than against a single surface-wide default. See [Mixable catalogs and component resolution logic](../../specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic).
+10. **Bidirectional RPC Execution (v1.0+):** Coordinates asynchronous and synchronous remote function calls between renderers and server agents via `RpcHandler` (only available starting from version 1.0), managing correlation IDs, timeouts, cancellation callbacks, permission boundaries, and lifecycle disposal. See [Bidirectional RPC Layer](#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc).
 
 #### Package Boundary & Non-Goals
 
