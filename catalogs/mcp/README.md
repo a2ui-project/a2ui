@@ -98,13 +98,10 @@ On each invocation the catalog:
 
 1. Resolves the client through `getMcpClientForTool(toolName)` and issues `tools/call`, with progress notifications resetting the request timeout.
 2. Throws if the result is missing or flags `isError`.
-3. Resolves a template URI from `result._meta.ui.resourceUri`, falling back to the URI the tool declared in `tools/list`. Discovery runs lazily, once per client, and is skipped for clients without `listTools`.
-4. Fetches that template through `resources/read`, once per URI, requiring a content block whose `mimeType` is `application/a2ui+json`.
-5. Processes the template, unless the surface it creates already exists.
-6. Extracts A2UI messages from `result.content` and processes them. A message can arrive as an embedded resource's text, or as a text block whose JSON decodes to a message or a message list.
-
-> [!NOTE]
-> `_meta.ui.resourceUri` is an MCP transport convention, not part of the A2UI specification under `specification/v0_9_1/`. Only the `application/a2ui+json` MIME type is specified; see `specification/v0_9_1/docs/evolution_guide.md`. Steps 3 and 4 are skipped when no URI is found, so servers that inline their UI in the result content work without it.
+3. Resolves template URIs from `result._meta.ui.resourceUri`, falling back to the URIs the tool declared in `tools/list`. The field holds one URI or an array of them, and duplicates are dropped. Discovery runs lazily, once per client, and is skipped for clients without `listTools`.
+4. Fetches each template through `resources/read`, once per URI, requiring at least one content block whose `mimeType` is `application/a2ui+json`. A template carrying several such blocks contributes all of them.
+5. Processes each template in the order its URI appeared, skipping any that would recreate a live surface.
+6. Extracts A2UI messages from every block of `result.content` that decodes to A2UI, and processes them in content order. A message can arrive as an embedded resource's text, or as a text block whose JSON decodes to a message or a message list.
 
 ### Invoke a tool during bootstrap
 

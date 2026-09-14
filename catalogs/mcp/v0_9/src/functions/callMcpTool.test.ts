@@ -30,7 +30,7 @@ import {
   createCallMcpToolImplementation,
   extractA2uiMessages,
   parseA2uiMessages,
-  readUiResourceUri,
+  readUiResourceUris,
   type McpToolClient,
 } from './callMcpTool.js';
 import {MCP_CATALOG_ID} from '../index.js';
@@ -38,6 +38,7 @@ import mcpCatalogJson from '../../mcp_catalog.json' with {type: 'json'};
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 const UI_RESOURCE_URI = 'a2ui://sample-ui';
+const SECOND_RESOURCE_URI = 'a2ui://sample-ui-2';
 
 const sampleMessages = [
   {createSurface: {surfaceId: 'test-surface', catalogId: SURFACE_CATALOG_ID}},
@@ -55,6 +56,19 @@ const uiResource: ReadResourceResult = {
   ],
 };
 
+/** A second UI resource, for tools that name more than one. */
+const secondUiResource: ReadResourceResult = {
+  contents: [
+    {
+      uri: SECOND_RESOURCE_URI,
+      mimeType: A2UI_MIME_TYPE,
+      text: JSON.stringify([
+        {createSurface: {surfaceId: 'second-surface', catalogId: SURFACE_CATALOG_ID}},
+      ]),
+    },
+  ],
+};
+
 interface RecordedCall {
   toolName: string;
   args: Record<string, any>;
@@ -64,6 +78,8 @@ interface FakeClientOptions {
   /** Result returned from `tools/call`, or a factory over the request params. */
   result?: CallToolResult | ((toolName: string, args: Record<string, any>) => any);
   resource?: ReadResourceResult;
+  /** Resources served by `resources/read`, keyed by URI. */
+  resources?: Record<string, ReadResourceResult>;
   /** Tool descriptors served by `tools/list`. Pass `null` to omit the method. */
   tools?: Array<{name: string; _meta?: unknown}> | null;
   listToolsError?: Error;
@@ -110,7 +126,7 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
     },
     async readResource({uri}) {
       reads.push(uri);
-      return options.resource ?? uiResource;
+      return options.resources?.[uri] ?? options.resource ?? uiResource;
     },
   };
 
@@ -403,6 +419,63 @@ describe('callMcpTool', () => {
       assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI]);
     });
 
+    it('reads every UI resource the result names, in order', async () => {
+      const client = createFakeClient({
+        result: {
+          _meta: {ui: {resourceUri: [UI_RESOURCE_URI, SECOND_RESOURCE_URI, UI_RESOURCE_URI]}},
+          content: [],
+        } as CallToolResult,
+        resources: {[UI_RESOURCE_URI]: uiResource, [SECOND_RESOURCE_URI]: secondUiResource},
+      });
+
+      await invoke(client);
+
+      // The repeated URI is read once, and both surfaces are created.
+      assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI, SECOND_RESOURCE_URI]);
+      assert.ok(processor.model.getSurface('test-surface'));
+      assert.ok(processor.model.getSurface('second-surface'));
+    });
+
+    it('reads every UI resource a tool declares in tools/list', async () => {
+      const client = createFakeClient({
+        result: {content: []},
+        tools: [
+          {
+            name: 'get_sample_data',
+            _meta: {ui: {resourceUri: [UI_RESOURCE_URI, SECOND_RESOURCE_URI]}},
+          },
+        ],
+        resources: {[UI_RESOURCE_URI]: uiResource, [SECOND_RESOURCE_URI]: secondUiResource},
+      });
+
+      await invoke(client);
+
+      assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI, SECOND_RESOURCE_URI]);
+      assert.ok(processor.model.getSurface('test-surface'));
+      assert.ok(processor.model.getSurface('second-surface'));
+    });
+
+    it('applies every inline A2UI block of one result', async () => {
+      // Distinct paths, so a later block cannot overwrite an earlier one.
+      const pathBlock = (path: string, value: unknown) => ({
+        type: 'text' as const,
+        text: JSON.stringify([{updateDataModel: {surfaceId: 'test-surface', path, value}}]),
+      });
+      const client = createFakeClient({
+        result: withUiResourceMeta([
+          pathBlock('/title', 'First'),
+          {type: 'text', text: 'prose between the payloads'},
+          pathBlock('/subtitle', 'Second'),
+        ]),
+      });
+
+      await invoke(client);
+
+      const surface = processor.model.getSurface('test-surface')!;
+      assert.strictEqual(surface.dataModel.get('/title'), 'First');
+      assert.strictEqual(surface.dataModel.get('/subtitle'), 'Second');
+    });
+
     it('discovers declared UI resource URIs once per client', async () => {
       const client = createFakeClient({
         result: {content: []},
@@ -590,19 +663,20 @@ describe('callMcpTool', () => {
 
 describe('message decoding', () => {
   describe('extractA2uiMessages', () => {
-    it('returns null for undefined, empty, and non-JSON content', () => {
-      assert.strictEqual(extractA2uiMessages(undefined), null);
-      assert.strictEqual(extractA2uiMessages([]), null);
-      assert.strictEqual(extractA2uiMessages([{type: 'text', text: 'plain prose'}] as any), null);
+    it('returns nothing for undefined, empty, and non-JSON content', () => {
+      assert.deepStrictEqual(extractA2uiMessages(undefined), []);
+      assert.deepStrictEqual(extractA2uiMessages([]), []);
+      assert.deepStrictEqual(extractA2uiMessages([{type: 'text', text: 'plain prose'}] as any), []);
     });
 
     it('ignores JSON that is not an A2UI message', () => {
       // Tool payloads that happen to be JSON must not be mistaken for messages.
-      assert.strictEqual(
+      assert.deepStrictEqual(
         extractA2uiMessages([{type: 'text', text: '{"temperature": 21}'}] as any),
-        null,
+        [],
       );
-      assert.strictEqual(extractA2uiMessages([{type: 'text', text: '42'}] as any), null);
+      assert.deepStrictEqual(extractA2uiMessages([{type: 'text', text: '42'}] as any), []);
+      assert.deepStrictEqual(extractA2uiMessages([{type: 'text', text: '[1, 2, 3]'}] as any), []);
     });
 
     it('wraps a single message object in a list', () => {
@@ -621,22 +695,49 @@ describe('message decoding', () => {
       assert.deepStrictEqual(extracted, messages);
     });
 
-    it('returns the first decodable block in content order', () => {
-      const messages = [{updateDataModel: {surfaceId: 's', value: {n: 2}}}];
+    it('trusts an embedded resource that declares the A2UI MIME type', () => {
+      const messages = [{custom: {surfaceId: 's'}}];
       const extracted = extractA2uiMessages([
-        {type: 'text', text: 'not json'},
-        {type: 'text', text: JSON.stringify(messages)},
+        {
+          type: 'resource',
+          resource: {uri: 'a2ui://data', mimeType: A2UI_MIME_TYPE, text: JSON.stringify(messages)},
+        },
       ] as any);
       assert.deepStrictEqual(extracted, messages);
     });
+
+    it('collects every decodable block in content order', () => {
+      const first = {updateDataModel: {surfaceId: 's', value: {n: 1}}};
+      const second = [{updateDataModel: {surfaceId: 's', value: {n: 2}}}];
+      const third = {updateComponents: {surfaceId: 's', components: []}};
+
+      const extracted = extractA2uiMessages([
+        {type: 'text', text: 'not json'},
+        {type: 'text', text: JSON.stringify(first)},
+        {type: 'text', text: '{"unrelated": true}'},
+        {type: 'resource', resource: {uri: 'a2ui://data', text: JSON.stringify(second)}},
+        {type: 'text', text: JSON.stringify(third)},
+      ] as any);
+
+      assert.deepStrictEqual(extracted, [first, ...second, third]);
+    });
   });
 
-  describe('readUiResourceUri', () => {
+  describe('readUiResourceUris', () => {
     it('reads _meta.ui.resourceUri from results and tool descriptors alike', () => {
-      assert.strictEqual(readUiResourceUri({_meta: {ui: {resourceUri: 'a2ui://t'}}}), 'a2ui://t');
-      assert.strictEqual(readUiResourceUri({}), undefined);
-      assert.strictEqual(readUiResourceUri({_meta: {ui: {resourceUri: 7}}}), undefined);
-      assert.strictEqual(readUiResourceUri(undefined), undefined);
+      assert.deepStrictEqual(readUiResourceUris({_meta: {ui: {resourceUri: 'a2ui://t'}}}), [
+        'a2ui://t',
+      ]);
+      assert.deepStrictEqual(readUiResourceUris({}), []);
+      assert.deepStrictEqual(readUiResourceUris({_meta: {ui: {resourceUri: 7}}}), []);
+      assert.deepStrictEqual(readUiResourceUris(undefined), []);
+    });
+
+    it('reads an array of URIs, dropping non-strings and duplicates', () => {
+      const uris = readUiResourceUris({
+        _meta: {ui: {resourceUri: ['a2ui://a', 'a2ui://b', 'a2ui://a', '', 7, null]}},
+      });
+      assert.deepStrictEqual(uris, ['a2ui://a', 'a2ui://b']);
     });
   });
 
@@ -653,6 +754,22 @@ describe('message decoding', () => {
         'a2ui://t',
       );
       assert.deepStrictEqual(parsed, messages);
+    });
+
+    it('concatenates every A2UI block of one resource, in order', () => {
+      const surface = [{createSurface: {surfaceId: 's', catalogId: 'c'}}];
+      const data = {updateDataModel: {surfaceId: 's', value: {n: 1}}};
+      const parsed = parseA2uiMessages(
+        {
+          contents: [
+            {uri: 'a2ui://t', mimeType: A2UI_MIME_TYPE, text: JSON.stringify(surface)},
+            {uri: 'a2ui://t', mimeType: 'text/plain', text: 'ignored'},
+            {uri: 'a2ui://t', mimeType: A2UI_MIME_TYPE, text: JSON.stringify(data)},
+          ],
+        } as any,
+        'a2ui://t',
+      );
+      assert.deepStrictEqual(parsed, [...surface, data]);
     });
 
     it('throws when no block declares the A2UI MIME type', () => {
