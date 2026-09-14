@@ -1426,6 +1426,7 @@ function getCatalogsForTestCase(testCase) {
           ...catSchema,
         });
         catalogsMap.set(cId, loadedCat);
+        specifiedCatalogs.push(loadedCat);
       } else {
         addCatalogId(cId, pVer);
       }
@@ -1441,6 +1442,7 @@ function getCatalogsForTestCase(testCase) {
             ...cat,
           });
           catalogsMap.set(cat.catalogId, loadedCat);
+          specifiedCatalogs.push(loadedCat);
         } else {
           addCatalogId(cat.catalogId, cat.protocolVersion);
         }
@@ -1537,6 +1539,11 @@ function collectResolvedNodes(surface) {
   const resolver = new NodeResolver(surface, surface.catalog);
   const seen = new Set();
 
+  // A property the catalog types as dynamic arrives wrapped in its snapshot,
+  // which a child reference does too when its declared type admits both.
+  // `normalizeComponentRefs` unwraps the same shape on the comparison side.
+  const unwrap = value => (value instanceof ResolvedBinding ? value.value : value);
+
   const walk = node => {
     if (!node || seen.has(node)) return;
     seen.add(node);
@@ -1556,9 +1563,11 @@ function collectResolvedNodes(surface) {
     // A child reference sits either directly on a property or one level down in
     // an array, which is how every catalog declares children. A reference
     // buried deeper in a plain object is not searched for.
-    for (const value of Object.values(nodeProps)) {
+    for (const prop of Object.values(nodeProps)) {
+      const value = unwrap(prop);
       if (Array.isArray(value)) {
-        for (const item of value) {
+        for (const entry of value) {
+          const item = unwrap(entry);
           if (item && typeof item === 'object' && 'componentId' in item) walk(item);
         }
       } else if (value && typeof value === 'object' && 'componentId' in value) {
@@ -1624,9 +1633,9 @@ function forceResolution(processor, reported) {
     }
   } finally {
     for (const resolved of resolvers) resolved.dispose();
-    for (const unsubscribe of subscriptions) {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    }
+    // `EventSource.subscribe` hands back a `Subscription`, not a teardown
+    // function.
+    for (const subscription of subscriptions) subscription.unsubscribe();
   }
 
   if (reported.length > 0) {
@@ -1654,9 +1663,7 @@ function watchSurfaceErrors(processor) {
   return {
     reported,
     unsubscribe: () => {
-      for (const stop of subscriptions) {
-        if (typeof stop === 'function') stop();
-      }
+      for (const subscription of subscriptions) subscription.unsubscribe();
     },
   };
 }
