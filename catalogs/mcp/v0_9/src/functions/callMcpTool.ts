@@ -36,19 +36,15 @@
  * several of them:
  *
  * 1. A resource the result names. `result._meta.ui.resourceUri` holds a
- *    resource URI, whose `application/a2ui+json` content block decodes to a
- *    message list.
+ *    resource URI, whose `application/a2ui+json` content block decodes to an
+ *    A2UI message list.
  * 2. A resource the tool declares. A tool descriptor in `tools/list` carries
  *    the same `_meta.ui.resourceUri`, covering every call of that tool.
- *    Declared URIs are discovered once per client and used only when a result
- *    names no URI of its own.
  * 3. Messages inside `result.content`, in either an embedded resource block or
- *    a text block whose JSON decodes to a message or a list of messages.
+ *    a text block whose JSON decodes to an A2UI message or a list of messages.
  *
- * A typical result combines routes 1 and 3: the resource creates the surface,
- * then the inline messages fill that surface with data. A result that uses no
- * route, plain prose for example, renders nothing. Every successful call
- * returns the raw `CallToolResult` to the caller.
+ * A result that doesn't return A2UI, plain prose for example, renders nothing. 
+ * Every successful call returns the raw `CallToolResult` to the caller.
  *
  * ## Failures
  *
