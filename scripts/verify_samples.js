@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const {generateProof} = require('./capture_visual_proof');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const LOGS_DIR = path.join(REPO_ROOT, 'logs');
@@ -189,7 +190,7 @@ async function runValidation() {
         const clientContent = fs.readFileSync(clientTsPath, 'utf-8');
         // PR #1322 fix: Lit client sets useStreaming: false to avoid duplicate surface messages
         const uncommentedClient = clientContent
-          .replace(/\/\/.*$/gm, '')
+          .replace(/(?<!:)\/\/.*$/gm, '')
           .replace(/\/\*[\s\S]*?\*\//g, '');
         const clientGuarded = /useStreaming\s*:\s*false/.test(uncommentedClient);
         if (!clientGuarded) {
@@ -270,7 +271,6 @@ async function runValidation() {
   log('--> Generating screenshots and interaction clips...');
   let visualProof = null;
   try {
-    const {generateProof} = require('./capture_visual_proof');
     visualProof = generateProof();
     log('    ✔ Visual assets generated');
   } catch (err) {
@@ -478,8 +478,8 @@ function validateQuickstartPrompts(overrides = {}) {
     (Array.isArray(searchJson)
       ? searchJson.find(m => m?.updateComponents)?.updateComponents?.components
       : null) || [];
-  const hasCardTemplate = searchComponents.some(c => c.component === 'Card');
-  const hasBookButton = searchComponents.some(c => c.component === 'Button');
+  const hasCardTemplate = searchComponents.some(c => c?.component === 'Card');
+  const hasBookButton = searchComponents.some(c => c?.component === 'Button');
 
   // Prompt 2: "Book a table for 2" -> interactive booking form
   const formComponents =
@@ -487,10 +487,10 @@ function validateQuickstartPrompts(overrides = {}) {
       ? formJson.find(m => m?.updateComponents)?.updateComponents?.components
       : null) || [];
   const hasPartyField = formComponents.some(
-    c => c.id === 'party-size-field' && c.component === 'TextField',
+    c => c?.id === 'party-size-field' && c?.component === 'TextField',
   );
   const hasSubmitButton = formComponents.some(
-    c => c.id === 'submit-button' && c.component === 'Button',
+    c => c?.id === 'submit-button' && c?.component === 'Button',
   );
 
   // Prompt 3: "What are your hours?" -> operating hours detail
