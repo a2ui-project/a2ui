@@ -260,13 +260,25 @@ export class FunctionPruningTransformer implements CatalogTransformer {
 
 ### Prompt generator
 
+`blueprints/features/skill_generator.blueprint.md` requires every language SDK to split
+prompt generation into three independently callable pieces, with `generate` as a template
+method over them. The split exists so that a skill generator can emit the base rules on
+their own as a standalone core skill, and each catalog's instructions as its own catalog
+skill, without duplicating any prompt-building logic.
+
 ```typescript
+/** Options for assembling a complete system prompt. */
+export interface PromptOptions {
+  roleDescription?: string;
+  workflowDescription?: string;
+  uiDescription?: string;
+  includeSchema?: boolean;   // defaults to true
+  includeExamples?: boolean; // defaults to false
+  validateExamples?: boolean; // defaults to false
+}
+
 /**
- * Builds the format-specific portion of the system prompt.
- *
- * A generator renders catalog schemas and output-format instructions. It deliberately
- * does not render role, persona, or workflow preamble; the calling agent owns those and
- * prepends them.
+ * Builds the system prompt for one inference format and catalog set.
  */
 export abstract class PromptGenerator {
   constructor(
@@ -275,10 +287,44 @@ export abstract class PromptGenerator {
     protected readonly examples?: Record<string, AgentToRendererMessage[]>,
   ) {}
 
-  /** Renders the instruction snippet for this format and catalog set. */
-  abstract generate(): string;
+  /**
+   * Base syntax contracts, grammar, and sentinel tags for this format.
+   *
+   * Must be catalog-agnostic: a skill generator emits this verbatim as a standalone
+   * core skill, with no catalog bound.
+   */
+  abstract generateBaseRules(): string;
+
+  /** Component and function signatures for one catalog, or for all bound catalogs. */
+  abstract generateCatalogInstructions(
+    includeSchema?: boolean,
+    catalog?: SchemaCatalog,
+  ): string;
+
+  /** Few-shot examples for one catalog, or for all bound catalogs. */
+  abstract generateExamples(catalog?: SchemaCatalog, validate?: boolean): string;
+
+  /**
+   * Assembles a complete system prompt from the three pieces above.
+   *
+   * Concrete formats override the pieces, not the assembly: the order is fixed by the
+   * feature blueprint so prompts stay comparable across languages. Sections are joined
+   * with blank lines, and empty ones are dropped — role, then base rules and workflow
+   * under `## Workflow Description:`, then `## UI Description:`, then catalog
+   * instructions, then `### Examples:`.
+   */
+  generate(options?: PromptOptions): string;
 }
 ```
+
+> One deviation. The feature blueprint gives `generate` six positional parameters with
+> defaults. Six positional booleans and strings read poorly in TypeScript and are easy to
+> transpose at a call site, so this SDK takes a single options object. The field names are
+> the blueprint's parameter names in camelCase, which is also how the conformance YAML
+> already spells them, so the mapping is mechanical.
+
+Multi-catalog behavior is mandated rather than chosen: when several catalogs are bound, a
+generator compiles instructions for *every* one of them. It never picks a default.
 
 ### Parser
 
@@ -492,7 +538,13 @@ export class A2uiRequestProcessor {
   /** The negotiated catalogs active for this request. */
   get activeCatalogs(): SchemaCatalog[];
   get examples(): Record<string, AgentToRendererMessage[]> | undefined;
-  /** Format-specific system prompt snippet to feed the model. */
+  /**
+   * Format-specific system prompt snippet to feed the model.
+   *
+   * Equivalent to `generate()` with defaults, kept as a property because the module
+   * blueprint declares `prompt_snippet` that way. Callers wanting role, workflow, or UI
+   * descriptions reach the full `PromptGenerator.generate(options)` through the format.
+   */
   get promptSnippet(): string;
 
   /** Parses and validates a model response. */
@@ -516,9 +568,10 @@ same seam.
 
 Three reasons, in descending weight:
 
-1. **It is the only format the conformance suite covers.** All 115 agent cases are
-   written against `<a2ui-json>`. Building it first means the harness has something real
-   to assert against from the beginning rather than skipping almost everything.
+1. **It carries almost all of the conformance suite.** 115 of the 119 agent cases are
+   written against `<a2ui-json>`; only the four skill-generation cases target Express.
+   Building it first means the harness has something real to assert against from the
+   beginning rather than skipping almost everything.
 2. **It is the stable format.** Python ships Direct JSON at
    `inference_formats/direct_json/`, while Express sits under
    `inference_formats/experimental/`. The module blueprint also defaults
@@ -629,10 +682,11 @@ of this SDK's work, and so is extending it.
 | `parser.yaml` | 19 | unversioned | `<a2ui-json>` |
 | `streaming_parser.yaml` | 76 | 38 × v0.8, 38 × v0.9 | `<a2ui-json>` |
 | `inference_format.yaml` | 20 | 1 × v1.0 | `<a2ui-json>` |
+| `skill.yaml` | 4 | v1.0 basic catalog | `<a2ui-express>` |
 
-Every case targets Direct JSON. Express appears nowhere; the three apparent matches are
-the phrase "express or implied" in license headers. And `streaming_parser.yaml`, the
-largest suite, has no v1.0 cases at all.
+Direct JSON carries 115 of the 119 cases. The four in `skill.yaml` are the only Express
+coverage anywhere in the repository, and they test skill generation rather than parsing.
+`streaming_parser.yaml`, the largest suite, still has no v1.0 cases at all.
 
 ### What is actually reachable
 
@@ -650,16 +704,18 @@ only:
 | `process_chunk` (v1.0) | 1 | Yes |
 | `process_chunk` (v0.8/v0.9) | 76 | No — protocol versions this SDK does not target |
 | `generate_prompt` | 8 | No — see below |
+| `from_format`, `core_syntax`, `from_catalog`, `skill_set` | 4 | Not yet — need Express and a skill generator |
 
-**31 of 115 cases run**, up from 11 under the Express-only plan. Everything now skipped
-is gated on protocol version or on a deprecated API, not on output format.
+**31 of 119 cases run**, rising to 35 once Express and skill generation land. Everything
+skipped is gated on protocol version, on a deprecated API, or on Express — not on
+anything Direct JSON does.
 
-The 8 `generate_prompt` cases skip for two compounding reasons: they all specify version
-0.8 or 0.9, and they exercise `generate_system_prompt(roleDescription,
-workflowDescription, uiDescription, ...)`, which Python's own source marks as a
-"deprecated compatibility helper." This SDK does not implement it. Prompt construction
-here is `promptSnippet` plus whatever preamble the calling agent supplies, which is what
-the module blueprint describes.
+The 8 `generate_prompt` cases skip on protocol version alone: each passes `version: 0.8`
+or `version: 0.9` in its arguments. Their shape is no longer an obstacle. The skill
+generator feature blueprint puts `roleDescription`, `workflowDescription`, and
+`uiDescription` back onto `generate` (section 3), and the YAML already names its
+arguments in exactly that camelCase. v1.0 variants of these cases would run against this
+SDK unchanged, which is what makes them worth authoring.
 
 The 76 skipped streaming cases are the real loss, and they are why authoring v1.0
 streaming cases matters below.
@@ -673,7 +729,10 @@ streaming cases matters below.
 2. **Author v1.0 streaming cases**, since `streaming_parser.yaml` stops at v0.9. This is
    the largest genuine gap in the suite, and Direct JSON streaming is where the
    trickiest logic lives, so the coverage is worth the most here.
-3. **Author Express cases** once Express lands: `has_parts`, `parse_full`, and
+3. **Author v1.0 `generate_prompt` cases.** The existing 8 stop at v0.9, and the prompt
+   contract is now fixed across languages, so v1.0 equivalents would pin down prompt
+   assembly for every SDK rather than just this one.
+4. **Author Express cases** once Express lands: `has_parts`, `parse_full`, and
    compile/decompile coverage with `<a2ui-express>` inputs, mirroring the Direct JSON
    cases. Contributed upstream to `conformance/agent/` rather than kept local, so any
    later Express implementation inherits them.
@@ -706,19 +765,39 @@ translation layer — see section 10.
 
 ---
 
-## 8. Transport
+## 8. Deliberate exclusions
+
+Two responsibilities that belong to the module but are out of scope for this SDK's first
+release. Both are additive: they compose over the contracts in sections 3 and 4 without
+changing them, so deferring them costs nothing structurally.
+
+### Transport
 
 The blueprint lists transport packaging as an Agent SDK responsibility, realized in
 Python as `a2a/` and `adk/` subpackages with their own conformance suites under
 `conformance/extensions/`.
 
-This SDK deliberately excludes them for now. It stays transport-agnostic: it produces
-`AgentToRendererMessage` objects and has no opinion about delivery. The reasoning is
-that transport bindings are additive and can be layered on later without disturbing the
-core, whereas shipping them now would double the surface before the core has proven
-itself.
+This SDK stays transport-agnostic: it produces `AgentToRendererMessage` objects and has
+no opinion about delivery. Shipping transport bindings now would double the surface
+before the core has proven itself. The sample application demonstrates one concrete
+transport instead.
 
-The sample application demonstrates one concrete transport instead.
+### Skill generation
+
+`blueprints/features/skill_generator.blueprint.md` specifies `Skill`, `SkillSet`, and
+`SkillGenerator` — a compiler that turns an `InferenceFormat` into `SKILL.md` packages for
+managed agent platforms. Python ships it at `python/a2ui_agent/src/a2ui/skill/`, and
+`conformance/agent/skill.yaml` covers it with four cases.
+
+This SDK does not implement it yet. The feature blueprint is explicit that skill
+generation is a composition layer sitting strictly on top of `InferenceFormat` and
+`PromptGenerator`, so it can be added later without touching either. What this SDK does
+take on now is the half of the contract that is *not* additive: section 3's decomposed
+`PromptGenerator`. Retrofitting that split after concrete formats exist would mean
+rewriting each one, so it is cheaper to build it in from the start.
+
+The four conformance cases stay out of reach regardless, since all of them generate
+Express skills.
 
 ---
 
@@ -821,6 +900,8 @@ the migration may settle some of them on its own.
   section 5.
 - **Who owns v1.0 and Express conformance cases.** This SDK, per section 7.
 - **Transport packaging.** Deliberately excluded, per section 8.
+- **Skill generation.** Deliberately excluded, per section 8, but the `PromptGenerator`
+  decomposition it mandates is adopted in section 3.
 - **ANTLR for Express.** Generating from the shared `Express.g4` is settled; only the
   runtime package remains open (question 4).
 - **The validator's name.** `A2uiValidator`, per section 1.
@@ -830,7 +911,7 @@ the migration may settle some of them on its own.
 ## 11. Verification log
 
 Checked against the repository on 2026-09-11 at commit `6e3e9d3`, and re-checked on
-2026-09-14 at `4b4622ab`, the tip of the `v1_0` branch.
+2026-09-14 at `2297b4ac`, the tip of the `v1_0` branch.
 
 Confirmed present and shaped as documented: `Catalog`, `loadCatalogFromSchema`,
 `AgentToRendererMessage`, `RendererToAgentMessage`, `V10RendererCapabilities`,
@@ -847,9 +928,13 @@ Python agent SDK is at the end of that plan's Stage 3: `A2uiGenerator`,
 `A2uiRequestProcessor`, and the `processor/`, `catalog_transformers/`, and `utils/`
 packages the blueprint describes do not exist yet.
 
-Conformance figures in section 7 come from counting `action:` and `version:` fields
-across `conformance/agent/*.yaml`. The deprecation of `generate_system_prompt` is quoted
-from its docstring in `python/a2ui_agent/src/a2ui/inference_format.py`. Line counts in
+Section 3's `PromptGenerator` follows
+`blueprints/features/skill_generator.blueprint.md`, added on the same branch and bound to
+the `a2ui_agent` module. Its four conformance cases in `conformance/agent/skill.yaml` all
+generate Express skills against `specification/v1_0/catalogs/basic/catalog.json`.
+
+Conformance figures in section 7 come from parsing `conformance/agent/*.yaml` and
+counting cases by `action` and by the `version` in each case's arguments. Line counts in
 section 5 come from the Python packages under
 `python/a2ui_agent/src/a2ui/inference_formats/`.
 
