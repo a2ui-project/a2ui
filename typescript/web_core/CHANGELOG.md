@@ -12,9 +12,9 @@
 - (v1_0) `@index` raises `A2uiValidationError` when evaluated outside a
   collection template. It previously returned 0, which presented a payload
   error as a plausible first row.
-- The expression parser's `MAX_DEPTH` is 10, down from 100, matching the Python
-  reference. An expression nested between 11 and 100 levels deep was accepted
-  here and rejected there.
+- The expression parser's `MAX_DEPTH` stays at 100, and the Python and Swift
+  engines are raised to match. An expression nested between 11 and 100 levels
+  deep was accepted here and rejected there.
 - `createSurface` assigns its `dataModel` at the root instead of building a
   JSON Pointer per key. A key containing `/` or `~` was previously read as a
   nested path or an escape sequence rather than as a literal property name.

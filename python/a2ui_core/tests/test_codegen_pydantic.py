@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import ast
+import importlib
+import json
 import os
 import sys
 import tempfile
@@ -644,40 +646,62 @@ def test_generated_python_syntax_validity():
             codegen_pydantic.CORE_SRC_ROOT = orig_root
 
 
-def test_basic_catalog_operator_and_index_api():
+SPEC_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", "specification"))
+
+# Functions the engine adds to a version's basic catalog beyond the ones the
+# published catalog declares. The '@' namespace is reserved for functions the
+# renderer supplies, so they have no entry in the catalog document.
+SYSTEM_FUNCTIONS: dict[str, frozenset[str]] = {
+    "v0_9": frozenset(),
+    "v1_0": frozenset({"@index"}),
+}
+
+
+def _published_function_names(version: str) -> set[str]:
+    """Returns the function names the published basic catalog for `version` declares."""
+    catalog_path = os.path.join(SPEC_ROOT, version, "catalogs", "basic", "catalog.json")
+    with open(catalog_path, "r", encoding="utf-8") as catalog_file:
+        return set(json.load(catalog_file)["functions"])
+
+
+def _exported_function_names(module) -> set[str]:
+    """Returns the catalog name of every `FunctionApi` `module` exports."""
+    from a2ui.core.catalog.functions import FunctionApi
+
+    return {
+        getattr(module, exported).name
+        for exported in module.__all__
+        if isinstance(getattr(module, exported), type)
+        and issubclass(getattr(module, exported), FunctionApi)
+    }
+
+
+@pytest.mark.parametrize("version", sorted(SYSTEM_FUNCTIONS))
+def test_basic_catalog_exports_exactly_the_published_functions(version: str):
+    """The exported function APIs are those the catalog declares, and no others.
+
+    An agent can only call what the published catalog advertises, so an API the
+    catalog does not declare is unreachable, and a declared function with no API
+    is uncallable. Comparing the two sets catches both.
+    """
+    module = importlib.import_module(f"a2ui.core.basic_catalog.{version}")
+    expected = _published_function_names(version) | SYSTEM_FUNCTIONS[version]
+
+    assert _exported_function_names(module) == expected
+
+
+def test_index_api_is_scoped_to_v1_0():
     from a2ui.core.basic_catalog.v1_0.operator_apis import IndexApi, IndexArgs
     from a2ui.core.basic_catalog import v0_9, v1_0
 
-    # Verify IndexApi definition
     assert IndexApi.name == "@index"
     assert IndexApi.return_type == "number"
     assert IndexApi.schema == IndexArgs
 
-    # Verify shared basic_catalog does not have IndexApi
+    # '@index' arrives with v1.0, and the shared package is version-agnostic.
     import a2ui.core.basic_catalog as basic_catalog
 
     assert not hasattr(basic_catalog, "IndexApi")
-
-    # The basic catalogs declare 14 functions, and the arithmetic,
-    # comparison and string operators are not among them. Only @index is added
-    # to v1.0, via the '@' system namespace.
-    for operator in (
-        "AddApi",
-        "SubtractApi",
-        "MultiplyApi",
-        "DivideApi",
-        "EqualsApi",
-        "NotEqualsApi",
-        "GreaterThanApi",
-        "LessThanApi",
-        "ContainsApi",
-        "StartsWithApi",
-        "EndsWithApi",
-    ):
-        assert not hasattr(v0_9, operator)
-        assert operator not in v0_9.__all__
-        assert not hasattr(v1_0, operator)
-        assert operator not in v1_0.__all__
 
     assert not hasattr(v0_9, "IndexApi")
     assert "IndexApi" not in v0_9.__all__

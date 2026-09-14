@@ -41,12 +41,15 @@ export const MAX_EXPRESSION_PARTS = 1_000;
  */
 export class ExpressionParser {
   /**
-   * The maximum allowed recursion depth for nested expressions.
+   * The maximum allowed recursion depth for nested expressions, which bounds
+   * the work a payload can demand of the parser and keeps it off the stack
+   * limit.
    *
-   * Matches `ExpressionParser.MAX_DEPTH` in the Python reference. The two must
-   * agree, or an expression one engine accepts the other rejects.
+   * Every engine uses the same number: `ExpressionParser.MAX_DEPTH` in Python
+   * and `ExpressionParser.maxDepth` in Swift. They must agree, or an
+   * expression one engine accepts the other rejects.
    */
-  public static readonly MAX_DEPTH = 10;
+  public static readonly MAX_DEPTH = 100;
 
   /**
    * Parses an input string into an array of DynamicValues.

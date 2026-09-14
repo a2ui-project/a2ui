@@ -61,7 +61,42 @@ def test_parses_keywords(parser):
 
 def test_returns_error_on_max_depth_exceeded(parser):
     with pytest.raises(ValueError, match="Max recursion depth reached"):
-        parser.parse("depth", 11)
+        parser.parse("depth", ExpressionParser.MAX_DEPTH + 1)
+
+
+def test_accepts_interpolations_nested_to_the_maximum_depth(parser):
+    depth = ExpressionParser.MAX_DEPTH
+    assert parser.parse("${" * depth + '"x"' + "}" * depth) == ["x"]
+
+
+def test_rejects_interpolations_one_level_past_the_maximum_depth(parser):
+    depth = ExpressionParser.MAX_DEPTH + 1
+    with pytest.raises(ValueError, match="Max recursion depth reached"):
+        parser.parse("${" * depth + '"x"' + "}" * depth)
+
+
+def _nested_calls(calls: int) -> str:
+    """Returns '${f(a: f(a: ... 1 ...))}'.
+
+    The interpolation is itself a level, so the result nests `calls + 1` deep.
+    """
+    return "${" + "f(a: " * calls + "1" + ")" * calls + "}"
+
+
+def test_accepts_function_arguments_nested_to_the_maximum_depth(parser):
+    assert parser.parse(_nested_calls(ExpressionParser.MAX_DEPTH - 1))
+
+
+def test_rejects_function_arguments_one_level_past_the_maximum_depth(parser):
+    with pytest.raises(ValueError, match="Max recursion depth reached"):
+        parser.parse(_nested_calls(ExpressionParser.MAX_DEPTH))
+
+
+def test_rejects_pathological_nesting_instead_of_overflowing_the_stack(parser):
+    # Deep enough to exhaust the interpreter stack were the guard unreachable,
+    # which it was while function arguments did not count toward the depth.
+    with pytest.raises(ValueError, match="Max recursion depth reached"):
+        parser.parse(_nested_calls(50000))
 
 
 def test_handles_deep_recursion_gracefully(parser):

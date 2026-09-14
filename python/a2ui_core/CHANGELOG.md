@@ -19,6 +19,16 @@
   supplies `zero: ""` gets an empty string, matching `web_core`; previously the
   empty form was discarded and the `other` form rendered in its place.
 
+- `ExpressionParser.MAX_DEPTH` is 100, up from 10, matching `web_core` and the
+  Swift engine. An expression nested between 11 and 100 levels deep was
+  rejected here and accepted there.
+
+- A function-call argument now counts toward the expression parser's recursion
+  depth, as it does in `web_core`. Only nested interpolations were counted
+  before, so `${f(a: ${f(a: ...)})}` written as `${f(a: f(a: ...))}` recursed
+  unchecked and raised `RecursionError` from the interpreter rather than a
+  parse error.
+
 - `Catalog.from_json` accepts a `common_types_schema` argument and rewrites
   cross-document references such as `common_types.json#/$defs/ChildList` into
   local `#/$defs/...` pointers, satisfying them from the supplied document or
