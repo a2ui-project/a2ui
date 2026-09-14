@@ -1,1 +1,1 @@
-export const AgentSdk = "Coming soon";
+export const AgentSdk = 'Coming soon';
