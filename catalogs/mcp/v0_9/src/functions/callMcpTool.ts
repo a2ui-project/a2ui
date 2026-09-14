@@ -113,25 +113,27 @@ export function createCallMcpToolImplementation(
    * per client.
    */
   function getDeclaredUiResourceUris(client: McpToolClient): Promise<Map<string, string>> {
-    let discovery = declaredUiResourceUris.get(client);
-    if (!discovery) {
-      discovery = (async () => {
-        const uris = new Map<string, string>();
-        try {
-          const {tools} = await client.listTools();
-          for (const tool of tools ?? []) {
-            const uri = readUiResourceUri(tool);
-            if (uri) {
-              uris.set(tool.name, uri);
-            }
-          }
-        } catch (err) {
-          console.warn('Could not query MCP tool UI resources:', err);
-        }
-        return uris;
-      })();
-      declaredUiResourceUris.set(client, discovery);
+    const cached = declaredUiResourceUris.get(client);
+    if (cached) {
+      return cached;
     }
+
+    const discovery = (async () => {
+      const uris = new Map<string, string>();
+      try {
+        const {tools} = await client.listTools();
+        for (const tool of tools ?? []) {
+          const uri = readUiResourceUri(tool);
+          if (uri) {
+            uris.set(tool.name, uri);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not query MCP tool UI resources:', err);
+      }
+      return uris;
+    })();
+    declaredUiResourceUris.set(client, discovery);
     return discovery;
   }
 
