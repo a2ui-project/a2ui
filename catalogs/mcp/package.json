@@ -1,7 +1,7 @@
 {
   "name": "a2ui-mcp-catalog",
   "private": true,
-  "main": "./v0_9/src/catalog.ts",
+  "main": "./v0_9/src/index.ts",
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",

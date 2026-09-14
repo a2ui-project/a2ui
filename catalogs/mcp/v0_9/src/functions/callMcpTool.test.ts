@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {describe, it} from 'node:test';
+import {describe, it, beforeEach} from 'node:test';
 import * as assert from 'node:assert';
 import {
   DataModel,
@@ -23,37 +23,106 @@ import {
   Catalog,
   MessageProcessor,
 } from '@a2ui/web_core/v0_9';
-import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
+import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
 import {CallMcpToolApi} from './callMcpToolApi.js';
-import {createCallMcpToolImplementation, type McpToolCaller} from './callMcpTool.js';
-import {createMcpCatalog, MCP_CATALOG_ID} from '../catalog.js';
+import {
+  A2UI_MIME_TYPE,
+  createCallMcpToolImplementation,
+  extractA2uiMessages,
+  parseA2uiTemplate,
+  readUiResourceUri,
+  type McpToolClient,
+} from './callMcpTool.js';
+import {MCP_CATALOG_ID} from '../index.js';
 import mcpCatalogJson from '../../mcp_catalog.json' with {type: 'json'};
+
+const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+const TEMPLATE_URI = 'a2ui://sample-template';
+
+const sampleTemplate = [
+  {createSurface: {surfaceId: 'test-surface', catalogId: SURFACE_CATALOG_ID}},
+  {
+    updateComponents: {
+      surfaceId: 'test-surface',
+      components: [{id: 'root', component: 'Text', properties: {text: {literal: 'Hi'}}}],
+    },
+  },
+];
+
+const templateResource: ReadResourceResult = {
+  contents: [{uri: TEMPLATE_URI, mimeType: A2UI_MIME_TYPE, text: JSON.stringify(sampleTemplate)}],
+};
 
 interface RecordedCall {
   toolName: string;
   args: Record<string, any>;
 }
 
+interface FakeClientOptions {
+  /** Result returned from `tools/call`, or a factory over the request params. */
+  result?: CallToolResult | ((toolName: string, args: Record<string, any>) => any);
+  resource?: ReadResourceResult;
+  /** Tool descriptors served by `tools/list`. Pass `null` to omit the method. */
+  tools?: Array<{name: string; _meta?: unknown}> | null;
+  listToolsError?: Error;
+}
+
 /**
- * Creates a tool caller that records every invocation and echoes a text result.
+ * A stand-in for the MCP client that records what the catalog asked of it.
  *
- * Mirrors the host contract: resolve the tool, execute it, return the raw result.
+ * `McpToolClient` is structural, so this satisfies it directly. Only
+ * `listTools` differs: it is required there but optional here, so tests can
+ * cover a client that does not implement it at all.
  */
-function createRecordingCaller(
-  toolHandler: (toolName: string, args: Record<string, any>) => CallToolResult = (
-    toolName,
-    args,
-  ) => ({
-    content: [{type: 'text', text: `Result of ${toolName}: ${JSON.stringify(args)}`}],
-  }),
-): McpToolCaller & {calls: RecordedCall[]} {
+interface FakeClient {
+  calls: RecordedCall[];
+  reads: string[];
+  listToolsCount: number;
+  request(request: any): Promise<any>;
+  readResource(params: {uri: string}): Promise<any>;
+  listTools?(): Promise<{tools: any[]}>;
+}
+
+/** Presents a test double as the client the catalog expects. */
+const asClient = (client: FakeClient) => client as McpToolClient;
+
+function createFakeClient(options: FakeClientOptions = {}): FakeClient {
   const calls: RecordedCall[] = [];
-  const caller = (async (toolName: string, args: Record<string, any>) => {
-    calls.push({toolName, args});
-    return toolHandler(toolName, args);
-  }) as McpToolCaller & {calls: RecordedCall[]};
-  caller.calls = calls;
-  return caller;
+  const reads: string[] = [];
+
+  const client: FakeClient = {
+    calls,
+    reads,
+    listToolsCount: 0,
+    async request(request: any) {
+      assert.strictEqual(request.method, 'tools/call');
+      const {name, arguments: args} = request.params;
+      calls.push({toolName: name, args});
+      const {result} = options;
+      if (typeof result === 'function') {
+        return result(name, args);
+      }
+      return (
+        result ?? {content: [{type: 'text', text: `Result of ${name}: ${JSON.stringify(args)}`}]}
+      );
+    },
+    async readResource({uri}) {
+      reads.push(uri);
+      return options.resource ?? templateResource;
+    },
+  };
+
+  if (options.tools !== null) {
+    client.listTools = async () => {
+      client.listToolsCount++;
+      if (options.listToolsError) {
+        throw options.listToolsError;
+      }
+      return {tools: options.tools ?? []};
+    };
+  }
+
+  return client;
 }
 
 const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '/') => {
@@ -66,6 +135,32 @@ const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '
 };
 
 describe('callMcpTool', () => {
+  /** Surfaces created by templates live under this catalog. */
+  let processor: MessageProcessor<any>;
+
+  /** Builds the MCP catalog over a fixed client. */
+  const catalogFor = (client: FakeClient) =>
+    new Catalog<any>(
+      MCP_CATALOG_ID,
+      [],
+      [createCallMcpToolImplementation(() => asClient(client), processor)],
+    );
+
+  const dataBlock = (value: Record<string, unknown>, surfaceId = 'test-surface') => ({
+    type: 'text' as const,
+    text: JSON.stringify([{updateDataModel: {surfaceId, value}}]),
+  });
+
+  const withTemplateMeta = (content: unknown[] = []) =>
+    ({_meta: {ui: {resourceUri: TEMPLATE_URI}}, content}) as CallToolResult;
+
+  beforeEach(() => {
+    processor = new MessageProcessor<any>(
+      [new Catalog(SURFACE_CATALOG_ID, [], [])],
+      async () => {},
+    );
+  });
+
   describe('CallMcpToolApi Schema', () => {
     it('has correct metadata', () => {
       assert.strictEqual(CallMcpToolApi.name, 'callMcpTool');
@@ -74,10 +169,7 @@ describe('callMcpTool', () => {
 
     it('parses valid minimal arguments with default empty arguments object', () => {
       const parsed = CallMcpToolApi.schema.parse({name: 'get_time'});
-      assert.deepStrictEqual(parsed, {
-        name: 'get_time',
-        arguments: {},
-      });
+      assert.deepStrictEqual(parsed, {name: 'get_time', arguments: {}});
     });
 
     it('parses arguments with arguments payload', () => {
@@ -94,17 +186,11 @@ describe('callMcpTool', () => {
     it('parses dynamic data bindings in name and arguments', () => {
       const parsed = CallMcpToolApi.schema.parse({
         name: {path: '/selectedTool'},
-        arguments: {
-          city: {path: '/user/city'},
-          count: 10,
-        },
+        arguments: {city: {path: '/user/city'}, count: 10},
       });
       assert.deepStrictEqual(parsed, {
         name: {path: '/selectedTool'},
-        arguments: {
-          city: {path: '/user/city'},
-          count: 10,
-        },
+        arguments: {city: {path: '/user/city'}, count: 10},
       });
     });
 
@@ -113,10 +199,7 @@ describe('callMcpTool', () => {
         name: 'fetch_weather',
         server: 'weather-service',
       } as any);
-      assert.deepStrictEqual(parsed, {
-        name: 'fetch_weather',
-        arguments: {},
-      });
+      assert.deepStrictEqual(parsed, {name: 'fetch_weather', arguments: {}});
     });
 
     it('throws validation error when name is missing', () => {
@@ -126,42 +209,80 @@ describe('callMcpTool', () => {
     });
   });
 
-  describe('createCallMcpToolImplementation & createMcpCatalog', () => {
-    it('delegates tool name and resolved arguments to the host tool caller', async () => {
-      const caller = createRecordingCaller();
-      const catalog = createMcpCatalog(caller);
+  describe('tool invocation', () => {
+    it('issues tools/call on the resolved client and returns the raw result', async () => {
+      const client = createFakeClient();
+      const catalog = catalogFor(client);
       assert.strictEqual(catalog.id, MCP_CATALOG_ID);
 
       const context = createTestDataContext(new DataModel({}), catalog);
-
       const result = await catalog.invoker(
         'callMcpTool',
         {name: 'counter', arguments: {count: 5}},
         context,
       );
 
+      assert.deepStrictEqual(client.calls, [{toolName: 'counter', args: {count: 5}}]);
       assert.deepStrictEqual(result, {
         content: [{type: 'text', text: 'Result of counter: {"count":5}'}],
       });
-      assert.strictEqual(caller.calls.length, 1);
-      assert.strictEqual(caller.calls[0].toolName, 'counter');
-      assert.deepStrictEqual(caller.calls[0].args, {count: 5});
     });
 
     it('passes an empty arguments object when no arguments are supplied', async () => {
-      const caller = createRecordingCaller();
-      const catalog = createMcpCatalog(caller);
+      const client = createFakeClient();
+      const catalog = catalogFor(client);
       const context = createTestDataContext(new DataModel({}), catalog);
 
       await catalog.invoker('callMcpTool', {name: 'ping'}, context);
 
-      assert.deepStrictEqual(caller.calls[0].args, {});
+      assert.deepStrictEqual(client.calls[0].args, {});
     });
 
-    it('throws A2uiExpressionError when the host tool caller fails', async () => {
-      const catalog = createMcpCatalog(() => {
-        throw new Error('No MCP client connected');
-      });
+    it('resolves the client per tool name, so payloads never name a server', async () => {
+      const weather = createFakeClient();
+      const clock = createFakeClient();
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        [],
+        [
+          createCallMcpToolImplementation(
+            toolName => asClient(toolName === 'get_time' ? clock : weather),
+            processor,
+          ),
+        ],
+      );
+      const context = createTestDataContext(new DataModel({}), catalog);
+
+      await catalog.invoker('callMcpTool', {name: 'get_time'}, context);
+
+      assert.strictEqual(clock.calls.length, 1);
+      assert.strictEqual(weather.calls.length, 0);
+    });
+
+    it('awaits an async client resolver', async () => {
+      const client = createFakeClient();
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        [],
+        [createCallMcpToolImplementation(async () => asClient(client), processor)],
+      );
+      const context = createTestDataContext(new DataModel({}), catalog);
+
+      await catalog.invoker('callMcpTool', {name: 'ping'}, context);
+
+      assert.strictEqual(client.calls.length, 1);
+    });
+
+    it('throws A2uiExpressionError when the client cannot be resolved', async () => {
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        [],
+        [
+          createCallMcpToolImplementation(() => {
+            throw new Error('No MCP client connected');
+          }, processor),
+        ],
+      );
       const context = createTestDataContext(new DataModel({}), catalog);
 
       await assert.rejects(
@@ -177,11 +298,15 @@ describe('callMcpTool', () => {
       );
     });
 
-    it('throws A2uiExpressionError when the tool result is flagged isError', async () => {
-      const catalog = createMcpCatalog(() => ({
-        isError: true,
-        content: [{type: 'text', text: 'database connection failed'}],
-      }));
+    it('throws A2uiExpressionError when the result is flagged isError, applying nothing', async () => {
+      const client = createFakeClient({
+        result: {
+          _meta: {ui: {resourceUri: TEMPLATE_URI}},
+          isError: true,
+          content: [{type: 'text', text: 'database connection failed'}],
+        },
+      });
+      const catalog = catalogFor(client);
       const context = createTestDataContext(new DataModel({}), catalog);
 
       await assert.rejects(
@@ -190,16 +315,16 @@ describe('callMcpTool', () => {
         },
         (err: any) => {
           assert.ok(err instanceof A2uiExpressionError);
-          assert.strictEqual(err.expression, 'callMcpTool');
           assert.ok(err.message.includes("MCP tool 'failing_tool' execution failed"));
           assert.ok(err.message.includes('database connection failed'));
           return true;
         },
       );
+      assert.deepStrictEqual(client.reads, []);
     });
 
-    it('throws A2uiExpressionError when the host tool caller returns nothing', async () => {
-      const catalog = createMcpCatalog(() => undefined as any);
+    it('throws A2uiExpressionError when the tool returns nothing', async () => {
+      const catalog = catalogFor(createFakeClient({result: () => undefined}));
       const context = createTestDataContext(new DataModel({}), catalog);
 
       await assert.rejects(
@@ -215,7 +340,7 @@ describe('callMcpTool', () => {
     });
 
     it('throws A2uiExpressionError on invalid function arguments', async () => {
-      const catalog = createMcpCatalog(createRecordingCaller());
+      const catalog = catalogFor(createFakeClient());
       const context = createTestDataContext(new DataModel({}), catalog);
 
       assert.throws(
@@ -230,171 +355,180 @@ describe('callMcpTool', () => {
         },
       );
     });
+  });
 
-    it('creates function implementation directly via createCallMcpToolImplementation', async () => {
-      const impl = createCallMcpToolImplementation(name => ({
-        content: [{type: 'text', text: `Direct: ${name}`}],
-      }));
-      assert.strictEqual(impl.name, 'callMcpTool');
-      assert.strictEqual(impl.returnType, 'any');
-
-      const customCatalog = new Catalog('test-direct', [], [impl]);
-      const context = createTestDataContext(new DataModel({}), customCatalog);
-
-      const result = await customCatalog.invoker('callMcpTool', {name: 'ping'}, context);
-      assert.deepStrictEqual(result, {
-        content: [{type: 'text', text: 'Direct: ping'}],
-      });
-    });
-
-    it('invokes onResult callback with result and tool name upon successful execution', async () => {
-      let capturedResult: any;
-      let capturedName: any;
-
-      const impl = createCallMcpToolImplementation(createRecordingCaller(), (result, name) => {
-        capturedResult = result;
-        capturedName = name;
-      });
-
-      const customCatalog = new Catalog('test-onresult', [], [impl]);
-      const context = createTestDataContext(new DataModel({}), customCatalog);
-
-      await customCatalog.invoker('callMcpTool', {name: 'my_tool', arguments: {a: 1}}, context);
-
-      assert.deepStrictEqual(capturedResult, {
-        content: [{type: 'text', text: 'Result of my_tool: {"a":1}'}],
-      });
-      assert.strictEqual(capturedName, 'my_tool');
-    });
-
-    it('does not invoke onResult when the tool result is flagged isError', async () => {
-      let onResultFired = false;
-      const catalog = createMcpCatalog(
-        () => ({isError: true, content: []}),
-        () => {
-          onResultFired = true;
-        },
+  describe('result handling', () => {
+    const invoke = (client: FakeClient, toolName = 'get_sample_data') => {
+      const catalog = catalogFor(client);
+      return catalog.invoker(
+        'callMcpTool',
+        {name: toolName},
+        createTestDataContext(new DataModel({}), catalog),
       );
-      const context = createTestDataContext(new DataModel({}), catalog);
+    };
 
-      await assert.rejects(async () => {
-        await catalog.invoker('callMcpTool', {name: 'failing_tool'}, context);
-      }, A2uiExpressionError);
-      assert.strictEqual(onResultFired, false);
+    it('fetches the template named by result._meta and applies it', async () => {
+      const client = createFakeClient({result: withTemplateMeta()});
+      await invoke(client);
+
+      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+      assert.ok(processor.model.getSurface('test-surface'));
     });
 
-    it('propagates onResult failures as A2uiExpressionError', async () => {
-      const catalog = createMcpCatalog(createRecordingCaller(), () => {
-        throw new Error('template fetch failed');
+    it('falls back to the template a tool declares in tools/list', async () => {
+      const client = createFakeClient({
+        result: {content: [dataBlock({title: 'Discovered'})]},
+        tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: TEMPLATE_URI}}}],
       });
+
+      await invoke(client);
+
+      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+      assert.strictEqual(
+        processor.model.getSurface('test-surface')!.dataModel.get('/title'),
+        'Discovered',
+      );
+    });
+
+    it('prefers the result _meta URI over the declared one', async () => {
+      const client = createFakeClient({
+        result: withTemplateMeta(),
+        tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: 'a2ui://declared'}}}],
+      });
+
+      await invoke(client);
+
+      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+    });
+
+    it('discovers declared UI resource URIs once per client', async () => {
+      const client = createFakeClient({
+        result: {content: []},
+        tools: [{name: 'get_sample_data', _meta: {ui: {resourceUri: TEMPLATE_URI}}}],
+      });
+      const catalog = catalogFor(client);
       const context = createTestDataContext(new DataModel({}), catalog);
+
+      await catalog.invoker('callMcpTool', {name: 'get_sample_data'}, context);
+      await catalog.invoker('callMcpTool', {name: 'get_sample_data'}, context);
+
+      assert.strictEqual(client.listToolsCount, 1);
+    });
+
+    it('tolerates clients without tools/list and servers that fail it', async () => {
+      const noListing = createFakeClient({result: {content: []}, tools: null});
+      await invoke(noListing);
+      assert.deepStrictEqual(noListing.reads, []);
+
+      const failing = createFakeClient({
+        result: {content: []},
+        listToolsError: new Error('Tool list error'),
+      });
+      await invoke(failing);
+      assert.deepStrictEqual(failing.reads, []);
+    });
+
+    it('caches a template per URI and reuses the surface it created', async () => {
+      const client = createFakeClient({result: withTemplateMeta([dataBlock({title: 'Second'})])});
+      const catalog = catalogFor(client);
+      const context = createTestDataContext(new DataModel({}), catalog);
+
+      await catalog.invoker('callMcpTool', {name: 'get_sample_data'}, context);
+      // Re-processing createSurface for a live surface would throw A2uiStateError.
+      await catalog.invoker('callMcpTool', {name: 'get_sample_data'}, context);
+
+      assert.deepStrictEqual(client.reads, [TEMPLATE_URI]);
+      assert.strictEqual(
+        processor.model.getSurface('test-surface')!.dataModel.get('/title'),
+        'Second',
+      );
+    });
+
+    it('applies data messages onto a surface the template did not create', async () => {
+      processor.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 'existing', catalogId: SURFACE_CATALOG_ID}},
+      ] as any);
+      const client = createFakeClient({
+        result: {content: [dataBlock({greeting: 'hi'}, 'existing')]},
+      });
+
+      await invoke(client, 'greet');
+
+      assert.strictEqual(processor.model.getSurface('existing')!.dataModel.get('/greeting'), 'hi');
+    });
+
+    it('surfaces template decoding failures as A2uiExpressionError', async () => {
+      const client = createFakeClient({
+        result: withTemplateMeta(),
+        resource: {contents: [{uri: TEMPLATE_URI, mimeType: 'text/plain', text: 'not a2ui'}]},
+      });
 
       await assert.rejects(
-        async () => {
-          await catalog.invoker('callMcpTool', {name: 'tool'}, context);
-        },
-        (err: any) => {
-          assert.ok(err instanceof A2uiExpressionError);
-          assert.ok(err.message.includes('template fetch failed'));
-          return true;
-        },
+        () => invoke(client),
+        /Resource a2ui:\/\/sample-template does not contain valid A2UI JSON template data\./,
       );
     });
+  });
 
-    it('passes onResult callback through createMcpCatalog', async () => {
-      let onResultFired = false;
-      const catalog = createMcpCatalog(createRecordingCaller(), (_result, name) => {
-        onResultFired = true;
-        assert.strictEqual(name, 'tool_via_catalog');
-      });
-      const context = createTestDataContext(new DataModel({}), catalog);
-
-      await catalog.invoker('callMcpTool', {name: 'tool_via_catalog'}, context);
-      assert.strictEqual(onResultFired, true);
-    });
-
+  describe('dynamic values', () => {
     it('resolves dynamic data bindings for name and arguments via DataContext', async () => {
-      const caller = createRecordingCaller();
-      const catalog = createMcpCatalog(caller);
+      const client = createFakeClient();
+      const catalog = catalogFor(client);
 
       const dataModel = new DataModel({
         toolName: 'get_forecast',
         location: 'Paris',
-        options: {
-          days: 3,
-        },
+        options: {days: 3},
       });
       const context = createTestDataContext(dataModel, catalog);
-
-      const result = await catalog.invoker(
-        'callMcpTool',
-        {
-          name: {path: '/toolName'},
-          arguments: {
-            city: {path: '/location'},
-            days: {path: '/options/days'},
-            unit: 'metric',
-          },
-        },
-        context,
-      );
-
-      assert.deepStrictEqual(result, {
-        content: [
-          {
-            type: 'text',
-            text: 'Result of get_forecast: {"city":"Paris","days":3,"unit":"metric"}',
-          },
-        ],
-      });
-      assert.strictEqual(caller.calls[0].toolName, 'get_forecast');
-      assert.deepStrictEqual(caller.calls[0].args, {
-        city: 'Paris',
-        days: 3,
-        unit: 'metric',
-      });
-    });
-
-    it('treats "path" and "call" argument keys as literal tool arguments', async () => {
-      const caller = createRecordingCaller();
-      const catalog = createMcpCatalog(caller);
-      const context = createTestDataContext(new DataModel({path: 'SHOULD_NOT_RESOLVE'}), catalog);
 
       await catalog.invoker(
         'callMcpTool',
         {
-          name: 'read_file',
-          arguments: {path: '/tmp/notes.txt', call: 'transcribe'},
+          name: {path: '/toolName'},
+          arguments: {city: {path: '/location'}, days: {path: '/options/days'}, unit: 'metric'},
         },
         context,
       );
 
-      assert.deepStrictEqual(caller.calls[0].args, {
+      assert.strictEqual(client.calls[0].toolName, 'get_forecast');
+      assert.deepStrictEqual(client.calls[0].args, {city: 'Paris', days: 3, unit: 'metric'});
+    });
+
+    it('treats "path" and "call" argument keys as literal tool arguments', async () => {
+      const client = createFakeClient();
+      const catalog = catalogFor(client);
+      const context = createTestDataContext(new DataModel({path: 'SHOULD_NOT_RESOLVE'}), catalog);
+
+      await catalog.invoker(
+        'callMcpTool',
+        {name: 'read_file', arguments: {path: '/tmp/notes.txt', call: 'transcribe'}},
+        context,
+      );
+
+      assert.deepStrictEqual(client.calls[0].args, {
         path: '/tmp/notes.txt',
         call: 'transcribe',
       });
     });
 
     it('passes literal objects that merely contain a path property through untouched', async () => {
-      const caller = createRecordingCaller();
-      const impl = createCallMcpToolImplementation(caller);
-      const customCatalog = new Catalog('test-literal-objects', [], [impl]);
+      const client = createFakeClient();
+      const impl = createCallMcpToolImplementation(() => asClient(client), processor);
+      const catalog = new Catalog('test-literal-objects', [], [impl]);
       const dataModel = new DataModel({docs: 'SHOULD_NOT_RESOLVE', city: 'Paris'});
-      const context = createTestDataContext(dataModel, customCatalog);
+      const context = createTestDataContext(dataModel, catalog);
 
       // Bypasses schema validation, which would strip the extra literal keys.
       await impl.execute(
         {
           name: 'search',
-          arguments: {
-            filter: {path: '/docs', recursive: true},
-            city: {path: '/city'},
-          },
+          arguments: {filter: {path: '/docs', recursive: true}, city: {path: '/city'}},
         },
         context,
       );
 
-      assert.deepStrictEqual(caller.calls[0].args, {
+      assert.deepStrictEqual(client.calls[0].args, {
         filter: {path: '/docs', recursive: true},
         city: 'Paris',
       });
@@ -412,15 +546,8 @@ describe('callMcpTool', () => {
       assert.strictEqual(fnApi.name, 'callMcpTool');
       assert.strictEqual(fnApi.returnType, 'any');
 
-      // Test validation with schema-loaded Zod shape
-      const valid = fnApi.schema.parse({
-        name: 'read_resource',
-        arguments: {uri: 'a2ui://form'},
-      });
-      assert.deepStrictEqual(valid, {
-        name: 'read_resource',
-        arguments: {uri: 'a2ui://form'},
-      });
+      const valid = fnApi.schema.parse({name: 'read_resource', arguments: {uri: 'a2ui://form'}});
+      assert.deepStrictEqual(valid, {name: 'read_resource', arguments: {uri: 'a2ui://form'}});
     });
 
     it('does not declare a server argument in the published schema', () => {
@@ -431,41 +558,111 @@ describe('callMcpTool', () => {
   });
 
   describe('MessageProcessor Integration', () => {
-    it('works seamlessly alongside basic catalog in MessageProcessor', async () => {
-      const mcpCatalog = createMcpCatalog(createRecordingCaller());
-      const testBasicCatalog = new Catalog(
-        'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-        [],
-        [],
+    it('works seamlessly alongside another catalog in MessageProcessor', async () => {
+      const client = createFakeClient();
+      const mcpCatalog = catalogFor(client);
+      processor = new MessageProcessor(
+        [new Catalog(SURFACE_CATALOG_ID, [], []), mcpCatalog],
+        async () => {},
       );
 
-      const processor = new MessageProcessor([testBasicCatalog, mcpCatalog], async () => {});
-
-      // Process surface creation
       processor.processMessages([
-        {
-          version: 'v0.9',
-          createSurface: {
-            surfaceId: 'mcp-surface',
-            catalogId: MCP_CATALOG_ID,
-          },
-        },
+        {version: 'v0.9', createSurface: {surfaceId: 'mcp-surface', catalogId: MCP_CATALOG_ID}},
       ]);
 
       const surface = processor.model.getSurface('mcp-surface');
       assert.ok(surface);
 
-      // Invoke callMcpTool via surface data context
-      const context = new DataContext(surface, '/');
       const result = await surface.catalog.invoker(
         'callMcpTool',
         {name: 'get_user', arguments: {id: '123'}},
-        context,
+        new DataContext(surface, '/'),
       );
 
       assert.deepStrictEqual(result, {
         content: [{type: 'text', text: 'Result of get_user: {"id":"123"}'}],
       });
+    });
+  });
+});
+
+describe('message decoding', () => {
+  describe('extractA2uiMessages', () => {
+    it('returns null for undefined, empty, and non-JSON content', () => {
+      assert.strictEqual(extractA2uiMessages(undefined), null);
+      assert.strictEqual(extractA2uiMessages([]), null);
+      assert.strictEqual(extractA2uiMessages([{type: 'text', text: 'plain prose'}] as any), null);
+    });
+
+    it('ignores JSON that is not an A2UI message', () => {
+      // Tool payloads that happen to be JSON must not be mistaken for messages.
+      assert.strictEqual(
+        extractA2uiMessages([{type: 'text', text: '{"temperature": 21}'}] as any),
+        null,
+      );
+      assert.strictEqual(extractA2uiMessages([{type: 'text', text: '42'}] as any), null);
+    });
+
+    it('wraps a single message object in a list', () => {
+      const message = {updateDataModel: {surfaceId: 's', value: {a: 1}}};
+      assert.deepStrictEqual(
+        extractA2uiMessages([{type: 'text', text: JSON.stringify(message)}] as any),
+        [message],
+      );
+    });
+
+    it('reads a message list out of an embedded resource', () => {
+      const messages = [{updateDataModel: {surfaceId: 's', value: {calories: 500}}}];
+      const extracted = extractA2uiMessages([
+        {type: 'resource', resource: {uri: 'a2ui://data', text: JSON.stringify(messages)}},
+      ] as any);
+      assert.deepStrictEqual(extracted, messages);
+    });
+
+    it('returns the first decodable block in content order', () => {
+      const messages = [{updateDataModel: {surfaceId: 's', value: {n: 2}}}];
+      const extracted = extractA2uiMessages([
+        {type: 'text', text: 'not json'},
+        {type: 'text', text: JSON.stringify(messages)},
+      ] as any);
+      assert.deepStrictEqual(extracted, messages);
+    });
+  });
+
+  describe('readUiResourceUri', () => {
+    it('reads _meta.ui.resourceUri from results and tool descriptors alike', () => {
+      assert.strictEqual(readUiResourceUri({_meta: {ui: {resourceUri: 'a2ui://t'}}}), 'a2ui://t');
+      assert.strictEqual(readUiResourceUri({}), undefined);
+      assert.strictEqual(readUiResourceUri({_meta: {ui: {resourceUri: 7}}}), undefined);
+      assert.strictEqual(readUiResourceUri(undefined), undefined);
+    });
+  });
+
+  describe('parseA2uiTemplate', () => {
+    it('decodes the content block declaring the A2UI MIME type', () => {
+      const messages = [{createSurface: {surfaceId: 's', catalogId: 'c'}}];
+      const parsed = parseA2uiTemplate(
+        {
+          contents: [
+            {uri: 'a2ui://t', mimeType: 'text/plain', text: 'ignored'},
+            {uri: 'a2ui://t', mimeType: A2UI_MIME_TYPE, text: JSON.stringify(messages)},
+          ],
+        } as any,
+        'a2ui://t',
+      );
+      assert.deepStrictEqual(parsed, messages);
+    });
+
+    it('throws when no block declares the A2UI MIME type', () => {
+      assert.throws(
+        () =>
+          parseA2uiTemplate(
+            {contents: [{uri: 'a2ui://t', mimeType: 'text/plain', text: 'nope'}]} as any,
+            'a2ui://t',
+          ),
+        /Resource a2ui:\/\/t does not contain valid A2UI JSON template data\./,
+      );
+      assert.throws(() => parseA2uiTemplate(undefined, 'a2ui://t'), /does not contain valid A2UI/);
     });
   });
 });

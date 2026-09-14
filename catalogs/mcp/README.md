@@ -1,114 +1,125 @@
-# A2UI MCP Catalog & Client SDK
+# A2UI MCP catalog
 
-The **A2UI MCP Catalog** provides first-class support for executing [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) tools from A2UI surfaces and clients. It allows AI agents to construct dynamic user interfaces that invoke MCP server tools directly from client-side UI actions, data bindings, or function evaluations.
+The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools. It defines one client-side function, `callMcpTool`, so an agent can emit a payload whose buttons and data bindings call MCP server tools directly.
 
----
+## Overview
 
-## 1. Overview
+A2UI separates UI layout from backend logic through catalogs. This catalog contributes `callMcpTool` and the machinery behind it:
 
-A2UI separates UI layout from domain-specific backend logic through **Catalogs**. The MCP Catalog defines a client-side function—`callMcpTool`—that routes UI interactions to MCP tools through a host-supplied tool caller.
+- The host supplies one hook, `getMcpClientForTool(toolName)`. The catalog uses the client it returns for the tool call, the template read, and tool discovery.
+- Tool results are applied for you. The catalog fetches and caches the presentation template a result points at, then processes any A2UI messages embedded in the result content.
+- Tool arguments accept data bindings, so form state can be passed straight into a tool call.
+- Nothing here is renderer-specific. It works with any A2UI web renderer built on `MessageProcessor`.
 
-Key Capabilities:
+## Catalog specification
 
-- **Client-Side MCP Tool Routing**: Execute server tools directly via standard A2UI function invocations.
-- **Transport-Agnostic**: The catalog holds no MCP `Client`. The host implements a `McpToolCaller` that resolves which connected server owns a tool and issues the `tools/call` request.
-- **Renderer-Agnostic**: Compatible with all A2UI web renderers (Lit, Angular, React, etc.) and `MessageProcessor`.
-- **Two-Way Data Binding Integration**: Pass form parameters, dynamic expressions, and state directly into MCP tool arguments.
+The catalog ID is `https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json`, exported as `MCP_CATALOG_ID`. It targets protocol v0.9 and v0.9.1.
 
----
+`callMcpTool` takes two arguments, declared in [mcp_catalog.json](mcp_catalog.json):
 
-## 2. Catalog Specification
+| Parameter   | Type     | Required          | Description                   |
+| :---------- | :------- | :---------------- | :---------------------------- |
+| `name`      | `string` | Yes               | The MCP tool to execute.      |
+| `arguments` | `object` | No (default `{}`) | Arguments passed to the tool. |
 
-- **Catalog ID**: `https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json`
-- **Protocol Version**: v0.9 / v0.9.1
+Tools are addressed by name only. A2UI payloads never name a server, because multi-server routing is a host concern resolved inside `getMcpClientForTool`.
 
-### `callMcpTool` Function Signature
+The function returns the raw MCP `CallToolResult`. It throws an `A2uiExpressionError` if the client cannot be resolved, the call returns nothing, or the result is flagged `isError`.
 
-The catalog provides the `callMcpTool` function:
-
-| Parameter   | Type     | Required           | Description                                           |
-| :---------- | :------- | :----------------- | :---------------------------------------------------- |
-| `name`      | `string` | **Yes**            | The name of the MCP tool to execute.                  |
-| `arguments` | `object` | No (default: `{}`) | Key-value dictionary of arguments passed to the tool. |
-
-Tools are addressed by name only. A2UI payloads never name a server: multi-server routing is a host concern, resolved inside the `McpToolCaller`.
-
-**Return Value**: Returns the raw MCP `CallToolResult` object (containing `content: Array<{type, text, ...}>`, `isError`, etc.). The catalog function throws an `A2uiExpressionError` when the result is flagged with `isError`.
-
----
-
-## 3. Installation & Setup
-
-Ensure the MCP SDK and A2UI dependencies are available in your application:
+## Installation
 
 ```bash
 yarn add @modelcontextprotocol/sdk @a2ui/web_core
 ```
 
----
+## Quick start
 
-## 4. Quick Start
-
-### Step 1: Initialize MCP Client & Create MCP Catalog
-
-Initialize your MCP client and transport (e.g. SSE, WebSocket, Stdio), connect to the server, and create the MCP catalog with a tool caller:
+### Connect an MCP client
 
 ```typescript
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
-import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
-import {createMcpCatalog, MCP_CATALOG_ID} from './v0_9/src/catalog.js';
 
-// 1. Establish transport connection to MCP server
-const transport = new SSEClientTransport(new URL('http://127.0.0.1:8000/sse'));
-const client = new Client({
-  name: 'my-a2ui-client',
-  version: '1.0.0',
+const client = new Client({name: 'my-a2ui-client', version: '1.0.0'});
+await client.connect(new SSEClientTransport(new URL('http://127.0.0.1:8000/sse')));
+```
+
+### Build the function, the catalog, and the processor
+
+`createCallMcpToolImplementation` takes the client resolver and the `MessageProcessor` that receives the messages derived from tool results.
+
+A `MessageProcessor` takes its catalogs at construction time, which looks circular: the catalog holds the function, and the function needs the processor. It is not, because the processor keeps the array you give it and reads it lazily. Pass the array first, then fill it in:
+
+```typescript
+import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {basicCatalog} from '@a2ui/lit/v0_9';
+import {createCallMcpToolImplementation, MCP_CATALOG_ID} from './v0_9/src/index.js';
+
+const catalogs: Catalog<any>[] = [basicCatalog];
+
+const processor = new MessageProcessor(catalogs, async action => {
+  console.log('A2UI action triggered:', action);
 });
 
-await client.connect(transport);
+const callMcpTool = createCallMcpToolImplementation(() => client, processor);
 
-// 2. Create the MCP catalog bound to a tool caller
-const mcpCatalog = createMcpCatalog((toolName, args) =>
-  client.request(
-    {method: 'tools/call', params: {name: toolName, arguments: args}},
-    CallToolResultSchema,
-  ),
+catalogs.push(new Catalog(MCP_CATALOG_ID, [], [callMcpTool]));
+```
+
+Push every catalog before the first message arrives, since `getClientCapabilities` reports whatever the array holds when it is called.
+
+To mix MCP tools with Basic Catalog components, build one composite catalog instead of two:
+
+```typescript
+catalogs.push(
+  new Catalog(MY_COMPOSITE_CATALOG_ID, Array.from(basicCatalog.components.values()), [
+    ...Array.from(basicCatalog.functions.values()),
+    callMcpTool,
+  ]),
 );
 ```
 
-For multi-server setups, keep a registry of which server advertises each tool (typically built from `listTools()` at connection time) and resolve it inside the caller:
+For multi-server setups, keep a registry of which server advertises each tool, usually built from `listTools()` at connection time, and resolve it in the same hook:
 
 ```typescript
-const mcpCatalog = createMcpCatalog((toolName, args) => {
-  const client = mcpClients.get(toolServers.get(toolName)) ?? defaultClient;
-  return client.request(
-    {method: 'tools/call', params: {name: toolName, arguments: args}},
-    CallToolResultSchema,
-  );
-});
+const callMcpTool = createCallMcpToolImplementation(
+  toolName => mcpClients.get(toolServers.get(toolName)) ?? defaultClient,
+  processor,
+);
 ```
 
----
+Resolving once per invocation is what keeps resource URIs meaningful: the template read and the tool call always happen on the same connection. The resolver may be async.
 
-### Step 2: Configure the A2UI MessageProcessor
+The resolver returns `McpToolClient`, which is `Pick<Client, 'request' | 'readResource' | 'listTools'>`. Signatures come from the MCP SDK, so they cannot drift, but the type is structural: pass the SDK's `Client`, a wrapper that adds retries or logging, or a test double.
 
-Pass `mcpCatalog` alongside your UI component catalog (e.g. `basicCatalog`) to the A2UI `MessageProcessor`:
+### What a tool call does
+
+On each invocation the catalog:
+
+1. Resolves the client through `getMcpClientForTool(toolName)` and issues `tools/call`, with progress notifications resetting the request timeout.
+2. Throws if the result is missing or flags `isError`.
+3. Resolves a template URI from `result._meta.ui.resourceUri`, falling back to the URI the tool declared in `tools/list`. Discovery runs lazily, once per client, and is skipped for clients without `listTools`.
+4. Fetches that template through `resources/read`, once per URI, requiring a content block whose `mimeType` is `application/a2ui+json`.
+5. Processes the template, unless the surface it creates already exists.
+6. Extracts A2UI messages from `result.content` and processes them. A message can arrive as an embedded resource's text, or as a text block whose JSON decodes to a message or a message list.
+
+> [!NOTE]
+> `_meta.ui.resourceUri` is an MCP transport convention, not part of the A2UI specification under `specification/v0_9_1/`. Only the `application/a2ui+json` MIME type is specified; see `specification/v0_9_1/docs/evolution_guide.md`. Steps 3 and 4 are skipped when no URI is found, so servers that inline their UI in the result content work without it.
+
+### Invoke a tool during bootstrap
+
+Surfaces call `callMcpTool` through their own `DataContext`. A host loading its first screen has no surface yet, so evaluate the function directly against a scratch context. Literal arguments never touch the context, and both paths share one template cache because they share one function instance.
 
 ```typescript
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {basicCatalog} from '@a2ui/lit/v0_9';
+import {DataContext, DataModel} from '@a2ui/web_core/v0_9';
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog], async action => {
-  console.log('A2UI Action Triggered:', action);
-});
+const context = new DataContext({dataModel: new DataModel({}), catalog} as any, '/');
+await callMcpTool.execute({name: 'get_recipe_form', arguments: {cuisine: 'italian'}}, context);
 ```
 
----
+### Trigger tools from A2UI payloads
 
-### Step 3: Trigger MCP Tools from A2UI Payloads
-
-Surfaces created under the MCP catalog or referencing `callMcpTool` can invoke server tools:
+A surface created under a catalog that includes `callMcpTool` can invoke server tools:
 
 ```json
 {
@@ -119,28 +130,37 @@ Surfaces created under the MCP catalog or referencing `callMcpTool` can invoke s
 }
 ```
 
-Direct execution example from TypeScript:
+Arguments may be data bindings, which resolve against the calling surface:
 
-```typescript
-const result = await mcpCatalog.invoker(
-  'callMcpTool',
-  {
-    name: 'get_weather',
-    arguments: {city: 'San Francisco'},
-  },
-  dataContext,
-);
-
-console.log('Tool Result:', result.content);
+```json
+{
+  "call": "callMcpTool",
+  "args": {
+    "name": "get_weather",
+    "arguments": {"city": {"path": "/form/city"}}
+  }
+}
 ```
 
----
+An argument key named `path` or `call` stays a literal tool argument. Only a value that is itself a binding gets resolved.
 
-## 5. Running Tests
+## Module layout
 
-Unit tests are implemented using Node's test runner and TypeScript loader (`tsx`):
+| File                                   | Responsibility                                                             |
+| :------------------------------------- | :------------------------------------------------------------------------- |
+| `v0_9/src/index.ts`                    | Package entry: `MCP_CATALOG_ID` and public exports                         |
+| `v0_9/src/functions/callMcpTool.ts`    | The whole tool call: request, template fetch and caching, message decoding |
+| `v0_9/src/functions/callMcpToolApi.ts` | The `callMcpTool` argument schema                                          |
+| `v0_9/src/dynamic-values.ts`           | Resolution of dynamic values nested in literal containers                  |
+
+## Running tests
+
+Tests run on Node's test runner with the `tsx` loader:
 
 ```bash
-# Run tests in the MCP catalog
+# Every test in the MCP catalog workspace
+yarn workspace a2ui-mcp-catalog test
+
+# Or a single file
 node --import tsx --test catalogs/mcp/v0_9/src/functions/callMcpTool.test.ts
 ```

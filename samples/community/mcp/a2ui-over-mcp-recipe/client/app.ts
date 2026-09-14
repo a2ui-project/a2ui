@@ -16,15 +16,36 @@
 
 import {LitElement, html, css} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
-import {Context} from '@a2ui/lit/v0_9';
+import {Context, basicCatalog} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {A2uiMcpEngine, ConnectionStatus} from './engine.js';
+import {Catalog, DataContext, DataModel, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/index.js';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
 // Recipe Studio Surface IDs
 const RECIPE_FORM_SURFACE_ID = 'recipe-form';
 const RECIPE_CARD_SURFACE_ID = 'recipe-card';
+
+/** Entrypoint tool: returns the form UI the app opens with. */
+const RECIPE_FORM_TOOL = 'get_recipe_form_a2ui';
+
+export const BASIC_WITH_MCP_CATALOG_ID =
+  'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
+
+/**
+ * Client name sent in `clientInfo` during the MCP initialization handshake.
+ *
+ * In the Model Context Protocol, `clientInfo` is an informational identifier
+ * (similar to an HTTP User-Agent string) primarily used by servers for logging,
+ * metrics, and debugging.
+ */
+export const MCP_CLIENT_NAME = 'a2ui-recipe-app';
+export const MCP_CLIENT_VERSION = '1.0.0';
+
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 @customElement('a2ui-recipe-app')
 export class A2uiRecipeApp extends LitElement {
@@ -36,19 +57,183 @@ export class A2uiRecipeApp extends LitElement {
   @state() private accessor connectionStatus: ConnectionStatus = 'disconnected';
   @state() private accessor statusMessage = 'Ready';
 
-  // Generic A2UI-over-MCP host runtime engine
-  private mcpEngine = new A2uiMcpEngine({
-    onAction: (action: any) => this.handleAction(action),
-    onStatusChange: (msg: string) => {
-      this.statusMessage = msg;
-    },
-    onConnectionChange: (status: ConnectionStatus) => {
-      this.connectionStatus = status;
-    },
-    onSurfaceChange: () => {
+  /** Connected MCP clients, keyed by the server name from the handshake. */
+  readonly mcpClients = new Map<string, Client>();
+
+  /** Which server advertised each tool, recorded during `tools/list`. */
+  private readonly toolServers = new Map<string, string>();
+
+  /**
+   * The host's entire contribution to tool execution.
+   *
+   * A2UI payloads address tools by name only, so routing lives here; the MCP
+   * catalog does everything else with the client this returns.
+   */
+  getMcpClientForTool = (toolName: string): Client => {
+    const server = this.toolServers.get(toolName);
+    if (server) {
+      return this.mcpClients.get(server)!;
+    }
+    // Unknown tools fall back to the first connected server.
+    for (const client of this.mcpClients.values()) {
+      return client;
+    }
+    throw new Error(`No MCP client connected to serve tool '${toolName}'`);
+  };
+
+  /**
+   * NOTE ON THE `as any` CASTS IN THIS FILE
+   *
+   * This sample resolves two copies of `@a2ui/web_core`: the published package
+   * under `samples/community/node_modules`, and the monorepo build that the
+   * deep-imported MCP catalog source sees. Their classes are nominally distinct
+   * because of their private fields, so values handed across the boundary need
+   * a cast. Applications installing a single copy do not need any of this.
+   *
+   * The MCP client needs no cast, because the catalog accepts a structural
+   * `Pick` of `Client` rather than the class itself.
+   */
+
+  /**
+   * The catalogs backing `processor`, filled in by the constructor.
+   *
+   * `MessageProcessor` reads this array lazily rather than copying it, so the
+   * processor can be built before the catalog whose function needs it.
+   */
+  private readonly catalogs: Catalog<any>[] = [];
+
+  readonly processor = new MessageProcessor<any>(this.catalogs, action =>
+    this.handleAction(action),
+  );
+
+  private readonly callMcpTool = createCallMcpToolImplementation(
+    this.getMcpClientForTool,
+    this.processor as any,
+  );
+
+  /** Basic Catalog components and functions, plus MCP tool execution. */
+  private readonly catalog = new Catalog<any>(
+    BASIC_WITH_MCP_CATALOG_ID,
+    Array.from(basicCatalog.components.values()),
+    [...Array.from(basicCatalog.functions.values()), this.callMcpTool as any],
+  );
+
+  constructor() {
+    super();
+    this.catalogs.push(this.catalog);
+
+    this.processor.onSurfaceCreated(surface => {
       this.requestUpdate();
-    },
-  });
+      // Forward surface errors so they are never silently swallowed.
+      surface.onError.subscribe(err => {
+        console.error(`[A2UI Error on surface '${surface.id}']`, err);
+        this.statusMessage = `Surface error on ${surface.id}: ${err.message || err.code}`;
+      });
+    });
+  }
+
+  /**
+   * Connects to an MCP server over SSE and records which tools it serves.
+   *
+   * @param sseUrl The SSE endpoint URL of the MCP server.
+   * @returns The registered server name.
+   */
+  async connectServer(sseUrl: string): Promise<string> {
+    this.connectionStatus = 'connecting';
+    this.statusMessage = `Connecting to MCP server at ${sseUrl}...`;
+
+    try {
+      const client = new Client(
+        {name: MCP_CLIENT_NAME, version: MCP_CLIENT_VERSION},
+        {
+          capabilities: {
+            a2ui: {clientCapabilities: this.processor.getClientCapabilities()},
+          } as any,
+        },
+      );
+      await client.connect(new SSEClientTransport(new URL(sseUrl)));
+
+      const serverName = client.getServerVersion()?.name;
+      if (!serverName) {
+        throw new Error(
+          'Connected MCP server did not return a valid server name during initialization.',
+        );
+      }
+
+      this.mcpClients.set(serverName, client);
+      this.connectionStatus = 'connected';
+      this.statusMessage = `Connected to MCP Server [${serverName}] (${sseUrl})`;
+
+      try {
+        const {tools} = await client.listTools();
+        for (const tool of tools) {
+          const owner = this.toolServers.get(tool.name);
+          if (owner && owner !== serverName) {
+            console.warn(
+              `Tool '${tool.name}' is already provided by server '${owner}'; ` +
+                `ignoring the duplicate advertised by '${serverName}'.`,
+            );
+            continue;
+          }
+          this.toolServers.set(tool.name, serverName);
+        }
+      } catch (err) {
+        console.warn('Could not list tools:', err);
+      }
+
+      return serverName;
+    } catch (error: any) {
+      console.error('MCP Connection Error:', error);
+      this.connectionStatus = 'error';
+      this.statusMessage = `Connection failed: ${error.message || error}`;
+      throw error;
+    }
+  }
+
+  /** Retrieves an active A2UI surface model by its ID. */
+  getSurface(surfaceId: string) {
+    return this.processor.model.getSurface(surfaceId);
+  }
+
+  /**
+   * Invokes the entrypoint tool, which loads the recipe form UI.
+   *
+   * Surfaces invoke `callMcpTool` through their own `DataContext`. There is no
+   * surface yet at startup, so this evaluates the function directly against a
+   * scratch context; the arguments are literals, so nothing is bound to it.
+   */
+  private async loadRecipeForm(): Promise<void> {
+    this.statusMessage = `Loading UI from tool '${RECIPE_FORM_TOOL}'...`;
+    const context = new DataContext(
+      {dataModel: new DataModel({}), catalog: this.catalog} as any,
+      '/',
+    );
+    await this.callMcpTool.execute({name: RECIPE_FORM_TOOL, arguments: {}}, context as any);
+    this.statusMessage = 'Ready';
+  }
+
+  protected async firstUpdated() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sseUrl =
+      urlParams.get('sse_url') ||
+      (import.meta as any).env?.VITE_SSE_URL ||
+      'http://127.0.0.1:8000/sse';
+
+    try {
+      await this.connectServer(sseUrl);
+      await this.loadRecipeForm();
+    } catch (error) {
+      console.error('Failed to initialize recipe app:', error);
+    }
+  }
+
+  /**
+   * Top-level A2UI action router for the recipe application.
+   * MCP tools are evaluated directly as catalog functions (callMcpTool).
+   */
+  private async handleAction(action: any) {
+    console.log('A2UI Action received in recipe app:', action);
+  }
 
   static styles = css`
     :host {
@@ -256,34 +441,9 @@ export class A2uiRecipeApp extends LitElement {
     }
   `;
 
-  protected async firstUpdated() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sseUrl =
-      urlParams.get('sse_url') ||
-      (import.meta as any).env?.VITE_SSE_URL ||
-      'http://127.0.0.1:8000/sse';
-
-    try {
-      await this.mcpEngine.connectServer(sseUrl);
-      // Initialize app-specific entrypoint form tool via generic engine
-      const result = await this.mcpEngine.callMcpTool('get_recipe_form_a2ui');
-      await this.mcpEngine.handleToolResult(result, 'get_recipe_form_a2ui');
-    } catch (error) {
-      console.error('Failed to initialize recipe app:', error);
-    }
-  }
-
-  /**
-   * Top-level A2UI action router for the recipe application.
-   * MCP tools are evaluated directly as catalog functions (callMcpTool).
-   */
-  private async handleAction(action: any) {
-    console.log('A2UI Action received in recipe app:', action);
-  }
-
   render() {
-    const formSurface = this.mcpEngine.getSurface(RECIPE_FORM_SURFACE_ID);
-    const recipeSurface = this.mcpEngine.getSurface(RECIPE_CARD_SURFACE_ID);
+    const formSurface = this.getSurface(RECIPE_FORM_SURFACE_ID);
+    const recipeSurface = this.getSurface(RECIPE_CARD_SURFACE_ID);
 
     return html`
       <header>
