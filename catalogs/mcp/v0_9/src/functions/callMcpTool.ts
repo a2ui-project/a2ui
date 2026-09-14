@@ -32,31 +32,89 @@
  *
  * ## MCP responses
  *
- * This module handles three kinds of MCP response:
+ * This module handles multiple MCP responses to render A2UI.
  *
- * 1. Tool data and links to A2UI resources. A link is a URI at
- *    `_meta.ui.resourceUri`, on the tool result or on the `tools/list`
- *    descriptor, holding one URI or an array of them. This module reads every
- *    resource named there, decodes each `application/a2ui+json` block, and
- *    passes the messages to the `MessageProcessor` in the order the URIs
- *    appear. URIs on the result replace the declared ones rather than adding
- *    to them. Resource contents are static, so each one is cached by URI.
- * 2. Tool data and inline A2UI messages. This module scans `result.content`
- *    and forwards every block that decodes to A2UI, whether an embedded
- *    resource block or a text block holding one message or a list of them.
- *    A tool that only updates the data model of a live surface takes this
- *    route.
- * 3. Tool data alone, such as text or a number. Nothing decodes to A2UI, so
- *    nothing renders.
+ * ### 1. A UI resource the tool declares
  *
- * Every response returns the raw `CallToolResult`, so a tool that renders UI
- * can also return data to the expression that called it.
+ * A descriptor in `tools/list` names the resource holding the layout that
+ * every call of that tool renders:
+ *
+ * ```json
+ * {
+ *   "name": "get_recipe",
+ *   "description": "Fetch a recipe",
+ *   "_meta": {"ui": {"resourceUri": "a2ui://recipe-card"}}
+ * }
+ * ```
+ *
+ * This module reads the resourceUri through `resources/read` and decodes every
+ * `application/a2ui+json` block of the response into messages:
+ *
+ * ```json
+ * {
+ *   "result": {
+ *     "contents": [
+ *       {
+ *         "uri": "a2ui://path/to/resource",
+ *         "mimeType": "application/a2ui+json",
+ *         "text": "[{\"version\": \"v0.9\", \"updateDataModel\": {\"key\": \"value\"}}]"
+ *       }
+ *     ]
+ *   }
+ * }
+ * ```
+ *
+ * Discovery runs once per client. Resource contents are static, so messages
+ * are cached by URI, and a resource that would recreate a live surface is
+ * skipped rather than processed twice.
+ *
+ * ### 2. A UI resource the result names
+ *
+ * The same `_meta.ui.resourceUri` field can be used on the tool result itself:
+ *
+ * ```json
+ * {
+ *   "content": [{"type": "text", "text": "Generated a Baked Salmon recipe."}],
+ *   "_meta": {"ui": {"resourceUri": "a2ui://recipe-card"}}
+ * }
+ * ```
+ *
+ * URIs on the result replace the declared ones rather than adding to them.
+ *
+ * ### 3. A2UI resources inline in the result content
+ *
+ * An embedded resource block declaring mime type `application/a2ui+json`:
+ *
+ * ```json
+ * {
+ *   "content": [
+ *     {"type": "text", "text": "Generated a Baked Salmon recipe."},
+ *     {
+ *       "type": "resource",
+ *       "resource": {
+ *         "uri": "a2ui://recipe-card/data",
+ *         "mimeType": "application/a2ui+json",
+ *         "text": "[{\"version\": \"v0.9\", \"updateDataModel\": {…}}]"
+ *       }
+ *     }
+ *   ]
+ * }
+ * ```
+ *
+ * ### 4. Plain tool data
+ *
+ * ```json
+ * {"content": [{"type": "text", "text": "Prep time is 15 minutes."}]}
+ * ```
+ *
+ * No resource URI and no A2UI block, so nothing renders.
  *
  * ## Failures
  *
  * Every failure raises an `A2uiExpressionError` naming the tool: no client for
- * the tool, a transport error, a result flagged `isError`, or a resource that
- * does not decode.
+ * the tool, a transport error, a result flagged `isError`, or a payload that
+ * declares the A2UI MIME type but holds invalid JSON. A resource that holds no
+ * A2UI at all is not a failure: it contributes nothing and the call proceeds.
  */
 
 import {
@@ -171,8 +229,8 @@ export function createCallMcpToolImplementation(
       for (const uri of uris) {
         const resourceMessages = await readA2uiResource(client, uri);
         // Creating a surface twice throws A2uiStateError. On a repeat call,
-        // keep the live surface and apply only the inline messages below.
-        if (!createsLiveSurface(resourceMessages, processor)) {
+        // keep the existing surface and apply only the inline messages below.
+        if (!createsExistingSurface(resourceMessages, processor)) {
           processor.processMessages(resourceMessages);
         }
       }
@@ -212,43 +270,39 @@ export function readUiResourceUris(source: {_meta?: unknown} | undefined): strin
 }
 
 /**
- * Returns the A2UI messages held by every block of `CallToolResult.content`
- * that decodes to A2UI, in content order.
+ * Returns the A2UI messages that `CallToolResult.content` carries inline, in
+ * content order.
  *
- * Returns an empty array when no block does, as with a tool that returns
- * prose. A block counts as A2UI when it declares the A2UI MIME type, or when
- * everything it decodes to is an A2UI message. Tool results mix UI with
- * ordinary data, so a JSON block of anything else is left alone.
+ * A block qualifies only as an embedded resource declaring the
+ * `application/a2ui+json` MIME type. A tool result mixes UI with prose and
+ * ordinary JSON, so nothing else is read as A2UI, not even a text block that
+ * happens to hold a message.
+ *
+ * @throws when a block declares the A2UI MIME type but holds invalid JSON.
  */
 export function extractA2uiMessages(content: CallToolResult['content'] | undefined): A2uiMessage[] {
   const messages: A2uiMessage[] = [];
   for (const item of content ?? []) {
-    const block = item as any;
-    const isResource = block?.type === 'resource';
-    if (!isResource && block?.type !== 'text') {
+    const block = item as {
+      type?: string;
+      resource?: {uri?: string; mimeType?: string; text?: unknown};
+    };
+    if (block?.type !== 'resource' || block.resource?.mimeType !== A2UI_MIME_TYPE) {
       continue;
     }
 
-    const text = isResource ? block.resource?.text : block.text;
+    const {text, uri} = block.resource;
     if (typeof text !== 'string') {
       continue;
     }
 
-    let parsed: unknown;
+    let parsed: A2uiMessage | A2uiMessage[];
     try {
       parsed = JSON.parse(text);
     } catch {
-      continue;
+      throw new Error(`Resource ${uri} declares ${A2UI_MIME_TYPE} but does not hold valid JSON.`);
     }
-
-    const decoded = Array.isArray(parsed) ? parsed : [parsed];
-    if (decoded.length === 0) {
-      continue;
-    }
-    const declaresA2ui = isResource && block.resource?.mimeType === A2UI_MIME_TYPE;
-    if (declaresA2ui || decoded.every(isA2uiMessage)) {
-      messages.push(...(decoded as A2uiMessage[]));
-    }
+    messages.push(...(Array.isArray(parsed) ? parsed : [parsed]));
   }
   return messages;
 }
@@ -257,7 +311,10 @@ export function extractA2uiMessages(content: CallToolResult['content'] | undefin
  * Decodes the A2UI messages of a `resources/read` response, reading every
  * content block that declares the A2UI MIME type.
  *
- * @throws when no content block declares the A2UI MIME type.
+ * Returns nothing when no block declares it, leaving a resource that holds
+ * something else alone.
+ *
+ * @throws when a block declares the A2UI MIME type but holds invalid JSON.
  */
 export function parseA2uiMessages(
   resource: ReadResourceResult | undefined,
@@ -267,11 +324,13 @@ export function parseA2uiMessages(
     .filter(content => content.mimeType === A2UI_MIME_TYPE)
     .map(content => (content as {text?: unknown}).text)
     .filter((text): text is string => typeof text === 'string');
-  if (texts.length === 0) {
-    throw new Error(`Resource ${uri} does not contain valid A2UI JSON messages.`);
-  }
   return texts.flatMap(text => {
-    const parsed = JSON.parse(text) as A2uiMessage | A2uiMessage[];
+    let parsed: A2uiMessage | A2uiMessage[];
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(`Resource ${uri} declares ${A2UI_MIME_TYPE} but does not hold valid JSON.`);
+    }
     return Array.isArray(parsed) ? parsed : [parsed];
   });
 }
@@ -280,7 +339,10 @@ export function parseA2uiMessages(
  * Reports whether messages would create a surface that the model already
  * holds, which `MessageProcessor` rejects with an `A2uiStateError`.
  */
-function createsLiveSurface(messages: A2uiMessage[], processor: MessageProcessor<any>): boolean {
+function createsExistingSurface(
+  messages: A2uiMessage[],
+  processor: MessageProcessor<any>,
+): boolean {
   return messages.some(message => {
     if (!message || !('createSurface' in message)) {
       return false;
@@ -288,21 +350,4 @@ function createsLiveSurface(messages: A2uiMessage[], processor: MessageProcessor
     const surfaceId = (message as CreateSurfaceMessage).createSurface?.surfaceId;
     return !!surfaceId && !!processor.model.getSurface(surfaceId);
   });
-}
-
-/** The keys `MessageProcessor` dispatches on. */
-const A2UI_MESSAGE_KEYS = [
-  'createSurface',
-  'updateComponents',
-  'updateDataModel',
-  'deleteSurface',
-] as const;
-
-function isA2uiMessage(value: unknown): value is A2uiMessage {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    A2UI_MESSAGE_KEYS.some(key => key in (value as Record<string, unknown>))
-  );
 }

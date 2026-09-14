@@ -164,9 +164,14 @@ describe('callMcpTool', () => {
       [createCallMcpToolImplementation(() => asClient(client), processor)],
     );
 
+  /** An inline A2UI payload, as a tool must send it: an embedded resource. */
   const dataBlock = (value: Record<string, unknown>, surfaceId = 'test-surface') => ({
-    type: 'text' as const,
-    text: JSON.stringify([{updateDataModel: {surfaceId, value}}]),
+    type: 'resource' as const,
+    resource: {
+      uri: 'a2ui://inline-data',
+      mimeType: A2UI_MIME_TYPE,
+      text: JSON.stringify([{updateDataModel: {surfaceId, value}}]),
+    },
   });
 
   const withUiResourceMeta = (content: unknown[] = []) =>
@@ -455,11 +460,15 @@ describe('callMcpTool', () => {
       assert.ok(processor.model.getSurface('second-surface'));
     });
 
-    it('applies every inline A2UI block of one result', async () => {
+    it('applies every inline A2UI resource of one result', async () => {
       // Distinct paths, so a later block cannot overwrite an earlier one.
       const pathBlock = (path: string, value: unknown) => ({
-        type: 'text' as const,
-        text: JSON.stringify([{updateDataModel: {surfaceId: 'test-surface', path, value}}]),
+        type: 'resource' as const,
+        resource: {
+          uri: `a2ui://recipe-card${path}`,
+          mimeType: A2UI_MIME_TYPE,
+          text: JSON.stringify([{updateDataModel: {surfaceId: 'test-surface', path, value}}]),
+        },
       });
       const client = createFakeClient({
         result: withUiResourceMeta([
@@ -474,6 +483,26 @@ describe('callMcpTool', () => {
       const surface = processor.model.getSurface('test-surface')!;
       assert.strictEqual(surface.dataModel.get('/title'), 'First');
       assert.strictEqual(surface.dataModel.get('/subtitle'), 'Second');
+    });
+
+    it('ignores A2UI messages in a text block, which is prose for the model', async () => {
+      const client = createFakeClient({
+        result: withUiResourceMeta([
+          {
+            type: 'text',
+            text: JSON.stringify([
+              {updateDataModel: {surfaceId: 'test-surface', path: '/title', value: 'Smuggled'}},
+            ]),
+          },
+        ]),
+      });
+
+      await invoke(client);
+
+      assert.strictEqual(
+        processor.model.getSurface('test-surface')!.dataModel.get('/title'),
+        undefined,
+      );
     });
 
     it('discovers declared UI resource URIs once per client', async () => {
@@ -532,15 +561,28 @@ describe('callMcpTool', () => {
       assert.strictEqual(processor.model.getSurface('existing')!.dataModel.get('/greeting'), 'hi');
     });
 
-    it('surfaces resource decoding failures as A2uiExpressionError', async () => {
+    it('renders nothing when the resource holds no A2UI, without failing', async () => {
       const client = createFakeClient({
         result: withUiResourceMeta(),
         resource: {contents: [{uri: UI_RESOURCE_URI, mimeType: 'text/plain', text: 'not a2ui'}]},
       });
 
+      const result = await invoke(client);
+
+      assert.deepStrictEqual(client.reads, [UI_RESOURCE_URI]);
+      assert.strictEqual(processor.model.getSurface('test-surface'), undefined);
+      assert.ok(result);
+    });
+
+    it('fails when a resource declares the A2UI MIME type but holds invalid JSON', async () => {
+      const client = createFakeClient({
+        result: withUiResourceMeta(),
+        resource: {contents: [{uri: UI_RESOURCE_URI, mimeType: A2UI_MIME_TYPE, text: 'not json'}]},
+      });
+
       await assert.rejects(
         () => invoke(client),
-        /Resource a2ui:\/\/sample-ui does not contain valid A2UI JSON messages\./,
+        /declares application\/a2ui\+json but does not hold valid JSON\./,
       );
     });
   });
@@ -663,63 +705,86 @@ describe('callMcpTool', () => {
 
 describe('message decoding', () => {
   describe('extractA2uiMessages', () => {
-    it('returns nothing for undefined, empty, and non-JSON content', () => {
+    /** An embedded resource block declaring the A2UI MIME type. */
+    const a2uiBlock = (payload: unknown, uri = 'a2ui://data') => ({
+      type: 'resource',
+      resource: {uri, mimeType: A2UI_MIME_TYPE, text: JSON.stringify(payload)},
+    });
+
+    it('returns nothing for undefined, empty, and prose content', () => {
       assert.deepStrictEqual(extractA2uiMessages(undefined), []);
       assert.deepStrictEqual(extractA2uiMessages([]), []);
       assert.deepStrictEqual(extractA2uiMessages([{type: 'text', text: 'plain prose'}] as any), []);
     });
 
-    it('ignores JSON that is not an A2UI message', () => {
-      // Tool payloads that happen to be JSON must not be mistaken for messages.
+    it('ignores a text block, even one holding A2UI messages', () => {
+      // Only the MIME type marks a payload as A2UI, so a text block is prose.
+      const message = {updateDataModel: {surfaceId: 's', value: {a: 1}}};
+      assert.deepStrictEqual(
+        extractA2uiMessages([{type: 'text', text: JSON.stringify(message)}] as any),
+        [],
+      );
       assert.deepStrictEqual(
         extractA2uiMessages([{type: 'text', text: '{"temperature": 21}'}] as any),
         [],
       );
-      assert.deepStrictEqual(extractA2uiMessages([{type: 'text', text: '42'}] as any), []);
-      assert.deepStrictEqual(extractA2uiMessages([{type: 'text', text: '[1, 2, 3]'}] as any), []);
+    });
+
+    it('ignores an embedded resource that omits the A2UI MIME type', () => {
+      const messages = [{updateDataModel: {surfaceId: 's', value: {calories: 500}}}];
+      assert.deepStrictEqual(
+        extractA2uiMessages([
+          {type: 'resource', resource: {uri: 'a2ui://data', text: JSON.stringify(messages)}},
+          {
+            type: 'resource',
+            resource: {
+              uri: 'a2ui://data',
+              mimeType: 'application/json',
+              text: JSON.stringify(messages),
+            },
+          },
+        ] as any),
+        [],
+      );
+    });
+
+    it('reads a message list out of an A2UI resource', () => {
+      const messages = [{updateDataModel: {surfaceId: 's', value: {calories: 500}}}];
+      assert.deepStrictEqual(extractA2uiMessages([a2uiBlock(messages)] as any), messages);
     });
 
     it('wraps a single message object in a list', () => {
       const message = {updateDataModel: {surfaceId: 's', value: {a: 1}}};
-      assert.deepStrictEqual(
-        extractA2uiMessages([{type: 'text', text: JSON.stringify(message)}] as any),
-        [message],
-      );
+      assert.deepStrictEqual(extractA2uiMessages([a2uiBlock(message)] as any), [message]);
     });
 
-    it('reads a message list out of an embedded resource', () => {
-      const messages = [{updateDataModel: {surfaceId: 's', value: {calories: 500}}}];
-      const extracted = extractA2uiMessages([
-        {type: 'resource', resource: {uri: 'a2ui://data', text: JSON.stringify(messages)}},
-      ] as any);
-      assert.deepStrictEqual(extracted, messages);
-    });
-
-    it('trusts an embedded resource that declares the A2UI MIME type', () => {
-      const messages = [{custom: {surfaceId: 's'}}];
-      const extracted = extractA2uiMessages([
-        {
-          type: 'resource',
-          resource: {uri: 'a2ui://data', mimeType: A2UI_MIME_TYPE, text: JSON.stringify(messages)},
-        },
-      ] as any);
-      assert.deepStrictEqual(extracted, messages);
-    });
-
-    it('collects every decodable block in content order', () => {
+    it('collects every A2UI resource in content order', () => {
       const first = {updateDataModel: {surfaceId: 's', value: {n: 1}}};
       const second = [{updateDataModel: {surfaceId: 's', value: {n: 2}}}];
       const third = {updateComponents: {surfaceId: 's', components: []}};
 
       const extracted = extractA2uiMessages([
-        {type: 'text', text: 'not json'},
-        {type: 'text', text: JSON.stringify(first)},
+        {type: 'text', text: 'prose'},
+        a2uiBlock(first),
         {type: 'text', text: '{"unrelated": true}'},
-        {type: 'resource', resource: {uri: 'a2ui://data', text: JSON.stringify(second)}},
-        {type: 'text', text: JSON.stringify(third)},
+        a2uiBlock(second),
+        a2uiBlock(third),
       ] as any);
 
       assert.deepStrictEqual(extracted, [first, ...second, third]);
+    });
+
+    it('throws when a block declares the A2UI MIME type but holds invalid JSON', () => {
+      assert.throws(
+        () =>
+          extractA2uiMessages([
+            {
+              type: 'resource',
+              resource: {uri: 'a2ui://data', mimeType: A2UI_MIME_TYPE, text: 'not json'},
+            },
+          ] as any),
+        /Resource a2ui:\/\/data declares application\/a2ui\+json but does not hold valid JSON\./,
+      );
     });
   });
 
@@ -772,16 +837,26 @@ describe('message decoding', () => {
       assert.deepStrictEqual(parsed, [...surface, data]);
     });
 
-    it('throws when no block declares the A2UI MIME type', () => {
+    it('returns nothing when no block declares the A2UI MIME type', () => {
+      assert.deepStrictEqual(
+        parseA2uiMessages(
+          {contents: [{uri: 'a2ui://t', mimeType: 'text/plain', text: 'nope'}]} as any,
+          'a2ui://t',
+        ),
+        [],
+      );
+      assert.deepStrictEqual(parseA2uiMessages(undefined, 'a2ui://t'), []);
+    });
+
+    it('throws when a declared A2UI block holds invalid JSON', () => {
       assert.throws(
         () =>
           parseA2uiMessages(
-            {contents: [{uri: 'a2ui://t', mimeType: 'text/plain', text: 'nope'}]} as any,
+            {contents: [{uri: 'a2ui://t', mimeType: A2UI_MIME_TYPE, text: 'not json'}]} as any,
             'a2ui://t',
           ),
-        /Resource a2ui:\/\/t does not contain valid A2UI JSON messages\./,
+        /Resource a2ui:\/\/t declares application\/a2ui\+json but does not hold valid JSON\./,
       );
-      assert.throws(() => parseA2uiMessages(undefined, 'a2ui://t'), /does not contain valid A2UI/);
     });
   });
 });
