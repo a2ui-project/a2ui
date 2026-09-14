@@ -1,6 +1,6 @@
 {
   "name": "@a2ui/agent",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "A2UI Agent SDK for TypeScript and Node.js",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
