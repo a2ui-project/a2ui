@@ -15,11 +15,10 @@
  */
 
 import {html, nothing, css, PropertyValues} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {RowApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation, ResolvedChildList} from '../../universal/index.js';
+import type {ResolvedChildList, WebComponentImplementation} from '../../universal/index.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -45,8 +44,7 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-@customElement('a2ui-basic-row')
-export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowApi> {
+class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowApi> {
   /**
    * The styles of the row can be customized by redefining the following
    * CSS variables:
@@ -91,7 +89,8 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
   }
 }
 
-export const A2uiRow: WebComponentImplementation = {
+export const A2uiRow: WebComponentImplementation<typeof RowApi.schema> = {
   ...RowApi,
   tagName: 'a2ui-basic-row',
+  element: A2uiBasicRowElement,
 };

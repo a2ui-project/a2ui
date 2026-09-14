@@ -15,11 +15,10 @@
  */
 
 import {html, nothing, css, PropertyValues} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {ColumnApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation, ResolvedChildList} from '../../universal/index.js';
+import type {ResolvedChildList, WebComponentImplementation} from '../../universal/index.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -45,8 +44,7 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-@customElement('a2ui-basic-column')
-export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof ColumnApi> {
+class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof ColumnApi> {
   /**
    * The styles of the column can be customized by redefining the following
    * CSS variables:
@@ -93,7 +91,8 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
   }
 }
 
-export const A2uiColumn: WebComponentImplementation = {
+export const A2uiColumn: WebComponentImplementation<typeof ColumnApi.schema> = {
   ...ColumnApi,
   tagName: 'a2ui-basic-column',
+  element: A2uiBasicColumnElement,
 };

@@ -15,7 +15,6 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {ButtonApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
@@ -24,8 +23,7 @@ import type {WebComponentImplementation} from '../../universal/index.js';
 /**
  * A button component that can be used to trigger an action.
  */
-@customElement('a2ui-basic-button')
-export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof ButtonApi> {
+class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof ButtonApi> {
   /**
    * The styles of the button can be customized by redefining the following
    * CSS variables:
@@ -116,7 +114,8 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
   }
 }
 
-export const A2uiButton: WebComponentImplementation = {
+export const A2uiButton: WebComponentImplementation<typeof ButtonApi.schema> = {
   ...ButtonApi,
   tagName: 'a2ui-basic-button',
+  element: A2uiBasicButtonElement,
 };

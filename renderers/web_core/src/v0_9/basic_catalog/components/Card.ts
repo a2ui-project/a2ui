@@ -15,13 +15,11 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {CardApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-card')
-export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> {
+class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> {
   /**
    * The styles of the card can be customized by redefining the following
    * CSS variables:
@@ -59,7 +57,8 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
   }
 }
 
-export const A2uiCard: WebComponentImplementation = {
+export const A2uiCard: WebComponentImplementation<typeof CardApi.schema> = {
   ...CardApi,
   tagName: 'a2ui-card',
+  element: A2uiCardElement,
 };

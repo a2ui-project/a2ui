@@ -15,14 +15,13 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
+import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {TabsApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-tabs')
-export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
+class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
   /**
    * The styles of the tabs can be customized by redefining the following
    * CSS variables:
@@ -108,7 +107,8 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
   }
 }
 
-export const A2uiTabs: WebComponentImplementation = {
+export const A2uiTabs: WebComponentImplementation<typeof TabsApi.schema> = {
   ...TabsApi,
   tagName: 'a2ui-tabs',
+  element: A2uiLitTabs,
 };

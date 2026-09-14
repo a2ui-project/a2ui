@@ -15,14 +15,12 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {CheckBoxApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-checkbox')
-export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof CheckBoxApi> {
+class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof CheckBoxApi> {
   /**
    * The styles of the checkbox can be customized by redefining the following
    * CSS variables:
@@ -108,7 +106,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
   }
 }
 
-export const A2uiCheckBox: WebComponentImplementation = {
+export const A2uiCheckBox: WebComponentImplementation<typeof CheckBoxApi.schema> = {
   ...CheckBoxApi,
   tagName: 'a2ui-checkbox',
+  element: A2uiCheckBoxElement,
 };

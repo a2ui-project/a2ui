@@ -15,14 +15,12 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {ImageApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-image')
-export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
+class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
   /**
    * The styles of the image can be customized by redefining the following
    * CSS variables:
@@ -79,7 +77,8 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
   }
 }
 
-export const A2uiImage: WebComponentImplementation = {
+export const A2uiImage: WebComponentImplementation<typeof ImageApi.schema> = {
   ...ImageApi,
   tagName: 'a2ui-image',
+  element: A2uiImageElement,
 };

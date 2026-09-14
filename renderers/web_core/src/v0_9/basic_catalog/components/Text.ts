@@ -15,19 +15,17 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {TextApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {WebComponentImplementation} from '../../universal/index.js';
 import {Context} from '../context/context.js';
 import type {MarkdownRenderer} from '../context/markdown.js';
 import {markdown} from '../directives/directives.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
 
 const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
-@customElement('a2ui-basic-text')
-export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof TextApi> {
+class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof TextApi> {
   /**
    * The styles of the text component can be customized by redefining the following
    * CSS variables:
@@ -139,7 +137,8 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
   }
 }
 
-export const A2uiText: WebComponentImplementation = {
+export const A2uiText: WebComponentImplementation<typeof TextApi.schema> = {
   ...TextApi,
   tagName: 'a2ui-basic-text',
+  element: A2uiBasicTextElement,
 };

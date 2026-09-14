@@ -15,13 +15,11 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {VideoApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-video')
-export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {
+class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {
   /**
    * The styles of the video can be customized by redefining the following
    * CSS variables:
@@ -57,7 +55,8 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
   }
 }
 
-export const A2uiVideo: WebComponentImplementation = {
+export const A2uiVideo: WebComponentImplementation<typeof VideoApi.schema> = {
   ...VideoApi,
   tagName: 'a2ui-video',
+  element: A2uiVideoElement,
 };

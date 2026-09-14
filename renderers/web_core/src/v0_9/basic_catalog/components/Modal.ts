@@ -15,13 +15,12 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
+import {state} from 'lit/decorators.js';
 import {ModalApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-modal')
-export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
+class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   /**
    * The styles of the modal can be customized by redefining the following
    * CSS variables:
@@ -129,7 +128,8 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   }
 }
 
-export const A2uiModal: WebComponentImplementation = {
+export const A2uiModal: WebComponentImplementation<typeof ModalApi.schema> = {
   ...ModalApi,
   tagName: 'a2ui-modal',
+  element: A2uiLitModal,
 };

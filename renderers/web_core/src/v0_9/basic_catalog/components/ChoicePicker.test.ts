@@ -17,28 +17,26 @@
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../index.js';
 import {
-  ComponentContext,
-  MessageProcessor,
-  Catalog,
-  ComponentApi,
-  SurfaceModel,
-} from '../../index.js';
-import type {A2uiChoicePickerElement} from './ChoicePicker.js';
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('ChoicePicker Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
     // Ensure component is registered
-    await import('./ChoicePicker.js');
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
 
   beforeEach(() => {
@@ -90,7 +88,7 @@ describe('ChoicePicker Component', () => {
   });
 
   it('should render chips when displayStyle is chips', async () => {
-    const el = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const el = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'choice_picker_chips');
@@ -135,7 +133,7 @@ describe('ChoicePicker Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const el = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'choice_picker_chips_bound');
@@ -193,12 +191,12 @@ describe('ChoicePicker Component', () => {
     const firstContext = new ComponentContext(surface, 'choice_picker_filterable');
     const secondContext = new ComponentContext(secondSurface, 'choice_picker_filterable');
 
-    const firstEl = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const firstEl = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
     firstEl.context = firstContext;
     document.body.appendChild(firstEl);
     await firstEl.updateComplete;
 
-    const secondEl = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const secondEl = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
     secondEl.context = secondContext;
     document.body.appendChild(secondEl);
     await secondEl.updateComplete;
@@ -241,7 +239,7 @@ describe('ChoicePicker Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-choicepicker') as A2uiChoicePickerElement;
+    const el = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
     el.context = new ComponentContext(surface, 'choice_picker_multi');
     document.body.appendChild(el);
     await el.updateComplete;

@@ -34,16 +34,20 @@ describe('renderA2uiNode', () => {
   let surface: any;
   let testCatalog: Catalog<WebComponentImplementation>;
 
+  class MockButtonElement extends (typeof HTMLElement !== 'undefined' ? HTMLElement : Object) {}
+
   const mockButtonImpl: WebComponentImplementation = {
     name: 'Button',
     schema: z.object({text: z.string().optional()}),
     tagName: 'a2ui-mock-button',
+    element: MockButtonElement as CustomElementConstructor,
   };
 
   const mockImplWithoutTag: WebComponentImplementation = {
     name: 'MissingTag',
     schema: z.object({}),
     tagName: '' as any,
+    element: MockButtonElement as CustomElementConstructor,
   };
 
   beforeEach(() => {

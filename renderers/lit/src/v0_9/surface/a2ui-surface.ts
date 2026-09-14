@@ -17,7 +17,7 @@
 import {html, nothing, LitElement, PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {SurfaceModel, ComponentContext} from '@a2ui/web_core/v0_9';
-import {renderA2uiNode} from './render-a2ui-node.js';
+import {renderA2uiNode} from '@a2ui/web_core/v0_9/universal';
 import {LitComponentApi} from '../types.js';
 
 /**

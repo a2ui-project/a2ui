@@ -15,14 +15,12 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {TextFieldApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-basic-textfield')
-export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFieldApi> {
+class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFieldApi> {
   /**
    * The styles of the text field can be customized by redefining the following
    * CSS variables:
@@ -113,7 +111,8 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
   }
 }
 
-export const A2uiTextField: WebComponentImplementation = {
+export const A2uiTextField: WebComponentImplementation<typeof TextFieldApi.schema> = {
   ...TextFieldApi,
   tagName: 'a2ui-basic-textfield',
+  element: A2uiBasicTextFieldElement,
 };

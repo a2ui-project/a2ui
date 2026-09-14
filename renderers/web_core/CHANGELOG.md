@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9) Basic catalog components no longer define their custom element as a side effect of being imported. `renderA2uiNode` defines the element it is about to render, so surfaces rendered through it are unaffected; code that relied on the import alone must call `registerUniversalElement`. [#2596](https://github.com/a2ui-project/a2ui/pull/2596)
+- **BREAKING CHANGE**: (v0_9) `WebComponentImplementation` now requires an `element` field holding the custom element constructor, and `@a2ui/web_core/v0_9/universal` exports `isWebComponentImplementation` (type guard) and `registerUniversalElement` (idempotent `customElements.define` that throws when a tag name is already bound to a different constructor). [#2596](https://github.com/a2ui-project/a2ui/pull/2596)
+- (v0_9) Add `A2uiWebComponentElement`, the DOM contract for an A2UI custom element: an `HTMLElement` that accepts a `context` property. [#2596](https://github.com/a2ui-project/a2ui/pull/2596)
 - **BREAKING CHANGE**: (v0_9) Move Universal Web Component symbols (`A2uiLitElement`, `A2uiController`, `renderA2uiNode`, `WebComponentImplementation`, `ResolvedChildList`, `A2uiChildRef`, `ResolvedChildRef`) from root `@a2ui/web_core/v0_9` to `@a2ui/web_core/v0_9/universal`. Recommended migration: update import paths from `@a2ui/web_core/v0_9` to `@a2ui/web_core/v0_9/universal`. [#2488](https://github.com/a2ui-project/a2ui/pull/2488)
 - (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
 
