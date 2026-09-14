@@ -27,6 +27,10 @@ on:
       - ".github/workflows/validate_specifications.yml"
       - "specification/scripts/validate.py"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Validate Specifications
