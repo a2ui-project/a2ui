@@ -1,5 +1,12 @@
 ## Unreleased
 
+- The v1.0 basic catalog no longer registers `add`, `subtract`, `multiply`,
+  `divide`, `equals`, `not_equals`, `greater_than`, `less_than`, `contains`,
+  `starts_with` or `ends_with`. The published v1.0 catalog declares 14
+  functions, and none of these is among them, so an agent had no way to know
+  they were callable. `a2ui.core.basic_catalog.v1_0` no longer exports their
+  API classes or implementations. The v0.9 catalog keeps them.
+
 - `Catalog.from_json` accepts a `common_types_schema` argument and rewrites
   cross-document references such as `common_types.json#/$defs/ChildList` into
   local `#/$defs/...` pointers, satisfying them from the supplied document or

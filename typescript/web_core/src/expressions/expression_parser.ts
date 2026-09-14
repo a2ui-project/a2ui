@@ -40,8 +40,13 @@ export const MAX_EXPRESSION_PARTS = 1_000;
  * nested function calls with named arguments.
  */
 export class ExpressionParser {
-  /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
-  public static readonly MAX_DEPTH = 100;
+  /**
+   * The maximum allowed recursion depth for nested expressions.
+   *
+   * Matches `ExpressionParser.MAX_DEPTH` in the Python reference. The two must
+   * agree, or an expression one engine accepts the other rejects.
+   */
+  public static readonly MAX_DEPTH = 10;
 
   /**
    * Parses an input string into an array of DynamicValues.

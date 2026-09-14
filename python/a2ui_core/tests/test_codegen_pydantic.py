@@ -663,9 +663,25 @@ def test_basic_catalog_operator_and_index_api():
     assert not hasattr(v0_9, "IndexApi")
     assert "IndexApi" not in v0_9.__all__
 
-    # Verify v1.0 basic catalog exports both AddApi and IndexApi
-    assert hasattr(v1_0, "AddApi")
-    assert "AddApi" in v1_0.__all__
+    # The v1.0 basic catalog declares 14 functions, and the arithmetic,
+    # comparison and string operators are not among them. Only @index is added,
+    # via the '@' system namespace.
+    assert AddApi.name == "add"
+    for operator in (
+        "AddApi",
+        "SubtractApi",
+        "MultiplyApi",
+        "DivideApi",
+        "EqualsApi",
+        "NotEqualsApi",
+        "GreaterThanApi",
+        "LessThanApi",
+        "ContainsApi",
+        "StartsWithApi",
+        "EndsWithApi",
+    ):
+        assert not hasattr(v1_0, operator)
+        assert operator not in v1_0.__all__
     assert hasattr(v1_0, "IndexApi")
     assert "IndexApi" in v1_0.__all__
 

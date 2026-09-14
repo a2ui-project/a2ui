@@ -622,10 +622,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.model.addSurface(surface);
 
     if (dataModel) {
-      for (const [key, val] of Object.entries(dataModel)) {
-        const path = key.startsWith('/') ? key : `/${key}`;
-        surface.dataModel.set(path, val);
-      }
+      // Assign the whole object at the root rather than building a pointer per
+      // key. Key names are literal property names, so a key containing '/' or
+      // '~' would otherwise be misread as a nested path.
+      this.processUpdateDataModelOp({
+        type: 'updateDataModel',
+        surfaceId,
+        path: '/',
+        value: dataModel,
+      });
     }
 
     if (components && components.length > 0) {

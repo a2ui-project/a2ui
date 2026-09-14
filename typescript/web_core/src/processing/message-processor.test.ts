@@ -359,6 +359,27 @@ describe('MessageProcessor', () => {
       assert.ok(processor.getSurface('s_direct'));
       assert.strictEqual(processor.getSurface('s_direct')?.dataModel.get('/foo'), 'bar');
     });
+
+    it('treats createSurface data model keys as literal property names', () => {
+      // A key is a property name, not a JSON Pointer fragment. Building a
+      // pointer per key would read 'a/b' as a nested path and '~' as the
+      // start of an escape.
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_literal',
+          catalogId: 'test-catalog',
+          dataModel: {'a/b': 'slash', 'c~d': 'tilde', 'plain': 'value'},
+        },
+      });
+
+      const surface = processor.getSurface('s_literal');
+      assert.strictEqual(surface?.dataModel.get('/a~1b'), 'slash');
+      assert.strictEqual(surface?.dataModel.get('/c~0d'), 'tilde');
+      assert.strictEqual(surface?.dataModel.get('/plain'), 'value');
+      // The slash must not have produced a nested object.
+      assert.strictEqual(surface?.dataModel.get('/a'), undefined);
+    });
   });
 
   describe('formatZodIssue and error formatting', () => {

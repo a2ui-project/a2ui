@@ -1,6 +1,23 @@
 ## Unreleased
 
 - (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
+- (v1_0) The v1.0 basic catalog now ships function bodies. It previously
+  exported argument schemas only, so a payload calling `formatCurrency`,
+  `pluralize`, `and` or any of the other 13 catalog functions resolved to
+  `undefined`. `BASIC_FUNCTIONS` and `createBasicCatalogFunctions` are exported
+  from `@a2ui/web_core/v1_0/basic_catalog`, matching the v0.9 shape.
+  `formatNumber`, `formatCurrency` and `pluralize` default to `en-US` rather
+  than the host locale, and `formatDate` expands TR35 tokens in the offset the
+  timestamp was written with, so output does not vary by machine.
+- (v1_0) `@index` raises `A2uiValidationError` when evaluated outside a
+  collection template. It previously returned 0, which presented a payload
+  error as a plausible first row.
+- The expression parser's `MAX_DEPTH` is 10, down from 100, matching the Python
+  reference. An expression nested between 11 and 100 levels deep was accepted
+  here and rejected there.
+- `createSurface` assigns its `dataModel` at the root instead of building a
+  JSON Pointer per key. A key containing `/` or `~` was previously read as a
+  nested path or an escape sequence rather than as a literal property name.
 - The shared conformance suite now runs as part of `yarn test`, via a new
   `test:conformance` script, so a conformance regression fails CI. A change
   under `conformance/` also triggers the web CI job.

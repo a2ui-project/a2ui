@@ -17,6 +17,7 @@
 import {z} from 'zod';
 
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
+import {A2uiValidationError} from '../../errors.js';
 
 /**
  * System function definition for computing iteration indices in array contexts.
@@ -34,11 +35,17 @@ export const IndexApi = {
 
 /**
  * Implementation of the `@index` function.
- * Returns the loop index offset from context.
+ *
+ * Returns the 0-based iteration index of the enclosing collection template,
+ * plus an optional offset.
+ *
+ * @throws {A2uiValidationError} If called outside a collection template. A
+ *   default of 0 would present a payload error as a plausible value.
  */
 export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
   const offset = typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : 0;
-  let index = 0;
+
+  let index: number | undefined;
   if (typeof (context as any)?.getIndex === 'function') {
     index = (context as any).getIndex();
   } else if (context?.path) {
@@ -49,6 +56,12 @@ export const IndexImplementation = createFunctionImplementation(IndexApi, (args,
         break;
       }
     }
+  }
+
+  if (index === undefined || !Number.isFinite(index)) {
+    throw new A2uiValidationError(
+      '@index function can only be evaluated inside a collection template iteration scope.',
+    );
   }
   return index + offset;
 });

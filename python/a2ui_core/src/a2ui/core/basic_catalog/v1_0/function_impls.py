@@ -38,19 +38,6 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from ..operator_apis import (
-    AddApi,
-    SubtractApi,
-    MultiplyApi,
-    DivideApi,
-    EqualsApi,
-    NotEqualsApi,
-    GreaterThanApi,
-    LessThanApi,
-    ContainsApi,
-    StartsWithApi,
-    EndsWithApi,
-)
 from .operator_apis import (
     IndexApi,
 )
@@ -466,150 +453,23 @@ def _not_execute(
 NotImplementation = create_function_implementation(NotApi, _not_execute)
 
 
-# Operators
-def _add(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> int | float:
-    res = _to_float(args["a"]) + _to_float(args["b"])
-    return int(res) if res.is_integer() else res
-
-
-AddImplementation = create_function_implementation(AddApi, _add)
-
-
-def _subtract(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> int | float:
-    res = _to_float(args["a"]) - _to_float(args["b"])
-    return int(res) if res.is_integer() else res
-
-
-SubtractImplementation = create_function_implementation(SubtractApi, _subtract)
-
-
-def _multiply(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> int | float:
-    res = _to_float(args["a"]) * _to_float(args["b"])
-    return int(res) if res.is_integer() else res
-
-
-MultiplyImplementation = create_function_implementation(MultiplyApi, _multiply)
-
-
-def _divide(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> int | float:
-    a = _to_float(args["a"])
-    b = _to_float(args["b"])
-    if b == 0:
-        if a > 0:
-            return math.inf
-        elif a < 0:
-            return -math.inf
-        else:
-            return math.nan
-    res = a / b
-    return int(res) if res.is_integer() else res
-
-
-DivideImplementation = create_function_implementation(DivideApi, _divide)
-
-
-def _equals_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> bool:
-    return args.get("a") == args.get("b")
-
-
-EqualsImplementation = create_function_implementation(EqualsApi, _equals_execute)
-
-
-def _not_equals_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> bool:
-    return args.get("a") != args.get("b")
-
-
-NotEqualsImplementation = create_function_implementation(
-    NotEqualsApi, _not_equals_execute
-)
-
-
-def _greater_than_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> bool:
-    return _to_float(args.get("a")) > _to_float(args.get("b"))
-
-
-GreaterThanImplementation = create_function_implementation(
-    GreaterThanApi, _greater_than_execute
-)
-
-
-def _less_than_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> bool:
-    return _to_float(args.get("a")) < _to_float(args.get("b"))
-
-
-LessThanImplementation = create_function_implementation(LessThanApi, _less_than_execute)
-
-
-def _contains_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> bool:
-    return _to_str(args.get("substring", "")) in _to_str(args.get("string", ""))
-
-
-ContainsImplementation = create_function_implementation(ContainsApi, _contains_execute)
-
-
-def _starts_with_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> bool:
-    return _to_str(args.get("string", "")).startswith(_to_str(args.get("prefix", "")))
-
-
-StartsWithImplementation = create_function_implementation(
-    StartsWithApi, _starts_with_execute
-)
-
-
-def _ends_with_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> bool:
-    return _to_str(args.get("string", "")).endswith(_to_str(args.get("suffix", "")))
-
-
-EndsWithImplementation = create_function_implementation(EndsWithApi, _ends_with_execute)
-
-
 def create_basic_catalog_functions(
     locale: str | None = None,
 ) -> list[FunctionImplementation]:
+    """Builds the function set for a v1.0 basic catalog.
+
+    The set matches the functions declared in
+    ``specification/v1_0/catalogs/basic/catalog.json``, plus the ``@index``
+    system function, which the ``@`` namespace makes available to every
+    catalog.
+
+    Args:
+      locale: BCP 47 language tag applied to the formatting functions. Falls
+        back to the library default when omitted.
+
+    Returns:
+      The function implementations, ready to register on a catalog.
+    """
     return [
         RequiredImplementation,
         RegexImplementation,
@@ -626,17 +486,6 @@ def create_basic_catalog_functions(
         AndImplementation,
         OrImplementation,
         NotImplementation,
-        AddImplementation,
-        SubtractImplementation,
-        MultiplyImplementation,
-        DivideImplementation,
-        EqualsImplementation,
-        NotEqualsImplementation,
-        GreaterThanImplementation,
-        LessThanImplementation,
-        ContainsImplementation,
-        StartsWithImplementation,
-        EndsWithImplementation,
     ]
 
 
