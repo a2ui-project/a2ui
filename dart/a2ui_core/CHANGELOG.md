@@ -2,6 +2,13 @@
 
 ## 0.2.0
 
+- Negative and exponent number literals are now parsed as numbers. `${-1}` used
+  to bind to the path `-1`, because `-` is a valid path character, and
+  `${round(value: -1)}` handed the function a path where the author wrote a
+  number. Exponents were rejected outright. A number starts only on a digit, or
+  on `-` followed by a digit, so `${a-b}` and `${-a}` remain paths. A literal
+  whose exponent overflows to infinity is rejected rather than returned, for the
+  same reason `NaN` is: JSON cannot carry it and no renderer can show it.
 - An invalid number literal in an expression, such as `${1.2.3}`, now throws
   `A2uiExpressionError` instead of a `FormatException` from `num.parse` — an error
   outside the `A2uiError` hierarchy that `avoid_catching_errors` discourages catching.
