@@ -16,8 +16,9 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
-import '../validation/schema_resolution.dart';
-import 'contexts.dart';
+import '../primitives/schema_resolution.dart';
+import 'common.dart';
+import 'data_context.dart';
 
 /// A definition of a UI component's API.
 ///
@@ -29,26 +30,6 @@ class ComponentApi {
   final Schema schema;
 
   const ComponentApi({required this.name, required this.schema});
-}
-
-/// The type of value a function returns.
-enum A2uiReturnType {
-  string,
-  number,
-  boolean,
-  array,
-  object,
-  any,
-  void_;
-
-  /// The JSON value used in the A2UI protocol.
-  String get jsonValue => this == void_ ? 'void' : name;
-
-  /// Parses from the JSON string representation.
-  static A2uiReturnType fromJson(String value) {
-    if (value == 'void') return void_;
-    return values.byName(value);
-  }
 }
 
 /// A definition of a UI function's API.
@@ -358,5 +339,17 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       return [for (final Object? item in value) _deepCopyValue(item)];
     }
     return value;
+  }
+}
+
+extension CatalogInvokerExtension
+    on Catalog<ComponentApi, FunctionImplementation> {
+  /// Invokes a catalog function by name with the given arguments.
+  Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
+    final FunctionImplementation? fn = functions[name];
+    if (fn == null) {
+      throw ArgumentError('Function not found: $name');
+    }
+    return fn.execute(args, context);
   }
 }

@@ -46,7 +46,7 @@ jobs:
       - name: Generate testing matrix
         id: generate_matrix
         run: |
-          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
+          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/macos/*" -not -path "*/.symlinks/*" -exec dirname {} \;)
 
           JSON_MATRIX="["
           FIRST=true
@@ -79,10 +79,10 @@ jobs:
       - name: Check for cycles across packages
         run: |
           dart pub global activate layerlens
-          DIRS=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
+          DIRS=$(find . -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/macos/*" -not -path "*/.symlinks/*" -exec dirname {} \;)
           for dir in $DIRS; do
             echo "Checking cycles in $dir..."
-            (cd "$dir" && dart pub get && layerlens --fail-on-cycles --except "lib/src/schema" --except "lib/src/core")
+            (cd "$dir" && dart pub get && layerlens --fail-on-cycles)
           done
 
   analyze_and_test:
