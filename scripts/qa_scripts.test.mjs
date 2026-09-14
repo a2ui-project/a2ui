@@ -130,8 +130,8 @@ describe('generate_qa_summary (buildSummaryMarkdown)', () => {
       'Expected reference to storyboard asset',
     );
     assert.ok(
-      !md.includes('https://raw.githubusercontent.com'),
-      'Must not contain uncommitted raw github image links that 404',
+      md.includes('qa-visual-assets'),
+      'Expected reference to hosted qa-visual-assets branch for inline visual previews',
     );
   });
 

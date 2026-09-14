@@ -142,8 +142,11 @@ function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
         fs.readdirSync(videosDir).some(f => f.endsWith('.gif') || f.endsWith('.webm'));
 
   if (hasScreenshots || hasVideos) {
+    const rawBaseUrl =
+      options.assetsBaseUrl || 'https://raw.githubusercontent.com/rohityan/a2ui/qa-visual-assets';
+
     md += `## Visual Proof & Interaction Artifacts\n\n`;
-    md += `> Visual proof assets (PNG storyboards, comparison matrices, and animated GIF/WebM recordings) are packaged and available in the **\`qa-logs-and-reports\`** workflow artifact.\n\n`;
+    md += `> Visual proof assets (PNG storyboards, comparison matrices, and animated GIF/WebM recordings) are packaged in the **\`qa-logs-and-reports\`** workflow artifact and rendered inline below.\n\n`;
 
     md += `### Restaurant Finder Demo Flow\n\n`;
     md += `Sequence of UI states across the reservation flow:\n\n`;
@@ -157,8 +160,16 @@ function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
     md += `| **Flow Storyboard** | \`screenshots/restaurant_full_flow_storyboard.png\` | PNG | 4-stage sequential storyboard (Search Grid -> Detail -> Form -> Confirmation) |\n`;
     md += `| **Walkthrough Recording** | \`videos/restaurant_full_passage_walkthrough.gif\` | GIF / WebM | End-to-end interactive reservation flow recording |\n\n`;
 
+    md += `#### Flow Storyboard Preview\n\n`;
+    md += `![Restaurant Flow Storyboard](${rawBaseUrl}/screenshots/restaurant_full_flow_storyboard.png)\n\n`;
+
+    md += `#### Walkthrough Video Preview\n\n`;
+    md += `![Restaurant Flow Walkthrough](${rawBaseUrl}/videos/restaurant_full_passage_walkthrough.gif)\n\n`;
+
     md += `### Cross-Framework Comparison\n\n`;
     md += `Same restaurant card schema rendered in all four client renderers:\n\n`;
+    md += `![Cross-Framework Comparison](${rawBaseUrl}/screenshots/cross_framework_comparison_matrix.png)\n\n`;
+
     md += `| Framework | Architecture | Component | State Handling | Asset File |\n`;
     md += `| :--- | :--- | :--- | :--- | :--- |\n`;
     md += `| **Lit** | Web Components | \`<a2ui-restaurant-card>\` | Custom events | \`screenshots/cross_framework_comparison_matrix.png\` |\n`;
@@ -166,20 +177,31 @@ function buildSummaryMarkdown(payload, customTimestamp, options = {}) {
     md += `| **Angular 21** | Standalone Component | \`<a2ui-card [data]="item" />\` | Signals | \`screenshots/cross_framework_comparison_matrix.png\` |\n`;
     md += `| **Flutter** | Dart / Canvas | \`Card(elevation: 2.0)\` | Material 3 widgets | \`screenshots/cross_framework_comparison_matrix.png\` |\n\n`;
 
-    md += `### Sample Proof Catalog\n\n`;
-    md += `| Sample | Target Component / Application | Asset File(s) | Type |\n`;
-    md += `| :---: | :--- | :--- | :---: |\n`;
-    md += `| 1 | Lit Restaurant Finder | \`screenshots/sample_01_lit_restaurant_finder.png\` | PNG |\n`;
-    md += `| 2 | React Restaurant Finder | \`screenshots/sample_02_react_restaurant_finder.png\` | PNG |\n`;
-    md += `| 3 | Angular Restaurant Finder | \`screenshots/sample_03_angular_restaurant_finder.png\` | PNG |\n`;
-    md += `| 4 | Flutter Restaurant Finder | \`screenshots/sample_04_flutter_restaurant_finder.png\` | PNG |\n`;
-    md += `| 5 | Python ADK Components | \`screenshots/sample_05_adk_custom_components.png\` | PNG |\n`;
-    md += `| 6 | Custom Lit Components | \`screenshots/sample_06_custom_lit_components.png\` | PNG |\n`;
-    md += `| 7 | Pong Web Game | \`screenshots/sample_07_pong_web_game.png\`, \`videos/pong_gameplay_loop.gif\` | PNG, GIF |\n`;
-    md += `| 8 | Personalized Learning Quiz | \`screenshots/sample_08_personalized_learning.png\`, \`videos/personalized_learning_interaction.gif\` | PNG, GIF |\n`;
-    md += `| 9 | MCP Apps in A2UI | \`screenshots/sample_09_mcp_apps_lit.png\` | PNG |\n`;
-    md += `| 10 | Angular Orchestrator Demo | \`screenshots/sample_10_angular_orchestrator.png\` | PNG |\n`;
-    md += `| 11 | Angular MCP Calculator | \`screenshots/sample_11_angular_mcp_calculator.png\`, \`videos/mcp_calculator_interaction.gif\` | PNG, GIF |\n\n`;
+    md += `### Sample Screenshots Catalog\n\n`;
+    md += `| Sample 1: Lit Restaurant Finder | Sample 2: React Restaurant Finder |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Sample 1 Lit](${rawBaseUrl}/screenshots/sample_01_lit_restaurant_finder.png) | ![Sample 2 React](${rawBaseUrl}/screenshots/sample_02_react_restaurant_finder.png) |\n`;
+    md += `| **Sample 3: Angular Restaurant Finder** | **Sample 4: Flutter Restaurant Finder** |\n`;
+    md += `| ![Sample 3 Angular](${rawBaseUrl}/screenshots/sample_03_angular_restaurant_finder.png) | ![Sample 4 Flutter](${rawBaseUrl}/screenshots/sample_04_flutter_restaurant_finder.png) |\n\n`;
+
+    md += `| Sample 5: Python ADK Components | Sample 6: Custom Lit Components |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Sample 5 ADK](${rawBaseUrl}/screenshots/sample_05_adk_custom_components.png) | ![Sample 6 Custom Lit](${rawBaseUrl}/screenshots/sample_06_custom_lit_components.png) |\n`;
+    md += `| **Sample 7: Pong Web Game** | **Sample 8: Personalized Learning Quiz** |\n`;
+    md += `| ![Sample 7 Pong](${rawBaseUrl}/screenshots/sample_07_pong_web_game.png) | ![Sample 8 Quiz](${rawBaseUrl}/screenshots/sample_08_personalized_learning.png) |\n\n`;
+
+    md += `| Sample 9: MCP Apps in A2UI | Sample 10: Angular Orchestrator |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Sample 9 MCP Lit](${rawBaseUrl}/screenshots/sample_09_mcp_apps_lit.png) | ![Sample 10 Orchestrator](${rawBaseUrl}/screenshots/sample_10_angular_orchestrator.png) |\n`;
+    md += `| **Sample 11: Angular MCP Calculator** | **Restaurant Storyboard** |\n`;
+    md += `| ![Sample 11 MCP Calculator](${rawBaseUrl}/screenshots/sample_11_angular_mcp_calculator.png) | ![Storyboard](${rawBaseUrl}/screenshots/restaurant_full_flow_storyboard.png) |\n\n`;
+
+    md += `### Interactive Walkthrough Clips\n\n`;
+    md += `| Sample 7: Pong (Canvas Loop) | Sample 8: Quiz (Selection & Feedback) |\n`;
+    md += `| :---: | :---: |\n`;
+    md += `| ![Pong Game Loop](${rawBaseUrl}/videos/pong_gameplay_loop.gif) | ![Quiz Interaction](${rawBaseUrl}/videos/personalized_learning_interaction.gif) |\n`;
+    md += `| **Sample 11: MCP Calculator (Tool Execution)** | **Sample 1: Restaurant Finder (Flow Walkthrough)** |\n`;
+    md += `| ![MCP Calculator](${rawBaseUrl}/videos/mcp_calculator_interaction.gif) | ![Restaurant Walkthrough](${rawBaseUrl}/videos/restaurant_full_passage_walkthrough.gif) |\n\n`;
   }
 
   md += `## Artifacts\n\n`;
