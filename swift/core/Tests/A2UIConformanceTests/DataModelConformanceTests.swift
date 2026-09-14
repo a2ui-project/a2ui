@@ -17,23 +17,7 @@ import Foundation
 import OrderedJSON
 import Testing
 
-/// Runs the shared `conformance/core/data_model.yaml` suite against
-/// ``DataModel``, the way the Dart client and `web_core` already do.
-///
-/// Two shapes of case are out of reach today. Both skips are derived from the
-/// case itself rather than from a list of names, so neither can quietly grow as
-/// the suite does:
-///
-/// * Cases carrying `watch` need one observer per path. `DataModel` publishes
-///   the whole tree through `dataPublisher` and has nothing to attach to a
-///   single path.
-/// * Cases carrying `expect_error` need `set` to report a rejected write, and
-///   its signature has no way to. Those paths no longer destroy what they run
-///   through — see `JSONValue.update` — but they are dropped in silence, which
-///   is not what the suite asks for.
-///
-/// `op: delete` maps to `set(path, value: nil)`, as the suite header allows for
-/// languages without `undefined`.
+/// Runs the shared `conformance/core/data_model.yaml` suite.
 @MainActor
 struct DataModelConformanceTests {
   @Test func dataModelConformance() throws {
@@ -42,21 +26,15 @@ struct DataModelConformanceTests {
     #expect(!cases.isEmpty, "core/data_model.yaml should hold test cases")
 
     var executed = 0
-    var needObservers = 0
-    var needErrorReporting = 0
 
     for testCase in cases {
       let name = testCase["name"] as? String ?? "<unnamed>"
       let steps = testCase["steps"] as? [[String: Any]] ?? []
 
-      if testCase["watch"] != nil {
-        needObservers += 1
-        continue
-      }
-      if steps.contains(where: { $0["expect_error"] != nil }) {
-        needErrorReporting += 1
-        continue
-      }
+      // `DataModel` can't express these cases yet:
+      // https://github.com/a2ui-project/a2ui/issues/2625
+      guard testCase["watch"] == nil else { continue }
+      guard !steps.contains(where: { $0["expect_error"] != nil }) else { continue }
       executed += 1
 
       let initial =
@@ -105,14 +83,5 @@ struct DataModelConformanceTests {
     }
 
     #expect(executed > 0, "no case of the suite could be executed")
-    // Recorded rather than merely skipped, so the two gaps stay visible in the
-    // test output instead of looking like full coverage.
-    print(
-      """
-      core/data_model.yaml: \(executed) executed, \
-      \(needObservers) need a per-path observer API, \
-      \(needErrorReporting) need `set` to report a rejected write
-      """
-    )
   }
 }

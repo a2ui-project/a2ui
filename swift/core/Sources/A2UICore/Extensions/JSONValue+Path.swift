@@ -143,16 +143,11 @@ extension JSONValue {
 
   /// Recursively updates a node at the given path components.
   ///
-  /// Auto-vivification fills in absent and null nodes only. A path that runs
-  /// through a value which is neither an object nor an array — a string where
-  /// an object was expected, a non-numeric key on an array — leaves the tree
-  /// untouched rather than growing a container over what is already there.
+  /// Only absent and null nodes are filled in. A path through any other value
+  /// leaves the tree unchanged:
   ///
-  /// Note that the write is then dropped without a word, which is not what the
-  /// other clients do: Dart, `web_core` and the Python client all raise for
-  /// these paths, and `conformance/core/data_model.yaml` says they should.
-  /// `DataModel.set` cannot report a rejected write today, so this stops the
-  /// data loss and leaves the reporting to be settled separately.
+  ///     {"name": "Alice"}  set /name/first  ->  unchanged
+  ///     {"items": ["a"]}   set /items/foo   ->  unchanged
   static func update(
     node: JSONValue?,
     components: ArraySlice<String>,
@@ -218,9 +213,7 @@ extension JSONValue {
         return .array(array)
       } else {
         // A non-numeric key does not address an element of an array. Building
-        // an object here would replace the whole array with it, so a single
-        // malformed path from the agent would delete every element. The array
-        // is left as it is; see the note on `update` about reporting.
+        // an object here would replace the whole array, so do not update.
         return node
       }
 

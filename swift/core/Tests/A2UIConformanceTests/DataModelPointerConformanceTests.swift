@@ -55,8 +55,6 @@ struct DataModelPointerConformanceTests {
 
     dataModel.set("/user/name/first", value: .string("Bob"))
 
-    // Growing an object over "Alice" would delete it, which is what a
-    // malformed path from the agent used to do.
     #expect(dataModel.get("/user/name")?.stringValue == "Alice")
     #expect(dataModel.get("/user/name/first") == nil)
   }
@@ -79,8 +77,7 @@ struct DataModelPointerConformanceTests {
     dataModel.set("/items/foo", value: .string("bar"))
     dataModel.set("/items/foo/bar", value: .string("value"))
 
-    // Either write used to replace the whole array with an object, taking
-    // every element with it.
+    // Neither write replaces the array.
     #expect(dataModel.get("/items")?.arrayValue == [.string("a"), .string("b")])
   }
 
