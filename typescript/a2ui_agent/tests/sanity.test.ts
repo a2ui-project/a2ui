@@ -17,8 +17,10 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 
+import {AgentSdk} from '../src/index.js';
+
 describe('Sanity Check', () => {
-  it('should pass', () => {
-    assert.strictEqual(1 + 1, 2);
+  it('exports AgentSdk from the package entry point', () => {
+    assert.strictEqual(AgentSdk, 'Coming soon');
   });
 });
