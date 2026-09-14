@@ -17,12 +17,15 @@
           "type": "object",
           "properties": {
             "name": {
-              "type": "string",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The name of the MCP tool to execute."
             },
             "arguments": {
               "type": "object",
-              "description": "The arguments to pass to the MCP tool."
+              "description": "The arguments to pass to the MCP tool.",
+              "additionalProperties": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+              }
             }
           },
           "required": ["name"],
