@@ -29,15 +29,18 @@ import {
 } from '../../dist/src/v0_8/basic_catalog/index.js';
 import {
   BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
-  BASIC_FUNCTION_APIS as V0_9_BASIC_FUNCTIONS,
+  BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
   ThemeSchema as V0_9_ThemeSchema,
 } from '../../dist/src/v0_9/basic_catalog/index.js';
 import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
-  BASIC_FUNCTION_APIS as V1_0_BASIC_FUNCTIONS,
+  BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/v1_0/basic_catalog/index.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
-import {A2uiExpressionError} from '../../dist/src/errors.js';
+import {A2uiExpressionError, A2uiValidationError} from '../../dist/src/errors.js';
+import {NodeResolver} from '../../dist/src/v0_9/nodes/node-resolver.js';
+import {ResolvedBinding} from '../../dist/src/v0_9/nodes/resolved-binding.js';
+import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -119,14 +122,26 @@ const SKIP_TEST_NAMES = new Set(['test_v09_basic_catalog_schema', 'test_v10_basi
 const SKIP_TEST_SUITES = new Set(['accessibility.yaml']);
 
 /**
- * Action types the web_core runner deliberately does not implement.
+ * Action types the web_core runner deliberately does not implement, and why.
  *
- * The Express inference format is an agent-side concern implemented in the
- * Python agent SDK; web_core is a renderer-side library and has no Express
- * compiler or parser to exercise. Listing the actions by name keeps the
+ * `web_core` is the renderer-side library. It has no inference-format parser,
+ * payload fixer or prompt generator, so the agent-side suites cannot be
+ * executed here. They previously reached handlers that asserted nothing and so
+ * reported as passing; naming them keeps the gap countable and keeps the
  * default `throw` for genuinely unrecognised actions intact.
  */
-const UNIMPLEMENTED_ACTIONS = new Set(['from_format', 'core_syntax', 'from_catalog', 'skill_set']);
+const UNIMPLEMENTED_ACTIONS = new Map([
+  ['from_format', 'the Express inference format is implemented in the Python agent SDK'],
+  ['core_syntax', 'the Express inference format is implemented in the Python agent SDK'],
+  ['from_catalog', 'the Express inference format is implemented in the Python agent SDK'],
+  ['skill_set', 'skill generation is implemented in the Python agent SDK'],
+  ['process_chunk', 'web_core has no streaming inference parser'],
+  ['parse_full', 'web_core has no inference-format parser'],
+  ['fix_payload', 'web_core has no payload fixer'],
+  ['has_parts', 'web_core has no inference-format parser'],
+  ['generate_prompt', 'web_core has no prompt generator'],
+  ['load_catalog', 'these cases exercise A2uiSchemaManager, which is agent-side only'],
+]);
 
 function findYamlFiles(dir) {
   let results = [];
@@ -166,6 +181,8 @@ async function runConformanceHarness() {
   let totalFailed = 0;
   let totalSkipped = 0;
   const failures = [];
+  /** Count of cases skipped per `UNIMPLEMENTED_ACTIONS` entry, for the summary. */
+  const unrunByAction = new Map();
 
   for (const filePath of files) {
     const relativePath = path.relative(CONFORMANCE_ROOT, filePath);
@@ -185,7 +202,11 @@ async function runConformanceHarness() {
     }
 
     if (!Array.isArray(testCases)) {
-      console.warn(`[SKIP] ${relativePath}: Content is not an array of test cases.`);
+      totalTests++;
+      totalFailed++;
+      const err = `Content is not an array of test cases (got ${typeof testCases}).`;
+      console.error(`  ✗ FAILED to load ${relativePath}: ${err}`);
+      failures.push({file: relativePath, name: 'Suite Structure', error: err});
       continue;
     }
 
@@ -193,7 +214,10 @@ async function runConformanceHarness() {
 
     for (const testCase of testCases) {
       const {name, action, catalog, args} = testCase;
-      const rawVersion = catalog?.protocolVersion || args?.version || '0.8';
+      // The top-level `protocolVersion` is the case's own declaration and wins
+      // over anything inferred from the catalog or the first message.
+      const rawVersion =
+        testCase.protocolVersion || catalog?.protocolVersion || args?.version || '0.8';
       const version = toCanonicalVersion(rawVersion) || rawVersion;
 
       if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
@@ -212,7 +236,10 @@ async function runConformanceHarness() {
 
       if (UNIMPLEMENTED_ACTIONS.has(action)) {
         totalSkipped++;
-        console.log(`  ⁃ [SKIPPED] ${name} (action '${action}' is not implemented in web_core)`);
+        unrunByAction.set(action, (unrunByAction.get(action) ?? 0) + 1);
+        console.log(
+          `  ⁃ [SKIPPED] ${name} (action '${action}': ${UNIMPLEMENTED_ACTIONS.get(action)})`,
+        );
         continue;
       }
 
@@ -230,9 +257,6 @@ async function runConformanceHarness() {
             break;
           case 'validate':
             validateValidateTestCase(testCase);
-            break;
-          case 'process_chunk':
-            validateProcessChunkTestCase(testCase);
             break;
           case 'process_messages':
             validateProcessMessagesTestCase(testCase);
@@ -262,12 +286,7 @@ async function runConformanceHarness() {
             validateParseExpressionTemplateTestCase(testCase);
             break;
           case 'get_renderer_data_model':
-          case 'load_catalog':
-          case 'generate_prompt':
-          case 'parse_full':
-          case 'fix_payload':
-          case 'has_parts':
-            validateGenericTestCase(testCase);
+            validateGetRendererDataModelTestCase(testCase);
             break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -288,6 +307,13 @@ async function runConformanceHarness() {
   console.log(
     `Conformance Summary: ${totalPassed}/${totalTests} Passed (${totalFailed} Failed, ${totalSkipped} Skipped)`,
   );
+  if (unrunByAction.size > 0) {
+    const unrunTotal = [...unrunByAction.values()].reduce((a, b) => a + b, 0);
+    console.log(`Not run by design: ${unrunTotal} cases`);
+    for (const [action, count] of [...unrunByAction].sort((a, b) => b[1] - a[1])) {
+      console.log(`  ${action}: ${count} (${UNIMPLEMENTED_ACTIONS.get(action)})`);
+    }
+  }
   console.log('=====================================================');
 
   if (totalFailed > 0) {
@@ -720,7 +746,7 @@ function validateSelectCatalogTestCase(testCase) {
 }
 
 function validateValidateTestCase(testCase) {
-  const {steps, payload, messages, expectError, expectValid} = testCase;
+  const {steps, payload, messages, expect, expectError, expectValid} = testCase;
   if (!steps && !payload && !messages) {
     throw new Error('validate test case requires "steps", "messages", or "payload" input.');
   }
@@ -740,39 +766,88 @@ function validateValidateTestCase(testCase) {
     }
   }
 
+  const finalExpect = expect || (steps && steps[steps.length - 1]?.expect);
+  const expErrObj = expectError || (steps && steps[steps.length - 1]?.expectError);
+
   if (inputMessages.length > 0) {
+    let thrown;
+    // Subscribe before processing: a surface that already exists may report an
+    // error while the messages are applied, before resolution begins.
+    const watcher = watchSurfaceErrors(processor);
     try {
       processor.processMessages(inputMessages);
-      if (expectError) {
-        throw new Error(
-          `Expected error (${expectError.code || expectError.category || 'UNKNOWN'}) but message processing succeeded.`,
-        );
-      }
+      // Message processing alone does not evaluate bindings. Resolving the
+      // node graph is what raises expression and argument-schema errors.
+      forceResolution(processor, watcher.reported);
     } catch (err) {
-      if (expectValid) {
-        throw err;
+      thrown = err;
+    } finally {
+      watcher.unsubscribe();
+    }
+
+    if (thrown) {
+      if (expectValid || !expErrObj) {
+        // The case did not ask for an error, so this is a genuine failure
+        // rather than the behaviour under test.
+        throw thrown;
       }
-      const expErrObj = expectError || (steps && steps[steps.length - 1]?.expectError);
-      if (expErrObj && typeof expErrObj === 'object' && expErrObj.code) {
+      if (typeof expErrObj === 'object' && expErrObj.code) {
         if (
-          !err.message.includes(expErrObj.code) &&
-          err.name !== expErrObj.code &&
-          err.code !== expErrObj.code
+          !thrown.message.includes(expErrObj.code) &&
+          thrown.name !== expErrObj.code &&
+          thrown.code !== expErrObj.code
         ) {
           throw new Error(
-            `Expected error matching '${expErrObj.code}' but received: ${err.message}`,
+            `Expected error matching '${expErrObj.code}' but received: ${thrown.message}`,
           );
         }
       }
+      return;
     }
+
+    if (expErrObj) {
+      throw new Error(
+        `Expected error (${expErrObj.code || expErrObj.category || 'UNKNOWN'}) but message processing succeeded.`,
+      );
+    }
+  }
+
+  if (finalExpect) {
+    assertSurfacesMatch(processor, finalExpect);
   }
 }
 
-function validateProcessChunkTestCase(testCase) {
-  const {steps} = testCase;
-  if (!steps || !Array.isArray(steps)) {
-    throw new Error('process_chunk test case requires "steps" array.');
+/**
+ * Runs a `get_renderer_data_model` case and compares the emitted payload.
+ *
+ * Feeds the case's messages through a processor, then asserts that
+ * `getRendererDataModel` returns exactly what the suite expects. A case may
+ * expect `null`, meaning no surface opted into data-model reporting.
+ *
+ * @param testCase Conformance case carrying `messages` and an `expect` payload.
+ */
+function validateGetRendererDataModelTestCase(testCase) {
+  const {messages, args, expect} = testCase;
+  const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {
+    version: resolveProtocolVersion(testCase),
+  });
+  if (messages) {
+    processor.processMessages(messages);
   }
+
+  const actual = processor.getRendererDataModel(args?.version);
+  if (expect === null || expect === undefined) {
+    assert.ok(
+      actual === null || actual === undefined,
+      `Expected no renderer data model, got ${JSON.stringify(actual)}`,
+    );
+    return;
+  }
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(actual)),
+    expect,
+    'Renderer data model mismatch',
+  );
 }
 
 function validateAccessibilityCheckTestCase() {
@@ -1289,13 +1364,53 @@ function getCatalogsForTestCase(testCase) {
   // catalog the case actually declared.
   const specifiedCatalogs = [];
 
+  // A catalog id named by a message but never defined by the case falls back to
+  // a permissive stand-in, so suites can exercise processor semantics with
+  // shorthand payloads that do not conform to a real component schema.
+  //
+  // For a case that expects an error, that stand-in makes the assertion
+  // vacuous: it accepts any property, so nothing is left to reject. Those cases
+  // are aliased to the catalog the case declared instead.
+  //
+  // The distinction is load-bearing. Several `process_messages` suites declare
+  // `catalogPaths` pointing at a real basic catalog and then send a Button
+  // carrying `label`, which that catalog rejects. They pass in Python only
+  // because Python skips component schema validation outside strict mode.
+  //
+  // A case expecting a CatalogError is the exception: naming an undefined
+  // catalog is the behaviour under test, so supplying one would suppress the
+  // error. Mirrors `is_catalog_error_case` in the Python harness.
+  const declaredError =
+    testCase.expectError ?? testCase.steps?.find(step => step.expectError)?.expectError;
+  const isCatalogErrorCase =
+    typeof declaredError === 'object' &&
+    declaredError !== null &&
+    (declaredError.category === 'CatalogError' || declaredError.category === 'A2uiCatalogError');
+  const expectsError = Boolean(declaredError) && !isCatalogErrorCase;
+
   const addCatalogId = (id, ver) => {
-    if (id && !catalogsMap.has(id)) {
+    if (!id || catalogsMap.has(id)) return;
+    const declared = specifiedCatalogs[0];
+    if (declared && expectsError) {
+      // The processor resolves a catalog by its own id, not by this map's key,
+      // so the alias has to be a copy carrying the requested id.
       catalogsMap.set(
         id,
-        new Catalog(id, flexibleComponents, [], undefined, undefined, ver || version),
+        new Catalog(
+          id,
+          Array.from(declared.components.values()),
+          Array.from(declared.functions.values()),
+          declared.themeSchema,
+          declared.instructions,
+          ver || declared.protocolVersion || version,
+        ),
       );
+      return;
     }
+    catalogsMap.set(
+      id,
+      new Catalog(id, flexibleComponents, [], undefined, undefined, ver || version),
+    );
   };
 
   if (testCase.catalog && typeof testCase.catalog === 'object') {
@@ -1405,6 +1520,193 @@ function getCatalogsForTestCase(testCase) {
   ];
 }
 
+/**
+ * Resolves a surface's component tree and indexes every live node.
+ *
+ * Walking the tree forces each node's `props` signal to evaluate, which is what
+ * turns a raw `{call: 'formatCurrency', ...}` descriptor into `'$1,234.50'` and
+ * what surfaces an invalid expression as a thrown error. Nodes are keyed by
+ * both `componentId` and `instanceId`, because a template expansion is
+ * addressed by its instance id.
+ *
+ * @param surface Surface whose components should be resolved.
+ * @returns Map of component id and instance id to the resolved node.
+ */
+function collectResolvedNodes(surface) {
+  const byId = new Map();
+  const resolver = new NodeResolver(surface, surface.catalog);
+  const seen = new Set();
+
+  const walk = node => {
+    if (!node || seen.has(node)) return;
+    seen.add(node);
+    byId.set(node.componentId, node);
+    byId.set(node.instanceId, node);
+    // A node expanded from a collection template is addressed in the suites as
+    // `<componentId>_<ordinal>`, taken from the trailing index of its data
+    // path. Mirrors the fallback in the Python harness.
+    const segments = String(node.dataPath ?? '')
+      .split('/')
+      .filter(Boolean);
+    const ordinal = segments[segments.length - 1];
+    if (ordinal !== undefined && /^\d+$/.test(ordinal)) {
+      byId.set(`${node.componentId}_${ordinal}`, node);
+    }
+    const nodeProps = getValue(node.props) ?? {};
+    // A child reference sits either directly on a property or one level down in
+    // an array, which is how every catalog declares children. A reference
+    // buried deeper in a plain object is not searched for.
+    for (const value of Object.values(nodeProps)) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item && typeof item === 'object' && 'componentId' in item) walk(item);
+        }
+      } else if (value && typeof value === 'object' && 'componentId' in value) {
+        walk(value);
+      }
+    }
+  };
+
+  // An active effect is required: a node's properties are a lazy computed
+  // signal, so reading it without a subscriber does not evaluate the bindings.
+  // A binding may throw straight out of the first pass, which would otherwise
+  // strand the resolver's subscriptions.
+  let stop;
+  try {
+    stop = effect(() => {
+      seen.clear();
+      walk(getValue(resolver.rootNode));
+    });
+  } catch (err) {
+    resolver.dispose();
+    throw err;
+  }
+
+  return {
+    nodes: byId,
+    dispose: () => {
+      stop();
+      resolver.dispose();
+    },
+  };
+}
+
+/**
+ * Forces every surface in a processor to resolve its node graph.
+ *
+ * Several classes of error only appear when a binding is evaluated, not when
+ * the message is processed: an unparseable interpolation, an expression nested
+ * past the depth limit, a function called with arguments its schema rejects.
+ * Building the graph and reading each node's properties is what surfaces them.
+ *
+ * Errors arrive by two routes. A binding may throw straight out of the walk,
+ * and a surface may report one through `onError` instead. Both are treated as
+ * the error the case was waiting for.
+ *
+ * Mirrors `validate_pure_validation_case` in the Python harness.
+ *
+ * @param processor Processor whose surfaces should be resolved.
+ * @param reported Collector already subscribed to the surfaces that existed
+ *   before the messages were processed. Surfaces created by those messages are
+ *   subscribed here.
+ * @throws The first error raised or reported during resolution.
+ */
+function forceResolution(processor, reported) {
+  const subscriptions = [];
+  const resolvers = [];
+
+  try {
+    for (const surface of processor.model.surfacesMap.values()) {
+      subscriptions.push(surface.onError.subscribe(err => reported.push(err)));
+    }
+    for (const surface of processor.model.surfacesMap.values()) {
+      resolvers.push(collectResolvedNodes(surface));
+    }
+  } finally {
+    for (const resolved of resolvers) resolved.dispose();
+    for (const unsubscribe of subscriptions) {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    }
+  }
+
+  if (reported.length > 0) {
+    const first = reported[0];
+    throw new A2uiValidationError(first?.message ?? 'Expression error');
+  }
+}
+
+/**
+ * Collects errors a processor's existing surfaces report, from now on.
+ *
+ * Subscribing before messages are processed is what catches an error a surface
+ * reports during processing rather than during resolution. Mirrors the Python
+ * harness, which subscribes on both sides of `process_messages`.
+ *
+ * @param processor Processor whose current surfaces should be watched.
+ * @returns The collector array and a function that unsubscribes.
+ */
+function watchSurfaceErrors(processor) {
+  const reported = [];
+  const subscriptions = [];
+  for (const surface of processor.model.surfacesMap.values()) {
+    subscriptions.push(surface.onError.subscribe(err => reported.push(err)));
+  }
+  return {
+    reported,
+    unsubscribe: () => {
+      for (const stop of subscriptions) {
+        if (typeof stop === 'function') stop();
+      }
+    },
+  };
+}
+
+/**
+ * Compares a resolved property value against the suite's expectation.
+ *
+ * Scalars are compared as strings, because a suite writes its expectations in
+ * YAML and a number may arrive as either `5` or `'5'`. Objects and arrays are
+ * compared structurally: string coercion would reduce every object to
+ * `[object Object]`, making any two of them match.
+ *
+ * Stricter than the Python harness, which coerces both sides unconditionally.
+ *
+ * @param actual Resolved property value.
+ * @param expected Value the suite declared.
+ * @returns True when the two agree.
+ */
+function propertyValuesMatch(actual, expected) {
+  const isStructured = v => v !== null && typeof v === 'object';
+  if (isStructured(actual) || isStructured(expected)) {
+    return JSON.stringify(actual) === JSON.stringify(expected);
+  }
+  return String(actual) === String(expected);
+}
+
+/**
+ * Reduces component references within a property value to their component IDs.
+ *
+ * A child property may hold a component reference object rather than a plain
+ * id, so the raw value cannot be compared against the suite's expectation
+ * directly. Mirrors the normalization the Python harness applies.
+ *
+ * @param val Raw property value read from the component model.
+ * @returns The value with any component reference replaced by its id.
+ */
+function normalizeComponentRefs(val) {
+  // A resolved dynamic property arrives wrapped in its snapshot.
+  if (val instanceof ResolvedBinding) {
+    return normalizeComponentRefs(val.value);
+  }
+  if (Array.isArray(val)) {
+    return val.map(item => normalizeComponentRefs(item));
+  }
+  if (val && typeof val === 'object' && typeof val.componentId === 'string') {
+    return val.componentId;
+  }
+  return val;
+}
+
 function assertSurfacesMatch(processor, expect) {
   if (expect && expect.surfaces) {
     for (const [surfaceId, expectedSurface] of Object.entries(expect.surfaces)) {
@@ -1427,7 +1729,10 @@ function assertSurfacesMatch(processor, expect) {
       }
       if (surface && expectedSurface.dataModel) {
         for (const [k, v] of Object.entries(expectedSurface.dataModel)) {
-          const path = k.startsWith('/') ? k : `/${k}`;
+          // A key that already starts with '/' is written as a pointer. A bare
+          // key is a literal top-level key, so '~' and '/' within it must be
+          // escaped before it can be used as one.
+          const path = k.startsWith('/') ? k : `/${k.replace(/~/g, '~0').replace(/\//g, '~1')}`;
           const actualVal = surface.dataModel.get(path);
           if (JSON.stringify(actualVal) !== JSON.stringify(v)) {
             throw new Error(
@@ -1437,18 +1742,49 @@ function assertSurfacesMatch(processor, expect) {
         }
       }
       if (surface && expectedSurface.components) {
-        for (const expectedComp of expectedSurface.components) {
-          const comp = surface.componentsModel.get(expectedComp.id);
-          if (!comp) {
-            throw new Error(
-              `Surface '${surfaceId}' missing expected component '${expectedComp.id}'`,
-            );
+        // A suite may list components either as an array of objects carrying
+        // their own `id`, or as a mapping of id to expectation. Both forms are
+        // permitted, and the Python harness accepts both.
+        const expectedComponents = Array.isArray(expectedSurface.components)
+          ? expectedSurface.components
+          : Object.entries(expectedSurface.components).map(([id, body]) => ({
+              id,
+              ...(body ?? {}),
+            }));
+        // Prefer the resolved node tree: a suite states the value the user
+        // would see, which for a bound property is the evaluated result rather
+        // than the descriptor held in the component model. Template expansions
+        // exist only in the resolved tree.
+        const resolved = collectResolvedNodes(surface);
+        try {
+          for (const expectedComp of expectedComponents) {
+            const node = resolved.nodes.get(expectedComp.id);
+            const comp = surface.componentsModel.get(expectedComp.id);
+            if (!node && !comp) {
+              throw new Error(
+                `Surface '${surfaceId}' missing expected component '${expectedComp.id}'`,
+              );
+            }
+            const actualType = node ? node.type : comp.type;
+            if (expectedComp.component && actualType !== expectedComp.component) {
+              throw new Error(
+                `Component '${expectedComp.id}' type mismatch. Expected ${expectedComp.component}, got ${actualType}`,
+              );
+            }
+            const actualProps = node ? (peekValue(node.props) ?? {}) : (comp.properties ?? {});
+            for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
+              if (propKey === 'id' || propKey === 'component') continue;
+              const actualVal = normalizeComponentRefs(actualProps[propKey]);
+              if (!propertyValuesMatch(actualVal, expectedVal)) {
+                throw new Error(
+                  `Property '${propKey}' mismatch on component '${expectedComp.id}': got ` +
+                    `${JSON.stringify(actualVal)}, expected ${JSON.stringify(expectedVal)}`,
+                );
+              }
+            }
           }
-          if (expectedComp.component && comp.type !== expectedComp.component) {
-            throw new Error(
-              `Component '${expectedComp.id}' type mismatch. Expected ${expectedComp.component}, got ${comp.type}`,
-            );
-          }
+        } finally {
+          resolved.dispose();
         }
       }
       if (surface && expectedSurface.theme) {
@@ -1637,13 +1973,6 @@ function validateParseExpressionTemplateTestCase(testCase) {
   const parsed = parser.parse(input);
   const actual = joinLiterals(parsed);
   assert.deepStrictEqual(actual, expect);
-}
-
-function validateGenericTestCase(testCase) {
-  // Ensure basic contract holds
-  if (!testCase.action) {
-    throw new Error('Missing action field.');
-  }
 }
 
 await runConformanceHarness();
