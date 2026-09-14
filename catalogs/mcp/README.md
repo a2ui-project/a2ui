@@ -15,7 +15,7 @@ A2UI separates UI layout from backend logic through catalogs. This catalog contr
 
 The catalog ID is `https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json`, exported as `MCP_CATALOG_ID`. It targets protocol v0.9 and v0.9.1.
 
-`callMcpTool` takes two arguments, declared in [mcp_catalog.json](mcp_catalog.json):
+`callMcpTool` takes two arguments, declared in [mcp_catalog.json](v0_9/mcp_catalog.json):
 
 | Parameter   | Type     | Required          | Description                   |
 | :---------- | :------- | :---------------- | :---------------------------- |
