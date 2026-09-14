@@ -20,7 +20,7 @@ describe('Example: Weather Current', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Weather Current');
+    await loadExample({name: 'Weather Current'});
     textContent = getCanvas().textContent;
   });
 

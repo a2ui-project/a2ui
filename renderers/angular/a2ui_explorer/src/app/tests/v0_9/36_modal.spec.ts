@@ -18,7 +18,7 @@ import {loadExample, wait} from '../utils';
 
 describe('Example: Modal', () => {
   it('should open and close modal', async () => {
-    const fixture = await loadExample('Modal Sample');
+    const fixture = await loadExample({name: 'Modal Sample'});
 
     // Check if trigger is rendered
     const trigger = fixture.nativeElement.querySelector('.a2ui-modal-trigger');

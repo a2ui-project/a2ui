@@ -23,7 +23,7 @@ describe('Example: Formatted Text', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Formatted Text');
+    fixture = await loadExample({name: 'Formatted Text'});
     textContent = getCanvas().textContent || '';
   });
 

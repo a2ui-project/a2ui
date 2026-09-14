@@ -87,7 +87,14 @@ class AngularWcHost extends HTMLElement {
   }
 
   private getResolvedInjector(componentClass?: Type<any>): Injector | undefined {
-    return this._injector ?? (componentClass ? angularInjectorMap.get(componentClass) : undefined);
+    if (this._injector && !(this._injector as any).destroyed) {
+      return this._injector;
+    }
+    const fallback = componentClass ? angularInjectorMap.get(componentClass) : undefined;
+    if (fallback && !(fallback as any).destroyed) {
+      return fallback;
+    }
+    return this._injector ?? fallback;
   }
 
   connectedCallback() {
@@ -102,10 +109,8 @@ class AngularWcHost extends HTMLElement {
 
     if (!this.componentRef) {
       const currentInjector = this.getResolvedInjector(componentClass);
-      if (!currentInjector) {
-        throw new Error(
-          `Cannot instantiate Web Component for '${componentClass.name}': No Angular Injector available.`,
-        );
+      if (!currentInjector || (currentInjector as any).destroyed) {
+        return;
       }
       this.appRef = currentInjector.get(ApplicationRef);
       this.componentRef = createComponent(componentClass, {
@@ -127,7 +132,10 @@ class AngularWcHost extends HTMLElement {
     this.updateSub?.unsubscribe();
     const componentClass = this.getComponentClass();
     const currentInjector = this.getResolvedInjector(componentClass);
-    const ngZone = currentInjector?.get(NgZone, null);
+    if (!currentInjector || (currentInjector as any).destroyed) {
+      return;
+    }
+    const ngZone = currentInjector.get(NgZone, null);
     this.updateSub = ctx.componentModel.onUpdated.subscribe(() => {
       if (ngZone) {
         ngZone.run(() => {
@@ -153,7 +161,7 @@ class AngularWcHost extends HTMLElement {
     if (!this.componentRef || !this._context) return;
     const componentClass = this.getComponentClass();
     const currentInjector = this.getResolvedInjector(componentClass);
-    if (!currentInjector || !componentClass) return;
+    if (!currentInjector || (currentInjector as any).destroyed || !componentClass) return;
 
     const binder = currentInjector.get(ComponentBinder);
     const boundProps = binder.bind(this._context);
@@ -233,6 +241,8 @@ export function toWebComponent(
   }
 
   const componentClass = componentImpl.component;
+
+  registerComponentInjector(componentClass, injector);
 
   if (angularWcCache.has(componentClass)) {
     return angularWcCache.get(componentClass)!;

@@ -27,17 +27,18 @@ import {
   isAngularComponentImplementation,
 } from './types';
 
-const preparedUniversalCatalogs = new WeakSet<object>();
+const preparedUniversalCatalogs = new WeakMap<AngularCatalog, Injector>();
 
 /**
  * Prepares an Angular catalog for universal Web Component rendering by ensuring
- * all registered components have their `tagName` populated.
+ * all registered components have their `tagName` populated and their active
+ * Angular Injector registered.
  *
  * For Angular component declarations (`.component`) that do not already define a
  * Web Component `tagName`, they are bridged into W3C Custom Elements using the
  * provided Angular `Injector`.
  *
- * This operation is cached via a `Set` of catalog IDs and is idempotent.
+ * This operation is cached per injector and is idempotent.
  *
  * @param catalog The catalog to prepare.
  * @param injector The Angular Injector or EnvironmentInjector.
@@ -47,15 +48,13 @@ export function prepareUniversalCatalog(catalog: AngularCatalog, injector: Injec
     return;
   }
 
-  if (preparedUniversalCatalogs.has(catalog)) {
+  if (preparedUniversalCatalogs.get(catalog) === injector) {
     return;
   }
 
   const compMap = catalog.components as Map<string, CatalogComponentImplementation>;
   for (const [key, componentImpl] of catalog.components.entries()) {
-    if (isWebComponentImplementation(componentImpl)) {
-      registerUniversalElement(componentImpl);
-    } else if (isAngularComponentImplementation(componentImpl)) {
+    if (isAngularComponentImplementation(componentImpl)) {
       const universalWc = getUniversalWebComponent(componentImpl);
       if (universalWc) {
         registerUniversalElement(universalWc);
@@ -65,6 +64,8 @@ export function prepareUniversalCatalog(catalog: AngularCatalog, injector: Injec
           element: universalWc.element,
         });
       } else {
+        // Always re-bridge so the component class is re-associated with the
+        // currently active injector, even if it was prepared with a previous one.
         const wc = toWebComponent(componentImpl, injector);
         compMap.set(key, {
           ...componentImpl,
@@ -72,8 +73,10 @@ export function prepareUniversalCatalog(catalog: AngularCatalog, injector: Injec
           element: wc.element,
         });
       }
+    } else if (isWebComponentImplementation(componentImpl)) {
+      registerUniversalElement(componentImpl);
     }
   }
 
-  preparedUniversalCatalogs.add(catalog);
+  preparedUniversalCatalogs.set(catalog, injector);
 }
