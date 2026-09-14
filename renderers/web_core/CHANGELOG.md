@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9) `A2uiLitElement` now skips the update cycle in `shouldUpdate()` while the element is unbound, instead of returning early from `update()`. The old gate left Lit's cycle pending forever, so an element mounted before its `context` was attached never rendered even once bound, and `updated()` still ran without a controller — which crashed `Row` and `Column`. The controller is now guaranteed in every hook that runs after `super.willUpdate()`. Recommended migration: subclasses that override `shouldUpdate()` must call `super.shouldUpdate()`; subclasses that overrode `update()` to work around the old gate can drop the workaround. [#2652](https://github.com/a2ui-project/a2ui/pull/2652)
 - (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
 
 ## 0.11.0
