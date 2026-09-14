@@ -38,76 +38,6 @@ def invoke(name: str, args: dict, context: Any = None) -> Any:
     return impl.execute(validated_args, context)
 
 
-def test_arithmetic_add():
-    assert invoke("add", {"a": 1, "b": 2}) == 3
-    assert invoke("add", {"a": "1", "b": "2"}) == 3
-    with pytest.raises(ValidationError):
-        invoke("add", {"a": 10, "b": None})
-    with pytest.raises(ValidationError):
-        invoke("add", {"a": 10})
-
-
-def test_arithmetic_subtract():
-    assert invoke("subtract", {"a": 5, "b": 3}) == 2
-    with pytest.raises(ValidationError):
-        invoke("subtract", {"a": 10, "b": None})
-    with pytest.raises(ValidationError):
-        invoke("subtract", {"a": 10})
-
-
-def test_arithmetic_multiply():
-    assert invoke("multiply", {"a": 4, "b": 2}) == 8
-    with pytest.raises(ValidationError):
-        invoke("multiply", {"a": 10, "b": None})
-    with pytest.raises(ValidationError):
-        invoke("multiply", {"a": 10})
-
-
-def test_arithmetic_divide():
-    assert invoke("divide", {"a": 10, "b": 2}) == 5
-    assert invoke("divide", {"a": 10, "b": 0}) == math.inf
-    with pytest.raises(ValidationError):
-        invoke("divide", {"a": 10, "b": None})
-    with pytest.raises(ValidationError):
-        invoke("divide", {"a": 10, "b": "invalid"})
-    assert invoke("divide", {"a": 10, "b": "2"}) == 5
-    assert invoke("divide", {"a": "10", "b": "2"}) == 5
-
-
-def test_comparison_equals():
-    assert invoke("equals", {"a": 1, "b": 1}) is True
-    assert invoke("equals", {"a": 1, "b": 2}) is False
-    with pytest.raises(ValidationError):
-        invoke("equals", {"a": 1})
-    with pytest.raises(ValidationError):
-        invoke("equals", {"b": 1})
-
-
-def test_comparison_not_equals():
-    assert invoke("not_equals", {"a": 1, "b": 2}) is True
-    assert invoke("not_equals", {"a": 1, "b": 1}) is False
-    with pytest.raises(ValidationError):
-        invoke("not_equals", {"a": 1})
-
-
-def test_comparison_greater_than():
-    assert invoke("greater_than", {"a": 5, "b": 3}) is True
-    assert invoke("greater_than", {"a": 3, "b": 5}) is False
-    with pytest.raises(ValidationError):
-        invoke("greater_than", {"a": 10, "b": None})
-    with pytest.raises(ValidationError):
-        invoke("greater_than", {"a": 10})
-
-
-def test_comparison_less_than():
-    assert invoke("less_than", {"a": 3, "b": 5}) is True
-    assert invoke("less_than", {"a": 5, "b": 3}) is False
-    with pytest.raises(ValidationError):
-        invoke("less_than", {"a": 3, "b": None})
-    with pytest.raises(ValidationError):
-        invoke("less_than", {"a": 3})
-
-
 def test_logical_and():
     assert invoke("and", {"values": [True, True]}) is True
     assert invoke("and", {"values": [True, False]}) is False
@@ -124,29 +54,6 @@ def test_logical_not():
     assert invoke("not", {"value": True}) is False
     with pytest.raises(ValidationError):
         invoke("not", {})
-
-
-def test_string_contains():
-    assert invoke("contains", {"string": "hello world", "substring": "world"}) is True
-    assert invoke("contains", {"string": "hello world", "substring": "foo"}) is False
-    with pytest.raises(ValidationError):
-        invoke("contains", {"string": "hello"})
-    with pytest.raises(ValidationError):
-        invoke("contains", {"substring": "hello"})
-
-
-def test_string_starts_with():
-    assert invoke("starts_with", {"string": "hello", "prefix": "he"}) is True
-    assert invoke("starts_with", {"string": "hello", "prefix": "lo"}) is False
-    with pytest.raises(ValidationError):
-        invoke("starts_with", {"string": "hello"})
-
-
-def test_string_ends_with():
-    assert invoke("ends_with", {"string": "hello", "suffix": "lo"}) is True
-    assert invoke("ends_with", {"string": "hello", "suffix": "he"}) is False
-    with pytest.raises(ValidationError):
-        invoke("ends_with", {"string": "hello"})
 
 
 def test_validation_required():

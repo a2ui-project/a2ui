@@ -645,7 +645,6 @@ def test_generated_python_syntax_validity():
 
 
 def test_basic_catalog_operator_and_index_api():
-    from a2ui.core.basic_catalog import AddApi
     from a2ui.core.basic_catalog.v1_0.operator_apis import IndexApi, IndexArgs
     from a2ui.core.basic_catalog import v0_9, v1_0
 
@@ -654,19 +653,14 @@ def test_basic_catalog_operator_and_index_api():
     assert IndexApi.return_type == "number"
     assert IndexApi.schema == IndexArgs
 
-    # Verify shared basic_catalog and v0.9 basic catalog do not have IndexApi
+    # Verify shared basic_catalog does not have IndexApi
     import a2ui.core.basic_catalog as basic_catalog
 
     assert not hasattr(basic_catalog, "IndexApi")
-    assert hasattr(v0_9, "AddApi")
-    assert "AddApi" in v0_9.__all__
-    assert not hasattr(v0_9, "IndexApi")
-    assert "IndexApi" not in v0_9.__all__
 
-    # The v1.0 basic catalog declares 14 functions, and the arithmetic,
-    # comparison and string operators are not among them. Only @index is added,
-    # via the '@' system namespace.
-    assert AddApi.name == "add"
+    # The basic catalogs declare 14 functions, and the arithmetic,
+    # comparison and string operators are not among them. Only @index is added
+    # to v1.0, via the '@' system namespace.
     for operator in (
         "AddApi",
         "SubtractApi",
@@ -680,8 +674,14 @@ def test_basic_catalog_operator_and_index_api():
         "StartsWithApi",
         "EndsWithApi",
     ):
+        assert not hasattr(v0_9, operator)
+        assert operator not in v0_9.__all__
         assert not hasattr(v1_0, operator)
         assert operator not in v1_0.__all__
+
+    assert not hasattr(v0_9, "IndexApi")
+    assert "IndexApi" not in v0_9.__all__
+
     assert hasattr(v1_0, "IndexApi")
     assert "IndexApi" in v1_0.__all__
 

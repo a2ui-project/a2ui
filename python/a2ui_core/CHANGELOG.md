@@ -1,11 +1,12 @@
 ## Unreleased
 
-- The v1.0 basic catalog no longer registers `add`, `subtract`, `multiply`,
+- The v0.9 and v1.0 basic catalogs no longer register `add`, `subtract`, `multiply`,
   `divide`, `equals`, `not_equals`, `greater_than`, `less_than`, `contains`,
-  `starts_with` or `ends_with`. The published v1.0 catalog declares 14
-  functions, and none of these is among them, so an agent had no way to know
-  they were callable. `a2ui.core.basic_catalog.v1_0` no longer exports their
-  API classes or implementations. The v0.9 catalog keeps them.
+  `starts_with` or `ends_with`. The published catalogs declare exactly 14
+  functions, and none of these operators is among them, so an agent had no way to know
+  they were callable. `a2ui.core.basic_catalog` no longer exports their
+  API classes or implementations, aligning Python engine behavior with the
+  reference typescript implementation.
 
 - The v1.0 `formatDate` `ISO` pattern now returns the UTC instant with exactly
   three fractional digits, as `web_core` does. It previously echoed back
