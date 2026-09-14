@@ -17,12 +17,12 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {z} from 'zod';
-import {GenericBinder, scrapeSchemaBehavior} from './generic-binder.js';
+import {GenericBinder, scrapeSchemaBehavior, type GenerateSetters} from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
-import {CommonSchemas} from '../schema/common-types.js';
+import {CommonSchemas, type DataBinding, type FunctionCall} from '../schema/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   const mockCatalog = new Catalog('test', [], []);
@@ -399,6 +399,24 @@ describe('GenericBinder Checkable Trait', () => {
           context: {userId: {path: '/user/id'}},
         },
       });
+    });
+  });
+
+  describe('Generated setter types', () => {
+    it('keeps the setter callable for a property declared with no literal branch', () => {
+      const bindingOnly: GenerateSetters<{value: DataBinding | FunctionCall}> = {
+        setValue: () => {},
+      };
+      bindingOnly.setValue('anything');
+      const value: unknown = {selected: true};
+      bindingOnly.setValue(value);
+
+      const withLiteral: GenerateSetters<{value: string | DataBinding | FunctionCall}> = {
+        setValue: () => {},
+      };
+      withLiteral.setValue('ok');
+      // @ts-expect-error a literal branch must still constrain the setter.
+      withLiteral.setValue(123);
     });
   });
 });
