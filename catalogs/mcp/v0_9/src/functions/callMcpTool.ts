@@ -15,8 +15,8 @@
  */
 
 /**
- * `callMcpTool`: the A2UI catalog function that invokes Model Context Protocol
- * tools and renders whatever UI they return.
+ * `callMcpTool`: the A2UI catalog function that calls a Model Context Protocol
+ * tool and renders the A2UI messages the tool returns.
  *
  * ## Wiring
  *
@@ -27,38 +27,34 @@
  * catalogs.push(new Catalog(MCP_CATALOG_ID, [], [callMcpTool]));
  * ```
  *
- * The host supplies one hook, `getMcpClientForTool`. The tool call, the UI
- * resource read, and message decoding all happen here.
+ * The host supplies one hook, `getMcpClientForTool`. This module calls the
+ * tool, reads the UI resource, and decodes the messages.
  *
- * ## What a server can return
+ * ## Where the messages come from
  *
- * A tool result reaches the screen in one of three ways. A single result may
- * combine them: a resource creates the surface, then inline messages fill it
- * with data.
+ * A tool delivers A2UI messages by three routes, and one result may use
+ * several of them:
  *
- * 1. An MCP resource the result points at. `result._meta.ui.resourceUri` names
- *    a resource, read and parsed as an `application/a2ui+json` message list.
- * 2. An MCP resource the tool points at. The same `_meta.ui.resourceUri`, set
- *    on a tool descriptor in `tools/list`, covers every call of that tool. It
- *    is discovered once per client and used when a result names no URI itself.
- * 3. A2UI messages inline in `result.content`, as either an embedded resource
- *    or a text block whose JSON decodes to a message or a list of messages.
+ * 1. A resource the result names. `result._meta.ui.resourceUri` holds a
+ *    resource URI, whose `application/a2ui+json` content block decodes to a
+ *    message list.
+ * 2. A resource the tool declares. A tool descriptor in `tools/list` carries
+ *    the same `_meta.ui.resourceUri`, covering every call of that tool.
+ *    Declared URIs are discovered once per client and used only when a result
+ *    names no URI of its own.
+ * 3. Messages inside `result.content`, in either an embedded resource block or
+ *    a text block whose JSON decodes to a message or a list of messages.
  *
- * A result carrying none of these, plain prose for example, applies nothing.
- * Either way the raw `CallToolResult` is returned to the caller.
- *
- * A resource is read once per URI. Its message list is skipped when the surface
- * it creates already exists, so repeat calls update data rather than rebuild
- * the UI.
- *
- * Note that `_meta.ui.resourceUri` is an MCP transport convention, not part of
- * the A2UI specification. Only the MIME type is specified.
+ * A typical result combines routes 1 and 3: the resource creates the surface,
+ * then the inline messages fill that surface with data. A result that uses no
+ * route, plain prose for example, renders nothing. Every successful call
+ * returns the raw `CallToolResult` to the caller.
  *
  * ## Failures
  *
- * Every failure (no client for the tool, a transport error, a result flagged
- * `isError`, an undecodable resource) is raised as an `A2uiExpressionError`
- * naming the tool.
+ * Every failure raises an `A2uiExpressionError` naming the tool: no client for
+ * the tool, a transport error, a result flagged `isError`, or a resource that
+ * does not decode.
  */
 
 import {
@@ -94,17 +90,17 @@ export type McpClientResolver = (toolName: string) => McpToolClient | Promise<Mc
 /**
  * Creates the `callMcpTool` function implementation.
  *
- * @param getMcpClientForTool Resolves the MCP client that serves a named tool.
- * @param processor Receives the A2UI messages derived from tool results.
+ * @param getMcpClientForTool Supplies the client to call a given tool on.
+ * @param processor Receives the A2UI messages decoded from tool results.
  */
 export function createCallMcpToolImplementation(
   getMcpClientForTool: McpClientResolver,
   processor: MessageProcessor<any>,
 ): FunctionImplementation {
-  /** Decoded messages by resource URI. A URI's contents never change. */
+  /** Messages already decoded, keyed by resource URI. A resource never changes. */
   const a2uiMessagesByResourceUri = new Map<string, A2uiMessage[]>();
 
-  /** Per client, the UI resource URI each of its tools declares in `tools/list`. */
+  /** Declared URIs by tool name, discovered once per client. */
   const declaredUiResourceUris = new WeakMap<McpToolClient, Promise<Map<string, string>>>();
 
   async function readA2uiResource(client: McpToolClient, uri: string): Promise<A2uiMessage[]> {
@@ -117,7 +113,8 @@ export function createCallMcpToolImplementation(
   }
 
   /**
-   * Maps tool name to declared UI resource URI, once per client.
+   * Returns the UI resource URI each tool declares, reading `tools/list` once
+   * per client.
    */
   function getDeclaredUiResourceUris(client: McpToolClient): Promise<Map<string, string>> {
     let discovery = declaredUiResourceUris.get(client);
@@ -151,8 +148,8 @@ export function createCallMcpToolImplementation(
       const result: CallToolResult = await client.request(
         {method: 'tools/call', params: {name: toolName, arguments: resolvedArguments}},
         CallToolResultSchema,
-        // Subscribing to progress lets a host heartbeat hold the request open
-        // past the default timeout, for slow or interactive tools.
+        // Progress notifications reset the request timeout, so a server can
+        // hold a slow or interactive tool call open past the default.
         {onprogress: () => {}, resetTimeoutOnProgress: true},
       );
 
@@ -163,13 +160,13 @@ export function createCallMcpToolImplementation(
         throw new Error(`MCP tool '${toolName}' execution failed: ${JSON.stringify(result)}`);
       }
 
-      // The UI resource this result points at, or the one its tool declares.
+      // The URI the result names, falling back to the one the tool declares.
       const uri =
         readUiResourceUri(result) ?? (await getDeclaredUiResourceUris(client)).get(toolName);
       if (uri) {
         const resourceMessages = await readA2uiResource(client, uri);
-        // Re-creating a live surface throws A2uiStateError, so a repeat call
-        // keeps the existing surface and applies only the data messages below.
+        // Creating a surface twice throws A2uiStateError. On a repeat call,
+        // keep the live surface and apply only the inline messages below.
         const created = resourceMessages.find(
           (message): message is CreateSurfaceMessage => !!message && 'createSurface' in message,
         );
@@ -200,10 +197,10 @@ export function createCallMcpToolImplementation(
 }
 
 /**
- * Reads `_meta.ui.resourceUri` off a tool result or a tool descriptor.
+ * Reads `_meta.ui.resourceUri` from a tool result or a tool descriptor.
  *
- * Read defensively because this is a transport convention, not a specified
- * A2UI field.
+ * The field is a transport convention rather than a specified A2UI field, so
+ * this checks each hop and returns `undefined` for anything else.
  */
 export function readUiResourceUri(source: {_meta?: unknown} | undefined): string | undefined {
   const uri = (source?._meta as any)?.ui?.resourceUri;
@@ -211,9 +208,8 @@ export function readUiResourceUri(source: {_meta?: unknown} | undefined): string
 }
 
 /**
- * Extracts A2UI messages inlined in `CallToolResult.content`, taking the first
- * block that decodes. Returns `null` for results that carry none, such as a
- * tool that only returns prose.
+ * Returns the first block of `CallToolResult.content` that decodes to A2UI
+ * messages, or `null` when no block does, as with a tool that returns prose.
  */
 export function extractA2uiMessages(
   content: CallToolResult['content'] | undefined,
@@ -240,8 +236,8 @@ export function extractA2uiMessages(
     if (Array.isArray(parsed)) {
       return parsed as A2uiMessage[];
     }
-    // An embedded resource declares itself A2UI. A text block shares space with
-    // ordinary tool data, so a scalar or unrelated object is skipped.
+    // An embedded resource is A2UI by declaration. A text block shares space
+    // with ordinary tool data, so skip anything without a message key.
     if (isResource || isA2uiMessage(parsed)) {
       return [parsed as A2uiMessage];
     }
@@ -250,9 +246,9 @@ export function extractA2uiMessages(
 }
 
 /**
- * Decodes an A2UI message list out of a `resources/read` response.
+ * Decodes an A2UI message list from a `resources/read` response.
  *
- * @throws if no content block declares the A2UI MIME type.
+ * @throws when no content block declares the A2UI MIME type.
  */
 export function parseA2uiMessages(
   resource: ReadResourceResult | undefined,
@@ -265,6 +261,7 @@ export function parseA2uiMessages(
   return JSON.parse(content.text) as A2uiMessage[];
 }
 
+/** The keys `MessageProcessor` dispatches on. */
 const A2UI_MESSAGE_KEYS = [
   'createSurface',
   'updateComponents',
