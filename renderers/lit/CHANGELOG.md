@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.11.0
+
 - **BREAKING CHANGE**: (v0_9) Move universal basic catalog component implementations (`A2uiText`, `A2uiButton`, `A2uiCard`, etc.) to `@a2ui/web_core/v0_9/basic_catalog`. To upgrade to this version of `@a2ui/lit`, apps should also update to the latest version of `@a2ui/web_core`. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
 - **BREAKING CHANGE**: (v0_9) Align Basic Catalog component DOM structures, behaviors, and styling contracts with the Angular reference implementation: [#2205](https://github.com/a2ui-project/a2ui/pull/2205)
   - `DateTimeInput`: Migrate from a single dynamic HTML5 input (`datetime-local`) to dual side-by-side date and time inputs (`.a2ui-date-time-inputs`), support overridable `--a2ui-datetimeinput-width`, and ensure time-only mode preserves time-only strings without invalid date concatenation.
@@ -13,8 +15,11 @@
   - `Text`: Directly render semantic HTML tags for non-markdown variants (`h1`-`h5`, `caption` wrapped in `<em>`) and add flex weight styling.
   - `Video`: Wrap video in `.a2ui-video-container` with fallback message for unsupported browsers.
   - `ChoicePicker`: Align DOM structures and CSS classes with the Angular reference implementation (`.a2ui-choice-picker`, `.a2ui-option-label`, `.a2ui-option-text`, `.a2ui-chip`, `type="button"`), scope radio input `name` attributes to surface and data context path to prevent cross-surface radio collisions in Light DOM, and omit `name` attributes on checkbox inputs.
+- **BREAKING CHANGE**: (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM. Recommended migration: query component elements directly using Light DOM selectors (e.g. `element.querySelector()`) rather than `element.shadowRoot`, and ensure global stylesheets do not unintentionally conflict with component internal class names. [#2204](https://github.com/a2ui-project/a2ui/pull/2204)
 
 ## 0.10.4
+
+_This version was withdrawn because it inadvertently introduced a breaking change in a patch release. The following change was re-released as part of `0.11.0`._
 
 - **BREAKING CHANGE**: (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM. Recommended migration: query component elements directly using Light DOM selectors (e.g. `element.querySelector()`) rather than `element.shadowRoot`, and ensure global stylesheets do not unintentionally conflict with component internal class names. [#2204](https://github.com/a2ui-project/a2ui/pull/2204)
 
