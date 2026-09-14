@@ -187,13 +187,15 @@ def test_formatting_format_currency():
         invoke("formatCurrency", {"value": 1234.56, "currency": "USD", "decimals": 2})
         == "$1,234.56"
     )
-    # Fallback to toFixed if currency is not a standard code (we use symbol fallback or simple concatenation)
+    # An unrecognised code stands in for its own symbol. Because that stand-in
+    # is alphabetic, CLDR currency spacing separates it from the amount with
+    # U+00A0, exactly as Intl does.
     assert (
         invoke(
             "formatCurrency",
             {"value": 1234.56, "currency": "INVALID-CURRENCY", "decimals": 2},
         )
-        == "INVALID-CURRENCY 1,234.56"
+        == "INVALID-CURRENCY\u00a01,234.56"
     )
 
 
@@ -268,7 +270,7 @@ def test_localized_formatting():
     )
     assert (
         invoke_localized("fr-FR", "formatNumber", {"value": 1234.56, "decimals": 2})
-        == "1 234,56"
+        == "1\u202f234,56"
     )
 
     # Currency
@@ -278,7 +280,7 @@ def test_localized_formatting():
             "formatCurrency",
             {"value": 1234.56, "currency": "EUR", "decimals": 2},
         )
-        == "1.234,56 €"
+        == "1.234,56\xa0€"
     )
     assert (
         invoke_localized(
@@ -287,6 +289,14 @@ def test_localized_formatting():
             {"value": 1234.56, "currency": "USD", "decimals": 2},
         )
         == "$1,234.56"
+    )
+    assert (
+        invoke_localized(
+            "fr-FR",
+            "formatCurrency",
+            {"value": 1234.56, "currency": "USD", "decimals": 2},
+        )
+        == "1\u202f234,56\xa0$US"
     )
 
     # Date
@@ -354,6 +364,186 @@ def test_v10_formatting_matches_web_engine():
     # An absent category still falls through to other.
     assert pluralize.execute({"value": 0, "other": "cats"}) == "cats"
     assert pluralize.execute({"value": 5, "other": "cats"}) == "cats"
+
+
+@pytest.mark.parametrize(
+    ("pattern", "symbol", "expected"),
+    [
+        # Symbol precedes the amount and is alphabetic, so the rule fires.
+        ("\u00a4#,##0.00", "CHF", "\u00a4\u00a0#,##0.00"),
+        # `$` is a Unicode symbol character, so it stays flush.
+        ("\u00a4#,##0.00", "$", "\u00a4#,##0.00"),
+        # `HK$` ends in a symbol character, and only the adjacent edge counts.
+        ("\u00a4#,##0.00", "HK$", "\u00a4#,##0.00"),
+        # The pattern already separates the two, so nothing is inserted.
+        ("#,##0.00\u00a0\u00a4", "CHF", "#,##0.00\u00a0\u00a4"),
+        # Symbol follows the amount with no separator, so the rule fires.
+        ("#,##0.00\u00a4", "CHF", "#,##0.00\u00a0\u00a4"),
+        # A pattern carrying no placeholder is returned untouched.
+        ("#,##0.00", "CHF", "#,##0.00"),
+    ],
+)
+def test_apply_currency_spacing(pattern, symbol, expected):
+    """Pins CLDR's root `currencySpacing` rule, which Babel does not apply."""
+    from a2ui.core.basic_catalog.locale_formatting import apply_currency_spacing
+
+    assert apply_currency_spacing(pattern, symbol) == expected
+
+
+@pytest.mark.parametrize("version", ["v0_9", "v1_0"])
+def test_format_currency_spacing_matches_web_engine(version):
+    """Pins currency spacing against values measured from `Intl`.
+
+    Babel omits CLDR's `currencySpacing`, so without the rule every currency
+    with an alphabetic symbol renders flush against the amount while the
+    TypeScript engine separates it. These expectations are the exact strings
+    `Intl.NumberFormat` produces.
+    """
+    import importlib
+
+    module = importlib.import_module(
+        f"a2ui.core.basic_catalog.{version}.function_impls"
+    )
+    create = module.create_format_currency_implementation
+
+    def fmt(locale, currency):
+        return create(locale).execute(
+            {"value": 1234.56, "currency": currency, "decimals": 2}
+        )
+
+    # Alphabetic symbols take U+00A0; glyph symbols stay flush.
+    assert fmt("en-US", "CHF") == "CHF\u00a01,234.56"
+    assert fmt("en-US", "SEK") == "SEK\u00a01,234.56"
+    assert fmt("en-US", "USD") == "$1,234.56"
+    assert fmt("en-US", "EUR") == "\u20ac1,234.56"
+    assert fmt("en-US", "HKD") == "HK$1,234.56"
+
+    # Locales that place the symbol last already space it, so the rule must
+    # not double up.
+    assert fmt("de-DE", "CHF") == "1.234,56\u00a0CHF"
+    assert fmt("de-DE", "USD") == "1.234,56\u00a0$"
+
+
+@pytest.mark.parametrize("version", ["v0_9", "v1_0"])
+def test_format_currency_malformed_code_follows_locale_pattern(version):
+    """Pins the malformed-code layout against the web engine.
+
+    `Intl` rejects a code that is not three ASCII letters, so the TypeScript
+    engine cannot format one directly and reconstructs the layout instead.
+    Babel rejects nothing and places the code wherever the locale's currency
+    pattern puts it. These are the exact strings both engines produce; the
+    conformance suite compares them byte for byte.
+    """
+    import importlib
+
+    module = importlib.import_module(
+        f"a2ui.core.basic_catalog.{version}.function_impls"
+    )
+    create = module.create_format_currency_implementation
+
+    def fmt(locale, currency):
+        return create(locale).execute(
+            {"value": 1234.56, "currency": currency, "decimals": 2}
+        )
+
+    # Placement follows the locale, not the caller. Note the U+202F grouping
+    # separator in fr-FR.
+    assert fmt("en-US", "INVALID-CURRENCY") == "INVALID-CURRENCY\u00a01,234.56"
+    assert fmt("de-DE", "INVALID-CURRENCY") == "1.234,56\u00a0INVALID-CURRENCY"
+    assert fmt("fr-FR", "INVALID-CURRENCY") == "1\u202f234,56\u00a0INVALID-CURRENCY"
+    assert fmt("ja-JP", "INVALID-CURRENCY") == "INVALID-CURRENCY\u00a01,234.56"
+
+    # `XYZ` is unassigned but well formed, so `Intl` accepts it as its own
+    # symbol and never reaches the TypeScript fallback. Both engines agree.
+    assert fmt("en-US", "XYZ") == "XYZ\u00a01,234.56"
+    assert fmt("de-DE", "XYZ") == "1.234,56\u00a0XYZ"
+
+
+def test_format_currency_uses_latin_digits_for_arabic_locales():
+    """Pins the one case where this engine still differs from `Intl`.
+
+    For `ar-EG`, `Intl` shapes digits in Eastern Arabic numerals
+    (`١٬٢٣٤٫٥٦`) while Babel emits Latin ones. Babel cannot close the gap:
+    asking it for the locale's default numbering system swaps the separators
+    to their Arabic forms but leaves the digits Latin, which is worse than
+    either engine's output. Babel's default of `latn` is therefore deliberate,
+    and this test fails if that default ever changes.
+    """
+    from a2ui.core.basic_catalog.v1_0.function_impls import (
+        create_format_currency_implementation,
+    )
+
+    result = create_format_currency_implementation("ar-EG").execute(
+        {"value": 1234.56, "currency": "USD", "decimals": 2}
+    )
+    assert result == "\u200f1,234.56\u00a0US$"
+
+
+@pytest.mark.parametrize(
+    "locale",
+    [
+        # Well formed, but CLDR carries no such locale. `Intl` falls back here;
+        # Babel raises `UnknownLocaleError`.
+        "xx-YY",
+        "zz",
+        # Malformed. `Intl` raises `RangeError`; Babel raises `ValueError`.
+        "!!!",
+        "not a locale",
+    ],
+)
+def test_get_locale_falls_back_for_unusable_tags(locale):
+    """Pins the fallback that keeps an unusable tag from aborting a format."""
+    from a2ui.core.basic_catalog.locale_formatting import get_locale
+
+    assert str(get_locale(locale)) == "en_US"
+
+
+def test_get_locale_resolves_usable_tags():
+    """Pins that resolution still accepts both tag separators."""
+    from a2ui.core.basic_catalog.locale_formatting import get_locale
+
+    assert str(get_locale(None)) == "en_US"
+    assert str(get_locale("")) == "en_US"
+    assert str(get_locale("de-DE")) == "de_DE"
+    assert str(get_locale("de_DE")) == "de_DE"
+
+
+@pytest.mark.parametrize("version", ["v0_9", "v1_0"])
+@pytest.mark.parametrize("locale", ["xx-YY", "!!!"])
+def test_formatting_falls_back_for_unusable_locale(version, locale):
+    """Pins that an unusable locale formats as `en-US` rather than raising.
+
+    A catalog carries whatever tag its host passed, and Babel raises for any
+    tag CLDR does not carry, which would abort the format call. The TypeScript
+    engine falls back for the same tags, so every function here must produce
+    the `en-US` result.
+    """
+    import importlib
+
+    module = importlib.import_module(
+        f"a2ui.core.basic_catalog.{version}.function_impls"
+    )
+
+    number = module.create_format_number_implementation
+    currency = module.create_format_currency_implementation
+    date = module.create_format_date_implementation
+    pluralize = module.create_pluralize_implementation
+
+    assert number(locale).execute({"value": 1234.56, "decimals": 2}) == "1,234.56"
+    assert (
+        currency(locale).execute({"value": 1234.56, "currency": "USD", "decimals": 2})
+        == "$1,234.56"
+    )
+    assert (
+        date(locale).execute(
+            {"value": "2026-06-10T12:00:00Z", "format": "EEEE, MMMM d, yyyy"}
+        )
+        == "Wednesday, June 10, 2026"
+    )
+    assert (
+        pluralize(locale).execute({"value": 2, "one": "apple", "other": "apples"})
+        == "apples"
+    )
 
 
 def test_validation_return_types_v09_vs_v10():

@@ -34,6 +34,31 @@ import {DataContext} from '../rendering/data-context.js';
  */
 export const DEFAULT_LOCALE = 'en-US';
 
+/**
+ * Resolves the locale tag a catalog was built with to one the formatters can use.
+ *
+ * Falls back to {@link DEFAULT_LOCALE} in three cases, each of which the Python
+ * engine also falls back for:
+ *
+ * - No tag was supplied.
+ * - The tag is malformed, such as `en_US`, which makes `Intl` throw a
+ *   `RangeError` from every constructor it is handed to.
+ * - The tag is well formed but no locale data matches it, such as `xx-YY`. Here
+ *   `Intl` would silently format with the host's ambient locale, which this
+ *   module promises never to depend on.
+ *
+ * @param locale Optional BCP 47 language tag.
+ * @returns A tag `Intl` both accepts and has data for.
+ */
+export function resolveLocale(locale?: string): string {
+  if (!locale) return DEFAULT_LOCALE;
+  try {
+    return Intl.NumberFormat.supportedLocalesOf(locale).length > 0 ? locale : DEFAULT_LOCALE;
+  } catch {
+    return DEFAULT_LOCALE;
+  }
+}
+
 /** Standard validation result. */
 export interface ValidationResult {
   /** Whether validation passed. */
@@ -197,6 +222,40 @@ export function getCurrencyFormat(
   return formatter;
 }
 
+/**
+ * An assigned code, formatted only to discover where the locale places a
+ * currency. Its own symbol is never shown.
+ */
+const PLACEHOLDER_CURRENCY = 'USD';
+
+const currencyCodeFormatCache = new Map<string, Intl.NumberFormat>();
+
+/**
+ * Returns a formatter that renders the currency as its ISO code rather than as
+ * a symbol, which makes the locale's placement and spacing observable through
+ * `formatToParts`.
+ */
+export function getCurrencyCodeFormat(
+  locale: string,
+  decimals?: number,
+  grouping?: boolean,
+): Intl.NumberFormat {
+  const key = `${locale}:${decimals ?? 'undef'}:${grouping ?? 'true'}`;
+  let formatter = currencyCodeFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: PLACEHOLDER_CURRENCY,
+      currencyDisplay: 'code',
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+      useGrouping: grouping,
+    });
+    currencyCodeFormatCache.set(key, formatter);
+  }
+  return formatter;
+}
+
 /** Month and weekday names for one locale, indexed for `formatDate`. */
 export interface DateNames {
   /** Full month names, January first. */
@@ -329,8 +388,18 @@ export function executeFormatCurrency(
   try {
     return getCurrencyFormat(locale, currency, decimals, grouping).format(value);
   } catch {
-    const amount = getNumberFormat(locale, decimals, grouping).format(value);
-    return `${currency} ${amount}`;
+    // Intl throws only for a malformed code, meaning one that is not three
+    // ASCII letters. A well-formed but unassigned code such as `XYZ` does
+    // not reach here; Intl accepts it and uses it as its own symbol.
+    //
+    // Babel throws for nothing, so the Python engine lays a malformed code
+    // out exactly as the locale's currency pattern dictates. Recover that
+    // same layout by formatting a placeholder currency as a code and
+    // substituting, which keeps the two engines byte-identical.
+    return getCurrencyCodeFormat(locale, decimals, grouping)
+      .formatToParts(value)
+      .map(part => (part.type === 'currency' ? currency : part.value))
+      .join('');
   }
 }
 
@@ -460,7 +529,7 @@ export function createFormatNumberImplementation(
   api: any,
   locale?: string,
 ): FunctionImplementation {
-  const resolvedLocale = locale ?? DEFAULT_LOCALE;
+  const resolvedLocale = resolveLocale(locale);
   return createFunctionImplementation(api, args =>
     executeFormatNumber(args.value, args.decimals, args.grouping, resolvedLocale),
   );
@@ -470,7 +539,7 @@ export function createFormatCurrencyImplementation(
   api: any,
   locale?: string,
 ): FunctionImplementation {
-  const resolvedLocale = locale ?? DEFAULT_LOCALE;
+  const resolvedLocale = resolveLocale(locale);
   return createFunctionImplementation(api, args =>
     executeFormatCurrency(
       args.value,
@@ -483,14 +552,14 @@ export function createFormatCurrencyImplementation(
 }
 
 export function createFormatDateImplementation(api: any, locale?: string): FunctionImplementation {
-  const resolvedLocale = locale ?? DEFAULT_LOCALE;
+  const resolvedLocale = resolveLocale(locale);
   return createFunctionImplementation(api, args =>
     executeFormatDate(args.value, args.format, resolvedLocale),
   );
 }
 
 export function createPluralizeImplementation(api: any, locale?: string): FunctionImplementation {
-  const resolvedLocale = locale ?? DEFAULT_LOCALE;
+  const resolvedLocale = resolveLocale(locale);
   return createFunctionImplementation(api, args =>
     executePluralize(args.value, args as Record<string, unknown>, resolvedLocale),
   );

@@ -112,7 +112,7 @@ describe('Common Basic Functions', () => {
       // Unknown currency code fallback
       assert.strictEqual(
         executeFormatCurrency(1234.56, 'INVALID-CURRENCY', 2, true, 'en-US'),
-        'INVALID-CURRENCY 1,234.56',
+        'INVALID-CURRENCY\u00a01,234.56',
       );
     });
 
