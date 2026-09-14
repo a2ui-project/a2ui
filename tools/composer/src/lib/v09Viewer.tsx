@@ -26,7 +26,8 @@
 'use client';
 
 import {useMemo} from 'react';
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {A2uiSurface} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
 
 const CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
