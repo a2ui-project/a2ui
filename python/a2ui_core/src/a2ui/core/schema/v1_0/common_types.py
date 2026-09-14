@@ -15,7 +15,16 @@
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
 from typing import Annotated, Any, Literal
-from pydantic import AfterValidator, BaseModel, Field, ConfigDict
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    ConfigDict,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+)
 from ..common_types import (
     Child,
     ChildList,
@@ -117,7 +126,14 @@ LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_objec
 
 
 DynamicValue = (
-    str | float | bool | list[Any] | DataBinding | FunctionCall | LiteralObject
+    StrictStr
+    | StrictFloat
+    | StrictInt
+    | StrictBool
+    | list[Any]
+    | DataBinding
+    | FunctionCall
+    | LiteralObject
 )
 
 
