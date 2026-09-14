@@ -497,7 +497,11 @@ The RPC lifecycle belongs to [`RpcHandler`](#d-bidirectional-remote-procedure-ca
 
 Inbound `callRendererFunction` and `agentFunctionResponse` envelopes arrive through `processMessages` like any other message. The processor recognizes them, builds the `DataContext` for the target surface (or a headless one if there is no surface), and forwards them to `RpcHandler`. Consumers never call the inbound handlers directly, so publishing them on the processor would advertise an entry point that bypasses envelope validation and context construction.
 
-`callAgentFunction` is the exception, and is deliberately mirrored on the processor. It is outbound, callers already hold the processor, and requiring them to reach through `processor.rpc` for the one call they routinely make buys nothing. It forwards its arguments unchanged.
+`callAgentFunction` is the exception, and is deliberately mirrored on the processor.
+
+Consistency argues for hiding it too: if RPC belongs to `RpcHandler`, every RPC entry point should be reached the same way. The reason that rule exists, though, is that the inbound handlers can be called wrongly. Invoking one directly skips the envelope validation and `DataContext` construction that `processMessages` performs first, so keeping them off the processor removes a real hazard.
+
+`callAgentFunction` has no such setup to skip. The processor's method passes its arguments straight to `RpcHandler` and does nothing else, so `processor.callAgentFunction(...)` and `processor.rpc.callAgentFunction(...)` are the same call. Hiding it would oblige every caller to write `.rpc` and would rule out no incorrect usage, since both spellings already do the same thing.
 
 #### Renderer Data Model Synchronization
 
@@ -803,6 +807,19 @@ To prevent malformed identifiers, injection vectors, and subtle rendering ambigu
 - **Start Characters**: Must satisfy `is_xid_start(c)` or equal `'_'` (Unicode ID_Start plus underscores).
 - **Continue Characters**: Must satisfy `is_xid_continue(c)` (alphanumerics, connector punctuation, combining marks).
 - Non-compliant identifiers must be rejected during envelope and catalog property validation with an `A2uiValidationError`.
+
+Implement both predicates with the platform's Unicode property regex rather than a hand-written character test. The usual ad hoc substitute, `isalnum()` plus underscore, is wrong in both directions: it admits characters UAX #31 excludes, and it rejects the combining marks and connector punctuation that XID_Continue allows. Hand-maintained code point ranges are no better, because they drift as the Unicode tables are revised and they drift independently in each SDK, which is how the same identifier comes to validate in one language and fail in another.
+
+| Language   | Pattern                                        | Note                                                                                       |
+| :--------- | :--------------------------------------------- | :----------------------------------------------------------------------------------------- |
+| Python     | `regex.compile(r"^\p{XID_Continue}$")`         | Requires the `regex` package. The standard library `re` module does not support `\p{...}`. |
+| TypeScript | `/^\p{XID_Continue}$/u`                        | The `u` flag is required, or `\p{...}` is not read as a Unicode property.                  |
+| Dart       | `RegExp(r"^\p{XID_Continue}$", unicode: true)` |                                                                                            |
+
+Substitute `\p{XID_Start}` for the start predicate. Because these patterns match exactly one character, two further requirements follow:
+
+1. **Test exactly one code point.** Guard the match with a code point count, such as `Array.from(s).length === 1` in TypeScript or `s.runes.length == 1` in Dart, so that a multi-character string cannot satisfy an anchored single-character pattern by accident.
+2. **Scan by code point, not by code unit.** Any scanner feeding these predicates must advance over 32-bit code points. In UTF-16 languages a `peek` written with `charAt` or bare index access splits a surrogate pair into two halves, neither of which is a valid identifier character, so an identifier containing an astral character such as an emoji or a rare CJK ideograph is rejected even though UAX #31 admits it. Use `codePointAt` with `String.fromCodePoint` in TypeScript, and runes in Dart. Python strings are already sequences of code points, so indexing is safe there.
 
 ##### Graph Validation Runs Before Mutation, Against a Candidate Graph
 
