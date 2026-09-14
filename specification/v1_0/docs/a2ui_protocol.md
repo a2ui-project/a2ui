@@ -492,16 +492,22 @@ This structure is designed to be both flexible and strictly validated.
 
 #### Mixable catalogs and component resolution logic
 
-Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent). All catalog IDs specified at the component and function-call levels and at the surface-level must refer to catalogs which use the same A2UI specification version.
+Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent).
+
+All catalog IDs referenced within a single `agentToRenderer` message (whether at the component, function-call, or surface level) must refer to catalogs that are compatible with that message's protocol version. While protocol v0.9 and v1.0 catalogs are incompatible due to structural changes, future protocol versions will endeavour to maintain backward compatibility with older catalog versions (for example, protocol v1.1 _may_ accept v1.0 catalogs).
+
+Furthermore, a surface created with one protocol version may be updated by subsequent messages using a different protocol version (for example, a surface created with a v0.9 message may receive updates from a v1.0 message). In such cases, components in the updating message must resolve against a catalog compatible with that message's protocol version.
 
 When resolving a component (or function call), the renderer evaluates catalog identity using the following strict resolution order:
 
-1. **Explicit Component/Function-Level `catalogId`**: The renderer checks if the component or function call explicitly specifies a `catalogId`. If provided, the component or function is resolved against that catalog.
-2. **Surface Default `catalogId`**: If the component or function call does not specify a `catalogId`, the renderer checks if a default `catalogId` was specified on the surface in the `createSurface` message. If provided, the component or function is resolved against that surface default catalog.
-3. **Resolution Error**: If neither an explicit component/function-level `catalogId` nor a surface default `catalogId` is present, resolution fails immediately with an error and the component is not rendered (or the function call is rejected).
+1. **Explicit Component/Function-Level `catalogId`**: The renderer checks if the component or function call explicitly specifies a `catalogId`. If provided, the component or function is resolved against that catalog (which must be compatible with the message's protocol version).
+2. **Surface Default `catalogId`**: If the component or function call does not specify a `catalogId`, the renderer checks if a default `catalogId` was specified on the surface in the `createSurface` message:
+   - If the surface default catalog is **compatible** with the message's protocol version, the component or function is resolved against that surface default catalog.
+   - If the surface default catalog is **incompatible** with the message's protocol version (such as a v1.0 message updating a surface whose default catalog is v0.9), fallback to the surface default is disallowed. The component or function call must explicitly specify a `catalogId` compatible with the message's protocol version.
+3. **Resolution Error**: If neither an explicit component/function-level `catalogId` nor a compatible surface default `catalogId` is present, resolution fails immediately with an error and the component is not rendered (or the function call is rejected).
 
 > [!IMPORTANT]
-> There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
+> There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or a compatible surface default `catalogId`.
 
 ### Catalog-Agnostic Accessibility Requirements
 
