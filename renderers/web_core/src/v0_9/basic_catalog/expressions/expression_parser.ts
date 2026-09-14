@@ -179,7 +179,7 @@ export class ExpressionParser {
     const start = scanner.pos;
     while (!scanner.isAtEnd()) {
       const c = scanner.peek();
-      if (this.isAlnum(c) || c === '/' || c === '.' || c === '_' || c === '-') {
+      if (ExpressionParser.isIdContinue(c) || c === '/' || c === '.' || c === '-') {
         scanner.advance();
       } else {
         break;
@@ -226,7 +226,7 @@ export class ExpressionParser {
 
   private scanIdentifier(scanner: Scanner): string {
     const start = scanner.pos;
-    while (!scanner.isAtEnd() && (this.isAlnum(scanner.peek()) || scanner.peek() === '_')) {
+    while (!scanner.isAtEnd() && ExpressionParser.isIdContinue(scanner.peek())) {
       scanner.advance();
     }
     return scanner.input.substring(start, scanner.pos);
@@ -266,8 +266,23 @@ export class ExpressionParser {
     return Number(text);
   }
 
+  static readonly XID_CONTINUE = /\p{XID_Continue}/u;
+  /** @deprecated Kept for backwards compatibility. */
+  static readonly UNICODE_ALNUM = ExpressionParser.XID_CONTINUE;
+
+  static isIdContinue(c: string): boolean {
+    if (!c || c === '\0') return false;
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c === '_') {
+      return true;
+    }
+    if (c.charCodeAt(0) < 128) {
+      return false;
+    }
+    return ExpressionParser.XID_CONTINUE.test(c);
+  }
+
   private isAlnum(c: string): boolean {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+    return ExpressionParser.isIdContinue(c);
   }
 
   private isDigit(c: string): boolean {
@@ -316,7 +331,7 @@ class Scanner {
   matchesKeyword(keyword: string): boolean {
     if (this.input.startsWith(keyword, this.pos)) {
       const next = this.peek(keyword.length);
-      if (!/[a-zA-Z0-9_]/.test(next)) {
+      if (!ExpressionParser.isIdContinue(next)) {
         this.advance(keyword.length);
         return true;
       }

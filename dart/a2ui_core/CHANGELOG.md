@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+- Support non-ASCII data model keys in templates.
 - An invalid number literal in an expression, such as `${1.2.3}`, now throws
   `A2uiExpressionError` instead of a `FormatException` from `num.parse` — an error
   outside the `A2uiError` hierarchy that `avoid_catching_errors` discourages catching.
