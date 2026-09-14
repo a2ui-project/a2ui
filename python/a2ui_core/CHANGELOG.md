@@ -1,5 +1,21 @@
 ## Unreleased
 
+- **BREAKING**: the `Dynamic*` schema aliases no longer coerce a value of the
+  wrong primitive type. Each admits one primitive type, a data binding, or a
+  function call, matching the TypeScript engine and the specification. What
+  changes in practice:
+  - `DynamicNumber` rejects the string `"1"`, which previously validated as
+    `1.0`, and rejects `True`, which previously validated as `1`.
+  - `DynamicBoolean` rejects `1`, `0` and `"true"`, which previously validated
+    as `True`, `False` and `True`.
+  - `DynamicValue` keeps an integer as an integer. It admitted `float` but not
+    `int`, so a payload carrying `1` came back as `1.0`.
+  - `DynamicString` and `DynamicStringList` are now declared strict for
+    consistency. This is not a behaviour change: pydantic already refused to
+    coerce other primitives into a string.
+
+  Data bindings and function calls are unaffected.
+
 - The v0.9 and v1.0 basic catalogs no longer register `add`, `subtract`, `multiply`,
   `divide`, `equals`, `not_equals`, `greater_than`, `less_than`, `contains`,
   `starts_with` or `ends_with`. The published catalogs declare exactly 14
