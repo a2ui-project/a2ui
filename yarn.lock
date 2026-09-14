@@ -116,13 +116,9 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
   peerDependencies:
-    "@a2ui/markdown-it": "workspace:*"
     "@angular/common": ^21.2.5
     "@angular/core": ^21.2.5
     "@angular/platform-browser": ^21.2.5
-  peerDependenciesMeta:
-    "@a2ui/markdown-it":
-      optional: true
   languageName: unknown
   linkType: soft
 
