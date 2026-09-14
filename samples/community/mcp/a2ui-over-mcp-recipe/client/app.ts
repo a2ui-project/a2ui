@@ -84,12 +84,6 @@ export class A2uiRecipeApp extends LitElement {
 
     // `MessageProcessor` reads its catalog array lazily rather than copying it,
     // so the processor can be built before the catalog whose function needs it.
-    //
-    // The `as any` casts bridge two copies of `@a2ui/web_core`: the published
-    // package under `samples/community/node_modules`, and the monorepo build
-    // that `@a2ui/mcp-catalog` is compiled against. Their classes are nominally
-    // distinct because of their private fields. Applications installing a
-    // single copy need neither cast.
     const catalogs: Catalog<any>[] = [];
     this.processor = new MessageProcessor<any>(catalogs);
     this.catalog = new Catalog<any>(
@@ -97,7 +91,7 @@ export class A2uiRecipeApp extends LitElement {
       Array.from(basicCatalog.components.values()),
       [
         ...Array.from(basicCatalog.functions.values()),
-        createCallMcpToolImplementation(this.getMcpClientForTool, this.processor as any) as any,
+        createCallMcpToolImplementation(this.getMcpClientForTool, this.processor),
       ],
     );
     catalogs.push(this.catalog);
