@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A2UI Headless Render Harness</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #ffffff;
+      font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    #container {
+      display: block;
+      padding: 16px;
+      min-width: 320px;
+      width: 100%;
+    }
+  </style>
+  <script src="./bundle.js"></script>
+</head>
+<body>
+  <div id="container"></div>
+  <script>
+    window.__A2UI_READY__ = true;
+  </script>
+</body>
+</html>
