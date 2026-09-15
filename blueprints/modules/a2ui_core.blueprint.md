@@ -724,9 +724,7 @@ const agentProcessor = new MessageProcessor({
 });
 // Same entry point as the renderer: the processor is kept for the session, so
 // each payload is checked against the state the previous ones built.
-agentProcessor.processMessages(
-  AgentToRendererMessage.parseAll(parsedModelPayload, protocolVersion),
-);
+agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
 // Once the turn is built, assert each surface it created is a finished render.
 agentProcessor.checkSurfaceComplete('surface-1');
 ```
