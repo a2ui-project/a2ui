@@ -1,0 +1,3425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json",
+  "title": "A2UI Gemini Enterprise Composite Catalog (v0.9)",
+  "description": "Composite Gemini Enterprise A2UI v0.9 catalog: the union of the standard Material catalog, the basic catalog, and the Gemini Enterprise custom catalog. Lets a single surface mix all three component families.",
+  "catalogId": "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json",
+  "components": {
+    "MaterialText": {
+      "description": "A component used for rendering text with theme-based typography.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialText"
+            },
+            "text": {
+              "description": "The text content to be displayed in the component.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "usageHint": {
+              "description": "An optional hint that determines the typography and visual style of the text, mapping to standard Material Design typography tokens. Supported values are: 'h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body', 'subtitle1', 'subtitle2', 'body1', 'body2'. Defaults to 'body'.",
+              "enum": [
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "caption",
+                "body",
+                "subtitle1",
+                "subtitle2",
+                "body1",
+                "body2"
+              ]
+            }
+          },
+          "required": ["component", "text"]
+        }
+      ]
+    },
+    "MaterialButton": {
+      "description": "A button component that handles user clicks and dispatches actions to the backend.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialButton"
+            },
+            "label": {
+              "description": "The text label displayed on the button.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "leadingIcon": {
+              "description": "The name of an optional Material Icon to display before the button label (e.g., 'search').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "trailingIcon": {
+              "description": "The name of an optional Material Icon to display after the button label (e.g., 'arrow_forward').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "color": {
+              "description": "The theme color palette to apply to the button. Supported values are 'primary', 'accent', and 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the button is disabled and cannot be clicked or focused by the user (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "variant": {
+              "description": "The visual style variant of the button. Supported values are 'raised', 'flat', 'stroked', and 'basic' (default).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "action": {
+              "description": "The action to be dispatched to the backend when the button is clicked.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            },
+            "tooltip": {
+              "description": "Tooltip text displayed when the user hovers over the button.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the button to screen readers when the visual text is insufficient or not present.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the button, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the button, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialIconButton": {
+      "description": "A compact button displaying only an icon that dispatches an action when clicked.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialIconButton"
+            },
+            "icon": {
+              "description": "The name of the Material Icon to display inside the button (e.g., 'search' or 'settings').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the button's action to screen readers. This is required since the button only contains an icon.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the icon button, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the icon button, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "color": {
+              "description": "The theme color palette to apply to the button. Supported values are 'primary', 'accent', and 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the button is disabled and cannot be clicked or focused by the user (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "action": {
+              "description": "The action to be dispatched to the backend when the button is clicked.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            },
+            "tooltip": {
+              "description": "Tooltip text displayed when the user hovers over the button.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "icon", "action"]
+        }
+      ]
+    },
+    "MaterialInput": {
+      "description": "An input field component for text entry, supporting validation and two-way data binding.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialInput"
+            },
+            "label": {
+              "description": "The floating label text displayed above the input field.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "placeholder": {
+              "description": "The placeholder text displayed inside the input field when it is empty.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "value": {
+              "description": "The current text value of the input field, supporting two-way data binding.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the input field, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the input field, used for accessibility.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the input field to screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the input field is disabled and cannot be interacted with (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "name": {
+              "description": "The name attribute of the input element, useful for form submission and identifying the field.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "readonly": {
+              "description": "Whether the input field is read-only, preventing the user from changing its value while keeping it focusable (true if read-only, otherwise editable).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "type": {
+              "description": "The type of input control to display, such as 'text' (default), 'email', 'number', 'tel', or 'date'. 'password' is not allowed.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": ["text", "number", "email", "tel", "date"]
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/FunctionCall"
+                    },
+                    {
+                      "properties": {
+                        "returnType": {
+                          "const": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "validationRegexp": {
+              "description": "An optional regular expression pattern used to validate the input value. If the value does not match, a validation error is displayed.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "checks": {
+              "description": "An array of validation rules (each containing a dynamic boolean condition and an error message) that are reactively evaluated to determine the input's validity.",
+              "type": "array",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"
+              }
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialRow": {
+      "description": "A container component for laying out child components horizontally.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialRow"
+            },
+            "children": {
+              "description": "A list of child components to be rendered horizontally inside the row.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "justify": {
+              "description": "Optional horizontal alignment (justify-content) of the child components within the row. Supported values are: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start' (default).",
+              "enum": ["center", "end", "spaceAround", "spaceBetween", "spaceEvenly", "start"]
+            },
+            "align": {
+              "description": "Optional vertical alignment (align-items) of the child components within the row. Supported values are: 'start', 'center', 'end', 'stretch' (default).",
+              "enum": ["start", "center", "end", "stretch"]
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "MaterialColumn": {
+      "description": "A container component for laying out child components vertically.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialColumn"
+            },
+            "children": {
+              "description": "A list of child components to be rendered vertically inside the column.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "justify": {
+              "description": "Optional vertical alignment (justify-content) of the child components within the column. Supported values are: 'start' (default), 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly'.",
+              "enum": ["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"]
+            },
+            "align": {
+              "description": "Optional horizontal alignment (align-items) of the child components within the column. Supported values are: 'center', 'end', 'start', 'stretch' (default).",
+              "enum": ["center", "end", "start", "stretch"]
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "MaterialCard": {
+      "description": "A container component that presents content and actions in a single topic card.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialCard"
+            },
+            "appearance": {
+              "description": "The visual style appearance of the card. Supported values are 'outlined' (card with a border) and 'raised' (card with an elevation shadow, default).",
+              "enum": ["outlined", "raised"]
+            },
+            "align": {
+              "description": "Optional alignment (align-items) of the child components within the card. Supported values are: 'start' (default), 'center', 'end', 'stretch'.",
+              "enum": ["center", "end", "start", "stretch"]
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the card to screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the card, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "children": {
+              "description": "A list of child components to be rendered inside the card content area.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "MaterialIcon": {
+      "description": "A2UI wrapper for the Angular Material Icon component, used to render icons.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialIcon"
+            },
+            "icon": {
+              "description": "The name of the Material Design icon to render (e.g., 'home', 'search', 'favorite'). It must correspond to a valid name in the Material Icons font set.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "color": {
+              "description": "The color palette theme to apply to the icon. Supported values are 'primary', 'accent', and 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "icon"]
+        }
+      ]
+    },
+    "MaterialSelect": {
+      "description": "A2UI wrapper for the Angular Material Select component, supporting single selection from a list of options.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialSelect"
+            },
+            "label": {
+              "description": "The label text displayed above or inside the select field.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "placeholder": {
+              "description": "The placeholder text displayed in the select field when no value is selected.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "value": {
+              "description": "The currently selected value. It supports two-way data binding and triggers updates when the user makes a selection.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label applied to the select component for accessibility purposes.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the select dropdown, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the select dropdown, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the select component is disabled and cannot be interacted with (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "options": {
+              "description": "The list of options available for selection. Each option is an object containing a 'label' (what the user sees) and a 'value' (the underlying value). This can be a static array or a dynamic data binding.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/SelectOption"
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            },
+            "checks": {
+              "description": "An array of validation rules (each containing a dynamic boolean condition and an error message) that are reactively evaluated to determine the input's validity.",
+              "type": "array",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"
+              }
+            }
+          },
+          "required": ["component", "options"]
+        }
+      ]
+    },
+    "MaterialCheckbox": {
+      "description": "A2UI wrapper for the Angular Material Checkbox component, supporting boolean state binding.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialCheckbox"
+            },
+            "label": {
+              "description": "The text label to display next to the checkbox.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "checked": {
+              "description": "Whether the checkbox is currently checked (true if checked, otherwise unchecked). This supports two-way data binding and triggers updates when the state changes.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "disabled": {
+              "description": "Whether the checkbox is disabled and cannot be interacted with (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "color": {
+              "description": "The theme color of the checkbox. Supported values are 'primary', 'accent', and 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "labelPosition": {
+              "description": "Position of the label relative to the checkbox. Defaults to 'after'.",
+              "enum": ["before", "after"]
+            },
+            "ariaLabel": {
+              "description": "The ARIA label applied to the checkbox component for accessibility when no text label is visible.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the checkbox, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element that describes the checkbox, used for assistive technologies.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "tooltip": {
+              "description": "Tooltip text to show when hovering over the checkbox.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "checks": {
+              "description": "An array of validation rules (each containing a dynamic boolean condition and an error message) that are reactively evaluated to determine the input's validity.",
+              "type": "array",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"
+              }
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialBadge": {
+      "description": "A2UI container component that wraps children and applies a badge to the container.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialBadge"
+            },
+            "text": {
+              "description": "The text content to display inside the badge. Typically a small number or status character.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "color": {
+              "description": "The color theme of the badge. Supported values are 'primary', 'accent', and 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "position": {
+              "description": "The position of the badge relative to the element it is attached to. Defaults to 'above after'.",
+              "enum": ["above after", "above before", "below after", "below before"]
+            },
+            "size": {
+              "description": "The size of the badge. Defaults to 'medium'.",
+              "enum": ["small", "medium", "large"]
+            },
+            "overlap": {
+              "description": "Whether the badge should overlap its parent element content (true if overlapping, otherwise not). Defaults to true.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "disabled": {
+              "description": "Whether the badge is disabled, which can affect its appearance (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "hidden": {
+              "description": "Whether the badge is hidden (true if hidden, otherwise visible).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "description": {
+              "description": "A description of the badge, used for accessibility (e.g., screen readers).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "children": {
+              "description": "The content/elements that the badge is attached to and will be rendered inside the badge container.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "MaterialButtonToggle": {
+      "description": "A2UI wrapper for the Angular Material Button Toggle component, supporting single selection from a list of options.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialButtonToggle"
+            },
+            "value": {
+              "description": "The currently selected value of the button toggle group. Supports two-way data binding.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "options": {
+              "description": "The list of toggle options. Each option contains a 'label' to display on the button and an associated 'value' that is set when selected. This can be a static array or a dynamic data binding.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/SelectOption"
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            },
+            "disabled": {
+              "description": "Whether the entire button toggle group is disabled and cannot be interacted with (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label for the button toggle group, used for accessibility.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the button toggle group, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the button toggle group, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "appearance": {
+              "description": "The visual style of the buttons. Defaults to 'standard'.",
+              "enum": ["legacy", "standard"]
+            },
+            "vertical": {
+              "description": "Whether the buttons in the group should be stacked vertically instead of horizontally (true if vertical, otherwise horizontal).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            }
+          },
+          "required": ["component", "options"]
+        }
+      ]
+    },
+    "MaterialChips": {
+      "description": "A2UI wrapper for the Angular Material Chips component, supporting single selection from a list of chip options.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialChips"
+            },
+            "value": {
+              "description": "The value of the currently selected chip. Supports two-way data binding.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "options": {
+              "description": "The list of chip options. Each chip contains a 'label' to display and an associated 'value' that is set when the chip is selected. This can be a static array or a dynamic data binding.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/SelectOption"
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            },
+            "disabled": {
+              "description": "Whether the entire chip list is disabled and cannot be interacted with (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label for the chip list, used for accessibility.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the chips component, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the chips component, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "action": {
+              "description": "The action to dispatch when a chip is selected.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            }
+          },
+          "required": ["component", "options"]
+        }
+      ]
+    },
+    "MaterialDatepicker": {
+      "description": "A2UI wrapper for the Angular Material Datepicker component, supporting picking a date from a calendar popup.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialDatepicker"
+            },
+            "label": {
+              "description": "The label text displayed above or inside the datepicker input field.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "placeholder": {
+              "description": "The placeholder text displayed inside the datepicker input field when it is empty.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "value": {
+              "description": "The currently selected date value. Supports two-way data binding and is updated with the local date object (containing year, month, and day) when a date is picked.",
+              "$ref": "#/$defs/DynamicDate"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the datepicker, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element that describes the datepicker input, used for accessibility.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label applied to the datepicker input for accessibility.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the datepicker is disabled and cannot be interacted with (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "checks": {
+              "description": "An array of validation rules (each containing a dynamic boolean condition and an error message) that are reactively evaluated to determine the input's validity.",
+              "type": "array",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"
+              }
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialDialog": {
+      "description": "A2UI wrapper for the Angular Material Dialog component. Renders children inside a popup dialog.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialDialog"
+            },
+            "open": {
+              "description": "Whether the dialog is open (true if open, otherwise closed). It supports two-way binding and will automatically update to false when the dialog is dismissed by the user.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "title": {
+              "description": "The text header displayed at the top of the dialog.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disableClose": {
+              "description": "Whether closing the dialog by clicking outside of it or pressing the Escape key is disabled (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "width": {
+              "description": "The width of the dialog container, specified as a CSS value (e.g., '500px', '50vw').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "height": {
+              "description": "The height of the dialog container, specified as a CSS value (e.g., '400px', '50vh').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the dialog to screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the dialog, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the dialog, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "children": {
+              "description": "A list of child components to be rendered inside the body of the dialog.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "MaterialDivider": {
+      "description": "A2UI wrapper for the Angular Material Divider component. Renders a dividing line.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialDivider"
+            },
+            "inset": {
+              "description": "Whether the divider has an inset margin at the start, typically used to align it with text content (true if inset, otherwise full-width).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "vertical": {
+              "description": "Whether the divider should be oriented vertically instead of horizontally (true if vertical, otherwise horizontal).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialExpansionPanel": {
+      "description": "A2UI wrapper for the Angular Material Expansion Panel component. Supports expanding and collapsing content.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialExpansionPanel"
+            },
+            "expanded": {
+              "description": "Whether the panel is expanded (true if expanded, otherwise collapsed). It supports two-way binding and updates automatically when the user toggles the panel.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "title": {
+              "description": "The primary text displayed in the expansion panel's header.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "description": {
+              "description": "Secondary summary text displayed in the panel header, typically providing additional context or status.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the expansion panel is disabled, preventing the user from expanding or collapsing it (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the expansion panel to screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the expansion panel, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the expansion panel, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "children": {
+              "description": "A list of child components to be rendered inside the expandable body of the panel.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "MaterialGridList": {
+      "description": "A2UI container component for grid layout. Arranges child components into tiles.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialGridList"
+            },
+            "children": {
+              "description": "A list of child components to be rendered as individual tiles within the grid.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "cols": {
+              "description": "The number of columns in the grid list. Defaults to 2.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "rowHeight": {
+              "description": "The height of each row in the grid. Can be a fixed pixel value (e.g., '100px'), a ratio (e.g., '4:3', '1:1'), or 'fit' to automatically adjust based on container height. Defaults to '1:1'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "gutterSize": {
+              "description": "The size of the spacing (gutter) between grid tiles, specified as a CSS value (e.g., '8px', '1rem'). Defaults to '1px'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "MaterialMenu": {
+      "description": "A2UI wrapper for the Angular Material Menu component. Provides a trigger button and dropdown menu items.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialMenu"
+            },
+            "label": {
+              "description": "The text label displayed on the menu trigger button.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "icon": {
+              "description": "Optional name of the icon (e.g., from Material Icons) to display inside the menu trigger button, alongside or instead of the label.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the menu trigger button is disabled, preventing the user from opening the menu (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "value": {
+              "description": "The value of the currently selected menu option. It supports two-way binding and updates when a menu item is clicked.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "options": {
+              "description": "An array of options to display in the menu, where each option has a 'label' and a 'value', or a data binding to such an array.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/SelectOption"
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            },
+            "action": {
+              "description": "The action to dispatch when a menu item is clicked. The action is triggered after the selected value is updated.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the menu trigger button to screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the menu, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the menu, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "options"]
+        }
+      ]
+    },
+    "MaterialProgressBar": {
+      "description": "A2UI wrapper for the Angular Material Progress Bar component.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialProgressBar"
+            },
+            "value": {
+              "description": "The current progress value of the progress bar, expected to be between 0 and 100. Defaults to 0. Only used in 'determinate' and 'buffer' modes.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "mode": {
+              "description": "The progress display mode. Can be 'determinate', 'indeterminate', 'buffer', or 'query'. Defaults to 'determinate'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "bufferValue": {
+              "description": "The buffer progress value, expected to be between 0 and 100. Defaults to 0. Only used when the mode is set to 'buffer'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "color": {
+              "description": "Theme color palette for the progress bar. Can be 'primary', 'accent', or 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "Accessible label for the progress bar, used by screen readers to describe what progress is being made.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the progress bar, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialProgressSpinner": {
+      "description": "A2UI wrapper for the Angular Material Progress Spinner component.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialProgressSpinner"
+            },
+            "value": {
+              "description": "The current progress value of the spinner, expected to be between 0 and 100. Defaults to 0. Only used in 'determinate' mode.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "mode": {
+              "description": "The progress display mode. Can be 'determinate' or 'indeterminate'. Defaults to 'determinate'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "diameter": {
+              "description": "The diameter of the spinner in pixels. Defaults to 40.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "strokeWidth": {
+              "description": "The thickness of the spinner's stroke in pixels. Defaults to 4.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "color": {
+              "description": "Theme color palette for the spinner. Can be 'primary', 'accent', or 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "Accessible label for the spinner, used by screen readers to describe what progress is being made.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the progress spinner, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialRadioButton": {
+      "description": "A2UI wrapper for the Angular Material Radio Button component.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialRadioButton"
+            },
+            "value": {
+              "description": "The value of the currently selected radio button. Updating this property changes the selected option, and it is updated when the user makes a selection.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "options": {
+              "description": "The list of options to display in the radio button group, where each option has a display label and a corresponding string value.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/SelectOption"
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            },
+            "disabled": {
+              "description": "Whether the entire radio button group is disabled, preventing user interaction (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "ariaLabel": {
+              "description": "The accessibility label (ARIA label) for the radio button group, used by screen readers to describe its purpose.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the radio button, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the radio button, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "color": {
+              "description": "The theme color palette for the radio buttons. Expected values are 'primary', 'accent', or 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "labelPosition": {
+              "description": "Position of the label relative to the radio button indicator. Defaults to 'after'.",
+              "enum": ["before", "after"]
+            }
+          },
+          "required": ["component", "options"]
+        }
+      ]
+    },
+    "MaterialSlideToggle": {
+      "description": "A2UI wrapper for the Angular Material Slide Toggle component, supporting boolean state binding.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialSlideToggle"
+            },
+            "label": {
+              "description": "The text label displayed alongside the slide toggle.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "checked": {
+              "description": "Whether the slide toggle is checked (true if checked, otherwise unchecked). Supports two-way binding to track user toggle actions.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "disabled": {
+              "description": "Whether the slide toggle is disabled and cannot be interacted with (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "color": {
+              "description": "The theme color palette for the slide toggle. Expected values are 'primary', 'accent', or 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "labelPosition": {
+              "description": "Position of the label relative to the slide toggle switch. Defaults to 'after'.",
+              "enum": ["before", "after"]
+            },
+            "ariaLabel": {
+              "description": "The accessibility label (ARIA label) for the slide toggle switch, used by screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the slide toggle, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element that describes the slide toggle, used to provide additional accessibility context.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "tooltip": {
+              "description": "Tooltip text displayed when the user hovers over the slide toggle.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "required": {
+              "description": "Whether the slide toggle is required (true if required, otherwise optional).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialSlider": {
+      "description": "A2UI wrapper for the Angular Material Slider component.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialSlider"
+            },
+            "value": {
+              "description": "The current numeric value of the slider. It supports two-way binding and is updated as the user drags the slider thumb.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "min": {
+              "description": "The minimum allowable numeric value for the slider. Defaults to 0.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "max": {
+              "description": "The maximum allowable numeric value for the slider. Defaults to 100.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "step": {
+              "description": "The size of each increment or decrement step when moving the slider. Defaults to 1.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "disabled": {
+              "description": "Whether the slider is disabled, preventing any user interaction (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "color": {
+              "description": "The theme color palette for the slider. Expected values are 'primary', 'accent', or 'warn'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The accessibility label (ARIA label) for the slider, helping screen reader users understand its purpose.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the slider, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that describes the slider, providing additional context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialTable": {
+      "description": "A2UI wrapper for the Angular Material Table component.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialTable"
+            },
+            "columns": {
+              "description": "The definition of the columns to display in the table. Each column object requires a 'header' (display text for the column header) and a 'field' (the key in the row data used to populate this column).",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "header": {
+                    "description": "The display text for the column header.",
+                    "type": "string"
+                  },
+                  "field": {
+                    "description": "The key in the row data used to populate this column.",
+                    "type": "string"
+                  }
+                },
+                "required": ["header", "field"]
+              }
+            },
+            "rows": {
+              "description": "The data source representing the rows of the table. Each row is an object where the keys correspond to the 'field' properties of the defined columns.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            },
+            "ariaLabel": {
+              "description": "The accessibility label (ARIA label) for the table, used by screen readers to describe the table content.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "caption": {
+              "description": "A text caption or title displayed for the table, providing description or context for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element that labels the table, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "columns", "rows"]
+        }
+      ]
+    },
+    "MaterialTabs": {
+      "description": "A2UI wrapper for the Angular Material Tabs component.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialTabs"
+            },
+            "tabs": {
+              "description": "The list of tabs to display. Each tab requires a 'label' (the text displayed on the tab header) and a 'content' property containing the ID of the component to render when this tab is selected.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "description": "The text displayed on the tab header.",
+                    "type": "string"
+                  },
+                  "content": {
+                    "description": "The ID of the component to render when this tab is selected.",
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                  }
+                },
+                "required": ["label", "content"]
+              }
+            },
+            "activeTab": {
+              "description": "The index of the currently active tab (0-indexed). Supports two-way binding to update when the user switches tabs.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "ariaLabel": {
+              "description": "The ARIA label used for accessibility to describe the tabs component to screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the tabs component, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "tabs"]
+        }
+      ]
+    },
+    "MaterialTimepicker": {
+      "description": "A2UI wrapper for the Angular Material Timepicker component.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialTimepicker"
+            },
+            "label": {
+              "description": "The text label displayed above or inside the timepicker input field.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "placeholder": {
+              "description": "The placeholder text shown in the input field when no time is selected.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "value": {
+              "description": "The selected time value, represented as an ISO 8601 string. Supports two-way binding to update when the user selects a time.",
+              "$ref": "#/$defs/DynamicDateTime"
+            },
+            "ariaLabelledby": {
+              "description": "The ID of an element (or space-separated IDs of elements) that labels the timepicker, providing an accessible name for screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaDescribedby": {
+              "description": "The ID of an element that describes the timepicker, providing additional accessibility context.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabel": {
+              "description": "The accessibility label (ARIA label) for the timepicker input, used by screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "disabled": {
+              "description": "Whether the timepicker is disabled, preventing user selection or input (true if disabled, otherwise enabled).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "checks": {
+              "description": "An array of validation rules (each containing a dynamic boolean condition and an error message) that are reactively evaluated to determine the input's validity.",
+              "type": "array",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"
+              }
+            }
+          },
+          "required": ["component"]
+        }
+      ]
+    },
+    "MaterialImage": {
+      "description": "A2UI component for rendering an image in a Material Design context.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/MaterialComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "MaterialImage"
+            },
+            "url": {
+              "description": "The source URL of the image to be displayed.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "alt": {
+              "description": "Alternative text describing the image content for accessibility and screen readers.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "fit": {
+              "description": "Specifies how the image should be resized to fit its container, corresponding to the CSS 'object-fit' property.",
+              "enum": ["fill", "contain", "cover", "scaleDown", "none"]
+            },
+            "width": {
+              "description": "The width of the image element (e.g., '100%', '300px').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "height": {
+              "description": "The height of the image element (e.g., 'auto', '200px').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "aspectRatio": {
+              "description": "The preferred aspect ratio for the image, expressed as a ratio (e.g., '16/9', '1').",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "roundedCorners": {
+              "description": "Whether the image has rounded corners (true if rounded, otherwise not).",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "borderRadius": {
+              "description": "A custom border-radius value to apply to the image (e.g., '8px', '50%'). Overrides roundedCorners if both are specified.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ]
+    },
+    "Text": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Text"
+            },
+            "text": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation."
+            },
+            "variant": {
+              "type": "string",
+              "description": "A hint for the base text style.",
+              "enum": ["h1", "h2", "h3", "h4", "h5", "caption", "body"],
+              "default": "body"
+            }
+          },
+          "required": ["component", "text"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Image": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Image"
+            },
+            "url": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The URL of the image to display."
+            },
+            "description": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "Accessibility text for the image."
+            },
+            "fit": {
+              "type": "string",
+              "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
+              "enum": ["contain", "cover", "fill", "none", "scaleDown"],
+              "default": "fill"
+            },
+            "variant": {
+              "type": "string",
+              "description": "A hint for the image size and style.",
+              "enum": ["icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"],
+              "default": "mediumFeature"
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Icon": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Icon"
+            },
+            "name": {
+              "description": "The name of the icon to display.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "accountCircle",
+                    "add",
+                    "arrowBack",
+                    "arrowForward",
+                    "attachFile",
+                    "calendarToday",
+                    "call",
+                    "camera",
+                    "check",
+                    "close",
+                    "delete",
+                    "download",
+                    "edit",
+                    "event",
+                    "error",
+                    "fastForward",
+                    "favorite",
+                    "favoriteOff",
+                    "folder",
+                    "help",
+                    "home",
+                    "info",
+                    "locationOn",
+                    "lock",
+                    "lockOpen",
+                    "mail",
+                    "menu",
+                    "moreVert",
+                    "moreHoriz",
+                    "notificationsOff",
+                    "notifications",
+                    "pause",
+                    "payment",
+                    "person",
+                    "phone",
+                    "photo",
+                    "play",
+                    "print",
+                    "refresh",
+                    "rewind",
+                    "search",
+                    "send",
+                    "settings",
+                    "share",
+                    "shoppingCart",
+                    "skipNext",
+                    "skipPrevious",
+                    "star",
+                    "starHalf",
+                    "starOff",
+                    "stop",
+                    "upload",
+                    "visibility",
+                    "visibilityOff",
+                    "volumeDown",
+                    "volumeMute",
+                    "volumeOff",
+                    "volumeUp",
+                    "warning"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "svgPath": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["svgPath"],
+                  "additionalProperties": false
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            }
+          },
+          "required": ["component", "name"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Video": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Video"
+            },
+            "url": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The URL of the video to display."
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "AudioPlayer": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "AudioPlayer"
+            },
+            "url": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The URL of the audio to be played."
+            },
+            "description": {
+              "description": "A description of the audio, such as a title or summary.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Row": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "description": "A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.",
+          "properties": {
+            "component": {
+              "const": "Row"
+            },
+            "children": {
+              "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "justify": {
+              "type": "string",
+              "description": "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together.",
+              "enum": [
+                "center",
+                "end",
+                "spaceAround",
+                "spaceBetween",
+                "spaceEvenly",
+                "start",
+                "stretch"
+              ],
+              "default": "start"
+            },
+            "align": {
+              "type": "string",
+              "description": "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start').",
+              "enum": ["start", "center", "end", "stretch"],
+              "default": "stretch"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Column": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "description": "A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.",
+          "properties": {
+            "component": {
+              "const": "Column"
+            },
+            "children": {
+              "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "justify": {
+              "type": "string",
+              "description": "Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together.",
+              "enum": [
+                "start",
+                "center",
+                "end",
+                "spaceBetween",
+                "spaceAround",
+                "spaceEvenly",
+                "stretch"
+              ],
+              "default": "start"
+            },
+            "align": {
+              "type": "string",
+              "description": "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
+              "enum": ["center", "end", "start", "stretch"],
+              "default": "stretch"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "List": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "List"
+            },
+            "children": {
+              "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "direction": {
+              "type": "string",
+              "description": "The direction in which the list items are laid out.",
+              "enum": ["vertical", "horizontal"],
+              "default": "vertical"
+            },
+            "align": {
+              "type": "string",
+              "description": "Defines the alignment of children along the cross axis.",
+              "enum": ["start", "center", "end", "stretch"],
+              "default": "stretch"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Card": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Card"
+            },
+            "child": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
+              "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline."
+            }
+          },
+          "required": ["component", "child"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Tabs": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Tabs"
+            },
+            "tabs": {
+              "type": "array",
+              "description": "An array of objects, where each object defines a tab with a title and a child component.",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "description": "The tab title.",
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                  },
+                  "child": {
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
+                    "description": "The ID of the child component. Do NOT define the component inline."
+                  }
+                },
+                "required": ["title", "child"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["component", "tabs"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Modal": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Modal"
+            },
+            "trigger": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
+              "description": "The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline."
+            },
+            "content": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
+              "description": "The ID of the component to be displayed inside the modal. Do NOT define the component inline."
+            }
+          },
+          "required": ["component", "trigger", "content"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Divider": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Divider"
+            },
+            "axis": {
+              "type": "string",
+              "description": "The orientation of the divider.",
+              "enum": ["horizontal", "vertical"],
+              "default": "horizontal"
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Button": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Button"
+            },
+            "child": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
+              "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline."
+            },
+            "variant": {
+              "type": "string",
+              "description": "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
+              "enum": ["default", "primary", "borderless"],
+              "default": "default"
+            },
+            "action": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            }
+          },
+          "required": ["component", "child", "action"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "TextField": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "TextField"
+            },
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The text label for the input field."
+            },
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The value of the text field."
+            },
+            "variant": {
+              "type": "string",
+              "description": "The type of input field to display.",
+              "enum": ["longText", "number", "shortText", "obscured"],
+              "default": "shortText"
+            },
+            "validationRegexp": {
+              "type": "string",
+              "description": "A regular expression used for client-side validation of the input."
+            }
+          },
+          "required": ["component", "label"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "CheckBox": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "CheckBox"
+            },
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The text to display next to the checkbox."
+            },
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean",
+              "description": "The current state of the checkbox (true for checked, false for unchecked)."
+            }
+          },
+          "required": ["component", "label", "value"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ChoicePicker": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "description": "A component that allows selecting one or more options from a list.",
+          "properties": {
+            "component": {
+              "const": "ChoicePicker"
+            },
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The label for the group of options."
+            },
+            "variant": {
+              "type": "string",
+              "description": "A hint for how the choice picker should be displayed and behave.",
+              "enum": ["multipleSelection", "mutuallyExclusive"],
+              "default": "mutuallyExclusive"
+            },
+            "options": {
+              "type": "array",
+              "description": "The list of available options to choose from.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "description": "The text to display for this option.",
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "The stable value associated with this option."
+                  }
+                },
+                "required": ["label", "value"],
+                "additionalProperties": false
+              }
+            },
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList",
+              "description": "The list of currently selected values. This should be bound to a string array in the data model."
+            },
+            "displayStyle": {
+              "type": "string",
+              "description": "The display style of the component.",
+              "enum": ["checkbox", "chips"],
+              "default": "checkbox"
+            },
+            "filterable": {
+              "type": "boolean",
+              "description": "If true, displays a search input to filter the options.",
+              "default": false
+            }
+          },
+          "required": ["component", "options", "value"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Slider": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Slider"
+            },
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The label for the slider."
+            },
+            "min": {
+              "type": "number",
+              "description": "The minimum value of the slider.",
+              "default": 0
+            },
+            "max": {
+              "type": "number",
+              "description": "The maximum value of the slider."
+            },
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The current value of the slider."
+            }
+          },
+          "required": ["component", "value", "max"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "DateTimeInput": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "DateTimeInput"
+            },
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string."
+            },
+            "enableDate": {
+              "type": "boolean",
+              "description": "If true, allows the user to select a date.",
+              "default": false
+            },
+            "enableTime": {
+              "type": "boolean",
+              "description": "If true, allows the user to select a time.",
+              "default": false
+            },
+            "min": {
+              "allOf": [
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                },
+                {
+                  "if": {
+                    "type": "string"
+                  },
+                  "then": {
+                    "oneOf": [
+                      {
+                        "format": "date"
+                      },
+                      {
+                        "format": "time"
+                      },
+                      {
+                        "format": "date-time"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "description": "The minimum allowed date/time in ISO 8601 format."
+            },
+            "max": {
+              "allOf": [
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                },
+                {
+                  "if": {
+                    "type": "string"
+                  },
+                  "then": {
+                    "oneOf": [
+                      {
+                        "format": "date"
+                      },
+                      {
+                        "format": "time"
+                      },
+                      {
+                        "format": "date-time"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "description": "The maximum allowed date/time in ISO 8601 format."
+            },
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The text label for the input field."
+            }
+          },
+          "required": ["component", "value"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Canvas": {
+      "description": "A surface-root component that renders its content in a persistent, resizable side panel (a 'canvas') instead of inline in the chat stream. When a surface is rooted in a Canvas, the chat stream shows a compact opener card (configured by cardTitle/cardDescription/cardIcon); opening it (via a click, or automatically when autoOpen is true) renders the Canvas's children inside the side panel. Canvas must be the root component of its surface.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/CustomComponentCommonProps"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Canvas"
+            },
+            "children": {
+              "description": "A list of child components to be rendered vertically inside the side panel when the canvas is open.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "autoOpen": {
+              "description": "Optional flag controlling whether the side panel auto-opens when this content arrives. Defaults to true (auto-open). Set to false to keep the in-stream card collapsed and require the user to click it to open the panel.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+            },
+            "cardTitle": {
+              "description": "Optional title for the in-stream triggering card shown when this content opens in the side panel. Defaults to 'Interactive content'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "cardDescription": {
+              "description": "Optional description shown below the title on the in-stream triggering card.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "cardIcon": {
+              "description": "Optional Material Symbols icon token (e.g. 'table_chart') for the in-stream triggering card. Defaults to 'apps'.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ]
+    },
+    "IFrameSrcdoc": {
+      "description": "Renders agent-supplied HTML content inside a sandboxed iframe. The HTML is rendered via a SafeContentFrame with an enforced Content-Security-Policy of `connect-src 'none'`, preventing the embedded content from making any outbound network connections. Interactions inside the frame can be surfaced back to the agent via `a2ui_action` postMessage events.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/CustomComponentCommonProps"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "IFrameSrcdoc"
+            },
+            "htmlContent": {
+              "description": "The HTML document (or fragment) to render inside the sandboxed iframe.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "height": {
+              "description": "Optional fixed height in pixels for the iframe. When omitted the iframe defaults to a 4/3 aspect ratio.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            }
+          },
+          "required": ["component", "htmlContent"]
+        }
+      ]
+    },
+    "IFrameUrl": {
+      "description": "Renders an allowlisted URL inside a direct iframe using safe, intent-based src assignment. URLs whose host is not in the widget's allowlist are blocked and replaced with a security-error message. Interactions inside the frame can be surfaced back to the agent via `a2ui_action` postMessage events (validated against the iframe's origin).",
+      "allOf": [
+        {
+          "$ref": "#/$defs/CustomComponentCommonProps"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "IFrameUrl"
+            },
+            "url": {
+              "description": "The URL to load inside the iframe. Must resolve to an allowlisted host to be rendered.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "height": {
+              "description": "Optional fixed height in pixels for the iframe. When omitted the iframe defaults to a 4/3 aspect ratio.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ]
+    },
+    "VegaChart": {
+      "description": "Renders a Vega-Lite chart using the @safe_vega library.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/CustomComponentCommonProps"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "VegaChart"
+            },
+            "spec": {
+              "description": "The Vega-Lite spec to render as a JSON object.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+            },
+            "height": {
+              "description": "Optional height of the chart in pixels. Defaults to 290.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            }
+          },
+          "required": ["component", "spec"]
+        }
+      ]
+    },
+    "GcbpTable": {
+      "description": "GcbpTable table component from GCBP catalog. Renders structured data into columns and rows with support for sorting.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/CustomComponentCommonProps"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "GcbpTable"
+            },
+            "columns": {
+              "type": "array",
+              "description": "The list of columns to display in the table.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "header": {
+                    "type": "string",
+                    "description": "The title of the column to display in the header."
+                  },
+                  "field": {
+                    "type": "string",
+                    "description": "The field name in the row data that supplies the value for this column."
+                  },
+                  "sortable": {
+                    "type": "boolean",
+                    "description": "Optional flag indicating whether this column can be sorted."
+                  }
+                },
+                "required": ["header", "field"]
+              }
+            },
+            "rows": {
+              "description": "The data rows to display in the table. Can be a static array of objects or bound to the data model.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
+            },
+            "ariaLabel": {
+              "description": "Optional ARIA label for the table.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "ariaLabelledby": {
+              "description": "Optional ARIA labelledby for the table.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "caption": {
+              "description": "Optional caption for the table.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "columns", "rows"]
+        }
+      ]
+    },
+    "InteractiveChart": {
+      "description": "Renders a Looker Studio visualization chart.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/CustomComponentCommonProps"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "InteractiveChart"
+            },
+            "chartData": {
+              "description": "The Studio Viz chart data.",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+            }
+          },
+          "required": ["component", "chartData"]
+        }
+      ]
+    }
+  },
+  "functions": {
+    "areComponentsValid": {
+      "type": "object",
+      "description": "Checks if all specified components are valid.",
+      "properties": {
+        "call": {
+          "const": "areComponentsValid"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "componentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The IDs of the components to validate."
+            }
+          },
+          "required": ["componentIds"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"]
+    },
+    "dateIsBeforeOrEqual": {
+      "type": "object",
+      "description": "Checks if date a is before or equal to date b.",
+      "properties": {
+        "call": {
+          "const": "dateIsBeforeOrEqual"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "#/$defs/DynamicDate"
+            },
+            "b": {
+              "$ref": "#/$defs/DynamicDate"
+            }
+          },
+          "required": ["a", "b"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "dateIsBefore": {
+      "type": "object",
+      "description": "Checks if date a is before date b.",
+      "properties": {
+        "call": {
+          "const": "dateIsBefore"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "#/$defs/DynamicDate"
+            },
+            "b": {
+              "$ref": "#/$defs/DynamicDate"
+            }
+          },
+          "required": ["a", "b"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "dateEquals": {
+      "type": "object",
+      "description": "Checks if date a is equal to date b.",
+      "properties": {
+        "call": {
+          "const": "dateEquals"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "$ref": "#/$defs/DynamicDate"
+            },
+            "b": {
+              "$ref": "#/$defs/DynamicDate"
+            }
+          },
+          "required": ["a", "b"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "required": {
+      "type": "object",
+      "description": "Checks that the value is not null, undefined, or empty.",
+      "properties": {
+        "call": {
+          "const": "required"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "description": "The value to check."
+            }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regex": {
+      "type": "object",
+      "description": "Checks that the value matches a regular expression string.",
+      "properties": {
+        "call": {
+          "const": "regex"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "The regex pattern to match against."
+            }
+          },
+          "required": ["value", "pattern"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "length": {
+      "type": "object",
+      "description": "Checks string length constraints.",
+      "properties": {
+        "call": {
+          "const": "length"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "min": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "The minimum allowed length."
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "The maximum allowed length."
+            }
+          },
+          "required": ["value"],
+          "anyOf": [
+            {
+              "required": ["min"]
+            },
+            {
+              "required": ["max"]
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "numeric": {
+      "type": "object",
+      "description": "Checks numeric range constraints.",
+      "properties": {
+        "call": {
+          "const": "numeric"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "min": {
+              "type": "number",
+              "description": "The minimum allowed value."
+            },
+            "max": {
+              "type": "number",
+              "description": "The maximum allowed value."
+            }
+          },
+          "required": ["value"],
+          "anyOf": [
+            {
+              "required": ["min"]
+            },
+            {
+              "required": ["max"]
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "email": {
+      "type": "object",
+      "description": "Checks that the value is a valid email address.",
+      "properties": {
+        "call": {
+          "const": "email"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "formatString": {
+      "type": "object",
+      "description": "Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and client-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\\${`.",
+      "properties": {
+        "call": {
+          "const": "formatString"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "string"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "formatNumber": {
+      "type": "object",
+      "description": "Formats a number with the specified grouping and decimal precision.",
+      "properties": {
+        "call": {
+          "const": "formatNumber"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The number to format."
+            },
+            "decimals": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
+            },
+            "grouping": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean",
+              "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+            }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "string"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "formatCurrency": {
+      "type": "object",
+      "description": "Formats a number as a currency string.",
+      "properties": {
+        "call": {
+          "const": "formatCurrency"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The monetary amount."
+            },
+            "currency": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The ISO 4217 currency code (e.g., 'USD', 'EUR')."
+            },
+            "decimals": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
+            },
+            "grouping": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean",
+              "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+            }
+          },
+          "required": ["currency", "value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "string"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "formatDate": {
+      "type": "object",
+      "description": "Formats a timestamp into a string using a pattern.",
+      "properties": {
+        "call": {
+          "const": "formatDate"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue",
+              "description": "The date to format."
+            },
+            "format": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "A Unicode TR35 date pattern string.\n\nToken Reference:\n- Year: 'yy' (26), 'yyyy' (2026)\n- Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)\n- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday)\n- Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM\n- Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time\n- Minute: 'mm' (00-59)\n- Second: 'ss' (00-59)\n- Period: 'a' (AM/PM)\n\nExamples:\n- 'MMM dd, yyyy' -> 'Jan 16, 2026'\n- 'HH:mm' -> '14:30' (Military)\n- 'h:mm a' -> '2:30 PM'\n- 'EEEE, d MMMM' -> 'Friday, 16 January'"
+            }
+          },
+          "required": ["format", "value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "string"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "pluralize": {
+      "type": "object",
+      "description": "Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'.",
+      "properties": {
+        "call": {
+          "const": "pluralize"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "The numeric value used to determine the plural category."
+            },
+            "zero": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "String for the 'zero' category (e.g., 0 items)."
+            },
+            "one": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "String for the 'one' category (e.g., 1 item)."
+            },
+            "two": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "String for the 'two' category (used in Arabic, Welsh, etc.)."
+            },
+            "few": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "String for the 'few' category (e.g., small groups in Slavic languages)."
+            },
+            "many": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "String for the 'many' category (e.g., large groups in various languages)."
+            },
+            "other": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The default/fallback string (used for general plural cases)."
+            }
+          },
+          "required": ["value", "other"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "string"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "openUrl": {
+      "type": "object",
+      "description": "Opens the specified URL in a browser or handler. This function has no return value.",
+      "properties": {
+        "call": {
+          "const": "openUrl"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "The URL to open."
+            }
+          },
+          "required": ["url"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "void"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "and": {
+      "type": "object",
+      "description": "Performs a logical AND operation on a list of boolean values.",
+      "properties": {
+        "call": {
+          "const": "and"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "array",
+              "description": "The list of boolean values to evaluate.",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+              },
+              "minItems": 2
+            }
+          },
+          "required": ["values"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "or": {
+      "type": "object",
+      "description": "Performs a logical OR operation on a list of boolean values.",
+      "properties": {
+        "call": {
+          "const": "or"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "array",
+              "description": "The list of boolean values to evaluate.",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+              },
+              "minItems": 2
+            }
+          },
+          "required": ["values"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "not": {
+      "type": "object",
+      "description": "Performs a logical NOT operation on a boolean value.",
+      "properties": {
+        "call": {
+          "const": "not"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean",
+              "description": "The boolean value to negate."
+            }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {
+          "const": "boolean"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "DynamicDateTime": {
+      "description": "Represents a value that can be either a literal datetime string (RFC 3339), a path to a datetime string in the data model, or a function call returning a datetime string.",
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/FunctionCall"
+            },
+            {
+              "properties": {
+                "returnType": {
+                  "const": "string"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "DynamicDate": {
+      "description": "Represents a value that can be either a literal date object, a path to a date object in the data model, or a function call returning a date object.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "year": {
+              "type": "integer"
+            },
+            "month": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "day": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 31
+            }
+          },
+          "required": ["year", "month", "day"]
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/FunctionCall"
+            },
+            {
+              "properties": {
+                "returnType": {
+                  "const": "object"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "SelectOption": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "description": "The display label for the option.",
+          "type": "string"
+        },
+        "value": {
+          "description": "The underlying value for the option.",
+          "type": "string"
+        }
+      },
+      "required": ["label", "value"]
+    },
+    "MaterialComponentCommon": {
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "weight": {
+              "type": "number",
+              "description": "Optional layout weight, used to specify how the component sizes relative to its siblings in a flex layout (e.g., inside a row or column)."
+            },
+            "style": {
+              "type": "object",
+              "$comment": "SECURITY: Do not add layout/positioning properties (e.g., position, top, left, zIndex, opacity, transform, pointerEvents) to this allowlist. Doing so enables CWE-1021 UI Redressing and Clickjacking attacks. Only safe, in-flow cosmetic properties (e.g., margin, padding, color, flex) are permitted.",
+              "additionalProperties": false,
+              "properties": {
+                "alignItems": {
+                  "type": "string"
+                },
+                "alignSelf": {
+                  "type": "string"
+                },
+                "background": {
+                  "type": "string"
+                },
+                "backgroundColor": {
+                  "type": "string"
+                },
+                "border": {
+                  "type": "string"
+                },
+                "borderRadius": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string"
+                },
+                "display": {
+                  "type": "string"
+                },
+                "flexDirection": {
+                  "type": "string"
+                },
+                "flexWrap": {
+                  "type": "string"
+                },
+                "fontSize": {
+                  "type": "string"
+                },
+                "fontWeight": {
+                  "type": "string"
+                },
+                "gap": {
+                  "type": "string"
+                },
+                "height": {
+                  "type": "string"
+                },
+                "justifyContent": {
+                  "type": "string"
+                },
+                "margin": {
+                  "type": "string"
+                },
+                "marginBottom": {
+                  "type": "string"
+                },
+                "marginInlineEnd": {
+                  "type": "string"
+                },
+                "marginInlineStart": {
+                  "type": "string"
+                },
+                "marginLeft": {
+                  "type": "string"
+                },
+                "marginRight": {
+                  "type": "string"
+                },
+                "marginTop": {
+                  "type": "string"
+                },
+                "maxHeight": {
+                  "type": "string"
+                },
+                "maxWidth": {
+                  "type": "string"
+                },
+                "minHeight": {
+                  "type": "string"
+                },
+                "minWidth": {
+                  "type": "string"
+                },
+                "padding": {
+                  "type": "string"
+                },
+                "paddingBottom": {
+                  "type": "string"
+                },
+                "paddingInlineEnd": {
+                  "type": "string"
+                },
+                "paddingInlineStart": {
+                  "type": "string"
+                },
+                "paddingLeft": {
+                  "type": "string"
+                },
+                "paddingRight": {
+                  "type": "string"
+                },
+                "paddingTop": {
+                  "type": "string"
+                },
+                "textAlign": {
+                  "type": "string"
+                },
+                "textDecoration": {
+                  "type": "string"
+                },
+                "width": {
+                  "type": "string"
+                }
+              },
+              "description": "Optional custom inline CSS styles represented as a key-value map to apply directly to the component's root element."
+            }
+          }
+        }
+      ]
+    },
+    "CatalogComponentCommon": {
+      "type": "object",
+      "properties": {
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      }
+    },
+    "CustomComponentCommonProps": {
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "weight": {
+              "type": "number",
+              "description": "Optional layout weight, used to specify how the component sizes relative to its siblings in a flex layout (e.g., inside a row or column)."
+            }
+          }
+        }
+      ]
+    },
+    "anyComponent": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/components/MaterialText"
+        },
+        {
+          "$ref": "#/components/MaterialButton"
+        },
+        {
+          "$ref": "#/components/MaterialIconButton"
+        },
+        {
+          "$ref": "#/components/MaterialInput"
+        },
+        {
+          "$ref": "#/components/MaterialRow"
+        },
+        {
+          "$ref": "#/components/MaterialColumn"
+        },
+        {
+          "$ref": "#/components/MaterialCard"
+        },
+        {
+          "$ref": "#/components/MaterialIcon"
+        },
+        {
+          "$ref": "#/components/MaterialSelect"
+        },
+        {
+          "$ref": "#/components/MaterialCheckbox"
+        },
+        {
+          "$ref": "#/components/MaterialBadge"
+        },
+        {
+          "$ref": "#/components/MaterialButtonToggle"
+        },
+        {
+          "$ref": "#/components/MaterialChips"
+        },
+        {
+          "$ref": "#/components/MaterialDatepicker"
+        },
+        {
+          "$ref": "#/components/MaterialDialog"
+        },
+        {
+          "$ref": "#/components/MaterialDivider"
+        },
+        {
+          "$ref": "#/components/MaterialExpansionPanel"
+        },
+        {
+          "$ref": "#/components/MaterialGridList"
+        },
+        {
+          "$ref": "#/components/MaterialMenu"
+        },
+        {
+          "$ref": "#/components/MaterialProgressBar"
+        },
+        {
+          "$ref": "#/components/MaterialProgressSpinner"
+        },
+        {
+          "$ref": "#/components/MaterialRadioButton"
+        },
+        {
+          "$ref": "#/components/MaterialSlideToggle"
+        },
+        {
+          "$ref": "#/components/MaterialSlider"
+        },
+        {
+          "$ref": "#/components/MaterialTable"
+        },
+        {
+          "$ref": "#/components/MaterialTabs"
+        },
+        {
+          "$ref": "#/components/MaterialTimepicker"
+        },
+        {
+          "$ref": "#/components/MaterialImage"
+        },
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/Image"
+        },
+        {
+          "$ref": "#/components/Icon"
+        },
+        {
+          "$ref": "#/components/Video"
+        },
+        {
+          "$ref": "#/components/AudioPlayer"
+        },
+        {
+          "$ref": "#/components/Row"
+        },
+        {
+          "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/List"
+        },
+        {
+          "$ref": "#/components/Card"
+        },
+        {
+          "$ref": "#/components/Tabs"
+        },
+        {
+          "$ref": "#/components/Modal"
+        },
+        {
+          "$ref": "#/components/Divider"
+        },
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/TextField"
+        },
+        {
+          "$ref": "#/components/CheckBox"
+        },
+        {
+          "$ref": "#/components/ChoicePicker"
+        },
+        {
+          "$ref": "#/components/Slider"
+        },
+        {
+          "$ref": "#/components/DateTimeInput"
+        },
+        {
+          "$ref": "#/components/Canvas"
+        },
+        {
+          "$ref": "#/components/IFrameSrcdoc"
+        },
+        {
+          "$ref": "#/components/IFrameUrl"
+        },
+        {
+          "$ref": "#/components/VegaChart"
+        },
+        {
+          "$ref": "#/components/GcbpTable"
+        },
+        {
+          "$ref": "#/components/InteractiveChart"
+        }
+      ]
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/areComponentsValid"
+        },
+        {
+          "$ref": "#/functions/dateIsBeforeOrEqual"
+        },
+        {
+          "$ref": "#/functions/dateIsBefore"
+        },
+        {
+          "$ref": "#/functions/dateEquals"
+        },
+        {
+          "$ref": "#/functions/required"
+        },
+        {
+          "$ref": "#/functions/regex"
+        },
+        {
+          "$ref": "#/functions/length"
+        },
+        {
+          "$ref": "#/functions/numeric"
+        },
+        {
+          "$ref": "#/functions/email"
+        },
+        {
+          "$ref": "#/functions/formatString"
+        },
+        {
+          "$ref": "#/functions/formatNumber"
+        },
+        {
+          "$ref": "#/functions/formatCurrency"
+        },
+        {
+          "$ref": "#/functions/formatDate"
+        },
+        {
+          "$ref": "#/functions/pluralize"
+        },
+        {
+          "$ref": "#/functions/openUrl"
+        },
+        {
+          "$ref": "#/functions/and"
+        },
+        {
+          "$ref": "#/functions/or"
+        },
+        {
+          "$ref": "#/functions/not"
+        }
+      ]
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "primaryColor": {
+          "type": "string",
+          "description": "The primary brand color used for highlights (e.g., primary buttons, active borders). Renderers may generate variants of this color for different contexts. Format: Hexadecimal code (e.g., '#00BFFF').",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "iconUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "A URL for an image that identifies the agent or tool associated with the surface."
+        },
+        "agentDisplayName": {
+          "type": "string",
+          "description": "Text to be displayed next to the surface to identify the agent or tool that created it."
+        }
+      }
+    }
+  }
+}
