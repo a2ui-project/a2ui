@@ -94,11 +94,22 @@ def test_catalog_initialization_from_json():
 
 def test_catalog_initialization_requires_version():
     with pytest.raises(
+        TypeError,
+        match="protocol_version",
+    ):
+        Catalog(
+            catalog_id="https://a2ui.org/no-version",
+            components=[],
+            functions=[],
+        )  # type: ignore[call-arg]
+
+    with pytest.raises(
         ValueError,
         match="protocol_version must be provided",
     ):
         Catalog(
             catalog_id="https://a2ui.org/no-version",
+            protocol_version="",
             components=[],
             functions=[],
         )
@@ -854,3 +865,16 @@ def test_payload_validator_unresolvable_bare_ref_error():
     )
     assert len(errors) == 1
     assert errors[0].code == "invalid_reference"
+
+
+def test_collect_defs_refs_nested_subpath():
+    from a2ui.core.catalog.catalog import _collect_defs_refs
+
+    refs: set[str] = set()
+    node = {
+        "items": {"$ref": "#/$defs/TemplateChildList/properties/componentId"},
+        "other": {"$ref": "#/$defs/SimpleDef"},
+        "nested": [{"$ref": "#/$defs/NestedDef/items"}],
+    }
+    _collect_defs_refs(node, refs)
+    assert refs == {"TemplateChildList", "SimpleDef", "NestedDef"}

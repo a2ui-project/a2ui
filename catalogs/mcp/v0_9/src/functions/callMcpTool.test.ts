@@ -28,6 +28,7 @@ import {CallMcpToolApi} from './callMcpToolApi.js';
 import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,
+  ensureMessageVersion,
   extractA2uiMessages,
   parseA2uiMessages,
   readUiResourceUris,
@@ -857,6 +858,47 @@ describe('message decoding', () => {
           ),
         /Resource a2ui:\/\/t declares application\/a2ui\+json but does not hold valid JSON\./,
       );
+    });
+  });
+
+  describe('ensureMessageVersion', () => {
+    it('sets version to v0.9 when version property is missing', () => {
+      const msg = {createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg), {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+    });
+
+    it('sets version to v0.9 when version is null or undefined', () => {
+      const msgNull = {version: null, createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msgNull), {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+
+      const msgUndefined = {
+        version: undefined,
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      } as any;
+      assert.deepStrictEqual(ensureMessageVersion(msgUndefined), {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+    });
+
+    it('preserves existing explicit version', () => {
+      const msg1 = {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg1), msg1);
+
+      const msg09 = {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg09), msg09);
+    });
+
+    it('returns primitive or non-object values as-is', () => {
+      assert.strictEqual(ensureMessageVersion(null as any), null);
+      assert.strictEqual(ensureMessageVersion(undefined as any), undefined);
+      assert.strictEqual(ensureMessageVersion('test' as any), 'test');
     });
   });
 });

@@ -448,7 +448,8 @@ def _collect_defs_refs(node: Any, refs: set[str]) -> None:
             and isinstance(node["$ref"], str)
             and node["$ref"].startswith("#/$defs/")
         ):
-            refs.add(node["$ref"].split("/")[-1])
+            target_def = node["$ref"][len("#/$defs/") :].split("/")[0]
+            refs.add(target_def)
         for v in node.values():
             _collect_defs_refs(v, refs)
     elif isinstance(node, list):
@@ -586,7 +587,7 @@ class Catalog(Generic[TComponent, TFunction]):
     def __init__(
         self,
         catalog_id: str,
-        protocol_version: str | None = None,
+        protocol_version: str,
         components: list[TComponent] | None = None,
         functions: list[TFunction] | None = None,
         theme_schema: dict[str, Any] | None = None,

@@ -356,9 +356,13 @@ function createsExistingSurface(
  * Ensures an A2UI message carries a version identifier before processing,
  * defaulting to 'v0.9' for MCP v0.9 catalog payloads when not explicitly provided.
  */
-function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
-  if (typeof message === 'object' && message !== null && !('version' in message)) {
-    return {version: 'v0.9', ...(message as Record<string, unknown>)} as A2uiMessage;
+export function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
+  if (
+    typeof message === 'object' &&
+    message !== null &&
+    (!('version' in message) || (message as Record<string, unknown>).version == null)
+  ) {
+    return {...(message as Record<string, unknown>), version: 'v0.9'} as A2uiMessage;
   }
   return message;
 }

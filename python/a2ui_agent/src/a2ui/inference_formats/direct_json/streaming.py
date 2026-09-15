@@ -1334,15 +1334,16 @@ class DirectJsonStreamParser:
         comp_type = obj.get("component")
         core_cat = getattr(self._catalog, "core_catalog", self._catalog)
         if core_cat and comp_type and hasattr(core_cat, "reference_map"):
-            ref_spec = core_cat.reference_map.get(comp_type)
-            if ref_spec:
+            if comp_type in core_cat.reference_map:
+                ref_spec = core_cat.reference_map[comp_type]
                 child_fields.update(ref_spec.single_child_props)
                 child_fields.update(ref_spec.list_child_props)
                 child_fields.update(ref_spec.nested_child_slots.keys())
-        if not child_fields:
-            for k, v in obj.items():
-                if k in ("id", "component", "catalogId", "text", "style", "weight"):
-                    continue
-                if isinstance(v, (str, list, dict)):
-                    child_fields.add(k)
+                return child_fields
+
+        from a2ui.core.state.component_model import is_v0_8_heuristic_child_prop_key
+
+        for k, v in obj.items():
+            if is_v0_8_heuristic_child_prop_key(k, v):
+                child_fields.add(k)
         return child_fields

@@ -262,3 +262,26 @@ def test_direct_json_stream_parser_record_inline_components_surface_id(
     assert "c1" in parser._yielded_ids.get("custom_surface", set())
     assert ("custom_surface", "c1") in parser._yielded_contents
     assert "c1" not in parser._components_by_surface.get("main_surface", {})
+
+
+def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
+    from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
+
+    parser = DirectJsonStreamParser(catalog=test_catalog)
+    # Text is defined in reference_map with no child props
+    fields = parser._get_child_fields_for_obj(
+        {"component": "Text", "id": "t1", "text": "Click me", "label": "Submit"}
+    )
+    assert fields == set()
+
+    # Unmapped/custom component falls back to is_v0_8_heuristic_child_prop_key
+    unmapped_fields = parser._get_child_fields_for_obj({
+        "component": "CustomCard",
+        "id": "c1",
+        "child": "inner1",
+        "children": ["inner2"],
+        "label": "Click me",
+    })
+    assert "child" in unmapped_fields
+    assert "children" in unmapped_fields
+    assert "label" not in unmapped_fields

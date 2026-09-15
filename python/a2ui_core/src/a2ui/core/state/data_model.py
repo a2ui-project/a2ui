@@ -14,12 +14,15 @@
 
 import copy
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Final
 from ..common.events import Subscription
 from ..exceptions import A2uiDataError
 
 # Regex to check if path segment is numeric (representing array index)
 NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
+
+# Maximum supported array index during path traversal and setting to prevent OOM/DoS.
+MAX_ARRAY_INDEX: Final[int] = 10_000
 
 
 class DataModel:
@@ -133,16 +136,20 @@ class DataModel:
                 return False
         return True
 
-    def set(self, path: str, value: Any) -> None:
+    def set(self, path: str, value: Any) -> "DataModel":
         """Sets a value atomically at a JSON Pointer path with auto-vivification.
 
         Args:
             path: Absolute JSON pointer path to set.
             value: Value to set, or None to delete a dictionary key.
 
+        Returns:
+            Self reference for fluent method chaining.
+
         Raises:
             A2uiDataError: If path is None, if a non-numeric segment is used on
-                an array, or if an intermediate segment traverses a primitive.
+                an array, if an array index exceeds MAX_ARRAY_INDEX, or if an
+                intermediate segment traverses a primitive.
         """
         if path is None:
             raise A2uiDataError("Path cannot be null or undefined.")
@@ -155,7 +162,7 @@ class DataModel:
         if not tokens:
             self._data = copy.deepcopy(value) if value is not None else {}
             self._trigger_cascade(tokens, old_values)
-            return
+            return self
 
         if self._data is None or not isinstance(self._data, (dict, list)):
             self._data = {}
@@ -186,6 +193,11 @@ class DataModel:
                         f" '{path}'."
                     )
                 idx = int(token)
+                if idx > MAX_ARRAY_INDEX:
+                    raise A2uiDataError(
+                        f"Cannot set path '{path}': array index '{token}' exceeds"
+                        f" maximum supported index ({MAX_ARRAY_INDEX})."
+                    )
                 while len(current) <= idx:
                     current.append(None)
                 val = current[idx]
@@ -216,6 +228,11 @@ class DataModel:
                     f" '{path}'."
                 )
             idx = int(last_token)
+            if idx > MAX_ARRAY_INDEX:
+                raise A2uiDataError(
+                    f"Cannot set path '{path}': array index '{last_token}' exceeds"
+                    f" maximum supported index ({MAX_ARRAY_INDEX})."
+                )
             if value is None:
                 # Deleting an index past the end of the list is a no-op.
                 # Padding here would materialise entries that were never set.
@@ -233,6 +250,7 @@ class DataModel:
 
         # Trigger notification cascade
         self._trigger_cascade(tokens, old_values)
+        return self
 
     def delete(self, path: str) -> "DataModel":
         """Deletes the value at the specified JSON pointer path.

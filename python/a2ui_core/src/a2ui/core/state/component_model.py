@@ -36,6 +36,7 @@ V0_8_SINGLE_REF_FIELDS: Final[set[str]] = {
     "child",
     "contentChild",
     "entryPointChild",
+    COMPONENT_ID_KEY,
 }
 
 V0_8_LIST_REF_FIELDS: Final[set[str]] = {

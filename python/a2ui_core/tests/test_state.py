@@ -25,6 +25,8 @@ from a2ui.core.state import (
     SurfaceModel,
     SurfaceGroupModel,
 )
+from a2ui.core.state.data_model import MAX_ARRAY_INDEX
+from a2ui.core.exceptions import A2uiDataError
 from a2ui.core.basic_catalog import BasicCatalog
 
 dummy_catalog = BasicCatalog()
@@ -405,3 +407,19 @@ def test_component_node_lifecycle():
     # Double dispose is idempotent
     node.dispose()
     assert len(cleanup_executed) == 1
+
+
+def test_data_model_set_fluent_chaining():
+    dm = DataModel()
+    res = dm.set("/a", 1).set("/b", 2).delete("/a")
+    assert res is dm
+    assert dm.get("/b") == 2
+    assert dm.get("/a") is None
+
+
+def test_data_model_max_array_index_exceeded():
+    dm = DataModel()
+    with pytest.raises(A2uiDataError, match="exceeds maximum supported index"):
+        dm.set(f"/items/{MAX_ARRAY_INDEX + 1}", "overflow")
+    with pytest.raises(A2uiDataError, match="exceeds maximum supported index"):
+        dm.set(f"/matrix/{MAX_ARRAY_INDEX + 1}/0", "overflow")
