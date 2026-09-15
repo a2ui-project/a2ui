@@ -61,7 +61,6 @@ export {
 } from './functions/callMcpTool.js';
 
 export {
-  JMESPATH_LANGUAGE_DESCRIPTION,
   JmespathApi,
   JmespathImplementation,
 } from './functions/jmespath.js';

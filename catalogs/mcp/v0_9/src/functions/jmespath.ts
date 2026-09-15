@@ -25,42 +25,11 @@ import {z} from 'zod';
 import {resolveDynamicValueDeep} from '../dynamic-values.js';
 import {asyncable, describe, withSettledArgs} from './common.js';
 
-/** Language description published in `mcp_catalog.json` for `jmespath.expression`. */
-export const JMESPATH_LANGUAGE_DESCRIPTION = [
-  'A JMESPath expression, as specified at jmespath.org, evaluated against `data`.',
-  '',
-  'The dialect is the original grammar and nothing more, so an expression runs',
-  'unchanged on any client with a stock JMESPath library. Extensions some',
-  'libraries add are not available: there are no `let` bindings, no ternary',
-  '`? :`, no arithmetic operators, and no `$` root reference.',
-  '',
-  'There are no regular expressions and no `split` inside an expression. Call',
-  'the `split`, `regexCapture`, and `regexReplace` functions first and pass',
-  'their output in as `data`. To test whether a string matches a pattern, use',
-  'the basic catalog `regex` function.',
-  '',
-  'Two idioms cover what the missing syntax would do:',
-  '  Conditionals. Write `(cond && valueIfTrue) || valueIfFalse`. Both branches',
-  '  must be truthy values; an empty string, empty array, empty object, null,',
-  '  and false are all falsy.',
-  '  Intermediate values. Pipe into a multi-select hash to name subresults,',
-  '  then read them by name: `{n: length(rows)} | {"/count": n}`.',
-  '',
-  'Use `rows[*]` to map over a list. `rows[]` flattens one level instead, which',
-  'is rarely what a list of rows wants. Filter with `rows[?@ != null]`.',
-  '',
-  'A projection rebinds the current node, and there is no root reference, so a',
-  'value at the top of `data` is not visible inside `rows[*].{...}`. Build such',
-  'a value in the component instead: a template row can read an absolute path,',
-  'so `formatString` with `${/dir}/${name}` joins a value held once to a field',
-  'held per row.',
-].join('\n');
-
 export const JmespathApi = {
   name: 'jmespath',
   returnType: 'any',
   schema: z.object({
-    expression: asyncable(z.any()).describe(JMESPATH_LANGUAGE_DESCRIPTION),
+    expression: asyncable(z.any()).describe('A JMESPath expression, as specified at jmespath.org, evaluated against `data`.'),
     data: asyncable(z.any()).describe('The document the expression reads.'),
   }),
 } as const;
