@@ -1,0 +1,193 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Behaviour of `resolve_catalogs`, the capability negotiation helper described
+# by `blueprints/modules/a2ui_agent.blueprint.md` section 3.G. It matches an
+# `a2uiClientCapabilities` object against the catalogs an agent registered and
+# returns the active, transformed catalogs for the session.
+#
+# This replaces the legacy single-catalog `select_catalog` helper: negotiation
+# now yields a list, in agent preference order, and may include catalogs the
+# renderer supplied inline.
+#
+# `args.catalogs` are the registered `CatalogConfig`s in agent preference
+# order; each `catalog_schema` is either an inline catalog document or a path
+# resolved relative to the `conformance/` directory. `expect_active_catalog_ids`
+# asserts the ids of the resolved catalogs, in order.
+
+- name: test_resolve_catalogs_selects_the_declared_catalog
+  description: A renderer that declares one registered catalog id negotiates to it.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+      - catalog_schema:
+          catalogId: "https://example.com/small.json"
+          components:
+            Text: {type: object}
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds: ["https://example.com/small.json"]
+  expect_active_catalog_ids: ["https://example.com/small.json"]
+
+- name: test_resolve_catalogs_returns_every_shared_catalog_in_agent_order
+  description: >-
+    All catalogs the renderer and the agent share are active, ordered by the
+    agent's preference rather than the renderer's.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+      - catalog_schema:
+          catalogId: "https://example.com/small.json"
+          components:
+            Text: {type: object}
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds:
+          - "https://example.com/small.json"
+          - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  expect_active_catalog_ids:
+    - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    - "https://example.com/small.json"
+
+- name: test_resolve_catalogs_defaults_to_the_first_registered_catalog
+  description: A renderer that declares no catalog id gets the agent's first.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+      - catalog_schema:
+          catalogId: "https://example.com/small.json"
+          components:
+            Text: {type: object}
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds: []
+  expect_active_catalog_ids:
+    - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+
+- name: test_resolve_catalogs_returns_transformed_catalogs
+  description: >-
+    Negotiation returns the catalog with the config's transformers applied, so
+    a pruned catalog stays pruned for prompting and validation.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+        allowed_components: [Text, Card]
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds:
+          - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  expect_active_catalog_ids:
+    - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  expect_components:
+    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json": [Card, Text]
+
+- name: test_resolve_catalogs_ignores_inline_catalogs_by_default
+  description: >-
+    An inline catalog is not activated unless the agent advertises
+    `acceptsInlineCatalogs`.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds: []
+        inlineCatalogs:
+          - catalogId: "https://example.com/inline.json"
+            components:
+              Text: {type: object}
+  expect_active_catalog_ids:
+    - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+
+- name: test_resolve_catalogs_accepts_inline_catalogs_when_enabled
+  description: An agent that accepts inline catalogs activates the ones supplied.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds: []
+        inlineCatalogs:
+          - catalogId: "https://example.com/inline.json"
+            components:
+              Text: {type: object}
+  expect_active_catalog_ids:
+    - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    - "https://example.com/inline.json"
+
+- name: test_resolve_catalogs_rejects_a_renderer_with_no_shared_catalog
+  description: A renderer that supports nothing the agent registered cannot be served.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds: ["https://example.com/unknown.json"]
+  expect_error:
+    category: "CatalogError"
+    message: "no matching catalog"
+
+- name: test_resolve_catalogs_rejects_an_agent_with_no_registered_catalogs
+  description: An agent that registered no catalog has nothing to negotiate.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs: []
+    renderer_capabilities:
+      "v0.9":
+        supportedCatalogIds:
+          - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  expect_error:
+    category: "CatalogError"
+    message: "no matching catalog"
+
+- name: test_resolve_catalogs_rejects_capabilities_without_a_v0_9_entry
+  description: >-
+    Capabilities that declare nothing for the protocol version the SDK
+    implements are rejected rather than negotiated as empty.
+  catalog:
+    version: "0.9"
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds:
+          - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  expect_error:
+    category: "ValidationError"
+    message: "v0.9"
