@@ -1,13 +1,29 @@
 {
-  "name": "a2ui-mcp-catalog",
+  "name": "@a2ui/mcp-catalog",
   "private": true,
-  "main": "./v0_9/src/catalog.ts",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/v0_9/src/index.js",
+  "types": "./dist/v0_9/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/v0_9/src/index.d.ts",
+      "default": "./dist/v0_9/src/index.js"
+    },
+    "./v0_9": {
+      "types": "./dist/v0_9/src/index.d.ts",
+      "default": "./dist/v0_9/src/index.js"
+    },
+    "./v0_9/mcp_catalog.json": "./v0_9/mcp_catalog.json"
+  },
   "scripts": {
+    "build": "tsc -b --pretty",
+    "clean": "rm -rf dist",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --import tsx --test v0_9/src/functions/callMcpTool.test.ts",
-    "lint": "echo \"Workspace has no lint configuration.\"",
-    "lint:fix": "echo \"Workspace has no lint configuration.\""
+    "test": "node --import tsx --test 'v0_9/src/**/*.test.ts'",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
@@ -15,7 +31,10 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
     "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
     "typescript": "5.9.3"
   }
 }

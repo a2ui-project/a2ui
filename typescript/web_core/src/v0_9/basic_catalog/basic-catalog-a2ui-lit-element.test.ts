@@ -231,4 +231,109 @@ describe('BasicCatalogA2uiLitElement', () => {
     assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-dark'), '');
     assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-hover'), '');
   });
+
+  it('should ignore invalid primaryColor value from theme', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'invalid-theme-surface',
+          catalogId: customCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'invalid-theme-surface',
+          components: [
+            {
+              id: 'comp4',
+              component: 'TestComponent',
+              text: 'Invalid Themed',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const invalidThemeSurface = processor.model.getSurface('invalid-theme-surface')!;
+    (invalidThemeSurface as any).theme = {
+      primaryColor: 'url(https://attacker.example/beacon)',
+    };
+    const context = new ComponentContext(invalidThemeSurface, 'comp4');
+
+    element = document.createElement('a2ui-test-basic-element');
+    document.body.appendChild(element);
+
+    await asyncUpdate(element, (e: any) => {
+      e.context = context;
+    });
+
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary'), '');
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-light'), '');
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-dark'), '');
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-hover'), '');
+  });
+
+  it('sets theme primaryColor CSS variables for named color', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'named-color-surface',
+          catalogId: customCatalog.id,
+          theme: {primaryColor: 'red'},
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'named-color-surface',
+          components: [{id: 'comp-named', component: 'TestComponent'}],
+        },
+      },
+    ]);
+    const namedSurface = processor.model.getSurface('named-color-surface')!;
+    const context = new ComponentContext(namedSurface, 'comp-named');
+    element = document.createElement('a2ui-test-basic-element');
+    document.body.appendChild(element);
+
+    await asyncUpdate(element, (e: any) => {
+      e.context = context;
+    });
+
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary'), 'red');
+    assert.ok(element.style.getPropertyValue('--a2ui-color-primary-light').length > 0);
+  });
+
+  it('sets theme primaryColor CSS variables for rgb color', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'rgb-color-surface',
+          catalogId: customCatalog.id,
+          theme: {primaryColor: 'rgb(255, 0, 0)'},
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'rgb-color-surface',
+          components: [{id: 'comp-rgb', component: 'TestComponent'}],
+        },
+      },
+    ]);
+    const rgbSurface = processor.model.getSurface('rgb-color-surface')!;
+    const context = new ComponentContext(rgbSurface, 'comp-rgb');
+    element = document.createElement('a2ui-test-basic-element');
+    document.body.appendChild(element);
+
+    await asyncUpdate(element, (e: any) => {
+      e.context = context;
+    });
+
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary'), 'rgb(255, 0, 0)');
+    assert.ok(element.style.getPropertyValue('--a2ui-color-primary-light').length > 0);
+  });
 });

@@ -16,6 +16,7 @@
 
 import {Catalog, WebComponentImplementation} from '../../catalog/types.js';
 import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
+import {BasicCatalogThemeSchema} from './theme.js';
 
 import {A2uiText} from './components/Text.js';
 import {A2uiButton} from './components/Button.js';
@@ -62,7 +63,7 @@ export const basicCatalog = new Catalog<WebComponentImplementation>(
     A2uiModal,
   ],
   BASIC_FUNCTIONS,
-  undefined,
+  BasicCatalogThemeSchema,
   undefined,
   'v0.9',
 );

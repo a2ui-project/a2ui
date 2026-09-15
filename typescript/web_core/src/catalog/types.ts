@@ -217,7 +217,7 @@ export declare interface CatalogInterface<
   /** Map of registered function definitions. */
   readonly functions: ReadonlyMap<string, F>;
   /** Schema for theme parameters used by this catalog. */
-  readonly themeSchema?: z.ZodObject<z.ZodRawShape>;
+  readonly themeSchema?: z.ZodTypeAny;
   /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
   /** Invoker callback that delegates to this catalog's registered functions. */
@@ -266,7 +266,7 @@ export class Catalog<
   /**
    * Schema for theme parameters used by this catalog.
    */
-  readonly themeSchema?: z.ZodObject<z.ZodRawShape>;
+  readonly themeSchema?: z.ZodTypeAny;
 
   /**
    * Optional system instructions or usage guidelines for this catalog.
@@ -306,7 +306,7 @@ export class Catalog<
     id: string,
     components: T[],
     functions: F[] = [],
-    themeSchema?: z.ZodObject<any>,
+    themeSchema?: z.ZodTypeAny,
     instructions?: string,
     protocolVersion?: ProtocolVersion | string,
   ) {

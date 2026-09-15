@@ -593,18 +593,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
     }
 
-    if (this.validationConfig) {
-      if (catalog.themeSchema) {
-        const themeResult = catalog.themeSchema.safeParse(theme);
-        if (!themeResult.success) {
-          throw new A2uiValidationError(
-            `Validation failed for theme on surface '${surfaceId}': ${themeResult.error.message}`,
-          );
-        }
+    let validatedTheme = theme;
+    if (theme && catalog.themeSchema) {
+      const themeResult = catalog.themeSchema.safeParse(theme);
+      if (!themeResult.success) {
+        const formattedErrors = themeResult.error.errors.map(formatZodIssue).join(', ');
+        throw new A2uiValidationError(
+          `Validation failed for theme on surface '${surfaceId}': ${formattedErrors}`,
+          themeResult.error.issues,
+        );
       }
+      validatedTheme = themeResult.data;
     }
 
-    const surface = new SurfaceModel<T>(surfaceId, catalog, theme, sendDataModel ?? false);
+    const surface = new SurfaceModel<T>(surfaceId, catalog, validatedTheme, sendDataModel ?? false);
     this.model.addSurface(surface);
 
     if (dataModel) {

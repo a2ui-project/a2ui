@@ -327,6 +327,25 @@ export type ResolveA2uiProps<T> = (T extends object
   };
 
 /**
+ * The maximum number of children materialized by dynamic ChildList templates.
+ * Prevents unbounded resource consumption (CWE-400) when bound to massive arrays.
+ */
+export const MAX_DYNAMIC_CHILD_LIST_SIZE = 10_000;
+
+/**
+ * Safely bounds array length for dynamic child lists to prevent unbounded memory allocation.
+ * Returns an array of at most MAX_DYNAMIC_CHILD_LIST_SIZE items.
+ */
+export function getSafeChildList<T = unknown>(value: unknown): T[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return (
+    value.length > MAX_DYNAMIC_CHILD_LIST_SIZE ? value.slice(0, MAX_DYNAMIC_CHILD_LIST_SIZE) : value
+  ) as T[];
+}
+
+/**
  * Reactive property binder transforming raw A2UI component JSON into strongly-typed resolved props.
  *
  * Connects component properties to the data context, resolves dynamic bindings,
@@ -443,7 +462,7 @@ export class GenericBinder<T> {
     templateComponentId: string,
     templatePath: string,
   ): ResolvedChildRef[] {
-    const arr = Array.isArray(rawArray) ? rawArray : [];
+    const arr = getSafeChildList(rawArray);
     const listContext = this.context.dataContext.nested(templatePath);
     return arr.map((_, i) => ({
       id: templateComponentId,

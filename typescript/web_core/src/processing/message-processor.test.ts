@@ -31,9 +31,21 @@ import {
   createFunctionImplementation,
 } from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
+import {BasicCatalogThemeSchema} from '../v0_9/basic_catalog/theme.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
+
+/**
+ * Turns validation on while relaxing every topology rule, so a test exercises
+ * only the check it is about.
+ */
+const THEME_ONLY_VALIDATION = {
+  allowOrphanComponents: true,
+  allowDanglingReferences: true,
+  allowMissingRoot: true,
+  allowUnknownElements: true,
+};
 
 describe('MessageProcessor', () => {
   let processor: MessageProcessor<ComponentApi>;
@@ -536,6 +548,103 @@ describe('MessageProcessor', () => {
           return true;
         },
       );
+    });
+
+    it('validates surface theme against the basic catalog themeSchema', () => {
+      const themedCatalog = new Catalog('themed-cat', [], [], BasicCatalogThemeSchema);
+      const proc = new MessageProcessor([themedCatalog], undefined, {
+        validationConfig: THEME_ONLY_VALIDATION,
+      });
+
+      // Valid: 6-char hex, 3-char hex, 8-char hex (with alpha), named and functional colors.
+      const validColors = {
+        '6char': '#00BFFF',
+        '3char': '#17e',
+        '8char': '#00BFFF80',
+        'named': 'red',
+        'rgb': 'rgb(255, 0, 0)',
+        'hsl': 'hsl(120, 100%, 50%)',
+      };
+      for (const [label, primaryColor] of Object.entries(validColors)) {
+        proc.processMessages({
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: `valid-${label}`,
+            catalogId: 'themed-cat',
+            theme:
+              label === '6char'
+                ? {primaryColor, agentDisplayName: 'Test Agent', customExtra: 'passthrough'}
+                : {primaryColor},
+          },
+        });
+        const surface = proc.model.getSurface(`valid-${label}`);
+        assert.ok(surface, `expected surface for ${label}`);
+        assert.strictEqual(surface.theme?.primaryColor, primaryColor);
+      }
+      assert.strictEqual(
+        proc.model.getSurface('valid-6char')?.theme?.agentDisplayName,
+        'Test Agent',
+      );
+
+      // Invalid: malformed hex, non-colors, and CSS injection attempts.
+      const invalidColors = [
+        'url(https://attacker.example/beacon)',
+        '#12',
+        '#12345',
+        '#1234567',
+        '#gggggg',
+        'not-a-color',
+        'red; url(x)',
+        123,
+      ];
+      for (const primaryColor of invalidColors) {
+        const surfaceId = `invalid-${String(primaryColor)}`;
+        assert.throws(
+          () => {
+            proc.processMessages({
+              version: 'v0.9',
+              createSurface: {surfaceId, catalogId: 'themed-cat', theme: {primaryColor}},
+            });
+          },
+          (err: any) => {
+            assert.ok(err instanceof A2uiValidationError);
+            assert.ok(
+              err.message.includes(`Validation failed for theme on surface '${surfaceId}'`),
+            );
+            return true;
+          },
+          `expected ${String(primaryColor)} to be rejected`,
+        );
+        assert.strictEqual(proc.model.getSurface(surfaceId), undefined);
+      }
+    });
+
+    it('applies themeSchema transforms and defaults to the stored theme', () => {
+      const transformSchema = z.object({
+        primaryColor: z.string().transform(c => c.toUpperCase()),
+        defaultedField: z.string().default('default-val'),
+      });
+      const proc = new MessageProcessor(
+        [new Catalog('transform-cat', [], [], transformSchema)],
+        undefined,
+        {
+          validationConfig: THEME_ONLY_VALIDATION,
+        },
+      );
+
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'transform-surface',
+          catalogId: 'transform-cat',
+          theme: {primaryColor: '#abcdef'},
+        },
+      });
+
+      const surface = proc.model.getSurface('transform-surface');
+      assert.ok(surface);
+      assert.strictEqual(surface.theme?.primaryColor, '#ABCDEF');
+      assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
     });
 
     it('enforces allowUnknownElements: false by rejecting unregistered components', () => {

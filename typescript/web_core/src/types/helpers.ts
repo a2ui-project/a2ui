@@ -26,6 +26,16 @@ import {ChildListSchema, ComponentIdSchema} from './common-types.js';
 export {type ChildRefKind, type RefSchemaOptions, markChildRef, childRefKindOf};
 
 /**
+ * The maximum number of arguments accepted in a single function call.
+ *
+ * Caps the work a single call can schedule, so an oversized `args` payload
+ * cannot exhaust memory by creating one reactive listener per key (CWE-400).
+ * Enforced by `DataContext.validateFunctionArgs` before any argument is
+ * resolved.
+ */
+export const MAX_FUNCTION_CALL_ARGS = 1_000;
+
+/**
  * Creates or customizes a ComponentId schema without losing its reference pointer metadata.
  *
  * @param options Configuration options including custom description.

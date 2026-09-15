@@ -259,6 +259,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/mcp-catalog@workspace:catalogs/mcp":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/mcp-catalog@workspace:catalogs/mcp"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@modelcontextprotocol/sdk": "npm:^1.0.1"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.8.4"
+    tsx: "npm:^4.22.4"
+    typescript: "npm:5.9.3"
+    zod: "npm:^3.25.76"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer":
   version: 0.0.0-use.local
   resolution: "@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer"
@@ -475,6 +490,7 @@ __metadata:
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
     typescript: "npm:5.9.3"
+    validate-color: "npm:^2.2.4"
     wireit: "npm:^0.15.0-pre.2"
     yaml: "npm:^2.8.1"
     zod: "npm:^3.25.76"
@@ -9763,18 +9779,6 @@ __metadata:
   checksum: 10c0/0bfa50a3d756623d1f3409bc23f225a1d069424dbc77c6fd2f14fb377390cd57ec703dc70286e081c564be9051ead9ba85d81d66a3e68eeb6eb506d4e0c0fbda
   languageName: node
   linkType: hard
-
-"a2ui-mcp-catalog@workspace:catalogs/mcp":
-  version: 0.0.0-use.local
-  resolution: "a2ui-mcp-catalog@workspace:catalogs/mcp"
-  dependencies:
-    "@a2ui/web_core": "workspace:*"
-    "@modelcontextprotocol/sdk": "npm:^1.0.1"
-    prettier: "npm:^3.8.4"
-    typescript: "npm:5.9.3"
-    zod: "npm:^3.25.76"
-  languageName: unknown
-  linkType: soft
 
 "a2ui-workspace@workspace:.":
   version: 0.0.0-use.local
@@ -23458,6 +23462,13 @@ __metadata:
     "@types/istanbul-lib-coverage": "npm:^2.0.1"
     convert-source-map: "npm:^2.0.0"
   checksum: 10c0/968bcf1c7c88c04df1ffb463c179558a2ec17aa49e49376120504958239d9e9dad5281aa05f2a78542b8557f2be0b0b4c325710262f3b838b40d703d5ed30c23
+  languageName: node
+  linkType: hard
+
+"validate-color@npm:^2.2.4":
+  version: 2.2.4
+  resolution: "validate-color@npm:2.2.4"
+  checksum: 10c0/597a88adff8d1a235e6f2597df3ea5c1aaa1a6b6d3ea725135c6557c55a0960cb022858ecd7b1b53820cb939263fe095fbcc343aec8a2a66a1063a41dc92e23c
   languageName: node
   linkType: hard
 
