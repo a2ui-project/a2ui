@@ -1,0 +1,6 @@
+# The workspace `format`/`format:check` scripts run Prettier with this folder as
+# the cwd, so they do not pick up the repository-root .prettierignore. Mirror the
+# build-output entries from it here.
+dist
+node_modules
+*.tsbuildinfo

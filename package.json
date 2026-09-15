@@ -15,7 +15,6 @@
     "samples/client/lit/*",
     "samples/client/react/*",
     "samples/personalized_learning",
-    "specification/*/eval",
     "specification/*/test",
     "tools/*",
     "!**/dist"

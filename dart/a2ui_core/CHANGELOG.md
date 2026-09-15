@@ -27,6 +27,11 @@
   number parser, so every implementation accepts the same literals.
 - The expression parser now runs the shared conformance suite at
   `conformance/core/expressions.yaml`, alongside the TypeScript client.
+- The expression parser's nesting limit is now enforced. The depth guard sat in
+  `parse()`, which is only entered at depth 0, so neither nested interpolations nor
+  function-call arguments were ever counted: a deeply nested template recursed until
+  the stack overflowed, raising `StackOverflowError` rather than the intended
+  `A2uiExpressionError`. The limit is also raised from 10 to 100, matching web_core.
 - **Breaking:** `MessageProcessor` checks each batch of components as a graph
   against the surface it joins, so duplicate ids, cycles and over-deep chains
   now throw. Whether a reference resolves is not checked there: a payload may
