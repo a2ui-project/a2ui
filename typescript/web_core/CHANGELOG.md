@@ -6,14 +6,10 @@
   formatting, currency fallback formatting (`${currency} ${amount}`), TR35 date
   formatting, pluralization, and validation. Removed the `date-fns` dependency.
 - (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
-- The conformance harness resolves each surface's node graph after processing a
-  payload, so a case asserting on a bound property compares the evaluated value
-  and a case expecting an expression, depth or argument-schema error actually
-  observes one. Cases previously reached those assertions without evaluating
-  any binding and passed regardless. `get_renderer_data_model` gained a real
-  handler, a suite that fails to parse is now a failure rather than a silent
-  skip, and each action the renderer does not implement carries a reason and a
-  count in the summary.
+- The conformance harness now resolves surface node graphs to assert on
+  evaluated binding values and catch expression errors. It also adds a
+  `get_renderer_data_model` handler and itemizes unimplemented agent actions in
+  the test summary.
 - (v1_0) The v1.0 basic catalog now ships function bodies. It previously
   exported argument schemas only, so a payload calling `formatCurrency`,
   `pluralize`, `and` or any of the other 13 catalog functions resolved to

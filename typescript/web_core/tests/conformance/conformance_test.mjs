@@ -131,10 +131,10 @@ const SKIP_TEST_SUITES = new Set(['accessibility.yaml']);
  * default `throw` for genuinely unrecognised actions intact.
  */
 const UNIMPLEMENTED_ACTIONS = new Map([
-  ['from_format', 'the Express inference format is implemented in the Python agent SDK'],
-  ['core_syntax', 'the Express inference format is implemented in the Python agent SDK'],
-  ['from_catalog', 'the Express inference format is implemented in the Python agent SDK'],
-  ['skill_set', 'skill generation is implemented in the Python agent SDK'],
+  ['from_format', 'the Express inference format is implemented in the agent SDK'],
+  ['core_syntax', 'the Express inference format is implemented in the agent SDK'],
+  ['from_catalog', 'the Express inference format is implemented in the agent SDK'],
+  ['skill_set', 'skill generation is implemented in the agent SDK'],
   ['process_chunk', 'web_core has no streaming inference parser'],
   ['parse_full', 'web_core has no inference-format parser'],
   ['fix_payload', 'web_core has no payload fixer'],
@@ -1364,22 +1364,12 @@ function getCatalogsForTestCase(testCase) {
   // catalog the case actually declared.
   const specifiedCatalogs = [];
 
-  // A catalog id named by a message but never defined by the case falls back to
-  // a permissive stand-in, so suites can exercise processor semantics with
-  // shorthand payloads that do not conform to a real component schema.
+  // Undefined catalogs default to a permissive stand-in so tests can use
+  // shorthand payloads without schema errors.
   //
-  // For a case that expects an error, that stand-in makes the assertion
-  // vacuous: it accepts any property, so nothing is left to reject. Those cases
-  // are aliased to the catalog the case declared instead.
-  //
-  // The distinction is load-bearing. Several `process_messages` suites declare
-  // `catalogPaths` pointing at a real basic catalog and then send a Button
-  // carrying `label`, which that catalog rejects. They pass in Python only
-  // because Python skips component schema validation outside strict mode.
-  //
-  // A case expecting a CatalogError is the exception: naming an undefined
-  // catalog is the behaviour under test, so supplying one would suppress the
-  // error. Mirrors `is_catalog_error_case` in the Python harness.
+  // When a test expects a validation error, alias the undefined catalog to the
+  // declared one so schema checks run. Cases expecting CatalogError are exempt,
+  // since the missing catalog is the condition under test.
   const declaredError =
     testCase.expectError ?? testCase.steps?.find(step => step.expectError)?.expectError;
   const isCatalogErrorCase =
