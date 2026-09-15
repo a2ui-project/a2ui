@@ -1,0 +1,58 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {
+  A2uiExpressionError,
+  createFunctionImplementation,
+  type FunctionImplementation,
+} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
+
+import {resolveDynamicValueDeep} from '../dynamic-values.js';
+import {asyncable, describe, withSettledArgs} from './common.js';
+
+export const UpdateDataModelApi = {
+  name: 'updateDataModel',
+  returnType: 'any',
+  schema: z.object({
+    updates: asyncable(z.any()).describe(
+      'An object whose keys are data model paths and whose values are what to write there, for example {"/entries": [...], "/title": "Home"}. A key starting with "/" is absolute; a relative key resolves against the data context the call was made from, which is the row scope when the call came from a template list.',
+    ),
+  }),
+} as const;
+
+/** Writes a map of data model path updates into the calling surface. */
+export const UpdateDataModelImplementation: FunctionImplementation = createFunctionImplementation(
+  UpdateDataModelApi,
+  (args, context) => {
+    const requested = resolveDynamicValueDeep<unknown>(args['updates'], context);
+    return withSettledArgs({updates: requested}, settled => {
+      const updates = settled['updates'];
+      if (updates === null || updates === undefined) {
+        return;
+      }
+      if (typeof updates !== 'object' || Array.isArray(updates)) {
+        throw new A2uiExpressionError(
+          `updateDataModel expects an object of data model paths, got ${describe(updates)}.`,
+          'updateDataModel',
+        );
+      }
+      for (const [path, value] of Object.entries(updates as Record<string, unknown>)) {
+        context.set(path, value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
+      }
+    });
+  },
+);

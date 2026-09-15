@@ -14,38 +14,36 @@
  * limitations under the License.
  */
 
-/**
- * A2UI MCP Catalog: `callMcpTool` for invoking Model Context Protocol tools,
- * plus the data functions that turn a tool result into data model updates.
- *
- * `createMcpCatalogFunctions` returns every function the catalog defines, so a
- * host registers them in one step. `MessageProcessor` reads its catalogs
- * lazily, so pass it the array before filling it in.
- *
- * ```ts
- * const catalogs: Catalog<any>[] = [];
- * const processor = new MessageProcessor(catalogs, onAction);
- *
- * catalogs.push(
- *   new Catalog(CATALOG_ID, components, [
- *     ...basicFunctions,
- *     ...createMcpCatalogFunctions(toolName => clientFor(toolName), processor),
- *   ]),
- * );
- * ```
- */
-
 import type {FunctionImplementation, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {createCallMcpToolImplementation, type McpClientResolver} from './functions/callMcpTool.js';
-import {DATA_FUNCTIONS} from './functions/dataFunctions.js';
+import {JmespathApi, JmespathImplementation} from './functions/jmespath.js';
+import {RegexCaptureApi, RegexCaptureImplementation} from './functions/regexCapture.js';
+import {RegexReplaceApi, RegexReplaceImplementation} from './functions/regexReplace.js';
+import {SplitApi, SplitImplementation} from './functions/split.js';
+import {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/updateDataModel.js';
 
 export const MCP_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json';
 
+/** All data function API definitions in catalog order. */
+export const DATA_FUNCTION_APIS = [
+  JmespathApi,
+  SplitApi,
+  RegexCaptureApi,
+  RegexReplaceApi,
+  UpdateDataModelApi,
+] as const;
+
+/** All data function implementations ready for catalog registration. */
+export const DATA_FUNCTIONS: FunctionImplementation[] = [
+  JmespathImplementation,
+  SplitImplementation,
+  RegexCaptureImplementation,
+  RegexReplaceImplementation,
+  UpdateDataModelImplementation,
+];
+
 /**
- * Returns every function this catalog defines.
- *
- * @param getMcpClientForTool Supplies the client to call a given tool on.
- * @param processor Receives the A2UI messages decoded from tool results.
+ * Returns all function implementations defined by the MCP catalog (`callMcpTool` and data functions).
  */
 export function createMcpCatalogFunctions(
   getMcpClientForTool: McpClientResolver,
@@ -63,21 +61,12 @@ export {
 } from './functions/callMcpTool.js';
 
 export {
-  DATA_FUNCTIONS,
-  JmespathImplementation,
-  RegexCaptureImplementation,
-  RegexMatchImplementation,
-  RegexReplaceImplementation,
-  SplitImplementation,
-  UpdateDataModelImplementation,
-} from './functions/dataFunctions.js';
-
-export {
-  DATA_FUNCTION_APIS,
+  JMESPATH_LANGUAGE_DESCRIPTION,
   JmespathApi,
-  RegexCaptureApi,
-  RegexMatchApi,
-  RegexReplaceApi,
-  SplitApi,
-  UpdateDataModelApi,
-} from './functions/dataFunctionsApi.js';
+  JmespathImplementation,
+} from './functions/jmespath.js';
+export {RegexCaptureApi, RegexCaptureImplementation} from './functions/regexCapture.js';
+export {RegexReplaceApi, RegexReplaceImplementation} from './functions/regexReplace.js';
+export {SplitApi, SplitImplementation} from './functions/split.js';
+export {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/updateDataModel.js';
+export {isThenable} from './functions/common.js';

@@ -4725,6 +4725,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/jmespath@npm:^0.15.2":
+  version: 0.15.2
+  resolution: "@types/jmespath@npm:0.15.2"
+  checksum: 10c0/61e45c2785f845f758df3cdb093ad30d32d3ca9c6e20c5ddf6eeb74125d7b6c0426ac175ca994fec47517b7fb0a4b89a91d47155709fec15ab03969ac3bcadc5
+  languageName: node
+  linkType: hard
+
 "@types/json-schema@npm:^7.0.15":
   version: 7.0.15
   resolution: "@types/json-schema@npm:7.0.15"
@@ -5011,6 +5018,7 @@ __metadata:
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
+    "@types/jmespath": "npm:^0.15.2"
     eslint: "npm:^10.4.1"
     jmespath: "npm:^0.16.0"
     lit: "npm:^3.3.3"

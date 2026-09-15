@@ -24,9 +24,12 @@ import {
   MessageProcessor,
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {CallMcpToolApi} from './callMcpToolApi.js';
-import {createMcpCatalogFunctions} from '../index.js';
-import {DATA_FUNCTION_APIS} from './dataFunctionsApi.js';
+import {
+  CallMcpToolApi,
+  DATA_FUNCTION_APIS,
+  MCP_CATALOG_ID,
+  createMcpCatalogFunctions,
+} from '../index.js';
 import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,
@@ -35,7 +38,6 @@ import {
   readUiResourceUris,
   type McpToolClient,
 } from './callMcpTool.js';
-import {MCP_CATALOG_ID} from '../index.js';
 import mcpCatalogJson from '../../mcp_catalog.json' with {type: 'json'};
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -724,9 +726,13 @@ describe('callMcpTool', () => {
         .properties.expression.description;
       assert.match(published, /no `let` bindings/);
       assert.match(published, /rows\[\*\]/);
-      for (const name of ['split', 'regexMatch', 'regexCapture', 'regexReplace']) {
+      for (const name of ['split', 'regexCapture', 'regexReplace']) {
         assert.ok(published.includes(name), `published description omits ${name}`);
       }
+      // Matching is the basic catalog's `regex`, so the MCP catalog does not
+      // publish one of its own and points an agent at it instead.
+      assert.match(published, /basic catalog `regex` function/);
+      assert.ok(!(mcpCatalogJson as any).functions.regexMatch, 'regexMatch is still published');
     });
   });
 

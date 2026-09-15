@@ -27,18 +27,19 @@ Tools are addressed by name only. A2UI payloads never name a server, because mul
 
 The function returns the raw MCP `CallToolResult` and does nothing else with it. It throws an `A2uiExpressionError` if the client cannot be resolved, the call returns nothing, or the result is flagged `isError`.
 
-Six data functions reshape that result and write it into the data model:
+Five data functions reshape that result and write it into the data model:
 
 | Function          | Arguments                         | Returns                                                                     |
 | :---------------- | :-------------------------------- | :-------------------------------------------------------------------------- |
 | `jmespath`        | `expression`, `data`              | What the expression evaluates to, or `null` where it reads a missing field. |
 | `split`           | `value`, `separator`              | The parts of `value`. An empty separator splits into characters.            |
-| `regexMatch`      | `value`, `pattern`                | Whether the RE2 pattern matches anywhere in `value`.                        |
 | `regexCapture`    | `value`, `pattern`                | The capture groups of the first match, or `null` when the pattern misses.   |
 | `regexReplace`    | `value`, `pattern`, `replacement` | `value` with every match replaced by literal text.                          |
 | `updateDataModel` | `updates`                         | Nothing. Writes each key of `updates` into the calling surface.             |
 
-Every argument above is required. `split`, `regexMatch`, `regexCapture`, and `regexReplace` also accept an array in `value` and apply element by element, which is how a payload processes every line of a tool result without a loop.
+Every argument above is required. `split`, `regexCapture`, and `regexReplace` also accept an array in `value` and apply element by element, which is how a payload processes every line of a tool result without a loop.
+
+To test whether a string matches a pattern, use the basic catalog `regex` function rather than one published here.
 
 For `updateDataModel`, a key starting with `/` is absolute, and a relative key resolves against the data context the call was made from, which is the row scope when the call came from a template list.
 
@@ -270,9 +271,9 @@ Dialect extensions that other packages add fail to parse, so none of the followi
 
 The language is also total. It has no loops, no recursion, and no way to reach the host, so an expression cannot run away or escape the document it was given. A payload cannot hang the host, so the host needs no timeout or worker thread.
 
-Stock JMESPath has no regular expressions and no `split`, and this catalog registers no extension functions to add them, because doing so would make an A2UI expression unportable in exactly the way the reference implementation rules out. Call `split`, `regexMatch`, `regexCapture`, and `regexReplace` first, then pass their output in as `data`.
+Stock JMESPath has no regular expressions and no `split`, and this catalog registers no extension functions to add them, because doing so would make an A2UI expression unportable in exactly the way the reference implementation rules out. Call `split`, `regexCapture`, and `regexReplace` first, then pass their output in as `data`. To test whether a string matches a pattern, use the basic catalog `regex` function.
 
-Those four functions match with [RE2](https://github.com/google/re2), which uses a finite automaton rather than backtracking, so a pattern such as `^(a+)+$` runs in time linear in the input instead of exponential. RE2 rejects backreferences and lookaround, so a pattern using either fails to compile rather than running slowly.
+The two regular expression functions match with [RE2](https://github.com/google/re2), which uses a finite automaton rather than backtracking, so a pattern such as `^(a+)+$` runs in time linear in the input instead of exponential. RE2 rejects backreferences and lookaround, so a pattern using either fails to compile rather than running slowly. The basic catalog `regex` function uses the host `RegExp` instead, so reserve it for patterns and inputs the payload controls.
 
 Two idioms replace the syntax that is unavailable:
 
@@ -287,17 +288,18 @@ Three details catch people out:
 
 ## Module layout
 
-| File                                     | Responsibility                                                                    |
-| :--------------------------------------- | :-------------------------------------------------------------------------------- |
-| `v0_9/mcp_catalog.json`                  | The published catalog schema: every function and its arguments                    |
-| `v0_9/src/index.ts`                      | Package entry: `MCP_CATALOG_ID`, `createMcpCatalogFunctions`, and public exports  |
-| `v0_9/src/functions/callMcpTool.ts`      | The whole tool call: request, UI resource fetch and caching, and message decoding |
-| `v0_9/src/functions/callMcpToolApi.ts`   | The `callMcpTool` argument schema                                                 |
-| `v0_9/src/functions/dataFunctions.ts`    | The six data functions: JMESPath evaluation, RE2 matching, and data model writes  |
-| `v0_9/src/functions/dataFunctionsApi.ts` | The data function argument schemas, free of any evaluator                         |
-| `v0_9/src/dynamic-values.ts`             | Resolution of dynamic values nested in literal containers                         |
-
-Keeping the schemas in `dataFunctionsApi.ts` apart from the implementations lets a host publish the catalog without pulling in an expression evaluator or a regular expression engine.
+| File                                    | Responsibility                                                                   |
+| :-------------------------------------- | :------------------------------------------------------------------------------- |
+| `v0_9/mcp_catalog.json`                 | The published catalog schema: every function and its arguments                   |
+| `v0_9/src/index.ts`                     | Package entry: `MCP_CATALOG_ID`, `createMcpCatalogFunctions`, and public exports |
+| `v0_9/src/functions/callMcpTool.ts`     | MCP tool execution, UI resource discovery, caching, and message decoding         |
+| `v0_9/src/functions/jmespath.ts`        | Standard JMESPath evaluation against data documents                              |
+| `v0_9/src/functions/split.ts`           | String and string-array splitting                                                |
+| `v0_9/src/functions/regexCapture.ts`    | Linear-time RE2 capture group extraction                                         |
+| `v0_9/src/functions/regexReplace.ts`    | Literal RE2 string replacement                                                   |
+| `v0_9/src/functions/updateDataModel.ts` | Writing key-value updates into the calling surface data model                    |
+| `v0_9/src/functions/common.ts`          | Shared helpers for async argument settling, RE2 pattern caching, and coercion    |
+| `v0_9/src/dynamic-values.ts`            | Resolution of dynamic values nested in literal containers                        |
 
 ## Building
 
@@ -322,5 +324,5 @@ TypeScript sources, so they do not require a build:
 yarn workspace @a2ui/mcp-catalog test
 
 # Or a single file
-node --import tsx --test catalogs/mcp/v0_9/src/functions/dataFunctions.test.ts
+node --import tsx --test catalogs/mcp/v0_9/src/functions/jmespath.test.ts
 ```

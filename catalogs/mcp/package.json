@@ -33,6 +33,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/jmespath": "^0.15.2",
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
     "prettier": "^3.8.4",
