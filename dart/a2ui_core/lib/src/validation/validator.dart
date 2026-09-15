@@ -24,11 +24,13 @@ import 'common_types.g.dart';
 import 'component_refs.dart';
 import 'schema_resolution.dart';
 
+/// Verifies an item in an agent-to-renderer payload.
+///
 /// Checks one component, one function call, or one theme against one catalog.
 ///
-/// Lives in `a2ui_core` because renderers and agents check the same payloads
-/// against the same catalogs. Implements v0.9 only: [checkVersion] and
-/// [checkVersion] rejects any other version, or none.
+/// Lives in `a2ui_core` because renderers and agents check that same payload
+/// against the same catalogs. Implements v0.9 only: [checkVersion] rejects any
+/// other version, or none.
 ///
 /// A validator is scoped to a single [catalog], and validates a single item
 /// against it. It deliberately does not walk a payload: from v1.0 a surface
@@ -63,11 +65,25 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// The shared `common_types.json` definitions this validator resolves
   /// against.
   ///
-  /// Catalogs reference this document for `ChildList`, `DynamicString` and
-  /// the other shared types, so [validateComponent] needs it to check them. It
-  /// defaults to [commonTypesFor] of [protocolVersion], the copy this package
-  /// publishes; pass a different document to override it, or an empty map to
-  /// leave the shared types unchecked.
+  /// Catalogs state their component properties in terms of these shared types
+  /// rather than restating them. The v0.9 `basic` and `minimal` catalogs
+  /// reference `ComponentCommon`, `ComponentId`, `ChildList`, `Action`,
+  /// `Checkable`, `DataBinding` and the dynamic-value family (`DynamicValue`,
+  /// `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`),
+  /// and reach `AccessibilityAttributes`, `CheckRule` and `FunctionCall`
+  /// through those. [validateComponent] needs this document to check any of
+  /// them; a reference `resolveSchemaRefs` cannot reach is dropped, which
+  /// leaves that subschema unconstrained rather than failing.
+  ///
+  /// Defaults to [commonTypesFor] of [protocolVersion], this package's copy of
+  /// `specification/v0_9/json/common_types.json`; pass a different document to
+  /// override it, or an empty map to leave the shared types unchecked.
+  ///
+  /// v1.0's `specification/v1_0/json/common_types.json` keeps every one of
+  /// those definitions and adds `Child`, `CallId`, `Extensions`,
+  /// `FunctionCommon`, `IndexSystemFunction`, `Surface` and
+  /// `FunctionResponse`. This SDK implements v0.9 only, so that document is
+  /// not embedded and [commonTypesFor] cannot return it.
   final Map<String, Object?> commonTypesSchema;
 
   /// Child-referencing properties of [catalog], derived on first use.

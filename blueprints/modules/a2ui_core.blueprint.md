@@ -707,7 +707,7 @@ A shared base class should implement `extractOperations` once, covering payload 
 
 #### Renderer vs. Agent Execution Patterns
 
-In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it is an optional helper for checking LLM-generated messages against catalogs, verifying data paths, and preparing payloads for transmission. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to:
+In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it is an optional helper for checking model-generated messages against catalogs, verifying data paths, and preparing payloads for transmission. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to:
 
 ```typescript
 // 1. Renderer Usage (Updates layout state and routes UI action events)
@@ -717,7 +717,7 @@ const rendererProcessor = new MessageProcessor({
 });
 rendererProcessor.processMessages(incomingMessagesFromAgent);
 
-// 2. Agent Usage (Optional helper: validates LLM output and prepares payloads)
+// 2. Agent Usage (Optional helper: validates model output and prepares payloads)
 const agentProcessor = new MessageProcessor({
   catalogs: [negotiatedCatalog], // Single negotiated catalog enforces catalog compliance
   actionHandler: undefined, // Agent does not render DOM elements or handle clicks
@@ -725,7 +725,7 @@ const agentProcessor = new MessageProcessor({
 // Same entry point as the renderer: the processor is kept for the session, so
 // each payload is checked against the state the previous ones built.
 agentProcessor.processMessages(
-  AgentToRendererMessage.parseAll(generatedLlmPayload, protocolVersion),
+  AgentToRendererMessage.parseAll(parsedModelPayload),
 );
 // Once the turn is built, assert each surface it created is a finished render.
 agentProcessor.checkSurfaceComplete('surface-1');
@@ -737,8 +737,8 @@ agentProcessor.checkSurfaceComplete('surface-1');
 | **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).      |
 | **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, then `checkSurfaceComplete` for each surface built.   |
 | **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                     |
-| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if LLM generates payload referencing un-negotiated catalog.        |
-| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies LLM-generated payloads and data path references before sending. |
+| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
+| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending. |
 
 ---
 
