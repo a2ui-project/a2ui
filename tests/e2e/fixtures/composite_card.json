@@ -1,0 +1,49 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "test-composite-card",
+      "catalogId": "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "test-composite-card",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": [
+            "card-col"
+          ]
+        },
+        {
+          "id": "card-col",
+          "component": "MaterialColumn",
+          "children": [
+            "card-title",
+            "card-btn"
+          ]
+        },
+        {
+          "id": "card-title",
+          "component": "MaterialText",
+          "text": "Enterprise Composite Card",
+          "usageHint": "h2"
+        },
+        {
+          "id": "card-btn",
+          "component": "MaterialButton",
+          "label": "Confirm Action",
+          "action": {
+            "event": {
+              "name": "enterprise_confirm",
+              "context": {}
+            }
+          }
+        }
+      ]
+    }
+  }
+]
