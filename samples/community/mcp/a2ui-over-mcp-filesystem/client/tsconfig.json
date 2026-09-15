@@ -12,6 +12,7 @@
     "sourceMap": true,
     "isolatedModules": true,
     "outDir": "dist",
+    "types": ["node"],
     // `build` runs `tsc && vite build`; vite emits dist/, so tsc is only a
     // typecheck pass here. Without this, pulling the out-of-tree catalog source
     // (see "paths" below) into the program would skew tsc's inferred root dir.
@@ -38,5 +39,5 @@
       "zod": ["../../../node_modules/zod"]
     }
   },
-  "include": ["src/**/*.ts", "*.ts"]
+  "include": ["*.ts", "../a2ui_filesystem.json"]
 }

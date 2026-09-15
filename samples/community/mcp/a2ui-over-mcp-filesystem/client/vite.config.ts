@@ -15,8 +15,17 @@
  */
 
 // `vitest/config` re-exports Vite's `defineConfig` widened with the `test` block.
-import {defineConfig} from 'vitest/config';
 import {fileURLToPath} from 'node:url';
+import {defineConfig} from 'vitest/config';
+
+/**
+ * Where the MCP server listens.
+ *
+ * `yarn dev` starts `mcp-proxy` on this port, which runs the reference
+ * filesystem MCP server and relays it over Streamable HTTP. The page reaches
+ * it at a same-origin `/mcp`, so nothing in the app knows the port.
+ */
+const MCP_PROXY_URL = process.env['A2UI_MCP_URL'] ?? 'http://127.0.0.1:8787';
 
 /**
  * Entry point of the shared A2UI MCP catalog (`@a2ui/mcp-catalog`).
@@ -80,7 +89,13 @@ export default defineConfig({
     target: 'esnext',
   },
   server: {
-    port: 5173,
+    port: 5174,
+    strictPort: true,
+    // Keeps the page and the MCP server on one origin. `changeOrigin: false`
+    // preserves the Host header, which a Streamable HTTP server may check.
+    proxy: {'/mcp': {target: MCP_PROXY_URL, changeOrigin: false}},
+    // The A2UI payload sits beside the client rather than inside it.
+    fs: {allow: [fileURLToPath(new URL('..', import.meta.url))]},
   },
   test: {
     // The app is a custom element, so tests need DOM globals.

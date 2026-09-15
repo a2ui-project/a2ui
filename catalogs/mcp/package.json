@@ -28,9 +28,12 @@
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.1",
+    "jmespath": "^0.16.0",
+    "re2js": "^2.8.6",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/jmespath": "^0.15.2",
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
     "prettier": "^3.8.4",
