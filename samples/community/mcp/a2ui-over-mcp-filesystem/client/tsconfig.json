@@ -34,9 +34,17 @@
       "@modelcontextprotocol/sdk/types.js": [
         "../../../node_modules/@modelcontextprotocol/sdk/dist/esm/types.d.ts"
       ],
-      "jsonata": ["../../../node_modules/jsonata"],
+      "jmespath": ["../../../node_modules/jmespath"],
+      "re2js": ["../../../node_modules/re2js"],
       "zod": ["../../../node_modules/zod"]
     }
   },
-  "include": ["*.ts", "../fs_browser_a2ui.json"]
+  // The catalog source is compiled as part of this program (see "paths"), and
+  // it imports `jmespath`, which ships no types. Its declaration lives next to
+  // the code that uses it and has to be pulled in explicitly from here.
+  "include": [
+    "*.ts",
+    "../a2ui_filesystem.json",
+    "../../../../../catalogs/mcp/v0_9/src/functions/vanilla-jmespath.d.ts"
+  ]
 }

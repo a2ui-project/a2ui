@@ -19,15 +19,16 @@
  * anything about files.
  *
  * The host below is the entire client. It connects to an MCP server, hands
- * `fs_browser_a2ui.json` to the renderer, and runs the call the payload names
+ * `a2ui_filesystem.json` to the renderer, and runs the action the payload names
  * as its first. Everything after that — which tool each control calls, and how
- * each response becomes data — is JSONata inside the payload.
+ * each response becomes data — is a chain of catalog functions inside the
+ * payload.
  */
 
 import {Context, basicCatalog} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {createCallMcpToolImplementation} from '@a2ui/mcp-catalog';
+import {createMcpCatalogFunctions} from '@a2ui/mcp-catalog';
 import {Catalog, DataContext, MessageProcessor, type A2uiMessage} from '@a2ui/web_core/v0_9';
 import {provide} from '@lit/context';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
@@ -70,7 +71,7 @@ export class A2uiFilesystemApp extends LitElement {
     catalogs.push(
       new Catalog<any>(CATALOG_ID, Array.from(basicCatalog.components.values()), [
         ...Array.from(basicCatalog.functions.values()),
-        createCallMcpToolImplementation(() => this.mcpClient!, this.processor),
+        ...createMcpCatalogFunctions(() => this.mcpClient!, this.processor),
       ]),
     );
 
@@ -99,12 +100,13 @@ export class A2uiFilesystemApp extends LitElement {
 
       this.processor.processMessages(surfaceMessages as unknown as A2uiMessage[]);
 
-      // The payload declares the call that fills the first screen, the same
-      // way its buttons declare theirs.
+      // The payload declares the action that fills the first screen, in the
+      // same form its buttons declare theirs, so the host runs it without
+      // knowing which functions it names.
       const surface = this.surface!;
       const context = new DataContext(surface, '/');
-      for (const call of surface.dataModel.get('/startup') ?? []) {
-        await surface.catalog.invoker('callMcpTool', call, context);
+      for (const action of surface.dataModel.get('/startup') ?? []) {
+        await context.resolveDynamicValue(action);
       }
     } catch (error: unknown) {
       this.error = error instanceof Error ? error.message : String(error);

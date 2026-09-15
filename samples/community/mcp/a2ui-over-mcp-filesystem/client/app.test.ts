@@ -19,13 +19,18 @@
  *
  * The MCP server is mocked with responses copied from a real one, so these
  * cover what the sample actually ships: the payload validating against the
- * catalog, its JSONata turning server text into the data model, and the host
- * running the startup call the payload names.
+ * catalog, the function chains behind its controls turning server text into
+ * the data model, and the host running the startup action the payload names.
+ *
+ * Each control is driven the way the renderer drives it. The test reads the
+ * action off the component and resolves it, rather than assembling a call of
+ * its own, so what runs is the payload rather than a paraphrase of it.
  */
 
+import {DataContext} from '@a2ui/web_core/v0_9';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {A2uiFilesystemApp, CATALOG_ID, SURFACE_ID} from './app';
+import {A2uiFilesystemApp, CATALOG_ID} from './app';
 
 /** A real `list_directory_with_sizes` response, including its totals block. */
 const LISTING = [
@@ -42,6 +47,48 @@ const FILE_TEXT = 'line one\nline two\nline three';
 
 /** A real `search_files` response. */
 const MATCHES = '/Users/ada/a.md\n/Users/ada/notes/b.md';
+
+/**
+ * The pattern a directory row carries, which splits the listing its click
+ * fetches.
+ *
+ * A row carries the pattern for its own tool's output, because the row is what
+ * knows which tool it will call.
+ */
+const LISTING_PATTERN = '^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$';
+
+/** The pattern a file row carries: file text has no columns to pick apart. */
+const LINE_PATTERN = '^(.*)$';
+
+/** The rows `LISTING` yields once the dotfile and the totals block are dropped. */
+const HOME_ENTRIES = [
+  {
+    name: 'Documents',
+    size: '',
+    icon: 'folder',
+    tool: 'list_directory_with_sizes',
+    expr: {path: '/expr/list'},
+    pattern: LISTING_PATTERN,
+  },
+  {
+    name: 'notes with spaces.md',
+    size: '2.39 KB',
+    icon: 'attachFile',
+    tool: 'read_text_file',
+    expr: {path: '/expr/read'},
+    pattern: LINE_PATTERN,
+  },
+];
+
+/** A search hit, which is a whole path rather than a name within a directory. */
+const hit = (name: string) => ({
+  name,
+  size: '',
+  icon: 'attachFile',
+  tool: 'read_text_file',
+  expr: {path: '/expr/read'},
+  pattern: LINE_PATTERN,
+});
 
 let mockClient: {
   connect: ReturnType<typeof vi.fn>;
@@ -68,12 +115,38 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 /** Runs the connect-and-bootstrap lifecycle the way Lit would. */
 const bootstrap = (app: A2uiFilesystemApp) => (app as any).firstUpdated();
 
-/** Invokes a tool the way a button in the payload would. */
-async function click(app: A2uiFilesystemApp, args: Record<string, unknown>, path = '/') {
-  const surface = app.surface!;
-  const {DataContext} = await import('@a2ui/web_core/v0_9');
-  await surface.catalog.invoker('callMcpTool', args, new DataContext(surface, path));
+/** Every `tools/call` the mocked server has received, in order. */
+const toolCalls = () => mockClient.request.mock.calls.map(call => call[0].params);
+
+/** Reads a data model path off the live surface. */
+const read = (app: A2uiFilesystemApp, path: string) => app.surface!.dataModel.get(path);
+
+/**
+ * Runs the action a control declares, in the scope the renderer gives it.
+ *
+ * A failure inside an action is reported to the surface rather than thrown, so
+ * the error check is what keeps a broken chain from passing as a no-op.
+ */
+async function press(app: A2uiFilesystemApp, componentId: string, scope = '/') {
+  const component = app.surface!.componentsModel.get(componentId);
+  expect(component, `the payload declares no ${componentId}`).toBeDefined();
+
+  await new DataContext(app.surface!, scope).resolveDynamicValue(
+    component!.properties['action'].functionCall,
+  );
+
+  expect((app as any).error, `${componentId} dispatched a surface error`).toBe('');
 }
+
+/**
+ * Clicks one row of the entries list.
+ *
+ * The row template reads `name`, `tool`, `expr`, and `pattern` relative to the
+ * entry it renders, so its action runs scoped to that entry rather than to the
+ * surface root.
+ */
+const pressRow = (app: A2uiFilesystemApp, index: number) =>
+  press(app, 'entry_button', `/entries/${index}`);
 
 describe('the filesystem payload', () => {
   let app: A2uiFilesystemApp;
@@ -109,38 +182,22 @@ describe('the filesystem payload', () => {
     expect((app as any).error).toBe('');
   });
 
-  it('runs the startup call the payload declares, listing the home directory', async () => {
+  it('runs the startup action the payload declares, listing the home directory', async () => {
     await bootstrap(app);
 
-    expect(mockClient.request.mock.calls.map(call => call[0].params)).toEqual([
-      {name: 'list_directory_with_sizes', arguments: {path: '~'}},
-    ]);
+    expect(toolCalls()).toEqual([{name: 'list_directory_with_sizes', arguments: {path: '~'}}]);
   });
 
   it('turns a directory listing into rows the row template binds to, hiding dotfiles', async () => {
     await bootstrap(app);
 
-    expect(app.surface!.dataModel.get('/entries')).toEqual([
-      {
-        name: 'Documents',
-        path: '~/Documents',
-        size: '',
-        icon: 'folder',
-        tool: 'list_directory_with_sizes',
-        args: {path: '~/Documents'},
-        jsonata: {path: '/jsonata/list'},
-      },
-      {
-        name: 'notes with spaces.md',
-        path: '~/notes with spaces.md',
-        size: '2.39 KB',
-        icon: 'attachFile',
-        tool: 'read_text_file',
-        args: {path: '~/notes with spaces.md'},
-        jsonata: {path: '/jsonata/read'},
-      },
-    ]);
-    expect(app.surface!.dataModel.get('/entries_title')).toBe('2 entries');
+    expect(read(app, '/entries')).toEqual(HOME_ENTRIES);
+    expect(read(app, '/entries_title')).toBe('2 entries');
+    expect(read(app, '/dir')).toBe('~');
+    // Every row builds its path by prepending this, so the trailing slash is
+    // part of the contract rather than cosmetic.
+    expect(read(app, '/row_base')).toBe('~/');
+    expect(read(app, '/viewer_title')).toBe('Home Directory (~)');
   });
 
   it('counts a single entry in the singular', async () => {
@@ -148,115 +205,182 @@ describe('the filesystem payload', () => {
 
     await bootstrap(app);
 
-    expect(app.surface!.dataModel.get('/entries_title')).toBe('1 entry');
+    expect(read(app, '/entries')).toHaveLength(1);
+    expect(read(app, '/entries_title')).toBe('1 entry');
   });
 
-  it('sends a row to the tool the row carries, with the row arguments', async () => {
+  it('issues exactly one tool call for a row click', async () => {
+    await bootstrap(app);
+    mockClient.request.mockClear();
+
+    await pressRow(app, 0);
+
+    // The chain nests the call under several functions, and a duplicated
+    // subtree would double-call without changing any of the data it produces.
+    expect(toolCalls()).toEqual([
+      {name: 'list_directory_with_sizes', arguments: {path: '~/Documents'}},
+    ]);
+  });
+
+  it('opens a file row at the path its row base and name build', async () => {
     await bootstrap(app);
 
-    // The second entry is a file, so its row calls the read tool.
-    await click(app, entryCall(app, 1), '/entries/1');
+    await pressRow(app, 1);
 
-    expect(mockClient.request.mock.lastCall![0].params).toEqual({
+    expect(toolCalls().at(-1)).toEqual({
       name: 'read_text_file',
       arguments: {path: '~/notes with spaces.md'},
     });
-    expect(app.surface!.dataModel.get('/viewer_body')).toBe(
-      '```\nline one\nline two\nline three\n```',
-    );
-    expect(app.surface!.dataModel.get('/args/open/path')).toBe('~/notes with spaces.md');
+    expect(read(app, '/viewer_body')).toBe('```\nline one\nline two\nline three\n```');
+    expect(read(app, '/viewer_title')).toBe('~/notes with spaces.md');
+    // Reading a file leaves the listing alone, so the pane the user came from
+    // still shows the directory they are in.
+    expect(read(app, '/dir')).toBe('~');
+    expect(read(app, '/entries')).toEqual(HOME_ENTRIES);
   });
 
-  it('keeps the listing branch for a row that is a directory and supports nested navigation', async () => {
+  it('walks into a directory row, and keeps walking from there', async () => {
     await bootstrap(app);
 
-    await click(app, entryCall(app, 0), '/entries/0');
+    await pressRow(app, 0);
 
-    expect(mockClient.request.mock.lastCall![0].params).toEqual({
+    expect(toolCalls().at(-1)).toEqual({
       name: 'list_directory_with_sizes',
       arguments: {path: '~/Documents'},
     });
-    expect(app.surface!.dataModel.get('/args/open/path')).toBe('~/Documents');
-    expect(app.surface!.dataModel.get('/args/parent/path')).toBe('~');
+    expect(read(app, '/dir')).toBe('~/Documents');
+    expect(read(app, '/row_base')).toBe('~/Documents/');
+    expect(read(app, '/viewer_title')).toBe('~/Documents');
+    expect(read(app, '/entries_title')).toBe('2 entries');
 
-    // Navigate a second level down
-    await click(app, entryCall(app, 0), '/entries/0');
+    await pressRow(app, 0);
 
-    expect(mockClient.request.mock.lastCall![0].params).toEqual({
+    expect(toolCalls().at(-1)).toEqual({
       name: 'list_directory_with_sizes',
       arguments: {path: '~/Documents/Documents'},
     });
-    expect(app.surface!.dataModel.get('/args/open/path')).toBe('~/Documents/Documents');
-    expect(app.surface!.dataModel.get('/args/parent/path')).toBe('~/Documents');
+    expect(read(app, '/dir')).toBe('~/Documents/Documents');
+    expect(read(app, '/row_base')).toBe('~/Documents/Documents/');
   });
 
-  it('turns search output into a result list in the directory entries pane', async () => {
+  it('lists the directory typed into the field', async () => {
     await bootstrap(app);
 
-    await click(app, searchCall(app));
+    // The Directory field binds straight to `/dir`, so typing is a write.
+    app.surface!.dataModel.set('/dir', '~/Documents/projects');
+    await press(app, 'open_button');
 
-    expect(mockClient.request.mock.lastCall![0].params.arguments).toEqual({
-      path: '~',
-      pattern: '**/*.md',
+    expect(toolCalls().at(-1)).toEqual({
+      name: 'list_directory_with_sizes',
+      arguments: {path: '~/Documents/projects'},
     });
-    expect(app.surface!.dataModel.get('/entries')).toEqual([
-      {
-        name: '/Users/ada/a.md',
-        path: '/Users/ada/a.md',
-        size: '',
-        icon: 'attachFile',
-        tool: 'read_text_file',
-        args: {path: '/Users/ada/a.md'},
-        jsonata: {path: '/jsonata/read'},
-      },
-      {
-        name: '/Users/ada/notes/b.md',
-        path: '/Users/ada/notes/b.md',
-        size: '',
-        icon: 'attachFile',
-        tool: 'read_text_file',
-        args: {path: '/Users/ada/notes/b.md'},
-        jsonata: {path: '/jsonata/read'},
-      },
-    ]);
-    expect(app.surface!.dataModel.get('/entries_title')).toBe('Search: 2 matches in `~`');
-    expect(app.surface!.dataModel.get('/viewer_body')).toBe(
+    expect(read(app, '/dir')).toBe('~/Documents/projects');
+    expect(read(app, '/row_base')).toBe('~/Documents/projects/');
+    expect(read(app, '/viewer_title')).toBe('~/Documents/projects');
+  });
+
+  it('walks up to the parent directory', async () => {
+    await bootstrap(app);
+    await pressRow(app, 0);
+
+    await press(app, 'parent_button');
+
+    expect(toolCalls().at(-1)).toEqual({
+      name: 'list_directory_with_sizes',
+      arguments: {path: '~'},
+    });
+    expect(read(app, '/dir')).toBe('~');
+    expect(read(app, '/row_base')).toBe('~/');
+  });
+
+  it('treats the parent of the home directory as itself', async () => {
+    await bootstrap(app);
+
+    await press(app, 'parent_button');
+
+    // `~` has no separator to strip, so the user cannot walk off the top.
+    expect(toolCalls().at(-1)).toEqual({
+      name: 'list_directory_with_sizes',
+      arguments: {path: '~'},
+    });
+    expect(read(app, '/dir')).toBe('~');
+  });
+
+  it('returns home from a nested directory', async () => {
+    await bootstrap(app);
+    await pressRow(app, 0);
+
+    await press(app, 'home_button');
+
+    expect(toolCalls().at(-1)).toEqual({
+      name: 'list_directory_with_sizes',
+      arguments: {path: '~'},
+    });
+    expect(read(app, '/dir')).toBe('~');
+    expect(read(app, '/viewer_title')).toBe('Home Directory (~)');
+  });
+
+  it('turns search output into a result list in the entries pane', async () => {
+    await bootstrap(app);
+
+    await press(app, 'search_button');
+
+    expect(toolCalls().at(-1)).toEqual({
+      name: 'search_files',
+      arguments: {path: '~', pattern: '**/*.md'},
+    });
+    expect(read(app, '/entries')).toEqual([hit('/Users/ada/a.md'), hit('/Users/ada/notes/b.md')]);
+    // A hit is already absolute, so a row must prepend nothing to it.
+    expect(read(app, '/row_base')).toBe('');
+    expect(read(app, '/entries_title')).toBe('Search: 2 matches in `~`');
+    expect(read(app, '/viewer_title')).toBe('Search in ~');
+    expect(read(app, '/viewer_body')).toBe(
       'Found 2 matches for glob `**/*.md` in `~`. Select a file on the left to read it.',
     );
   });
 
-  it('supports typing a directory path and listing it', async () => {
+  it('words a single search hit in the singular', async () => {
+    responses['search_files'] = '/Users/ada/a.md';
     await bootstrap(app);
 
-    // User types in the Directory text field
-    app.surface!.dataModel.set('/args/open/path', '~/Documents/projects');
+    await press(app, 'search_button');
 
-    // Click "List directory" button
-    await click(app, {
-      name: 'list_directory_with_sizes',
-      arguments: {path: '~/Documents/projects'},
-      dataModelUpdateJsonata: {path: '/jsonata/list'},
-    });
+    expect(read(app, '/entries')).toEqual([hit('/Users/ada/a.md')]);
+    expect(read(app, '/entries_title')).toBe('Search: 1 match in `~`');
+    expect(read(app, '/viewer_body')).toBe(
+      'Found 1 match for glob `**/*.md` in `~`. Select a file on the left to read it.',
+    );
+  });
 
-    expect(mockClient.request.mock.lastCall![0].params).toEqual({
-      name: 'list_directory_with_sizes',
-      arguments: {path: '~/Documents/projects'},
+  it('opens a search hit at its own absolute path', async () => {
+    await bootstrap(app);
+    await press(app, 'search_button');
+
+    await pressRow(app, 0);
+
+    expect(toolCalls().at(-1)).toEqual({
+      name: 'read_text_file',
+      arguments: {path: '/Users/ada/a.md'},
     });
-    expect(app.surface!.dataModel.get('/args/open/path')).toBe('~/Documents/projects');
-    expect(app.surface!.dataModel.get('/args/parent/path')).toBe('~/Documents');
-    expect(app.surface!.dataModel.get('/args/search/path')).toBe('~/Documents/projects');
+    expect(read(app, '/viewer_title')).toBe('/Users/ada/a.md');
   });
 
   it('empties the result list when nothing matches', async () => {
     await bootstrap(app);
     responses['search_files'] = 'No matches found';
 
-    await click(app, searchCall(app));
+    // The glob field binds straight to `/search_pattern`, as the Directory
+    // field does to `/dir`.
+    app.surface!.dataModel.set('/search_pattern', '**/*.js');
+    await press(app, 'search_button');
 
-    expect(app.surface!.dataModel.get('/entries')).toEqual([]);
-    expect(app.surface!.dataModel.get('/viewer_body')).toBe(
-      'No matches found for glob `**/*.md` in `~`.',
-    );
+    expect(toolCalls().at(-1)).toEqual({
+      name: 'search_files',
+      arguments: {path: '~', pattern: '**/*.js'},
+    });
+    expect(read(app, '/entries')).toEqual([]);
+    expect(read(app, '/entries_title')).toBe('Search: 0 matches in `~`');
+    expect(read(app, '/viewer_body')).toBe('No matches found for glob `**/*.js` in `~`.');
   });
 
   it('reports a transport failure instead of rendering an empty surface', async () => {
@@ -268,30 +392,3 @@ describe('the filesystem payload', () => {
     expect((app as any).error).toBe('Network error');
   });
 });
-
-/**
- * Builds the call the row template makes for one entry.
- *
- * The row binds every part of the call to the entry: the tool name, the
- * arguments object, and the expression that reads the result.
- */
-function entryCall(app: A2uiFilesystemApp, index: number): Record<string, unknown> {
-  const entry = app.surface!.dataModel.get(`/entries/${index}`);
-  return {
-    name: entry.tool,
-    arguments: entry.args,
-    dataModelUpdateJsonata: entry.jsonata,
-  };
-}
-
-/** Builds the call the search button makes. */
-function searchCall(app: A2uiFilesystemApp): Record<string, unknown> {
-  return {
-    name: 'search_files',
-    arguments: {
-      path: app.surface!.dataModel.get('/args/search/path'),
-      pattern: app.surface!.dataModel.get('/args/search/pattern'),
-    },
-    dataModelUpdateJsonata: app.surface!.dataModel.get('/jsonata/search'),
-  };
-}

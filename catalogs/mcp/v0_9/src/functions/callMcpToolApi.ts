@@ -26,8 +26,9 @@ import {DynamicStringSchema, DynamicValueSchema} from '@a2ui/web_core/v0_9';
  * Arguments:
  * - `name`: The name of the MCP tool to execute (literal string or dynamic binding).
  * - `arguments`: Optional arguments object passed to the MCP tool with dynamic values.
- * - `dataModelUpdateJsonata`: Optional JSONata expression turning the tool
- *   result into data model updates.
+ *
+ * The call returns the tool result unchanged. To turn that result into data
+ * model updates, nest the call inside `jmespath` and `updateDataModel`.
  */
 export const CallMcpToolApi = {
   name: 'callMcpTool' as const,
@@ -39,11 +40,6 @@ export const CallMcpToolApi = {
       .optional()
       .default({})
       .describe('The arguments to pass to the MCP tool.'),
-    dataModelUpdateJsonata: DynamicStringSchema.optional().describe(
-      'A JSONata expression evaluated against the MCP tool result that produces ' +
-        'an object of data model paths to values. Each entry is applied to the ' +
-        'calling surface as an updateDataModel message once the call completes.',
-    ),
   }),
   description: 'Invokes a tool on a connected Model Context Protocol (MCP) server.',
 };

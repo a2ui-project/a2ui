@@ -1243,7 +1243,7 @@
     },
     "callMcpTool": {
       "type": "object",
-      "description": "Executes a tool on a connected Model Context Protocol (MCP) server.",
+      "description": "Executes a tool on a connected Model Context Protocol (MCP) server and returns the result. To turn that result into data model updates, nest this call inside `jmespath` and `updateDataModel`.",
       "properties": {
         "call": {
           "const": "callMcpTool"
@@ -1252,18 +1252,192 @@
           "type": "object",
           "properties": {
             "name": {
-              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The name of the MCP tool to execute."
             },
             "arguments": {
               "type": "object",
               "description": "The arguments to pass to the MCP tool.",
               "additionalProperties": {
-                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+                "$ref": "common_types.json#/$defs/DynamicValue"
               }
             }
           },
           "required": ["name"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "jmespath": {
+      "type": "object",
+      "description": "Evaluates a JMESPath expression against a document.",
+      "properties": {
+        "call": {
+          "const": "jmespath"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "A JMESPath expression, as specified at jmespath.org, evaluated against `data`.\n\nThe dialect is the original grammar and nothing more, so an expression runs\nunchanged on any client with a stock JMESPath library. Extensions some\nlibraries add are not available: there are no `let` bindings, no ternary\n`? :`, no arithmetic operators, and no `$` root reference.\n\nThere are no regular expressions and no `split` inside an expression. Call\nthe `split`, `regexMatch`, `regexCapture`, and `regexReplace` functions\nfirst and pass their output in as `data`.\n\nTwo idioms cover what the missing syntax would do:\n  Conditionals. Write `(cond && valueIfTrue) || valueIfFalse`. Both branches\n  must be truthy values; an empty string, empty array, empty object, null,\n  and false are all falsy.\n  Intermediate values. Pipe into a multi-select hash to name subresults,\n  then read them by name: `{n: length(rows)} | {\"/count\": n}`.\n\nUse `rows[*]` to map over a list. `rows[]` flattens one level instead, which\nis rarely what a list of rows wants. Filter with `rows[?@ != null]`.\n\nA projection rebinds the current node, and there is no root reference, so a\nvalue at the top of `data` is not visible inside `rows[*].{...}`. Build such\na value in the component instead: a template row can read an absolute path,\nso `formatString` with `${/dir}/${name}` joins a value held once to a field\nheld per row."
+            },
+            "data": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The document the expression reads."
+            }
+          },
+          "required": ["expression", "data"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "split": {
+      "type": "object",
+      "description": "Splits a string, or each element of an array, on a separator.",
+      "properties": {
+        "call": {
+          "const": "split"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string to split. An array is split element by element, giving an array of arrays."
+            },
+            "separator": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The separator to split on. An empty separator splits into characters."
+            }
+          },
+          "required": ["value", "separator"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regexMatch": {
+      "type": "object",
+      "description": "Reports whether an RE2 pattern matches.",
+      "properties": {
+        "call": {
+          "const": "regexMatch"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string to test. An array is tested element by element, giving an array of booleans."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "An RE2 pattern. True when it matches anywhere in value."
+            }
+          },
+          "required": ["value", "pattern"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regexCapture": {
+      "type": "object",
+      "description": "Returns the capture groups of the first RE2 match.",
+      "properties": {
+        "call": {
+          "const": "regexCapture"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string to match. An array is matched element by element, giving an array of results."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "An RE2 pattern. The result is the capture groups of the first match, or null when the pattern does not match. A group that did not participate reads as an empty string."
+            }
+          },
+          "required": ["value", "pattern"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regexReplace": {
+      "type": "object",
+      "description": "Replaces every RE2 match with literal text.",
+      "properties": {
+        "call": {
+          "const": "regexReplace"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string to rewrite. An array is rewritten element by element."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "An RE2 pattern. Every match is replaced."
+            },
+            "replacement": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Literal replacement text. A group reference such as $1 is not expanded."
+            }
+          },
+          "required": ["value", "pattern", "replacement"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "updateDataModel": {
+      "type": "object",
+      "description": "Writes an object of data model paths into the calling surface.",
+      "properties": {
+        "call": {
+          "const": "updateDataModel"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "updates": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "An object whose keys are data model paths and whose values are what to write there, for example {\"/entries\": [...], \"/title\": \"Home\"}. A key starting with \"/\" is absolute; a relative key resolves against the data context the call was made from, which is the row scope when the call came from a template list."
+            }
+          },
+          "required": ["updates"],
           "additionalProperties": false
         },
         "returnType": {
@@ -1411,6 +1585,24 @@
         },
         {
           "$ref": "#/functions/callMcpTool"
+        },
+        {
+          "$ref": "#/functions/jmespath"
+        },
+        {
+          "$ref": "#/functions/split"
+        },
+        {
+          "$ref": "#/functions/regexMatch"
+        },
+        {
+          "$ref": "#/functions/regexCapture"
+        },
+        {
+          "$ref": "#/functions/regexReplace"
+        },
+        {
+          "$ref": "#/functions/updateDataModel"
         }
       ]
     }

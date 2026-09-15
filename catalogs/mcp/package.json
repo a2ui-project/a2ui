@@ -28,7 +28,8 @@
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.1",
-    "jsonata": "^2.2.2",
+    "jmespath": "^0.16.0",
+    "re2js": "^2.8.6",
     "zod": "^3.25.76"
   },
   "devDependencies": {

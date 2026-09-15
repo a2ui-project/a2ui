@@ -25,6 +25,8 @@ import {
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
 import {CallMcpToolApi} from './callMcpToolApi.js';
+import {createMcpCatalogFunctions} from '../index.js';
+import {DATA_FUNCTION_APIS} from './dataFunctionsApi.js';
 import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,
@@ -652,162 +654,6 @@ describe('callMcpTool', () => {
     });
   });
 
-  describe('JSONata expressions', () => {
-    /** Creates a live surface the MCP catalog owns, as a payload would. */
-    const createSurface = (client: FakeClient, data: Record<string, unknown> = {}) => {
-      // `MessageProcessor` reads its catalog array lazily, so the processor can
-      // exist before the catalog whose function writes back into it.
-      const catalogs: Array<Catalog<any>> = [];
-      processor = new MessageProcessor(catalogs, async () => {});
-      catalogs.push(new Catalog(SURFACE_CATALOG_ID, [], []), catalogFor(client));
-
-      processor.processMessages([
-        {version: 'v0.9', createSurface: {surfaceId: 'fs', catalogId: MCP_CATALOG_ID}},
-        {version: 'v0.9', updateDataModel: {surfaceId: 'fs', value: data}},
-      ] as any);
-      const surface = processor.model.getSurface('fs');
-      assert.ok(surface);
-      return surface;
-    };
-
-    it('turns the tool result into data model updates', async () => {
-      const client = createFakeClient({
-        result: {content: [{type: 'text', text: '[DIR] client\n[FILE] README.md'}]},
-      });
-      const surface = createSurface(client);
-
-      await surface.catalog.invoker(
-        'callMcpTool',
-        {
-          name: 'list_directory',
-          arguments: {path: '/home/ada'},
-          dataModelUpdateJsonata: `{
-            "/entries": $split(content[0].text, "\n").{"label": $}
-          }`,
-        },
-        new DataContext(surface, '/'),
-      );
-
-      assert.deepStrictEqual(surface.dataModel.get('/entries'), [
-        {label: '[DIR] client'},
-        {label: '[FILE] README.md'},
-      ]);
-    });
-
-    it('resolves chained data bindings in dataModelUpdateJsonata', async () => {
-      const client = createFakeClient({result: {content: [{type: 'text', text: 'hello'}]}});
-      const surface = createSurface(client, {
-        expr: '{"/body": content[0].text}',
-        entry: {jsonataRef: {path: '/expr'}},
-      });
-
-      await surface.catalog.invoker(
-        'callMcpTool',
-        {
-          name: 'read_text_file',
-          dataModelUpdateJsonata: {path: '/entry/jsonataRef'},
-        },
-        new DataContext(surface, '/'),
-      );
-
-      assert.strictEqual(surface.dataModel.get('/body'), 'hello');
-    });
-
-    it('resolves a relative update path against the calling scope', async () => {
-      const client = createFakeClient({result: {content: [{type: 'text', text: 'hello'}]}});
-      const surface = createSurface(client, {entries: [{name: 'a.txt'}]});
-
-      await surface.catalog.invoker(
-        'callMcpTool',
-        {name: 'read_text_file', dataModelUpdateJsonata: '{"preview": content[0].text}'},
-        new DataContext(surface, '/entries/0'),
-      );
-
-      assert.deepStrictEqual(surface.dataModel.get('/entries/0'), {
-        name: 'a.txt',
-        preview: 'hello',
-      });
-    });
-
-    it('reads structured content when the tool returns it', async () => {
-      const client = createFakeClient({
-        result: {content: [], structuredContent: {count: 7}} as CallToolResult,
-      });
-      const surface = createSurface(client);
-
-      await surface.catalog.invoker(
-        'callMcpTool',
-        {name: 'count_files', dataModelUpdateJsonata: '{"/count": structuredContent.count}'},
-        new DataContext(surface, '/'),
-      );
-
-      assert.strictEqual(surface.dataModel.get('/count'), 7);
-    });
-
-    it('takes the expression from a data binding', async () => {
-      const client = createFakeClient({result: {content: [{type: 'text', text: 'hello'}]}});
-      const surface = createSurface(client, {jsonata: '{"/body": content[0].text}'});
-
-      await surface.catalog.invoker(
-        'callMcpTool',
-        {name: 'read_text_file', dataModelUpdateJsonata: {path: '/jsonata'}},
-        new DataContext(surface, '/'),
-      );
-
-      assert.strictEqual(surface.dataModel.get('/body'), 'hello');
-    });
-
-    it('provides $args and $tool bindings to the JSONata expression', async () => {
-      const client = createFakeClient({result: {content: [{type: 'text', text: 'data'}]}});
-      const surface = createSurface(client);
-
-      await surface.catalog.invoker(
-        'callMcpTool',
-        {
-          name: 'read_text_file',
-          arguments: {path: 'foo/bar.txt'},
-          dataModelUpdateJsonata:
-            '{"/filePath": $args.path, "/calledTool": $tool, "/body": content[0].text}',
-        },
-        new DataContext(surface, '/'),
-      );
-
-      assert.strictEqual(surface.dataModel.get('/filePath'), 'foo/bar.txt');
-      assert.strictEqual(surface.dataModel.get('/calledTool'), 'read_text_file');
-      assert.strictEqual(surface.dataModel.get('/body'), 'data');
-    });
-
-    it('rejects an expression that does not produce an object', async () => {
-      const client = createFakeClient();
-      const surface = createSurface(client);
-
-      await assert.rejects(
-        surface.catalog.invoker(
-          'callMcpTool',
-          {name: 'list_directory', dataModelUpdateJsonata: 'content[0].text'},
-          new DataContext(surface, '/'),
-        ),
-        (error: unknown) =>
-          error instanceof A2uiExpressionError && /must produce an object/.test(error.message),
-      );
-    });
-
-    it('rejects an expression that does not compile', async () => {
-      const client = createFakeClient();
-      const surface = createSurface(client);
-
-      await assert.rejects(
-        surface.catalog.invoker(
-          'callMcpTool',
-          {name: 'list_directory', dataModelUpdateJsonata: '{"/a":'},
-          new DataContext(surface, '/'),
-        ),
-        (error: unknown) =>
-          error instanceof A2uiExpressionError && /Invalid JSONata/.test(error.message),
-      );
-    });
-  });
-
   describe('mcp_catalog.json Schema Verification', () => {
     it('loads schema into a valid Catalog using Catalog.fromSchema', () => {
       const schemaCatalog = Catalog.fromSchema(mcpCatalogJson);
@@ -825,13 +671,62 @@ describe('callMcpTool', () => {
 
     it('declares exactly the supported arguments in the published schema', () => {
       const args = (mcpCatalogJson as any).functions.callMcpTool.properties.args;
-      assert.deepStrictEqual(Object.keys(args.properties), [
-        'name',
-        'arguments',
-        'dataModelUpdateJsonata',
-      ]);
+      assert.deepStrictEqual(Object.keys(args.properties), ['name', 'arguments']);
       // A server argument is not among them: the host resolves servers.
       assert.strictEqual(args.additionalProperties, false);
+    });
+
+    it('no longer publishes a result expression, which the data functions replace', () => {
+      const args = (mcpCatalogJson as any).functions.callMcpTool.properties.args;
+      assert.strictEqual(args.properties.dataModelUpdate, undefined);
+      assert.strictEqual('dataModelUpdate' in CallMcpToolApi.schema.shape, false);
+    });
+
+    it('publishes every function a host registers', () => {
+      // A function missing from the JSON is invisible to an agent writing a
+      // payload, however well it works at runtime.
+      const registered = createMcpCatalogFunctions(
+        () => asClient(createFakeClient()),
+        new MessageProcessor([], async () => {}),
+      ).map(fn => fn.name);
+      assert.deepStrictEqual(
+        Object.keys((mcpCatalogJson as any).functions).sort(),
+        registered.sort(),
+      );
+    });
+
+    it('publishes the argument names and descriptions the schemas carry', () => {
+      // The catalog JSON is what an agent reads before writing a payload, and
+      // it is generated from these schemas. This catches it going stale.
+      for (const api of DATA_FUNCTION_APIS) {
+        const published = (mcpCatalogJson as any).functions[api.name];
+        assert.ok(published, `${api.name} is not published`);
+        assert.strictEqual(published.properties.returnType.const, api.returnType);
+
+        const args = published.properties.args;
+        const fields = Object.keys(api.schema.shape);
+        assert.deepStrictEqual(Object.keys(args.properties), fields, `${api.name} arguments`);
+        assert.deepStrictEqual(args.required, fields, `${api.name} required arguments`);
+        assert.strictEqual(args.additionalProperties, false);
+
+        for (const field of fields) {
+          assert.strictEqual(
+            args.properties[field].description,
+            (api.schema.shape as Record<string, {description?: string}>)[field].description,
+            `${api.name}.${field} description`,
+          );
+        }
+      }
+    });
+
+    it('tells an agent what the expression language does and does not allow', () => {
+      const published: string = (mcpCatalogJson as any).functions.jmespath.properties.args
+        .properties.expression.description;
+      assert.match(published, /no `let` bindings/);
+      assert.match(published, /rows\[\*\]/);
+      for (const name of ['split', 'regexMatch', 'regexCapture', 'regexReplace']) {
+        assert.ok(published.includes(name), `published description omits ${name}`);
+      }
     });
   });
 

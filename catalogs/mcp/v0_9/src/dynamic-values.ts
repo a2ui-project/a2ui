@@ -87,6 +87,12 @@ export function resolveDynamicValueDeep<T = unknown>(value: unknown, context: Da
   if (!isRecord(value) && !Array.isArray(value)) {
     return value as T;
   }
+  // A function call that has already been invoked can appear here as a pending
+  // result. It is a record by shape but has no entries, so walking it would
+  // yield an empty object and lose the value. Its own resolution already ran.
+  if (typeof (value as {then?: unknown}).then === 'function') {
+    return value as T;
+  }
   if (Array.isArray(value)) {
     return value.map(item => resolveDynamicValueDeep(item, context)) as unknown as T;
   }

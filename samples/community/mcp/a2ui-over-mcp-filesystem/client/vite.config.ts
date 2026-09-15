@@ -59,7 +59,8 @@ const a2uiMcpCatalogDependencies = [
   '@a2ui/web_core/v0_9',
   '@modelcontextprotocol/sdk/client/index.js',
   '@modelcontextprotocol/sdk/types.js',
-  'jsonata',
+  'jmespath',
+  're2js',
   'zod',
 ].map(specifier => ({
   find: exactly(specifier),
