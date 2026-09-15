@@ -15,6 +15,7 @@
  */
 
 import {z} from 'zod';
+import {MAX_EXPRESSION_TEMPLATE_LENGTH} from '../expressions/expression_parser.js';
 
 // Arithmetic
 /**
@@ -348,7 +349,7 @@ export const FormatStringApi = {
   name: 'formatString' as const,
   returnType: 'any' as const,
   schema: z.object({
-    'value': z.coerce.string(),
+    'value': z.coerce.string().max(MAX_EXPRESSION_TEMPLATE_LENGTH),
   }),
 };
 

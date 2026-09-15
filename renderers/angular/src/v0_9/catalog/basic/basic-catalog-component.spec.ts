@@ -71,18 +71,113 @@ describe('BasicCatalogComponent', () => {
     ]);
   });
 
-  it('should set --a2ui-color-primary style on host', () => {
-    const surface = rendererService.surfaceGroup.getSurface('test-surface');
-    surface!.theme.primaryColor = '#00FF00';
+  it('should set --a2ui-color-primary style on host for 6-character hex color', () => {
+    rendererService.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'surface-6char',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          theme: {primaryColor: '#00FF00'},
+        },
+      },
+    ]);
 
-    fixture.componentRef.setInput('surfaceId', 'test-surface');
+    fixture.componentRef.setInput('surfaceId', 'surface-6char');
     fixture.detectChanges();
 
     const element = fixture.nativeElement;
     expect(element.style.getPropertyValue('--a2ui-color-primary')).toBe('#00FF00');
   });
 
+  it('should set --a2ui-color-primary style on host for 3-character hex color', () => {
+    rendererService.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'surface-3char',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          theme: {primaryColor: '#17e'},
+        },
+      },
+    ]);
+
+    fixture.componentRef.setInput('surfaceId', 'surface-3char');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement;
+    expect(element.style.getPropertyValue('--a2ui-color-primary')).toBe('#17e');
+  });
+
+  it('should set --a2ui-color-primary style on host for 8-character hex color', () => {
+    rendererService.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'surface-8char',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          theme: {primaryColor: '#00FF0080'},
+        },
+      },
+    ]);
+
+    fixture.componentRef.setInput('surfaceId', 'surface-8char');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement;
+    expect(element.style.getPropertyValue('--a2ui-color-primary')).toBe('#00FF0080');
+  });
+
+  it('should set --a2ui-color-primary style on host for named color', () => {
+    rendererService.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'surface-named',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          theme: {primaryColor: 'red'},
+        },
+      },
+    ]);
+
+    fixture.componentRef.setInput('surfaceId', 'surface-named');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement;
+    expect(element.style.getPropertyValue('--a2ui-color-primary')).toBe('red');
+  });
+
+  it('should set --a2ui-color-primary style on host for functional color notation', () => {
+    rendererService.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'surface-rgb',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          theme: {primaryColor: 'rgb(255, 0, 0)'},
+        },
+      },
+    ]);
+
+    fixture.componentRef.setInput('surfaceId', 'surface-rgb');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement;
+    expect(element.style.getPropertyValue('--a2ui-color-primary')).toBe('rgb(255, 0, 0)');
+  });
+
   it('should handle missing theme or primaryColor', () => {
+    fixture.componentRef.setInput('surfaceId', 'test-surface');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement;
+    expect(element.style.getPropertyValue('--a2ui-color-primary')).toBe('');
+  });
+
+  it('should ignore invalid primaryColor values on host style', () => {
+    const surface = rendererService.surfaceGroup.getSurface('test-surface');
+    (surface as any).theme = {primaryColor: 'url(https://attacker.example/beacon)'};
+
     fixture.componentRef.setInput('surfaceId', 'test-surface');
     fixture.detectChanges();
 

@@ -19,7 +19,7 @@ import {describe, it, beforeEach} from 'node:test';
 import {MessageProcessor, formatZodIssue} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../basic_catalog/components/basic_components.js';
-import {ButtonApi} from '../basic_catalog/index.js';
+import {ButtonApi, BasicCatalogThemeSchema} from '../basic_catalog/index.js';
 import {A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 
@@ -253,6 +253,198 @@ describe('MessageProcessor', () => {
     assert.ok(surface);
     assert.strictEqual(surface.id, 's1');
     assert.strictEqual(surface.sendDataModel, false);
+  });
+
+  it('validates surface theme against catalog themeSchema on createSurface', () => {
+    const themedCatalog = new Catalog('themed-cat', [], [], BasicCatalogThemeSchema);
+    const proc = new MessageProcessor([themedCatalog]);
+
+    // Valid themes: 6-char hex, 3-char hex, 8-char hex (with alpha), named color, functional colors
+    proc.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-6char',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: '#00BFFF',
+            agentDisplayName: 'Test Agent',
+            customExtra: 'allowed-by-passthrough',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-3char',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: '#17e',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-8char',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: '#00BFFF80',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-named',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: 'red',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-rgb',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: 'rgb(255, 0, 0)',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-hsl',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: 'hsl(120, 100%, 50%)',
+          },
+        },
+      },
+    ]);
+    const surface6 = proc.model.getSurface('valid-surface-6char');
+    assert.ok(surface6);
+    assert.strictEqual(surface6.theme?.primaryColor, '#00BFFF');
+    assert.strictEqual(surface6.theme?.agentDisplayName, 'Test Agent');
+
+    const surface3 = proc.model.getSurface('valid-surface-3char');
+    assert.ok(surface3);
+    assert.strictEqual(surface3.theme?.primaryColor, '#17e');
+
+    const surface8 = proc.model.getSurface('valid-surface-8char');
+    assert.ok(surface8);
+    assert.strictEqual(surface8.theme?.primaryColor, '#00BFFF80');
+
+    const surfaceNamed = proc.model.getSurface('valid-surface-named');
+    assert.ok(surfaceNamed);
+    assert.strictEqual(surfaceNamed.theme?.primaryColor, 'red');
+
+    const surfaceRgb = proc.model.getSurface('valid-surface-rgb');
+    assert.ok(surfaceRgb);
+    assert.strictEqual(surfaceRgb.theme?.primaryColor, 'rgb(255, 0, 0)');
+
+    const surfaceHsl = proc.model.getSurface('valid-surface-hsl');
+    assert.ok(surfaceHsl);
+    assert.strictEqual(surfaceHsl.theme?.primaryColor, 'hsl(120, 100%, 50%)');
+
+    // Invalid theme: hex color format violation / CSS injection attempt
+    assert.throws(
+      () => {
+        proc.processMessages([
+          {
+            version: 'v0.9',
+            createSurface: {
+              surfaceId: 'invalid-surface-1',
+              catalogId: 'themed-cat',
+              theme: {
+                primaryColor: 'url(https://attacker.example/beacon)',
+              },
+            },
+          },
+        ]);
+      },
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        err.message.includes("Validation failed for surface 'invalid-surface-1' theme"),
+    );
+    assert.strictEqual(proc.model.getSurface('invalid-surface-1'), undefined);
+
+    // Invalid theme: invalid hex lengths or invalid color strings
+    for (const invalidColor of [
+      '#12',
+      '#12345',
+      '#1234567',
+      '#gggggg',
+      'not-a-color',
+      'red; url(x)',
+    ]) {
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              createSurface: {
+                surfaceId: `invalid-surface-${invalidColor}`,
+                catalogId: 'themed-cat',
+                theme: {
+                  primaryColor: invalidColor,
+                },
+              },
+            },
+          ]);
+        },
+        (err: any) => err instanceof A2uiValidationError,
+      );
+    }
+
+    // Invalid theme: wrong type
+    assert.throws(
+      () => {
+        proc.processMessages([
+          {
+            version: 'v0.9',
+            createSurface: {
+              surfaceId: 'invalid-surface-2',
+              catalogId: 'themed-cat',
+              theme: {
+                primaryColor: 123,
+              },
+            },
+          },
+        ]);
+      },
+      (err: any) => err instanceof A2uiValidationError,
+    );
+    assert.strictEqual(proc.model.getSurface('invalid-surface-2'), undefined);
+  });
+
+  it('uses parsed and validated data output from themeSchema on createSurface', () => {
+    const transformSchema = z.object({
+      primaryColor: z.string().transform(c => c.toUpperCase()),
+      defaultedField: z.string().default('default-val'),
+    });
+    const transformingCatalog = new Catalog('transform-cat', [], [], transformSchema);
+    const proc = new MessageProcessor([transformingCatalog]);
+
+    proc.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'transform-surface',
+          catalogId: 'transform-cat',
+          theme: {
+            primaryColor: '#abcdef',
+          },
+        },
+      },
+    ]);
+
+    const surface = proc.model.getSurface('transform-surface');
+    assert.ok(surface);
+    assert.strictEqual(surface.theme?.primaryColor, '#ABCDEF');
+    assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
   });
 
   it('creates surface with sendDataModel enabled', () => {
