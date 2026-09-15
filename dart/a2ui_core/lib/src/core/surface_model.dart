@@ -16,9 +16,7 @@ import 'dart:async';
 
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
-import 'common.dart';
 import 'component_model.dart';
-import 'contexts.dart';
 import 'data_model.dart';
 import 'messages.dart';
 
@@ -66,15 +64,9 @@ class SurfaceModel<T extends ComponentApi> {
         ),
       );
       _onAction.emit(action);
-    } else if (payload.containsKey('functionCall')) {
-      final callJson = payload['functionCall'] as Map<String, dynamic>;
-      final call = FunctionCall.fromJson(callJson);
-      catalog.invoke(
-        call.call,
-        Map<String, dynamic>.from(call.args),
-        DataContext(dataModel, catalog.invoke, '/'),
-      );
     }
+    // functionCall payloads run inside GenericBinder's payload resolution;
+    // only server-bound events are emitted here.
   }
 
   /// Dispatches an error from this surface.

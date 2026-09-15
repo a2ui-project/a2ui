@@ -46,6 +46,7 @@ export 'src/processing/expressions.dart';
 // Processing & expressions.
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart';
+export 'src/rendering/resolved_binding.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `A2uiValidator` is the entry point.
 export 'src/validation/validator.dart';
