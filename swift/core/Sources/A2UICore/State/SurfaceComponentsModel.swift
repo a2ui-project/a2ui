@@ -36,9 +36,9 @@ public final class SurfaceComponentsModel: ObservableObject {
     componentsSubject.eraseToAnyPublisher()
   }
 
-  /// Creates an empty components model.
-  public init() {
-    self.componentsSubject = CurrentValueSubject([:])
+  /// Creates a components model, optionally seeded with initial components.
+  public init(components: [String: ComponentModel] = [:]) {
+    self.componentsSubject = CurrentValueSubject(components)
   }
 
   /// Retrieves the component with the given ID.
