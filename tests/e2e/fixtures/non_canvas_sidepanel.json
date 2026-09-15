@@ -1,0 +1,29 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "side-panel-demo",
+      "catalogId": "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "side-panel-demo",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": [
+            "card-text"
+          ]
+        },
+        {
+          "id": "card-text",
+          "component": "MaterialText",
+          "text": "Not a Canvas Root"
+        }
+      ]
+    }
+  }
+]

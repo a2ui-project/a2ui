@@ -1,0 +1,23 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "test-valid-ge",
+      "catalogId": "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "test-valid-ge",
+      "components": [
+        {
+          "id": "root",
+          "component": "Canvas",
+          "cardTitle": "Test Canvas",
+          "children": []
+        }
+      ]
+    }
+  }
+]

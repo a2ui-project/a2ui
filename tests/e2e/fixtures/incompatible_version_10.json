@@ -1,0 +1,23 @@
+[
+  {
+    "version": "1.0",
+    "mimeType": "application/json+a2ui",
+    "createSurface": {
+      "surfaceId": "test-incompatible-v10",
+      "catalogId": "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "test-incompatible-v10",
+      "components": [
+        {
+          "id": "root",
+          "component": "Canvas",
+          "children": []
+        }
+      ]
+    }
+  }
+]

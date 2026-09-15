@@ -30,6 +30,13 @@ dependencies = [
 
 [project.scripts]
 pyink = "pyink:patched_main"
+a2ui = "a2ui.cli.main:main"
+
+[project.optional-dependencies]
+cli = [
+  "rich>=13.0.0",
+  "pyyaml>=6.0.0",
+]
 
 [tool.uv.sources]
 a2ui-core = { workspace = true }
@@ -49,11 +56,11 @@ path = "src/a2ui/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a2ui"]
-artifacts = ["src/a2ui/assets/**"]
+artifacts = ["src/a2ui/assets/**", "src/a2ui/targets/profiles/**"]
 core-metadata-version = "2.4"
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["src/a2ui/assets/**"]
+artifacts = ["src/a2ui/assets/**", "src/a2ui/targets/profiles/**"]
 core-metadata-version = "2.4"
 
 [tool.hatch.build.hooks.custom]
