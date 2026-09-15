@@ -24,6 +24,12 @@ MAX_FUNC_CALL_DEPTH = 5
 RELAXED_PATH_PATTERN = re.compile(
     r"^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$"
 )
+FORBIDDEN_PATH_SEGMENTS = frozenset({"__proto__", "constructor", "prototype"})
+UNESCAPE_PATTERN = re.compile(r"~([01])")
+
+
+def _unescape_match(m: re.Match[str]) -> str:
+    return "/" if m.group(1) == "1" else "~"
 
 
 def get_component_references(
@@ -155,6 +161,25 @@ def validate_recursion_and_paths(data: Any) -> None:
                             )
                         ],
                     )
+                raw_segments = (
+                    path[1:].split("/") if path.startswith("/") else path.split("/")
+                )
+                for raw_seg in raw_segments:
+                    seg = UNESCAPE_PATTERN.sub(_unescape_match, raw_seg)
+                    if seg in FORBIDDEN_PATH_SEGMENTS:
+                        raise A2uiValidationError(
+                            f"Forbidden path segment '{seg}' in path '{path}'",
+                            details=[
+                                A2uiErrorDetail(
+                                    path="path",
+                                    code="forbidden_path_segment",
+                                    message=(
+                                        f"Forbidden path segment '{seg}' in path"
+                                        f" '{path}'"
+                                    ),
+                                )
+                            ],
+                        )
 
             is_func_v08 = "functionCall" in item and isinstance(
                 item["functionCall"], dict
