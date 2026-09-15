@@ -5056,11 +5056,15 @@ __metadata:
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
+    "@types/jmespath": "npm:^0.15.2"
     eslint: "npm:^10.4.1"
+    jmespath: "npm:^0.16.0"
     lit: "npm:^3.3.3"
+    re2js: "npm:^2.8.6"
     typescript: "npm:5.9.3"
     vite: "npm:^8.0.16"
     vitest: "npm:^4.1.8"
+    zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
 
