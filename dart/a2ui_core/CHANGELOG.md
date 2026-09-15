@@ -17,7 +17,13 @@
   because a surface is built up over several messages and either condition may
   be settled by the next one, so completeness is something the caller
   declares. An agent runs it over the surfaces its turn built before sending.
-- **Breaking:** Envelope parsing moved to `A2uiMessage.parseAll`, from
+- **Breaking:** `A2uiMessage` is renamed `AgentToRendererMessage`, the name the
+  `a2ui_core` blueprint gives the type a payload parses into and
+  `MessageProcessor.processMessages` accepts. It says which direction the
+  message travels, which the old name left open: the renderer-to-agent
+  direction is reported through `A2uiClientAction` and `A2uiClientError`, which
+  are not messages of this type.
+- **Breaking:** Envelope parsing moved to `AgentToRendererMessage.parseAll`, from
   `PayloadValidator.parseMessages`. Parsing needs no catalog, so it belongs to
   the message model rather than to a validator.
 - An invalid number literal in an expression, such as `${1.2.3}`, now throws
@@ -45,7 +51,7 @@
   `FunctionApi`'s. Subclasses of all three pass `name`, `schema` or
   `argumentSchema`, and `returnType` to `super` rather than overriding
   getters.
-- **Behaviour change:** `A2uiMessage.fromJson` throws `A2uiValidationError`
+- **Behaviour change:** `AgentToRendererMessage.fromJson` throws `A2uiValidationError`
   rather than `TypeError` for a malformed message body.
 - **Behaviour change:** `DataModel` observers no longer fire when a write
   leaves their own value unchanged.

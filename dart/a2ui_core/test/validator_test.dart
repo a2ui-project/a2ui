@@ -150,8 +150,11 @@ MessageProcessor<ComponentApi> newProcessorWithSurface() {
 }
 
 /// Parses a payload's envelopes, which needs no catalog.
-List<A2uiMessage> parse(List<Map<String, Object?>> payload) =>
-    A2uiMessage.parseAll(payload, protocolVersion: A2uiProtocolVersion.v0_9);
+List<AgentToRendererMessage> parse(List<Map<String, Object?>> payload) =>
+    AgentToRendererMessage.parseAll(
+      payload,
+      protocolVersion: A2uiProtocolVersion.v0_9,
+    );
 
 Map<String, Object?> text(String id, [String value = 'x']) => {
   'id': id,
@@ -361,7 +364,7 @@ void main() {
   group('MessageProcessor.processMessages', () {
     test('accepts a well formed component graph', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
@@ -371,7 +374,7 @@ void main() {
 
     test('rejects duplicate component ids', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([text('root', 'a'), text('root', 'b')]),
       ]);
@@ -390,7 +393,7 @@ void main() {
 
     test('a child reference that names no component leaves it incomplete', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'missing')]),
       ]);
@@ -412,7 +415,7 @@ void main() {
 
     test('a surface with no root component is incomplete', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
       ]);
@@ -434,7 +437,7 @@ void main() {
 
     test('a surface with an unreachable component is incomplete', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           card('root', 'label'),
@@ -461,7 +464,7 @@ void main() {
 
     test('rejects a self reference', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'root')]),
       ]);
@@ -482,7 +485,7 @@ void main() {
 
     test('rejects a cycle in the component graph', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'b'), card('b', 'root')]),
       ]);
@@ -508,7 +511,7 @@ void main() {
       }
       components.add(text('c$chain', 'leaf'));
 
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents(components),
       ]);
@@ -527,7 +530,7 @@ void main() {
 
     test('follows a static child list', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> valid = parse([
+      final List<AgentToRendererMessage> valid = parse([
         createSurface(),
         updateComponents([
           {
@@ -542,7 +545,7 @@ void main() {
       expect(() => processor.processMessages(valid), returnsNormally);
 
       final MessageProcessor<ComponentApi> second = newProcessor();
-      final List<A2uiMessage> dangling = parse([
+      final List<AgentToRendererMessage> dangling = parse([
         createSurface(),
         updateComponents([
           {
@@ -562,7 +565,7 @@ void main() {
 
     test('follows a child list template', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -576,7 +579,7 @@ void main() {
       expect(() => processor.processMessages(messages), returnsNormally);
 
       final MessageProcessor<ComponentApi> second = newProcessor();
-      final List<A2uiMessage> dangling = parse([
+      final List<AgentToRendererMessage> dangling = parse([
         createSurface(),
         updateComponents([
           {
@@ -595,7 +598,7 @@ void main() {
 
     test('follows references nested in an array of objects', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -628,7 +631,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       // `text` is a plain string, so 'root' inside it is not a reference and
       // must not read as a self-reference.
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([text('root', 'root')]),
       ]);
@@ -695,7 +698,7 @@ void main() {
     test('rejects a malformed data model path', () {
       final MessageProcessor<ComponentApi> processor =
           newProcessorWithSurface();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         {
           'version': 'v0.9',
           'updateDataModel': {'surfaceId': 's1', 'path': 'a~2b', 'value': 1},
@@ -724,7 +727,7 @@ void main() {
           'args': {'inner': call},
         };
       }
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         updateComponents([
           {'id': 'root', 'component': 'Text', 'text': call},
         ]),
@@ -746,7 +749,7 @@ void main() {
       test('allow a missing root and references to existing components', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<A2uiMessage> messages = parse([
+        final List<AgentToRendererMessage> messages = parse([
           updateComponents([card('panel', 'alreadyOnTheClient')]),
         ]);
 
@@ -756,7 +759,7 @@ void main() {
       test('still reject duplicate ids', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<A2uiMessage> messages = parse([
+        final List<AgentToRendererMessage> messages = parse([
           updateComponents([text('a', 'one'), text('a', 'two')]),
         ]);
 
@@ -769,7 +772,7 @@ void main() {
       test('still reject a self reference', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<A2uiMessage> messages = parse([
+        final List<AgentToRendererMessage> messages = parse([
           updateComponents([card('a', 'a')]),
         ]);
 
@@ -782,7 +785,7 @@ void main() {
       test('still reject a cycle', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<A2uiMessage> messages = parse([
+        final List<AgentToRendererMessage> messages = parse([
           updateComponents([card('a', 'b'), card('b', 'a')]),
         ]);
 
@@ -795,7 +798,7 @@ void main() {
 
     test('accumulates components across updates to the same surface', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'label')]),
         updateComponents([text('label', 'Hello')]),
@@ -812,7 +815,7 @@ void main() {
       // now unreachable, is the residue of the replacement rather than an
       // orphan. A surface declared in one message is still held to full
       // reachability, which the test above covers.
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'a'), text('a')]),
         updateComponents([card('root', 'b'), text('b')]),
@@ -823,7 +826,7 @@ void main() {
 
     test('drops the components of a surface deleted in the same payload', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'missing')]),
         {
@@ -839,7 +842,7 @@ void main() {
   group('MessageProcessor.processMessages', () {
     test('accepts components that satisfy the catalog schema', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
       ]);
@@ -849,7 +852,7 @@ void main() {
 
     test('rejects a component missing a required property', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           {'id': 'label', 'component': 'Text'},
@@ -864,7 +867,7 @@ void main() {
 
     test('rejects a property of the wrong type', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           {'id': 'label', 'component': 'Text', 'text': 42},
@@ -879,7 +882,7 @@ void main() {
 
     test('rejects a component the catalog does not declare', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           {'id': 'label', 'component': 'Nonexistent'},
@@ -900,7 +903,7 @@ void main() {
 
     test('rejects a surface created against an unsupported catalog', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         {
           'version': 'v0.9',
           'createSurface': {
@@ -920,7 +923,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = newProcessor(
         withCommonTypes: true,
       );
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -943,7 +946,7 @@ void main() {
       // cannot be resolved. The surrounding constraints still apply, but the
       // reference itself is skipped rather than failing the payload.
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -1002,7 +1005,7 @@ void main() {
     }) {
       final MessageProcessor<ComponentApi> processor = over(ids);
       processor.processMessages(
-        A2uiMessage.parseAll([
+        AgentToRendererMessage.parseAll([
           {
             'version': 'v0.9',
             'createSurface': {'surfaceId': 's1', 'catalogId': surfaceCatalog},
@@ -1068,7 +1071,7 @@ void main() {
       // components are checked rather than skipped.
       expect(
         () => holding(['cat1'], surfaceCatalog: 'cat1').processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             incremental(alpha()),
             protocolVersion: A2uiProtocolVersion.v0_9,
           ),
@@ -1077,7 +1080,7 @@ void main() {
       );
       expect(
         () => holding(['cat1'], surfaceCatalog: 'cat1').processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             incremental(bogus),
             protocolVersion: A2uiProtocolVersion.v0_9,
           ),
@@ -1089,7 +1092,7 @@ void main() {
     test('rejects a component belonging to another catalog', () {
       expect(
         () => holding(['cat2'], surfaceCatalog: 'cat2').processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             incremental(alpha()),
             protocolVersion: A2uiProtocolVersion.v0_9,
           ),
@@ -1103,7 +1106,7 @@ void main() {
       // create surfaces against different ones.
       expect(
         () => over(['cat1', 'cat2']).processMessages(
-          A2uiMessage.parseAll([
+          AgentToRendererMessage.parseAll([
             ...render('s1', 'cat1', alpha()),
             ...render('s2', 'cat2', beta()),
           ], protocolVersion: A2uiProtocolVersion.v0_9),
@@ -1112,7 +1115,7 @@ void main() {
       );
       expect(
         () => over(['cat1', 'cat2']).processMessages(
-          A2uiMessage.parseAll([
+          AgentToRendererMessage.parseAll([
             ...render('s1', 'cat1', beta()),
           ], protocolVersion: A2uiProtocolVersion.v0_9),
         ),
@@ -1127,7 +1130,7 @@ void main() {
       // names the catalog it does belong to.
       expect(
         () => over(['cat1', 'cat2']).processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render('s1', 'cat1', beta(catalogId: 'cat2')),
             protocolVersion: A2uiProtocolVersion.v0_9,
           ),
@@ -1136,7 +1139,7 @@ void main() {
       );
       expect(
         () => over(['cat1', 'cat2']).processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render('s1', 'cat1', beta()),
             protocolVersion: A2uiProtocolVersion.v0_9,
           ),
@@ -1148,7 +1151,7 @@ void main() {
     test('rejects a catalog the processor does not support', () {
       expect(
         () => over(['cat1']).processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render('s1', 'cat2', alpha()),
             protocolVersion: A2uiProtocolVersion.v0_9,
           ),
@@ -1163,7 +1166,7 @@ void main() {
       );
       expect(
         () => over(['cat1']).processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render('s1', 'cat1', alpha(catalogId: 'cat2')),
             protocolVersion: A2uiProtocolVersion.v0_9,
           ),
@@ -1177,7 +1180,7 @@ void main() {
     test('applies a valid payload', () async {
       final MessageProcessor<ComponentApi> processor = newProcessor();
 
-      final List<A2uiMessage> messages = parse([
+      final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
@@ -1192,7 +1195,7 @@ void main() {
 
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll([
+          AgentToRendererMessage.parseAll([
             createSurface(version: 'v1.0'),
           ], protocolVersion: A2uiProtocolVersion.v0_9),
         ),
@@ -1208,7 +1211,7 @@ void main() {
       // surfaces; the dangling reference waits for `checkSurfaceComplete`.
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll([
+          AgentToRendererMessage.parseAll([
             createSurface(),
             updateComponents([
               {'id': 'root', 'component': 'Nonexistent', 'child': 'missing'},

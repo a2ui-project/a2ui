@@ -90,7 +90,7 @@ void _runCase(Map<String, Object?> testCase) {
     // while messages are still arriving.
     void run() {
       processor.processMessages(
-        A2uiMessage.parseAll(
+        AgentToRendererMessage.parseAll(
           payload,
           protocolVersion: A2uiProtocolVersion.v0_9,
         ),

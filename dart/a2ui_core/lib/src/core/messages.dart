@@ -15,12 +15,18 @@
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 
-/// Base class for all A2UI messages.
-abstract class A2uiMessage {
+/// Base class for the messages an agent sends a renderer.
+///
+/// The `createSurface`, `updateComponents`, `updateDataModel` and
+/// `deleteSurface` envelopes, which `MessageProcessor` applies to surface
+/// state. The renderer-to-agent direction is not one of these: it is reported
+/// through [A2uiClientAction] and [A2uiClientError], which carry no envelope
+/// and are not parsed here.
+abstract class AgentToRendererMessage {
   /// The declared protocol version, as it appears on the wire.
   final String version;
 
-  A2uiMessage({this.version = 'v0.9'});
+  AgentToRendererMessage({this.version = 'v0.9'});
 
   /// Parses a whole payload of envelopes into typed messages.
   ///
@@ -35,11 +41,11 @@ abstract class A2uiMessage {
   /// Throws [A2uiValidationError] for any envelope that is not a well-formed
   /// message of [protocolVersion], including one carrying more than a single
   /// update type.
-  static List<A2uiMessage> parseAll(
+  static List<AgentToRendererMessage> parseAll(
     List<Map<String, Object?>> payload, {
     required A2uiProtocolVersion protocolVersion,
   }) {
-    final messages = <A2uiMessage>[];
+    final messages = <AgentToRendererMessage>[];
     for (final envelope in payload) {
       final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
         envelope['version'],
@@ -52,15 +58,17 @@ abstract class A2uiMessage {
           details: envelope,
         );
       }
-      messages.add(A2uiMessage.fromJson(Map<String, dynamic>.from(envelope)));
+      messages.add(
+        AgentToRendererMessage.fromJson(Map<String, dynamic>.from(envelope)),
+      );
     }
     return messages;
   }
 
-  /// Deserializes a JSON envelope into a typed [A2uiMessage].
+  /// Deserializes a JSON envelope into a typed [AgentToRendererMessage].
   ///
   /// Throws [A2uiValidationError] if `version` is missing or unsupported.
-  factory A2uiMessage.fromJson(Map<String, dynamic> json) {
+  factory AgentToRendererMessage.fromJson(Map<String, dynamic> json) {
     final String version = A2uiProtocolVersion.fromJson(
       json['version'],
       details: json,
@@ -207,7 +215,7 @@ List<Map<String, dynamic>> _components(
 }
 
 /// Signals the client to create a new surface.
-class CreateSurfaceMessage extends A2uiMessage {
+class CreateSurfaceMessage extends AgentToRendererMessage {
   final String surfaceId;
   final String catalogId;
   final Map<String, dynamic>? theme;
@@ -234,7 +242,7 @@ class CreateSurfaceMessage extends A2uiMessage {
 }
 
 /// Updates a surface with a new set of components.
-class UpdateComponentsMessage extends A2uiMessage {
+class UpdateComponentsMessage extends AgentToRendererMessage {
   final String surfaceId;
   final List<Map<String, dynamic>> components;
 
@@ -252,7 +260,7 @@ class UpdateComponentsMessage extends A2uiMessage {
 }
 
 /// Updates the data model for an existing surface.
-class UpdateDataModelMessage extends A2uiMessage {
+class UpdateDataModelMessage extends AgentToRendererMessage {
   final String surfaceId;
   final String? path;
   final Object? value;
@@ -276,7 +284,7 @@ class UpdateDataModelMessage extends A2uiMessage {
 }
 
 /// Signals the client to delete a surface.
-class DeleteSurfaceMessage extends A2uiMessage {
+class DeleteSurfaceMessage extends AgentToRendererMessage {
   final String surfaceId;
 
   DeleteSurfaceMessage({super.version, required this.surfaceId});

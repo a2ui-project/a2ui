@@ -149,11 +149,11 @@ class MessageProcessor<T extends ComponentApi> {
   /// [checkSurfaceComplete], once a caller declares the surface finished.
   ///
   /// A caller holding a raw payload parses it first, with
-  /// `A2uiMessage.parseAll(payload, protocolVersion: ...)`. That is a separate
-  /// step because envelope parsing needs no catalog and no surface: it is what
-  /// lets a payload be read before each message is matched to the surface, and
-  /// so the catalog, it belongs to.
-  void processMessages(List<A2uiMessage> messages) {
+  /// `AgentToRendererMessage.parseAll(payload, protocolVersion: ...)`. That is
+  /// a separate step because envelope parsing needs no catalog and no surface:
+  /// it is what lets a payload be read before each message is matched to the
+  /// surface, and so the catalog, it belongs to.
+  void processMessages(List<AgentToRendererMessage> messages) {
     for (final message in messages) {
       _processMessage(message);
     }
@@ -259,7 +259,7 @@ class MessageProcessor<T extends ComponentApi> {
     return merged;
   }
 
-  void _processMessage(A2uiMessage message) {
+  void _processMessage(AgentToRendererMessage message) {
     // Data-model paths and nested function calls, which need no surface state
     // and so are checked for every message before it is applied.
     checkPathsAndRecursion(message.toJson());

@@ -129,7 +129,7 @@ void main() {
         // The reference may be satisfied by a later message, so applying the
         // batch is fine; it is the finished surface that must hold together.
         processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             update([
               {
                 'id': 'root',
@@ -150,7 +150,7 @@ void main() {
       test('rejects duplicate ids within one batch', () {
         expect(
           () => processor.processMessages(
-            A2uiMessage.parseAll(
+            AgentToRendererMessage.parseAll(
               update([
                 {'id': 'a', 'component': 'Text', 'text': 'one'},
                 {'id': 'a', 'component': 'Text', 'text': 'two'},
@@ -166,7 +166,7 @@ void main() {
         // The payload-scoped validator cannot make this call: it waves the
         //second batch through because it cannot see the first.
         processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             update([
               {'id': 'a', 'component': 'Text', 'text': 'held'},
             ]),
@@ -193,7 +193,7 @@ void main() {
 
       test('rejects a cycle closed through an existing component', () {
         processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             update([
               {
                 'id': 'a',
@@ -227,7 +227,7 @@ void main() {
 
       test('leaves the surface unchanged when the graph check fails', () {
         processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             update([
               {'id': 'a', 'component': 'Text', 'text': 'held'},
             ]),
@@ -258,7 +258,7 @@ void main() {
     test('processMessages rejects a malformed envelope before processing', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll([
+          AgentToRendererMessage.parseAll([
             {
               'version': 'v1.0',
               'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
@@ -276,7 +276,7 @@ void main() {
       // components must be checked against.
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll([
+          AgentToRendererMessage.parseAll([
             {
               'version': 'v0.9',
               'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
@@ -299,12 +299,13 @@ void main() {
     });
 
     test('processMessages applies a parsed payload', () {
-      final List<A2uiMessage> messages = A2uiMessage.parseAll([
-        {
-          'version': 'v0.9',
-          'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
-        },
-      ], protocolVersion: A2uiProtocolVersion.v0_9);
+      final List<AgentToRendererMessage> messages =
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9);
       expect(messages, hasLength(1));
 
       processor.processMessages(messages);

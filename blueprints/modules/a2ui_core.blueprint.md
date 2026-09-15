@@ -725,18 +725,18 @@ const agentProcessor = new MessageProcessor({
 // Same entry point as the renderer: the processor is kept for the session, so
 // each payload is checked against the state the previous ones built.
 agentProcessor.processMessages(
-  AgentToRendererMessage.parseAll(parsedModelPayload),
+  AgentToRendererMessage.parseAll(parsedModelPayload, protocolVersion),
 );
 // Once the turn is built, assert each surface it created is a finished render.
 agentProcessor.checkSurfaceComplete('surface-1');
 ```
 
-| Execution Aspect              | Renderer                                                                                                          | Agent                                                                    |
-| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
-| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.           |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).      |
-| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, then `checkSurfaceComplete` for each surface built.   |
-| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                     |
+| Execution Aspect              | Renderer                                                                                                          | Agent                                                                      |
+| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.             |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
+| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, then `checkSurfaceComplete` for each surface built.     |
+| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                       |
 | **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
 | **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending. |
 

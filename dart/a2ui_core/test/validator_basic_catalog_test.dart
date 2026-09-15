@@ -116,7 +116,7 @@ void main() {
 
         expect(
           () => basicProcessor().processMessages(
-            A2uiMessage.parseAll(
+            AgentToRendererMessage.parseAll(
               payload,
               protocolVersion: A2uiProtocolVersion.v0_9,
             ),
@@ -135,7 +135,7 @@ void main() {
     test('a component missing a required property', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {'id': 'root', 'component': 'Text'},
             ]),
@@ -149,7 +149,7 @@ void main() {
     test('a value outside a property enum', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {
                 'id': 'root',
@@ -168,7 +168,7 @@ void main() {
     test('a property the component does not declare', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {
                 'id': 'root',
@@ -187,7 +187,7 @@ void main() {
     test('a component type the catalog does not declare', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {'id': 'root', 'component': 'Frobnicator'},
             ]),
@@ -204,7 +204,7 @@ void main() {
       // what makes this check possible.
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {
                 'id': 'root',
@@ -225,7 +225,7 @@ void main() {
 
     test('a child reference that names no component', () {
       processor.processMessages(
-        A2uiMessage.parseAll(
+        AgentToRendererMessage.parseAll(
           render([
             {'id': 'root', 'component': 'Card', 'child': 'missing'},
           ]),
@@ -244,7 +244,7 @@ void main() {
     test('a malformed child list', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {
                 'id': 'root',
@@ -270,7 +270,7 @@ void main() {
     test('a data binding in place of a literal', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {
                 'id': 'root',
@@ -288,7 +288,7 @@ void main() {
     test('a call to a function the catalog declares', () {
       expect(
         () => processor.processMessages(
-          A2uiMessage.parseAll(
+          AgentToRendererMessage.parseAll(
             render([
               {
                 'id': 'root',
