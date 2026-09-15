@@ -2,18 +2,29 @@
 
 ## 0.2.0
 
-- An invalid number literal in an expression, such as `${1.2.3}`, now throws
-  `A2uiExpressionError` instead of a `FormatException` from `num.parse` — an error
-  outside the `A2uiError` hierarchy that `avoid_catching_errors` discourages catching.
-  The accepted shape is stated in the parser rather than inherited from the platform's
-  number parser, so every implementation accepts the same literals.
-- The expression parser now runs the shared conformance suite at
-  `conformance/core/expressions.yaml`, alongside the TypeScript client.
-- The expression parser's nesting limit is now enforced. The depth guard sat in
-  `parse()`, which is only entered at depth 0, so neither nested interpolations nor
-  function-call arguments were ever counted: a deeply nested template recursed until
-  the stack overflowed, raising `StackOverflowError` rather than the intended
-  `A2uiExpressionError`. The limit is also raised from 10 to 100, matching web_core.
+- **Breaking:** `GenericBinder` resolves dynamic properties to `ResolvedBinding`
+  values instead of raw values, and no longer synthesizes `set<Property>`
+  setter entries; writes go through `WritableBinding.set`. Omitted and
+  explicit-null dynamic properties are read-only bindings of null within
+  existing objects and arrays; absent or null non-dynamic containers are
+  unchanged. Path bindings to missing data remain writable.
+- **Breaking:** graph validation now recognizes unmarked structural
+  `ChildList` schemas as references, so typed batches with missing or cyclic
+  children in those properties are rejected before mutation.
+- **Breaking:** `SurfaceModel.dispatchAction` no longer executes `functionCall`
+  payloads; catalog functions run during action resolution instead, and only
+  `event` payloads emit an action.
+- **Breaking:** when an expression-error reporter is supplied, a missing or
+  failing catalog function during data resolution no longer throws to the
+  caller; the bound value resolves to null and the reporter receives the error.
+  `ComponentContext` supplies a reporter, which by default emits an
+  `EXPRESSION_ERROR` client error on the surface.
+- **Breaking:** `Catalog.invoke` throws `A2uiExpressionError` for an unknown
+  function instead of `ArgumentError`.
+- **Breaking:** `DataContext.resolveSync` no longer resolves `path` or `call`
+  maps nested inside literal map values; a map payload is either a top-level
+  binding or a literal. Action payloads still resolve their nested dynamic
+  values at dispatch.
 - **Breaking:** `MessageProcessor` validates messages as it processes them.
   A message that does not match its catalog now throws instead of being
   applied. Added `processPayload` and an optional `validator` constructor
@@ -31,6 +42,42 @@
   `FunctionApi`'s. Subclasses of all three pass `name`, `schema` or
   `argumentSchema`, and `returnType` to `super` rather than overriding
   getters.
+- Added: `DataContext` and `ComponentContext` accept an optional
+  `ExpressionErrorReporter` through `onError`. A standalone `DataContext`
+  without a reporter lets invocation errors propagate.
+- Added: `NodeResolver(surface)` builds a reactive tree of read-only
+  `ComponentNode`s with resolved child references, scoped templates, dynamic
+  bindings, callable actions, and placeholder states for unresolved nodes.
+  It owns node subscriptions and cleanup; consumers dispose the resolver
+  before its surface. Node props and container-valued bindings are detached,
+  recursively unmodifiable snapshots.
+- `WritableBinding.path` exposes the binding's write destination.
+- Validation and node resolution recognize wire/local `$ref` pointers,
+  `REF:` description markers, and structural `ChildList` schemas. Resolution
+  mounts top-level child references and lists, including single-reference
+  fields within arrays of objects.
+- Changed: `ChildNode` descriptors compare by component id and data scope
+  and serialize as plain JSON in node props. Nested `ChildList` values remain
+  scoped descriptors rather than mounted nodes.
+- Fixed: `GenericBinder.resolvedProps` publishes one complete snapshot per
+  component update instead of intermediate per-property updates.
+- Fixed: disposing a `GenericBinder` stops its bindings from reacting to later
+  data writes. A disposed binder cannot be reconnected.
+- Fixed: `DataContext.resolveListenable` resolves array payloads per element
+  and tracks them reactively; previously an array containing bindings (such
+  as a function argument list) was passed through as a static literal.
+- An invalid number literal in an expression, such as `${1.2.3}`, now throws
+  `A2uiExpressionError` instead of a `FormatException` from `num.parse` — an error
+  outside the `A2uiError` hierarchy that `avoid_catching_errors` discourages catching.
+  The accepted shape is stated in the parser rather than inherited from the platform's
+  number parser, so every implementation accepts the same literals.
+- The expression parser now runs the shared conformance suite at
+  `conformance/core/expressions.yaml`, alongside the TypeScript client.
+- The expression parser's nesting limit is now enforced. The depth guard sat in
+  `parse()`, which is only entered at depth 0, so neither nested interpolations nor
+  function-call arguments were ever counted: a deeply nested template recursed until
+  the stack overflowed, raising `StackOverflowError` rather than the intended
+  `A2uiExpressionError`. The limit is also raised from 10 to 100, matching web_core.
 - **Behaviour change:** `A2uiMessage.fromJson` throws `A2uiValidationError`
   rather than `TypeError` for a malformed message body.
 - **Behaviour change:** `DataModel` observers no longer fire when a write

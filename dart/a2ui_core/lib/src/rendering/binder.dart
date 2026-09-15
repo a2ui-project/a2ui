@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:collection/collection.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/contexts.dart';
 import '../primitives/reactivity.dart';
+import '../primitives/reference_schema.dart';
+import 'resolved_binding.dart';
 
 /// Represents the intended runtime behavior of a property parsed from
 /// its schema.
@@ -31,10 +34,31 @@ class BehaviorNode {
   BehaviorNode(this.type, {this.shape, this.element});
 }
 
+/// An unresolved child reference and the data scope it would render against.
+///
+/// The binder uses these values for both static `ChildList` arrays and expanded
+/// templates. The node resolver replaces supported reference positions with
+/// mounted nodes, but publishes these descriptors unchanged in nested positions
+/// it does not resolve. A descriptor is not a mounted node and owns no
+/// lifecycle.
+///
+/// Unlike TypeScript's binder, which leaves static child arrays as id strings,
+/// Dart uses the same scoped descriptor for static lists and templates.
 class ChildNode {
+  /// The referenced component id.
   final String id;
+
+  /// The absolute data path for this reference's component instance.
   final String basePath;
+
   ChildNode(this.id, this.basePath);
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChildNode && id == other.id && basePath == other.basePath;
+
+  @override
+  int get hashCode => Object.hash(id, basePath);
 
   Map<String, dynamic> toJson() => {'id': id, 'basePath': basePath};
 }
@@ -47,22 +71,35 @@ class GenericBinder {
   final ComponentContext context;
   final Schema schema;
   late final BehaviorNode _behaviorTree;
+  late final ReferenceSchemaReader _schemaReader;
 
   late final Signal<Map<String, dynamic>> _resolvedProps;
   final List<void Function()> _subscriptions = [];
   bool _isConnected = false;
+  bool _disposed = false;
+
+  // Actions resolve to closures, which downstream value comparison cannot
+  // inspect; reusing the closure while the raw payload is unchanged keeps
+  // unchanged action props identical across rebuilds.
+  final Map<String, ({Object? raw, Future<void> Function() closure})>
+  _actionClosures = {};
+  static const DeepCollectionEquality _deepEquals = DeepCollectionEquality();
 
   ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
 
   GenericBinder(this.context, this.schema) {
-    _behaviorTree = _scrapeSchemaBehavior(schema);
+    _schemaReader = ReferenceSchemaReader(
+      schema.value,
+      document: context.surface.catalog.catalogSchema,
+    );
+    _behaviorTree = _scrapeSchemaBehavior(schema.value);
     _resolvedProps = signal<Map<String, dynamic>>({});
     connect();
   }
 
-  /// Connects to the component model for updates.
+  /// Connects to the component model for updates. No-op after [dispose].
   void connect() {
-    if (_isConnected) return;
+    if (_isConnected || _disposed) return;
     _isConnected = true;
     context.componentModel.onUpdated.addListener(_onComponentUpdated);
     _rebuildAllBindings();
@@ -71,19 +108,41 @@ class GenericBinder {
   void _onComponentUpdated(ComponentModel _) => _rebuildAllBindings();
 
   void _rebuildAllBindings() {
-    _disposeSubscriptions();
+    if (_disposed) return;
+    batch(() {
+      _disposeSubscriptions();
 
-    final Map<String, dynamic> props = context.componentModel.properties;
-    _resolvedProps.value =
-        _resolveAndBind(props, _behaviorTree, [], false)
-            as Map<String, dynamic>;
+      final Map<String, dynamic> props = context.componentModel.properties;
+      final Object? next = _resolveAndBind(props, _behaviorTree, [], false);
+      if (!_disposed) {
+        _resolvedProps.value = next as Map<String, dynamic>;
+      }
+    });
   }
 
   void _disposeSubscriptions() {
-    for (final void Function() dispose in _subscriptions) {
+    final List<void Function()> subscriptions = List.of(_subscriptions);
+    _subscriptions.clear();
+    for (final dispose in subscriptions) {
       dispose();
     }
-    _subscriptions.clear();
+  }
+
+  // subscribe evaluates synchronously. Evaluation may dispose this binder
+  // before subscribe returns its cleanup; never acquire that cleanup afterward.
+  void _subscribe(
+    ReadonlySignal<Object?> source,
+    void Function(Object?) onValue,
+  ) {
+    if (_disposed) return;
+    final void Function() unsubscribe = source.subscribe((value) {
+      if (!_disposed) onValue(value);
+    });
+    if (_disposed) {
+      unsubscribe();
+    } else {
+      _subscriptions.add(unsubscribe);
+    }
   }
 
   Object? _resolveAndBind(
@@ -92,24 +151,46 @@ class GenericBinder {
     List<String> path,
     bool isSync,
   ) {
-    if (value == null) return null;
+    if (_disposed) return null;
+    if (value == null) {
+      return behavior.type == Behavior.dynamic
+          ? const ResolvedBinding<Object?>(null)
+          : null;
+    }
 
     switch (behavior.type) {
       case Behavior.dynamic:
         final ReadonlySignal<Object?> sig = context.dataContext
             .resolveListenable(value);
-        if (!isSync) {
-          _subscriptions.add(
-            sig.subscribe((newValue) {
-              _updateDeepValue(path, newValue);
-            }),
-          );
+        final String? boundPath = value is Map && value.containsKey('path')
+            ? value['path'] as String
+            : null;
+        ResolvedBinding<Object?> wrap(Object? current) {
+          final Object? snapshot = _snapshotBindingValue(current);
+          return boundPath == null
+              ? ResolvedBinding<Object?>(snapshot)
+              : WritableBinding<Object?>(
+                  snapshot,
+                  (newValue) => context.dataContext.set(boundPath, newValue),
+                  boundPath,
+                );
         }
-        return sig.value;
+        if (!isSync) {
+          _subscribe(sig, (newValue) {
+            _updateDeepValue(path, wrap(newValue));
+          });
+        }
+        return _disposed ? null : wrap(sig.value);
 
       case Behavior.action:
-        return () async {
-          final Object? resolved = context.dataContext.resolveSync(value);
+        final String cacheKey = path.join('/');
+        final ({Object? raw, Future<void> Function() closure})? cached =
+            _actionClosures[cacheKey];
+        if (cached != null && _deepEquals.equals(cached.raw, value)) {
+          return cached.closure;
+        }
+        Future<void> closure() async {
+          final Object? resolved = _resolveActionPayload(value);
           final Map<String, dynamic> resolvedAction;
           if (resolved is Map) {
             resolvedAction = Map<String, dynamic>.from(resolved);
@@ -119,7 +200,10 @@ class GenericBinder {
             };
           }
           await context.dispatchAction(resolvedAction);
-        };
+        }
+
+        _actionClosures[cacheKey] = (raw: value, closure: closure);
+        return closure;
 
       case Behavior.structural:
         if (value is Map &&
@@ -144,13 +228,11 @@ class GenericBinder {
           }
 
           if (!isSync) {
-            _subscriptions.add(
-              sig.subscribe((newValue) {
-                _updateDeepValue(path, resolveChildren(newValue));
-              }),
-            );
+            _subscribe(sig, (newValue) {
+              _updateDeepValue(path, resolveChildren(newValue));
+            });
           }
-          return resolveChildren(sig.value);
+          return _disposed ? null : resolveChildren(sig.value);
         }
         if (value is List) {
           return value
@@ -178,6 +260,7 @@ class GenericBinder {
         }
 
         for (var i = 0; i < rules.length; i++) {
+          if (_disposed) return null;
           final Object? condition =
               (rules[i] as Map<String, dynamic>)['condition'] ?? rules[i];
           final ReadonlySignal<Object?> sig = context.dataContext
@@ -186,12 +269,10 @@ class GenericBinder {
 
           if (!isSync) {
             final idx = i;
-            _subscriptions.add(
-              sig.subscribe((newValue) {
-                results[idx] = newValue == true;
-                updateValidationState();
-              }),
-            );
+            _subscribe(sig, (newValue) {
+              results[idx] = newValue == true;
+              updateValidationState();
+            });
           }
         }
 
@@ -213,8 +294,19 @@ class GenericBinder {
           ], isSync);
         }
 
+        // Dynamic props always have a binding, including omitted values. Only
+        // visit objects already present; absent static containers stay absent.
+        for (final MapEntry<String, BehaviorNode> entry in shape.entries) {
+          if (entry.value.type == Behavior.dynamic &&
+              !result.containsKey(entry.key)) {
+            result[entry.key] = const ResolvedBinding<Object?>(null);
+          }
+        }
+
         // Inject validation properties if 'checks' is present in shape
-        if (shape.containsKey('checks') && result.containsKey('checks')) {
+        if (!_disposed &&
+            shape.containsKey('checks') &&
+            result.containsKey('checks')) {
           final List<Object?> rules =
               (value['checks'] as List?)?.cast<Object?>() ?? [];
           var isValid = true;
@@ -222,6 +314,7 @@ class GenericBinder {
           final List<Map<String, dynamic>> typedRules = rules
               .cast<Map<String, dynamic>>();
           for (final rule in typedRules) {
+            if (_disposed) return null;
             final Object? condition = rule['condition'] ?? rule;
             final Object? val = context.dataContext.resolveSync(condition);
             if (val != true) {
@@ -233,19 +326,6 @@ class GenericBinder {
           result['validationErrors'] = errors;
         }
 
-        // Add setters for dynamic properties
-        for (final MapEntry<String, BehaviorNode> entry in shape.entries) {
-          if (entry.value.type == Behavior.dynamic) {
-            final String key = entry.key;
-            final setterName = 'set${key[0].toUpperCase()}${key.substring(1)}';
-            final Object? rawValue = value[key];
-            if (rawValue is Map && rawValue.containsKey('path')) {
-              result[setterName] = (Object? newValue) {
-                context.dataContext.set(rawValue['path'] as String, newValue);
-              };
-            }
-          }
-        }
         return result;
 
       case Behavior.array:
@@ -268,7 +348,29 @@ class GenericBinder {
     }
   }
 
+  /// Resolves an action payload for dispatch: a `{path}` or `{call}` object
+  /// at any depth resolves through the data context, and the surrounding
+  /// literal structure is preserved. Unlike dynamic-value resolution, the
+  /// walk is deep, because an action nests its dynamic values inside the
+  /// event structure (e.g. `event.context` entries).
+  Object? _resolveActionPayload(Object? value) {
+    if (value is Map) {
+      if (value.containsKey('path') || value.containsKey('call')) {
+        return context.dataContext.resolveSync(value);
+      }
+      return <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key as String: _resolveActionPayload(entry.value),
+      };
+    }
+    if (value is List) {
+      return value.map(_resolveActionPayload).toList();
+    }
+    return value;
+  }
+
   void _updateDeepValue(List<String> path, Object? newValue) {
+    if (_disposed) return;
     _resolvedProps.value = _cloneAndUpdate(
       _resolvedProps.value,
       path,
@@ -316,33 +418,28 @@ class GenericBinder {
     return result;
   }
 
-  BehaviorNode _scrapeSchemaBehavior(Schema schema, [String? propertyName]) {
-    final Map<String, Object?> map = schema.value;
-
+  BehaviorNode _scrapeSchemaBehavior(
+    Object? schema, [
+    String? propertyName,
+    Set<Object>? ancestors,
+  ]) {
     if (propertyName == 'checks') return BehaviorNode(Behavior.checkable);
-
-    // Recursively collect all schemas from allOf/anyOf/oneOf
-    final List<Map<String, dynamic>> schemasToInspect = [];
-    void collectSchemas(Map<String, dynamic> s) {
-      schemasToInspect.add(s);
-      if (s['allOf'] is List) {
-        for (final sub in s['allOf'] as List) {
-          if (sub is Map) collectSchemas(sub.cast<String, dynamic>());
-        }
-      }
-      if (s['anyOf'] is List) {
-        for (final sub in s['anyOf'] as List) {
-          if (sub is Map) collectSchemas(sub.cast<String, dynamic>());
-        }
-      }
-      if (s['oneOf'] is List) {
-        for (final sub in s['oneOf'] as List) {
-          if (sub is Map) collectSchemas(sub.cast<String, dynamic>());
-        }
-      }
+    final Set<Object> visiting = Set.identity()..addAll(ancestors ?? {});
+    if (schema == null || !visiting.add(schema)) {
+      return BehaviorNode(Behavior.static);
     }
-
-    collectSchemas(map.cast<String, dynamic>());
+    final List<Map<String, Object?>> schemasToInspect = _schemaReader.schemas(
+      schema,
+    );
+    if (_schemaReader.referenceKind(schemasToInspect) is ListRef) {
+      return BehaviorNode(Behavior.structural);
+    }
+    // A recursive local alias can point back through a property or array.
+    // Those deeper occurrences stay literal rather than expanding forever.
+    if (schemasToInspect.any((node) => ancestors?.contains(node) ?? false)) {
+      return BehaviorNode(Behavior.static);
+    }
+    visiting.addAll(schemasToInspect);
 
     bool hasEvent = schemasToInspect.any(
       (s) =>
@@ -363,50 +460,59 @@ class GenericBinder {
     );
     if (hasPath) return BehaviorNode(Behavior.dynamic);
 
-    bool hasStructural = schemasToInspect.any(
-      (s) =>
-          s['properties'] != null &&
-          (s['properties'] as Map)['componentId'] != null &&
-          (s['properties'] as Map)['path'] != null,
+    final Map<String, Object?> allProperties = _schemaReader.properties(
+      schemasToInspect,
     );
-    if (hasStructural) return BehaviorNode(Behavior.structural);
-
-    final Object? type = map['type'];
-    final Map<String, dynamic> allProperties = {};
-    for (final s in schemasToInspect) {
-      if (s['properties'] is Map) {
-        allProperties.addAll((s['properties'] as Map).cast<String, dynamic>());
-      }
-    }
-
-    if (type == 'object' || allProperties.isNotEmpty) {
+    final bool isObject = schemasToInspect.any((s) => s['type'] == 'object');
+    if (isObject || allProperties.isNotEmpty) {
       final shape = <String, BehaviorNode>{};
       for (final MapEntry<String, dynamic> entry in allProperties.entries) {
         shape[entry.key] = _scrapeSchemaBehavior(
-          Schema.fromMap(entry.value as Map<String, Object?>),
+          entry.value,
           entry.key,
+          visiting,
         );
       }
       return BehaviorNode(Behavior.object, shape: shape);
     }
 
-    if (type == 'array') {
-      final Object? items = map['items'];
-      if (items is Map) {
-        return BehaviorNode(
-          Behavior.array,
-          element: _scrapeSchemaBehavior(
-            Schema.fromMap(items as Map<String, Object?>),
-          ),
-        );
-      }
+    final Object? items = _schemaReader.items(schemasToInspect);
+    if (items != null) {
+      return BehaviorNode(
+        Behavior.array,
+        element: _scrapeSchemaBehavior(items, null, visiting),
+      );
     }
 
     return BehaviorNode(Behavior.static);
   }
 
+  /// Permanently disconnects this binder, including an interrupted rebuild.
+  /// Later [connect] calls cannot reactivate it. Idempotent.
   void dispose() {
-    _disposeSubscriptions();
+    if (_disposed) return;
+    _disposed = true;
     context.componentModel.onUpdated.removeListener(_onComponentUpdated);
+    _disposeSubscriptions();
   }
+}
+
+/// Copies container values so later data-model writes cannot mutate an
+/// already-emitted binding or hide a change from binding value comparison.
+/// Copies are recursively unmodifiable; opaque values keep their identity.
+Object? _snapshotBindingValue(Object? value) {
+  if (value is List) {
+    return List<Object?>.unmodifiable(value.map(_snapshotBindingValue));
+  }
+  if (value is Map<String, Object?>) {
+    return UnmodifiableMapView(
+      value.map((key, item) => MapEntry(key, _snapshotBindingValue(item))),
+    );
+  }
+  if (value is Map) {
+    return UnmodifiableMapView(
+      value.map((key, item) => MapEntry(key, _snapshotBindingValue(item))),
+    );
+  }
+  return value;
 }
