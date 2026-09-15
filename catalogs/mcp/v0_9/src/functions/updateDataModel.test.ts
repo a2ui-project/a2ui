@@ -151,6 +151,21 @@ describe('updateDataModel', () => {
     assert.strictEqual(model.get('/settled'), 'yes');
   });
 
+  it('deeply clones values using structuredClone so modifications do not affect original objects', () => {
+    const originalEntry = {name: 'notes.md'};
+    const model = new DataModel({});
+
+    catalog.invoker(
+      'updateDataModel',
+      {updates: {'/entry': originalEntry}},
+      createTestDataContext(model),
+    );
+
+    const stored = model.get('/entry') as {name: string};
+    assert.deepStrictEqual(stored, originalEntry);
+    assert.notStrictEqual(stored, originalEntry);
+  });
+
   it('propagates a rejected argument', async () => {
     const model = new DataModel({});
     const result = catalog.invoker(

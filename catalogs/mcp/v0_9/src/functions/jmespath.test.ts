@@ -122,6 +122,15 @@ describe('jmespath', () => {
     assert.deepStrictEqual(result, ['notes.md']);
   });
 
+  it('settles an asynchronous expression argument', async () => {
+    const result = call({
+      expression: Promise.resolve('rows[0]'),
+      data: {rows: ['first', 'second']},
+    });
+    assert.strictEqual(typeof (result as {then?: unknown}).then, 'function');
+    assert.strictEqual(await result, 'first');
+  });
+
   it('propagates a rejected argument', async () => {
     const result = call({
       expression: 'rows[0]',

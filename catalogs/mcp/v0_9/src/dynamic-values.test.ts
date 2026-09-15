@@ -153,6 +153,18 @@ describe('dynamic-values', () => {
 
       assert.strictEqual(resolveDynamicValueDeep({path: '/alias'}, context), 'final_value');
     });
+
+    it('resolves chained data bindings that yield nested bindings in records', () => {
+      const context = createContext({
+        user: {name: 'Ada'},
+        profile: {userName: {path: '/user/name'}},
+        currentProfile: {path: '/profile'},
+      });
+
+      assert.deepStrictEqual(resolveDynamicValueDeep({path: '/currentProfile'}, context), {
+        userName: 'Ada',
+      });
+    });
   });
 
   describe('resolveDynamicRecord', () => {

@@ -52,7 +52,7 @@ export const UpdateDataModelImplementation: FunctionImplementation = createFunct
         );
       }
       for (const [path, value] of Object.entries(updates as Record<string, unknown>)) {
-        context.set(path, value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
+        context.set(path, value === undefined ? undefined : structuredClone(value));
       }
     });
   },

@@ -90,6 +90,12 @@ export function pattern(source: string, fn: string): ReturnType<typeof RE2JS.com
         error,
       );
     }
+    if (compiledPatterns.size >= 100) {
+      const oldestKey = compiledPatterns.keys().next().value;
+      if (oldestKey !== undefined) {
+        compiledPatterns.delete(oldestKey);
+      }
+    }
     compiledPatterns.set(source, compiled);
   }
   return compiled;

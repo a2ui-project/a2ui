@@ -80,6 +80,16 @@ describe('regexCapture', () => {
     assert.deepStrictEqual(await result, ['notes', 'md']);
   });
 
+  it('handles compiling more than 100 distinct patterns by evicting older entries', () => {
+    for (let i = 0; i < 120; i++) {
+      const result = call('regexCapture', {
+        value: `val_${i}`,
+        pattern: `^val_(${i})$`,
+      });
+      assert.deepStrictEqual(result, [String(i)]);
+    }
+  });
+
   it('propagates a rejected argument', async () => {
     const result = call('regexCapture', {
       value: Promise.reject(new Error('the tool call failed')),

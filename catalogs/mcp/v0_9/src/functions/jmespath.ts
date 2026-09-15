@@ -41,25 +41,21 @@ export const JmespathImplementation: FunctionImplementation = createFunctionImpl
   JmespathApi,
   (args, context) => {
     const document = resolveDynamicValueDeep<unknown>(args['data'], context);
-    return withSettledArgs({expression: args['expression'], data: document}, settled => {
-      const expression = resolveDynamicValueDeep<unknown>(settled['expression'], context);
-      if (typeof expression !== 'string') {
-        const kind =
-          expression === null
-            ? 'null'
-            : Array.isArray(expression)
-              ? 'an array'
-              : `a ${typeof expression}`;
+    const expression = resolveDynamicValueDeep<unknown>(args['expression'], context);
+    return withSettledArgs({expression, data: document}, settled => {
+      const expr = settled['expression'];
+      if (typeof expr !== 'string') {
+        const kind = expr === null ? 'null' : Array.isArray(expr) ? 'an array' : `a ${typeof expr}`;
         throw new A2uiExpressionError(
           `jmespath expects a string expression, got ${kind}.`,
           'jmespath',
         );
       }
       try {
-        return searchJmespath(settled['data'] ?? null, expression);
+        return searchJmespath(settled['data'] ?? null, expr);
       } catch (error) {
         throw new A2uiExpressionError(
-          `${error instanceof Error ? error.message : String(error)} in JMESPath expression: ${expression}`,
+          `${error instanceof Error ? error.message : String(error)} in JMESPath expression: ${expr}`,
           'jmespath',
           error,
         );

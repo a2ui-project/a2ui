@@ -105,8 +105,11 @@ export class A2uiFilesystemApp extends LitElement {
       // knowing which functions it names.
       const surface = this.surface!;
       const context = new DataContext(surface, '/');
-      for (const action of surface.dataModel.get('/startup') ?? []) {
-        await context.resolveDynamicValue(action);
+      const startup = surface.dataModel.get('/startup');
+      if (Array.isArray(startup)) {
+        for (const action of startup) {
+          await context.resolveDynamicValue(action);
+        }
       }
     } catch (error: unknown) {
       this.error = error instanceof Error ? error.message : String(error);
