@@ -325,6 +325,29 @@ describe('callMcpTool', () => {
       );
     });
 
+    it('throws A2uiExpressionError when resolver returns null or undefined', async () => {
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        [],
+        [createCallMcpToolImplementation(() => undefined, processor)],
+      );
+      const context = createTestDataContext(new DataModel({}), catalog);
+
+      await assert.rejects(
+        async () => {
+          await catalog.invoker('callMcpTool', {name: 'missing_tool'}, context);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiExpressionError);
+          assert.strictEqual(err.expression, 'callMcpTool');
+          assert.ok(
+            err.message.includes("MCP client for tool 'missing_tool' could not be resolved."),
+          );
+          return true;
+        },
+      );
+    });
+
     it('throws A2uiExpressionError when the result is flagged isError, applying nothing', async () => {
       const client = createFakeClient({
         result: {

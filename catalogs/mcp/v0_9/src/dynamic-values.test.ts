@@ -165,6 +165,27 @@ describe('dynamic-values', () => {
         userName: 'Ada',
       });
     });
+
+    it('guards against infinite recursion when a binding or function call resolves to itself', () => {
+      const selfBinding = {path: '/loop'};
+      const context = createContext({
+        loop: selfBinding,
+      });
+
+      assert.strictEqual(resolveDynamicValueDeep(selfBinding, context), selfBinding);
+
+      const customContext = {
+        resolveDynamicValue: (val: any) => val,
+      } as any;
+      assert.deepStrictEqual(resolveDynamicValueDeep({path: '/custom'}, customContext), {
+        path: '/custom',
+      });
+      assert.deepStrictEqual(resolveDynamicValueDeep({call: 'unknown'}, customContext), {
+        call: 'unknown',
+        args: {},
+        returnType: 'any',
+      });
+    });
   });
 
   describe('resolveDynamicRecord', () => {

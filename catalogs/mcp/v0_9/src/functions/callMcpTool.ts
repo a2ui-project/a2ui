@@ -38,7 +38,9 @@ export const A2UI_MIME_TYPE = 'application/a2ui+json';
 export type McpToolClient = Pick<Client, 'request' | 'readResource' | 'listTools'>;
 
 /** Resolves the connected MCP client that serves a named tool. */
-export type McpClientResolver = (toolName: string) => McpToolClient | Promise<McpToolClient>;
+export type McpClientResolver = (
+  toolName: string,
+) => McpToolClient | undefined | null | Promise<McpToolClient | undefined | null>;
 
 export const CallMcpToolApi = {
   name: 'callMcpTool' as const,
@@ -108,6 +110,9 @@ export function createCallMcpToolImplementation(
       const resolvedArguments = resolveDynamicRecord(args.arguments ?? {}, context);
 
       const client = await getMcpClientForTool(toolName);
+      if (!client) {
+        throw new Error(`MCP client for tool '${toolName}' could not be resolved.`);
+      }
       const result: CallToolResult = await client.request(
         {method: 'tools/call', params: {name: toolName, arguments: resolvedArguments}},
         CallToolResultSchema,
