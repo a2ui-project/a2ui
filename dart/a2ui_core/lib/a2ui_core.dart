@@ -47,6 +47,9 @@ export 'src/processing/expressions.dart';
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart';
 export 'src/rendering/resolved_binding.dart';
+export 'src/resolution/component_node.dart'
+    hide MutableComponentNode, sameValue;
+export 'src/resolution/node_resolver.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `A2uiValidator` is the entry point.
 export 'src/validation/validator.dart';

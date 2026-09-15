@@ -42,6 +42,49 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
   ],
 );
 
+Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
+  Map<String, Object?> schema, {
+  Map<String, Object?> definitions = const {},
+}) {
+  final SchemaCatalog parsed = Catalog.fromJson({
+    'catalogId': 'wire-references',
+    r'$defs': definitions,
+    'components': {
+      'Parent': schema,
+      'Leaf': {'type': 'object'},
+    },
+  });
+  // Function implementations are attached by renderer catalogs; this catalog
+  // has no functions.
+  return Catalog<ComponentApi, FunctionImplementation>(
+    id: parsed.id,
+    components: parsed.components.values.toList(),
+  );
+}
+
+typedef _Fixture = ({
+  SurfaceModel<ComponentApi> surface,
+  NodeResolver<ComponentApi> resolver,
+});
+
+void _add(
+  SurfaceModel<ComponentApi> surface,
+  String id,
+  String type,
+  Map<String, Object?> properties,
+) => surface.componentsModel.addComponent(ComponentModel(id, type, properties));
+
+_Fixture _fixture(Catalog<ComponentApi, FunctionImplementation> catalog) {
+  final surface = SurfaceModel<ComponentApi>('s', catalog: catalog);
+  final resolver = NodeResolver<ComponentApi>(surface);
+  addTearDown(() {
+    resolver.dispose();
+    surface.dispose();
+  });
+  _add(surface, 'leaf', 'Leaf', {});
+  return (surface: surface, resolver: resolver);
+}
+
 void _expectFields(
   Map<String, Object?> schema, {
   Set<String> single = const {},
@@ -322,6 +365,367 @@ void main() {
           'groups[0].children[1]',
           'groups[1].children.componentId',
         ]);
+      },
+    );
+  });
+
+  group('wire-backed catalog mounting', () {
+    for (final keyword in ['anyOf', 'oneOf']) {
+      test(
+        'mounts both direct and object-item references through $keyword',
+        () {
+          final Catalog<ComponentApi, FunctionImplementation> catalog =
+              _catalog({
+                keyword: [
+                  {
+                    'properties': {
+                      'items': {'type': 'array', 'items': _single},
+                    },
+                  },
+                  {
+                    'properties': {
+                      'items': {
+                        'type': 'array',
+                        'items': {
+                          'type': 'object',
+                          'properties': {
+                            'child': _single,
+                            'label': {'type': 'string'},
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              });
+          final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+          processor.processMessages([
+            CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+          ]);
+          final SurfaceModel<ComponentApi> surface = processor.groupModel
+              .getSurface('s')!;
+          final resolver = NodeResolver<ComponentApi>(surface);
+          addTearDown(() {
+            resolver.dispose();
+            processor.groupModel.dispose();
+          });
+          void process(List<Map<String, Object?>> components) {
+            processor.processPayload([
+              {
+                'version': 'v0.9',
+                'updateComponents': {
+                  'surfaceId': 's',
+                  'components': components,
+                },
+              },
+            ]);
+          }
+
+          process([
+            {'id': 'leaf', 'component': 'Leaf'},
+            {
+              'id': 'root',
+              'component': 'Parent',
+              'items': [
+                {'child': 'leaf', 'label': 'not-an-id'},
+              ],
+            },
+          ]);
+          final ComponentNode root = resolver.rootNode.peek()!;
+          final item = (root.props.peek()['items']! as List).single as Map;
+          expect((item['child']! as ComponentNode).componentId, 'leaf');
+          expect(item['label'], 'not-an-id');
+          expect(resolver.activeNodeCount, 2);
+          process([
+            {
+              'id': 'root',
+              'component': 'Parent',
+              'items': ['leaf'],
+            },
+          ]);
+          final direct =
+              (root.props.peek()['items']! as List).single as ComponentNode;
+          expect(direct.componentId, 'leaf');
+          expect(direct.state, NodeState.resolved);
+          expect(resolver.activeNodeCount, 2);
+        },
+      );
+    }
+
+    test('validates and mounts processed wire singles and templates', () {
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          _wireCatalog({
+            'properties': {'child': _single, 'children': _list},
+          });
+      final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+      ]);
+      final SurfaceModel<ComponentApi> surface = processor.groupModel
+          .getSurface('s')!;
+      final resolver = NodeResolver<ComponentApi>(surface);
+      addTearDown(() {
+        resolver.dispose();
+        processor.groupModel.dispose();
+      });
+      void process(List<Map<String, Object?>> components) {
+        processor.processPayload([
+          {
+            'version': 'v0.9',
+            'updateComponents': {'surfaceId': 's', 'components': components},
+          },
+        ]);
+      }
+
+      expect(
+        () => process([
+          {
+            'id': 'root',
+            'component': 'Parent',
+            'children': {'componentId': 'missing', 'path': '/items'},
+          },
+        ]),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
+      expect(surface.componentsModel.all, isEmpty);
+      expect(resolver.rootNode.value, isNull);
+      surface.dataModel.set('/items', ['a', 'b']);
+      process([
+        {
+          'id': 'root',
+          'component': 'Parent',
+          'child': 'leaf',
+          'children': {'componentId': 'leaf', 'path': '/items'},
+        },
+        {'id': 'leaf', 'component': 'Leaf'},
+      ]);
+      final Map<String, Object?> props = resolver.rootNode.value!.props.peek();
+      expect((props['child']! as ComponentNode).componentId, 'leaf');
+      expect(
+        (props['children']! as List).cast<ComponentNode>().map(
+          (n) => n.dataPath,
+        ),
+        ['/items/0', '/items/1'],
+      );
+      expect(resolver.activeNodeCount, 4);
+    });
+
+    test('mounts a single child through an escaped catalog-local alias', () {
+      final _Fixture fixture = _fixture(
+        _wireCatalog(
+          {
+            'properties': {
+              'child': {r'$ref': r'#/$defs/child~1alias~0'},
+            },
+          },
+          definitions: {'child/alias~': _single},
+        ),
+      );
+      _add(fixture.surface, 'root', 'Parent', {'child': 'leaf'});
+      final child =
+          fixture.resolver.rootNode.value!.props.peek()['child']!
+              as ComponentNode;
+      expect(child.componentId, 'leaf');
+      expect(child.state, NodeState.resolved);
+      expect(fixture.resolver.activeNodeCount, 2);
+    });
+
+    test('mounts static wire ChildList arrays', () {
+      final _Fixture fixture = _fixture(
+        _wireCatalog({
+          'properties': {'children': _list},
+        }),
+      );
+      _add(fixture.surface, 'root', 'Parent', {
+        'children': ['leaf'],
+      });
+      final children =
+          fixture.resolver.rootNode.value!.props.peek()['children']! as List;
+      expect(children.single, isA<ComponentNode>());
+      expect((children.single as ComponentNode).componentId, 'leaf');
+      expect((children.single as ComponentNode).dataPath, '/');
+    });
+
+    test(
+      'expands wire ChildList templates with per-item scope and updates',
+      () {
+        final _Fixture fixture = _fixture(
+          _wireCatalog({
+            'properties': {'children': _list},
+          }),
+        );
+        fixture.surface.dataModel.set('/items', ['a', 'b']);
+        _add(fixture.surface, 'root', 'Parent', {
+          'children': {'componentId': 'leaf', 'path': '/items'},
+        });
+        final ComponentNode root = fixture.resolver.rootNode.value!;
+        List<ComponentNode> children() =>
+            (root.props.peek()['children']! as List).cast<ComponentNode>();
+        expect(children().map((n) => n.dataPath), ['/items/0', '/items/1']);
+        final ComponentNode first = children().first;
+        fixture.surface.dataModel.set('/items', ['a', 'b', 'c']);
+        expect(children().map((n) => n.dataPath), [
+          '/items/0',
+          '/items/1',
+          '/items/2',
+        ]);
+        expect(children().first, same(first));
+      },
+    );
+
+    test('mounts wire reference arrays and array-object child keys', () {
+      final _Fixture fixture = _fixture(
+        _wireCatalog({
+          'allOf': [
+            {
+              'properties': {
+                'ids': {
+                  'oneOf': [
+                    {'type': 'array', 'items': _single},
+                  ],
+                },
+                'tabs': {
+                  'type': 'array',
+                  'items': {
+                    'allOf': [
+                      {
+                        'properties': {'child': _single},
+                      },
+                      {
+                        'properties': {
+                          'label': {'type': 'string'},
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        }),
+      );
+      _add(fixture.surface, 'root', 'Parent', {
+        'ids': ['leaf'],
+        'tabs': [
+          {'child': 'leaf', 'label': 'not-an-id'},
+        ],
+      });
+      final Map<String, Object?> props = fixture.resolver.rootNode.value!.props
+          .peek();
+      expect((props['ids']! as List).single, isA<ComponentNode>());
+      final tab = (props['tabs']! as List).single as Map;
+      expect(tab['child'], isA<ComponentNode>());
+      expect(tab['label'], 'not-an-id');
+      expect(fixture.resolver.activeNodeCount, 3);
+    });
+
+    test('leaves deeper wire templates scoped but unmounted', () {
+      final _Fixture fixture = _fixture(
+        _wireCatalog({
+          'properties': {
+            'groups': {
+              'allOf': [
+                {
+                  'type': 'array',
+                  'items': {
+                    'properties': {
+                      'label': {'type': 'string'},
+                    },
+                  },
+                },
+                {
+                  'type': 'array',
+                  'items': {
+                    'properties': {'children': _list},
+                  },
+                },
+              ],
+            },
+          },
+        }),
+      );
+      fixture.surface.dataModel.set('/items', ['a', 'b']);
+      _add(fixture.surface, 'root', 'Parent', {
+        'groups': [
+          {
+            'children': {'componentId': 'leaf', 'path': '/items'},
+          },
+        ],
+      });
+      final group =
+          (fixture.resolver.rootNode.value!.props.peek()['groups']! as List)
+                  .single
+              as Map;
+      final List<ChildNode> children = (group['children']! as List)
+          .cast<ChildNode>();
+      expect(children.map((n) => n.basePath), ['/items/0', '/items/1']);
+      expect(fixture.resolver.activeNodeCount, 1);
+    });
+
+    test('array items that are ChildLists remain scoped descriptors', () {
+      final _Fixture fixture = _fixture(
+        _wireCatalog({
+          'properties': {
+            'groups': {'type': 'array', 'items': _list},
+          },
+        }),
+      );
+      fixture.surface.dataModel.set('/items', ['a', 'b']);
+      _add(fixture.surface, 'root', 'Parent', {
+        'groups': [
+          ['leaf'],
+          {'componentId': 'leaf', 'path': '/items'},
+        ],
+      });
+      final groups =
+          fixture.resolver.rootNode.value!.props.peek()['groups']! as List;
+      expect((groups[0] as List).cast<ChildNode>().single.basePath, '/');
+      expect((groups[1] as List).cast<ChildNode>().map((n) => n.basePath), [
+        '/items/0',
+        '/items/1',
+      ]);
+      expect(fixture.resolver.activeNodeCount, 1);
+    });
+
+    test(
+      'binder follows component-local aliases and bounds recursive shapes',
+      () {
+        final _Fixture fixture = _fixture(
+          _catalog({
+            r'$defs': {
+              'children': _list,
+              'recursive': {
+                'properties': {
+                  'next': {r'$ref': r'#/$defs/recursive'},
+                },
+              },
+            },
+            'properties': {
+              'children': {r'$ref': r'#/$defs/children'},
+              'recursive': {r'$ref': r'#/$defs/recursive'},
+            },
+          }),
+        );
+        fixture.surface.dataModel.set('/items', ['a']);
+        _add(fixture.surface, 'root', 'Parent', {
+          'children': {'componentId': 'leaf', 'path': '/items'},
+          'recursive': {
+            'next': {'value': 'literal'},
+          },
+        });
+        final Map<String, Object?> props = fixture
+            .resolver
+            .rootNode
+            .value!
+            .props
+            .peek();
+        expect(
+          ((props['children']! as List).single as ComponentNode).dataPath,
+          '/items/0',
+        );
+        expect(props['recursive'], {
+          'next': {'value': 'literal'},
+        });
       },
     );
   });
