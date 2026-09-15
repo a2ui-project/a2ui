@@ -32,9 +32,6 @@ export function asyncable<T extends z.ZodTypeAny>(schema: T) {
   return z.union([schema, z.custom<PromiseLike<unknown>>(isThenable)]);
 }
 
-/** A string input, or an array of string inputs, optionally pending. */
-export const TextInput = asyncable(z.any());
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
@@ -98,22 +95,8 @@ export function pattern(source: string, fn: string): ReturnType<typeof RE2JS.com
   return compiled;
 }
 
-/** Coerces a value to a string, treating null and undefined as empty string. */
-export function text(value: unknown): string {
-  if (value === null || value === undefined) {
-    return '';
-  }
-  return typeof value === 'string' ? value : String(value);
-}
-
 /** Applies `fn` to a single string or element-wise across an array of strings. */
 export function overValue<T>(value: unknown, fn: (item: string) => T): T | T[] {
-  return Array.isArray(value) ? value.map(item => fn(text(item))) : fn(text(value));
-}
-
-/** Formats a value's type for error messages. */
-export function describe(value: unknown): string {
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'an array';
-  return `a ${typeof value}`;
+  const asText = (item: unknown) => String(item ?? '');
+  return Array.isArray(value) ? value.map(item => fn(asText(item))) : fn(asText(value));
 }

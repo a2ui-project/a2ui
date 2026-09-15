@@ -17,13 +17,13 @@
 import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
-import {TextInput, asyncable, overValue, text, withSettledArgs} from './common.js';
+import {asyncable, overValue, withSettledArgs} from './common.js';
 
 export const SplitApi = {
   name: 'split',
   returnType: 'any',
   schema: z.object({
-    value: TextInput.describe(
+    value: asyncable(z.any()).describe(
       'The string to split. An array is split element by element, giving an array of arrays.',
     ),
     separator: asyncable(z.any()).describe(
@@ -37,7 +37,7 @@ export const SplitImplementation: FunctionImplementation = createFunctionImpleme
   SplitApi,
   args =>
     withSettledArgs(args, settled => {
-      const separator = text(settled['separator']);
+      const separator = String(settled['separator'] ?? '');
       return overValue(settled['value'], item => item.split(separator));
     }),
 );

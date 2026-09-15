@@ -22,7 +22,7 @@ import {
 import {z} from 'zod';
 
 import {resolveDynamicValueDeep} from '../dynamic-values.js';
-import {asyncable, describe, withSettledArgs} from './common.js';
+import {asyncable, withSettledArgs} from './common.js';
 
 export const UpdateDataModelApi = {
   name: 'updateDataModel',
@@ -45,8 +45,9 @@ export const UpdateDataModelImplementation: FunctionImplementation = createFunct
         return;
       }
       if (typeof updates !== 'object' || Array.isArray(updates)) {
+        const kind = Array.isArray(updates) ? 'an array' : `a ${typeof updates}`;
         throw new A2uiExpressionError(
-          `updateDataModel expects an object of data model paths, got ${describe(updates)}.`,
+          `updateDataModel expects an object of data model paths, got ${kind}.`,
           'updateDataModel',
         );
       }

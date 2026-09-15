@@ -23,13 +23,15 @@ import {search as searchJmespath} from 'jmespath';
 import {z} from 'zod';
 
 import {resolveDynamicValueDeep} from '../dynamic-values.js';
-import {asyncable, describe, withSettledArgs} from './common.js';
+import {asyncable, withSettledArgs} from './common.js';
 
 export const JmespathApi = {
   name: 'jmespath',
   returnType: 'any',
   schema: z.object({
-    expression: asyncable(z.any()).describe('A JMESPath expression, as specified at jmespath.org, evaluated against `data`.'),
+    expression: asyncable(z.any()).describe(
+      'A JMESPath expression, as specified at jmespath.org, evaluated against `data`.',
+    ),
     data: asyncable(z.any()).describe('The document the expression reads.'),
   }),
 } as const;
@@ -42,8 +44,14 @@ export const JmespathImplementation: FunctionImplementation = createFunctionImpl
     return withSettledArgs({expression: args['expression'], data: document}, settled => {
       const expression = resolveDynamicValueDeep<unknown>(settled['expression'], context);
       if (typeof expression !== 'string') {
+        const kind =
+          expression === null
+            ? 'null'
+            : Array.isArray(expression)
+              ? 'an array'
+              : `a ${typeof expression}`;
         throw new A2uiExpressionError(
-          `jmespath expects a string expression, got ${describe(expression)}.`,
+          `jmespath expects a string expression, got ${kind}.`,
           'jmespath',
         );
       }

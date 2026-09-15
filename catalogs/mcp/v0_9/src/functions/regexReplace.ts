@@ -18,13 +18,15 @@ import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/w
 import {RE2JS} from 're2js';
 import {z} from 'zod';
 
-import {TextInput, asyncable, overValue, pattern, text, withSettledArgs} from './common.js';
+import {asyncable, overValue, pattern, withSettledArgs} from './common.js';
 
 export const RegexReplaceApi = {
   name: 'regexReplace',
   returnType: 'any',
   schema: z.object({
-    value: TextInput.describe('The string to rewrite. An array is rewritten element by element.'),
+    value: asyncable(z.any()).describe(
+      'The string to rewrite. An array is rewritten element by element.',
+    ),
     pattern: asyncable(z.any()).describe('An RE2 pattern. Every match is replaced.'),
     replacement: asyncable(z.any()).describe(
       'Literal replacement text. A group reference such as $1 is not expanded.',
@@ -37,8 +39,8 @@ export const RegexReplaceImplementation: FunctionImplementation = createFunction
   RegexReplaceApi,
   args =>
     withSettledArgs(args, settled => {
-      const compiled = pattern(text(settled['pattern']), 'regexReplace');
-      const replacement = RE2JS.quoteReplacement(text(settled['replacement']));
+      const compiled = pattern(String(settled['pattern'] ?? ''), 'regexReplace');
+      const replacement = RE2JS.quoteReplacement(String(settled['replacement'] ?? ''));
       return overValue(settled['value'], item => compiled.matcher(item).replaceAll(replacement));
     }),
 );

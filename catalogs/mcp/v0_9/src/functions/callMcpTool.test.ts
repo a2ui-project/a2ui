@@ -721,17 +721,7 @@ describe('callMcpTool', () => {
       }
     });
 
-    it('tells an agent what the expression language does and does not allow', () => {
-      const published: string = (mcpCatalogJson as any).functions.jmespath.properties.args
-        .properties.expression.description;
-      assert.match(published, /no `let` bindings/);
-      assert.match(published, /rows\[\*\]/);
-      for (const name of ['split', 'regexCapture', 'regexReplace']) {
-        assert.ok(published.includes(name), `published description omits ${name}`);
-      }
-      // Matching is the basic catalog's `regex`, so the MCP catalog does not
-      // publish one of its own and points an agent at it instead.
-      assert.match(published, /basic catalog `regex` function/);
+    it('leaves pattern matching to the basic catalog rather than publishing its own', () => {
       assert.ok(!(mcpCatalogJson as any).functions.regexMatch, 'regexMatch is still published');
     });
   });

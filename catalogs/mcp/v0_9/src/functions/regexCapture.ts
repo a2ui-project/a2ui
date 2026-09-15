@@ -17,13 +17,13 @@
 import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
-import {TextInput, asyncable, overValue, pattern, text, withSettledArgs} from './common.js';
+import {asyncable, overValue, pattern, withSettledArgs} from './common.js';
 
 export const RegexCaptureApi = {
   name: 'regexCapture',
   returnType: 'any',
   schema: z.object({
-    value: TextInput.describe(
+    value: asyncable(z.any()).describe(
       'The string to match. An array is matched element by element, giving an array of results.',
     ),
     pattern: asyncable(z.any()).describe(
@@ -37,7 +37,7 @@ export const RegexCaptureImplementation: FunctionImplementation = createFunction
   RegexCaptureApi,
   args =>
     withSettledArgs(args, settled => {
-      const compiled = pattern(text(settled['pattern']), 'regexCapture');
+      const compiled = pattern(String(settled['pattern'] ?? ''), 'regexCapture');
       return overValue(settled['value'], item => {
         const matcher = compiled.matcher(item);
         if (!matcher.find()) {
