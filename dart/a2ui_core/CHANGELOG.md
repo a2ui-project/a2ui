@@ -1,5 +1,9 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## 0.2.1
+
+- Widen `preact_signals` dependency constraint to `">=1.9.4 <8.0.0"` to support `preact_signals: ^7.0.0` and downstream modern signal-based ecosystems.
+
 ## 0.2.0
 
 - An invalid number literal in an expression, such as `${1.2.3}`, now throws
