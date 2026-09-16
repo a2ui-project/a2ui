@@ -17,13 +17,18 @@ from __future__ import annotations
 
 from .constants import *
 from .common_types import (
+    FunctionCommon,
+    FunctionCall,
     CallId,
+    DynamicString,
+    DynamicBoolean,
     AccessibilityAttributes,
     Extensions,
     ComponentCommon,
     LiteralObject,
     DynamicValue,
-    FunctionCommon,
+    DynamicNumber,
+    DynamicStringList,
     IndexSystemFunctionArgs,
     IndexSystemFunction,
     CheckRule,
@@ -56,6 +61,7 @@ from .agent_to_renderer import (
     AgentToRendererMessageListWrapper,
 )
 from .catalog_definition import (
+    FunctionCallValidationSchema,
     FunctionDefinition,
     ComponentDefinition,
     ValidationResult,
@@ -93,13 +99,18 @@ from .renderer_to_agent import (
 
 
 __all__ = [
+    "FunctionCommon",
+    "FunctionCall",
     "CallId",
+    "DynamicString",
+    "DynamicBoolean",
     "AccessibilityAttributes",
     "Extensions",
     "ComponentCommon",
     "LiteralObject",
     "DynamicValue",
-    "FunctionCommon",
+    "DynamicNumber",
+    "DynamicStringList",
     "IndexSystemFunctionArgs",
     "IndexSystemFunction",
     "CheckRule",
@@ -128,6 +139,7 @@ __all__ = [
     "AgentToRendererMessage",
     "AgentToRendererMessageList",
     "AgentToRendererMessageListWrapper",
+    "FunctionCallValidationSchema",
     "FunctionDefinition",
     "ComponentDefinition",
     "ValidationResult",

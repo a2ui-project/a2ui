@@ -1215,16 +1215,26 @@
           "type": "object",
           "description": "Arguments passed to the function."
         },
-        "catalogId": {
+        "returnType": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "array",
+            "object",
+            "any",
+            "void"
+          ],
           "type": "string",
-          "description": "The catalog ID for this function, overriding any surface-level default catalogId."
+          "default": "boolean",
+          "description": "The expected return type of the function call."
         }
       },
       "required": [
         "call"
       ],
       "type": "object",
-      "description": "Invokes a named function."
+      "description": "Invokes a named function on the client."
     },
     "SvgPath": {
       "additionalProperties": false,
@@ -1474,7 +1484,18 @@
           "$ref": "#/$defs/DataBinding"
         },
         {
-          "$ref": "#/$defs/FunctionCall"
+          "allOf": [
+            {
+              "$ref": "#/$defs/FunctionCall"
+            },
+            {
+              "properties": {
+                "returnType": {
+                  "const": "boolean"
+                }
+              }
+            }
+          ]
         }
       ]
     },
@@ -1488,7 +1509,18 @@
           "$ref": "#/$defs/DataBinding"
         },
         {
-          "$ref": "#/$defs/FunctionCall"
+          "allOf": [
+            {
+              "$ref": "#/$defs/FunctionCall"
+            },
+            {
+              "properties": {
+                "returnType": {
+                  "const": "number"
+                }
+              }
+            }
+          ]
         }
       ]
     },
@@ -1502,7 +1534,18 @@
           "$ref": "#/$defs/DataBinding"
         },
         {
-          "$ref": "#/$defs/FunctionCall"
+          "allOf": [
+            {
+              "$ref": "#/$defs/FunctionCall"
+            },
+            {
+              "properties": {
+                "returnType": {
+                  "const": "string"
+                }
+              }
+            }
+          ]
         }
       ]
     },
@@ -1526,10 +1569,6 @@
         },
         {
           "$ref": "#/$defs/FunctionCall"
-        },
-        {
-          "additionalProperties": true,
-          "type": "object"
         }
       ]
     }
