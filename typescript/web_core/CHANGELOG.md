@@ -18,6 +18,19 @@
   `formatNumber`, `formatCurrency` and `pluralize` default to `en-US` rather
   than the host locale, and `formatDate` expands TR35 tokens in the offset the
   timestamp was written with, so output does not vary by machine.
+- (v1_0) `formatCurrency` places a currency code that `Intl` rejects where the
+  locale's currency pattern puts it, rather than always prefixing it. `Intl`
+  rejects any code that is not three ASCII letters, and the old fallback
+  emitted `CODE amount` whatever the locale, so `de-DE` and `fr-FR` put the
+  code on the opposite side from the Python engine and used an ASCII space
+  where CLDR calls for U+00A0. A well-formed but unassigned code such as `XYZ`
+  is accepted by `Intl` and never took this path.
+- (v1_0) A locale tag the catalog cannot use falls back to `en-US`.
+  `formatNumber`, `formatCurrency`, `formatDate` and `pluralize` previously
+  threw a `RangeError` from `Intl` for a malformed tag such as `en_US`, and for
+  a well-formed tag with no matching locale data, such as `xx-YY`, they
+  formatted with the host's ambient locale, which the catalog otherwise never
+  depends on. The Python engine falls back for the same tags.
 - (v1_0) `@index` raises `A2uiValidationError` when evaluated outside a
   collection template. It previously returned 0, which presented a payload
   error as a plausible first row.

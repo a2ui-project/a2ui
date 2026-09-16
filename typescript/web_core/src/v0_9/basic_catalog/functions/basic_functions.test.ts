@@ -351,7 +351,7 @@ describe('BASIC_FUNCTIONS', () => {
         context,
       );
       // Fallbacks to "${currency} ${amount}" matching Python and v1.0 spec
-      assert.strictEqual(result, 'INVALID-CURRENCY 1,234.56');
+      assert.strictEqual(result, 'INVALID-CURRENCY\u00a01,234.56');
     });
 
     it('pluralize', () => {
