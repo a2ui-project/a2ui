@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -64,6 +64,8 @@ if (!disableSelfTest) {
 
 // Double-iframe sandbox architecture: THIS file is the outer sandbox proxy
 // iframe on a separate origin. It creates an inner iframe for untrusted HTML content.
+// Note: allow-top-navigation and allow-top-navigation-by-user-activation are strictly omitted
+// to prevent embedded scripts from hijacking top-level window navigation (frame-busting).
 const inner = document.createElement('iframe');
 inner.style.cssText = 'width:100%; height:100%; border:none;';
 inner.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');

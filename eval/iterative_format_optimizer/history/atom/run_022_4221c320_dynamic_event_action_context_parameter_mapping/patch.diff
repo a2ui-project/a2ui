@@ -1,0 +1,33 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 9a7a6e13..b530c0d8 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -764,13 +764,23 @@ class AtomCompiler:
+                             i += 1
+                 return {"functionCall": {"call": fn_name, "args": fn_args}}
+             if isinstance(val[0], str) and val[0].lower() == "event" and len(val) >= 2:
+-                evt_name = str(val[1])
++                evt_name = str(val[1]).strip("'\"")
+                 evt_ctx = {}
+                 i = 2
+-                while i < len(val) - 1:
+-                    k = str(val[i]).lstrip(":")
+-                    evt_ctx[k] = self._resolve_val(val[i+1], components)
+-                    i += 2
++                pos_idx = 0
++                while i < len(val):
++                    item = val[i]
++                    if isinstance(item, str) and item.startswith(":") and len(item) > 1:
++                        if i + 1 < len(val):
++                            evt_ctx[item[1:]] = self._resolve_val(val[i+1], components)
++                            i += 2
++                        else:
++                            i += 1
++                    else:
++                        param_k = "value" if pos_idx == 0 else f"arg_{pos_idx}"
++                        evt_ctx[param_k] = self._resolve_val(item, components)
++                        pos_idx += 1
++                        i += 1
+                 return {"event": {"name": evt_name, "context": evt_ctx} if evt_ctx else {"name": evt_name}}
+             if isinstance(val[0], str) and val[0] in ("required", "regex", "not", "and", "or", "equal", "greaterThan", "lessThan", "pluralize", "formatDate", "formatCurrency", "formatString"):
+                 fn_name = val[0]

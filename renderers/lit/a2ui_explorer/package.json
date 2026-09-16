@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@a2ui/lit": "workspace:*",
-    "@a2ui/markdown-it": "*",
+    "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@lit-labs/signals": "^0.3.0",
     "@lit/context": "^1.1.6",

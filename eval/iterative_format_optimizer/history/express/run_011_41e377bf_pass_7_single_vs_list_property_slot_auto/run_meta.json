@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 7: Single vs List property slot auto-wrapping/unwrapping in compiler.py",
+  "status": "Backtracked",
+  "notes": "Output Tokens expanded by 30.0% (> 5% threshold)",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 306.5,
+    "reasoning_tokens_median": 2363.5,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 14.318109557498246,
+    "total_samples": 6
+  }
+}

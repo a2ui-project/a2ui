@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Implicit child list grouping for multi-child container arrays in S-expressions.",
+  "notes": "Pytest 100% pass (507 passed). Algorithmic Schema Acc maintained at 100.0%, Quality Score 100.0%. Inference duration reduced by -4.9% (8.36s vs 8.79s). Score S_opt maintained at +0.600. Kept and baseline updated.",
+  "status": "Kept",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

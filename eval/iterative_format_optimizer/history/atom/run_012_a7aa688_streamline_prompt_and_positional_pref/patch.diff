@@ -1,0 +1,33 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+index fe0765d9..a7aa688d 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+@@ -40,7 +40,7 @@ You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and
+ 
+ 3. Property Arguments:
+    - Tagged attributes: Prefixed with a colon ':', e.g., :attr1 "val1" or :attr2 true. Tagged keys are order-independent.
+-   - Positional attributes: Can be passed sequentially matching catalog signature order.
++   - Positional attributes: Can be passed sequentially matching catalog signature order. Prefer positional values for single primary properties (e.g. (Text "Label")).
+ 
+ 4. Child Components & Strict Tree Nesting:
+    - You MUST nest child components directly inside their parent container expressions, e.g., (ContainerComponent (ChildComponent (PrimitiveComponent "Hello"))).
+@@ -66,17 +66,12 @@ You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and
+ 10. Syntax Structure Examples (Abstract Grammar):
+    Example 1 (Container with Child Nodes & Actions):
+    <a2ui>
+-   (ContainerComponent
+-     (ChildComponent :title "Header")
+-     (InputComponent :label "Input" :value $/form/field)
+-     (ActionComponent :label "Submit" :action (Event "submit_action" :val $/form/field)))
++   (ContainerComponent (ChildComponent :title "Header") (InputComponent :label "Input" :value $/form/field) (ActionComponent :label "Submit" :action (Event "submit_action" :val $/form/field)))
+    </a2ui>
+ 
+    Example 2 (Root Data State & Dynamic Template):
+    <a2ui>
+-   (ContainerComponent
+-     (data $/items [(:id 1 :name "Item 1")] $/title "List Title")
+-     (ListComponent :items $/items :template (template item (ChildComponent :title $/item/name))))
++   (ContainerComponent (data $/items [(:id 1 :name "Item 1")] $/title "List Title") (ListComponent :items $/items :template (template item (ChildComponent :title $/item/name))))
+    </a2ui>
+ 
+ 11. Strict Catalog Adherence & Conciseness:

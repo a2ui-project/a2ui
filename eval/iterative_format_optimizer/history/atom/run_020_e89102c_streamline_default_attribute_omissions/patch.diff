@@ -1,0 +1,19 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index c8b55a78..30335e3d 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -703,9 +703,13 @@ class AtomCompiler:
+                 if invalid_k in comp_dict and invalid_k not in prop_keys:
+                     del comp_dict[invalid_k]
+
+-        # Strict schema validation: required properties and enum constraints
++        # Auto-omit null optional properties not required by schema
+         if hasattr(self.schema_helper, "get_component_required"):
+             req_props = self.schema_helper.get_component_required(comp_type)
++            for k, v in list(comp_dict.items()):
++                if k not in ("id", "component") and k not in req_props:
++                    if v is None or v == "null":
++                        del comp_dict[k]
+             for req in req_props:
+                 if req not in ("id", "component") and req not in comp_dict:
+                     if req == "children" and "template" in comp_dict:

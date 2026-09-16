@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,8 +14,8 @@
 
 """Prompt compiler for A2UI Express.
 
-Compiles standard JSON catalog schemas into compact plain-text signatures and
-instruction blocks for on-device models (e.g., Gemma 4).
+Compiles A2UI catalog schemas into compact plain-text signatures and
+instruction blocks.
 """
 
 import json
@@ -31,19 +31,21 @@ from .schema_helper import CatalogSchemaHelper
 if TYPE_CHECKING:
     from .format import ExpressFormat
 
-EXPRESS_RULES = r'''# A2UI Express Output Contract
+EXPRESS_RULES = r'''# A2UI Express DSL Output Contract
 
-You must output the user interface using the compact A2UI Express DSL notation.
-You MUST surround the entire A2UI Express DSL block with the sentinel tags `<a2ui>` and `</a2ui>`.
+You must output the user interface using A2UI Express.
 
-IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output standard JSON messages directly, even if the task request asks you to output JSON, or asks for a specific protocol message like deleteSurface or updateDataModel. The host compiler will compile your DSL into the correct JSON envelopes automatically.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+
+The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
 ## Grammar Rules
 
-1. Output exactly one variable assignment statement per line:
-   variable_name = ComponentName(arg1, arg2, ...)
+1. Component constructors can be assigned to variables or nested inline inside parent component arguments:
+   header = ComponentA(prop1="val1")
+   root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
 
-   CRITICAL: Component constructors can ONLY appear on the right-hand side of a variable assignment. They CANNOT be passed directly as positional arguments to other components. You must assign every component to a variable on its own line and reference that variable name instead.
+   Keyword arguments (`param=value`) and positional arguments with `_` placeholders are supported.
 
    Variable names MUST start with a letter or underscore, and only contain letters, digits, and underscores.
 
@@ -70,8 +72,7 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
 8. Action events: represent server-side actions using the Event helper:
    Event("save_deal", {rep: $/form/rep})
 
-9. Nested functions: call client functions directly using catalog signatures,
-   for example openUrl("https://example.com").
+9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
@@ -80,12 +81,16 @@ IMPORTANT: You must ALWAYS output A2UI Express DSL notation wrapped inside `<a2u
     And define the template component variable on another line, utilizing relative path references prefixed with $:
     itemTemplate = Image($url)
 
-12. Lifecycle & Deletion: To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (with no variable assignment):
+12. To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
     deleteSurface("dashboard-surface-1")
 
-13. Static properties: Arguments annotated with '(static only)' in the signatures below MUST be defined as literal values or arrays inline (or as a local DSL variable representing a static structure). You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
+13. Static properties: Arguments annotated with '(static)' in the signatures below MUST be defined as literal values or arrays inline. You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
 
-14. Required actions: Parameters named 'action' (or annotated as required in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.'''
+14. Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
+
+15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
+    surface("dashboard-surface-1")
+    root = Card(...)'''
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
@@ -141,19 +146,54 @@ class ExpressPromptGenerator(PromptGenerator):
         self.helper = CatalogSchemaHelper(format_inst.catalog)
         self.parser: Optional[ExpressParser] = None
 
-    def generate_component_signatures(self) -> str:
+    def generate_base_rules(self) -> str:
+        """Returns the core syntax contract and grammar rules for A2UI Express."""
+        return EXPRESS_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles positional signatures and instructions for a catalog."""
+        if not include_schema:
+            return ""
+        return self._catalog_description(include_schema=True, catalog=catalog)
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Express DSL examples."""
+        target_catalog = catalog or self.catalog
+        if not target_catalog or not self._format or not self._format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self._format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
+
+    def _generate_component_signatures(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles component definitions into clean function-like signatures.
 
         Returns:
             A plain-text multi-line list of component signatures.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         signatures = []
-        for name in sorted(self.helper.component_properties.keys()):
-            props = self.helper.get_component_properties(name)
-            reqs = self.helper.get_component_required(name)
+        for name in sorted(h.component_properties.keys()):
+            props = h.get_component_properties(name)
+            reqs = h.get_component_required(name)
 
             # Retrieve component-level description
-            comp_desc = self.helper.get_component_description(name)
+            comp_desc = h.get_component_description(name)
 
             ordered_args = []
             prop_details = []
@@ -161,7 +201,7 @@ class ExpressPromptGenerator(PromptGenerator):
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
 
-                p_schema = self.helper.get_property_schema(name, p)
+                p_schema = h.get_property_schema(name, p)
 
                 # Determine signature argument label
                 arg_label = f"{p}{opt_suffix}"
@@ -174,7 +214,7 @@ class ExpressPromptGenerator(PromptGenerator):
                 if is_component_id:
                     arg_label += " (component ID)"
                 elif not _schema_allows_databinding(p_schema):
-                    arg_label += " (static only)"
+                    arg_label += " (static)"
 
                 ordered_args.append(arg_label)
 
@@ -238,30 +278,36 @@ class ExpressPromptGenerator(PromptGenerator):
 
             sig = f"• {name}({', '.join(ordered_args)})"
             if comp_desc:
-                sig += f"\n  - Description: {comp_desc}"
+                desc_indented = comp_desc.replace("\n", "\n    ")
+                sig += f"\n  - Description: {desc_indented}"
             if prop_details:
                 sig += "\n" + "\n".join(prop_details)
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def generate_function_signatures(self) -> str:
+    def _generate_function_signatures(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles function definitions into clean signatures.
 
         Returns:
             A plain-text multi-line list of function signatures.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         signatures = []
-        for name in sorted(self.helper.function_properties.keys()):
-            props = self.helper.get_function_properties(name)
-            reqs = self.helper.get_function_required(name)
+        for name in sorted(h.function_properties.keys()):
+            props = h.get_function_properties(name)
+            reqs = h.get_function_required(name)
 
             # Retrieve function-level description
-            f_desc = self.helper.get_function_description(name)
+            f_desc = h.get_function_description(name)
 
             ordered_args = []
             prop_details = []
 
-            func_schema = self.helper.functions.get(name, {})
+            func_schema = h.functions.get(name, {})
             args_properties = (
                 func_schema.get("properties", {}).get("args", {}).get("properties", {})
             )
@@ -280,20 +326,24 @@ class ExpressPromptGenerator(PromptGenerator):
 
             sig = f"• {name}({', '.join(ordered_args)})"
             if f_desc:
-                sig += f"\n  - Description: {f_desc}"
+                desc_indented = f_desc.replace("\n", "\n    ")
+                sig += f"\n  - Description: {desc_indented}"
             if prop_details:
                 sig += "\n" + "\n".join(prop_details)
             signatures.append(sig)
         return "\n".join(signatures)
 
     def _build_schema_prompt(self) -> str:
-        return self.catalog_description(include_schema=True)
+        return self._catalog_description(include_schema=True)
 
-    def catalog_description(self, include_schema: bool = True) -> str:
+    def _catalog_description(
+        self, include_schema: bool = True, catalog: Optional[Any] = None
+    ) -> str:
         """Assembles the system prompt component catalog signatures block.
 
         Args:
             include_schema: Whether to include the schema description.
+            catalog: Optional catalog override to render signatures for.
 
         Returns:
             The rendered LLM instructions string block containing positional signatures.
@@ -301,11 +351,10 @@ class ExpressPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
 
-        comp_sigs = self.generate_component_signatures()
-        func_sigs = self.generate_function_signatures()
-        catalog_instructions = (
-            self.helper.catalog.get("instructions", "") if self.helper else ""
-        )
+        h = CatalogSchemaHelper(catalog) if catalog else self.helper
+        comp_sigs = self._generate_component_signatures(helper=h)
+        func_sigs = self._generate_function_signatures(helper=h)
+        catalog_instructions = h.catalog.get("instructions", "") if h else ""
 
         # Translate json examples in catalog instructions into A2UI Express DSL
         if catalog_instructions:
@@ -479,26 +528,14 @@ class ExpressPromptGenerator(PromptGenerator):
             self.helper = CatalogSchemaHelper(catalog) if catalog else None
             self.parser = ExpressParser(catalog) if catalog else None
 
-        parts = [role_description]
-
-        rules = EXPRESS_RULES
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
-        parts.append(f"## Workflow Description:\n{rules}")
-
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
-        if include_schema and self.helper:
-            prompt = self._build_schema_prompt()
-            parts.append(prompt)
-
-        if include_examples and self._format and self._format.examples_path and catalog:
-            raw_examples = catalog.load_examples(
-                self._format.examples_path, validate=validate_examples
-            )
-            if raw_examples:
-                formatted_examples = self.transform_examples(raw_examples)
-                parts.append(f"### Examples:\n{formatted_examples}")
-
-        return "\n\n".join(parts)
+        return super().generate(
+            role_description=role_description,
+            workflow_description=workflow_description,
+            ui_description=ui_description,
+            client_ui_capabilities=client_ui_capabilities,
+            allowed_components=allowed_components,
+            allowed_messages=allowed_messages,
+            include_schema=include_schema,
+            include_examples=include_examples,
+            validate_examples=validate_examples,
+        )

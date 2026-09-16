@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 8: Catalog signature parameter description compaction in prompt_generator.py",
+  "status": "Backtracked",
+  "notes": "Output Tokens expanded by +15.1% (313 vs 272 baseline), exceeding the 5% expansion threshold.",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

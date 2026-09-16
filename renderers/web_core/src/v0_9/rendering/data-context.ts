@@ -1,6 +1,6 @@
 // Force rebuild by wireit
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,11 +27,150 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import type {DynamicValue, DataBinding, FunctionCall, Action} from '../schema/common-types.js';
+import {
+  type DynamicValue,
+  type DataBinding,
+  type FunctionCall,
+  type Action,
+  MAX_FUNCTION_CALL_ARGS,
+} from '../schema/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {SurfaceModel} from '../state/surface-model.js';
+
+import {CatalogInterface} from '../catalog/types.js';
+
+const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
+
+/**
+ * Extracts declared property keys from a Zod schema if it represents an object schema
+ * with a known, fixed set of keys (e.g. z.ZodObject, z.ZodEffects wrapping z.ZodObject, etc.)
+ * that strips or rejects unknown keys.
+ *
+ * Returns a Set of allowed key names, or null if the schema allows arbitrary keys (e.g. passthrough)
+ * or if the keys cannot be statically determined.
+ */
+export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
+  if (schemaKeysCache.has(schema)) {
+    return schemaKeysCache.get(schema) as Set<string> | null;
+  }
+
+  const result = ((): Set<string> | null => {
+    let current: any = schema;
+    while (current) {
+      if (current instanceof z.ZodObject || current._def?.typeName === 'ZodObject') {
+        // If passthrough is enabled, arbitrary keys are allowed.
+        if (current._def?.unknownKeys === 'passthrough') {
+          return null;
+        }
+        const shape = typeof current.shape === 'function' ? current.shape() : current.shape;
+        if (shape && typeof shape === 'object') {
+          return new Set(Object.keys(shape));
+        }
+        return null;
+      }
+      if (current instanceof z.ZodEffects || current._def?.typeName === 'ZodEffects') {
+        current = current._def.schema;
+        continue;
+      }
+      if (
+        current instanceof z.ZodOptional ||
+        current instanceof z.ZodNullable ||
+        current._def?.typeName === 'ZodOptional' ||
+        current._def?.typeName === 'ZodNullable'
+      ) {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodDefault || current._def?.typeName === 'ZodDefault') {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodCatch || current._def?.typeName === 'ZodCatch') {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodIntersection || current._def?.typeName === 'ZodIntersection') {
+        const leftKeys = getKnownSchemaKeys(current._def.left);
+        const rightKeys = getKnownSchemaKeys(current._def.right);
+        if (!leftKeys || !rightKeys) {
+          return null;
+        }
+        return new Set([...leftKeys, ...rightKeys]);
+      }
+      if (current instanceof z.ZodUnion || current._def?.typeName === 'ZodUnion') {
+        const options: z.ZodTypeAny[] = current._def.options;
+        const allKeys = new Set<string>();
+        for (const opt of options) {
+          const k = getKnownSchemaKeys(opt);
+          if (!k) return null; // If any union branch allows arbitrary keys, do not filter.
+          for (const key of k) {
+            allKeys.add(key);
+          }
+        }
+        return allKeys;
+      }
+      return null;
+    }
+    return null;
+  })();
+
+  schemaKeysCache.set(schema, result);
+  return result;
+}
+
+/**
+ * Validates a function call's arguments against the catalog function schema and global limits.
+ *
+ * Functions have a strict contract: supplying unknown or excessive arguments breaks that contract
+ * and causes an A2uiExpressionError rather than silently stripping them. Validating arguments before
+ * creating reactive nodes also prevents uncontrolled resource consumption.
+ */
+export function validateFunctionArgs(
+  functionName: string,
+  rawArgs: Record<string, any> | undefined | null,
+  catalog?: CatalogInterface<any, any> | any,
+): void {
+  if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
+    return;
+  }
+
+  const suppliedKeys = Object.keys(rawArgs);
+  if (suppliedKeys.length > MAX_FUNCTION_CALL_ARGS) {
+    throw new A2uiExpressionError(
+      `Function call '${functionName}' exceeds maximum allowed arguments count (${MAX_FUNCTION_CALL_ARGS})`,
+      functionName,
+    );
+  }
+
+  const fn = catalog?.functions?.get?.(functionName);
+  if (!fn?.schema) {
+    return;
+  }
+
+  const knownKeys = getKnownSchemaKeys(fn.schema);
+  if (!knownKeys) {
+    // Schema allows arbitrary keys (e.g. passthrough)
+    return;
+  }
+
+  for (const key of suppliedKeys) {
+    if (!knownKeys.has(key)) {
+      throw new A2uiExpressionError(
+        `Unknown argument '${key}' passed to function '${functionName}'`,
+        functionName,
+      );
+    }
+  }
+
+  if (suppliedKeys.length > knownKeys.size) {
+    throw new A2uiExpressionError(
+      `Too many arguments for function '${functionName}': expected at most ${knownKeys.size}, received ${suppliedKeys.length}`,
+      functionName,
+    );
+  }
+}
 
 /**
  * A contextual view of the main DataModel, serving as the unified interface for resolving
@@ -76,6 +215,20 @@ export class DataContext {
   }
 
   /**
+   * Checks whether a value (typically an array element) contains any dynamic parts
+   * (path bindings or function calls) that require resolution.
+   */
+  private static containsDynamicValue(value: unknown): boolean {
+    if (value === null || typeof value !== 'object') {
+      return false;
+    }
+    if (Array.isArray(value)) {
+      return value.some(item => DataContext.containsDynamicValue(item));
+    }
+    return 'path' in value || 'call' in value;
+  }
+
+  /**
    * Synchronously evaluates a `DynamicValue` (a literal, a path binding, or a function call)
    * into its concrete runtime value.
    *
@@ -87,9 +240,18 @@ export class DataContext {
    * @returns The synchronously resolved value.
    */
   resolveDynamicValue<V>(value: DynamicValue): V {
-    // 1. Literal check (excluding arrays and objects)
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    // 1. Primitive literals (null, string, number, boolean)
+    if (value === null || typeof value !== 'object') {
       return value as V;
+    }
+
+    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
+    if (Array.isArray(value)) {
+      // Fast path: fully static arrays need no per-element resolution.
+      if (!DataContext.containsDynamicValue(value)) {
+        return value as V;
+      }
+      return value.map(item => this.resolveDynamicValue(item)) as V;
     }
 
     // 2. Path Check: { path: "..." }
@@ -101,9 +263,15 @@ export class DataContext {
     // 3. Function Call: { call: "...", args: ... }
     if ('call' in value) {
       const call = value as FunctionCall;
+      try {
+        validateFunctionArgs(call.call, call.args, this.surface?.catalog);
+      } catch (e: any) {
+        this.dispatchExpressionError(e, call.call);
+        return undefined as any;
+      }
       const args: Record<string, any> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(call.args || {})) {
         args[key] = this.resolveDynamicValue(argVal);
       }
 
@@ -173,9 +341,25 @@ export class DataContext {
    * @returns A Preact Signal containing the reactive result of the evaluation.
    */
   resolveSignal<V>(value: DynamicValue): Signal<V> {
-    // 1. Literal
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    // 1. Primitive literals
+    if (typeof value !== 'object' || value === null) {
       return signal(value as V);
+    }
+
+    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
+    if (Array.isArray(value)) {
+      // Fast path: fully static arrays need no per-element signals.
+      if (!DataContext.containsDynamicValue(value)) {
+        return signal(value as V);
+      }
+      const itemSignals = value.map(item => this.resolveSignal(item));
+      const resultSig = computed(() => itemSignals.map(s => getValue(s))) as Signal<V>;
+      resultSig.unsubscribe = () => {
+        for (const s of itemSignals) {
+          s.unsubscribe?.();
+        }
+      };
+      return resultSig;
     }
 
     // 2. Path Check
@@ -187,9 +371,15 @@ export class DataContext {
     // 3. Function Call
     if ('call' in value) {
       const call = value as FunctionCall;
+      try {
+        validateFunctionArgs(call.call, call.args, this.surface?.catalog);
+      } catch (e: any) {
+        this.dispatchExpressionError(e, call.call);
+        return signal(undefined as unknown as V);
+      }
       const argSignals: Record<string, Signal<any>> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(call.args || {})) {
         argSignals[key] = this.resolveSignal(argVal);
       }
 
@@ -323,9 +513,8 @@ export class DataContext {
     } else {
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',
-        message: e.message ?? `An unexpected error occurred in function ${name}.`,
+        message: e?.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
-        details: {stack: e.stack},
       });
     }
   }

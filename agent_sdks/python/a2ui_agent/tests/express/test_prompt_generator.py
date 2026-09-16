@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
             name="test_catalog",
             experiments={"version_1_0"},
             s2c_schema={
-                "$id": "https://a2ui.org/specification/v1_0/json/server_to_client.json",
+                "$id": (
+                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
+                ),
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
             },
             common_types_schema={},
@@ -66,13 +68,13 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
         self.assertIn("You are a helpful assistant.", prompt)
         self.assertIn("Please adhere to constraints.", prompt)
-        self.assertIn("# A2UI Express Output Contract", prompt)
+        self.assertIn("# A2UI Express DSL Output Contract", prompt)
         self.assertIn("Text(", prompt)
 
     def test_catalog_description_before_generate(self):
         express_format = ExpressFormat(catalog=self.catalog)
         generator = express_format.prompt_generator
-        desc = generator.catalog_description(include_schema=True)
+        desc = generator.generate_catalog_instructions(include_schema=True)
         self.assertIn("Text(", desc)
 
     def test_express_allowed_components_pruning(self):
@@ -155,7 +157,114 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
 
         self.assertIn("### Examples:", prompt)
-        self.assertIn("---BEGIN example_1---", prompt)
+
+    def test_express_transform_examples_edge_cases(self):
+        """Test transform_examples with JSON array blocks, non-A2UI JSON, and invalid JSON."""
+        express_format = ExpressFormat(catalog=self.catalog)
+        generator = express_format.prompt_generator
+
+        # 1. JSON array block
+        array_md = (
+            '```json\n[{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]\n```'
+        )
+        trans_array = generator.transform_examples(array_md)
+        self.assertIn('deleteSurface("s1")', trans_array)
+
+        # 2. Non-A2UI JSON block
+        non_a2ui_md = '```json\n{"foo": "bar"}\n```'
+        self.assertEqual(generator.transform_examples(non_a2ui_md), non_a2ui_md)
+
+        # 3. Invalid JSON block
+        invalid_md = "```json\n{invalid}\n```"
+        self.assertEqual(generator.transform_examples(invalid_md), invalid_md)
+
+        # 4. catalog=None
+        generator.catalog = None
+        self.assertEqual(generator.transform_examples("raw text"), "raw text")
+
+    def test_express_signatures_with_object_properties(self):
+        """Test component signatures generation for object properties with map keys."""
+        cat_map_obj = A2uiCatalog(
+            version=VERSION_1_0,
+            name="map_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/map_catalog",
+                "components": {
+                    "MapComp": {
+                        "properties": {
+                            "config": {
+                                "type": "object",
+                                "properties": {
+                                    "key1": {
+                                        "type": "string",
+                                        "description": "Key 1 desc",
+                                    },
+                                },
+                            }
+                        }
+                    }
+                },
+            },
+        )
+        fmt = ExpressFormat(catalog=cat_map_obj)
+        sigs = fmt.prompt_generator._generate_component_signatures()
+        self.assertIn("MapComp", sigs)
+        self.assertIn("Map with keys:", sigs)
+
+    def test_express_schema_helper_methods(self):
+        from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
+
+        cat = A2uiCatalog(
+            version=VERSION_1_0,
+            name="express_helper_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "test",
+                "components": {
+                    "Button": {
+                        "description": "Button component",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
+                            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                            "child": {"$ref": "common_types.json#/$defs/Child"},
+                        },
+                    },
+                    "Card": {
+                        "properties": {
+                            "content": {
+                                "oneOf": [
+                                    {"$ref": "common_types.json#/$defs/ChildList"}
+                                ]
+                            }
+                        }
+                    },
+                },
+                "functions": {
+                    "openUrl": {
+                        "description": "Opens URL",
+                        "properties": {
+                            "args": {"properties": {"url": {"type": "string"}}}
+                        },
+                    }
+                },
+            },
+        )
+        helper = ExpressCatalogSchemaHelper(cat)
+        self.assertEqual(helper.get_component_description("Button"), "Button component")
+        self.assertEqual(helper.get_function_description("openUrl"), "Opens URL")
+        self.assertEqual(helper.get_property_type("Button", "action"), "Action")
+        self.assertEqual(helper.get_property_type("Button", "children"), "ChildList")
+        self.assertEqual(helper.get_property_type("Button", "child"), "Child")
+        self.assertEqual(helper.get_property_type("Card", "content"), "ChildList")
+        self.assertEqual(
+            helper.get_function_property_schema("openUrl", "url"), {"type": "string"}
+        )
 
 
 if __name__ == "__main__":

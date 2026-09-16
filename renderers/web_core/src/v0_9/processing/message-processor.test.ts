@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {MessageProcessor} from './message-processor.js';
+import {MessageProcessor, formatZodIssue} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
+import {CardApi, RowApi, TabsApi} from '../basic_catalog/components/basic_components.js';
+import {ButtonApi, BasicCatalogThemeSchema} from '../basic_catalog/index.js';
+import {A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 
 describe('MessageProcessor', () => {
@@ -65,6 +68,25 @@ describe('MessageProcessor', () => {
       assert.strictEqual(buttonSchema.allOf[1].properties.component.const, 'Button');
       assert.strictEqual(buttonSchema.allOf[1].properties.label.description, 'The button label');
       assert.deepStrictEqual(buttonSchema.allOf[1].required, ['component', 'label']);
+    });
+
+    it('keeps $ref on basic catalog child references despite per-usage descriptions', () => {
+      const cat = new Catalog('cat-basic', [CardApi, RowApi, TabsApi]);
+      const proc = new MessageProcessor([cat]);
+
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const components = caps['v0.9']?.inlineCatalogs?.[0]?.components;
+      assert.ok(components);
+
+      const cardChild = components.Card.allOf[1].properties.child;
+      assert.strictEqual(cardChild.$ref, 'common_types.json#/$defs/ComponentId');
+      assert.strictEqual(cardChild.type, undefined);
+
+      const rowChildren = components.Row.allOf[1].properties.children;
+      assert.strictEqual(rowChildren.$ref, 'common_types.json#/$defs/ChildList');
+
+      const tabChild = components.Tabs.allOf[1].properties.tabs.items.properties.child;
+      assert.strictEqual(tabChild.$ref, 'common_types.json#/$defs/ComponentId');
     });
 
     it('transforms REF: descriptions into valid $ref nodes', () => {
@@ -233,6 +255,198 @@ describe('MessageProcessor', () => {
     assert.strictEqual(surface.sendDataModel, false);
   });
 
+  it('validates surface theme against catalog themeSchema on createSurface', () => {
+    const themedCatalog = new Catalog('themed-cat', [], [], BasicCatalogThemeSchema);
+    const proc = new MessageProcessor([themedCatalog]);
+
+    // Valid themes: 6-char hex, 3-char hex, 8-char hex (with alpha), named color, functional colors
+    proc.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-6char',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: '#00BFFF',
+            agentDisplayName: 'Test Agent',
+            customExtra: 'allowed-by-passthrough',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-3char',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: '#17e',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-8char',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: '#00BFFF80',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-named',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: 'red',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-rgb',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: 'rgb(255, 0, 0)',
+          },
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'valid-surface-hsl',
+          catalogId: 'themed-cat',
+          theme: {
+            primaryColor: 'hsl(120, 100%, 50%)',
+          },
+        },
+      },
+    ]);
+    const surface6 = proc.model.getSurface('valid-surface-6char');
+    assert.ok(surface6);
+    assert.strictEqual(surface6.theme?.primaryColor, '#00BFFF');
+    assert.strictEqual(surface6.theme?.agentDisplayName, 'Test Agent');
+
+    const surface3 = proc.model.getSurface('valid-surface-3char');
+    assert.ok(surface3);
+    assert.strictEqual(surface3.theme?.primaryColor, '#17e');
+
+    const surface8 = proc.model.getSurface('valid-surface-8char');
+    assert.ok(surface8);
+    assert.strictEqual(surface8.theme?.primaryColor, '#00BFFF80');
+
+    const surfaceNamed = proc.model.getSurface('valid-surface-named');
+    assert.ok(surfaceNamed);
+    assert.strictEqual(surfaceNamed.theme?.primaryColor, 'red');
+
+    const surfaceRgb = proc.model.getSurface('valid-surface-rgb');
+    assert.ok(surfaceRgb);
+    assert.strictEqual(surfaceRgb.theme?.primaryColor, 'rgb(255, 0, 0)');
+
+    const surfaceHsl = proc.model.getSurface('valid-surface-hsl');
+    assert.ok(surfaceHsl);
+    assert.strictEqual(surfaceHsl.theme?.primaryColor, 'hsl(120, 100%, 50%)');
+
+    // Invalid theme: hex color format violation / CSS injection attempt
+    assert.throws(
+      () => {
+        proc.processMessages([
+          {
+            version: 'v0.9',
+            createSurface: {
+              surfaceId: 'invalid-surface-1',
+              catalogId: 'themed-cat',
+              theme: {
+                primaryColor: 'url(https://attacker.example/beacon)',
+              },
+            },
+          },
+        ]);
+      },
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        err.message.includes("Validation failed for surface 'invalid-surface-1' theme"),
+    );
+    assert.strictEqual(proc.model.getSurface('invalid-surface-1'), undefined);
+
+    // Invalid theme: invalid hex lengths or invalid color strings
+    for (const invalidColor of [
+      '#12',
+      '#12345',
+      '#1234567',
+      '#gggggg',
+      'not-a-color',
+      'red; url(x)',
+    ]) {
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              createSurface: {
+                surfaceId: `invalid-surface-${invalidColor}`,
+                catalogId: 'themed-cat',
+                theme: {
+                  primaryColor: invalidColor,
+                },
+              },
+            },
+          ]);
+        },
+        (err: any) => err instanceof A2uiValidationError,
+      );
+    }
+
+    // Invalid theme: wrong type
+    assert.throws(
+      () => {
+        proc.processMessages([
+          {
+            version: 'v0.9',
+            createSurface: {
+              surfaceId: 'invalid-surface-2',
+              catalogId: 'themed-cat',
+              theme: {
+                primaryColor: 123,
+              },
+            },
+          },
+        ]);
+      },
+      (err: any) => err instanceof A2uiValidationError,
+    );
+    assert.strictEqual(proc.model.getSurface('invalid-surface-2'), undefined);
+  });
+
+  it('uses parsed and validated data output from themeSchema on createSurface', () => {
+    const transformSchema = z.object({
+      primaryColor: z.string().transform(c => c.toUpperCase()),
+      defaultedField: z.string().default('default-val'),
+    });
+    const transformingCatalog = new Catalog('transform-cat', [], [], transformSchema);
+    const proc = new MessageProcessor([transformingCatalog]);
+
+    proc.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'transform-surface',
+          catalogId: 'transform-cat',
+          theme: {
+            primaryColor: '#abcdef',
+          },
+        },
+      },
+    ]);
+
+    const surface = proc.model.getSurface('transform-surface');
+    assert.ok(surface);
+    assert.strictEqual(surface.theme?.primaryColor, '#ABCDEF');
+    assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
+  });
+
   it('creates surface with sendDataModel enabled', () => {
     processor.processMessages([
       {
@@ -371,6 +585,92 @@ describe('MessageProcessor', () => {
     ]);
 
     assert.strictEqual(btn?.properties.label, 'Updated');
+  });
+
+  it('rejects malformed component properties against the catalog schema', () => {
+    const catalogWithButton = new Catalog('catalog-with-button', [ButtonApi]);
+    const proc = new MessageProcessor([catalogWithButton]);
+
+    proc.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'catalog-with-button'},
+      },
+    ]);
+
+    assert.throws(
+      () => {
+        proc.processMessages([
+          {
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [
+                {
+                  id: 'btn_malformed',
+                  component: 'Button',
+                  child: 'text1',
+                  action: {
+                    call: 'openUrl',
+                    args: {url: 'https://www.google.com/'},
+                  } as any,
+                },
+              ],
+            },
+          },
+        ]);
+      },
+      (err: any) => err instanceof A2uiValidationError && err.message.includes('Validation failed'),
+    );
+
+    const surface = proc.model.getSurface('s1');
+    assert.strictEqual(surface?.componentsModel.get('btn_malformed'), undefined);
+  });
+
+  it('does not apply partial updates when one component in a message fails validation', () => {
+    const catalogWithButton = new Catalog('catalog-with-button', [ButtonApi]);
+    const proc = new MessageProcessor([catalogWithButton]);
+
+    proc.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'catalog-with-button'},
+      },
+    ]);
+
+    assert.throws(
+      () => {
+        proc.processMessages([
+          {
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [
+                {
+                  id: 'btn_valid',
+                  component: 'Button',
+                  child: 'text1',
+                },
+                {
+                  id: 'btn_malformed',
+                  component: 'Button',
+                  child: 'text1',
+                  action: {
+                    call: 'openUrl',
+                    args: {url: 'https://www.google.com/'},
+                  } as any,
+                },
+              ],
+            },
+          },
+        ]);
+      },
+      (err: any) => err instanceof A2uiValidationError,
+    );
+
+    const surface = proc.model.getSurface('s1');
+    assert.strictEqual(surface?.componentsModel.get('btn_valid'), undefined);
+    assert.strictEqual(surface?.componentsModel.get('btn_malformed'), undefined);
   });
 
   it('deletes surface', () => {
@@ -646,5 +946,104 @@ describe('MessageProcessor', () => {
     assert.strictEqual(processor.resolvePath('foo', '/bar'), '/bar/foo');
     assert.strictEqual(processor.resolvePath('foo', '/bar/'), '/bar/foo');
     assert.strictEqual(processor.resolvePath('foo'), '/foo');
+  });
+
+  describe('formatZodIssue and error reporting', () => {
+    it('formats unrecognized keys with exact property names', () => {
+      const issue: any = {
+        code: 'unrecognized_keys',
+        keys: ['color', 'gap'],
+        path: ['header'],
+        message: 'Unrecognized key(s) in object: color, gap',
+      };
+      assert.strictEqual(
+        formatZodIssue(issue),
+        "header: Unrecognized key(s) in object: 'color', 'gap'",
+      );
+    });
+
+    it('formats unrecognized keys at root level', () => {
+      const issue: any = {
+        code: 'unrecognized_keys',
+        keys: ['color'],
+        path: [],
+        message: 'Expected undefined, received undefined', // simulates minified corrupted message
+      };
+      assert.strictEqual(formatZodIssue(issue), "root: Unrecognized key(s) in object: 'color'");
+    });
+
+    it('formats invalid enum values', () => {
+      const issue: any = {
+        code: 'invalid_enum_value',
+        options: ['primary', 'secondary'],
+        received: 'invalid',
+        path: ['variant'],
+        message: 'Invalid enum value',
+      };
+      assert.strictEqual(
+        formatZodIssue(issue),
+        "variant: Invalid enum value. Expected primary | secondary, received 'invalid'",
+      );
+    });
+
+    it('falls back to expected/received when message is corrupted with undefined', () => {
+      const issue: any = {
+        code: 'invalid_type',
+        expected: 'string',
+        received: 'number',
+        path: ['label'],
+        message: 'Expected undefined, received undefined',
+      };
+      assert.strictEqual(formatZodIssue(issue), 'label: Expected string, received number');
+    });
+
+    it('surfaces unrecognized property validation error and details when processing component updates', () => {
+      const strictButtonApi: ComponentApi = {
+        name: 'MaterialButton',
+        schema: z
+          .object({
+            label: z.string(),
+          })
+          .strict(),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-m3', [strictButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-m3'},
+        },
+      ]);
+
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's1',
+                components: [
+                  {
+                    id: 'btn1',
+                    component: 'MaterialButton',
+                    label: 'Submit',
+                    color: 'primary',
+                  } as any,
+                ],
+              },
+            },
+          ]);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(
+            err.message,
+            "Validation failed for component 'MaterialButton' (btn1): root: Unrecognized key(s) in object: 'color'",
+          );
+          assert.ok(Array.isArray(err.details));
+          assert.strictEqual(err.details[0].code, 'unrecognized_keys');
+          return true;
+        },
+      );
+    });
   });
 });

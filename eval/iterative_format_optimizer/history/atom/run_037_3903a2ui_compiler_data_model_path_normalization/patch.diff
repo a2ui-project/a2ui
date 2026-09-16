@@ -1,0 +1,40 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 05f65274..66c53d75 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -423,13 +423,13 @@ class AtomCompiler:
+         """Parses (data $/path/key val ...) into data_model structure."""
+         head = str(expr[0])
+         pairs = []
+-        if head == "data":
++        if head in ("data", "set!"):
+             i = 1
+             while i < len(expr) - 1:
+-                pairs.append((str(expr[i]), expr[i + 1]))
++                k_item = str(expr[i])
++                v_item = expr[i + 1]
++                pairs.append((k_item, v_item))
+                 i += 2
+-        elif head == "set!" and len(expr) >= 3:
+-            pairs.append((str(expr[1]), expr[2]))
+ 
+         for k, v in pairs:
+             if isinstance(k, (list, tuple)) or (isinstance(k, str) and self._is_component_type(k)):
+@@ -437,11 +437,14 @@ class AtomCompiler:
+             if isinstance(v, list) and v and (isinstance(v[0], list) or self._is_component_type(str(v[0]))):
+                 if isinstance(v[0], list) and self._is_component_type(str(v[0][0])):
+                     break
+-            clean_path = k[2:] if k.startswith("$/") else (k[1:] if k.startswith("$") else k)
+-            clean_path = clean_path.lstrip("/")
++            k_clean = str(k).lstrip(":")
++            clean_path = k_clean[2:] if k_clean.startswith("$/") else (k_clean[1:] if k_clean.startswith("$") else k_clean)
++            clean_path = clean_path.strip("/")
+             if not clean_path:
+                 continue
+-            parts = clean_path.split("/")
++            parts = [p for p in clean_path.split("/") if p]
++            if not parts:
++                continue
+             curr = data_model
+             for p in parts[:-1]:
+                 if p not in curr or not isinstance(curr[p], dict):

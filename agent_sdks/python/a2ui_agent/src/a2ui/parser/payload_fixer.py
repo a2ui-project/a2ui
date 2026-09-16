@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ def parse_and_fix(payload: str) -> List[Dict[str, Any]]:
     except (
         json.JSONDecodeError,
         ValueError,
+        A2uiParseError,
     ) as e:
         logger.warning(f"Initial A2UI payload validation failed: {e}")
         updated_payload = _remove_trailing_commas(normalized_payload)
@@ -57,7 +58,14 @@ def _parse(payload: str) -> List[Dict[str, Any]]:
         return a2ui_json
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON: {e}")
-        raise A2uiParseError(f"Failed to parse JSON: {e}")
+        hint = ""
+        if "Invalid \\escape" in e.msg:
+            hint = (
+                f" - Help: Unescaped backslash found at line {e.lineno}, col"
+                f" {e.colno}. In JSON strings, all backslashes must be escaped"
+                " as '\\\\' (e.g. '\\\\approx', '\\\\alpha')."
+            )
+        raise A2uiParseError(f"Failed to parse JSON: {e}{hint}") from e
 
 
 def _normalize_smart_quotes(json_str: str) -> str:

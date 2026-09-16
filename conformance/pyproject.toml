@@ -1,0 +1,32 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "a2ui-conformance-validation"
+version = "0.1.0"
+description = "Validation tests for A2UI conformance YAML files. Note: this package is for internal validation of conformance test files and is not an SDK."
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=9.0.3",
+    "jsonschema>=4.0.0",
+    "pyyaml>=6.0.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+

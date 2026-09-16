@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,7 @@
  */
 
 import {Catalog} from '@a2ui/web_core/v0_9';
-import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BASIC_FUNCTIONS, BasicCatalogThemeSchema} from '@a2ui/web_core/v0_9/basic_catalog';
 import type {ReactComponentImplementation} from '../../adapter';
 
 import {Text} from './components/Text';
@@ -64,6 +64,7 @@ export const basicCatalog = new Catalog<ReactComponentImplementation>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   basicComponents,
   BASIC_FUNCTIONS,
+  BasicCatalogThemeSchema,
 );
 
 export {

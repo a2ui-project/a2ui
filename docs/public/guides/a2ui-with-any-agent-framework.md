@@ -41,7 +41,7 @@ before it modifies your app. It covers AG-UI framework adapters, supported
 and end-to-end verification for AG-UI + A2UI apps.
 
 If your app uses CopilotKit for A2UI rendering, also load the
-[CopilotKit `a2ui-renderer` skill](https://github.com/CopilotKit/CopilotKit/blob/main/skills/a2ui-renderer/SKILL.md)
+[CopilotKit `copilotkit` skill](https://github.com/CopilotKit/CopilotKit/blob/main/skills/copilotkit/SKILL.md)
 for CopilotKit v2 runtime, provider, theme, and catalog conventions.
 
 ## 1. Set up AG-UI
@@ -307,8 +307,6 @@ agent can see, map each definition to a renderer, create the catalog, and pass
 that catalog into CopilotKit. The frontend catalog config is the target A2UI
 activation surface.
 
-{% raw %}
-
 ```tsx
 import {CopilotKit, CopilotChat} from '@copilotkit/react-core/v2';
 import {
@@ -346,8 +344,6 @@ const catalog = createCatalog(catalogDefinitions, catalogRenderers, {
   <CopilotChat />
 </CopilotKit>;
 ```
-
-{% endraw %}
 
 Passing a catalog to the provider auto-enables A2UI and injects the
 `generate_a2ui` tool, so your agent can produce surfaces with no extra runtime
@@ -416,8 +412,6 @@ Map each definition to a React component. `createCatalog` is generic over
 the definitions type, so the props your renderer receives are type-checked
 against the Zod schema, so a typo in `props.text` is a compile error.
 
-{% raw %}
-
 ```tsx title="lib/a2ui/renderers.tsx"
 'use client';
 
@@ -463,15 +457,11 @@ export const myCatalog = createCatalog(myDefinitions, myRenderers, {
 });
 ```
 
-{% endraw %}
-
 `catalogId` is the stable handle the agent uses to target this catalog;
 `includeBasicCatalog: true` keeps the built-in components available
 alongside your own (omit it to render _only_ your components).
 
 #### 3. Pass the catalog to CopilotKit
-
-{% raw %}
 
 ```tsx title="app/layout.tsx"
 'use client';
@@ -488,8 +478,6 @@ export default function Layout({children}: {children: React.ReactNode}) {
   );
 }
 ```
-
-{% endraw %}
 
 Agents will now see your custom components alongside the built-ins and
 can use them in any A2UI surface they emit.

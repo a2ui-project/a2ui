@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -122,6 +122,36 @@ class ElementalPromptGenerator(PromptGenerator):
         self.helper: CatalogSchemaHelper = CatalogSchemaHelper(format_inst.catalog)
         self.catalog_id: str = format_inst.catalog.catalog_id
         self.parser: Optional[ElementalParser] = None
+
+    def generate_base_rules(self) -> str:
+        """Returns core syntax rules for A2UI Elemental."""
+        return ELEMENTAL_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles TypeScript interfaces and catalog instructions."""
+        if not include_schema:
+            return ""
+        return self._catalog_description(include_schema=True, catalog=catalog)
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Elemental examples."""
+        target_catalog = catalog or self.catalog
+        if not target_catalog or not self._format or not self._format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self._format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
 
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any
@@ -257,25 +287,30 @@ class ElementalPromptGenerator(PromptGenerator):
             lines.append(f"{indent}// {line}")
         return lines
 
-    def generate_component_declarations(self) -> str:
+    def _generate_component_declarations(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles component definitions into TypeScript element interfaces.
 
         Returns:
             A string containing TypeScript interface declarations.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         declarations = []
-        for name in sorted(self.helper.component_properties.keys()):
-            props = self.helper.get_component_properties(name)
-            reqs = self.helper.get_component_required(name)
+        for name in sorted(h.component_properties.keys()):
+            props = h.get_component_properties(name)
+            reqs = h.get_component_required(name)
 
             # Find all action properties to handle renaming
             action_props = []
             for p in props:
-                p_schema = self.helper.get_property_schema(name, p)
+                p_schema = h.get_property_schema(name, p)
                 if _is_action(p_schema):
                     action_props.append(p)
 
-            comp_desc = self.helper.get_component_description(name)
+            comp_desc = h.get_component_description(name)
             interface_lines = []
             interface_lines.extend(self._to_comments(comp_desc))
             interface_lines.extend([
@@ -285,7 +320,7 @@ class ElementalPromptGenerator(PromptGenerator):
             ])
 
             for p in props:
-                p_schema = self.helper.get_property_schema(name, p)
+                p_schema = h.get_property_schema(name, p)
                 is_req = p in reqs
 
                 ts_prop_name = p
@@ -309,18 +344,23 @@ class ElementalPromptGenerator(PromptGenerator):
 
         return "\n\n".join(declarations)
 
-    def generate_function_declarations(self) -> str:
+    def _generate_function_declarations(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles function definitions into TypeScript function declarations.
 
         Returns:
             A string containing TypeScript function declarations.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         declarations = []
-        for name in sorted(self.helper.function_properties.keys()):
-            props = self.helper.get_function_properties(name)
-            reqs = self.helper.get_function_required(name)
+        for name in sorted(h.function_properties.keys()):
+            props = h.get_function_properties(name)
+            reqs = h.get_function_required(name)
 
-            func_schema = self.helper.functions.get(name, {})
+            func_schema = h.functions.get(name, {})
             return_type = func_schema.get("returnType", "any")
             func_desc = func_schema.get("description")
 
@@ -438,7 +478,7 @@ class ElementalPromptGenerator(PromptGenerator):
             self.catalog_id = catalog.catalog_id
             self.parser = ElementalParser(catalog)
 
-        prompt = self.catalog_description(include_schema=True)
+        prompt = self._catalog_description(include_schema=True)
 
         parts = [role_description]
 
@@ -463,11 +503,14 @@ class ElementalPromptGenerator(PromptGenerator):
 
         return "\n\n".join(parts)
 
-    def catalog_description(self, include_schema: bool = True) -> str:
+    def _catalog_description(
+        self, include_schema: bool = True, catalog: Optional[Any] = None
+    ) -> str:
         """Assembles the system prompt component catalog signatures block.
 
         Args:
             include_schema: Whether to include the schema description.
+            catalog: Optional catalog override to render signatures for.
 
         Returns:
             The rendered LLM instructions string block containing TypeScript element declarations.
@@ -475,12 +518,11 @@ class ElementalPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
 
-        comp_decls = self.generate_component_declarations()
-        func_decls = self.generate_function_declarations()
+        h = CatalogSchemaHelper(catalog) if catalog else self.helper
+        comp_decls = self._generate_component_declarations(helper=h)
+        func_decls = self._generate_function_declarations(helper=h)
 
-        catalog_instructions = (
-            self.helper.catalog.get("instructions", "") if self.helper else ""
-        )
+        catalog_instructions = h.catalog.get("instructions", "") if h else ""
         if catalog_instructions:
             catalog_instructions = catalog_instructions.replace(
                 "specify any custom error messages directly in the check's 'message'"

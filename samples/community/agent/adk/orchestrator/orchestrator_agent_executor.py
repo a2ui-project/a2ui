@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -286,7 +286,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
                 logger.info(f"Created remote agent with description: {description}")
 
-        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.5-flash")
+        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
         agent = LlmAgent(
             model=LiteLlm(model=LITELLM_MODEL),
             name="orchestrator_agent",

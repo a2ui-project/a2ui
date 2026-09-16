@@ -1,0 +1,104 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "signup-form",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "signup-form",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": ["form-column"]
+        },
+        {
+          "id": "form-column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "style": {"gap": "12px"},
+          "children": [
+            "title",
+            "name-input",
+            "email-input",
+            "message-input",
+            "subscribe-toggle",
+            "submit-button"
+          ]
+        },
+        {
+          "id": "title",
+          "component": "MaterialText",
+          "text": "Contact Us",
+          "usageHint": "h2"
+        },
+        {
+          "id": "name-input",
+          "component": "MaterialInput",
+          "label": "Full Name",
+          "value": {"path": "/name"}
+        },
+        {
+          "id": "email-input",
+          "component": "MaterialInput",
+          "label": "Email",
+          "type": "email",
+          "value": {"path": "/email"}
+        },
+        {
+          "id": "message-input",
+          "component": "MaterialInput",
+          "label": "Message",
+          "value": {"path": "/message"}
+        },
+        {
+          "id": "subscribe-toggle",
+          "component": "MaterialSlideToggle",
+          "label": "Subscribe to newsletter",
+          "checked": {"path": "/subscribe"},
+          "color": "primary"
+        },
+        {
+          "id": "submit-button",
+          "component": "MaterialButton",
+          "label": "Send Message",
+          "color": "primary",
+          "variant": "flat",
+          "action": {
+            "event": {
+              "name": "submit_contact",
+              "context": {
+                "prompt": "Submit the contact form",
+                "name": {"path": "/name"},
+                "email": {"path": "/email"},
+                "message": {"path": "/message"},
+                "subscribe": {"path": "/subscribe"}
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "signup-form",
+      "path": "/",
+      "value": {
+        "name": "",
+        "email": "",
+        "message": "",
+        "subscribe": true
+      }
+    }
+  }
+]

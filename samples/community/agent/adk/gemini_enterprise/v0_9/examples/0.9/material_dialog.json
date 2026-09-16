@@ -1,0 +1,102 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "checkout",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "checkout",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": ["main-column", "confirm-dialog"]
+        },
+        {
+          "id": "main-column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "style": {"gap": "12px"},
+          "children": ["title", "shipping-panel", "billing-check", "pay-btn"]
+        },
+        {
+          "id": "title",
+          "component": "MaterialText",
+          "text": "Checkout",
+          "usageHint": "h2"
+        },
+        {
+          "id": "shipping-panel",
+          "component": "MaterialExpansionPanel",
+          "title": "1600 Amphitheatre Pkwy",
+          "children": ["shipping-col"]
+        },
+        {
+          "id": "shipping-col",
+          "component": "MaterialColumn",
+          "children": ["addr-text1", "addr-text2"]
+        },
+        {
+          "id": "addr-text1",
+          "component": "MaterialText",
+          "text": "Mountain View, CA 94043",
+          "usageHint": "body"
+        },
+        {
+          "id": "addr-text2",
+          "component": "MaterialText",
+          "text": "Standard Delivery (3-5 days)",
+          "usageHint": "caption"
+        },
+        {
+          "id": "billing-check",
+          "component": "MaterialCheckbox",
+          "label": "Billing address same as shipping",
+          "checked": {"path": "/sameBilling"},
+          "color": "primary"
+        },
+        {
+          "id": "pay-btn",
+          "component": "MaterialButton",
+          "label": "Place Order ($199.99)",
+          "color": "primary",
+          "variant": "flat",
+          "action": {
+            "event": {
+              "name": "confirm_checkout",
+              "context": {"prompt": "Confirm my checkout"}
+            }
+          }
+        },
+        {
+          "id": "confirm-dialog",
+          "component": "MaterialDialog",
+          "title": "Confirmation",
+          "open": {"path": "/isConfirmDialogOpen"},
+          "children": ["confirm-text"]
+        },
+        {
+          "id": "confirm-text",
+          "component": "MaterialText",
+          "text": "Thank you! Your order has been placed."
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "checkout",
+      "path": "/",
+      "value": {"sameBilling": true, "isConfirmDialogOpen": false}
+    }
+  }
+]

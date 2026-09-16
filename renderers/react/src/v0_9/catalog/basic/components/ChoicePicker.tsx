@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {useState} from 'react';
+import React, {useState} from 'react';
 import {createComponentImplementation} from '../../../adapter';
 import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
@@ -25,9 +25,12 @@ import styles from './ChoicePicker.module.css';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type _Option = any;
 
-export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({props, context}) => {
+export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({props}) => {
   useBasicCatalogStyles();
   const [filter, setFilter] = useState('');
+  // Radio group names are document-scoped while component ids are only
+  // surface-scoped, so the group name must be unique per rendered instance.
+  const groupName = React.useId();
 
   const values = Array.isArray(props.value) ? props.value : [];
   const isMutuallyExclusive = props.variant === 'mutuallyExclusive';
@@ -85,7 +88,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
                 type={isMutuallyExclusive ? 'radio' : 'checkbox'}
                 checked={isSelected}
                 onChange={() => onToggle(opt.value)}
-                name={isMutuallyExclusive ? `choice-${context.componentModel.id}` : undefined}
+                name={isMutuallyExclusive ? groupName : undefined}
               />
               <span className={styles.optionText}>{opt.label}</span>
             </label>

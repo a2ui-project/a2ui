@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -367,6 +367,9 @@ export class A2uiMessageProcessor implements MessageProcessor {
       } else if (Array.isArray(current) && /^\d+$/.test(segment)) {
         current = current[parseInt(segment, 10)];
       } else if (isObject(current)) {
+        if (!Object.prototype.hasOwnProperty.call(current, segment)) {
+          return null;
+        }
         current = current[segment];
       } else {
         // If we need to traverse deeper but `current` is a primitive, the path is invalid.

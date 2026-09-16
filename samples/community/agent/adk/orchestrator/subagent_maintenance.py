@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,11 +35,11 @@ from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.a2a.extension import get_a2ui_agent_extension
 
 from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.schema.common_modifiers import remove_strict_validation
 
-inference_format = TransportFormat(
+inference_format = DirectJsonFormat(
     version=VERSION_0_9,
     catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
     schema_modifiers=[remove_strict_validation],
@@ -55,7 +55,7 @@ logging.basicConfig(level=logging.INFO)
 @click.option("--host", default="localhost", type=str)
 @click.option("--port", default=10013, type=int)
 def main(host, port):
-    lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.5-flash")
+    lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
     agent = LlmAgent(
         name="subagent_maintenance",
         description="Hotel maintenance agent",

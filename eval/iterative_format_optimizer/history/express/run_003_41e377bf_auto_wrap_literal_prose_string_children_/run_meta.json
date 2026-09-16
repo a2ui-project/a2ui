@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Auto-wrap literal prose string children into Text components in compiler.py",
+  "status": "Backtracked",
+  "notes": "Reverted. Quality Score regressed to 83.3% and Code Tok increased by +10.1%.",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 0.8333333333333334,
+    "code_tokens_median": 244.5,
+    "reasoning_tokens_median": 2377.5,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 14.277844768599607,
+    "total_samples": 6
+  }
+}

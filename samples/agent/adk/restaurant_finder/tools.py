@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ def get_restaurants(
         try:
             script_dir = os.path.dirname(__file__)
             file_path = os.path.join(script_dir, "restaurant_data.json")
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 restaurant_data_str = f.read()
                 if base_url := tool_context.state.get("base_url"):
                     restaurant_data_str = restaurant_data_str.replace(

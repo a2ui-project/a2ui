@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Compiler auto-omission of empty context: {} maps for parameterless event actions in AtomCompiler._compile_event.",
+  "notes": "Maintained 100% Quality Score and 100% Algorithmic Schema Pass Rate. Reduced Code Output Tokens by -4.4% (282 vs 294) and non-reasoning output time by -5.1%. Score S_opt increased to +0.607.",
+  "status": "Kept",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 281.5,
+    "reasoning_tokens_median": 5476.0,
+    "input_tokens_median": 4451.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

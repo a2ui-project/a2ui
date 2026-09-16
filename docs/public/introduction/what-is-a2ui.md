@@ -162,7 +162,7 @@ A2UI: JSON messages describing UI that:
     }
     ```
 
-    Key differences in v0.9: `createSurface` replaces `beginRendering`, components use a flatter structure with `"component": "Text"` instead of nested objects, and all messages include a `version` field.
+    A2UI messages use `createSurface` to initialize the surface, a flat component structure, and include a `version` field.
 
 Client renders these messages as native components (Angular, Flutter, React, etc.).
 

@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 import json
 
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     my_base_url = "http://localhost:8000"
     my_version = VERSION_0_9
     inline_catalog_path = f"inline_catalog_{my_version}.json"
-    transport_format = TransportFormat(
+    direct_json_format = DirectJsonFormat(
         my_version,
         catalogs=[
             CatalogConfig.from_path(

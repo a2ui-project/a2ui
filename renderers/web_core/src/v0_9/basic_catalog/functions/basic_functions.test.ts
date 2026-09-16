@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -371,6 +371,15 @@ describe('BASIC_FUNCTIONS', () => {
         assert.strictEqual(val, 'val=end');
         if (cleanup) cleanup();
         done();
+      });
+    });
+
+    it('formatString (rejects oversized template or excessive parts)', () => {
+      assert.throws(() => {
+        invoke('formatString', {value: 'a'.repeat(10001)}, context);
+      });
+      assert.throws(() => {
+        invoke('formatString', {value: '${x}'.repeat(1001)}, context);
       });
     });
 

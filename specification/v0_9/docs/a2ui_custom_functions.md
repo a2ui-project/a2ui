@@ -15,6 +15,7 @@ Use the `functions` property to define a map of function schemas.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/custom_catalog.json",
+  "catalogId": "https://example.com/schemas/custom_catalog.json",
   "title": "Custom Function Catalog",
   "description": "Extension catalog adding string trimming and screen resolution functions.",
   "functions": {

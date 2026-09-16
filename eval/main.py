@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +14,50 @@
 
 import os
 import sys
-import traceback
 import argparse
 from inspect_ai import eval_set
 from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
 from a2ui_eval.strategies import STRATEGIES
 
-# Automatically override Inspect AI's connection rate-limiter limit to prevent queuing delays in latency measurements
-os.environ["INSPECT_MAX_CONNECTIONS"] = "50"
+# Automatically limit Inspect AI's connection rate-limiter limit and cap model retry backoffs to prevent 503 errors
+os.environ["INSPECT_MAX_CONNECTIONS"] = "10"
+os.environ["INSPECT_MODEL_MAX_BACKOFF"] = "300"
+
+
+from inspect_ai.dataset import MemoryDataset
+
+MODEL_ALIASES: dict[str, str] = {
+    # Cloud models
+    "gemma-4-26b": "google/gemma-4-26b-a4b-it",
+    "gemma-4-31b": "google/gemma-4-31b-it",
+    "gemini-3.8-flash": "google/gemini-3.8-flash",
+    "gemini-3.5-flash": "google/gemini-3.5-flash",
+    "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
+    # Ollama edge convenience aliases
+    "gemma-4-e2b": "ollama/gemma4:e2b",
+    "gemma-4-e4b": "ollama/gemma4:e4b",
+    "gemma-2-2b": "ollama/gemma2:2b",
+}
+
+RESTRICTED_GRADING_MODEL_FAMILIES = ("gemma",)
+
+
+def resolve_model_name(model_name: str) -> str:
+    """Resolves convenience aliases and provider conventions to fully qualified model IDs."""
+    stripped = model_name.strip()
+    lower = stripped.lower()
+    if lower in MODEL_ALIASES:
+        return MODEL_ALIASES[lower]
+    if "/" in stripped:
+        return stripped
+    if lower.startswith("ollama:"):
+        return f"ollama/{stripped[7:]}"
+    if ":" in stripped:
+        # Standard Ollama model tag convention (e.g. 'gemma4:e2b', 'llama3:8b')
+        return f"ollama/{stripped}"
+    if lower.startswith(("gemma-", "gemini-")):
+        return f"google/{stripped}"
+    return stripped
 
 
 def main() -> None:
@@ -32,16 +68,33 @@ def main() -> None:
         help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)",
     )
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help=(
+            "Evaluate only a specific dataset (e.g. 'customer_a_data' or 'core_v0_9_1')"
+        ),
+    )
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default=None,
+        help="Comma-separated list of datasets to evaluate",
+    )
+    parser.add_argument(
         "--model",
         type=str,
-        default="google/gemini-3.5-flash",
-        help="Model used to evaluate tasks",
+        default="google/gemini-3.8-flash",
+        help="Model used to evaluate tasks (or alias like 'gemma', 'gemma-4-26b')",
     )
     parser.add_argument(
         "--grading-model",
         type=str,
-        default="google/gemini-3.5-flash",
-        help="Model used for grading",
+        default="google/gemini-3.8-flash",
+        help=(
+            "Model used for grading (default: google/gemini-3.8-flash). Flash models"
+            " must always be used for judging; Gemma should never be used as judge."
+        ),
     )
     parser.add_argument(
         "--max-retries", type=int, default=0, help="Maximum number of retries"
@@ -82,15 +135,46 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool, express,"
-            " elemental). Can be comma-separated or specified multiple times."
+            " elemental, atom). Can be comma-separated or specified multiple times."
         ),
     )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        action="append",
+        help="Target specific sample prompt names to evaluate",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Number of epochs/repetitions to run for each evaluation sample",
+    )
     args = parser.parse_args()
+    if args.sanity:
+        model = "google/gemini-3.1-flash-lite"
+    else:
+        model = resolve_model_name(args.model)
 
-    model = "google/gemini-3.1-flash-lite" if args.sanity else args.model
+    grading_model = resolve_model_name(args.grading_model)
+    if any(
+        family in grading_model.lower() for family in RESTRICTED_GRADING_MODEL_FAMILIES
+    ):
+        raise ValueError(
+            f"Invalid grading model '{grading_model}'. Gemma models must not be used"
+            " as LLM-as-a-judge; please use a Gemini Flash model (e.g."
+            " 'google/gemini-3.8-flash' or 'google/gemini-3.1-flash-lite')."
+        )
+
     limit = 2 if args.sanity else args.limit
     retry_attempts = 0 if args.sanity else args.max_retries
     sample_shuffle = None if args.sanity else args.sample_shuffle
+    epochs = None if args.sanity else args.epochs
+
+    # Resolve dataset filters
+    selected_dataset = args.dataset
+    if args.datasets:
+        selected_dataset = args.datasets
 
     # Parse and validate strategies
     selected_strategies = []
@@ -108,14 +192,31 @@ def main() -> None:
                 f"Unknown evaluation strategy: {strat}. Valid choices:"
                 f" {', '.join(STRATEGIES.keys())}"
             )
-        if strat in ["express", "elemental"]:
-            tasks.append(
-                a2ui_v1_0_eval(strategy=strat, grading_model=args.grading_model)
+        task_func = (
+            a2ui_v1_0_eval
+            if strat in ["express", "elemental", "atom", "direct"]
+            else a2ui_v0_9_1_eval
+        )
+        task_obj = task_func(
+            strategy=strat,
+            grading_model=grading_model,
+            dataset=selected_dataset,
+        )
+        if args.prompt:
+            prompt_list = [p.lower() for p in args.prompt]
+            filtered = [
+                s
+                for s in task_obj.dataset
+                if any(
+                    p in str((s.metadata or {}).get("name", "")).lower()
+                    or p in str(s.input).lower()
+                    for p in prompt_list
+                )
+            ]
+            task_obj.dataset = MemoryDataset(
+                samples=filtered, name=task_obj.dataset.name
             )
-        else:
-            tasks.append(
-                a2ui_v0_9_1_eval(strategy=strat, grading_model=args.grading_model)
-            )
+        tasks.append(task_obj)
 
     eval_set_kwargs = {
         "tasks": tasks,
@@ -124,18 +225,20 @@ def main() -> None:
         "retry_attempts": retry_attempts,
         "limit": limit,
         "sample_shuffle": sample_shuffle,
+        "working_limit": 350,
+        "log_dir_allow_dirty": True,
     }
-    model_args = {}
+    if epochs is not None:
+        eval_set_kwargs["epochs"] = epochs
     if args.thinking_budget is not None:
-        model_args["reasoning_tokens"] = args.thinking_budget
+        eval_set_kwargs["reasoning_tokens"] = args.thinking_budget
     if args.temperature is not None:
-        model_args["temperature"] = args.temperature
-    if model_args:
-        eval_set_kwargs["model_args"] = model_args
+        eval_set_kwargs["temperature"] = args.temperature
     if args.max_tasks is not None:
         eval_set_kwargs["max_tasks"] = args.max_tasks
-    if args.max_samples is not None:
-        eval_set_kwargs["max_samples"] = args.max_samples
+    eval_set_kwargs["max_samples"] = (
+        args.max_samples if args.max_samples is not None else 10
+    )
 
     print("Starting evaluation for multiple strategies...")
     success, logs = eval_set(**eval_set_kwargs)

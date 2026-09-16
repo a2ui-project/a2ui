@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from a2ui.a2a.extension import get_a2ui_agent_extension, try_activate_a2ui_exten
 from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
 from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
-from a2ui.inference_formats.transport import TransportFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor

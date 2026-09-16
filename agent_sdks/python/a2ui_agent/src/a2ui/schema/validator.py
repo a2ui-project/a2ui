@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ from a2ui.validation.validator import (
 )
 from a2ui.core.validating import analyze_topology
 from a2ui.core.validating.integrity_checker import get_component_references
+from a2ui.schema.utils import wrap_as_json_array
 
 warnings.warn(
     "a2ui.schema.validator is deprecated and will be removed. "
@@ -36,4 +37,5 @@ __all__ = [
     "extract_component_required_fields",
     "analyze_topology",
     "get_component_references",
+    "wrap_as_json_array",
 ]

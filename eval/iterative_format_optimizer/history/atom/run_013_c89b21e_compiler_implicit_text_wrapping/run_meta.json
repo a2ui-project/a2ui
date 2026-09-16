@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Add dynamic catalog-agnostic compiler auto-wrapping for literal string children into text components to support short positional string syntax.",
+  "notes": "Quality Score maintained at 100.0% and Reasoning Tokens reduced by -25.7% (4,184 vs 5,634), but Code Output Tokens increased by +23.8% (281 vs 227). Reverted per Rule 2 efficiency cap.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 8.78,
+    "total_samples": 6
+  }
+}

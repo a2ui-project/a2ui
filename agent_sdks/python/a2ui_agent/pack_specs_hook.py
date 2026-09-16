@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,11 +91,13 @@ class PackSpecsBuildHook(BuildHookInterface):
             repo_root, basic_catalog_constants.BASIC_CATALOG_PATHS, target_base
         )
 
-        # Automatically regenerate ANTLR parser from Express.g4
+        # Automatically regenerate ANTLR parser from Express.g4 in specification/
         express_dir = os.path.join(
-            project_root, "src", "a2ui", "experimental", "express"
+            project_root, "src", "a2ui", "inference_formats", "experimental", "express"
         )
-        g4_path = os.path.join(express_dir, "Express.g4")
+        g4_path = os.path.join(
+            repo_root, "specification", "inference_formats", "express", "Express.g4"
+        )
 
         if os.path.exists(g4_path):
             import subprocess
@@ -130,15 +132,15 @@ class PackSpecsBuildHook(BuildHookInterface):
                 "-visitor",
                 "-no-listener",
                 "-o",
-                "generated",
-                "Express.g4",
+                os.path.abspath(generated_dir),
+                os.path.basename(g4_path),
             ]
             env = os.environ.copy()
             env["ANTLR4_TOOLS_ANTLR_VERSION"] = "4.13.2"
 
             res = subprocess.run(
                 cmd,
-                cwd=express_dir,
+                cwd=os.path.dirname(g4_path),
                 env=env,
                 capture_output=True,
                 text=True,
@@ -188,7 +190,7 @@ class PackSpecsBuildHook(BuildHookInterface):
                     "from .ExpressParser import", "from .express_parser import"
                 )
                 content = content.replace(
-                    "from ExpressParser import", "from .express_parser import"
+                    "from ExpressParser import", "from express_parser import"
                 )
                 with open(visitor_path, "w", encoding="utf-8") as f:
                     f.write(content)

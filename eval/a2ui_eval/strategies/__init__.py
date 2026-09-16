@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#      https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,10 +18,11 @@ from .subagent_tool import subagent_tool_solver
 from .format import format_solver
 
 STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
-    "direct": lambda version: format_solver("json", version),
+    "direct": lambda version: format_solver("direct_json", version),
     "subagent_tool": subagent_tool_solver,
     "express": lambda version: format_solver("express", version),
     "elemental": lambda version: format_solver("elemental", version),
+    "atom": lambda version: format_solver("atom", version),
 }
 
 

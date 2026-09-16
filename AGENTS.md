@@ -11,6 +11,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
+- **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/a2ui-swift-development/SKILL.md](.agents/skills/a2ui-swift-development/SKILL.md)
 
 ---
 
@@ -48,7 +49,7 @@ To scale development across multiple programming languages and UI frameworks, th
 - **Concrete Codebases** track their module compliance by git commit hash using a `codebase.blueprint.md` file stored under `blueprints/codebases/<relative_codebase_path>/codebase.blueprint.md`.
 - **SDD Skills**: SDD skills live in `blueprints/skills/` and can be symlinked into `.agents/skills/` by running `./blueprints/link_skills.sh`. To remove them when done, remove the `.agents/skills/a2ui-*` symlinks.
 
-For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](specification/proposals/spec_driven_development.md).
+For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](docs/proposals/spec_driven_development.md).
 
 ---
 
@@ -57,10 +58,12 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`blueprints/`**: Isolated central repository for language-agnostic module blueprints (`modules/`), feature blueprints (`features/`, `features/archived/`), codebase compliance blueprints (`codebases/`), and SDD skills (`skills/`).
 - **`docs/`**: Documentation hierarchy. Public site documentation published via MkDocs resides in `docs/public/`, while non-public contributor or internal documentation resides under `docs/` alongside `docs/scripts/`.
 - **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas, component/function catalogs, and human-readable guides. The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
-- **`agent_sdks/`**: Server integration SDKs for Python (`python/`) and core conformance tests (`conformance/`).
+- **`agent_sdks/`**: Server integration SDKs for Python (`python/`).
+- **`conformance/`**: Language-agnostic test suites (`core/`, `agent/`, `extensions/`) and test data (`test_data/`) for verifying behavioral parity across all SDK implementations.
 - **`kotlin/`**: Legacy Kotlin agent SDK (`agent_sdk_legacy/`).
 - **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
+- **`swift/`**: Native Apple implementation including core state engine (`core/`), SwiftUI adapter (`swiftui/`), and sample iOS client (`sample/`).
 - **`tools/`**: Developer utility suite including visual Editor (`editor/`), visual Composer (`composer/`), payload Inspector (`inspector/`), and catalog builder (`build_catalog/`).
 
 ---
@@ -106,3 +109,4 @@ To ensure the integrity, consistency, and high quality of the repository, all ag
 - **Prioritize Authoritative Specifications**: Always base designs, protocol changes, and implementations on the formal schemas and documents under the versioned `specification/` directory (schemas first, catalogs second, protocol guides third) rather than general workspace markdown files.
 - **Maintain Agent-Agnostic Instructions**: When creating or modifying agent instruction files, skills, or guides, write them in a generic, vendor-agnostic manner. Avoid proprietary or environment-specific names (e.g., model names, specific tool terms) and use generic terms (e.g., "assistant", "subagent", "retrieval tool").
 - **Enforce Script Uniformity**: Strictly maintain Yarn workspace script hygiene. Ensure all Node/TypeScript packages implement the five canonical targets (`build`, `lint`, `lint:fix`, `test`, `format`, `format:check`).
+- **Keep Inference Formats Catalog-Agnostic**: When implementing or updating inference formats (Express, Elemental, Atom, Direct JSON, etc.), system prompt rules, compilers, and parsers must remain catalog-agnostic. Catalog-specific constraints, component property rules, or syntax hints must be defined in and derived dynamically from the component catalog JSON schema, rather than hardcoding catalog-specific logic or string filters into format generators.

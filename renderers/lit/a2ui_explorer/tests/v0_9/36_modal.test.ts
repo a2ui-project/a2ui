@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,18 +39,14 @@ describe('Example: Modal', () => {
     expect(trigger).toBeTruthy();
 
     // Check modal is closed initially
-    expect(
-      (querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0] as HTMLDialogElement)?.open,
-    ).toBeFalsy();
+    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay').length).toBe(0);
 
     // Click trigger
     trigger.click();
     await whenSettled(gallery);
 
     // Check modal is open
-    expect(
-      (querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0] as HTMLDialogElement)?.open,
-    ).toBeTruthy();
+    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay').length).toBe(1);
 
     // Check content
     expect(getDeepTextContent(querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0])).toContain(
@@ -64,8 +60,6 @@ describe('Example: Modal', () => {
     await whenSettled(gallery);
 
     // Check modal is closed
-    expect(
-      (querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0] as HTMLDialogElement)?.open,
-    ).toBeFalsy();
+    expect(querySelectorAllDeep(surface, '.a2ui-modal-overlay').length).toBe(0);
   });
 });

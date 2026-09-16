@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -352,5 +352,22 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
     expect(textEl).toBeTruthy();
     expect(textEl.textContent).toContain('Hello from v0.9.1!');
+  });
+
+  it('should validate theme on createSurface and reject CSS injection', () => {
+    const invalidThemeMessage: A2uiMessage = {
+      version: 'v0.9',
+      createSurface: {
+        surfaceId: 'malicious-surface',
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        theme: {
+          primaryColor: 'url(https://attacker.example/beacon)',
+        },
+      },
+    };
+
+    expect(() => {
+      rendererService.processMessages([invalidThemeMessage]);
+    }).toThrow();
   });
 });

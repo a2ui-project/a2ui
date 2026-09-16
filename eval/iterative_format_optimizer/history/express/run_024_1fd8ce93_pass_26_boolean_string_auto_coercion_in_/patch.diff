@@ -1,0 +1,36 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+index 79f22b12..2d059769 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+@@ -725,6 +725,8 @@ class ExpressCompiler:
+                 elif path_val.startswith("$"):
+                     path_val = path_val[1:]
+                 return {"path": path_val}
++            if val.lower() in ("true", "false"):
++                return val.lower() == "true"
+             if enum_vals:
+                 enum_map = {e.lower(): e for e in enum_vals if isinstance(e, str)}
+                 if val.lower() in enum_map:
+diff --git a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+index 135148f1..5de08b86 100644
+--- a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
++++ b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+@@ -720,6 +720,18 @@ valueField = TEXTFIELD("Deal Value", $/form/value)"""
+         val_comp = next(c for c in components if c["id"] == "valueField")
+         self.assertEqual(val_comp["component"], "TextField")
+ 
++    def test_boolean_string_auto_coercion(self):
++        """Verifies auto-coercion of boolean strings ('true'/'false') into boolean primitives."""
++        compiler = ExpressCompiler(self.catalog)
++        ctx = compiler._compile_value("true", {}, None)
++        self.assertIs(ctx, True)
++        ctx_false = compiler._compile_value("false", {}, None)
++        self.assertIs(ctx_false, False)
++        ctx_upper = compiler._compile_value("True", {}, None)
++        self.assertIs(ctx_upper, True)
++        ctx_lower = compiler._compile_value("False", {}, None)
++        self.assertIs(ctx_lower, False)
++
+ 
+ if __name__ == "__main__":
+     unittest.main()

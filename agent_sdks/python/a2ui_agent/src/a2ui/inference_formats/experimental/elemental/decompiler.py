@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,7 +37,7 @@ def _is_component_reference_property(prop_schema: Any) -> bool:
         return False
     if "$ref" in prop_schema:
         ref = prop_schema["$ref"]
-        if "ComponentId" in ref or "ChildList" in ref:
+        if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
             return True
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (

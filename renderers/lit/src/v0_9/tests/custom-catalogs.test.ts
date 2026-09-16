@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, before, after} from 'node:test';
 import {MessageProcessor, Catalog} from '@a2ui/web_core/v0_9';
 import type {LitComponentApi} from '@a2ui/lit/v0_9';
-import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
 
 import {z} from 'zod';
@@ -160,9 +160,9 @@ describe('Custom Catalogs Integration', () => {
     });
 
     // Validates that the minimal catalog surface spawned the classic a2ui-text node
-    assert.ok(el1.shadowRoot?.querySelector('a2ui-basic-text'));
+    assert.ok((el1.renderRoot as HTMLElement).querySelector('a2ui-basic-text'));
 
     // Validates that the custom catalog surface dynamically spawned the custom node tag `<a2ui-customwidget>`
-    assert.ok(el2.shadowRoot?.querySelector('a2ui-customwidget'));
+    assert.ok((el2.renderRoot as HTMLElement).querySelector('a2ui-customwidget'));
   });
 });

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ describe('Client-to-Server Schema Verification', () => {
 
   versions.forEach(version => {
     describe(`Protocol ${version}`, () => {
-      it(`validates a valid action message`, () => {
+      it('validates a valid action message', () => {
         const validAction = {
           version,
           action: {
@@ -38,7 +38,7 @@ describe('Client-to-Server Schema Verification', () => {
         assert.ok(result.success, result.success ? '' : result.error.message);
       });
 
-      it(`validates a valid error message (validation failed)`, () => {
+      it('validates a valid error message (validation failed)', () => {
         const validError = {
           version,
           error: {
@@ -52,7 +52,7 @@ describe('Client-to-Server Schema Verification', () => {
         assert.ok(result.success, result.success ? '' : result.error.message);
       });
 
-      it(`validates a valid error message (generic)`, () => {
+      it('validates a valid error message (generic)', () => {
         const validError = {
           version,
           error: {
@@ -65,7 +65,7 @@ describe('Client-to-Server Schema Verification', () => {
         assert.ok(result.success, result.success ? '' : result.error.message);
       });
 
-      it(`validates a valid data model message`, () => {
+      it('validates a valid data model message', () => {
         const validDataModel = {
           version,
           surfaces: {

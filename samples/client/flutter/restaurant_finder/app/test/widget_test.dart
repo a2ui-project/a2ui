@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restaurant_finder_client/restaurant_finder_client.dart';
+import 'package:restaurant_finder_client/main.dart';
 
 void main() {
   testWidgets('Restaurant finder  smoke test', (WidgetTester tester) async {

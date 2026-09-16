@@ -114,7 +114,7 @@ Signals the client to initialize and render a surface.
     }
     ```
 
-    In v0.9, `createSurface` replaces `beginRendering`. The root is determined by convention: one component in `updateComponents` must have `"id": "root"`. The `catalogId` is required.
+    The root component is determined by convention: one component in `updateComponents` must have `"id": "root"`. The `catalogId` is required.
 
 ---
 
@@ -282,7 +282,7 @@ Add or update components within a surface.
 
     ### Component Object
 
-    In v0.9, component structure is flatter:
+    The component structure is flat:
 
     - `id` (string, required): Unique identifier within the surface
     - `component` (string, required): Component type name (e.g., `"Text"`, `"Button"`)

@@ -1,0 +1,99 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+index 5ae5cf0d..1e0a7c3d 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+@@ -614,7 +614,7 @@ class ExpressCompiler:
+                             " templateComponent."
+                         )
+                     path_val = self._compile_value(
+-                        fn_args[0], raw_symbols, ctx, is_action
++                        fn_args[0], raw_symbols, ctx, is_action=False
+                     )
+                     if not isinstance(path_val, dict) or "path" not in path_val:
+                         raise ValueError(
+@@ -622,19 +622,19 @@ class ExpressCompiler:
+                             f" binding path (prefixed by $), got: {fn_args[0]}"
+                         )
+                     comp_id_val = self._compile_value(
+-                        fn_args[1], raw_symbols, ctx, is_action
++                        fn_args[1], raw_symbols, ctx, is_action=False
+                     )
+                     return {"path": path_val["path"], "componentId": comp_id_val}
+ 
+                 # Is it a reserved Event signature?
+                 if fn_name == "Event":
+                     compiled_event_name = (
+-                        self._compile_value(fn_args[0], raw_symbols, ctx, is_action)
++                        self._compile_value(fn_args[0], raw_symbols, ctx, is_action=False)
+                         if len(fn_args) > 0
+                         else ""
+                     )
+                     raw_context = (
+-                        self._compile_value(fn_args[1], raw_symbols, ctx, is_action)
++                        self._compile_value(fn_args[1], raw_symbols, ctx, is_action=False)
+                         if len(fn_args) > 1
+                         else {}
+                     )
+@@ -661,7 +661,7 @@ class ExpressCompiler:
+                             if isinstance(arg, dict) and arg.get("skipped"):
+                                 continue
+                             val_item = self._compile_value(
+-                                arg, raw_symbols, ctx, is_action
++                                arg, raw_symbols, ctx, is_action=False
+                             )
+                             if val_item is not None:
+                                 compiled_args[fn_props[idx]] = val_item
+@@ -680,13 +680,13 @@ class ExpressCompiler:
+                 return {
+                     "call": fn_name,
+                     "args": [
+-                        self._compile_value(a, raw_symbols, ctx, is_action)
++                        self._compile_value(a, raw_symbols, ctx, is_action=False)
+                         for a in fn_args
+                     ],
+                 }
+ 
+             return {
+-                k: self._compile_value(v, raw_symbols, ctx, is_action)
++                k: self._compile_value(v, raw_symbols, ctx, is_action=False)
+                 for k, v in val.items()
+             }
+ 
+@@ -695,7 +695,7 @@ class ExpressCompiler:
+             compiled_list = []
+             for item in val:
+                 comp_item = self._compile_value(
+-                    item, raw_symbols, ctx, is_action, enum_vals=enum_vals
++                    item, raw_symbols, ctx, is_action=False, enum_vals=enum_vals
+                 )
+                 compiled_list.append(comp_item)
+             return compiled_list
+@@ -705,6 +705,8 @@ class ExpressCompiler:
+                 enum_map = {e.lower(): e for e in enum_vals if isinstance(e, str)}
+                 if val.lower() in enum_map:
+                     return enum_map[val.lower()]
++            if is_action:
++                return {"call": val, "args": {}}
+             return val
+ 
+         return val
+diff --git a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+index 60905f40..c4f0e8f4 100644
+--- a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
++++ b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+@@ -676,6 +676,15 @@ root = Text("Hello")"""
+         self.assertEqual(self.helper.get_property_type("Button", "action"), "Action")
+         self.assertIsNone(self.helper.get_property_type("Unknown", "prop"))
+ 
++    def test_string_literal_action_auto_wrapping(self):
++        """Verifies that plain string literal action names are auto-wrapped into call dicts."""
++        compiler = ExpressCompiler(self.catalog)
++        dsl = 'root = Button("Submit", _, "submitForm")'
++        envelope = compiler.compile(dsl)
++        comps = envelope["createSurface"]["components"]
++        btn = next(c for c in comps if c["id"] == "root")
++        self.assertEqual(btn["action"], {"call": "submitForm", "args": {}})
++
+ 
+ if __name__ == "__main__":
+     unittest.main()

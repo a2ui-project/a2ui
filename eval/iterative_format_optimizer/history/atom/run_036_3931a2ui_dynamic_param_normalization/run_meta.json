@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Dynamic parameter name normalization for built-in formatting functions (formatString, formatDate).",
+  "notes": "Pytest 100% pass. Schema Acc 100.0%. However, Quality Score regressed from 100.0% to 83.3% (-16.7%) on productGalleryData. Score S_opt dropped to +0.550. Reverted per Rule 1 correctness guardrail and Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 278.0,
+    "reasoning_tokens_median": 4833.0,
+    "input_tokens_median": 4451.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

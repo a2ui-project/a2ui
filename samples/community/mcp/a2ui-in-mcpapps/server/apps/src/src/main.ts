@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -226,7 +226,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
   }
 
   private postToParent(msg: any) {
-    window.parent.postMessage(msg, 'http://localhost:4200');
+    window.parent.postMessage(msg, '*');
   }
 }
 

@@ -1,5 +1,5 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,38 @@
  * limitations under the License.
  */
 
-import {LitElement, html, css, nothing} from 'lit';
+import {LitElement, html, css} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {basicCatalog, Context} from '@a2ui/lit/v0_9';
+import {Context, basicCatalog} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
-
-// Model Context Protocol SDK
+import {Catalog, DataContext, DataModel, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {createCallMcpToolImplementation} from '@a2ui/mcp-catalog';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
-const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+// Recipe Studio Surface IDs
+const RECIPE_FORM_SURFACE_ID = 'recipe-form';
+const RECIPE_CARD_SURFACE_ID = 'recipe-card';
+
+/** Entrypoint tool: returns the form UI the app opens with. */
+const RECIPE_FORM_TOOL = 'get_recipe_form_a2ui';
+
+export const BASIC_WITH_MCP_CATALOG_ID =
+  'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
+
+/**
+ * Client name sent in `clientInfo` during the MCP initialization handshake.
+ *
+ * In the Model Context Protocol, `clientInfo` is an informational identifier
+ * (similar to an HTTP User-Agent string) primarily used by servers for logging,
+ * metrics, and debugging.
+ */
+export const MCP_CLIENT_NAME = 'a2ui-recipe-app';
+export const MCP_CLIENT_VERSION = '1.0.0';
+
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 @customElement('a2ui-recipe-app')
 export class A2uiRecipeApp extends LitElement {
@@ -35,22 +54,118 @@ export class A2uiRecipeApp extends LitElement {
     return Promise.resolve(renderMarkdown(value, options));
   };
 
-  @state() private accessor connectionStatus:
-    | 'disconnected'
-    | 'connecting'
-    | 'connected'
-    | 'error' = 'disconnected';
+  @state() private accessor connectionStatus: ConnectionStatus = 'disconnected';
   @state() private accessor statusMessage = 'Ready';
-  @state() private accessor recipeLoading = false;
 
-  private mcpClient: Client | null = null;
+  /** The MCP client serving each tool, recorded during `tools/list`. */
+  readonly clientsByTool = new Map<string, Client>();
 
-  // Maintain separate processors and surface models for form and recipe card
-  private formProcessor!: MessageProcessor<any>;
-  private recipeProcessor!: MessageProcessor<any>;
+  /**
+   * The host's entire contribution to tool execution.
+   *
+   * A2UI payloads address tools by name only, so routing lives here; the MCP
+   * catalog does everything else with the client this returns.
+   */
+  getMcpClientForTool = (toolName: string): Client => {
+    const client = this.clientsByTool.get(toolName);
+    if (!client) {
+      throw new Error(`No connected MCP server advertises a tool named '${toolName}'.`);
+    }
+    return client;
+  };
 
-  @state() private accessor formSurface: any = null;
-  @state() private accessor recipeSurface: any = null;
+  readonly processor: MessageProcessor<any>;
+
+  /** Basic Catalog components and functions, plus MCP tool execution. */
+  private readonly catalog: Catalog<any>;
+
+  constructor() {
+    super();
+
+    // `MessageProcessor` reads its catalog array lazily rather than copying it,
+    // so the processor can be built before the catalog whose function needs it.
+    const catalogs: Catalog<any>[] = [];
+    this.processor = new MessageProcessor<any>(catalogs);
+    this.catalog = new Catalog<any>(
+      BASIC_WITH_MCP_CATALOG_ID,
+      Array.from(basicCatalog.components.values()),
+      [
+        ...Array.from(basicCatalog.functions.values()),
+        createCallMcpToolImplementation(this.getMcpClientForTool, this.processor),
+      ],
+    );
+    catalogs.push(this.catalog);
+
+    this.processor.onSurfaceCreated(surface => {
+      this.requestUpdate();
+      // Forward surface errors so they are never silently swallowed.
+      surface.onError.subscribe(err => {
+        console.error(`[A2UI Error on surface '${surface.id}']`, err);
+        this.statusMessage = `Surface error on ${surface.id}: ${err.message || err.code}`;
+      });
+    });
+  }
+
+  /** Retrieves an active A2UI surface model by its ID. */
+  getSurface(surfaceId: string) {
+    return this.processor.model.getSurface(surfaceId);
+  }
+
+  /** Connects to the MCP server, then runs the tool that renders the form. */
+  protected async firstUpdated() {
+    const sseUrl =
+      new URLSearchParams(window.location.search).get('sse_url') ||
+      (import.meta as any).env?.VITE_SSE_URL ||
+      'http://127.0.0.1:8000/sse';
+
+    this.connectionStatus = 'connecting';
+    this.statusMessage = `Connecting to MCP server at ${sseUrl}...`;
+
+    try {
+      const client = new Client(
+        {name: MCP_CLIENT_NAME, version: MCP_CLIENT_VERSION},
+        {
+          capabilities: {
+            a2ui: {clientCapabilities: this.processor.getClientCapabilities()},
+          } as any,
+        },
+      );
+      await client.connect(new SSEClientTransport(new URL(sseUrl)));
+
+      const serverName = client.getServerVersion()?.name;
+      if (!serverName) {
+        throw new Error(
+          'Connected MCP server did not return a valid server name during initialization.',
+        );
+      }
+
+      const {tools} = await client.listTools();
+      for (const tool of tools) {
+        if (this.clientsByTool.has(tool.name)) {
+          throw new Error(`Tool '${tool.name}' is advertised more than once.`);
+        }
+        this.clientsByTool.set(tool.name, client);
+      }
+
+      this.connectionStatus = 'connected';
+      this.statusMessage = `Loading UI from tool '${RECIPE_FORM_TOOL}'...`;
+
+      // Surfaces invoke `callMcpTool` through their own `DataContext`. No
+      // surface exists yet, so the entrypoint tool runs against a scratch
+      // context; its arguments are literals, so nothing binds to it.
+      const context = new DataContext(
+        {dataModel: new DataModel({}), catalog: this.catalog} as any,
+        '/',
+      );
+      await this.catalog.invoker('callMcpTool', {name: RECIPE_FORM_TOOL, arguments: {}}, context);
+
+      this.statusMessage = `Connected to MCP Server [${serverName}] (${sseUrl})`;
+    } catch (error: any) {
+      console.error('Failed to initialize recipe app:', error);
+      this.connectionStatus = 'error';
+      this.statusMessage = `Connection failed: ${error.message || error}`;
+    }
+  }
 
   static styles = css`
     :host {
@@ -74,32 +189,49 @@ export class A2uiRecipeApp extends LitElement {
     .logo {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 16px;
     }
 
-    .logo span.emoji {
+    .logo .emoji {
       font-size: 32px;
+      background: rgba(255, 90, 95, 0.15);
+      border-radius: 12px;
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 90, 95, 0.3);
     }
 
     .logo h1 {
-      font-size: 28px;
-      font-weight: 800;
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
       letter-spacing: -0.5px;
-      background: linear-gradient(to right, #ff5a5f, #ff9094);
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+    }
+
+    .logo p {
+      margin: 4px 0 0 0;
+      font-size: 13px;
+      color: #94a3b8;
     }
 
     .status-badge {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: 99px;
-      background: rgba(255, 255, 255, 0.04);
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 16px;
+      border-radius: 9999px;
       font-size: 13px;
       font-weight: 500;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
 
     .status-dot {
@@ -109,96 +241,76 @@ export class A2uiRecipeApp extends LitElement {
       background: #64748b;
     }
 
-    .status-dot.connecting {
-      background: #3b82f6;
-      box-shadow: 0 0 8px #3b82f6;
-      animation: pulse 1.5s infinite ease-in-out;
-    }
-
     .status-dot.connected {
       background: #10b981;
-      box-shadow: 0 0 8px #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+    }
+
+    .status-dot.connecting {
+      background: #f59e0b;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
     }
 
     .status-dot.error {
       background: #ef4444;
-      box-shadow: 0 0 8px #ef4444;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
     }
 
-    .main-grid {
+    .status-text {
+      color: #cbd5e1;
+    }
+
+    main {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 32px;
+      align-items: start;
     }
 
-    @media (min-width: 800px) {
-      .main-grid {
-        grid-template-columns: 450px 1fr;
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
       }
     }
 
     .section-card {
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(30, 41, 59, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.06);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
       border-radius: 24px;
       padding: 32px;
-      transition:
-        transform 0.3s ease,
-        box-shadow 0.3s ease;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.3);
       position: relative;
-    }
-
-    .section-card:hover {
-      box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      min-height: 480px;
     }
 
     .section-title {
       font-size: 18px;
-      font-weight: 700;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 12px;
+      font-weight: 600;
+      margin-bottom: 24px;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 16px;
+      background: #ff5a5f;
+      border-radius: 2px;
     }
 
     .placeholder-box {
-      border: 2px dashed rgba(255, 255, 255, 0.08);
-      border-radius: 20px;
-      padding: 64px 32px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      border: 2px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 48px 24px;
       text-align: center;
       color: #64748b;
-      gap: 16px;
-      min-height: 400px;
-    }
-
-    .placeholder-icon {
-      font-size: 48px;
-      color: rgba(255, 255, 255, 0.15);
-    }
-
-    .placeholder-text h3 {
-      color: #cbd5e1;
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .placeholder-text p {
-      font-size: 14px;
-      max-width: 320px;
-      line-height: 1.5;
-    }
-
-    .loader-box {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -207,39 +319,35 @@ export class A2uiRecipeApp extends LitElement {
       min-height: 450px;
     }
 
-    .spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid rgba(255, 255, 255, 0.05);
-      border-top-color: #ff5a5f;
+    .placeholder-icon {
+      width: 80px;
+      height: 80px;
+      background: rgba(255, 255, 255, 0.03);
       border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    .loading-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(15, 23, 42, 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-radius: 24px;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 20px;
-      z-index: 10;
-      animation: fadeIn 0.2s ease-out;
+      color: #ff5a5f;
+      border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    .loading-text {
-      color: #cbd5e1;
-      font-size: 15px;
-      font-weight: 500;
-      text-align: center;
+    .placeholder-icon .material-symbols {
+      font-size: 36px;
+    }
+
+    .placeholder-text h3 {
+      margin: 0 0 8px 0;
+      color: #f8fafc;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .placeholder-text p {
+      margin: 0;
+      font-size: 14px;
+      color: #94a3b8;
+      max-width: 320px;
+      line-height: 1.6;
     }
 
     /* Custom Styling Overrides for A2UI Components */
@@ -247,7 +355,7 @@ export class A2uiRecipeApp extends LitElement {
       width: 100%;
     }
 
-    /* Make form buttons and option pickers match our premium theme */
+    /* Make form buttons and option pickers match our theme */
     :host {
       color-scheme: dark;
       --a2ui-color-primary: #ff5a5f;
@@ -263,206 +371,50 @@ export class A2uiRecipeApp extends LitElement {
       --a2ui-spacing-m: 12px;
       --a2ui-spacing-l: 20px;
     }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    @keyframes pulse {
-      0%,
-      100% {
-        opacity: 0.6;
-      }
-      50% {
-        opacity: 1;
-      }
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
-    }
   `;
 
-  constructor() {
-    super();
-    this.initializeA2UI();
-  }
-
-  private initializeA2UI() {
-    // 1. Form Processor Setup
-    this.formProcessor = new MessageProcessor([basicCatalog], async action => {
-      console.log('Form Action Received:', action);
-      if (action.name === 'generate_recipe') {
-        await this.generateRecipe(action.context);
-      }
-    });
-
-    // 2. Recipe Card Processor Setup
-    this.recipeProcessor = new MessageProcessor([basicCatalog], async action => {
-      console.log('Recipe Card Action:', action);
-    });
-  }
-
-  protected async firstUpdated() {
-    await this.connectMcp();
-  }
-
-  private async connectMcp() {
-    this.connectionStatus = 'connecting';
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const sseUrl =
-      urlParams.get('sse_url') ||
-      (import.meta as any).env?.VITE_SSE_URL ||
-      'http://127.0.0.1:8000/sse';
-
-    this.statusMessage = `Connecting to MCP server at ${sseUrl}...`;
-
-    try {
-      // Establish SSE client transport
-      const transport = new SSEClientTransport(new URL(sseUrl));
-
-      this.mcpClient = new Client(
-        {
-          name: 'a2ui-recipe-app-client',
-          version: '1.0.0',
-        },
-        {
-          capabilities: {
-            a2ui: {
-              clientCapabilities: {
-                'v0.9': {
-                  supportedCatalogIds: [BASIC_CATALOG_ID],
-                },
-              },
-            },
-          } as any,
-        },
-      );
-
-      await this.mcpClient.connect(transport);
-      this.connectionStatus = 'connected';
-      this.statusMessage = `Connected to MCP Server (${sseUrl})`;
-
-      await this.loadFormResource();
-    } catch (error: any) {
-      console.error('MCP Connection Error:', error);
-      this.connectionStatus = 'error';
-      this.statusMessage = `Connection failed: ${error.message || error}`;
-    }
-  }
-
-  private async loadFormResource() {
-    if (!this.mcpClient) return;
-
-    try {
-      this.statusMessage = 'Fetching recipe form...';
-      const result = await this.mcpClient.readResource({
-        uri: 'a2ui://recipe-form',
-      });
-
-      const a2uiContent = result.contents.find(
-        (c: any) =>
-          c.mimeType === 'application/a2ui+json' || c.mimeType === 'application/json+a2ui',
-      );
-
-      if (!a2uiContent || !('text' in a2uiContent)) {
-        throw new Error('Resource does not contain valid A2UI JSON data.');
-      }
-
-      const parsed = JSON.parse(a2uiContent.text);
-
-      // Process form messages into the surface model
-      this.formProcessor.processMessages(parsed);
-      this.formSurface = this.formProcessor.model.getSurface('recipe-form');
-      this.statusMessage = 'Form loaded successfully';
-    } catch (error: any) {
-      console.error('Failed to load resource recipe form:', error);
-      this.connectionStatus = 'error';
-      this.statusMessage = `Form load failed: ${error.message || error}`;
-    }
-  }
-
-  private async generateRecipe(context: any) {
-    if (!this.mcpClient) return;
-
-    this.recipeLoading = true;
-    this.statusMessage = 'Generating dynamic recipe card...';
-
-    try {
-      // Make MCP Tool Call
-      const result = await this.mcpClient.callTool({
-        name: 'get_recipe_a2ui',
-        arguments: context || {},
-      });
-
-      const contentArray = result.content as any[];
-
-      // Extract the returned A2UI embedded resource
-      const embedded = contentArray.find((c: any) => c.type === 'resource');
-      if (!embedded || !embedded.resource || !embedded.resource.text) {
-        throw new Error('Tool did not return a valid recipe A2UI payload.');
-      }
-
-      const parsed = JSON.parse(embedded.resource.text);
-
-      // Clear previous recipe surfaces
-      for (const surfaceId of Array.from(this.recipeProcessor.model.surfacesMap.keys())) {
-        this.recipeProcessor.model.deleteSurface(surfaceId);
-      }
-
-      // Process the new recipe card
-      this.recipeProcessor.processMessages(parsed);
-      this.recipeSurface = this.recipeProcessor.model.getSurface('recipe-card');
-      this.statusMessage = 'Recipe card generated!';
-    } catch (error: any) {
-      console.error('Error generating recipe:', error);
-      this.statusMessage = `Generation failed: ${error.message || error}`;
-    } finally {
-      this.recipeLoading = false;
-    }
-  }
-
   render() {
+    const formSurface = this.getSurface(RECIPE_FORM_SURFACE_ID);
+    const recipeSurface = this.getSurface(RECIPE_CARD_SURFACE_ID);
+
     return html`
       <header>
         <div class="logo">
           <span class="emoji">👨‍🍳</span>
-          <h1>A2UIxMCP Recipe Studio</h1>
+          <div>
+            <h1>A2UIxMCP Recipe Studio</h1>
+            <p>Interactive A2UI Mini-Apps driven by MCP Server Tools</p>
+          </div>
         </div>
+
         <div class="status-badge">
-          <span class="status-dot ${this.connectionStatus}"></span>
-          <span>${this.statusMessage}</span>
+          <div class="status-dot ${this.connectionStatus}"></div>
+          <span class="status-text">${this.statusMessage}</span>
         </div>
       </header>
 
-      <main class="main-grid">
-        <!-- Left Column: The Customization Form -->
+      <main>
         <section class="section-card">
-          <div class="section-title">Configure Choices</div>
-          ${this.formSurface
-            ? html`<a2ui-surface .surface=${this.formSurface}></a2ui-surface>`
+          <div class="section-title">Recipe Preferences</div>
+          ${formSurface
+            ? html`<a2ui-surface .surface=${formSurface}></a2ui-surface>`
             : html`
-                <div class="loader-box">
-                  <div class="spinner"></div>
-                  <div>Loading settings form...</div>
+                <div class="placeholder-box">
+                  <div class="placeholder-icon">
+                    <span class="material-symbols">tune</span>
+                  </div>
+                  <div class="placeholder-text">
+                    <h3>Connecting to MCP Server...</h3>
+                    <p>Loading interactive recipe configuration form.</p>
+                  </div>
                 </div>
               `}
         </section>
 
-        <!-- Right Column: The Generated Recipe Card -->
         <section class="section-card">
           <div class="section-title">Generated Recipe Card</div>
-
-          ${this.recipeSurface
-            ? html`<a2ui-surface .surface=${this.recipeSurface}></a2ui-surface>`
+          ${recipeSurface
+            ? html`<a2ui-surface .surface=${recipeSurface}></a2ui-surface>`
             : html`
                 <div class="placeholder-box">
                   <div class="placeholder-icon">
@@ -477,14 +429,6 @@ export class A2uiRecipeApp extends LitElement {
                   </div>
                 </div>
               `}
-          ${this.recipeLoading
-            ? html`
-                <div class="loading-overlay">
-                  <div class="spinner"></div>
-                  <div class="loading-text">Customizing layout and cooking details...</div>
-                </div>
-              `
-            : nothing}
         </section>
       </main>
     `;

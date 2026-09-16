@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {signal, computed, peekValue, getValue, setValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
-import {DataContext} from './data-context.js';
+import {DataContext, getKnownSchemaKeys, validateFunctionArgs} from './data-context.js';
+import {Catalog} from '../catalog/types.js';
+import {FunctionCallSchema, MAX_FUNCTION_CALL_ARGS} from '../schema/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 const createTestDataContext = (
@@ -106,6 +108,25 @@ describe('DataContext', () => {
     assert.deepStrictEqual(context.resolveDynamicValue(['literal', 'array']), ['literal', 'array']);
   });
 
+  it('returns fully static arrays as-is without re-allocation', () => {
+    const staticArray = ['literal', 1, true, null, [2, 'nested']];
+    assert.strictEqual(context.resolveDynamicValue(staticArray), staticArray);
+  });
+
+  it('resolves arrays of DynamicValues element-wise', () => {
+    assert.deepStrictEqual(context.resolveDynamicValue([{path: 'name'}, 'literal']), [
+      'Alice',
+      'literal',
+    ]);
+  });
+
+  it('resolves DynamicValues nested inside inner arrays', () => {
+    assert.deepStrictEqual(context.resolveDynamicValue(['outer', [{path: 'name'}, 'inner']]), [
+      'outer',
+      ['Alice', 'inner'],
+    ]);
+  });
+
   it('subscribes literal arrays as static', () => {
     let called = false;
     const sub = context.subscribeDynamicValue(['literal', 'array'], () => {
@@ -116,6 +137,84 @@ describe('DataContext', () => {
     // Simulate some generic path update that shouldn't trigger anything for this static sub
     context.set('name', 'Charlie');
     assert.strictEqual(called, false);
+  });
+
+  it('subscribes arrays containing path bindings reactively', () => {
+    let latest: unknown;
+    const sub = context.subscribeDynamicValue([{path: 'name'}, 'x'], val => {
+      latest = val;
+    });
+    assert.deepStrictEqual(sub.value, ['Alice', 'x']);
+
+    context.set('name', 'Bob');
+    assert.deepStrictEqual(latest, ['Bob', 'x']);
+    sub.unsubscribe();
+  });
+
+  it('resolves nested DynamicValues inside and/or function args', () => {
+    const fnInvoker = (name: string, args: Record<string, any>) => {
+      if (name === 'and') return args.values.every((v: unknown) => !!v);
+      if (name === 'or') return args.values.some((v: unknown) => !!v);
+      if (name === 'required') {
+        const val = args.value;
+        if (val === null || val === undefined) return false;
+        if (typeof val === 'string' && val === '') return false;
+        return true;
+      }
+      return null;
+    };
+    const root = createTestDataContext(
+      new DataModel({
+        formData: {email: '', phone: '', zip: '', agree: false},
+      }),
+      '/',
+      fnInvoker,
+    );
+
+    const result = root.resolveDynamicValue({
+      call: 'and',
+      args: {
+        values: [
+          {path: '/formData/agree'},
+          {
+            call: 'or',
+            args: {
+              values: [
+                {call: 'required', args: {value: {path: '/formData/email'}}},
+                {call: 'required', args: {value: {path: '/formData/phone'}}},
+              ],
+            },
+          },
+          {call: 'required', args: {value: {path: '/formData/zip'}}},
+        ],
+      },
+      returnType: 'boolean',
+    });
+    assert.strictEqual(result, false);
+
+    root.set('/formData/agree', true);
+    root.set('/formData/email', 'a@b.com');
+    root.set('/formData/zip', '12345');
+    const valid = root.resolveDynamicValue({
+      call: 'and',
+      args: {
+        values: [
+          {path: '/formData/agree'},
+          {
+            call: 'or',
+            args: {
+              values: [
+                {call: 'required', args: {value: {path: '/formData/email'}}},
+                {call: 'required', args: {value: {path: '/formData/phone'}}},
+              ],
+            },
+          },
+          {call: 'required', args: {value: {path: '/formData/zip'}}},
+        ],
+      },
+      returnType: 'boolean',
+    });
+    assert.strictEqual(valid, true);
   });
 
   it('resolves function calls synchronously', () => {
@@ -324,7 +423,7 @@ describe('DataContext', () => {
     it('dispatches generic Error as EXPRESSION_ERROR to surface', () => {
       const invokerWithRegularError = () => {
         const err = new Error('Generic failure');
-        err.stack = 'Mock stack trace';
+        err.stack = 'Mock stack trace containing secret paths';
         throw err;
       };
       let dispatchedError: any = null;
@@ -343,9 +442,54 @@ describe('DataContext', () => {
       assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
       assert.strictEqual(dispatchedError.expression, 'fail');
       assert.strictEqual(dispatchedError.message, 'Generic failure');
-      assert.deepStrictEqual(dispatchedError.details, {
-        stack: 'Mock stack trace',
+      // Ensure stack trace is NOT leaked in details (CWE-209 prevention)
+      assert.strictEqual(dispatchedError.details, undefined);
+    });
+
+    it('does not disclose V8 stack traces in surface error details (Issue #2385)', () => {
+      const invokerThrowingRangeError = () => {
+        throw new RangeError('toFixed() digits argument must be between 0 and 100');
+      };
+      let dispatchedError: any = null;
+      const ctx = createTestDataContext(model, '/', invokerThrowingRangeError, err => {
+        dispatchedError = err;
       });
+
+      ctx.resolveDynamicValue({
+        call: 'formatNumber',
+        args: {value: 123, decimals: 200},
+        returnType: 'string',
+      });
+
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.strictEqual(dispatchedError.expression, 'formatNumber');
+      assert.strictEqual(
+        dispatchedError.message,
+        'toFixed() digits argument must be between 0 and 100',
+      );
+      assert.strictEqual(dispatchedError.details, undefined);
+    });
+
+    it('handles null or undefined thrown values gracefully without crashing', () => {
+      const invokerThrowingNull = () => {
+        throw null;
+      };
+      let dispatchedError: any = null;
+      const ctx = createTestDataContext(model, '/', invokerThrowingNull, err => {
+        dispatchedError = err;
+      });
+
+      ctx.resolveDynamicValue({
+        call: 'fail',
+        args: {},
+        returnType: 'any',
+      });
+
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.strictEqual(dispatchedError.message, 'An unexpected error occurred in function fail.');
+      assert.strictEqual(dispatchedError.details, undefined);
     });
 
     it('dispatches A2uiExpressionError to surface', () => {
@@ -443,6 +587,230 @@ describe('DataContext', () => {
       assert.ok(dispatchedError);
       assert.strictEqual((dispatchedError as any).code, 'EXPRESSION_ERROR');
       assert.strictEqual((dispatchedError as any).message, 'Generic inner failure');
+    });
+  });
+
+  describe('Function Argument Stripping & Resource Consumption (Issue #2384)', () => {
+    it('getKnownSchemaKeys extracts keys from ZodObject and ZodEffects', () => {
+      const objSchema = z.object({a: z.string(), b: z.number()});
+      assert.deepStrictEqual(getKnownSchemaKeys(objSchema), new Set(['a', 'b']));
+
+      const refinedSchema = z
+        .object({value: z.any(), min: z.number().optional()})
+        .refine(data => data.value !== undefined);
+      assert.deepStrictEqual(getKnownSchemaKeys(refinedSchema), new Set(['value', 'min']));
+
+      const passthroughSchema = z.object({a: z.string()}).passthrough();
+      assert.strictEqual(getKnownSchemaKeys(passthroughSchema), null);
+
+      const unionSchema = z.union([z.object({x: z.string()}), z.object({y: z.number()})]);
+      assert.deepStrictEqual(getKnownSchemaKeys(unionSchema), new Set(['x', 'y']));
+
+      const intersectionSchema = z.intersection(
+        z.object({a: z.string()}),
+        z.object({b: z.number()}),
+      );
+      assert.deepStrictEqual(getKnownSchemaKeys(intersectionSchema), new Set(['a', 'b']));
+
+      const intersectionWithPassthrough = z.intersection(
+        z.object({a: z.string()}),
+        z.object({b: z.number()}).passthrough(),
+      );
+      assert.strictEqual(getKnownSchemaKeys(intersectionWithPassthrough), null);
+    });
+
+    it('validateFunctionArgs allows valid keys when schema is available', () => {
+      const catalog = new Catalog(
+        'test-cat',
+        [],
+        [
+          {
+            name: 'testFunc',
+            returnType: 'string',
+            schema: z.object({name: z.string(), age: z.number().optional()}),
+            execute: (args: any) => `Hello ${args.name}`,
+          },
+        ],
+      );
+
+      const validArgs = {
+        name: 'Alice',
+        age: 30,
+      };
+
+      assert.doesNotThrow(() => {
+        validateFunctionArgs('testFunc', validArgs, catalog);
+      });
+    });
+
+    it('validateFunctionArgs throws error on unknown arguments', () => {
+      const catalog = new Catalog(
+        'test-cat',
+        [],
+        [
+          {
+            name: 'testFunc',
+            returnType: 'string',
+            schema: z.object({name: z.string(), age: z.number().optional()}),
+            execute: (args: any) => `Hello ${args.name}`,
+          },
+        ],
+      );
+
+      const invalidArgs = {
+        name: 'Alice',
+        extra: 'junk',
+      };
+
+      assert.throws(
+        () => validateFunctionArgs('testFunc', invalidArgs, catalog),
+        (err: any) => {
+          assert.strictEqual(err instanceof A2uiExpressionError, true);
+          assert.match(err.message, /Unknown argument 'extra'/);
+          return true;
+        },
+      );
+    });
+
+    it('validateFunctionArgs throws error when exceeding maximum argument limits', () => {
+      const catalog = new Catalog(
+        'test-cat',
+        [],
+        [
+          {
+            name: 'testFunc',
+            returnType: 'string',
+            schema: z.object({name: z.string()}),
+            execute: (args: any) => `Hello ${args.name}`,
+          },
+        ],
+      );
+
+      const tooManyArgs: Record<string, any> = {name: 'Alice', extra1: 1, extra2: 2};
+      assert.throws(
+        () => validateFunctionArgs('testFunc', tooManyArgs, catalog),
+        (err: any) => {
+          assert.strictEqual(err instanceof A2uiExpressionError, true);
+          return true;
+        },
+      );
+
+      const excessiveArgs: Record<string, any> = {};
+      for (let i = 0; i <= MAX_FUNCTION_CALL_ARGS + 5; i++) excessiveArgs[`k${i}`] = i;
+      assert.throws(
+        () => validateFunctionArgs('testFunc', excessiveArgs, catalog),
+        (err: any) => {
+          assert.strictEqual(err instanceof A2uiExpressionError, true);
+          assert.match(err.message, /exceeds maximum allowed arguments count/);
+          return true;
+        },
+      );
+    });
+
+    it('resolveSignal dispatches error and prevents signal creation on unknown arguments', () => {
+      const customModel = new DataModel({
+        validVal: 'Alice',
+        junkVal: 'Secret',
+      });
+
+      const catalog = new Catalog(
+        'test-cat',
+        [],
+        [
+          {
+            name: 'greet',
+            returnType: 'string',
+            schema: z.object({name: z.string()}),
+            execute: (args: any) => `Hello ${args.name}`,
+          },
+        ],
+      );
+
+      let dispatchedError: any = null;
+      const mockSurface = {
+        dataModel: customModel,
+        catalog,
+        dispatchError: (err: any) => {
+          dispatchedError = err;
+        },
+      } as any;
+      const ctx = new DataContext(mockSurface, '/');
+
+      const sig = ctx.resolveSignal({
+        call: 'greet',
+        args: {
+          name: {path: '/validVal'},
+          junk: {path: '/junkVal'},
+        },
+        returnType: 'any',
+      });
+
+      assert.strictEqual(peekValue(sig), undefined);
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.match(dispatchedError.message, /Unknown argument 'junk'/);
+    });
+
+    it('resolveDynamicValue dispatches error on unknown arguments', () => {
+      const catalog = new Catalog(
+        'test-cat',
+        [],
+        [
+          {
+            name: 'greet',
+            returnType: 'string',
+            schema: z.object({name: z.string()}),
+            execute: (args: any) => `Hello ${args.name}`,
+          },
+        ],
+      );
+
+      let dispatchedError: any = null;
+      const mockSurface = {
+        dataModel: new DataModel({}),
+        catalog,
+        dispatchError: (err: any) => {
+          dispatchedError = err;
+        },
+      } as any;
+      const ctx = new DataContext(mockSurface, '/');
+
+      const res = ctx.resolveDynamicValue({
+        call: 'greet',
+        args: {
+          name: 'Alice',
+          junk: 'extra',
+        },
+        returnType: 'any',
+      });
+
+      assert.strictEqual(res, undefined);
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.match(dispatchedError.message, /Unknown argument 'junk'/);
+    });
+
+    it('FunctionCallSchema enforces MAX_FUNCTION_CALL_ARGS limit', () => {
+      assert.strictEqual(MAX_FUNCTION_CALL_ARGS, 1000);
+
+      const validArgs: Record<string, any> = {};
+      for (let i = 0; i < 50; i++) validArgs[`k${i}`] = i;
+
+      const validCall = {
+        call: 'test',
+        args: validArgs,
+      };
+      assert.strictEqual(FunctionCallSchema.safeParse(validCall).success, true);
+
+      const excessiveArgs: Record<string, any> = {};
+      for (let i = 0; i <= MAX_FUNCTION_CALL_ARGS + 5; i++) excessiveArgs[`k${i}`] = i;
+
+      const excessiveCall = {
+        call: 'test',
+        args: excessiveArgs,
+      };
+      const result = FunctionCallSchema.safeParse(excessiveCall);
+      assert.strictEqual(result.success, false);
     });
   });
 });

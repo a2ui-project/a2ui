@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -167,6 +167,47 @@ describe('A2uiMessageProcessor', () => {
         '/user',
       );
       assert.deepStrictEqual(toPlainObject(user), {name: 'Bob'});
+    });
+
+    it('should not resolve Object.prototype inherited properties on ordinary objects', () => {
+      processor.processMessages([
+        {
+          dataModelUpdate: {
+            surfaceId: '@default',
+            path: '/',
+            contents: [{key: 'user', valueString: JSON.stringify({name: 'Bob'})}],
+          },
+        },
+      ]);
+      const node = {dataContextPath: '/'} as v0_8.Types.AnyComponentNode;
+      assert.strictEqual(processor.getData(node, '/user/name'), 'Bob');
+      assert.strictEqual(processor.getData(node, '/user/toString'), null);
+      assert.strictEqual(processor.getData(node, '/user/valueOf'), null);
+      assert.strictEqual(processor.getData(node, '/user/constructor'), null);
+      assert.strictEqual(processor.getData(node, '/user/__proto__'), null);
+      assert.strictEqual(processor.getData(node, '/user/hasOwnProperty'), null);
+      assert.strictEqual(processor.getData(node, '/user/__proto__/toString'), null);
+    });
+
+    it('should not resolve Object.prototype inherited properties on signal objects', () => {
+      const signalProcessor = v0_8.Data.createSignalA2uiMessageProcessor();
+      signalProcessor.processMessages([
+        {
+          dataModelUpdate: {
+            surfaceId: '@default',
+            path: '/',
+            contents: [{key: 'user', valueString: JSON.stringify({name: 'Bob'})}],
+          },
+        },
+      ]);
+      const node = {dataContextPath: '/'} as v0_8.Types.AnyComponentNode;
+      assert.strictEqual(signalProcessor.getData(node, '/user/name'), 'Bob');
+      assert.strictEqual(signalProcessor.getData(node, '/user/toString'), null);
+      assert.strictEqual(signalProcessor.getData(node, '/user/valueOf'), null);
+      assert.strictEqual(signalProcessor.getData(node, '/user/constructor'), null);
+      assert.strictEqual(signalProcessor.getData(node, '/user/__proto__'), null);
+      assert.strictEqual(signalProcessor.getData(node, '/user/hasOwnProperty'), null);
+      assert.strictEqual(signalProcessor.getData(node, '/user/__proto__/toString'), null);
     });
 
     it('should create nested structures when setting data', () => {

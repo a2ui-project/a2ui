@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,9 +18,8 @@ import pytest
 
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.transport.streaming import TransportStreamParser
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.validation.validator import A2uiValidator
-from a2ui.inference_formats.transport import TransportFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
@@ -98,7 +97,7 @@ class MemoryCatalogProvider:
 
 def _get_conformance_path(filename):
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../../conformance", filename)
+        os.path.join(os.path.dirname(__file__), "../../../../../conformance", filename)
     )
 
 
@@ -109,7 +108,7 @@ def load_json_file(filename):
 
 
 def load_tests(filename):
-    path = _get_conformance_path(os.path.join("suites", filename))
+    path = _get_conformance_path(filename)
     with open(path, "r", encoding="utf-8") as f:
 
         return yaml.safe_load(f)
@@ -174,7 +173,7 @@ def get_conformance_cases(filename):
 
 
 # --- Streaming Parser Conformance ---
-cases_parser = get_conformance_cases("streaming_parser.yaml")
+cases_parser = get_conformance_cases("agent/streaming_parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -183,7 +182,7 @@ cases_parser = get_conformance_cases("streaming_parser.yaml")
 def test_parser_conformance(name, test_case):
     catalog_config = test_case["catalog"]
     catalog = setup_catalog(catalog_config)
-    parser = TransportStreamParser(catalog=catalog)
+    parser = DirectJsonStreamParser(catalog=catalog)
     if test_case.get("disable_validation"):
         parser._validator = None
 
@@ -205,7 +204,7 @@ def test_parser_conformance(name, test_case):
 
 
 # --- Non-Streaming Parser Conformance ---
-cases_parser_non_streaming = get_conformance_cases("parser.yaml")
+cases_parser_non_streaming = get_conformance_cases("agent/parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -249,7 +248,7 @@ def test_parser_non_streaming_conformance(name, test_case):
 
 # --- Validator Conformance ---
 
-cases_validator = get_conformance_cases("validator.yaml")
+cases_validator = get_conformance_cases("core/validator.yaml")
 
 
 @pytest.mark.parametrize(
@@ -277,7 +276,7 @@ def test_validator_conformance(name, test_case):
 
 
 # --- Catalog Conformance ---
-cases_catalog = get_conformance_cases("catalog.yaml")
+cases_catalog = get_conformance_cases("core/catalog.yaml")
 
 
 @pytest.mark.parametrize(
@@ -308,9 +307,7 @@ def test_catalog_conformance(name, test_case):
     elif action == "load":
         path = args.get("path")
         if path:
-            full_path = os.path.join(
-                os.path.dirname(__file__), "../../../../conformance", path
-            )
+            full_path = _get_conformance_path(path)
         else:
             full_path = None
         validate = args.get("validate", False)
@@ -332,7 +329,7 @@ def test_catalog_conformance(name, test_case):
 
 
 # --- Schema Manager Conformance ---
-cases_schema_manager = get_conformance_cases("inference_format.yaml")
+cases_schema_manager = get_conformance_cases("agent/inference_format.yaml")
 
 
 @pytest.mark.parametrize(
@@ -358,7 +355,7 @@ def test_schema_manager_conformance(name, test_case):
                 )
             )
 
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version=VERSION_0_9,
             catalogs=configs,
             accepts_inline_catalogs=accepts_inline_catalogs,
@@ -366,9 +363,9 @@ def test_schema_manager_conformance(name, test_case):
 
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
-                transport_format.get_selected_catalog(client_capabilities)
+                direct_json_format.get_selected_catalog(client_capabilities)
         else:
-            selected = transport_format.get_selected_catalog(client_capabilities)
+            selected = direct_json_format.get_selected_catalog(client_capabilities)
             if "expect_selected" in test_case:
                 assert selected.catalog_id == test_case["expect_selected"]
             if "expect_catalog_schema" in test_case:
@@ -382,22 +379,20 @@ def test_schema_manager_conformance(name, test_case):
             schema_modifiers.append(remove_strict_validation)
         configs = []
         for cfg in catalog_configs:
-            full_path = os.path.join(
-                os.path.dirname(__file__), "../../../../conformance", cfg["path"]
-            )
+            full_path = _get_conformance_path(cfg["path"])
             configs.append(
                 CatalogConfig.from_path(name=cfg["name"], catalog_path=full_path)
             )
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version=VERSION_0_8, catalogs=configs, schema_modifiers=schema_modifiers
         )
-        selected = transport_format.get_selected_catalog()
+        selected = direct_json_format.get_selected_catalog()
         expected = test_case["expect"]
         if "catalog_schema" in expected:
             assert selected.catalog_schema == expected["catalog_schema"]
         if "supported_catalog_ids" in expected:
             assert [
-                c.catalog_id for c in transport_format._supported_catalogs
+                c.catalog_id for c in direct_json_format._supported_catalogs
             ] == expected["supported_catalog_ids"]
 
     elif action == "generate_prompt":
@@ -408,9 +403,7 @@ def test_schema_manager_conformance(name, test_case):
 
         examples_path = args.get("examples_path")
         if examples_path:
-            examples_path = os.path.join(
-                os.path.dirname(__file__), "../../../../conformance", examples_path
-            )
+            examples_path = _get_conformance_path(examples_path)
 
         config = BasicCatalog.get_config(version)
         if examples_path:
@@ -420,13 +413,13 @@ def test_schema_manager_conformance(name, test_case):
                 examples_path=examples_path,
             )
 
-        transport_format = TransportFormat(
+        direct_json_format = DirectJsonFormat(
             version=version,
             catalogs=[config],
             accepts_inline_catalogs=args.get("accepts_inline_catalogs", False),
         )
 
-        output = transport_format.generate_system_prompt(
+        output = direct_json_format.generate_system_prompt(
             role_description=role,
             workflow_description=workflow,
             ui_description=ui_desc,

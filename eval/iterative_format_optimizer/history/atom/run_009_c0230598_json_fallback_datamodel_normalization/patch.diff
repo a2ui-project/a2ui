@@ -1,0 +1,21 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 408cb95e..5fd5a23c 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -238,10 +238,13 @@ class AtomCompiler:
+         elif cleaned_text.startswith("[") or cleaned_text.startswith("{"):
+             try:
+                 parsed_json = json.loads(cleaned_text)
+-                if isinstance(parsed_json, list) and parsed_json:
+-                    return parsed_json[0]
+-                elif isinstance(parsed_json, dict):
+-                    return parsed_json
++                res = parsed_json[0] if (isinstance(parsed_json, list) and parsed_json) else (parsed_json if isinstance(parsed_json, dict) else None)
++                if res and isinstance(res, dict):
++                    if "createSurface" in res and "dataModel" in res["createSurface"]:
++                        res["createSurface"]["dataModel"] = self._clean_data_value(res["createSurface"]["dataModel"])
++                    elif "updateDataModel" in res and "value" in res["updateDataModel"]:
++                        res["updateDataModel"]["value"] = self._clean_data_value(res["updateDataModel"]["value"])
++                    return res
+             except Exception:
+                 pass

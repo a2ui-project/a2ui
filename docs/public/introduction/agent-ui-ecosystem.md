@@ -21,7 +21,7 @@ The agentic UI space is evolving rapidly. Here's how A2UI relates to the other m
 
 ## A2UI vs AG-UI / CopilotKit
 
-[AG-UI](https://ag-ui.com/) is a **transport protocol** connecting agent backends to frontends with real-time state sync. A2UI is a **UI format**: the payload that describes what to render. They're complementary: use AG-UI as the pipe, A2UI as the content. AG-UI is a project by the [CopilotKit](https://copilotkit.ai) team, who also contributed the [A2UI Composer](../composer.md). AG-UI has day-zero A2UI compatibility.
+[AG-UI](https://ag-ui.com/) is a **transport protocol** connecting agent backends to frontends with real-time state sync. A2UI is a **UI format**: the payload that describes what to render. They're complementary: use AG-UI as the pipe, A2UI as the content. AG-UI is a project by the [CopilotKit](https://copilotkit.ai) team. AG-UI has day-zero A2UI compatibility.
 
 ## A2UI vs ChatKit (OpenAI)
 

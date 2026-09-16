@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ object ConformanceTestHelper {
   val repoRoot: File by lazy { findRepoRoot() }
 
   private const val SPECIFICATION_DIR = "specification"
-  const val CONFORMANCE_DIR_PATH = "agent_sdks/conformance/"
+  const val CONFORMANCE_DIR_PATH = "conformance/"
   private const val PROP_USER_DIR = "user.dir"
 
   const val KEY_NAME = "name"

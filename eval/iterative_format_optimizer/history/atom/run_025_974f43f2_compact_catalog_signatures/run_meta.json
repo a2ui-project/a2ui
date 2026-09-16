@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Compact catalog signature formatting (using concise parameter type hints in dynamic signatures).",
+  "notes": "Pytest 100% pass, 100.0% Schema Acc, 100.0% Quality Score. Reduced input tokens by -2.4% (4,342 vs 4,452) and reasoning tokens by -30.9% (3,572 vs 5,168). However, Code Output Tokens increased by +24.4% (328 vs 264) and Non-reasoning output time increased by +39.2%. Score S_opt dropped from +0.600 to +0.579 (-0.021). Reverted per Rule 2 and Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 328.5,
+    "reasoning_tokens_median": 3572.5,
+    "input_tokens_median": 4342.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

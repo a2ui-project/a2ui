@@ -1,0 +1,23 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 546d191e..a72abf34 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -705,6 +705,18 @@ class AtomCompiler:
+                 if invalid_k in comp_dict and invalid_k not in prop_keys:
+                     del comp_dict[invalid_k]
+ 
++        # Dynamic deduplication & pruning of redundant string literal property assignments
++        req_props = self.schema_helper.get_component_required(comp_type) if hasattr(self.schema_helper, "get_component_required") else []
++        for p_name, p_val in list(comp_dict.items()):
++            if p_name in ("id", "component", "children", "child"):
++                continue
++            if isinstance(p_val, str):
++                p_val_clean = p_val.strip()
++                if p_val_clean != p_val:
++                    comp_dict[p_name] = p_val_clean
++                if p_val_clean == "" and p_name not in req_props:
++                    del comp_dict[p_name]
++
+         # Strict schema validation: required properties and enum constraints
+         if hasattr(self.schema_helper, "get_component_required"):
+             req_props = self.schema_helper.get_component_required(comp_type)

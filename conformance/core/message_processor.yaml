@@ -1,0 +1,110 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Behaviour of the message processor, written to converge with the suite of the
+# same name on the `v1_0` branch rather than to compete with it.
+#
+# The v1_0 suite is the primary one: 51 cases covering the surface lifecycle,
+# component mutation, graph topology, strict schema validation, JSON Pointer
+# resolution and the v0.8 / v0.9 / v1.0 protocol vectors. Every case that used
+# to live here in a different shape is already covered there, so only the two
+# that are not have been kept, written in the v1_0 vocabulary so the two files
+# concatenate instead of conflicting when that branch lands:
+#
+#   action          `process_messages`
+#   catalogPaths    catalog documents the case runs against, repo-root relative
+#   messages        the messages to process, in order (or a `{messages: [...]}`
+#                   wrapper)
+#   expect.surfaces per surface id, any of `exists`, `sendDataModel`, `theme`,
+#                   `components` (a list, each entry the component's flattened
+#                   properties) and `dataModel` (the whole model at `/`)
+#   expectError     `category` plus a `message` regular expression, matched
+#                   against a substring the implementations share
+#
+# Both cases below pin **state isolation between surfaces**, which the v1_0
+# suite opens two surfaces for only twice, and asserts in neither: mutations
+# must land on the surface the message names and nowhere else.
+#
+# Renderers build catalogs from code (Zod in `web_core`, `Schema` in Dart) and
+# neither builds a renderer catalog from a JSON Schema document, so each
+# harness registers a native catalog under the `catalogId` the messages use.
+# `catalogPaths` records which published document the case is written against.
+
+# --- Surface state isolation ---
+
+- name: test_update_components_target_named_surface_only
+  description: Tests that components are added to the surface the message names, not to every open surface.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s2"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expect:
+    surfaces:
+      s1:
+        exists: true
+        components: []
+      s2:
+        exists: true
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_update_data_model_isolated_per_surface
+  description: Tests that each surface owns its data model, so the same path holds a different value per surface.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/value"
+        value: "one"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s2"
+        path: "/value"
+        value: "two"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          value: "one"
+      s2:
+        dataModel:
+          value: "two"

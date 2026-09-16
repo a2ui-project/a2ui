@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, replace
+from functools import cached_property
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
@@ -165,6 +166,35 @@ class A2uiCatalog:
     custom_cuttable_keys: Optional[frozenset[str]] = None
     experiments: Optional[frozenset[str]] = None
 
+    @classmethod
+    def from_config(cls, config: CatalogConfig, version: str = "1.0") -> A2uiCatalog:
+        """Constructs an A2uiCatalog from a loaded CatalogConfig."""
+        from a2ui.schema.constants import SPEC_VERSION_MAP, SERVER_TO_CLIENT_SCHEMA_KEY, COMMON_TYPES_SCHEMA_KEY
+        from a2ui.schema.utils import load_from_bundled_resource
+
+        s2c_schema = load_from_bundled_resource(
+            version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+        )
+        common_types_schema = load_from_bundled_resource(
+            version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+        )
+        catalog_schema = config.provider.load()
+        return cls(
+            version=version,
+            name=config.name,
+            catalog_schema=catalog_schema,
+            s2c_schema=s2c_schema,
+            common_types_schema=common_types_schema,
+            custom_cuttable_keys=config.custom_cuttable_keys,
+        )
+
+    @classmethod
+    def from_json_file(cls, path: str, name: Optional[str] = None) -> A2uiCatalog:
+        """Constructs an A2uiCatalog from a JSON file path."""
+        cat_name = name or os.path.basename(path).replace(".json", "")
+        config = CatalogConfig.from_path(cat_name, path)
+        return cls.from_config(config)
+
     @property
     def cuttable_keys(self) -> frozenset[str]:
         if self.custom_cuttable_keys is not None:
@@ -180,10 +210,14 @@ class A2uiCatalog:
             return val
         raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
 
-    @property
+    @cached_property
     def validator(self) -> "A2uiValidator":
         from a2ui.validation.validator import A2uiValidator
 
+        # cached_property stores the validator on the instance's __dict__,
+        # bypassing the frozen dataclass __setattr__. This avoids rebuilding
+        # the jsonschema Registry on every access while tying cache lifetime
+        # to the catalog object (no global state, no memory leaks).
         return A2uiValidator(self, experiments=self.experiments)
 
     @property

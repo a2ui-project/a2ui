@@ -36,7 +36,7 @@ Create a new JSON file in `cases/` (e.g., `cases/my_feature.json`):
 
 ```json
 {
-  "schema": "server_to_client.json",
+  "schema": "agent_to_renderer.json",
   "tests": [
     {
       "description": "Description of the test case",

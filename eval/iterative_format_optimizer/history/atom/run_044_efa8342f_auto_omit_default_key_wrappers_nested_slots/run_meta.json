@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Auto-omitting default key wrappers on nested layout slots in AtomCompiler.",
+  "notes": "Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. However, Reasoning Tokens increased (+4.5%) and Code Output Tokens increased (+3.8%), dropping score S_opt from +0.570 to +0.562 (-0.008). Reverted per Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 287.5,
+    "reasoning_tokens_median": 5881.5,
+    "input_tokens_median": 4439.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

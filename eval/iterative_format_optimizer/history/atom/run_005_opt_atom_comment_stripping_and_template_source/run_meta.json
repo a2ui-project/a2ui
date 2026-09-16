@@ -1,0 +1,15 @@
+{
+  "run_id": "run_005_opt_atom_comment_stripping_and_template_source",
+  "hypothesis": "Add S-expression comment tokenization (; ...) stripping and template :source path resolution to reduce reasoning token overhead.",
+  "status": "REVERT",
+  "notes": "Reverted. Regex changes in compiler.py caused 2 compilation failures, dropping Schema Acc to 60.0%.",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 262.0,
+    "reasoning_tokens_median": 5687.0,
+    "input_tokens_median": 4414.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

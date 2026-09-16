@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,7 +33,7 @@ async def test_a2ui_system_prompt(tmp_path: Path) -> None:
         '{"catalogId": "https://a2ui.org/test_catalog", "components": {}}'
     )
 
-    solver = format_system_prompt("json", version="0.9.1")
+    solver = format_system_prompt("direct_json", version="0.9.1")
 
     state = TaskState(
         model=ModelName("mock/model"),
@@ -137,21 +137,27 @@ async def test_a2ui_express_solvers() -> None:
         state = await prompt_solver(state, dummy_generate)
         assert len(state.messages) == 1
         assert state.messages[0].role == "system"
-        assert "A2UI Express Output Contract" in state.messages[0].content
+        assert "A2UI Express DSL Output Contract" in state.messages[0].content
 
-        # 2. Test Compile Solver
+        # 2. Test Compile Solver with accompanying text and sentinel tags
         compile_solver = compile_format_payload("express", version="1.0")
         state.output = ModelOutput(
             model="mock/model",
             choices=[
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
-                        content='<a2ui>\nroot = Text("Hello")\n</a2ui>'
+                        content=(
+                            "Here is the domain research synthesis.\n\n"
+                            '<a2ui>\nroot = Text("Hello")\n</a2ui>\n\n'
+                            "Additional reference notes."
+                        )
                     )
                 )
             ],
         )
         state = await compile_solver(state, dummy_generate)
+        assert "Here is the domain research synthesis." in state.output.completion
+        assert "Additional reference notes." in state.output.completion
         assert "<a2ui-json>" in state.output.completion
         assert '"component": "Text"' in state.output.completion
     finally:
@@ -217,3 +223,135 @@ async def test_a2ui_elemental_solvers() -> None:
     finally:
         if original_git_root is not None:
             setattr(format_module, "GIT_ROOT", original_git_root)
+
+
+@pytest.mark.asyncio
+async def test_a2ui_atom_solvers() -> None:
+    from a2ui_eval.shared.utils import GIT_ROOT
+
+    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+
+    from a2ui_eval.strategies.format import (
+        format_system_prompt,
+        compile_format_payload,
+    )
+
+    prompt_solver = format_system_prompt("atom", version="1.0")
+
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={"catalog": str(catalog_file)},
+    )
+
+    import a2ui_eval.strategies.format as format_module
+
+    original_git_root = getattr(format_module, "GIT_ROOT", None)
+    setattr(format_module, "GIT_ROOT", GIT_ROOT)
+
+    try:
+        state = await prompt_solver(state, dummy_generate)
+        assert len(state.messages) == 1
+        assert state.messages[0].role == "system"
+        assert "A2UI Atom" in state.messages[0].content
+
+        compile_solver = compile_format_payload("atom", version="1.0")
+        state.output = ModelOutput(
+            model="mock/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content='<a2ui>(Card (Text "Hello"))</a2ui>'
+                    )
+                )
+            ],
+        )
+        state = await compile_solver(state, dummy_generate)
+        assert "<a2ui-json>" in state.output.completion
+        assert '"component": "Card"' in state.output.completion
+    finally:
+        if original_git_root is not None:
+            setattr(format_module, "GIT_ROOT", original_git_root)
+
+
+@pytest.mark.asyncio
+async def test_format_system_prompt_with_domain_prompt() -> None:
+    from a2ui_eval.shared.utils import GIT_ROOT
+    from a2ui_eval.strategies.format import format_system_prompt, _get_strategy, _parse_and_validate_in_process, compile_format_payload
+    from a2ui.schema.catalog import CatalogConfig
+
+    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+    catalog_config = CatalogConfig.from_path("basic_catalog", str(catalog_file))
+
+    # Test unknown format raises ValueError
+    with pytest.raises(ValueError, match="Unknown format strategy"):
+        _get_strategy("unknown_strategy", "1.0", catalog_config)
+
+    # Test format_system_prompt with domain prompt metadata
+    solver = format_system_prompt("direct_json", version="1.0")
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={
+            "catalog": str(catalog_file),
+            "system_prompt": "You are a research bot.",
+            "protocol_role": "Custom UI generator",
+            "generation_rules": "Follow catalog strictly",
+        },
+    )
+    state = await solver(state, dummy_generate)
+    assert "## Domain Instructions" in state.messages[0].content
+    assert "You are a research bot." in state.messages[0].content
+
+    # Test _parse_and_validate_in_process directly
+    res = _parse_and_validate_in_process(
+        format_name="express",
+        version="1.0",
+        resolved_catalog_path=str(catalog_file),
+        surface_id="main",
+        completion='Preamble\n<a2ui>\nroot = Text("Direct test")\n</a2ui>\nPostamble',
+    )
+    assert len(res["compiled_jsons"]) > 0
+    assert len(res["parts"]) == 2
+
+    # Test compile_format_payload with empty output and error recovery
+    compile_solver = compile_format_payload("express", version="1.0")
+    empty_state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={"catalog": str(catalog_file)},
+        output=None,
+    )
+    res_empty = await compile_solver(empty_state, dummy_generate)
+    assert res_empty.output is None or not res_empty.output.completion
+
+    # Error recovery on invalid syntax
+    error_state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={"catalog": str(catalog_file)},
+        output=ModelOutput(
+            model="mock/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content="<a2ui>INVALID CODE SYNTAX %%%</a2ui>"
+                    )
+                )
+            ],
+        ),
+    )
+    res_error = await compile_solver(error_state, dummy_generate)
+    assert "Compilation/validation failed:" in res_error.output.completion

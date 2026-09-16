@@ -1,0 +1,5 @@
+{
+  "hypothesis": "Compact signature parameter formatting for numeric/text properties in prompt generation.",
+  "notes": "Pytest 100% pass (507 passed). Input tokens reduced (-3.9%). However, Code Output Tokens increased (+7.0%), dropping score S_opt from +0.570 to +0.560 (-0.010). Reverted per Rule 3.",
+  "status": "Backtracked"
+}

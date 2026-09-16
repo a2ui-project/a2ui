@@ -1,0 +1,78 @@
+# Inference Format Optimization Report
+
+- **Strategy (Format)**: `atom`
+- **Evaluation Model**: `google/gemini-3.5-flash`
+
+## Summary Table
+
+| Metric                           | Baseline | Current | Diff   |
+| :------------------------------- | :------- | :------ | :----- |
+| **Pytest Conformance**           | PASS     | PASS    | -      |
+| **Overall Pass Rate**            | 83.3%    | 100.0%  | +16.7% |
+| **Algorithmic Schema Pass Rate** | 100.0%   | 100.0%  | 0.0%   |
+| **Inference Duration (sec)**     | 8.45s    | 8.78s   | +3.9%  |
+| **Avg Input Tokens**             | 0        | 0       | -      |
+| **Avg Output Tokens**            | 0        | 0       | -      |
+
+## Active Git Diff
+
+```diff
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+index 6ad0dac9..fe0765d9 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+@@ -25,9 +25,7 @@ if TYPE_CHECKING:
+ ATOM_RULES = r'''# A2UI Atom Output Contract
+
+ You must output the user interface using the compact A2UI Atom S-Expression notation.
+-You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and `</a2ui>`.
+-
+-IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output raw JSON messages.
++You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and `</a2ui>`. Do NOT output raw JSON messages.
+
+ ## Grammar Rules
+
+@@ -53,13 +51,13 @@ IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT
+    - Relative template item fields start with '$/item_var/field', e.g. $/item/name.
+
+ 6. Data Model Population:
+-   - Initialize or populate data model state exclusively using the (data $/path1 "val1" $/path2 123) block at the root level.
++   - Initialize data model state using (data $/path1 "val1" $/path2 123) or (data $/map_path (:key1 "val1" :key2 "val2")).
+
+ 7. Dynamic List Templates:
+    - List templates use (template :item item (ChildComponent $/item/name)) or (ListComponent :children (template :item item (ChildComponent $/item/name))).
+
+ 8. Action Events:
+-   - Actions use (Event "action_name" :param1 $/value).
++   - Actions use (Event "action_name" :param1 $/value). Interactive controls with action attributes MUST provide an action expression, e.g., (ActionComponent :child (ChildComponent "Text") :action (Event "click_action")).
+
+ 9. Standalone Operations:
+    - Delete surface: (deleteSurface "surface_id")
+@@ -71,20 +69,20 @@ IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT
+    (ContainerComponent
+      (ChildComponent :title "Header")
+      (InputComponent :label "Input" :value $/form/field)
+-     (ActionComponent :label "Submit" :onPress (Event "submit_action" :val $/form/field)))
++     (ActionComponent :label "Submit" :action (Event "submit_action" :val $/form/field)))
+    </a2ui>
+
+    Example 2 (Root Data State & Dynamic Template):
+    <a2ui>
+    (ContainerComponent
+-     (data $/items [{"id": 1, "name": "Item 1"}] $/title "List Title")
++     (data $/items [(:id 1 :name "Item 1")] $/title "List Title")
+      (ListComponent :items $/items :template (template item (ChildComponent :title $/item/name))))
+    </a2ui>
+
+-11. Strict Catalog Adherence:
++11. Strict Catalog Adherence & Conciseness:
+    - You MUST ONLY use property names listed in the Component Catalog Signatures below.
+    - Do NOT invent CSS or style attributes (e.g. style, padding, margin, backgroundColor, color, fontSize, size, minHeight, borderRadius, spacing, align, justify).
+-   - Strictly adhere to the exact property names and allowed enum values listed in the Component Catalog Signatures.
++   - Output minimal properties required to satisfy the user request.
+ '''
+```
+
+## Failure Details (Count: 0 / 6)
+
+🎉 _All tests passed successfully!_

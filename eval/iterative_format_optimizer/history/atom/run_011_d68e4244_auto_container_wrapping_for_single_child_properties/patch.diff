@@ -1,0 +1,21 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 408cb95e..af7f4edb 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -676,6 +676,17 @@ class AtomCompiler:
+                 comp_dict[target_child_list_key] = children
+             elif len(children) == 1 and single_child_prop:
+                 comp_dict[single_child_prop] = children[0]
++            elif len(children) > 1 and single_child_prop and "children" not in prop_keys:
++                container_type = "Column" if "Column" in self.schema_helper.component_properties else next((c for c, props in self.schema_helper.component_properties.items() if "children" in props), "Column")
++                col_id = f"node_{self._next_id}"
++                self._next_id += 1
++                col_dict = {
++                    "id": col_id,
++                    "component": container_type,
++                    "children": children,
++                }
++                components.append(col_dict)
++                comp_dict[single_child_prop] = col_id
+             else:
+                 comp_dict["children"] = children

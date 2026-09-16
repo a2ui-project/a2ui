@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -157,7 +157,7 @@ describe('Example: Live Invitation Builder', () => {
     await wait(100);
     await whenSettled(gallery);
 
-    const chips = querySelectorAllDeep(surface, '.chip') as HTMLElement[];
+    const chips = querySelectorAllDeep(surface, '.a2ui-chip') as HTMLElement[];
     expect(chips.length).toBeGreaterThanOrEqual(3);
 
     const ballroomChip = chips.find(el => el.textContent.trim() === 'Grand Ballroom');

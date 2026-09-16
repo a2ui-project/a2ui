@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -132,5 +132,57 @@ describe('ChoicePickerComponent', () => {
 
     chips[0].click();
     expect(onUpdateSpy).toHaveBeenCalledWith([]);
+  });
+
+  it('should use distinct radio group names for equal component ids on different surfaces', () => {
+    // Component ids are only surface-scoped, so two surfaces may each contain
+    // a ChoicePicker with the same id. Radio `name`s are document-scoped: a
+    // group name derived from the component id alone merges both pickers into
+    // one radio group.
+    const optionProps = {
+      ...defaultProps,
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
+        {label: 'Opt 2', value: '2'},
+      ]),
+    };
+    setComponentProps(fixture, optionProps);
+    fixture.detectChanges();
+
+    const second = TestBed.createComponent(ChoicePickerComponent);
+    second.componentRef.setInput('surfaceId', 'other-surface');
+    second.componentRef.setInput('componentId', 'test-choice-picker');
+    second.componentRef.setInput('dataContextPath', '/');
+    setComponentProps(second, optionProps);
+    second.detectChanges();
+
+    const groupNames = (f: ComponentFixture<ChoicePickerComponent>) =>
+      new Set(
+        Array.from(f.nativeElement.querySelectorAll('input[type="radio"]')).map(
+          input => (input as HTMLInputElement).name,
+        ),
+      );
+    const firstNames = groupNames(fixture);
+    const secondNames = groupNames(second);
+
+    expect(firstNames.size).toBe(1);
+    expect(secondNames.size).toBe(1);
+    expect([...firstNames][0]).not.toBe([...secondNames][0]);
+  });
+
+  it('should not set a name on checkbox inputs', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
+      ]),
+      variant: createBoundProperty<'multipleSelection' | 'mutuallyExclusive' | undefined>(
+        'multipleSelection',
+      ),
+    });
+    fixture.detectChanges();
+
+    const checkbox = fixture.nativeElement.querySelector('input[type="checkbox"]');
+    expect(checkbox.hasAttribute('name')).toBeFalse();
   });
 });

@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#      https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,10 +34,9 @@ def measured_generate() -> Solver:
         before_total_input = before_input + before_cr + before_cw
         before_cached = before_cr + before_cw
         before_output = usage_before.output_tokens if usage_before else 0
+        before_reasoning = usage_before.reasoning_tokens or 0 if usage_before else 0
 
         state = await generate(state)
-
-        duration = time.time() - start_time
 
         usage_after = sample_model_usage().get(str(state.model))
         after_input = usage_after.input_tokens if usage_after else 0
@@ -46,13 +45,28 @@ def measured_generate() -> Solver:
         after_total_input = after_input + after_cr + after_cw
         after_cached = after_cr + after_cw
         after_output = usage_after.output_tokens if usage_after else 0
+        after_reasoning = usage_after.reasoning_tokens or 0 if usage_after else 0
 
+        # Redefine inference_duration_seconds to measure pure working time of successful model call
+        working_time = None
+        output_call = (
+            getattr(state.output, "call", None) if hasattr(state, "output") else None
+        )
+        if output_call and getattr(output_call, "time", None):
+            working_time = output_call.time
+
+        duration = (
+            working_time if working_time is not None else (time.time() - start_time)
+        )
         state.metadata["inference_duration_seconds"] = duration
         state.metadata["inference_input_tokens"] = (
             after_total_input - before_total_input
         )
         state.metadata["inference_output_tokens"] = after_output - before_output
         state.metadata["inference_cached_tokens"] = after_cached - before_cached
+        state.metadata["inference_reasoning_tokens"] = (
+            after_reasoning - before_reasoning
+        )
 
         return state
 

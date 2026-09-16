@@ -1,0 +1,16 @@
+{
+  "run_id": "run_002_77ebfd64_opt_atom_template_and_event_handling",
+  "commit_sha": "77ebfd64",
+  "format": "atom",
+  "model": "google/gemini-3.5-flash",
+  "timestamp": "2026-07-20T22:51:24Z",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 240.0,
+    "reasoning_tokens_median": 4888.0,
+    "input_tokens_median": 4572.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

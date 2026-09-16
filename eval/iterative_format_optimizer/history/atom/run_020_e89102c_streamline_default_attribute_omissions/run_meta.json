@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Streamline default attribute Omissions in AtomCompiler._compile_component (auto-omitting default boolean/null values).",
+  "notes": "Pytest failed: test_compiler_primitives_and_relative_paths expects :extra null to explicitly map to {\"extra\": None} in compiled component dict. Auto-omitting null properties broke existing compiler specification contract. Reverted per Rule 1 / Parser Regression rule.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 6
+  }
+}

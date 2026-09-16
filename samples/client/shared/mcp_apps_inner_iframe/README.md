@@ -6,6 +6,13 @@ This directory contains the unified and reusable **Sandbox iframe** implementati
 
 A2UI utilizes a **double-iframe isolation pattern** to run untrusted third-party code securely. This pattern uses a same-origin (un-sandboxed) outer proxy to eliminate `SecurityError` crashes from Angular DevTools and Chrome Extensions while maintaining strict isolation for untrusted content via a restricted inner iframe.
 
+## Security & Sandbox Directives
+
+The inner iframe is initialized with `sandbox="allow-scripts allow-forms allow-popups allow-modals"`:
+
+- `allow-same-origin` is strictly omitted to isolate storage, cookies, and origins.
+- `allow-top-navigation` and `allow-top-navigation-by-user-activation` are strictly omitted to prevent top-level window hijacking (frame-busting) where embedded scripts attempt `window.top.location = "..."` or link navigation targeting `_top`.
+
 ## Files
 
 - `sandbox.ts`: Logic for origin validation and message relaying between the Host and the inner iframe.

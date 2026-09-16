@@ -1,0 +1,644 @@
+# Inference Format Optimization Report
+
+- **Strategy (Format)**: `atom`
+- **Evaluation Model**: `google/gemini-3.5-flash`
+
+## Summary Table
+
+| Metric                           | Baseline | Current | Diff    |
+| :------------------------------- | :------- | :------ | :------ |
+| **Pytest Conformance**           | PASS     | FAIL    | -       |
+| **Overall Pass Rate**            | 100.0%   | 100.0%  | 0.0%    |
+| **Algorithmic Schema Pass Rate** | 100.0%   | 100.0%  | 0.0%    |
+| **Inference Duration (sec)**     | 8.78s    | 18.43s  | +110.0% |
+| **Avg Input Tokens**             | 0        | 0       | -       |
+| **Avg Output Tokens**            | 0        | 0       | -       |
+
+## ❌ Pytest Unit Test Failures
+
+```
+============================= test session starts ==============================
+platform linux -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15
+configfile: pyproject.toml
+plugins: anyio-4.14.2, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 507 items
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py ...   [  0%]
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py ...... [  1%]
+.........                                                                [  3%]
+agent_sdks/python/a2ui_agent/tests/adk/orchestration/test_a2ui_subagent_map.py . [  3%]
+.......................                                                  [  8%]
+agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py . [  8%]
+..............                                                           [ 11%]
+agent_sdks/python/a2ui_agent/tests/conformance/test_a2a_integration.py . [ 11%]
+.............                                                            [ 14%]
+agent_sdks/python/a2ui_agent/tests/conformance/test_adk_extensions.py .. [ 14%]
+...                                                                      [ 14%]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py ..... [ 15%]
+........................................................................ [ 30%]
+........................................................................ [ 44%]
+..................................                                       [ 51%]
+agent_sdks/python/a2ui_agent/tests/elemental/test_compiler.py .......... [ 53%]
+...................                                                      [ 56%]
+agent_sdks/python/a2ui_agent/tests/elemental/test_format.py .            [ 57%]
+agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py ....    [ 57%]
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py .. [ 58%]
+...............                                                          [ 61%]
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py .. [ 61%]
+.......                                                                  [ 62%]
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py ........... [ 65%]
+.........                                                                [ 66%]
+agent_sdks/python/a2ui_agent/tests/express/test_compiler.py ............ [ 69%]
+.....                                                                    [ 70%]
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py ........  [ 71%]
+agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py .... [ 72%]
+..                                                                       [ 72%]
+agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py .... [ 73%]
+.                                                                        [ 73%]
+agent_sdks/python/a2ui_agent/tests/parser/test_lexer.py ........         [ 75%]
+agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v08.py ...      [ 76%]
+agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v09.py ......   [ 77%]
+agent_sdks/python/a2ui_agent/tests/schema/test_catalog.py ......         [ 78%]
+agent_sdks/python/a2ui_agent/tests/schema/test_transport_format.py ...   [ 79%]
+agent_sdks/python/a2ui_agent/tests/schema/test_utils.py ..........       [ 81%]
+agent_sdks/python/a2ui_agent/tests/schema/test_validator.py ........     [ 82%]
+agent_sdks/python/a2ui_agent/tests/schema/test_validator_v10.py .....    [ 83%]
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py ...F..F.....F.F.. [ 86%]
+.......F......                                                           [ 89%]
+agent_sdks/python/a2ui_agent/tests/test_formats.py .......               [ 91%]
+agent_sdks/python/a2ui_agent/tests/test_prompt_examples.py ..            [ 91%]
+agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py ..... [ 92%]
+......................................                                   [100%]
+
+=================================== FAILURES ===================================
+__________________ TestAtomFormat.test_atom_prompt_generator ___________________
+
+self = <tests.test_atom_format.TestAtomFormat testMethod=test_atom_prompt_generator>
+
+    def test_atom_prompt_generator(self):
+        """Test AtomPromptGenerator generation of catalog prompt rules and component signatures."""
+        from a2ui.inference_formats.experimental.atom import AtomFormat
+        from a2ui.schema.catalog import CatalogConfig
+        from a2ui.inference_formats.transport import TransportFormat
+>       from a2ui_eval.shared.utils import GIT_ROOT
+E       ModuleNotFoundError: No module named 'a2ui_eval'
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py:218: ModuleNotFoundError
+_____ TestAtomFormat.test_compile_child_list_template_property_assignment ______
+
+self = <tests.test_atom_format.TestAtomFormat testMethod=test_compile_child_list_template_property_assignment>
+
+    def test_compile_child_list_template_property_assignment(self):
+        """Test standard v1.0 Catalog List component dynamic template assignment to children property."""
+        from a2ui.schema.catalog import CatalogConfig
+        from a2ui.inference_formats.transport import TransportFormat
+>       from a2ui_eval.shared.utils import GIT_ROOT
+E       ModuleNotFoundError: No module named 'a2ui_eval'
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py:499: ModuleNotFoundError
+_____ TestAtomFormat.test_compiler_positional_properties_with_real_catalog _____
+
+self = <tests.test_atom_format.TestAtomFormat testMethod=test_compiler_positional_properties_with_real_catalog>
+
+    def test_compiler_positional_properties_with_real_catalog(self):
+        """Test positional property mapping in AtomCompiler with real catalog schema helper."""
+        from a2ui.inference_formats.experimental.atom import AtomCompiler
+        from a2ui.schema.catalog import CatalogConfig
+        from a2ui.inference_formats.transport import TransportFormat
+>       from a2ui_eval.shared.utils import GIT_ROOT
+E       ModuleNotFoundError: No module named 'a2ui_eval'
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py:244: ModuleNotFoundError
+_____ TestAtomFormat.test_compiler_schema_expects_single_child_and_helpers _____
+
+self = <tests.test_atom_format.TestAtomFormat testMethod=test_compiler_schema_expects_single_child_and_helpers>
+
+    def test_compiler_schema_expects_single_child_and_helpers(self):
+        """Test _schema_expects_single_child and formatDate/formatCurrency helpers."""
+        from a2ui.inference_formats.experimental.atom import AtomCompiler
+        from a2ui.schema.catalog import CatalogConfig
+        from a2ui.inference_formats.transport import TransportFormat
+>       from a2ui_eval.shared.utils import GIT_ROOT
+E       ModuleNotFoundError: No module named 'a2ui_eval'
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py:358: ModuleNotFoundError
+___________ TestAtomFormat.test_function_signatures_and_enum_helpers ___________
+
+self = <tests.test_atom_format.TestAtomFormat testMethod=test_function_signatures_and_enum_helpers>
+
+    def test_function_signatures_and_enum_helpers(self):
+        """Test function signature generation and enum schema helpers in prompt generator."""
+        from a2ui.inference_formats.experimental.atom import AtomFormat
+        from a2ui.inference_formats.experimental.atom.prompt_generator import _get_schema_enum
+        from a2ui.schema.catalog import CatalogConfig
+        from a2ui.inference_formats.transport import TransportFormat
+>       from a2ui_eval.shared.utils import GIT_ROOT
+E       ModuleNotFoundError: No module named 'a2ui_eval'
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py:325: ModuleNotFoundError
+=============================== warnings summary ===============================
+<frozen abc>:106
+<frozen abc>:106
+<frozen abc>:106
+<frozen abc>:106
+  <frozen abc>:106: DeprecationWarning: BaseAgentConfig is deprecated and will be removed in future versions. Config is now loaded via reflection so the separate config class is no longer needed.
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py::test_event_converter_injects_catalog
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py:32: UserWarning: [EXPERIMENTAL] A2uiEventConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiEventConverter()
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py::test_event_converter_injects_catalog
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py::test_event_converter_propagates_fallback_text
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/src/a2ui/adk/a2a/event_converter.py:85: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    effective_converter = A2uiPartConverter(
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py::test_event_converter_falls_back_without_catalog
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py:56: UserWarning: [EXPERIMENTAL] A2uiEventConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiEventConverter()
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py::test_event_converter_propagates_fallback_text
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py:81: UserWarning: [EXPERIMENTAL] A2uiEventConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiEventConverter(fallback_text=custom_fallback)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_valid_tool_response
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:32: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_valid_tool_response_v0_9_1
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:52: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock, version=VERSION_0_9_1)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_tool_error_response
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:72: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_tool_response_no_result
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:90: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_function_call_ignores
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:104: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_text_with_a2ui
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:120: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_text_with_a2ui_v0_9_1
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:141: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock, version=VERSION_0_9_1)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_text_empty_leading
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:162: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_text_markdown_wrapped
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:177: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_text_with_invalid_a2ui
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:195: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_other_part
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:206: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_tool_response_with_result_containing_a2ui
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:226: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_text_with_invalid_a2ui_and_custom_fallback
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:253: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock, fallback_text=custom_fallback)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_tool_response_with_result_containing_invalid_a2ui_and_default_fallback
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:265: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock)
+
+agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py::test_converter_class_convert_tool_response_with_result_containing_invalid_a2ui_and_custom_fallback
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:283: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    converter = A2uiPartConverter(catalog_mock, fallback_text=custom_fallback)
+
+agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py::test_toolset_init_bool
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py:32: UserWarning: [EXPERIMENTAL] SendA2uiToClientToolset: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    toolset = SendA2uiToClientToolset(
+
+agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py::test_toolset_init_callable
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py:48: UserWarning: [EXPERIMENTAL] SendA2uiToClientToolset: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    toolset = SendA2uiToClientToolset(
+
+agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py::test_toolset_init_async_callable
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py:78: UserWarning: [EXPERIMENTAL] SendA2uiToClientToolset: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    toolset = SendA2uiToClientToolset(
+
+agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py::test_toolset_get_tools_enabled
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py:94: UserWarning: [EXPERIMENTAL] SendA2uiToClientToolset: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    toolset = SendA2uiToClientToolset(
+
+agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py::test_toolset_get_tools_disabled
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py:104: UserWarning: [EXPERIMENTAL] SendA2uiToClientToolset: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    toolset = SendA2uiToClientToolset(
+
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_empty_response]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_only_text_no_tags]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_empty_tags]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_invalid_json]
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py:226: DeprecationWarning: parse_response is deprecated. Please use format.parser.parse_response(...) on your InferenceFormat instance instead.
+    parse_response(content)
+
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_only_json_with_tags]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_with_text_and_tags]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_with_trailing_text]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_multiple_blocks]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_parse_response_with_markdown_blocks]
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py:228: DeprecationWarning: parse_response is deprecated. Please use format.parser.parse_response(...) on your InferenceFormat instance instead.
+    parts = parse_response(content)
+
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_has_a2ui_parts_true]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_has_a2ui_parts_false_no_tags]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_parser_non_streaming_conformance[test_has_a2ui_parts_false_only_open]
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py:246: DeprecationWarning: has_a2ui_parts is deprecated. Please use format.parser.has_format_content(content, complete=True) on your InferenceFormat instance instead.
+    result = has_a2ui_parts(content)
+
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_minimal]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_custom_workflow]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_full]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_with_schema]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_with_examples]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_with_inline_catalog]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_v0_9_common_types]
+agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py::test_schema_manager_conformance[test_generate_system_prompt_full_with_caps]
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py:429: DeprecationWarning: generate_system_prompt is deprecated. Use prompt_generator.generate(...) instead.
+    output = transport_format.generate_system_prompt(
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_format.py::TestElementalFormat::test_ensure_catalog_error
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_format.py:47: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt_no_catalog = ElementalFormat(catalog=None)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py::TestElementalIntegration::test_elemental_parser_compilation_error_handling
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py:132: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    ElementalParser(self.catalog).parse_response(invalid_response)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py::TestElementalIntegration::test_elemental_parser_compilation_error_handling
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py:155: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    ElementalParser(self.catalog).parse_response(multi_response)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py::TestElementalIntegration::test_elemental_parser_happy_path
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py:67: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    parts = ElementalParser(self.catalog).parse_response(content)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py::TestElementalIntegration::test_elemental_parser_preserves_custom_surface_id
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py:91: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    parts = ElementalParser(self.catalog).parse_response(content)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py::TestElementalIntegration::test_elemental_parser_unclosed_tag_parsing
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py:107: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    parts = ElementalParser(self.catalog).parse_response(truncated_response)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_actions_and_events
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:216: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_boolean_and_null_attributes
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:402: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_call_function
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:55: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_checks_with_custom_message
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:269: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_checks_with_implicit_value
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:246: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_checks_with_positional_args
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:422: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_complex_slot_property
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:195: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_create_surface_basic
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:95: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_custom_template_property
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:341: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_delete_surface
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:44: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_dict_expressions_and_function_calls
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:446: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_list_with_template
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:294: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_multiple_actions_prefixing
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:495: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_named_slots
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:380: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_omits_default_catalog_link
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:134: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_options_contraction
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:175: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py::TestElementalParser::test_decompile_update_data_model
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:73: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ElementalParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_allowed_components_pruning
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:279: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_format = ElementalFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_allowed_components_pruning
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/elemental/prompt_generator.py:439: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    self.parser = ElementalParser(catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_catalog_description_before_generate
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:144: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_format = ElementalFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_catalog_description_initializes_helper_and_decompiles_instructions
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:188: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = ElementalFormat(catalog=custom_catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py: 3 warnings
+agent_sdks/python/a2ui_agent/tests/test_formats.py: 1 warning
+agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py: 43 warnings
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/elemental/format.py:62: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    return ElementalParser(self.catalog, self.surface_id)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_catalog_description_initializes_helper_and_decompiles_list_instructions
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:235: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = ElementalFormat(catalog=custom_catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_catalog_description_no_schema
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:151: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = ElementalFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_elemental_examples_validation
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:337: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_format = ElementalFormat(
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_elemental_include_examples_transformation
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:308: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_format = ElementalFormat(
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_elemental_prompt_generator_property
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:130: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_format = ElementalFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py::TestElementalPromptGenerator::test_elemental_ts_type_mapping
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:246: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_format = ElementalFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_decompiler_example
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_decompiler_main_cli
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/specification/proposals/express/scripts/run_decompiler.py:100: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_inference_main_cli_local_mlx_mapping
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_run_inference_invalid_dsl_compilation
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_run_inference_local_ollama_connection_error
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_run_inference_missing_keys_and_files
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_run_inference_mlx
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_run_inference_mlx_connection_error
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_run_inference_mlx_error_empty_choices
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/specification/proposals/express/scripts/run_inference.py:128: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_format = ExpressFormat(catalog=catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py: 9 warnings
+agent_sdks/python/a2ui_agent/tests/express/test_compiler.py: 3 warnings
+agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py: 4 warnings
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/prompt_generator.py:480: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    self.parser = ExpressParser(catalog) if catalog else None
+
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_prompt_generator
+agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py::TestCliTools::test_prompt_generator_main_cli
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/specification/proposals/express/scripts/run_prompt_generator.py:69: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_format = ExpressFormat(catalog=catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_compiler.py::TestExpressCompiler::test_compiler_robustness_and_edge_cases
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py:289: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = ExpressFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_compiler.py::TestExpressCompiler::test_polymorphic_catalog_initialization
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py:591: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(cat_input)
+
+agent_sdks/python/a2ui_agent/tests/express/test_compiler.py::TestExpressCompiler::test_polymorphic_catalog_initialization
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py:598: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = ExpressFormat(catalog=cat_input)
+
+agent_sdks/python/a2ui_agent/tests/express/test_compiler.py::TestExpressCompiler::test_polymorphic_catalog_initialization
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py:606: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(
+
+agent_sdks/python/a2ui_agent/tests/express/test_compiler.py::TestExpressCompiler::test_prompt_generator
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py:51: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = ExpressFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_data_model_compilation_and_decompilation
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:256: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_parser_compilation_error_handling
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:463: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    ExpressParser(self.catalog).parse_response(invalid_response)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_parser_compilation_error_handling
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:484: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    ExpressParser(self.catalog).parse_response(multi_response)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_parser_robustness_and_event_variable_resolution
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:308: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    parts = ExpressParser(self.catalog).parse_response(conversational_content)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_parser_robustness_and_event_variable_resolution
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:315: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    parts_ui = ExpressParser(self.catalog).parse_response(ui_only_content)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_parser_unclosed_tag_parsing
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:438: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    parts = ExpressParser(self.catalog).parse_response(truncated_response)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_round_trip_examples
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:54: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_sentinel_spacing_literal_matching_multiline_strings_and_boolean_allof_schemas
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:394: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_integration.py::TestExpressIntegration::test_template_validation_and_decompiler_quoted_keys
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_integration.py:323: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py::TestExpressParser::test_decompile_call_function_positional_args
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py:311: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(custom_catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py::TestExpressParser::test_decompile_delete_surface
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py:271: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py::TestExpressParser::test_decompile_update_data_model
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py:277: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py::TestExpressParser::test_decompiler_rpc_actions_functional_expressions_and_custom_checks
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py:48: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py::TestExpressParser::test_string_quoting_and_escaping
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py:135: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    decompiler = ExpressParser(self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py::TestExpressPromptGenerator::test_catalog_description_before_generate
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py:73: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_format = ExpressFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py::TestExpressPromptGenerator::test_express_allowed_components_pruning
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py:79: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_format = ExpressFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py::TestExpressPromptGenerator::test_express_examples_validation
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py:145: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_format = ExpressFormat(
+
+agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py::TestExpressPromptGenerator::test_express_include_examples_transformation
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py:109: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_format = ExpressFormat(catalog=self.catalog, examples_path=md_file_path)
+
+agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py::TestExpressPromptGenerator::test_express_prompt_generator_property
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py:59: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_format = ExpressFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_atom_format_and_parser_integration
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_atom_format.py:171: UserWarning: [EXPERIMENTAL] AtomFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = AtomFormat(catalog=self.catalog, surface_id="main")
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py: 2 warnings
+agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py: 43 warnings
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/format.py:72: UserWarning: [EXPERIMENTAL] AtomParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    return AtomParser(self.catalog, self.surface_id)
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_atom_parser_compilation_error
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_atom_format.py:197: UserWarning: [EXPERIMENTAL] AtomFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = AtomFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_format_missing_catalog_raises_value_error
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_atom_format.py:268: UserWarning: [EXPERIMENTAL] AtomFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    fmt = AtomFormat()
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py::test_schema_strategy_prompt_generation
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_formats.py:68: DeprecationWarning: generate_system_prompt is deprecated. Use prompt_generator.generate(...) instead.
+    prompt = transport_format.generate_system_prompt(
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py::test_strategy_based_converters
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_formats.py:116: UserWarning: [EXPERIMENTAL] A2uiPartConverter: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    json_converter = A2uiPartConverter(a2ui_catalog=test_catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py::test_supports_streaming_property
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_formats.py:150: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_fmt = ExpressFormat(catalog=test_catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py: 2 warnings
+agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py: 43 warnings
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/format.py:73: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    return ExpressParser(self.catalog, self.surface_id)
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py::test_supports_streaming_property
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_formats.py:155: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_fmt = ElementalFormat(catalog=test_catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py::test_process_chunk_raises_not_implemented
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_formats.py:161: UserWarning: [EXPERIMENTAL] ExpressParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_parser = ExpressParser(test_catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py::test_process_chunk_raises_not_implemented
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_formats.py:166: UserWarning: [EXPERIMENTAL] ElementalParser: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    elemental_parser = ElementalParser(test_catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_formats.py::test_decompiler_delegation
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_formats.py:190: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    express_fmt = ExpressFormat(catalog=test_catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py: 43 warnings
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py:73: UserWarning: [EXPERIMENTAL] ExpressFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    self.express_fmt = ExpressFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py: 43 warnings
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py:74: UserWarning: [EXPERIMENTAL] ElementalFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    self.elemental_fmt = ElementalFormat(catalog=self.catalog)
+
+agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py: 43 warnings
+  /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run15/agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py:75: UserWarning: [EXPERIMENTAL] AtomFormat: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+    self.atom_fmt = AtomFormat(catalog=self.catalog)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_atom_prompt_generator
+FAILED agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_compile_child_list_template_property_assignment
+FAILED agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_compiler_positional_properties_with_real_catalog
+FAILED agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_compiler_schema_expects_single_child_and_helpers
+FAILED agent_sdks/python/a2ui_agent/tests/test_atom_format.py::TestAtomFormat::test_function_signatures_and_enum_helpers
+================= 5 failed, 502 passed, 409 warnings in 9.81s ==================
+
+
+```
+
+## Active Git Diff
+
+```diff
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+index fe0765d9..e7d54098 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+@@ -154,6 +154,9 @@ class AtomPromptGenerator(PromptGenerator):
+             reqs = self.schema_helper.get_component_required(name)
+             comp_desc = self.schema_helper.get_component_description(name)
+
++            non_id_props = [p for p in props if p not in ("id", "component")]
++            is_single_prop = len(non_id_props) == 1
++
+             ordered_args = []
+             prop_details = []
+             for p in props:
+@@ -169,9 +172,9 @@ class AtomPromptGenerator(PromptGenerator):
+                 p_desc = p_schema.get("description") if isinstance(p_schema, dict) else None
+                 enum_vals = _get_schema_enum(p_schema)
+
+-                if p_desc or enum_vals:
++                if (p_desc and not (is_single_prop and not enum_vals)) or enum_vals:
+                     p_line_parts = []
+-                    if p_desc:
++                    if p_desc and not (is_single_prop and not enum_vals):
+                         p_line_parts.append(p_desc)
+                     if enum_vals:
+                         enum_vals_str = ", ".join([f"'{v}'" for v in enum_vals])
+```
+
+## Failure Details (Count: 0 / 6)
+
+🎉 _All tests passed successfully!_

@@ -1,0 +1,182 @@
+{
+  "schema": "renderer_to_agent.json",
+  "tests": [
+    {
+      "description": "Valid action message",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {
+            "foo": "bar"
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid action message with optional userMessage",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "userMessage": "Submitted form",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {
+            "foo": "bar"
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid error message (validation failed)",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "VALIDATION_FAILED",
+          "surfaceId": "main",
+          "path": "/components/0/text",
+          "message": "Invalid type"
+        }
+      }
+    },
+    {
+      "description": "Valid error message (unallowed parent)",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "UNALLOWED_PARENT",
+          "surfaceId": "main",
+          "path": "/components/1",
+          "message": "Component 'TextField' is not allowed as a child of 'Surface'."
+        }
+      }
+    },
+    {
+      "description": "Valid error message (unallowed child)",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "UNALLOWED_CHILD",
+          "surfaceId": "main",
+          "path": "/components/0/children/0",
+          "message": "Component 'Modal' is not allowed inside 'Column'."
+        }
+      }
+    },
+    {
+      "description": "Invalid updateDataModel (renamed)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateDataModel": {
+          "surfaceId": "main",
+          "path": "/user/name",
+          "value": "Alice"
+        }
+      }
+    },
+    {
+      "description": "error: Valid with callId",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "FUNCTION_FAILED",
+          "functionCallId": "unique-call-id-132",
+          "message": "Something went wrong"
+        }
+      }
+    },
+    {
+      "description": "error: Invalid with BOTH callId and surfaceId",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "FUNCTION_FAILED",
+          "functionCallId": "unique-call-id-133",
+          "surfaceId": "main",
+          "message": "Something went wrong"
+        }
+      }
+    },
+    {
+      "description": "error: Invalid with NEITHER callId nor surfaceId",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "error": {
+          "code": "FUNCTION_FAILED",
+          "message": "Something went wrong"
+        }
+      }
+    },
+    {
+      "description": "Valid action message with metadata.extensions",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {
+            "foo": "bar"
+          },
+          "metadata": {
+            "extensions": {
+              "client_audit": {"signature": "abc123token"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: action metadata.extensions has invalid key name",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {},
+          "metadata": {
+            "extensions": {
+              "invalid.key.with.dots": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: action metadata contains unrecognized property (additionalProperties: false)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {},
+          "metadata": {
+            "unknownProperty": "value"
+          }
+        }
+      }
+    }
+  ]
+}

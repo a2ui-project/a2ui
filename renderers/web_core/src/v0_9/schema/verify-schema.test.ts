@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,8 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {zodToJsonSchema} from 'zod-to-json-schema';
-import {readFileSync} from 'fs';
-import {resolve, join, dirname} from 'path';
-import {fileURLToPath} from 'url';
+import {readFileSync, existsSync} from 'fs';
+import {resolve, join} from 'path';
 import {
   A2uiMessageSchema,
   CreateSurfaceMessageSchema,
@@ -28,11 +27,10 @@ import {
   DeleteSurfaceMessageSchema,
 } from './server-to-client.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// `__dirname` will be `dist/src/v0_9/schema` when run via `node --test dist/**/*.test.js`
-const SPEC_DIR_V0_9 = resolve(__dirname, '../../../../../../specification/v0_9/json');
+const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/schema');
+const specPathCandidate1 = resolve(currentDir, '../../../../../specification/v0_9/json');
+const specPathCandidate2 = resolve(currentDir, '../../../../../../specification/v0_9/json');
+const SPEC_DIR_V0_9 = existsSync(specPathCandidate1) ? specPathCandidate1 : specPathCandidate2;
 
 // Parse both so we can do structural comparison rather than formatting
 // Compare definitions specifically, ignoring descriptions

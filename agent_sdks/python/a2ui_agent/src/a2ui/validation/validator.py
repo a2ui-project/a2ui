@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -138,6 +138,9 @@ class A2uiValidatorWrapperV10:
         for schema in [s2c, common]:
             if schema and "$id" in schema:
                 resources.append((schema["$id"], Resource.from_contents(schema)))
+
+        if common:
+            resources.append(("common_types.json", Resource.from_contents(common)))
 
         if isinstance(cat, dict):
             cat_copy = dict(cat)

@@ -1,0 +1,43 @@
+{
+  "name": "custom-lit-components",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A2UI custom Lit component catalog example (OrgChart, WebFrame, McpApp, TextField override)",
+  "type": "module",
+  "main": "./dist/register-components.js",
+  "types": "./dist/register-components.d.ts",
+  "scripts": {
+    "build": "yarn build:tsc && yarn build:demo",
+    "build:tsc": "tsc -b --pretty",
+    "build:demo": "vite build",
+    "dev": "vite dev",
+    "serve": "vite dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "repository": {
+    "directory": "samples/community/custom-lit-components",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "keywords": [],
+  "author": "Google",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "homepage": "https://github.com/a2ui-project/a2ui/tree/main/samples/community/custom-lit-components#readme",
+  "devDependencies": {
+    "eslint": "^10.4.1",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "@a2ui/lit": "^0.10.0",
+    "@a2ui/web_core": "^0.10.0",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "lit": "^3.3.3"
+  }
+}

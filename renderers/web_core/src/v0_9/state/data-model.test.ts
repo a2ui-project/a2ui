@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {DataModel} from './data-model.js';
+import {A2uiDataError} from '../errors.js';
 
 describe('DataModel', () => {
   let model: DataModel;
@@ -359,5 +360,167 @@ describe('DataModel', () => {
       const user = model.get('/user');
       assert.strictEqual(user['a~1b'], 'value');
     });
+  });
+
+  // --- Security Tests: Prototype Pollution Protection ---
+
+  it('prevents prototype pollution via __proto__ in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/__proto__/polluted', 'hacked'),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.throws(() => model.get('/__proto__/polluted'), /Forbidden path segment '__proto__'/);
+    assert.throws(
+      () => model.getSignal('/__proto__/polluted'),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.throws(
+      () => model.subscribe('/__proto__/polluted', () => {}),
+      /Forbidden path segment '__proto__'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('prevents prototype pollution via constructor in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/constructor/prototype/polluted', 'hacked'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.get('/constructor/prototype/polluted'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.getSignal('/constructor/prototype/polluted'),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.throws(
+      () => model.subscribe('/constructor/prototype/polluted', () => {}),
+      /Forbidden path segment 'constructor'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('prevents prototype pollution via prototype in set, get, getSignal, subscribe', () => {
+    assert.throws(
+      () => model.set('/user/prototype/polluted', 'hacked'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.get('/user/prototype/polluted'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.getSignal('/user/prototype/polluted'),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.throws(
+      () => model.subscribe('/user/prototype/polluted', () => {}),
+      /Forbidden path segment 'prototype'/,
+    );
+    assert.strictEqual(({} as any).polluted, undefined);
+  });
+
+  it('does not leak Object.prototype inherited properties on get', () => {
+    assert.strictEqual(model.get('/toString'), undefined);
+    assert.strictEqual(model.get('/valueOf'), undefined);
+    assert.strictEqual(model.get('/hasOwnProperty'), undefined);
+  });
+
+  it('allows setting and reading own properties named after prototype methods', () => {
+    model.set('/toString', 'custom toString');
+    assert.strictEqual(model.get('/toString'), 'custom toString');
+
+    model.set('/valueOf/nested', 'custom valueOf');
+    assert.strictEqual(model.get('/valueOf/nested'), 'custom valueOf');
+  });
+
+  it('throws when trying to set nested property through a primitive in an array', () => {
+    assert.throws(() => {
+      model.set('/items/0/foo', 'bar');
+    }, /Cannot set path/);
+  });
+
+  it('returns undefined for out-of-bounds or non-numeric array index in get', () => {
+    assert.strictEqual(model.get('/items/99'), undefined);
+    assert.strictEqual(model.get('/items/-1'), undefined);
+    assert.strictEqual(model.get('/items/invalid'), undefined);
+  });
+
+  it('rejects writes when the root itself is a primitive', () => {
+    const primitiveRoot = new DataModel({});
+    primitiveRoot.set('/', 1);
+    assert.throws(() => primitiveRoot.set('/a', 2), A2uiDataError);
+    assert.strictEqual(primitiveRoot.get('/'), 1);
+  });
+
+  it('keeps a falsy primitive root instead of replacing it', () => {
+    for (const root of [false, 0, '']) {
+      const falsyRoot = new DataModel({});
+      falsyRoot.set('/', root);
+      assert.throws(() => falsyRoot.set('/a', 2), A2uiDataError);
+      assert.strictEqual(falsyRoot.get('/'), root);
+    }
+  });
+
+  it('rejects leading-zero array indices (RFC 6901)', () => {
+    assert.throws(() => {
+      model.set('/items/01', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.throws(() => {
+      model.set('/items/01/nested', 'value');
+    }, /Cannot use non-numeric segment/);
+    assert.strictEqual(model.get('/items/01'), undefined);
+  });
+
+  // Test unbounded array index protection (see https://github.com/a2ui-project/a2ui/issues/2386)
+
+  it('rejects excessively large array indices to prevent OOM and thread hangs (Issue #2386)', () => {
+    // Leaf index on existing array
+    assert.throws(
+      () => model.set('/items/999999999', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+    assert.throws(
+      () => model.set('/items/10001', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+
+    // Intermediate index on existing array
+    assert.throws(
+      () => model.set('/items/999999999/name', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+    assert.throws(
+      () => model.set('/items/10001/name', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+
+    // Auto-vivification on uninitialized path
+    assert.throws(
+      () => model.set('/newArray/10000000', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+    assert.throws(
+      () => model.set('/newArray/10000000/field', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+  });
+
+  it('allows valid array indices within supported limit', () => {
+    model.set('/items/10000', 'max_element');
+    assert.strictEqual(model.get('/items/10000'), 'max_element');
+  });
+
+  it('notifies bound signals without unbounded array clone overhead', () => {
+    let notifiedVal: any = null;
+    const sub = model.subscribe<any[]>('/items', v => (notifiedVal = v));
+
+    model.set('/items/500', 'test_val');
+    assert.strictEqual(model.get('/items/500'), 'test_val');
+    assert.ok(Array.isArray(notifiedVal));
+    assert.strictEqual(notifiedVal[500], 'test_val');
+
+    sub.unsubscribe();
   });
 });

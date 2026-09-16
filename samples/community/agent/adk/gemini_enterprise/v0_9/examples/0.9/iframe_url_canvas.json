@@ -1,0 +1,36 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "iframe-url-demo",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "iframe-url-demo",
+      "components": [
+        {
+          "id": "root",
+          "component": "Canvas",
+          "cardTitle": "Embedded Web Page",
+          "cardDescription": "Open to view an allowlisted URL in the side panel",
+          "cardIcon": "public",
+          "autoOpen": true,
+          "children": ["url-frame"]
+        },
+        {
+          "id": "url-frame",
+          "component": "IFrameUrl",
+          "url": "https://www.google.com/search?q=a2ui",
+          "height": 600
+        }
+      ]
+    }
+  }
+]

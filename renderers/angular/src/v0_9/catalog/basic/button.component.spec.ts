@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -160,11 +160,24 @@ describe('ButtonComponent', () => {
   });
 
   it('should override the button default background color when primary color is set', () => {
+    mockSurface.theme = {primaryColor: '#FF0000'};
+    fixture.detectChanges();
+    let button = fixture.debugElement.query(By.css('button'));
+    let computedStyle = window.getComputedStyle(button.nativeElement);
+    expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)');
+
+    // Supports named colors like "red"
     mockSurface.theme = {primaryColor: 'red'};
     fixture.detectChanges();
-    const button = fixture.debugElement.query(By.css('button'));
-    const computedStyle = window.getComputedStyle(button.nativeElement);
+    button = fixture.debugElement.query(By.css('button'));
+    computedStyle = window.getComputedStyle(button.nativeElement);
+    expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)');
 
-    expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)'); // 'red' is evaluated to rgb in computed style
+    // Supports functional notation like "rgb(255, 0, 0)"
+    mockSurface.theme = {primaryColor: 'rgb(255, 0, 0)'};
+    fixture.detectChanges();
+    button = fixture.debugElement.query(By.css('button'));
+    computedStyle = window.getComputedStyle(button.nativeElement);
+    expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)');
   });
 });

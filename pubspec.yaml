@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ environment:
 workspace:
   - samples/client/flutter/restaurant_finder/app
   - samples/client/flutter/restaurant_finder/e2e_test
+  - dart/a2ui_agent
+  - dart/a2ui_core
 
 flutter:
   uses-material-design: true

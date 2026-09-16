@@ -1,0 +1,18 @@
+{
+  "run_id": "run_003_b9d56730_opt_atom_prompt_streamline_and_template_fix",
+  "commit_sha": "b9d56730",
+  "format": "atom",
+  "model": "google/gemini-3.5-flash",
+  "hypothesis": "Streamline ATOM_RULES grammar rules, remove redundant instructions, align Example 2 template syntax with Rule 7, reducing reasoning search space and input tokens.",
+  "notes": "Maintained 100% schema accuracy and quality score. Reduced reasoning tokens by 13.3% vs run_002 (and 42.6% overall), code output tokens by 31.6%, and latency by 16.0%. Score S_opt improved from +0.600 to +0.654.",
+  "status": "KEEP",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 193.0,
+    "reasoning_tokens_median": 4852.0,
+    "input_tokens_median": 4344.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

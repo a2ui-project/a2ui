@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "recipe-form",
-      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json"
     }
   },
   {
@@ -85,14 +85,17 @@
           "child": "submit-button-text",
           "variant": "primary",
           "action": {
-            "event": {
-              "name": "generate_recipe",
-              "context": {
-                "cookingStyle": {
-                  "path": "/cookingStyle"
-                },
-                "protein": {
-                  "path": "/protein"
+            "functionCall": {
+              "call": "callMcpTool",
+              "args": {
+                "name": "get_recipe_a2ui",
+                "arguments": {
+                  "cookingStyle": {
+                    "path": "/cookingStyle"
+                  },
+                  "protein": {
+                    "path": "/protein"
+                  }
                 }
               }
             }
@@ -104,17 +107,6 @@
           "text": "Get Recipe"
         }
       ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "recipe-form",
-      "path": "/",
-      "value": {
-        "cookingStyle": ["Grilled"],
-        "protein": ["Chicken"]
-      }
     }
   }
 ]

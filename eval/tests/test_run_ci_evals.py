@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -64,9 +64,9 @@ def test_check_threshold_fail() -> None:
 
 def test_build_main_command_default() -> None:
     args = argparse.Namespace(
-        model="google/gemini-3-flash-preview",
+        model="google/gemini-3.8-flash",
         max_samples=100,
-        grading_model="google/gemini-3.5-flash",
+        grading_model="google/gemini-3.8-flash",
     )
     seed = "20260507"
     cmd = build_main_command(args, seed)
@@ -76,7 +76,7 @@ def test_build_main_command_default() -> None:
         "python",
         "main.py",
         "--model",
-        "google/gemini-3-flash-preview",
+        "google/gemini-3.8-flash",
         "--sample-shuffle",
         seed,
         "--log-dir",
@@ -84,7 +84,7 @@ def test_build_main_command_default() -> None:
         "--max-retries",
         "10",
         "--grading-model",
-        "google/gemini-3.5-flash",
+        "google/gemini-3.8-flash",
         "--limit",
         "100",
     ]
@@ -92,9 +92,9 @@ def test_build_main_command_default() -> None:
 
 def test_build_main_command_no_limit() -> None:
     args = argparse.Namespace(
-        model="google/gemini-3-flash-preview",
+        model="google/gemini-3.8-flash",
         max_samples=0,
-        grading_model="google/gemini-3.5-flash",
+        grading_model="google/gemini-3.8-flash",
     )
     seed = "20260507"
     cmd = build_main_command(args, seed)

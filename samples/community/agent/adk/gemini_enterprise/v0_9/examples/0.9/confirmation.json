@@ -1,0 +1,100 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "confirmation",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#FF0000",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": ["confirmation-column"]
+        },
+        {
+          "id": "confirmation-column",
+          "component": "MaterialColumn",
+          "children": [
+            "confirm-title",
+            "confirm-image",
+            "divider1",
+            "confirm-details",
+            "divider2",
+            "confirm-dietary",
+            "divider3",
+            "confirm-text"
+          ]
+        },
+        {
+          "id": "confirm-title",
+          "component": "MaterialText",
+          "usageHint": "h2",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "confirm-image",
+          "component": "MaterialImage",
+          "url": {
+            "path": "/imageUrl"
+          }
+        },
+        {
+          "id": "confirm-details",
+          "component": "MaterialText",
+          "text": {
+            "path": "/bookingDetails"
+          }
+        },
+        {
+          "id": "confirm-dietary",
+          "component": "MaterialText",
+          "text": {
+            "path": "/dietaryRequirements"
+          }
+        },
+        {
+          "id": "confirm-text",
+          "component": "MaterialText",
+          "usageHint": "h5",
+          "text": "We look forward to seeing you!"
+        },
+        {
+          "id": "divider1",
+          "component": "MaterialDivider"
+        },
+        {
+          "id": "divider2",
+          "component": "MaterialDivider"
+        },
+        {
+          "id": "divider3",
+          "component": "MaterialDivider"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "confirmation",
+      "path": "/",
+      "value": {
+        "title": "Booking at [RestaurantName]",
+        "bookingDetails": "[PartySize] people at [Time]",
+        "dietaryRequirements": "Dietary Requirements: [Requirements]",
+        "imageUrl": "[ImageUrl]"
+      }
+    }
+  }
+]

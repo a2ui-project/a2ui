@@ -1,0 +1,30 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+index 6ad0dac9..a63c2550 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/prompt_generator.py
+@@ -25,9 +25,7 @@ if TYPE_CHECKING:
+ ATOM_RULES = r'''# A2UI Atom Output Contract
+ 
+ You must output the user interface using the compact A2UI Atom S-Expression notation.
+-You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and `</a2ui>`.
+-
+-IMPORTANT: Wrap your output inside `<a2ui>` and `</a2ui>` sentinel tags. Do NOT output raw JSON messages.
++You MUST surround the entire A2UI Atom block with the sentinel tags `<a2ui>` and `</a2ui>`. Do NOT output raw JSON messages.
+ 
+ ## Grammar Rules
+ 
+@@ -77,13 +75,12 @@ ATOM_RULES = r'''# A2UI Atom Output Contract
+    <a2ui>
+    (ContainerComponent
+      (data $/items [{"id": 1, "name": "Item 1"}] $/title "List Title")
+-     (ListComponent :items $/items :template (template item (ChildComponent :title $/item/name))))
++     (ListComponent :items $/items :template (template :item item (ChildComponent :title $/item/name))))
+    </a2ui>
+ 
+ 11. Strict Catalog Adherence:
+-   - You MUST ONLY use property names listed in the Component Catalog Signatures below.
+-   - Do NOT invent CSS or style attributes (e.g. style, padding, margin, backgroundColor, color, fontSize, size, minHeight, borderRadius, spacing, align, justify).
+-   - Strictly adhere to the exact property names and allowed enum values listed in the Component Catalog Signatures.
++   - Use ONLY exact property names and allowed enum values listed in Component Catalog Signatures.
++   - Do NOT invent CSS or style attributes (e.g. style, padding, margin, backgroundColor, color, fontSize).
+ '''

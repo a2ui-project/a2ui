@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-import {Injectable, OnDestroy, InjectionToken, inject, EnvironmentInjector} from '@angular/core';
+import {
+  Injectable,
+  OnDestroy,
+  InjectionToken,
+  inject,
+  EnvironmentInjector,
+  EnvironmentProviders,
+  makeEnvironmentProviders,
+} from '@angular/core';
 import {
   MessageProcessor,
   SurfaceGroupModel,
@@ -46,6 +54,25 @@ export interface RendererConfiguration {
 export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
   'A2UI_RENDERER_CONFIG',
 );
+
+/**
+ * Provides the A2UI renderer configuration.
+ *
+ * @param configOrFactory The configuration or a factory function that returns the configuration.
+ * @returns The providers for the A2UI renderer.
+ */
+export function provideA2Ui(
+  configOrFactory: RendererConfiguration | (() => RendererConfiguration),
+): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    {
+      provide: A2UI_RENDERER_CONFIG,
+      ...(typeof configOrFactory === 'function'
+        ? {useFactory: configOrFactory}
+        : {useValue: configOrFactory}),
+    },
+  ]);
+}
 
 /**
  * Manages A2UI v0.9 rendering sessions by bridging the MessageProcessor to Angular.

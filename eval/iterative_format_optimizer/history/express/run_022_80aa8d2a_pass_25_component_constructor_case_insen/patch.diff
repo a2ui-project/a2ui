@@ -1,0 +1,83 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+index b0a1456e..79f22b12 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+@@ -146,6 +146,7 @@ class ExpressCompiler:
+             catalog: A Catalog or an A2uiCatalog.
+         """
+         self.helper = CatalogSchemaHelper(catalog)
++        self._comp_map = {name.lower(): name for name in self.helper.components}
+         self._enum_map = {}
+         for enums in self.helper.component_property_enums.values():
+             for enum_val in enums:
+@@ -347,8 +348,12 @@ class ExpressCompiler:
+         args = ast["args"]
+ 
+         if comp_name not in self.helper.components:
+-            # Not a component, could be a standalone action/helper; skip writing as component
+-            return None
++            matched_name = self._comp_map.get(comp_name.lower())
++            if matched_name:
++                comp_name = matched_name
++            else:
++                # Not a component, could be a standalone action/helper; skip writing as component
++                return None
+ 
+         properties = self.helper.get_component_properties(comp_name)
+         comp_dict = {"id": var_name, "component": comp_name}
+@@ -540,7 +545,10 @@ class ExpressCompiler:
+                     symbol_val = raw_symbols[ref_name]
+                     if (
+                         isinstance(symbol_val, dict)
+-                        and symbol_val.get("call") in self.helper.components
++                        and (
++                            symbol_val.get("call") in self.helper.components
++                            or symbol_val.get("call", "").lower() in self._comp_map
++                        )
+                     ):
+                         return ref_name
+                     return self._compile_value(symbol_val, raw_symbols, ctx, is_action)
+@@ -596,7 +604,12 @@ class ExpressCompiler:
+                 fn_args = val["args"]
+ 
+                 # Is it an inline component constructor?
+-                if fn_name in self.helper.components:
++                fn_comp_name = (
++                    fn_name
++                    if fn_name in self.helper.components
++                    else self._comp_map.get(fn_name.lower())
++                )
++                if fn_comp_name:
+                     ctx.inline_counter += 1
+                     inline_id = f"_inline_{ctx.inline_counter}"
+                     compiled_inline = self._compile_ast_node(
+diff --git a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+index efab29ca..135148f1 100644
+--- a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
++++ b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+@@ -701,6 +701,25 @@ field3 = TextField("Val", "$/form/val")"""
+         self.assertEqual(f2["value"], {"path": "name"})
+         self.assertEqual(f3["value"], {"path": "/form/val"})
+ 
++    def test_case_insensitive_component_matching(self):
++        """Verifies case-insensitive component constructor matching (e.g. column, COLUMN -> Column)."""
++        compiler = ExpressCompiler(self.catalog)
++        dsl = """root = column([repField, valueField])
++repField = textfield("Representative", $/form/rep)
++valueField = TEXTFIELD("Deal Value", $/form/value)"""
++        envelope = compiler.compile(dsl)
++        components = envelope["createSurface"]["components"]
++        self.assertEqual(len(components), 3)
++
++        root_comp = next(c for c in components if c["id"] == "root")
++        self.assertEqual(root_comp["component"], "Column")
++
++        rep_comp = next(c for c in components if c["id"] == "repField")
++        self.assertEqual(rep_comp["component"], "TextField")
++
++        val_comp = next(c for c in components if c["id"] == "valueField")
++        self.assertEqual(val_comp["component"], "TextField")
++
+ 
+ if __name__ == "__main__":
+     unittest.main()

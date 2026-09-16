@@ -94,7 +94,7 @@
   "dependencies": {
     "@a2a-js/sdk": "^0.3.13",
     "@a2ui/lit": "workspace:*",
-    "@a2ui/markdown-it": "*",
+    "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@google/genai": "^2.8.0",
     "@lit-labs/signals": "^0.3.0",

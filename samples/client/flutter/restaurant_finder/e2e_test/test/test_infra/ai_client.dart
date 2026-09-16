@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class DartanticAiClient implements AiClient {
     _provider = dartantic.GoogleProvider(apiKey: apiKey);
     _agent = dartantic.Agent.forProvider(
       _provider,
-      chatModelName: modelName ?? 'gemini-3-flash-preview',
+      chatModelName: modelName ?? 'gemini-3.8-flash',
     );
   }
 

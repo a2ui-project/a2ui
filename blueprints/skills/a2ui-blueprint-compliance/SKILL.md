@@ -17,7 +17,7 @@ This skill guides you through the process of auditing the repository's codebase 
 1. **Run Check Compliance Script**:
    - Run the compliance checker script to generate the baseline status of the repository:
      ```bash
-     python3 .agents/skills/a2ui-blueprint-compliance/scripts/check_compliance.py
+     python3 blueprints/skills/a2ui-blueprint-compliance/scripts/check_compliance.py
      ```
    - This script automatically discovers codebase blueprints, parses their pinned commits, compares them against module blueprints git logs, and formats the baseline Markdown report structure.
 

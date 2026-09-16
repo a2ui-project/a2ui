@@ -1,0 +1,175 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "preferences",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "preferences",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "style": {"height": "450px"},
+          "children": ["main-column"]
+        },
+        {
+          "id": "main-column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "children": ["title", "tabs"]
+        },
+        {
+          "id": "title",
+          "component": "MaterialText",
+          "text": "Preferences",
+          "usageHint": "h2"
+        },
+        {
+          "id": "tabs",
+          "component": "MaterialTabs",
+          "activeTab": {"path": "/activeTab"},
+          "tabs": [
+            {"label": "General", "content": "tab-general"},
+            {"label": "Notifications", "content": "tab-notif"},
+            {"label": "Appearance", "content": "tab-app"}
+          ]
+        },
+        {
+          "id": "tab-general",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "style": {"gap": "12px"},
+          "children": ["lang-select", "auto-update-toggle"]
+        },
+        {
+          "id": "lang-select",
+          "component": "MaterialSelect",
+          "label": "Language",
+          "value": {"path": "/lang"},
+          "options": [
+            {"label": "English", "value": "en"},
+            {"label": "Spanish", "value": "es"},
+            {"label": "French", "value": "fr"}
+          ]
+        },
+        {
+          "id": "auto-update-toggle",
+          "component": "MaterialSlideToggle",
+          "label": "Auto-update components",
+          "checked": {"path": "/autoUpdate"},
+          "color": "primary"
+        },
+        {
+          "id": "tab-notif",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "style": {"gap": "8px"},
+          "children": ["push-toggle", "freq-label", "freq-radio"]
+        },
+        {
+          "id": "push-toggle",
+          "component": "MaterialSlideToggle",
+          "label": "Push Notifications",
+          "checked": {"path": "/pushNotif"},
+          "color": "primary"
+        },
+        {
+          "id": "freq-label",
+          "component": "MaterialText",
+          "text": "Notification Frequency",
+          "usageHint": "h4"
+        },
+        {
+          "id": "freq-radio",
+          "component": "MaterialRadioButton",
+          "value": {"path": "/notifFreq"},
+          "color": "primary",
+          "options": [
+            {"label": "Instant", "value": "instant"},
+            {"label": "Daily Summary", "value": "daily"},
+            {"label": "Weekly Digest", "value": "weekly"}
+          ]
+        },
+        {
+          "id": "tab-app",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "children": [
+            "theme-label",
+            "theme-toggle",
+            "volume-label",
+            "volume-slider",
+            "cuisine-chips"
+          ]
+        },
+        {
+          "id": "theme-label",
+          "component": "MaterialText",
+          "text": "Theme",
+          "usageHint": "h4"
+        },
+        {
+          "id": "theme-toggle",
+          "component": "MaterialButtonToggle",
+          "value": {"path": "/theme"},
+          "options": [
+            {"label": "Light", "value": "light"},
+            {"label": "Dark", "value": "dark"}
+          ]
+        },
+        {
+          "id": "volume-label",
+          "component": "MaterialText",
+          "text": "UI Volume",
+          "usageHint": "h4"
+        },
+        {
+          "id": "volume-slider",
+          "component": "MaterialSlider",
+          "value": {"path": "/volume"},
+          "min": 0,
+          "max": 100,
+          "step": 10,
+          "color": "primary"
+        },
+        {
+          "id": "cuisine-chips",
+          "component": "MaterialChips",
+          "value": {"path": "/tags"},
+          "ariaLabel": "Interests",
+          "options": [
+            {"label": "News", "value": "news"},
+            {"label": "Sports", "value": "sports"},
+            {"label": "Tech", "value": "tech"}
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "preferences",
+      "path": "/",
+      "value": {
+        "activeTab": 0,
+        "lang": "en",
+        "autoUpdate": true,
+        "pushNotif": true,
+        "notifFreq": "daily",
+        "theme": "light",
+        "volume": 80,
+        "tags": "tech"
+      }
+    }
+  }
+]

@@ -1,0 +1,75 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "orders",
+      "catalogId": "https://a2ui.org/specification/v0_9/material_catalog.json",
+      "theme": {
+        "primaryColor": "#1a73e8",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "orders",
+      "components": [
+        {
+          "id": "root",
+          "component": "MaterialCard",
+          "children": ["main-column"]
+        },
+        {
+          "id": "main-column",
+          "component": "MaterialColumn",
+          "align": "stretch",
+          "children": ["header", "filter-chips", "table"]
+        },
+        {
+          "id": "header",
+          "component": "MaterialText",
+          "text": "Recent Orders",
+          "usageHint": "h2"
+        },
+        {
+          "id": "filter-chips",
+          "component": "MaterialChips",
+          "value": {"path": "/filter"},
+          "ariaLabel": "Filter orders",
+          "options": [
+            {"label": "All", "value": "all"},
+            {"label": "Completed", "value": "comp"},
+            {"label": "Pending", "value": "pend"}
+          ]
+        },
+        {
+          "id": "table",
+          "component": "MaterialTable",
+          "rows": {"path": "/orders"},
+          "columns": [
+            {"header": "Order #", "field": "id"},
+            {"header": "Item", "field": "item"},
+            {"header": "Status", "field": "status"},
+            {"header": "Total", "field": "total"}
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "orders",
+      "path": "/",
+      "value": {
+        "filter": "all",
+        "orders": [
+          {"id": "ORD-101", "item": "Wireless Mouse", "status": "Shipped", "total": "$29.99"},
+          {"id": "ORD-102", "item": "Mechanical Keyboard", "status": "Pending", "total": "$149.50"},
+          {"id": "ORD-103", "item": "USB-C Hub", "status": "Delivered", "total": "$45.00"}
+        ]
+      }
+    }
+  }
+]

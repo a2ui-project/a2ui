@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -516,6 +516,48 @@ class TestElementalParser(unittest.TestCase):
         html_output = decompiler.decompile(envelope)
         self.assertIn("on-press=\"{Event('press')}\"", html_output)
         self.assertIn("on-ongoing=\"{Event('going')}\"", html_output)
+
+    def test_decompile_call_and_dict_expressions(self):
+        """Test decompilation of call objects and arbitrary dict expressions in Elemental format."""
+        decompiler = ElementalParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "txt_1",
+                    "component": "Text",
+                    "text": {
+                        "call": "formatDate",
+                        "args": {"value": {"path": "created_at"}},
+                    },
+                    "custom_dict": {"key_one": "val1", "key with space": "val2"},
+                }],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn("formatDate", html_output)
+        self.assertIn("key_one", html_output)
+
+    def test_decompile_contracted_options(self):
+        """Test decompilation of contractable options list where label equals value."""
+        decompiler = ElementalParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "picker_1",
+                    "component": "ChoicePicker",
+                    "options": [
+                        {"label": "opt1", "value": "opt1"},
+                        {"label": "opt2", "value": "opt2"},
+                    ],
+                }],
+            },
+        }
+        html_output = decompiler.decompile(envelope)
+        self.assertIn("options", html_output)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Streamline catalog component signature property detail descriptions to minimize input token overhead and reasoning search space.",
+  "notes": "Input Tokens reduced by -46.3% (2,389 vs 4,447) and Reasoning Tokens by -32.4% (3,212 vs 4,753), but Schema Acc and Quality Score regressed from 100.0% to 75.0% (-25.0%) due to missing property context. Reverted per Rule 1.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 8.78,
+    "total_samples": 6
+  }
+}

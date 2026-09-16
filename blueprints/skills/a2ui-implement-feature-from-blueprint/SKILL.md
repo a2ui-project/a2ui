@@ -20,6 +20,7 @@ This skill provides step-by-step instructions on implementing feature specificat
   git diff <module_blueprint_commit>..HEAD blueprints/modules/<associated_module>.blueprint.md
   ```
 - If implementing an optional feature blueprint from `blueprints/features/<feature_name>.blueprint.md`, check its `dependencies` list first.
+- Verify that terms used in code, documentation and blueprints are consistent with [the glossary](../../../docs/public/concepts/glossary.md). If you find deviations, suggest fixes. If you see an important term is used in documentation and/or API, but is missing from the glossary, suggest an update for the glossary.
 
 ### **Step 2: Execute Implementation & Conformance Tests**
 

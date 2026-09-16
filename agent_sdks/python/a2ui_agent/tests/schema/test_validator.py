@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -637,3 +637,11 @@ class TestValidator:
         single_refs, list_refs = ref_map["MyComp"]
         assert "ref" in single_refs
         assert "multi" in list_refs
+
+    def test_schema_validator_deprecated_export_wrap_as_json_array(self):
+        with pytest.warns(
+            DeprecationWarning, match="a2ui.schema.validator is deprecated"
+        ):
+            from a2ui.schema.validator import wrap_as_json_array
+        res = wrap_as_json_array({"type": "object"})
+        assert res == {"type": "array", "items": {"type": "object"}}

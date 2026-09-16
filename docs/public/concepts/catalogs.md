@@ -95,6 +95,7 @@ Here is a simple catalog defining a single component.
 ```json
 {
   "$id": "https://github.com/.../hello_world/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world/v1/catalog.json",
   "components": {
     "HelloWorldBanner": {
       "type": "object",
@@ -164,6 +165,7 @@ This catalog imports all elements from the Basic Catalog and adds a new `Suggest
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
   "components": {
     "allOf": [
       {"$ref": "basic_catalog_definition.json#/components"},
@@ -194,6 +196,7 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
   "components": {
     "allOf": [
       {"$ref": "catalogs/basic/catalog.json#/components/Text"},
@@ -218,48 +221,71 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
 
 Client renderers implement the catalog by mapping the schema definition to actual code.
 
-Example typescript renderer for the hello world catalog
+First, define the component API in TypeScript matching your catalog schema:
 
 ```typescript
-import {Catalog, DEFAULT_CATALOG} from '@a2ui/angular';
-import {inputBinding} from '@angular/core';
+// api.ts
+import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
-export const RIZZ_CHARTS_CATALOG = {
-  ...DEFAULT_CATALOG, // Include the basic catalog
-  HelloWorldBanner: {
-    type: () => import('./hello_world_banner').then(r => r.HelloWorldBanner),
-    bindings: ({properties}) => [
-      inputBinding(
-        'message',
-        () => ('message' in properties && properties['message']) || undefined,
-      ),
-    ],
-  },
-} as Catalog;
+export const HelloWorldBannerApi = {
+  name: 'HelloWorldBanner',
+  schema: z.object({
+    message: z.string(),
+    backgroundColor: z.string().default('#f0f0f0'),
+  }).strict(),
+} satisfies ComponentApi;
 ```
 
-and the hello_world_banner implementation
+Next, implement the component extending `CatalogComponent`:
 
 ```typescript
-import {DynamicComponent} from '@a2ui/angular';
-import {Component, Input} from '@angular/core';
+// hello_world_banner.ts
+import {CatalogComponent} from '@a2ui/angular/v0_9';
+import {Component, computed} from '@angular/core';
+import {HelloWorldBannerApi} from './api';
 
 @Component({
   selector: 'hello-world-banner',
-  imports: [],
   template: `
-    <div>
+    <div [style.background-color]="backgroundColor()">
       <h2>Hello World Banner</h2>
-      <p>{{ message }}</p>
+      <p>{{ message() }}</p>
     </div>
   `,
 })
-export class HelloWorldBanner extends DynamicComponent {
-  @Input() message?: string;
+export class HelloWorldBanner extends CatalogComponent<typeof HelloWorldBannerApi> {
+  protected readonly message = computed(() => this.props()['message']?.value() || '');
+  protected readonly backgroundColor = computed(() => this.props()['backgroundColor']?.value() || '#f0f0f0');
 }
 ```
 
+Finally, register your custom components in an `AngularCatalog`:
+
+```typescript
+// catalog.ts
+import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
+import {HelloWorldBanner} from './hello_world_banner';
+import {HelloWorldBannerApi} from './api';
+
+const customBannerComponent = {
+  ...HelloWorldBannerApi,
+  component: HelloWorldBanner
+};
+
+export const MY_CATALOG = new AngularCatalog(
+  'https://github.com/.../hello_world/v1/catalog.json',
+  [...BASIC_COMPONENTS, customBannerComponent],
+  BASIC_FUNCTIONS
+);
+```
+
 You can see a working example of a client renderer in the [Orchestrator demo](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
+
+> [!NOTE]
+> The Orchestrator demo currently uses v0.8 APIs. For a v0.9 example of catalog registration, see the [DemoCatalog](../../../renderers/angular/a2ui_explorer/src/app/demo-catalog.ts) in the Angular explorer.
+>
+> Additionally, for client-side functions, the client determines the function's execution boundary (such as `clientOnly` status) at runtime by reading its configuration from the active catalog definition.
 
 ## A2UI Catalog Negotiation
 
@@ -342,49 +368,54 @@ The `catalogId` is a unique text identifier used for negotiation between the cli
 - **Format:** While the `catalogId` is technically a string, the A2UI convention is to use a **URI** (e.g., `https://example.com/catalogs/mysurface/v1/catalog.json`).
 - **Purpose:** We use URIs to make the ID globally unique and easy for human developers to inspect in a browser.
 - **No Runtime Fetching:** This URI does not imply that the agent or client downloads the catalog at runtime. **The catalog definition must be known to the agent and client beforehand (at compile/deploy time)**. The URI serves only as a stable identifier.
+- **JSON Schema Compatibility (`$id` and `catalogId`):** Because A2UI catalogs are currently represented as JSON Schema documents, catalog definitions should include both `$id` (for JSON Schema tooling) and `catalogId` (for A2UI SDKs and catalog negotiation), setting both fields to the same URI.
 
 ### Versioning Guidelines
 
-To support continuous evolution without breaking older clients or agents, A2UI categorizes catalog updates based on whether the changes are **safe to ignore**.
+Catalogs should be treated like APIs where version skew between agents and renderers is expected. Catalogs must maintain forward and backward compatibility across versions so that agents, renderers, and templates can evolve without breaking active sessions or stored transcripts.
 
-While standard JSON parsers ignore unknown fields, dropping a component in a Server-Driven UI can drop its entire view tree. To balance safety and flexibility, updates are split into **Breaking** and **Non-Breaking** categories, relying on **Graceful Degradation** to absorb version lags.
+#### Catalog Schema Evolution Rules
 
-- **Breaking Changes (Major Version Bump Required)**  
-  Any change that alters structure in a way that cannot be safely ignored by older clients incrementing the **Major** version in the `catalogId` URI (e.g., `v1` to `v2`).
-    - **Adding a container component:** e.g., adding a `Grid` or `Accordion` component. If an older client ignores a container, it will drop all of its children, breaking the UI tree.
-    - **Removing a container component:** e.g., removing a `Grid` or `Accordion` component. If an older agent uses the container it would be ignored by the client, and the client would drop all of its children, breaking the UI tree.
-    - **Changing field types:** e.g., changing a property from a `string` to an `object`. This will fail JSON Schema validation on older clients.
-    - **Adding a required property:** without a default value, as older agents won't know to send it.
+To maintain backward and forward compatibility, the following rules apply:
 
-- **Non-Breaking Changes (Allowable under Major Version)**  
-  Changes that can be safely ignored or degrade gracefully without breaking the layout or data model can stay at the current version.
-    - **Adding a leaf component (non-container):** e.g., adding `Badge` or `Tooltip`. If ignored, the layout remains intact.
-    - **Adding an optional property:** e.g., adding `subtitle` to a Card.
-    - **Removing a property:** Safe for the client to ignore if the agent stops sending it.
-    - **Adding new functions or styles:** These can generally be ignored without changing the semantic meaning of the component.
-    - **Metadata Changes:** Updating `description` fields or fixing typos in docs requires no version bump and has no impact on runtime.
+1. **Additive Only**: It's safe to add new components, functions, or optional properties.
+2. **Deprecate Rather than Delete**: Never delete existing components, functions, or properties. Mark them `deprecated: true` along with an `x-deprecated-reason` instead. Renderers should retain handling logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
+3. **Type Invariance**: Renderers may ignore fields that change the type of existing fields. Catalogs should avoid changing the data type of an existing field. Note that add enum to a string doesn't change the type and won't break anything since enums are expected to be open.
+4. **Open Enums**: Treat enum definitions as open so older renderers do not fail when new enum variants are introduced upstream. Catalogs declare enums normally, just the renderer implementation should handle unknown enum variants.
+5. **Graceful Degradation**: Renderers should provide a graceful fallback for unknown components instead of failing the entire view hierarchy or surface.
+6. **Round-Trip Unknown Component/Field Preservation**: Intermediary services such as orchestrators should preserve unknown properties when serializing/deserializing messages.
+7. **Major Version Bumps**: Reserve major catalog version bumps strictly for sweeping cleanups (e.g., removing long-deprecated fields) or fundamentally breaking structural changes.
 
-### Graceful Degradation
+#### Deprecating Catalog Properties
 
-**Non-Breaking changes rely on Graceful Degradation.** If an Agent uses a new component/property on an older client, the client **MUST** handle it gracefully (e.g., ignoring it or rendering a text fallback or a "Not Supported" placeholder) rather than crashing. The client may also report a validation error back to the agent, allowing the agent to self-correct and downgrade the UI automatically.
+When deprecating an existing component, function, or property:
 
-#### Examples of Graceful Degradation
+- **`deprecated`** (boolean, optional): Standard JSON Schema annotation indicating that a component, function, or property is deprecated.
+- **`x-deprecated-reason`** (string, optional): Human-readable explanation of why the entity is deprecated and what to use instead.
 
-Here is how catalog version mismatches are handled in practice:
+```json
+{
+  "TextBox": {
+    "type": "object",
+    "properties": {
+      "color": {
+        "type": "string",
+        "description": "Icon color specification.",
+        "deprecated": true,
+        "x-deprecated-reason": "Use style property to set color using CSS."
+      },
+      "style": {
+        "type": "string",
+        "description": "CSS properties such as color."
+      }
+    }
+  }
+}
+```
 
-- **An old iOS client is using an older catalog than the agent**
-    - The agent sends a new component `Badge` that the old iOS client doesn't know about. The client renders a generic textbox placeholder or safe text description for it, keeping the rest of the interface functional.
-    - The agent sends a new property `badge` on a `Button` that an old client doesn't know about. The client safely ignores it and renders the standard button.
-    - The agent no longer sends the `Facepile` component that was removed in a later catalog version. This causes no issues for the client.
+### Major Version Bumps with CatalogId
 
-- **A web client rolls out a new catalog version ahead of the agent**
-    - The web client supports the new `Badge` component, but the agent doesn't know about it yet.
-    - The web client removed the `badge` property on `Button`, so it ignores it if the agent sends it.
-    - The web client added new styles for `Button` that the agent doesn't know about. Again this causes no issues as the agent doesn't use them.
-
-### Versioning with CatalogId
-
-We recommend including the version in the catalogId. This allows using A2UI catalog negotiation to support multiple versions simultaneously during a migration, ensuring zero downtime.
+When introducing fundamentally breaking changes that necessitate a major version bump, include the version in the `catalogId` URI. This allows using A2UI catalog negotiation to support multiple versions simultaneously during a migration, ensuring zero downtime.
 
 **Recommended Pattern:**
 
@@ -395,9 +426,9 @@ We recommend including the version in the catalogId. This allows using A2UI cata
 
 ### Handling Migrations
 
-To upgrade a catalog without breaking active agents, use A2UI Catalog Negotiation:
+To upgrade a catalog across major versions without breaking active agents, use A2UI Catalog Negotiation:
 
-1. **Client Update:** The client updates its list of supportedCatalogIds to include _both_ the old and new versions (e.g., [".../v2/...", ".../v1/..."]).
+1. **Client Update:** The client updates its list of `supportedCatalogIds` to include _both_ the old and new versions (e.g., `[".../v2/...", ".../v1/..."]`).
 2. **Agent Update:** Agents are rebuilt with the v2 schema. When they see the client supports v2, they prefer it.
 3. **Legacy Support:** Older agents that have not yet been rebuilt will continue to match against v1 in the client's list, ensuring they remain functional.
 

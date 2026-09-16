@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@ import pytest
 
 def _get_conformance_path(filename):
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../../conformance", filename)
+        os.path.join(os.path.dirname(__file__), "../../../../../conformance", filename)
     )
 
 
 def load_tests(filename):
-    path = _get_conformance_path(os.path.join("suites", filename))
+    path = _get_conformance_path(filename)
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -35,7 +35,7 @@ def get_conformance_cases(filename):
 
 
 # --- A2A Integration Conformance ---
-cases_a2a_integration = get_conformance_cases("a2a_integration.yaml")
+cases_a2a_integration = get_conformance_cases("extensions/a2a/a2a_integration.yaml")
 
 
 @pytest.mark.parametrize(

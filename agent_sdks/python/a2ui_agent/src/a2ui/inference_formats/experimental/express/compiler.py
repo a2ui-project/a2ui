@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,10 +29,26 @@ from .generated.express_parser import ExpressParser
 from .visitor import ExpressAstVisitor, ExpressErrorListener
 from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
+from .errors import (
+    ExpressCompilerError,
+    ExpressUnknownPropertyError,
+    ExpressDuplicatePropertyError,
+    ExpressInvalidParamError,
+    ExpressDuplicateParamError,
+    ExpressForbiddenDatabindingError,
+    ExpressUndefinedRootError,
+    ExpressUndefinedChildError,
+)
 
 
 def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
-    """Populates a nested dictionary path from a JSON pointer-like string."""
+    """Populates a nested dictionary path from a JSON pointer-like string.
+
+    Args:
+        d: The target dictionary to mutate.
+        path_str: The data path string (e.g. "$/user/name").
+        val: The value to set at the specified path.
+    """
     if path_str.startswith("$/"):
         clean_path = path_str[2:]
     elif path_str.startswith("$"):
@@ -53,7 +69,14 @@ def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
 
 
 def _schema_allows_databinding(schema: Any) -> bool:
-    """Recursively checks if a property's schema allows a dynamic DataBinding ref."""
+    """Recursively checks if a property's schema allows a dynamic DataBinding ref.
+
+    Args:
+        schema: The JSON schema dict for the target property.
+
+    Returns:
+        True if the schema permits dynamic databinding; False otherwise.
+    """
     if not isinstance(schema, dict):
         return False
     if "$ref" in schema:
@@ -71,6 +94,26 @@ def _schema_allows_databinding(schema: Any) -> bool:
             for sub in schema[key]:
                 if _schema_allows_databinding(sub):
                     return True
+    return False
+
+
+def _has_databinding(v: Any) -> bool:
+    """Recursively checks if a value structure contains a dynamic DataBinding ($path) ref.
+
+    Args:
+        v: The value (dict, list, or primitive) to inspect.
+
+    Returns:
+        True if a dynamic DataBinding is found; False otherwise.
+    """
+    if isinstance(v, dict):
+        if "call" in v or "event" in v or "functionCall" in v:
+            return False
+        if "path" in v and "componentId" not in v:
+            return True
+        return any(_has_databinding(x) for x in v.values())
+    if isinstance(v, list):
+        return any(_has_databinding(x) for x in v)
     return False
 
 
@@ -125,6 +168,16 @@ class _CompileContext:
         self.active_value_path: Optional[dict] = None
 
 
+class _SurfaceScope:
+    """Holds symbols and data path assignments for a target surface scope."""
+
+    def __init__(self, surface_id: str, catalog_id: Optional[str] = None):
+        self.surface_id = surface_id
+        self.catalog_id = catalog_id
+        self.raw_symbols: dict[str, Any] = {}
+        self.data_path_assignments: dict[str, Any] = {}
+
+
 class ExpressCompiler:
     """Compilation pipeline for A2UI Express.
 
@@ -138,13 +191,16 @@ class ExpressCompiler:
     def __init__(
         self,
         catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        version: str = "v1.0",
     ):
         """Initializes the compiler with the specified catalog.
 
         Args:
             catalog: A Catalog or an A2uiCatalog.
+            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
         self.helper = CatalogSchemaHelper(catalog)
+        self.version = version
 
     def compile(
         self,
@@ -152,20 +208,25 @@ class ExpressCompiler:
         surface_id: str = "default_surface",
         catalog_id: str = "",
         is_final: bool = True,
-    ) -> dict:
-        """Compiles plain A2UI Express DSL into standard A2UI v1.0 wire JSON.
+        version: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        """Compiles plain A2UI Express DSL into standard A2UI wire JSON.
 
         Args:
             dsl_text: The source A2UI Express DSL text block.
             surface_id: The unique identifier for the compiled user interface surface.
             catalog_id: The URI/identifier of the schema catalog to reference.
+            is_final: Whether this is the final compilation pass.
+            version: Target version override ("v0.9", "v0.9.1", or "v1.0").
 
         Returns:
-            The standard A2UI v1.0 JSON envelope.
+            A list of standard A2UI wire JSON message dicts.
 
         Raises:
-            ValueError: If the root component variable is missing.
+            ValueError: If the root component variable is missing or unsupported features are used.
+            ExpressCompilerError: If a component property, parameter, databinding, or reference is invalid.
         """
+        target_version = version or self.version
         ctx = _CompileContext()
         # Detect if sentinel tags exist in the input
         has_sentinels = "<a2ui>" in dsl_text
@@ -224,101 +285,184 @@ class ExpressCompiler:
                     raise e
                 raise ValueError(f"Failed to parse expression: {e}") from e
 
-        raw_symbols = {}
-        data_path_assignments = {}
+        scopes: list[_SurfaceScope] = []
+        current_scope: Optional[_SurfaceScope] = None
         target_delete_surface_id = None
         standalone_function_calls = []
 
         for stmt in statements:
             stmt_type, *stmt_args = stmt
-            if stmt_type == "ASSIGN":
-                var_name, parsed_val = stmt_args
-                if var_name.startswith("$"):
-                    data_path_assignments[var_name] = parsed_val
-                else:
-                    raw_symbols[var_name] = parsed_val
-            elif stmt_type == "EXPR":
+            if stmt_type == "EXPR":
                 parsed_val = stmt_args[0]
-                if (
+                if isinstance(parsed_val, dict) and parsed_val.get("call") == "surface":
+                    args = parsed_val.get("args", [])
+                    kwargs = parsed_val.get("kwargs", {})
+                    target_surf = (
+                        kwargs.get("surfaceId")
+                        if isinstance(kwargs, dict)
+                        and isinstance(kwargs.get("surfaceId"), str)
+                        else (
+                            args[0]
+                            if isinstance(args, list)
+                            and args
+                            and isinstance(args[0], str)
+                            else surface_id
+                        )
+                    )
+                    target_cat = (
+                        kwargs.get("catalogId")
+                        if isinstance(kwargs, dict)
+                        and isinstance(kwargs.get("catalogId"), str)
+                        else (
+                            args[1]
+                            if isinstance(args, list)
+                            and len(args) > 1
+                            and isinstance(args[1], str)
+                            else catalog_id
+                        )
+                    )
+
+                    current_scope = _SurfaceScope(
+                        surface_id=target_surf, catalog_id=target_cat
+                    )
+                    scopes.append(current_scope)
+                elif (
                     isinstance(parsed_val, dict)
                     and parsed_val.get("call") == "deleteSurface"
                 ):
                     args = parsed_val.get("args", [])
-                    if args and isinstance(args[0], str):
+                    kwargs = parsed_val.get("kwargs", {})
+                    if isinstance(args, list) and args and isinstance(args[0], str):
                         target_delete_surface_id = args[0]
+                    elif isinstance(kwargs, dict) and isinstance(
+                        kwargs.get("surfaceId"), str
+                    ):
+                        target_delete_surface_id = kwargs["surfaceId"]
                 elif isinstance(parsed_val, dict) and "call" in parsed_val:
-                    standalone_function_calls.append(parsed_val)
-
-        # Compile data model paths
-        data_model = {}
-        for path_name, ast_val in data_path_assignments.items():
-            compiled_val = self._compile_value(ast_val, raw_symbols, ctx)
-            _set_nested_path(data_model, path_name, compiled_val)
+                    standalone_function_calls.append((parsed_val, current_scope))
+            elif stmt_type == "ASSIGN":
+                var_name, parsed_val = stmt_args
+                if current_scope is None:
+                    current_scope = _SurfaceScope(
+                        surface_id=surface_id, catalog_id=catalog_id
+                    )
+                    scopes.append(current_scope)
+                if var_name.startswith("$"):
+                    current_scope.data_path_assignments[var_name] = parsed_val
+                else:
+                    current_scope.raw_symbols[var_name] = parsed_val
 
         if target_delete_surface_id is not None:
-            return {
-                "version": "v1.0",
+            return [{
+                "version": target_version,
                 SurfaceOperation.DELETE: {"surfaceId": target_delete_surface_id},
-            }
+            }]
 
         if standalone_function_calls:
-            first_call = standalone_function_calls[0]
+            if target_version in ("v0.9", "v0.9.1"):
+                raise ValueError(
+                    "Standalone function calls are not supported in A2UI"
+                    f" {target_version}"
+                )
+            first_call, call_scope = standalone_function_calls[0]
             ctx.inline_counter += 1
+            raw_syms = call_scope.raw_symbols if call_scope else {}
             compiled_val = self._compile_value(
-                first_call, raw_symbols, ctx, is_action=False
+                first_call, raw_syms, ctx, is_action=False
             )
-            return {
-                "version": "v1.0",
+
+            return [{
+                "version": target_version,
                 "functionCallId": f"call_{ctx.inline_counter}",
                 SurfaceOperation.CALL_FUNC: {
                     "call": compiled_val.get("call"),
                     "args": compiled_val.get("args", {}),
                 },
-            }
+            }]
 
-        compiled_components = []
+        if not scopes:
+            raise ExpressUndefinedRootError("root")
 
-        # Adjacency list flattening starting at root
-        if "root" not in raw_symbols:
-            if data_path_assignments:
-                return {
-                    "version": "v1.0",
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surface_id,
-                        "path": "/",
-                        "value": data_model,
+        result_messages = []
+
+        for scope in scopes:
+            scope_surf_id = scope.surface_id
+            scope_cat_id = (
+                scope.catalog_id
+                or catalog_id
+                or self.helper.catalog.get("catalogId", "https://a2ui.org/catalog.json")
+            )
+
+            # Compile data model paths
+            data_model = {}
+            for path_name, ast_val in scope.data_path_assignments.items():
+                compiled_val = self._compile_value(ast_val, scope.raw_symbols, ctx)
+                _set_nested_path(data_model, path_name, compiled_val)
+
+            if "root" not in scope.raw_symbols:
+                if scope.data_path_assignments:
+                    result_messages.append({
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_DATA: {
+                            "surfaceId": scope_surf_id,
+                            "path": "/",
+                            "value": data_model,
+                        },
+                    })
+                    continue
+                raise ExpressUndefinedRootError("root")
+
+            compiled_components = []
+            for var_name, ast in scope.raw_symbols.items():
+                comp_dict = self._compile_ast_node(
+                    var_name, ast, scope.raw_symbols, ctx
+                )
+                if comp_dict:
+                    compiled_components.append(comp_dict)
+
+            compiled_components.extend(ctx.extra_components)
+            ctx.extra_components = []
+
+            if target_version in ("v0.9", "v0.9.1"):
+                result_messages.extend([
+                    {
+                        "version": target_version,
+                        SurfaceOperation.CREATE: {
+                            "surfaceId": scope_surf_id,
+                            "catalogId": scope_cat_id,
+                        },
+                    },
+                    {
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_COMPONENTS: {
+                            "surfaceId": scope_surf_id,
+                            "components": compiled_components,
+                        },
+                    },
+                ])
+                if data_model:
+                    result_messages.append({
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_DATA: {
+                            "surfaceId": scope_surf_id,
+                            "path": "/",
+                            "value": data_model,
+                        },
+                    })
+            else:
+                envelope = {
+                    "version": target_version,
+                    SurfaceOperation.CREATE: {
+                        "surfaceId": scope_surf_id,
+                        "catalogId": scope_cat_id,
+                        "components": compiled_components,
                     },
                 }
-            raise ValueError(
-                "A2UI Express source must define a 'root' variable or have data model"
-                " path assignments."
-            )
+                if data_model:
+                    envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
+                result_messages.append(envelope)
 
-        for var_name, ast in raw_symbols.items():
-            comp_dict = self._compile_ast_node(var_name, ast, raw_symbols, ctx)
-            if comp_dict:
-                compiled_components.append(comp_dict)
-
-        compiled_components.extend(ctx.extra_components)
-
-        # Resolve catalog ID
-        if not catalog_id:
-            catalog_id = self.helper.catalog.get(
-                "catalogId", "https://a2ui.org/catalog.json"
-            )
-
-        envelope = {
-            "version": "v1.0",
-            SurfaceOperation.CREATE: {
-                "surfaceId": surface_id,
-                "catalogId": catalog_id,
-                "components": compiled_components,
-            },
-        }
-        if data_model:
-            envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
-
-        return envelope
+        return result_messages
 
     def _compile_ast_node(
         self, var_name: str, ast: Any, raw_symbols: dict, ctx: _CompileContext
@@ -338,7 +482,8 @@ class ExpressCompiler:
             return None
 
         comp_name = ast["call"]
-        args = ast["args"]
+        args = ast.get("args", [])
+        kwargs = ast.get("kwargs", {})
 
         if comp_name not in self.helper.components:
             # Not a component, could be a standalone action/helper; skip writing as component
@@ -353,7 +498,8 @@ class ExpressCompiler:
         non_check_properties = [p for p in properties if p != "checks"]
         raw_checks = []
 
-        # Map positional arguments
+        # Collect (prop_name, arg_val) pairs from positional and keyword args
+        prop_arg_pairs = []
         prop_idx = 0
         for arg in args:
             if _is_check_expression(arg):
@@ -364,64 +510,62 @@ class ExpressCompiler:
                 continue
 
             if prop_idx < len(non_check_properties):
-                prop_name = non_check_properties[prop_idx]
+                prop_arg_pairs.append((non_check_properties[prop_idx], arg))
                 prop_idx += 1
 
-                if isinstance(arg, dict) and arg.get("skipped"):
-                    comp_dict[prop_name] = None
-                    continue
+        for k, v in kwargs.items():
+            if _is_check_expression(v):
+                if isinstance(v, list):
+                    raw_checks.extend(v)
+                else:
+                    raw_checks.append(v)
+                continue
+            prop_arg_pairs.append((k, v))
 
-                mapped_val = self._compile_value(
-                    arg,
-                    raw_symbols,
-                    ctx,
-                    is_action=(prop_name in ["action", "submitAction"]),
-                )
-                prop_schema = self.helper.get_property_schema(comp_name, prop_name)
-                if prop_schema and not _schema_allows_databinding(prop_schema):
+        seen_properties = set()
+        for prop_name, arg in prop_arg_pairs:
+            if prop_name not in properties:
+                raise ExpressUnknownPropertyError(comp_name, prop_name, properties)
+            if prop_name in seen_properties:
+                raise ExpressDuplicatePropertyError(comp_name, prop_name)
+            seen_properties.add(prop_name)
+            if arg == {"skipped": True}:
+                comp_dict[prop_name] = None
+                continue
 
-                    def has_databinding(v: Any) -> bool:
-                        if isinstance(v, dict):
-                            if "call" in v or "event" in v or "functionCall" in v:
-                                return False
-                            if "path" in v and "componentId" not in v:
-                                return True
-                            return any(has_databinding(x) for x in v.values())
-                        if isinstance(v, list):
-                            return any(has_databinding(x) for x in v)
-                        return False
-
-                    if has_databinding(mapped_val):
-                        raise ValueError(
-                            f"Property '{prop_name}' of component '{comp_name}' does"
-                            " not support dynamic data bindings (paths). You must"
-                            " provide a static value/array instead."
-                        )
-                    if isinstance(mapped_val, list) and _schema_expects_option_objects(
-                        prop_schema
-                    ):
-                        mapped_val = [
-                            {"label": opt, "value": opt}
-                            if isinstance(opt, str)
-                            else opt
-                            for opt in mapped_val
-                        ]
-                enum_vals = self.helper.get_property_enum(comp_name, prop_name)
-                if enum_vals and isinstance(mapped_val, str):
-                    if mapped_val not in enum_vals:
-                        raise ValueError(
-                            f"Value '{mapped_val}' is not a valid enum choice for"
-                            f" property '{prop_name}' of component '{comp_name}'."
-                            f" Allowed values are: {enum_vals}"
-                        )
-                comp_dict[prop_name] = mapped_val
-
-                if (
-                    prop_name == "value"
-                    and isinstance(mapped_val, dict)
-                    and "path" in mapped_val
+            mapped_val = self._compile_value(
+                arg,
+                raw_symbols,
+                ctx,
+                is_action=(prop_name in ["action", "submitAction"]),
+            )
+            prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+            if prop_schema and not _schema_allows_databinding(prop_schema):
+                if _has_databinding(mapped_val):
+                    raise ExpressForbiddenDatabindingError(comp_name, prop_name)
+                if isinstance(mapped_val, list) and _schema_expects_option_objects(
+                    prop_schema
                 ):
-                    sibling_value_path = mapped_val
+                    mapped_val = [
+                        {"label": opt, "value": opt} if isinstance(opt, str) else opt
+                        for opt in mapped_val
+                    ]
+            enum_vals = self.helper.get_property_enum(comp_name, prop_name)
+            if enum_vals and isinstance(mapped_val, str):
+                if mapped_val not in enum_vals:
+                    raise ValueError(
+                        f"Value '{mapped_val}' is not a valid enum choice for"
+                        f" property '{prop_name}' of component '{comp_name}'."
+                        f" Allowed values are: {enum_vals}"
+                    )
+            comp_dict[prop_name] = mapped_val
+
+            if (
+                prop_name == "value"
+                and isinstance(mapped_val, dict)
+                and "path" in mapped_val
+            ):
+                sibling_value_path = mapped_val
 
         # Set active path for nested check compile resolution
         ctx.active_value_path = sibling_value_path
@@ -631,6 +775,7 @@ class ExpressCompiler:
                 # Is it a regular catalog function?
                 if fn_name in self.helper.functions:
                     fn_props = self.helper.get_function_properties(fn_name)
+                    fn_kwargs = val.get("kwargs", {})
                     compiled_args = {}
                     for idx, arg in enumerate(fn_args):
                         if idx < len(fn_props):
@@ -641,6 +786,17 @@ class ExpressCompiler:
                             )
                             if val_item is not None:
                                 compiled_args[fn_props[idx]] = val_item
+
+                    for k, v in fn_kwargs.items():
+                        if k not in fn_props:
+                            raise ExpressInvalidParamError(fn_name, k, fn_props)
+                        if k in compiled_args:
+                            raise ExpressDuplicateParamError(fn_name, k)
+                        if v == {"skipped": True}:
+                            continue
+                        val_item = self._compile_value(v, raw_symbols, ctx, is_action)
+                        if val_item is not None:
+                            compiled_args[k] = val_item
 
                     # Wrap in functionCall only if inside an action field
                     if is_action:

@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 9: Template variable unwrap in compiler.py",
+  "status": "Backtracked",
+  "notes": "Pytest unit test collection failed and output tokens expanded by +13.5% (exceeding 5% limit).",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 257.0,
+    "reasoning_tokens_median": 2280.5,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 12.951835209969431,
+    "total_samples": 6
+  }
+}

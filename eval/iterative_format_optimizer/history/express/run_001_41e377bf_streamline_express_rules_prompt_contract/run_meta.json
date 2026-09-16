@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Streamline EXPRESS_RULES prompt contract section headers and rules",
+  "status": "Backtracked",
+  "notes": "Reverted. Quality Score regressed to 83.3% and Code Tok increased by +13.7%.",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 0.8333333333333334,
+    "code_tokens_median": 261.0,
+    "reasoning_tokens_median": 2221.5,
+    "input_tokens_median": 5544.5,
+    "latency_seconds_median": 14.00496946205385,
+    "total_samples": 6
+  }
+}

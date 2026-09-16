@@ -1,0 +1,136 @@
+{
+  "version": 2,
+  "status": "started",
+  "eval": {
+    "eval_set_id": "iqJfA6RNd5RMthYUuveAEh",
+    "eval_id": "Gd4UqZEeH7qq2XD5oYoNzm",
+    "run_id": "kPrV3zngz7w7pKva9uafBJ",
+    "created": "2026-07-21T22:16:52+00:00",
+    "task": "a2ui_v1_0_eval",
+    "task_id": "NzscELoHps8WekfMddBFGL",
+    "task_version": 0,
+    "task_file": "tasks.py",
+    "task_display_name": "a2ui_v1_0_eval",
+    "task_registry_name": "a2ui_v1_0_eval",
+    "task_attribs": {},
+    "task_args": {
+      "list_models": false,
+      "grading_model": "google/gemini-3.5-flash",
+      "strategy": "express"
+    },
+    "task_args_passed": {
+      "grading_model": "google/gemini-3.5-flash",
+      "strategy": "express"
+    },
+    "solver_args_passed": {},
+    "dataset": {
+      "samples": 6,
+      "sample_ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "shuffled": false
+    },
+    "model": "google/gemini-3.5-flash",
+    "model_generate_config": {},
+    "model_args": {},
+    "config": {
+      "epochs": 1,
+      "fail_on_error": true,
+      "continue_on_fail": false,
+      "score_on_error": false,
+      "max_tasks": 10,
+      "sandbox_cleanup": true,
+      "log_samples": true,
+      "log_realtime": true,
+      "log_images": true,
+      "score_display": true
+    },
+    "revision": {
+      "type": "git",
+      "origin": "https://github.com/gspencergoog/A2UI.git",
+      "commit": "41e377bf",
+      "dirty": true
+    },
+    "packages": {
+      "inspect_ai": "0.3.242"
+    },
+    "scorers": [
+      {
+        "name": "a2ui_scorer",
+        "options": {
+          "version": "1.0"
+        },
+        "metrics": [
+          {
+            "name": "inspect_ai/accuracy",
+            "options": {}
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "name": "measured_model_graded_qa",
+        "options": {
+          "model": "google/gemini-3.5-flash",
+          "instructions": "\nAfter assessing the submitted answer, reply with 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.  Please choose ONE option for the grade: either \"C\" for correct answers, \"P\" for partial credit, or \"I\" for incorrect answers.\n\nFor example, after reviewing a correct answer you might write 'GRADE: C' or after reviewing an incorrect answer you might write 'GRADE: I'.\n\nFirst, write out in a step by step manner your reasoning about the criterion to be sure that your conclusion is correct. Avoid simply stating the correct answers at the outset. Then, end with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER is one of C, P or I.\n\nNotes for grading:\n1. Variations in capitalization, punctuation, and minor spacing differences should be considered acceptable as long as the semantic intent and required components are present.\n2. Unless a specific vertical or horizontal order is explicitly requested in the task, variations in the order of components within a container should be considered acceptable.\n3. Generated component IDs do not need to match any specific pattern or example in the target, as long as they are unique and correctly establish the requested parent-child relationships.\n4. Minor variations in label text that preserve the core semantic meaning (e.g., 'Submit' vs 'Send', or 'First Name' vs 'Given Name') are acceptable unless exact literal text was requested.\n5. The inclusion of valid optional properties defined in the schema (such as accessibility hints or default values) that were not explicitly requested should not be penalized as long as they make sense in context.\n6. If data binding paths are not explicitly specified in the prompt, accept any logically sound path structure (e.g., accepting `/user/email` or simply `/email` when the prompt asks to \"bind to the user's email\" without specifying a full path).\n7. Partial credit \"P\" can be awarded when the submitted answer is a correct answer with only minor cosmetic variations or additional valid optional properties that do not substantially change the meaning of the component.  When an answer is missing components or contains substantive errors, it should be considered incorrect and awarded an \"I\" grade.\n"
+        },
+        "metrics": [
+          {
+            "name": "inspect_ai/accuracy",
+            "options": {}
+          }
+        ],
+        "metadata": {}
+      }
+    ]
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "a2ui_eval/format_system_prompt",
+        "params": {
+          "format_name": "express",
+          "version": "1.0"
+        },
+        "params_passed": {
+          "format_name": "express",
+          "version": "1.0"
+        }
+      },
+      {
+        "solver": "a2ui_eval/measured_generate",
+        "params": {},
+        "params_passed": {}
+      },
+      {
+        "solver": "a2ui_eval/compile_format_payload",
+        "params": {
+          "format_name": "express",
+          "version": "1.0"
+        },
+        "params_passed": {
+          "format_name": "express",
+          "version": "1.0"
+        }
+      }
+    ],
+    "config": {}
+  },
+  "stats": {
+    "started_at": "",
+    "completed_at": "",
+    "model_usage": {},
+    "role_usage": {},
+    "connection_limit_history": []
+  },
+  "invalidated": false,
+  "tags": [],
+  "metadata": {},
+  "samples": []
+}

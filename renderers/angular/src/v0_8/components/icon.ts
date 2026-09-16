@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,11 +49,12 @@ export class Icon extends DynamicComponent<IconNode> {
   // g-icon uses snake_case for the icon names. We convert camelCase and TitleCase here.
   protected readonly resolvedName = computed(() => {
     const rawName = this.resolvePrimitive(this.name());
-    if (!rawName) return '';
+    if (typeof rawName !== 'string' || !rawName) return '';
     return this.toSnakeCase(rawName);
   });
 
   private toSnakeCase(str: string): string {
+    if (typeof str !== 'string') return '';
     return str
       .replace(/^[A-Z]/, letter => letter.toLowerCase())
       .replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);

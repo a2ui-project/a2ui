@@ -189,7 +189,7 @@ yield {
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. The `A2uiStreamParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces.
+Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces.
 
 > [!IMPORTANT]
 > **Prerequisite**: To use incremental streaming, your agent executor must support streaming mode. In ADK, enable this using `RunConfig`:
@@ -201,10 +201,10 @@ Use this approach for sub-second UI updates. The `A2uiStreamParser` **automatica
 > ```
 
 ```python
-from a2ui.parser.streaming import A2uiStreamParser
+from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.a2a.parts import create_a2ui_part
 
-parser = A2uiStreamParser(catalog=selected_catalog)
+parser = DirectJsonStreamParser(catalog=selected_catalog)
 
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
@@ -227,7 +227,7 @@ for chunk in llm_response_stream:
 ```
 
 > [!TIP]
-> `A2uiStreamParser` performs content-based change detection to ensure components are only re-yielded if their content changes, minimizing bandwidth usage.
+> `DirectJsonStreamParser` performs content-based change detection to ensure components are only re-yielded if their content changes, minimizing bandwidth usage.
 
 ## Use Cases
 

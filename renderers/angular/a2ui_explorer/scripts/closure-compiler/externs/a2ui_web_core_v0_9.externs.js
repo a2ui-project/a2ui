@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -190,3 +190,27 @@ function LocaleOptionsExterns() {}
 /** @type {?} */ LocaleOptionsExterns.prototype.width;
 /** @type {?} */ LocaleOptionsExterns.prototype.abbreviated;
 /** @type {?} */ LocaleOptionsExterns.prototype.wide;
+
+/**
+ * Externs for `Surface`, `SurfaceModel`, `ComponentContext`, `DataContext`, and `Catalog` interfaces.
+ * @record
+ * @struct
+ */
+function SurfaceModelExterns() {}
+/** @type {?} */ SurfaceModelExterns.prototype.componentsModel;
+/** @type {?} */ SurfaceModelExterns.prototype.dataModel;
+/** @type {?} */ SurfaceModelExterns.prototype.catalog;
+/** @type {?} */ SurfaceModelExterns.prototype.dataContext;
+/** @type {?} */ SurfaceModelExterns.prototype.componentModel;
+/** @type {?} */ SurfaceModelExterns.prototype.components;
+/** @type {?} */ SurfaceModelExterns.prototype.functions;
+/** @type {?} */ SurfaceModelExterns.prototype.getSignal;
+/** @type {?} */ SurfaceModelExterns.prototype.signals;
+
+/**
+ * Externs for `MarkdownRenderer` interface.
+ * @record
+ * @struct
+ */
+function MarkdownRendererExterns() {}
+/** @type {?} */ MarkdownRendererExterns.prototype.render;

@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Normalize shorthand string action bindings to event maps in compiler.py",
+  "status": "Backtracked",
+  "notes": "Reverted. Quality Score reached 100%, but Output Tokens expanded by +30.6% (+83 tokens), exceeding the 5% efficiency cap.",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 308.5,
+    "reasoning_tokens_median": 2317.5,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 13.999026914592832,
+    "total_samples": 6
+  }
+}

@@ -1,15 +1,26 @@
 # A2UI Evaluation Framework
 
-This folder contains evaluation tests (aka evals) for the A2UI project.
-An evaluation test verifies that a prompt produces expected results conforming to the A2UI schema and semantic rules.
+This folder contains evaluation tests (aka evals) for the A2UI project using the [Inspect AI](https://inspect.aisi.org.uk/) framework.
+An evaluation test verifies that a prompt or conversational history produces expected UI results conforming to the A2UI schema and semantic rules.
 
 ## Design
 
-For a detailed overview of the design, secrets management, and contamination prevention, see the [DESIGN.md](DESIGN.md) file.
+For a detailed overview of the evaluation architecture, multi-stage scoring, and secret management, see [DESIGN.md](DESIGN.md).
+
+## Contributing Use Cases & Datasets
+
+To contribute evaluation use cases or datasets, read [CONTRIBUTING_USE_CASES.md](CONTRIBUTING_USE_CASES.md). It explains:
+
+- How to use the `a2ui-add-eval-datapoint` skill to automatically convert your data into the dataset format.
+- Why full multi-turn conversation context (including unrelated tool calls) is required.
+- Where to view unencrypted multi-turn examples (`examples/example_eval_case.json`).
+- How to work with Transcrypt encryption when creating or editing files.
+
+Evaluation data points live in `datasets/*.yaml` files and must conform to the JSON schema defined in `datasets/dataset_schema.json`.
 
 ## Running Evaluations
 
-To run the evaluations, you need to use the Inspect AI CLI via `uv`. Make sure you are in this directory (`evals/eval`).
+Make sure your working directory is `eval/`.
 
 ### Prerequisites
 
@@ -20,21 +31,19 @@ To run the evaluations, you need to use the Inspect AI CLI via `uv`. Make sure y
    ```
 
 2. **Decrypt Datasets (First Time Setup)**:
-   The evaluation datasets are encrypted at rest in the repository to prevent base model contamination. To decrypt them in your repo for evaluation, you need to initialize Transcrypt with the shared password. From the `evals/eval` directory, run:
+   The evaluation datasets are encrypted at rest in the repository to prevent base model contamination. To decrypt them locally, initialize Transcrypt with the shared password:
 
    ```bash
    bin/transcrypt -p <PASSWORD>
    ```
 
-You can request the password from any member of the A2UI team (it's not really a secret, but it's also not going on Github in plaintext).
+   After this setup, git transparently encrypts files on `git add` and decrypts them on checkout.
 
-After this one time setup, you will have local plaintext access to the decrypted datasets in the `datasets/` directory, and they will be encrypted and decrypted transparently by git.
-
-### Upgrading transcrypt
+### Upgrading Transcrypt
 
 If you pull updates that change the encryption settings (such as transitioning from MD5 to PBKDF2), you may encounter decryption errors during `git pull` or see OpenSSL deprecation warnings.
 
-To upgrade your local transcrypt configuration to the latest settings:
+To upgrade your local Transcrypt configuration to the latest settings:
 
 1. Run the upgrade command:
 
@@ -45,58 +54,134 @@ To upgrade your local transcrypt configuration to the latest settings:
    This updates the local filter scripts in your `.git` directory while preserving your saved password.
 
 2. Force Git to re-decrypt the files:
+
    ```bash
    git checkout HEAD -- $(git ls-crypt)
    ```
+
    This runs the files through the newly upgraded smudge filter, decrypting them.
 
-## Dimensions
+### Executing Evals
 
-Evaluations run across the following dimensions:
-
-- Strategies: Different ways of orchestrating A2UI generation
-- Samples: Data in `dataset/`
-
-### Run Evals
-
-To run the evaluations:
+To run all datasets:
 
 ```bash
 uv run main.py
 ```
 
-For a quick 2-sample validation using `gemini-3.1-flash-lite`, use the sanity flag:
+To run a specific dataset or multiple datasets:
+
+```bash
+# Run a single dataset
+uv run main.py --dataset multi_turn_conversation_dataset
+
+# Run multiple datasets
+uv run main.py --datasets core_v0_9_1,multi_turn_conversation_dataset
+```
+
+To test across different inference formats (`direct` JSON, `express` XML tags, `elemental` DSL):
+
+```bash
+uv run main.py --dataset multi_turn_conversation_dataset --strategies direct,express,elemental
+```
+
+For a quick 2-sample validation using `gemini-3.1-flash-lite`:
 
 ```bash
 uv run main.py --sanity
 ```
 
+### Running Evaluations on Gemma Models (Express Format)
+
+Gemma models can be evaluated either through **Google AI Studio / Gemini API cloud services** (no local GPU required) or **locally via Ollama** on a machine with a dedicated GPU.
+
+> [!NOTE]
+> Gemma evaluations do not run by default or as part of CI workflows. CI evaluations continue to use `google/gemini-3.8-flash`.
+
+#### Required API Keys
+
+Regardless of whether inference runs in the cloud or via Ollama, evaluation grading uses Gemini Flash as the LLM-as-a-judge. Set your Google Gemini API key:
+
+```bash
+export GEMINI_API_KEY="your_api_key_here"
+```
+
+You can obtain an API key from [Google AI Studio](https://aistudio.google.com/).
+
+#### Option A: Cloud Execution (Google AI Studio / Gemini API)
+
+- **Mobile / On-Device Tier (`--model gemma` or `--model gemma-4-26b`)**:
+  `google/gemma-4-26b-a4b-it` — A Mixture-of-Experts model with 26B total parameters and **4B active parameters** (`a4b`), representative of the class of lightweight models feasible for execution on modern mobile hardware.
+- **Large / Workstation Tier (`--model gemma-large` or `--model gemma-4-31b`)**:
+  `google/gemma-4-31b-it` — A 31B dense parameter model offering higher reasoning capacity.
+
+```bash
+# Run Gemma 4 mobile tier on Express format using --strategies express
+uv run main.py --model gemma --strategies express
+
+# Run Gemma 4 large tier (31B) on Express format
+uv run main.py --model gemma-large --strategies express
+
+# Run on a specific dataset or limit sample count for quick checks
+uv run main.py --model gemma --strategies express --dataset core_v1_0 --limit 3
+```
+
+#### Option B: Local / Edge Execution via Ollama (GPU-Accelerated)
+
+For smaller edge-optimized models that can run fully offline on standard or flagship smartphones (requiring 6–8 GB RAM):
+
+- **Gemma 4 E2B (`--model gemma-e2b` or `--model gemma4:e2b`)**:
+  `ollama/gemma4:e2b` — Edge model designed for standard smartphones (~6 GB RAM offline).
+- **Gemma 4 E4B (`--model gemma-e4b` or `--model gemma4:e4b`)**:
+  `ollama/gemma4:e4b` — Edge model designed for recent flagship smartphones (~8 GB RAM offline).
+- **Gemma 2 2B (`--model gemma-2b` or `--model gemma2:2b`)**:
+  `ollama/gemma2:2b` — Lightweight 2B parameter open model.
+
+**Prerequisites**:
+
+1. Install [Ollama](https://ollama.com/) and start the daemon:
+   ```bash
+   ollama serve
+   ```
+2. Pull the target model(s):
+   ```bash
+   ollama pull gemma4:e2b
+   ollama pull gemma4:e4b
+   ```
+3. Run the evaluation against your local Ollama instance:
+
+   ```bash
+   # Run Gemma 4 E2B on Express format via Ollama
+   uv run main.py --model gemma-e2b --strategies express --dataset core_v1_0 --limit 3
+   ```
+
+> [!IMPORTANT]
+> **LLM-as-a-Judge Rule**: Gemma models must **never** be used as the evaluation grader (`--grading-model`). The grading model defaults to and must remain a Gemini Flash model (e.g. `google/gemini-3.8-flash` or `google/gemini-3.1-flash-lite`) to ensure consistent, unbiased grading. Ensure `GEMINI_API_KEY` is set when running Ollama evaluations.
+
 ## Viewing Evaluation Results
 
-Inspect AI provides a web-based log viewer to explore the results of your evaluations.
-
-To start the log viewer:
+Inspect AI provides a web-based log viewer to explore interactive traces and judge rationales:
 
 ```bash
 uv run inspect view start
 ```
 
-This will start a local web server (usually at `http://localhost:7575`) and open the viewer in your browser. It will automatically load logs from the `logs/` directory.
+This starts a local web server (usually at `http://localhost:7575`).
 
-## Listing Available Models
-
-To list the available Gemini models supported by your API key:
+To print a console summary or markdown table from an eval log file:
 
 ```bash
-uv run inspect eval tasks.py -T list_models=True --model google/gemini-3-flash-preview
+uv run python bin/report_evals.py logs/<log_filename>.eval
 ```
 
-(the `--model` flag is required even though it is ignored)
+## Running Unit Tests & Schema Validation
 
-## Running Unit Tests
-
-To run the unit tests for the evaluation framework (dataset loader, solvers, scorers):
+To run the unit tests and validate all dataset files against `datasets/dataset_schema.json`:
 
 ```bash
 uv run python -m pytest
 ```
+
+## Iterative Format Optimization Framework
+
+For benchmarking, testing, and optimizing alternative A2UI inference formats (Atom, Express, Elemental), see the [Iterative Format Optimization Guide](iterative_format_optimizer/skills/inference-format-optimizer/SKILL.md).

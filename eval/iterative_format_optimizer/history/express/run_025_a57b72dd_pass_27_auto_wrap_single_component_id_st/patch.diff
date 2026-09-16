@@ -1,0 +1,68 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+index 2d059769..50d58567 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+@@ -114,6 +114,28 @@ def _is_check_expression(val: Any) -> bool:
+     return False
+ 
+ 
++def _is_child_list_property(schema: Any) -> bool:
++    """Checks if a property's schema expects a list of component IDs (ChildList)."""
++    if not isinstance(schema, dict):
++        return False
++    if "$ref" in schema:
++        ref = schema["$ref"]
++        if isinstance(ref, str) and "ChildList" in ref:
++            return True
++    if schema.get("type") == "array" and "items" in schema:
++        items = schema["items"]
++        if isinstance(items, dict):
++            if "$ref" in items and isinstance(items["$ref"], str):
++                ref = items["$ref"]
++                if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
++                    return True
++    for key in ["allOf", "oneOf", "anyOf"]:
++        if key in schema and isinstance(schema[key], list):
++            if any(_is_child_list_property(sub) for sub in schema[key]):
++                return True
++    return False
++
++
+ # ANTLR-generated lexer, parser, and custom visitor are used for compilation.
+ 
+ 
+@@ -430,6 +452,13 @@ class ExpressCompiler:
+                             f" property '{prop_name}' of component '{comp_name}'."
+                             f" Allowed values are: {enum_vals}"
+                         )
++                prop_type = self.helper.get_property_type(comp_name, prop_name)
++                if (
++                    prop_type == "ChildList"
++                    or (prop_schema and _is_child_list_property(prop_schema))
++                ) and isinstance(mapped_val, str):
++                    mapped_val = [mapped_val]
++
+                 comp_dict[prop_name] = mapped_val
+ 
+                 if (
+diff --git a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+index 5de08b86..46389055 100644
+--- a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
++++ b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+@@ -732,6 +732,16 @@ valueField = TEXTFIELD("Deal Value", $/form/value)"""
+         ctx_lower = compiler._compile_value("False", {}, None)
+         self.assertIs(ctx_lower, False)
+ 
++    def test_single_component_id_string_auto_wrapping(self):
++        """Verifies auto-wrapping single component ID strings into list containers when property expects list of component IDs."""
++        compiler = ExpressCompiler(self.catalog)
++        dsl = """root = Column(singleChild)
++singleChild = Text("Hello World")"""
++        envelope = compiler.compile(dsl)
++        components = envelope["createSurface"]["components"]
++        root_comp = next(c for c in components if c["id"] == "root")
++        self.assertEqual(root_comp["children"], ["singleChild"])
++
+ 
+ if __name__ == "__main__":
+     unittest.main()

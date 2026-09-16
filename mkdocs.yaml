@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,9 @@ nav:
       - How Can I Use It?: introduction/how-to-use.md
       - How Does A2UI Compare?: introduction/agent-ui-ecosystem.md
   - Quickstart: quickstart.md
-  - A2UI Composer ⭐: composer.md
+  - A2UI Composer ⭐:
+      - composer/index.md
+      - Composer Integration: composer/composer_renderer_integration.md
   - Concepts:
       - Overview: concepts/overview.md
       - Glossary: concepts/glossary.md
@@ -201,7 +203,13 @@ hooks:
 # Plugins
 plugins:
   - search
-  - macros
+  # Jinja rendering breaks on the literal {{ }} that appears throughout
+  # code samples and spec prose (code fences do not protect it), so pages
+  # are only rendered if they opt in with `render_macros: true` front
+  # matter.
+  - macros:
+      render_by_default: false
+      on_error_fail: true
   # - include-markdown
   - mermaid2
   - redirects:

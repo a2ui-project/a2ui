@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,7 @@
  */
 
 import {Directive, computed, HostBinding, inject} from '@angular/core';
-import {injectBasicCatalogStyles} from '@a2ui/web_core/v0_9/basic_catalog';
+import {injectBasicCatalogStyles, isValidCssColor} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
 import {CatalogComponent} from '../../core/catalog_component';
@@ -68,6 +68,10 @@ export abstract class BasicCatalogComponent<
 
   @HostBinding('style.--a2ui-color-primary')
   get primaryColorStyle(): string | null {
-    return this.primaryColor() || null;
+    const color = this.primaryColor();
+    if (typeof color === 'string' && isValidCssColor(color)) {
+      return color;
+    }
+    return null;
   }
 }

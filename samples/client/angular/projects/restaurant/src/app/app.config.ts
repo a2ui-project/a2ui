@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  A2uiRendererService,
-  A2UI_RENDERER_CONFIG,
-  BasicCatalog,
-  provideMarkdownRenderer,
-} from '@a2ui/angular/v0_9';
+import {BasicCatalog, provideA2Ui, provideMarkdownRenderer} from '@a2ui/angular/v0_9';
 import {Client} from './client';
 import {inject, Injector} from '@angular/core';
 import {IMAGE_CONFIG} from '@angular/common';
@@ -37,17 +32,13 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideClientHydration(withEventReplay()),
-    {
-      provide: A2UI_RENDERER_CONFIG,
-      useFactory: () => {
-        const injector = inject(Injector);
-        return {
-          catalogs: [new BasicCatalog()],
-          actionHandler: (action: A2uiClientAction) => injector.get(Client).handleAction(action),
-        };
-      },
-    },
-    A2uiRendererService,
+    provideA2Ui(() => {
+      const injector = inject(Injector);
+      return {
+        catalogs: [new BasicCatalog()],
+        actionHandler: (action: A2uiClientAction) => injector.get(Client).handleAction(action),
+      };
+    }),
     provideMarkdownRenderer(renderMarkdown as any),
     {
       provide: IMAGE_CONFIG,

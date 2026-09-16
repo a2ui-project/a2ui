@@ -1,0 +1,28 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index f54c055d..47ba14f0 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -560,13 +560,22 @@ class AtomCompiler:
+                     if val and str(val[0]) == "template":
+                         template_data = self._compile_template(val, components)
+                     else:
++                        if len(val) == 1 and isinstance(val[0], list) and val[0] and not self._is_component_type(str(val[0][0])) and str(val[0][0]) != "template":
++                            val = val[0]
+                         for child_item in val:
+                             if isinstance(child_item, list):
+                                 if child_item and str(child_item[0]) == "template":
+                                     template_data = self._compile_template(child_item, components)
+-                                else:
++                                elif child_item and self._is_component_type(str(child_item[0])):
+                                     child_id = self._compile_component(child_item, components, data_model)
+                                     children.append(child_id)
++                                else:
++                                    for sub_item in child_item:
++                                        if isinstance(sub_item, list) and sub_item and self._is_component_type(str(sub_item[0])):
++                                            child_id = self._compile_component(sub_item, components, data_model)
++                                            children.append(child_id)
++                                        elif isinstance(sub_item, str) and sub_item not in ("]", ")", "[", "("):
++                                            children.append(sub_item)
+                             elif isinstance(child_item, str) and child_item not in ("]", ")", "[", "("):
+                                 children.append(child_item)
+                 elif (self.schema_helper.get_property_type(comp_type, key) in ("Child", "ComponentId") or key in ("child", "trigger", "content", "header", "footer", "leading", "trailing")) and isinstance(val, list) and val and self._is_component_type(str(val[0])):
