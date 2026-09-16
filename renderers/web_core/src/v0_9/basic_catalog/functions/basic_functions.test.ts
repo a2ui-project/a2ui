@@ -374,6 +374,15 @@ describe('BASIC_FUNCTIONS', () => {
       });
     });
 
+    it('formatString (rejects oversized template or excessive parts)', () => {
+      assert.throws(() => {
+        invoke('formatString', {value: 'a'.repeat(10001)}, context);
+      });
+      assert.throws(() => {
+        invoke('formatString', {value: '${x}'.repeat(1001)}, context);
+      });
+    });
+
     it('formatNumber', () => {
       // Test basic output as Intl behavior varies by environment.
       const result = invoke('formatNumber', {value: 1234.56, decimals: 1}, context);

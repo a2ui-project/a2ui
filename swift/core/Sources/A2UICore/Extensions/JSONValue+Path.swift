@@ -142,6 +142,12 @@ extension JSONValue {
   }
 
   /// Recursively updates a node at the given path components.
+  ///
+  /// Only absent and null nodes are filled in. A path through any other value
+  /// leaves the tree unchanged:
+  ///
+  ///     {"name": "Alice"}  set /name/first  ->  unchanged
+  ///     {"items": ["a"]}   set /items/foo   ->  unchanged
   static func update(
     node: JSONValue?,
     components: ArraySlice<String>,
@@ -206,22 +212,16 @@ extension JSONValue {
         }
         return .array(array)
       } else {
-        if newValue == nil && isLastComponent { return node }
-        var dict: OrderedDictionary<String, JSONValue> = [:]
-        if isLastComponent {
-          if let newValue { dict[key] = newValue }
-        } else {
-          dict[key] = update(
-            node: nil,
-            components: remainingComponents,
-            newValue: newValue
-          )
-        }
-        return .object(dict)
+        // A non-numeric key does not address an element of an array. Building
+        // an object here would replace the whole array, so do not update.
+        return node
       }
 
     default:
       if newValue == nil { return node }
+      // Only an absent or null node is filled in. Anything else is a value
+      // someone put there, and growing a container over it would delete it.
+      if let node, node != .null { return node }
       if let index = Int(key), index >= 0 {
         // Auto-vivify an array for any numeric key, matching
         // web_core's isNumeric() auto-vivification rule.

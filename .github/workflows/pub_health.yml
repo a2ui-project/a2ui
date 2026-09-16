@@ -21,6 +21,11 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   health:
     # Pinned to a commit, as required by the unpinned-uses policy. The workflow

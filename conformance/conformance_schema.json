@@ -95,7 +95,11 @@
           "data_model",
           "process_messages",
           "catalog_schema",
-          "parse_expression_template"
+          "parse_expression_template",
+          "from_format",
+          "core_syntax",
+          "from_catalog",
+          "skill_set"
         ]
       }
     },
@@ -129,7 +133,11 @@
           {"$ref": "#/$defs/DataModelTest"},
           {"$ref": "#/$defs/ProcessMessagesTest"},
           {"$ref": "#/$defs/CatalogSchemaTest"},
-          {"$ref": "#/$defs/ParseExpressionTemplateTest"}
+          {"$ref": "#/$defs/ParseExpressionTemplateTest"},
+          {"$ref": "#/$defs/FromFormatTest"},
+          {"$ref": "#/$defs/CoreSyntaxTest"},
+          {"$ref": "#/$defs/FromCatalogTest"},
+          {"$ref": "#/$defs/SkillSetTest"}
         ]
       }
     ]
@@ -670,6 +678,45 @@
         "expectError": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["messages"]
+    },
+    "FromFormatTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "from_format"},
+        "args": {"type": "object"},
+        "expected_file": {"type": "string"}
+      },
+      "required": ["action", "args", "expected_file"]
+    },
+    "CoreSyntaxTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "core_syntax"},
+        "args": {"type": "object"},
+        "expected_file": {"type": "string"}
+      },
+      "required": ["action", "args", "expected_file"]
+    },
+    "FromCatalogTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "from_catalog"},
+        "args": {"type": "object"},
+        "expected_file": {"type": "string"}
+      },
+      "required": ["action", "args", "expected_file"]
+    },
+    "SkillSetTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "skill_set"},
+        "args": {"type": "object"},
+        "expected_skills": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "required": ["action", "args", "expected_skills"]
     },
     "ExpectError": {
       "oneOf": [

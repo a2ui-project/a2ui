@@ -41,7 +41,10 @@ void main() {
 void _runCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final catalog = _ConformanceCatalog(_catalogIdOf(testCase));
-  final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+  final processor = MessageProcessor<ComponentApi>(
+    catalogs: [catalog],
+    protocolVersion: A2uiProtocolVersion.v0_9,
+  );
   final List<Map<String, Object?>> messages = _messagesOf(testCase);
 
   final Object? expectError = testCase['expectError'];
@@ -83,14 +86,15 @@ String _catalogIdOf(Map<String, Object?> testCase) {
 /// Converts each envelope and processes it.
 ///
 /// Conversion counts as processing here: the Dart processor takes typed
-/// messages, so [A2uiMessage.fromJson] rejects a malformed envelope first.
+/// messages, so [AgentToRendererMessage.fromJson] rejects a malformed envelope
+/// first.
 void _process(
   MessageProcessor<ComponentApi> processor,
   List<Map<String, Object?>> messages,
 ) {
   for (final envelope in messages) {
     processor.processMessages([
-      A2uiMessage.fromJson(Map<String, dynamic>.from(envelope)),
+      AgentToRendererMessage.fromJson(Map<String, dynamic>.from(envelope)),
     ]);
   }
 }
