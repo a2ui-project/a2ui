@@ -15,19 +15,16 @@
  */
 
 /**
- * Function implementations for the v0.9 basic catalog.
+ * Function implementations for the v1.0 basic catalog.
  */
 
-import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
+import {FunctionImplementation} from '../../../catalog/types.js';
+import {V10_VALIDATION_FUNCTION_IMPLEMENTATIONS} from '../../functions/validation_functions.js';
+import {IndexImplementation} from '../../functions/system_functions.js';
 import {
   AndApi,
   OrApi,
   NotApi,
-  RequiredApi,
-  RegexApi,
-  LengthApi,
-  NumericApi,
-  EmailApi,
   FormatStringApi,
   FormatNumberApi,
   FormatCurrencyApi,
@@ -45,43 +42,12 @@ import {
   createFormatDateImplementation as createCommonFormatDate,
   createPluralizeImplementation as createCommonPluralize,
   createOpenUrlImplementation,
-  validateRequired,
-  validateRegex,
-  validateLength,
-  validateNumeric,
-  validateEmail,
 } from '../../../common/basic_functions.js';
 
 // Logical
 export const AndImplementation = createAndImplementation(AndApi);
 export const OrImplementation = createOrImplementation(OrApi);
 export const NotImplementation = createNotImplementation(NotApi);
-
-// Validation
-export const RequiredImplementation = createFunctionImplementation(
-  RequiredApi,
-  args => validateRequired(args.value).valid,
-);
-
-export const RegexImplementation = createFunctionImplementation(
-  RegexApi,
-  args => validateRegex(args.value, args.pattern).valid,
-);
-
-export const LengthImplementation = createFunctionImplementation(
-  LengthApi,
-  args => validateLength(args.value, args.min, args.max).valid,
-);
-
-export const NumericImplementation = createFunctionImplementation(
-  NumericApi,
-  args => validateNumeric(args.value, args.min, args.max).valid,
-);
-
-export const EmailImplementation = createFunctionImplementation(
-  EmailApi,
-  args => validateEmail(args.value).valid,
-);
 
 // Formatting
 export const FormatStringImplementation = createFormatStringImplementation(FormatStringApi);
@@ -110,34 +76,31 @@ export const PluralizeImplementation = createPluralizeImplementation();
 export const OpenUrlImplementation = createOpenUrlImplementation(OpenUrlApi);
 
 /**
- * Creates standard function implementations for the Basic Catalog.
+ * Creates the complete function set for a v1.0 basic catalog.
  *
- * @param options Configuration options containing optional locale.
+ * The set matches the functions declared in
+ * `specification/v1_0/catalogs/basic/catalog.json`, plus the `@index` system
+ * function, which the `@` namespace makes available to every catalog.
+ *
+ * @param options Configuration options containing an optional locale.
  * @returns Array of function implementations.
  */
 export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
   const locale = options?.locale;
   return [
-    AndImplementation,
-    OrImplementation,
-    NotImplementation,
-    RequiredImplementation,
-    RegexImplementation,
-    LengthImplementation,
-    NumericImplementation,
-    EmailImplementation,
+    ...V10_VALIDATION_FUNCTION_IMPLEMENTATIONS,
+    IndexImplementation,
     FormatStringImplementation,
     createFormatNumberImplementation(locale),
     createFormatCurrencyImplementation(locale),
     createFormatDateImplementation(locale),
     createPluralizeImplementation(locale),
     OpenUrlImplementation,
+    AndImplementation,
+    OrImplementation,
+    NotImplementation,
   ];
 }
 
-/**
- * Standard function implementations for the Basic Catalog.
- *
- * Includes logical, validation, formatting, and action functions.
- */
+/** Standard function implementations for the v1.0 basic catalog. */
 export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();

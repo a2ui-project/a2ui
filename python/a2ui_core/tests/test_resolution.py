@@ -281,7 +281,7 @@ def test_expression_parser_parse_errors():
         parser.parse("${add(a: 1, b: 2}")
 
     with pytest.raises(ValueError, match="Max recursion depth reached"):
-        parser.parse("deep", 11)
+        parser.parse("deep", ExpressionParser.MAX_DEPTH + 1)
 
 
 def test_string_interpolation_complex_execution():

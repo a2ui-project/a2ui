@@ -1325,179 +1325,11 @@
         "value"
       ],
       "type": "object"
-    },
-    "add": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {
-          "$ref": "#/$defs/DynamicNumber"
-        },
-        "b": {
-          "$ref": "#/$defs/DynamicNumber"
-        }
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "subtract": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {
-          "$ref": "#/$defs/DynamicNumber"
-        },
-        "b": {
-          "$ref": "#/$defs/DynamicNumber"
-        }
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "multiply": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {
-          "$ref": "#/$defs/DynamicNumber"
-        },
-        "b": {
-          "$ref": "#/$defs/DynamicNumber"
-        }
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "divide": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {
-          "$ref": "#/$defs/DynamicNumber"
-        },
-        "b": {
-          "$ref": "#/$defs/DynamicNumber"
-        }
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "equals": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {},
-        "b": {}
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "not_equals": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {},
-        "b": {}
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "greater_than": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {
-          "$ref": "#/$defs/DynamicNumber"
-        },
-        "b": {
-          "$ref": "#/$defs/DynamicNumber"
-        }
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "less_than": {
-      "additionalProperties": false,
-      "properties": {
-        "a": {
-          "$ref": "#/$defs/DynamicNumber"
-        },
-        "b": {
-          "$ref": "#/$defs/DynamicNumber"
-        }
-      },
-      "required": [
-        "a",
-        "b"
-      ],
-      "type": "object"
-    },
-    "contains": {
-      "additionalProperties": false,
-      "properties": {
-        "string": {
-          "$ref": "#/$defs/DynamicString"
-        },
-        "substring": {
-          "$ref": "#/$defs/DynamicString"
-        }
-      },
-      "required": [
-        "string",
-        "substring"
-      ],
-      "type": "object"
-    },
-    "starts_with": {
-      "additionalProperties": false,
-      "properties": {
-        "string": {
-          "$ref": "#/$defs/DynamicString"
-        },
-        "prefix": {
-          "$ref": "#/$defs/DynamicString"
-        }
-      },
-      "required": [
-        "string",
-        "prefix"
-      ],
-      "type": "object"
-    },
-    "ends_with": {
-      "additionalProperties": false,
-      "properties": {
-        "string": {
-          "$ref": "#/$defs/DynamicString"
-        },
-        "suffix": {
-          "$ref": "#/$defs/DynamicString"
-        }
-      },
-      "required": [
-        "string",
-        "suffix"
-      ],
-      "type": "object"
     }
   },
   "$defs": {
     "AccessibilityAttributes": {
-      "additionalProperties": false,
+      "type": "object",
       "description": "Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding.",
       "properties": {
         "label": {
@@ -1523,7 +1355,7 @@
           "description": "Hides the element and its children from assistive technologies when true. Default is false."
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "ComponentId": {
       "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
@@ -1578,7 +1410,7 @@
       "type": "object"
     },
     "TemplateChildList": {
-      "additionalProperties": false,
+      "type": "object",
       "description": "A template for generating a dynamic list of children from a data model list.\n\nThe `componentId` is the component to use as a template.",
       "properties": {
         "componentId": {
@@ -1593,7 +1425,7 @@
         "componentId",
         "path"
       ],
-      "type": "object"
+      "additionalProperties": false
     },
     "TabItem": {
       "additionalProperties": false,
@@ -1807,43 +1639,11 @@
         },
         {
           "$ref": "#/functions/not"
-        },
-        {
-          "$ref": "#/functions/add"
-        },
-        {
-          "$ref": "#/functions/subtract"
-        },
-        {
-          "$ref": "#/functions/multiply"
-        },
-        {
-          "$ref": "#/functions/divide"
-        },
-        {
-          "$ref": "#/functions/equals"
-        },
-        {
-          "$ref": "#/functions/not_equals"
-        },
-        {
-          "$ref": "#/functions/greater_than"
-        },
-        {
-          "$ref": "#/functions/less_than"
-        },
-        {
-          "$ref": "#/functions/contains"
-        },
-        {
-          "$ref": "#/functions/starts_with"
-        },
-        {
-          "$ref": "#/functions/ends_with"
         }
       ]
     },
     "DynamicBoolean": {
+      "description": "A boolean value that can be a literal, a path, or a function call returning a boolean.",
       "oneOf": [
         {
           "type": "boolean"
@@ -1854,10 +1654,10 @@
         {
           "$ref": "#/$defs/FunctionCall"
         }
-      ],
-      "description": "A boolean value that can be a literal, a path, or a function call returning a boolean."
+      ]
     },
     "DynamicNumber": {
+      "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.",
       "oneOf": [
         {
           "type": "number"
@@ -1868,10 +1668,10 @@
         {
           "$ref": "#/$defs/FunctionCall"
         }
-      ],
-      "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number."
+      ]
     },
     "DynamicString": {
+      "description": "Represents a string",
       "oneOf": [
         {
           "type": "string"
@@ -1882,8 +1682,7 @@
         {
           "$ref": "#/$defs/FunctionCall"
         }
-      ],
-      "description": "Represents a string"
+      ]
     },
     "DynamicValue": {
       "oneOf": [

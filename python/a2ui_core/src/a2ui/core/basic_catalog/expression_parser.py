@@ -63,7 +63,12 @@ class Scanner:
 
 
 class ExpressionParser:
-    MAX_DEPTH = 10
+    #: The maximum allowed recursion depth for nested expressions, which bounds
+    #: the work a payload can demand of the parser and keeps it off the stack
+    #: limit. Every engine uses the same number: ``ExpressionParser.MAX_DEPTH``
+    #: in TypeScript and ``ExpressionParser.maxDepth`` in Swift. They must
+    #: agree, or an expression one engine accepts the other rejects.
+    MAX_DEPTH = 100
 
     def parse(self, input_str: str, depth: int = 0) -> list[Any]:
         if depth > self.MAX_DEPTH:
@@ -148,6 +153,11 @@ class ExpressionParser:
         return result
 
     def _parse_expression_internal(self, scanner: Scanner, depth: int) -> Any:
+        # Both recursive paths pass through here: interpolations nested inside an
+        # interpolation, and function-call arguments that are themselves
+        # expressions. Checking here counts both.
+        if depth > self.MAX_DEPTH:
+            raise ValueError("Max recursion depth reached in parse")
         scanner.skip_whitespace()
         if scanner.is_at_end():
             return ""
@@ -212,7 +222,7 @@ class ExpressionParser:
                 )
             scanner.skip_whitespace()
 
-            args[arg_name] = self._parse_expression_internal(scanner, depth)
+            args[arg_name] = self._parse_expression_internal(scanner, depth + 1)
 
             scanner.skip_whitespace()
             if scanner.peek() == ",":

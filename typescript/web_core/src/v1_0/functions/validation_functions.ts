@@ -15,7 +15,6 @@
  */
 
 import {createFunctionImplementation} from '../../catalog/types.js';
-import {A2uiExpressionError} from '../../errors.js';
 import {
   RequiredV1Point0Api,
   RegexV1Point0Api,
@@ -23,7 +22,13 @@ import {
   NumericV1Point0Api,
   EmailV1Point0Api,
 } from './validation_functions_api.js';
-import {ValidationResultInput as ValidationResult} from '../schema/catalog-definition.js';
+import {
+  validateRequired,
+  validateRegex,
+  validateLength,
+  validateNumeric,
+  validateEmail,
+} from '../../common/basic_functions.js';
 
 /**
  * Validates that a value is present and non-empty for v1.0 catalogs.
@@ -32,18 +37,7 @@ import {ValidationResultInput as ValidationResult} from '../schema/catalog-defin
  */
 export const RequiredV1Point0Implementation = createFunctionImplementation(
   RequiredV1Point0Api,
-  (args): ValidationResult => {
-    const val = args.value;
-    let isValid = true;
-    if (val === null || val === undefined) isValid = false;
-    else if (typeof val === 'string' && val === '') isValid = false;
-    else if (Array.isArray(val) && val.length === 0) isValid = false;
-
-    return {
-      valid: isValid,
-      ...(isValid ? {} : {message: 'This field is required.'}),
-    };
-  },
+  args => validateRequired(args.value),
 );
 
 /**
@@ -51,48 +45,15 @@ export const RequiredV1Point0Implementation = createFunctionImplementation(
  *
  * @throws {A2uiExpressionError} If the pattern is invalid.
  */
-export const RegexV1Point0Implementation = createFunctionImplementation(
-  RegexV1Point0Api,
-  (args): ValidationResult => {
-    try {
-      const isValid = new RegExp(args.pattern).test(args.value);
-      return {
-        valid: isValid,
-        ...(isValid ? {} : {message: `Value does not match required pattern.`}),
-      };
-    } catch (e) {
-      throw new A2uiExpressionError(`Invalid regex pattern: ${args.pattern}`, 'regex', e);
-    }
-  },
+export const RegexV1Point0Implementation = createFunctionImplementation(RegexV1Point0Api, args =>
+  validateRegex(args.value, args.pattern),
 );
 
 /**
  * Validates that string or array length falls within an optional range for v1.0 catalogs.
  */
-export const LengthV1Point0Implementation = createFunctionImplementation(
-  LengthV1Point0Api,
-  (args): ValidationResult => {
-    const val = args.value;
-    let len = 0;
-    if (typeof val === 'string' || Array.isArray(val)) {
-      len = val.length;
-    }
-    let isValid = true;
-    let message: string | undefined;
-
-    if (args.min !== undefined && !isNaN(args.min) && len < args.min) {
-      isValid = false;
-      message = `Minimum length is ${args.min}.`;
-    } else if (args.max !== undefined && !isNaN(args.max) && len > args.max) {
-      isValid = false;
-      message = `Maximum length is ${args.max}.`;
-    }
-
-    return {
-      valid: isValid,
-      ...(message ? {message} : {}),
-    };
-  },
+export const LengthV1Point0Implementation = createFunctionImplementation(LengthV1Point0Api, args =>
+  validateLength(args.value, args.min, args.max),
 );
 
 /**
@@ -100,40 +61,14 @@ export const LengthV1Point0Implementation = createFunctionImplementation(
  */
 export const NumericV1Point0Implementation = createFunctionImplementation(
   NumericV1Point0Api,
-  (args): ValidationResult => {
-    if (isNaN(args.value)) {
-      return {valid: false, message: 'Value must be a valid number.'};
-    }
-    let isValid = true;
-    let message: string | undefined;
-
-    if (args.min !== undefined && !isNaN(args.min) && args.value < args.min) {
-      isValid = false;
-      message = `Minimum value is ${args.min}.`;
-    } else if (args.max !== undefined && !isNaN(args.max) && args.value > args.max) {
-      isValid = false;
-      message = `Maximum value is ${args.max}.`;
-    }
-
-    return {
-      valid: isValid,
-      ...(message ? {message} : {}),
-    };
-  },
+  args => validateNumeric(args.value, args.min, args.max),
 );
 
 /**
  * Validates that a string matches basic email address syntax for v1.0 catalogs.
  */
-export const EmailV1Point0Implementation = createFunctionImplementation(
-  EmailV1Point0Api,
-  (args): ValidationResult => {
-    const isValid = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(args.value);
-    return {
-      valid: isValid,
-      ...(isValid ? {} : {message: 'Must be a valid email address.'}),
-    };
-  },
+export const EmailV1Point0Implementation = createFunctionImplementation(EmailV1Point0Api, args =>
+  validateEmail(args.value),
 );
 
 /** Standard validation function implementations for v1.0 catalogs. */

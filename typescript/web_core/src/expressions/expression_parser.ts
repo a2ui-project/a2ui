@@ -40,7 +40,15 @@ export const MAX_EXPRESSION_PARTS = 1_000;
  * nested function calls with named arguments.
  */
 export class ExpressionParser {
-  /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
+  /**
+   * The maximum allowed recursion depth for nested expressions, which bounds
+   * the work a payload can demand of the parser and keeps it off the stack
+   * limit.
+   *
+   * Every engine uses the same number: `ExpressionParser.MAX_DEPTH` in Python
+   * and `ExpressionParser.maxDepth` in Swift. They must agree, or an
+   * expression one engine accepts the other rejects.
+   */
   public static readonly MAX_DEPTH = 100;
 
   /**

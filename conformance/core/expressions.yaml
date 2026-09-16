@@ -405,7 +405,10 @@
         message: "Unclosed interpolation"
 
 - name: test_expression_parser_max_depth_exceeded_error
-  description: Verifies error when expression nesting exceeds maximum recursion depth.
+  description: >-
+    Verifies error when expression nesting exceeds the maximum recursion depth.
+    The value nests 101 interpolations, one past the limit of 100 that every
+    engine applies.
   catalog:
     protocolVersion: "v1.0"
   action: validate
@@ -421,7 +424,27 @@
                 text:
                   call: "formatString"
                   args:
-                    value: "${add(a: ${add(a: ${add(a: ${add(a: ${add(a: ${add(a: ${add(a: ${add(a: ${add(a: ${add(a: ${add(a: 1, b: 1)}, b: 1)}, b: 1)}, b: 1)}, b: 1)}, b: 1)}, b: 1)}, b: 1)}, b: 1)}, b: 1)}, b: 1)}"
+                    value: "${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
       expectError:
         category: "ValidationError"
         message: "Max recursion depth"
+
+- name: test_expr_error_max_depth_nested_interpolations
+  description: >-
+    An interpolation nested past the recursion limit of 100 is rejected. This
+    template nests 101 deep.
+  action: parse_expression_template
+  input: "${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+  expect_error:
+    category: "ParseError"
+    message: "Max recursion depth"
+
+- name: test_expr_error_max_depth_function_arguments
+  description: >-
+    A function-call argument counts toward the recursion limit, not just a
+    nested interpolation. This template nests 101 calls, one past the limit.
+  action: parse_expression_template
+  input: "${f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: 1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))}"
+  expect_error:
+    category: "ParseError"
+    message: "Max recursion depth"

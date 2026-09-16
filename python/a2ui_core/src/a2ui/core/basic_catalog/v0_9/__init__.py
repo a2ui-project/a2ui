@@ -74,19 +74,7 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from ..operator_apis import (
-    AddApi,
-    SubtractApi,
-    MultiplyApi,
-    DivideApi,
-    EqualsApi,
-    NotEqualsApi,
-    GreaterThanApi,
-    LessThanApi,
-    ContainsApi,
-    StartsWithApi,
-    EndsWithApi,
-)
+
 from .styles import Theme
 from .function_impls import (
     BASIC_FUNCTION_IMPLEMENTATIONS,
@@ -170,17 +158,6 @@ __all__ = [
     "AndApi",
     "OrApi",
     "NotApi",
-    "AddApi",
-    "SubtractApi",
-    "MultiplyApi",
-    "DivideApi",
-    "EqualsApi",
-    "NotEqualsApi",
-    "GreaterThanApi",
-    "LessThanApi",
-    "ContainsApi",
-    "StartsWithApi",
-    "EndsWithApi",
     "Theme",
     "BASIC_FUNCTION_IMPLEMENTATIONS",
     "create_basic_catalog_functions",

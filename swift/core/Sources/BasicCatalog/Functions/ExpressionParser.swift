@@ -22,7 +22,11 @@ import OrderedJSON
 /// items representing literals, data-model paths, and nested function calls.
 public struct ExpressionParser: Sendable {
   /// Maximum recursion depth allowed during expression parsing.
-  public static let maxDepth = 10
+  ///
+  /// Every engine uses the same number: `ExpressionParser.MAX_DEPTH` in
+  /// TypeScript and Python. They must agree, or an expression one engine
+  /// accepts the other rejects.
+  public static let maxDepth = 100
 
   public init() {}
 
@@ -152,6 +156,14 @@ public struct ExpressionParser: Sendable {
   }
 
   private func parseExpressionInternal(_ scanner: inout Scanner, depth: Int) throws -> JSONValue {
+    // Both recursive paths pass through here: interpolations nested inside an interpolation,
+    // and function-call arguments that are themselves expressions. Checking here counts both.
+    if depth > Self.maxDepth {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Max recursion depth reached in parse"
+      )
+    }
     scanner.skipWhitespace()
     if scanner.isAtEnd {
       return .string("")
@@ -222,7 +234,7 @@ public struct ExpressionParser: Sendable {
       }
       scanner.skipWhitespace()
 
-      let argVal = try parseExpressionInternal(&scanner, depth: depth)
+      let argVal = try parseExpressionInternal(&scanner, depth: depth + 1)
       args[argName] = argVal
 
       scanner.skipWhitespace()

@@ -156,46 +156,8 @@
             component: "Text"
             text: true
 
-- name: test_function_arithmetic_divide_by_zero
-  description: Verifies divide operator handling standard division and zero divisor returning infinity representation.
-  catalog:
-    protocolVersion: "v1.0"
-  action: validate
-  steps:
-    - payload:
-        - version: "v1.0"
-          createSurface:
-            surfaceId: "main"
-            catalogId: "basic"
-            components:
-              - id: "root"
-                component: "Column"
-                children: ["t_div", "t_zero"]
-              - id: "t_div"
-                component: "Text"
-                text:
-                  call: "formatString"
-                  args:
-                    value: "${divide(a: 10, b: 2)}"
-              - id: "t_zero"
-                component: "Text"
-                text:
-                  call: "formatString"
-                  args:
-                    value: "${divide(a: 10, b: 0)}"
-  expect:
-    surfaces:
-      main:
-        components:
-          t_div:
-            component: "Text"
-            text: "5"
-          t_zero:
-            component: "Text"
-            text: "Infinity"
-
 - name: test_function_invalid_argument_schema_error
-  description: Verifies ValidationError when function is invoked with invalid arguments.
+  description: Verifies ValidationError when a function is invoked with an argument of the wrong type.
   catalog:
     protocolVersion: "v1.0"
   action: validate
@@ -209,9 +171,8 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "divide"
+                  call: "formatNumber"
                   args:
-                    a: 10
-                    b: "not_a_number"
+                    value: "not_a_number"
       expectError:
         category: "ValidationError"
