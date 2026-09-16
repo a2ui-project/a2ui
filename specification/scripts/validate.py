@@ -266,10 +266,15 @@ def check_catalog_ids(repo_root):
     for catalog_path in catalog_paths:
         rel = os.path.relpath(catalog_path, repo_root)
         try:
-            with open(catalog_path, "r") as f:
+            with open(catalog_path, "r", encoding="utf-8") as f:
                 catalog = json.load(f)
         except (OSError, json.JSONDecodeError) as e:
             print(f"    [FAIL] Could not read {rel}: {e}")
+            success = False
+            continue
+
+        if not isinstance(catalog, dict):
+            print(f"    [FAIL] {rel} is not a JSON object")
             success = False
             continue
 
@@ -309,7 +314,7 @@ def check_catalog_ids(repo_root):
         if f"{os.sep}node_modules{os.sep}" in path:
             continue
         try:
-            with open(path, "r", errors="ignore") as f:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 text = f.read()
         except OSError:
             continue
