@@ -93,9 +93,11 @@ void _process(
   List<Map<String, Object?>> messages,
 ) {
   for (final envelope in messages) {
-    processor.processMessages([
-      AgentToRendererMessage.fromJson(Map<String, dynamic>.from(envelope)),
-    ]);
+    processor.processMessages(
+      AgentToRendererMessagePayload([
+        AgentToRendererMessage.fromJson(Map<String, dynamic>.from(envelope)),
+      ]),
+    );
   }
 }
 
