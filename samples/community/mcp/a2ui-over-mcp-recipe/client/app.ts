@@ -21,7 +21,7 @@ import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {Catalog, DataContext, DataModel, MessageProcessor} from '@a2ui/web_core/v0_9';
-import {createCallMcpToolImplementation} from '@a2ui/mcp-catalog';
+import {createMcpCatalogFunctions} from '@a2ui/mcp-catalog';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
@@ -91,7 +91,7 @@ export class A2uiRecipeApp extends LitElement {
       Array.from(basicCatalog.components.values()),
       [
         ...Array.from(basicCatalog.functions.values()),
-        createCallMcpToolImplementation(this.getMcpClientForTool, this.processor),
+        ...createMcpCatalogFunctions(this.getMcpClientForTool, this.processor),
       ],
     );
     catalogs.push(this.catalog);
