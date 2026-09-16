@@ -20,7 +20,11 @@
  * Contains zero server-specific logic. Any MCP server can drive this
  * component if it follows two conventions:
  *  1. A2UI payloads are embedded resources with mimeType
- *     application/a2ui+json in tool results (including the entry tool's).
+ *     application/a2ui+json in tool results (including the entry tool's),
+ *     marked with `_meta.ui.content` per the MCP Apps Dynamic View Content
+ *     proposal (ext-apps PR #699); the ui:// resource serving this app
+ *     declares `_meta.ui.contentMimeTypes: ["application/a2ui+json"]`.
+ *     Unmarked A2UI blocks are still accepted for legacy servers.
  *  2. Each A2UI action maps to an app-visible tool (by the action's own
  *     name, unless overridden via the actionToToolName prop), and the
  *     action's resolved context becomes the tool's arguments.

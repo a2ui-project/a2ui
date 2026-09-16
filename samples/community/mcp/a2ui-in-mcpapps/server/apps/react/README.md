@@ -5,11 +5,17 @@ A server-agnostic [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) v
 arrives through tool results, so any A2UI-speaking MCP server can serve the built `react.html` as
 its `ui://` resource — this directory is written to be extracted and reused as-is.
 
-A server is compatible if it follows two conventions:
+A server is compatible if it follows two conventions, which are the MCP Apps
+[Dynamic View Content](https://github.com/modelcontextprotocol/ext-apps/pull/699) contract
+applied to A2UI:
 
-1. **A2UI payloads travel as embedded resources.** Tool results (including the entry tool's
-   result) carry A2UI messages as `EmbeddedResource` content blocks with mimeType
-   `application/a2ui+json` (a single message or an array).
+1. **A2UI payloads travel as marked embedded resources.** Tool results (including the entry
+   tool's result) carry A2UI messages as `EmbeddedResource` content blocks with mimeType
+   `application/a2ui+json` (a single message or an array), each marked with
+   `_meta: {"ui": {"content": {}}}`. The `ui://` resource that serves `react.html` declares
+   `_meta.ui.contentMimeTypes: ["application/a2ui+json"]` so hosts can validate, prefetch, and
+   forward payloads to it. Unmarked A2UI blocks are still accepted as a legacy allowance
+   (`extractA2uiMessages(content, {allowUnmarked: false})` turns that off).
 2. **A2UI actions map to tools.** Each A2UI action `name` matches an app-visible tool name
    (`_meta.ui.visibility` includes `"app"`), and the action's resolved `context` becomes the
    tool's `arguments`. The tool's response A2UI is applied incrementally to the same surfaces.

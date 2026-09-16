@@ -16,6 +16,7 @@
 
 import {Component, signal, ViewChild, ElementRef, AfterViewInit} from '@angular/core';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import type {ClientCapabilities} from '@modelcontextprotocol/sdk/types.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
 // Per the MCP Apps spec, a tool that omits `_meta.ui.visibility` defaults to
@@ -213,7 +214,20 @@ export class App implements AfterViewInit {
           version: '1.0.0',
         },
         {
-          capabilities: {},
+          // MCP Apps capability negotiation (SEP-1724 extensions field):
+          // `mimeTypes` says which ui:// resources this host can render;
+          // a non-empty `contentMimeTypes` negotiates Dynamic View Content
+          // (ext-apps PR #699): tool-result blocks marked `_meta.ui.content`
+          // are forwarded to the View unmodified. This host relays whole
+          // CallToolResults, so nothing else is needed.
+          capabilities: {
+            extensions: {
+              'io.modelcontextprotocol/ui': {
+                mimeTypes: ['text/html;profile=mcp-app'],
+                contentMimeTypes: ['application/a2ui+json'],
+              },
+            },
+          } as ClientCapabilities,
         },
       );
 

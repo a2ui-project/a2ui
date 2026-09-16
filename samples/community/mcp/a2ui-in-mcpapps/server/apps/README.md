@@ -49,7 +49,7 @@ _(Runs Angular compilation and triggers `node inline.js` to single-file inline i
 
 The application in `react/` (`generic-a2ui-mcp-app-react`) is a server-agnostic A2UI renderer:
 it does the MCP Apps handshake via the official `@modelcontextprotocol/ext-apps` SDK, renders
-`application/a2ui+json` embedded resources from tool results with `@a2ui/react`, and routes A2UI
+`application/a2ui+json` embedded resources (marked `_meta.ui.content`) from tool results with `@a2ui/react`, and routes A2UI
 user actions back to the server as `tools/call` requests. See `react/README.md` for the
 conventions that make it reusable by any A2UI-speaking MCP server.
 

@@ -15,7 +15,7 @@
  */
 
 import {describe, expect, it, vi} from 'vitest';
-import {extractA2uiMessages} from './extract-a2ui-messages';
+import {extractA2uiMessages, isViewContentBlock} from './extract-a2ui-messages';
 
 const MESSAGE = {
   version: 'v0.9',
@@ -24,6 +24,11 @@ const MESSAGE = {
 
 function resourceBlock(text: string, mimeType = 'application/a2ui+json') {
   return {type: 'resource', resource: {uri: 'a2ui://test', mimeType, text}};
+}
+
+/** A block marked as Dynamic View Content (`_meta.ui.content`). */
+function markedBlock(text: string, mimeType = 'application/a2ui+json') {
+  return {...resourceBlock(text, mimeType), _meta: {ui: {content: {}}}};
 }
 
 describe('extractA2uiMessages', () => {
@@ -85,11 +90,52 @@ describe('extractA2uiMessages', () => {
     expect(extractA2uiMessages(content)).toEqual([MESSAGE, MESSAGE]);
   });
 
+  it('extracts marked (_meta.ui.content) blocks', () => {
+    const content = [markedBlock(JSON.stringify([MESSAGE]))];
+    expect(extractA2uiMessages(content)).toEqual([MESSAGE]);
+    expect(extractA2uiMessages(content, {allowUnmarked: false})).toEqual([MESSAGE]);
+  });
+
+  it('accepts unmarked A2UI blocks by default (legacy servers)', () => {
+    const content = [resourceBlock(JSON.stringify([MESSAGE]))];
+    expect(extractA2uiMessages(content)).toEqual([MESSAGE]);
+  });
+
+  it('drops unmarked blocks when allowUnmarked is false', () => {
+    const other = {...MESSAGE, updateDataModel: {...MESSAGE.updateDataModel, value: 2}};
+    const content = [
+      resourceBlock(JSON.stringify([MESSAGE])),
+      markedBlock(JSON.stringify([other])),
+    ];
+    expect(extractA2uiMessages(content, {allowUnmarked: false})).toEqual([other]);
+  });
+
+  it('still requires an A2UI mime type on marked blocks', () => {
+    const content = [markedBlock(JSON.stringify([MESSAGE]), 'application/json')];
+    expect(extractA2uiMessages(content)).toEqual([]);
+  });
+
   it('skips resources with invalid JSON and keeps the rest', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const content = [resourceBlock('{not json'), resourceBlock(JSON.stringify([MESSAGE]))];
     expect(extractA2uiMessages(content)).toEqual([MESSAGE]);
     expect(errorSpy).toHaveBeenCalledOnce();
     errorSpy.mockRestore();
+  });
+});
+
+describe('isViewContentBlock', () => {
+  it('detects the _meta.ui.content marker', () => {
+    expect(isViewContentBlock(markedBlock('[]'))).toBe(true);
+    expect(isViewContentBlock({...resourceBlock('[]'), _meta: {ui: {content: {}}}})).toBe(true);
+  });
+
+  it('rejects unmarked, malformed, and non-object markers', () => {
+    expect(isViewContentBlock(resourceBlock('[]'))).toBe(false);
+    expect(isViewContentBlock({...resourceBlock('[]'), _meta: {ui: {}}})).toBe(false);
+    expect(isViewContentBlock({...resourceBlock('[]'), _meta: {ui: {content: null}}})).toBe(false);
+    expect(isViewContentBlock({...resourceBlock('[]'), _meta: {ui: {content: true}}})).toBe(false);
+    expect(isViewContentBlock(null)).toBe(false);
+    expect(isViewContentBlock(undefined)).toBe(false);
   });
 });
