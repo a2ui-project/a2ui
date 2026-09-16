@@ -49,14 +49,12 @@ def generate_common_types(
         "DynamicBoolean",
         "DynamicStringList",
     }
-    has_base_function_call = "FunctionCall" not in defs or "returnType" in defs.get(
-        "FunctionCall", {}
-    ).get("properties", {})
     # Any class/type defined in base common_types.py is imported and not repeated in versioned folders
     imports_from_common = [
         s
         for s in base_symbols
         if s not in versioned_symbols
+        or (s in versioned_symbols and s not in defs)
         or (
             s == "ComponentCommon"
             and (
@@ -64,7 +62,6 @@ def generate_common_types(
                 or defs["ComponentCommon"].get("properties", {}).keys() <= {"id"}
             )
         )
-        or (s != "ComponentCommon" and has_base_function_call)
     ]
     imports_from_common.sort()
     import_list_str = "\n".join(f"    {name}," for name in imports_from_common)

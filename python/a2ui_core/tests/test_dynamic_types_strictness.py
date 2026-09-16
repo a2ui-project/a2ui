@@ -146,7 +146,8 @@ def test_v09_function_call_return_type_and_catalog_id():
     """v0.9 FunctionCall accepts returnType (default 'boolean') and forbids catalogId."""
     from a2ui.core.schema.v0_9.common_types import FunctionCall as FunctionCallV09
 
-    assert FunctionCallV09 is FunctionCall
+    assert FunctionCallV09 is not FunctionCall
+    assert FunctionCallV09.__module__ == "a2ui.core.schema.v0_9.common_types"
 
     fc_default = FunctionCallV09(call="fn")
     assert fc_default.return_type == "boolean"
@@ -158,6 +159,14 @@ def test_v09_function_call_return_type_and_catalog_id():
 
     with pytest.raises(ValidationError):
         FunctionCallV09.model_validate({"call": "fn", "catalogId": "basic"})
+
+
+def test_base_function_call_is_version_agnostic():
+    """Base FunctionCall in common_types does not have returnType."""
+    fc = FunctionCall(call="fn", catalog_id="basic")
+    assert fc.catalog_id == "basic"
+    with pytest.raises(ValidationError):
+        FunctionCall.model_validate({"call": "fn", "returnType": "boolean"})
 
 
 def test_v10_function_call_catalog_id_and_return_type():

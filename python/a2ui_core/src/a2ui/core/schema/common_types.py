@@ -14,8 +14,8 @@
 
 from __future__ import annotations
 import sys
-from typing import Annotated, Any, Callable, Dict, List, Literal, Optional, Union
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, GetCoreSchemaHandler, ValidationInfo, field_validator, StrictBool, StrictFloat, StrictInt, StrictStr
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler, ValidationInfo, field_validator, StrictBool, StrictFloat, StrictInt, StrictStr
 from pydantic_core import CoreSchema, PydanticUndefined
 
 
@@ -109,61 +109,26 @@ class DataBinding(StrictBaseModel):
 
 
 class FunctionCall(StrictBaseModel):
-    """Invokes a named function on the client."""
+    """Invokes a named function."""
 
     call: str = Field(..., description="The name of the function to call.")
     args: Optional[Dict[str, Any]] = Field(
         None, description="Arguments passed to the function."
     )
-    return_type: Optional[
-        Literal["string", "number", "boolean", "array", "object", "any", "void"]
-    ] = Field(
-        default="boolean",
-        alias="returnType",
-        description="The expected return type of the function call.",
+    catalog_id: Optional[str] = Field(
+        None,
+        alias="catalogId",
+        description=(
+            "The catalog ID for this function, overriding any surface-level default"
+            " catalogId."
+        ),
     )
 
 
-def _make_return_type_validator(
-    expected: str,
-) -> Callable[[FunctionCall], FunctionCall]:
-    def _validate_return_type(fc: FunctionCall) -> FunctionCall:
-        if "return_type" in fc.model_fields_set:
-            if fc.return_type != expected:
-                raise ValueError(
-                    f"FunctionCall in Dynamic type must have returnType '{expected}',"
-                    f" got '{fc.return_type}'"
-                )
-            return fc
-        if fc.return_type != expected:
-            fc = fc.model_copy()
-            object.__setattr__(fc, "return_type", expected)
-        return fc
-
-    return _validate_return_type
-
-
-DynamicString = Union[
-    StrictStr,
-    DataBinding,
-    Annotated[FunctionCall, AfterValidator(_make_return_type_validator("string"))],
-]
-DynamicNumber = Union[
-    StrictFloat,
-    StrictInt,
-    DataBinding,
-    Annotated[FunctionCall, AfterValidator(_make_return_type_validator("number"))],
-]
-DynamicBoolean = Union[
-    StrictBool,
-    DataBinding,
-    Annotated[FunctionCall, AfterValidator(_make_return_type_validator("boolean"))],
-]
-DynamicStringList = Union[
-    List[StrictStr],
-    DataBinding,
-    Annotated[FunctionCall, AfterValidator(_make_return_type_validator("array"))],
-]
+DynamicString = Union[StrictStr, DataBinding, FunctionCall]
+DynamicNumber = Union[StrictFloat, StrictInt, DataBinding, FunctionCall]
+DynamicBoolean = Union[StrictBool, DataBinding, FunctionCall]
+DynamicStringList = Union[List[StrictStr], DataBinding, FunctionCall]
 
 
 class TemplateChildList(StrictBaseModel, ListReference):
