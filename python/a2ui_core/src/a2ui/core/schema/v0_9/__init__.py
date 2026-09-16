@@ -17,9 +17,14 @@ from __future__ import annotations
 
 from .constants import *
 from .common_types import (
+    FunctionCall,
+    DynamicString,
     AccessibilityAttributes,
     ComponentCommon,
     DynamicValue,
+    DynamicNumber,
+    DynamicBoolean,
+    DynamicStringList,
     CheckRule,
     Checkable,
     ActionEvent,
@@ -82,9 +87,14 @@ from .client_to_server import (
 
 
 __all__ = [
+    "FunctionCall",
+    "DynamicString",
     "AccessibilityAttributes",
     "ComponentCommon",
     "DynamicValue",
+    "DynamicNumber",
+    "DynamicBoolean",
+    "DynamicStringList",
     "CheckRule",
     "Checkable",
     "ActionEvent",

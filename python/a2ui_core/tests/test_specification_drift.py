@@ -91,30 +91,6 @@ class PropertyGap(NamedTuple):
 # then definition. The comparison is an exact match against this ledger, so a
 # gap that closes fails the test just as a new gap does.
 KNOWN_PROPERTY_GAPS: dict[str, dict[str, PropertyGap]] = {
-    "v0_9": {
-        "FunctionCall": PropertyGap(
-            specification_only=("returnType",),
-            sdk_only=("catalogId",),
-            reason=(
-                "The v0.9 model is built to the v1.0 shape: it declares"
-                " 'catalogId', which v1.0 introduced, and omits 'returnType',"
-                " which v0.9 specifies with a default of 'boolean'. Because"
-                " the model also sets additionalProperties false, a v0.9"
-                " payload carrying 'returnType' is rejected. See"
-                " https://github.com/a2ui-project/a2ui/issues/2645."
-            ),
-        ),
-    },
-    "v0_9_1": {
-        "FunctionCall": PropertyGap(
-            specification_only=("returnType",),
-            sdk_only=("catalogId",),
-            reason=(
-                "v0.9.1 shares the v0.9 model, and so shares its gap. See"
-                " https://github.com/a2ui-project/a2ui/issues/2645."
-            ),
-        ),
-    },
     "v1_0": {
         "FunctionCall": PropertyGap(
             specification_only=(),
