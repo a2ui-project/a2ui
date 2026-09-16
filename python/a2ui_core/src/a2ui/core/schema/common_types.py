@@ -126,11 +126,16 @@ class FunctionCall(StrictBaseModel):
 
 def _make_return_type_validator(expected: str):
     def _validate_return_type(fc: FunctionCall) -> FunctionCall:
-        if "return_type" in fc.model_fields_set and fc.return_type != expected:
-            raise ValueError(
-                f"FunctionCall in Dynamic type must have returnType '{expected}',"
-                f" got '{fc.return_type}'"
-            )
+        if "return_type" in fc.model_fields_set:
+            if fc.return_type != expected:
+                raise ValueError(
+                    f"FunctionCall in Dynamic type must have returnType '{expected}',"
+                    f" got '{fc.return_type}'"
+                )
+            return fc
+        if fc.return_type != expected:
+            fc = fc.model_copy()
+            object.__setattr__(fc, "return_type", expected)
         return fc
 
     return _validate_return_type

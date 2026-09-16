@@ -31,46 +31,15 @@ from ..common_types import (
     ComponentId,
     ComponentReference,
     DataBinding,
+    DynamicBoolean,
+    DynamicNumber,
+    DynamicString,
+    DynamicStringList,
+    FunctionCall,
     ListReference,
     SingleReference,
     StrictBaseModel,
     TemplateChildList,
-)
-
-
-class FunctionCall(StrictBaseModel):
-    """Invokes a named function on the client."""
-
-    model_config = ConfigDict(populate_by_name=True)
-    call: str = Field(..., description="The name of the function to call.")
-    args: dict[str, Any] | None = Field(
-        None, description="Arguments passed to the function."
-    )
-    return_type: (
-        Literal["string", "number", "boolean", "array", "object", "any", "void"] | None
-    ) = Field(
-        alias="returnType",
-        description="The expected return type of the function call.",
-        default="boolean",
-    )
-
-
-def _make_return_type_validator(expected: str):
-    def _validate_return_type(fc: FunctionCall) -> FunctionCall:
-        if "return_type" in fc.model_fields_set and fc.return_type != expected:
-            raise ValueError(
-                f"FunctionCall in Dynamic type must have returnType '{expected}', got"
-                f" '{fc.return_type}'"
-            )
-        return fc
-
-    return _validate_return_type
-
-
-DynamicString = (
-    StrictStr
-    | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("string"))]
 )
 
 
@@ -112,28 +81,6 @@ DynamicValue = (
     | list[Any]
     | DataBinding
     | FunctionCall
-)
-
-
-DynamicNumber = (
-    StrictFloat
-    | StrictInt
-    | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("number"))]
-)
-
-
-DynamicBoolean = (
-    StrictBool
-    | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("boolean"))]
-)
-
-
-DynamicStringList = (
-    list[StrictStr]
-    | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("array"))]
 )
 
 

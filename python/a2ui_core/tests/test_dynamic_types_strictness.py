@@ -146,6 +146,8 @@ def test_v09_function_call_return_type_and_catalog_id():
     """v0.9 FunctionCall accepts returnType (default 'boolean') and forbids catalogId."""
     from a2ui.core.schema.v0_9.common_types import FunctionCall as FunctionCallV09
 
+    assert FunctionCallV09 is FunctionCall
+
     fc_default = FunctionCallV09(call="fn")
     assert fc_default.return_type == "boolean"
     assert "return_type" not in fc_default.model_fields_set
@@ -190,6 +192,12 @@ def test_v09_dynamic_types_enforce_return_type(
     # Omitted returnType is valid per v0.9 JSON Schema (returnType is not required)
     omitted = adapter.validate_python({"call": "fn"})
     assert omitted.call == "fn"
+    assert omitted.return_type == expected_return_type
+    assert "return_type" not in omitted.model_fields_set
+    assert omitted.model_dump(by_alias=True, exclude_unset=True) == {"call": "fn"}
+    # Round-trip through model_dump(by_alias=True) re-validates cleanly
+    revalidated = adapter.validate_python(adapter.dump_python(omitted, by_alias=True))
+    assert revalidated.return_type == expected_return_type
 
     # Matching explicit returnType is valid
     matched = adapter.validate_python(
