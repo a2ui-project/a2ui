@@ -8,6 +8,7 @@ This sample demonstrates a Model Context Protocol (MCP) Application Host that is
 - **`server/`**: The MCP Server (Python/uv) that provides the micro-app resources and tools.
 - **`server/apps/src/`**: Source code for the **Basic** isolated micro-app.
 - **`server/apps/editor/`**: Source code for the **Editor** isolated micro-app.
+- **`server/apps/react/`**: Source code for the **Generic React Renderer** micro-app (server-agnostic).
 
 ## Communication Flow
 
@@ -107,6 +108,51 @@ yarn build:all
 ```
 
 _(Generates `server/apps/public/app.html`)_
+
+#### Option C: The Generic React Renderer
+
+```bash
+cd server/apps/react
+yarn install
+yarn build:all
+```
+
+_(Generates `server/apps/public/react.html`)_
+
+---
+
+## Generic A2UI renderer
+
+The React micro-app (`server/apps/react/`) is a **generic, server-agnostic A2UI renderer**: it
+contains no logic specific to this server, so any A2UI-speaking MCP server can serve the built
+`react.html` as its own `ui://` resource. All content reaches the view through tool results.
+
+A server is compatible if it follows two conventions, which are the MCP Apps
+[Dynamic View Content](https://github.com/modelcontextprotocol/ext-apps/pull/699) contract
+applied to A2UI:
+
+1. **A2UI payloads travel as marked embedded resources.** A2UI messages (v0.9+) are delivered
+   as `EmbeddedResource` content blocks with mimeType `application/a2ui+json` in tool results —
+   including the entry tool's result, which the renderer draws as the initial view. Each block is
+   marked with `_meta: {"ui": {"content": {}}}`, and the `ui://` resource serving the renderer
+   declares `_meta.ui.contentMimeTypes: ["application/a2ui+json"]` (on `resources/list` and/or
+   `resources/read`). The marker tells hosts to forward the block to the View unmodified and keep
+   it out of model context; the declaration is the reviewable contract of what the View can parse.
+   Routing is implicit: payloads go to the calling tool's `_meta.ui.resourceUri` View. The
+   renderer still accepts unmarked A2UI blocks for servers written before the marker existed, but
+   spec-conformant hosts may strip those.
+2. **A2UI actions map to tools.** Each A2UI action `name` matches an app-visible tool name
+   (`_meta.ui.visibility` includes `"app"`), and the action's resolved `context` becomes the
+   tool's `arguments`. The tool's response payload is applied incrementally to the same surfaces.
+
+Hosts negotiate Dynamic View Content by advertising a non-empty `contentMimeTypes` in the
+`io.modelcontextprotocol/ui` extension capability at `initialize` (the sample host advertises
+`["application/a2ui+json"]`); without it, servers should not rely on marked payloads being
+delivered.
+
+In this sample, the `get_react_app` entry tool returns a v0.9 counter payload and the
+`increase_counter_v0_9` tool answers each button press with a data-model update, both built by
+the server's `a2ui_content_block()` helper.
 
 ---
 

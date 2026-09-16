@@ -1,0 +1,33 @@
+{
+  "name": "generic-a2ui-mcp-app-react",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@a2ui/markdown-it": "^0.0.4",
+    "@a2ui/react": "^0.10.1",
+    "@a2ui/web_core": "^0.10.3",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.21.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "vite": "^7.3.4",
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^4.1.8"
+  },
+  "scripts": {
+    "build": "vite build",
+    "build:all": "yarn run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

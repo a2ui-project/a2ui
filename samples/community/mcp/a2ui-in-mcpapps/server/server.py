@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 from typing import Any
 import anyio
@@ -30,6 +31,27 @@ logger = logging.getLogger("a2ui-in-mcp-apps-server")
 # Global counter state
 COUNTER = 0
 A2UI_MIME_TYPE = "application/a2ui+json"
+
+# MCP Apps "Dynamic View Content" (ext-apps PR #699): a View declares the
+# payload MIME types it renders via _meta.ui.contentMimeTypes on its ui://
+# resource, and each payload block in a tool result is marked with
+# _meta.ui.content so hosts forward it to the View unmodified (and keep it
+# out of model context). Routing stays on the tool's _meta.ui.resourceUri.
+UI_RESOURCE_META = {"ui": {"contentMimeTypes": [A2UI_MIME_TYPE]}}
+VIEW_CONTENT_META = {"ui": {"content": {}}}
+
+
+def a2ui_content_block(uri: str, payload: Any) -> types.EmbeddedResource:
+    """Builds an A2UI payload block marked as dynamic view content."""
+    return types.EmbeddedResource(
+        type="resource",
+        resource=types.TextResourceContents(
+            uri=uri,
+            mimeType=A2UI_MIME_TYPE,
+            text=json.dumps(payload),
+        ),
+        _meta=VIEW_CONTENT_META,
+    )
 
 
 @click.command()
@@ -51,6 +73,13 @@ def main(port: int, transport: str) -> int:
         ).read_text()
     )
 
+    # v0.9-vocabulary counter payload, rendered by the generic React app
+    simple_counter_a2ui_v0_9_json = json.loads(
+        (
+            pathlib.Path(__file__).resolve().parent / "simple_counter_a2ui_v0_9.json"
+        ).read_text()
+    )
+
     @app.list_resources()
     async def list_resources() -> list[types.Resource]:
         return [
@@ -59,12 +88,21 @@ def main(port: int, transport: str) -> int:
                 name="Basic App",
                 mimeType="text/html;profile=mcp-app",
                 description="A simple minimal application",
+                _meta=UI_RESOURCE_META,
             ),
             types.Resource(
                 uri="ui://editor/app",
                 name="Editor App",
                 mimeType="text/html;profile=mcp-app",
                 description="A rich generative document editor",
+                _meta=UI_RESOURCE_META,
+            ),
+            types.Resource(
+                uri="ui://react/app",
+                name="React App",
+                mimeType="text/html;profile=mcp-app",
+                description="A generic A2UI renderer written in React",
+                _meta=UI_RESOURCE_META,
             ),
         ]
 
@@ -76,6 +114,8 @@ def main(port: int, transport: str) -> int:
             app_file = "app.html"
         elif str(uri) == "ui://editor/app":
             app_file = "editor.html"
+        elif str(uri) == "ui://react/app":
+            app_file = "react.html"
         else:
             raise ValueError(f"Unknown resource: {uri}")
 
@@ -85,6 +125,9 @@ def main(port: int, transport: str) -> int:
                 ReadResourceContents(
                     content=app_path.read_text(),
                     mime_type="text/html;profile=mcp-app",
+                    # Mirrors the resources/list declaration on the read
+                    # response (UIResourceMeta may live on either or both).
+                    meta=UI_RESOURCE_META,
                 )
             ]
         except FileNotFoundError:
@@ -122,6 +165,31 @@ def main(port: int, transport: str) -> int:
                 name="increase_counter",
                 title="Increase Counter",
                 description="Increments the counter and returns the updated value.",
+                inputSchema={"type": "object", "properties": {}, "required": []},
+                _meta={"ui": {"visibility": ["app"]}},
+            ),
+            types.Tool(
+                name="get_react_app",
+                title="Get React App",
+                description=(
+                    "Returns the initial v0.9 counter payload, rendered by the"
+                    " generic React A2UI renderer."
+                ),
+                inputSchema={"type": "object", "properties": {}, "required": []},
+                _meta={
+                    "ui": {
+                        "resourceUri": "ui://react/app",
+                        "visibility": ["model"],
+                    }
+                },
+            ),
+            types.Tool(
+                name="increase_counter_v0_9",
+                title="Increase Counter (v0.9)",
+                description=(
+                    "Increments the counter and returns the updated value as a"
+                    " v0.9 data model update."
+                ),
                 inputSchema={"type": "object", "properties": {}, "required": []},
                 _meta={"ui": {"visibility": ["app"]}},
             ),
@@ -170,6 +238,8 @@ def main(port: int, transport: str) -> int:
     async def handle_call_tool(
         name: str, arguments: dict[str, Any]
     ) -> dict[str, Any] | list[Any]:
+        global COUNTER
+
         if name == "get_basic_app":
             # The ui://basic/app template is declared in the tool's
             # _meta.ui.resourceUri; this result is what the view renders,
@@ -177,13 +247,9 @@ def main(port: int, transport: str) -> int:
             return types.CallToolResult(
                 content=[
                     types.TextContent(type="text", text="Initial counter UI"),
-                    types.EmbeddedResource(
-                        type="resource",
-                        resource=types.TextResourceContents(
-                            uri="a2ui://ping-result",
-                            mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps(simple_counter_a2ui_json),
-                        ),
+                    a2ui_content_block(
+                        "a2ui://ping-result",
+                        simple_counter_a2ui_json,
                     ),
                 ]
             )
@@ -191,36 +257,69 @@ def main(port: int, transport: str) -> int:
             return types.CallToolResult(
                 content=[
                     types.TextContent(type="text", text="Ping result UI"),
-                    types.EmbeddedResource(
-                        type="resource",
-                        resource=types.TextResourceContents(
-                            uri="a2ui://ping-result",
-                            mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps(simple_counter_a2ui_json),
-                        ),
+                    a2ui_content_block(
+                        "a2ui://ping-result",
+                        simple_counter_a2ui_json,
                     ),
                 ]
             )
 
         elif name == "increase_counter":
-            global COUNTER
             COUNTER += 1
             return types.CallToolResult(
                 content=[
-                    types.EmbeddedResource(
-                        type="resource",
-                        resource=types.TextResourceContents(
-                            uri="a2ui://ping-result",
-                            mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps([{
+                    a2ui_content_block(
+                        "a2ui://ping-result",
+                        [
+                            {
                                 "dataModelUpdate": {
                                     "surfaceId": "ping-result",
                                     "contents": [
                                         {"key": "counter", "valueNumber": COUNTER}
                                     ],
                                 }
-                            }]),
-                        ),
+                            }
+                        ],
+                    )
+                ]
+            )
+
+        elif name == "get_react_app":
+            # The ui://react/app template is declared in the tool's
+            # _meta.ui.resourceUri; the generic renderer draws whatever A2UI
+            # payload this result embeds. Patch the live COUNTER into the
+            # initial render so it stays in sync with earlier increments.
+            payload = copy.deepcopy(simple_counter_a2ui_v0_9_json)
+            for message in payload:
+                update = message.get("updateDataModel")
+                if update and update.get("path") == "/counter":
+                    update["value"] = COUNTER
+            return types.CallToolResult(
+                content=[
+                    types.TextContent(type="text", text="Initial counter UI (v0.9)"),
+                    a2ui_content_block(
+                        "a2ui://counter-v0-9",
+                        payload,
+                    ),
+                ]
+            )
+
+        elif name == "increase_counter_v0_9":
+            COUNTER += 1
+            return types.CallToolResult(
+                content=[
+                    a2ui_content_block(
+                        "a2ui://counter-v0-9",
+                        [
+                            {
+                                "version": "v0.9",
+                                "updateDataModel": {
+                                    "surfaceId": "counter",
+                                    "path": "/counter",
+                                    "value": COUNTER,
+                                },
+                            }
+                        ],
                     )
                 ]
             )
@@ -240,13 +339,9 @@ def main(port: int, transport: str) -> int:
 
             return types.CallToolResult(
                 content=[
-                    types.EmbeddedResource(
-                        type="resource",
-                        resource=types.TextResourceContents(
-                            uri="a2ui://editor-controls",
-                            mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps(a2ui_payload),
-                        ),
+                    a2ui_content_block(
+                        "a2ui://editor-controls",
+                        a2ui_payload,
                     )
                 ]
             )
