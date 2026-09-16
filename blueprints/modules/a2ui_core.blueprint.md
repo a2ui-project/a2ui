@@ -725,15 +725,13 @@ const agentProcessor = new MessageProcessor({
 // Same entry point as the renderer: the processor is kept for the session, so
 // each payload is checked against the state the previous ones built.
 agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
-// Once the turn is built, assert each surface it created is a finished render.
-agentProcessor.checkSurfaceComplete('surface-1');
 ```
 
 | Execution Aspect              | Renderer                                                                                                          | Agent                                                                      |
 | :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
 | **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.             |
 | **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
-| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, then `checkSurfaceComplete` for each surface built.     |
+| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, under the default strict `ValidationConfig`.            |
 | **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                       |
 | **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
 | **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending. |
@@ -847,10 +845,10 @@ A component belongs to exactly one catalog, and from v1.0 one surface may mix ca
 - Raise `A2uiCatalogError` when a resolved `catalogId` is not one this processor supports.
 - Record the catalog on the `SurfaceModel` when the surface is created, so a later `updateComponents` resolves against it.
 - Expose `processMessages` as the single entry point for applying a payload to surface state and checking each message against the surface it joins. An agent uses it over its own output too, keeping a processor for the session so each payload is checked against the state the previous ones built.
-- Expose `checkSurfaceComplete(surfaceId)` for the checks a payload cannot settle while messages are still arriving: a `root` component exists, every reference resolves, and every component is reachable from the root. A caller runs it when it declares a surface finished.
+- Check every surface a payload creates as one graph once the payload has been applied: a `root` component exists, every reference resolves, and every component is reachable from the root. These three cannot be answered as each message arrives, because a payload may declare a parent before its child, so they answer for the surface the payload leaves behind rather than for each message in turn. `ValidationConfig` governs which of them run, so a caller whose transport delivers one surface across several payloads relaxes the ones that span them. A surface the payload only updates is an incremental update to a render it does not own, and is not held to them.
 - Envelope parsing is `AgentToRendererMessage.parseAll(payload, protocolVersion)`, not a validator method: it needs no catalog, which is what lets a payload be read before each message is matched to its surface.
 
-Envelope parsing takes no catalog: the protocol version tag and the single-update-type rule read none. Make it static on `PayloadValidator`, so a payload can be parsed before each message is matched to a surface, and so to a catalog.
+Envelope parsing takes no catalog: the protocol version tag and the single-update-type rule read none. Make it a static on the message type, so a payload can be parsed before each message is matched to a surface, and so to a catalog.
 
 In an agent, pass the negotiated catalog as the only supported one.
 

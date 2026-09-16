@@ -21,6 +21,7 @@ import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/primitives/protocol_version.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
+import 'package:a2ui_core/src/validation/validation_config.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
@@ -112,6 +113,18 @@ void main() {
     });
 
     group('component graph checks', () {
+      /// A processor for a surface that arrives across several payloads.
+      ///
+      /// The root and the reachable set answer for the surface one payload
+      /// leaves behind, so an instalment of a render fails the strict default.
+      /// These cases are about what a later batch is checked against, so they
+      /// relax the checks that span payloads; see [ValidationConfig].
+      MessageProcessor streaming() => MessageProcessor(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: ValidationConfig.relaxed,
+      );
+
       List<Map<String, Object?>> update(
         List<Map<String, Object?>> components,
       ) => [
@@ -125,24 +138,22 @@ void main() {
         },
       ];
 
-      test('reports a reference to no component once the surface is done', () {
-        // The reference may be satisfied by a later message, so applying the
-        // batch is fine; it is the finished surface that must hold together.
-        processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            update([
-              {
-                'id': 'root',
-                'component': 'Column',
-                'children': ['missing'],
-              },
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        );
-
+      test('reports a reference to no component once the payload ends', () {
+        // The reference may be satisfied by a later message of the payload, so
+        // it is the surface the payload leaves behind that must hold together.
         expect(
-          () => processor.checkSurfaceComplete('s1'),
+          () => processor.processMessages(
+            AgentToRendererMessage.parseAll(
+              update([
+                {
+                  'id': 'root',
+                  'component': 'Column',
+                  'children': ['missing'],
+                },
+              ]),
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
+          ),
           throwsA(isA<A2uiIntegrityError>()),
         );
       });
@@ -163,6 +174,7 @@ void main() {
       });
 
       test('accepts a reference to a component the surface already holds', () {
+        final MessageProcessor processor = streaming();
         // The payload-scoped validator cannot make this call: it waves the
         //second batch through because it cannot see the first.
         processor.processMessages(
@@ -192,6 +204,7 @@ void main() {
       });
 
       test('rejects a cycle closed through an existing component', () {
+        final MessageProcessor processor = streaming();
         processor.processMessages(
           AgentToRendererMessage.parseAll(
             update([
@@ -226,6 +239,7 @@ void main() {
       });
 
       test('leaves the surface unchanged when the graph check fails', () {
+        final MessageProcessor processor = streaming();
         processor.processMessages(
           AgentToRendererMessage.parseAll(
             update([
@@ -492,6 +506,14 @@ void main() {
       expect(surfaces?['s1'], {'foo': 'bar'});
     });
     test('applies a fully valid batch of components', () {
+      // `Text` takes no children, so `second` can only ever be unreachable.
+      // The subject here is that both components land on the surface, so the
+      // reachability check is relaxed rather than the batch reshaped.
+      final MessageProcessor processor = MessageProcessor(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: const ValidationConfig(allowOrphanComponents: true),
+      );
       processor.processMessages([
         CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
         UpdateComponentsMessage(

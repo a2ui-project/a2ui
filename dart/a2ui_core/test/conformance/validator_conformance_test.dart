@@ -83,11 +83,11 @@ void _runCase(Map<String, Object?> testCase) {
 
     final Object? expectError =
         step['expect_error'] ?? testCase['expect_error'];
-    // A case states one payload and expects a verdict on it, so the payload is
-    // treated as a finished render: applied, then checked for completeness on
-    // every surface it creates. Without the second step a missing root or an
-    // unreachable component would go unreported, since neither is settled
-    // while messages are still arriving.
+    // A case states one payload and expects a verdict on it. The processor is
+    // built with the default strict config, so a payload that creates a
+    // surface is checked as a whole render once applied: a missing root, a
+    // reference to nothing and an unreachable component all report from
+    // `processMessages` itself.
     void run() {
       processor.processMessages(
         AgentToRendererMessage.parseAll(
@@ -95,9 +95,6 @@ void _runCase(Map<String, Object?> testCase) {
           protocolVersion: A2uiProtocolVersion.v0_9,
         ),
       );
-      for (final String id in _surfacesCreatedBy(payload)) {
-        processor.checkSurfaceComplete(id);
-      }
     }
 
     if (expectError != null) {
@@ -111,13 +108,6 @@ void _runCase(Map<String, Object?> testCase) {
     }
   }
 }
-
-/// The surfaces [payload] creates, which are the ones it renders in full.
-Set<String> _surfacesCreatedBy(List<Map<String, Object?>> payload) => {
-  for (final Map<String, Object?> envelope in payload)
-    if (envelope['createSurface'] case final Map<String, Object?> body)
-      if (body['surfaceId'] case final String id) id,
-};
 
 /// Creates any surface [payload] updates but does not itself create.
 ///

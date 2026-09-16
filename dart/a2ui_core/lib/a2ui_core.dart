@@ -49,4 +49,5 @@ export 'src/rendering/binder.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `MessageProcessor` is the entry point, and
 // `PayloadValidator` checks one item against one catalog.
+export 'src/validation/validation_config.dart';
 export 'src/validation/validator.dart';

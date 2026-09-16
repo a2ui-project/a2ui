@@ -132,12 +132,24 @@ PayloadValidator<ComponentApi, FunctionApi> newValidator({
 /// Structure and catalog checks span a whole payload, and a payload may name
 /// several catalogs, so they run on the processor rather than on a validator
 /// scoped to one catalog.
-MessageProcessor<ComponentApi> newProcessor({bool withCommonTypes = false}) =>
-    MessageProcessor<ComponentApi>(
-      catalogs: [rendererCatalog(testCatalogDocument())],
-      protocolVersion: A2uiProtocolVersion.v0_9,
-      commonTypesSchema: withCommonTypes ? commonTypes() : const {},
-    );
+MessageProcessor<ComponentApi> newProcessor({
+  bool withCommonTypes = false,
+  ValidationConfig validationConfig = ValidationConfig.strict,
+}) => MessageProcessor<ComponentApi>(
+  catalogs: [rendererCatalog(testCatalogDocument())],
+  protocolVersion: A2uiProtocolVersion.v0_9,
+  validationConfig: validationConfig,
+  commonTypesSchema: withCommonTypes ? commonTypes() : const {},
+);
+
+/// A processor for a surface that arrives across several payloads.
+///
+/// The root, the references and the reachable set answer for the surface a
+/// payload leaves behind, so a payload carrying one instalment of a render
+/// fails the strict default. A caller whose transport works that way relaxes
+/// them; see [ValidationConfig].
+MessageProcessor<ComponentApi> newStreamingProcessor() =>
+    newProcessor(validationConfig: ValidationConfig.relaxed);
 
 /// A processor that already holds surface `s1`.
 ///
@@ -391,18 +403,17 @@ void main() {
       );
     });
 
-    test('a child reference that names no component leaves it incomplete', () {
+    test('a child reference that names no component fails the payload', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'missing')]),
       ]);
 
-      // Applying is fine: `missing` may arrive next.
-      processor.processMessages(messages);
-
+      // `missing` could have arrived in a later message of this payload, so
+      // the reference is answered once the whole payload has been applied.
       expect(
-        () => processor.checkSurfaceComplete('s1'),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -413,18 +424,16 @@ void main() {
       );
     });
 
-    test('a surface with no root component is incomplete', () {
+    test('a surface with no root component fails the payload', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
       ]);
 
-      // Applying is fine: the root may still arrive in a later message.
-      processor.processMessages(messages);
-
+      // The root could have arrived in a later message of this payload.
       expect(
-        () => processor.checkSurfaceComplete('s1'),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -446,12 +455,10 @@ void main() {
         ]),
       ]);
 
-      // A component nothing points at may still be adopted by a later
-      // message, so it fails the completeness check rather than the apply.
-      processor.processMessages(messages);
-
+      // A component nothing points at may still be adopted by a later message
+      // of the same payload, so it is answered at the end of the payload.
       expect(
-        () => processor.checkSurfaceComplete('s1'),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -459,6 +466,81 @@ void main() {
             contains("Component 'orphan' is not reachable"),
           ),
         ),
+      );
+    });
+
+    group('under a relaxed ValidationConfig', () {
+      test('accepts a payload that renders only part of a surface', () {
+        final MessageProcessor<ComponentApi> processor =
+            newStreamingProcessor();
+
+        // No root, a reference to a component that never arrives, and a
+        // component nothing points at: all three of the checks that wait on
+        // the rest of the render.
+        expect(
+          () => processor.processMessages(
+            parse([
+              createSurface(),
+              updateComponents([card('panel', 'missing'), text('aside')]),
+            ]),
+          ),
+          returnsNormally,
+        );
+      });
+
+      test('still rejects what no later payload can repair', () {
+        final MessageProcessor<ComponentApi> processor =
+            newStreamingProcessor();
+
+        expect(
+          () => processor.processMessages(
+            parse([
+              createSurface(),
+              updateComponents([card('root', 'root')]),
+            ]),
+          ),
+          throwsA(isA<A2uiRecursionError>()),
+        );
+      });
+
+      test('relaxes one check without relaxing the others', () {
+        final MessageProcessor<ComponentApi> processor = newProcessor(
+          validationConfig: const ValidationConfig(allowMissingRoot: true),
+        );
+
+        // The root is excused; the reference it carries is not.
+        expect(
+          () => processor.processMessages(
+            parse([
+              createSurface(),
+              updateComponents([card('panel', 'missing')]),
+            ]),
+          ),
+          throwsA(
+            isA<A2uiIntegrityError>().having(
+              (e) => e.message,
+              'message',
+              contains('references non-existent component'),
+            ),
+          ),
+        );
+      });
+    });
+
+    test('holds only the surfaces a payload creates to a whole render', () {
+      // The surface exists already, so this payload is an incremental update
+      // to a render someone else completed. Its own instalment has no root and
+      // points at nothing, which is not this payload's to answer for.
+      final MessageProcessor<ComponentApi> processor =
+          newProcessorWithSurface();
+
+      expect(
+        () => processor.processMessages(
+          parse([
+            updateComponents([text('label', 'Hello')]),
+          ]),
+        ),
+        returnsNormally,
       );
     });
 
@@ -556,9 +638,8 @@ void main() {
           text('a'),
         ]),
       ]);
-      second.processMessages(dangling);
       expect(
-        () => second.checkSurfaceComplete('s1'),
+        () => second.processMessages(dangling),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });
@@ -589,9 +670,8 @@ void main() {
           },
         ]),
       ]);
-      second.processMessages(dangling);
       expect(
-        () => second.checkSurfaceComplete('s1'),
+        () => second.processMessages(dangling),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });
@@ -613,10 +693,8 @@ void main() {
         ]),
       ]);
 
-      processor.processMessages(messages);
-
       expect(
-        () => processor.checkSurfaceComplete('s1'),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -808,13 +886,16 @@ void main() {
     });
 
     test('treats an id repeated in a later message as an update', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
       // The second message replaces `root`, pointing it at `b` instead of
-      // `a`. That is how the basic catalog's `00_incremental` example swaps
-      // a placeholder out, so it must not read as a duplicate id — and `a`,
-      // now unreachable, is the residue of the replacement rather than an
-      // orphan. A surface declared in one message is still held to full
-      // reachability, which the test above covers.
+      // `a`. That is how the basic catalog's `00_incremental` example swaps a
+      // placeholder out, so it must not read as a duplicate id. It does leave
+      // `a` unreachable: v0.9 cannot remove a component, so the one that was
+      // replaced stays on the surface with nothing pointing at it, which is
+      // what `allowOrphanComponents` is for. Reachability under the strict
+      // default is covered above.
+      final MessageProcessor<ComponentApi> processor = newProcessor(
+        validationConfig: const ValidationConfig(allowOrphanComponents: true),
+      );
       final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'a'), text('a')]),
@@ -841,7 +922,9 @@ void main() {
 
   group('MessageProcessor.processMessages', () {
     test('accepts components that satisfy the catalog schema', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
+      // About the schema, not the graph: the payload declares one component
+      // and no root, which the strict default would reject on its own.
+      final MessageProcessor<ComponentApi> processor = newStreamingProcessor();
       final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
@@ -944,8 +1027,10 @@ void main() {
     test('treats an unresolvable reference as unconstrained', () {
       // Given shared types that define no `ChildList`, the reference to it
       // cannot be resolved. The surrounding constraints still apply, but the
-      // reference itself is skipped rather than failing the payload.
-      final MessageProcessor<ComponentApi> processor = newProcessor();
+      // reference itself is skipped rather than failing the payload. The
+      // component `row` it names is never declared, so the graph checks are
+      // relaxed to leave the schema question on its own.
+      final MessageProcessor<ComponentApi> processor = newStreamingProcessor();
       final List<AgentToRendererMessage> messages = parse([
         createSurface(),
         updateComponents([
@@ -1208,7 +1293,7 @@ void main() {
 
       // `root` names a component the catalog does not declare and points at
       // nothing. The catalog check runs as the batch is applied, so it is what
-      // surfaces; the dangling reference waits for `checkSurfaceComplete`.
+      // surfaces; the dangling reference waits for the end of the payload.
       expect(
         () => processor.processMessages(
           AgentToRendererMessage.parseAll([

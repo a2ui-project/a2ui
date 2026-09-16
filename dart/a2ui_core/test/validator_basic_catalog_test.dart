@@ -114,8 +114,18 @@ void main() {
             (message! as Map).cast<String, Object?>(),
         ];
 
+        // Reachability is relaxed for the examples, and only reachability:
+        // `31_incremental-dashboard` swaps its loading placeholders out by
+        // re-sending their parents with new children, and v0.9 has no way to
+        // remove the placeholders, so they stay on the surface with nothing
+        // pointing at them. The root and every reference are still required.
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [rendererCatalog(basicCatalogDocument())],
+          protocolVersion: A2uiProtocolVersion.v0_9,
+          validationConfig: const ValidationConfig(allowOrphanComponents: true),
+        );
         expect(
-          () => basicProcessor().processMessages(
+          () => processor.processMessages(
             AgentToRendererMessage.parseAll(
               payload,
               protocolVersion: A2uiProtocolVersion.v0_9,
@@ -224,19 +234,18 @@ void main() {
     });
 
     test('a child reference that names no component', () {
-      processor.processMessages(
-        AgentToRendererMessage.parseAll(
-          render([
-            {'id': 'root', 'component': 'Card', 'child': 'missing'},
-          ]),
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ),
-      );
-
-      // A reference resolves against the finished surface, not against the
-      // batch that carried it.
+      // A reference resolves against the surface the payload leaves behind,
+      // not against the batch that carried it, so this fails at the end of the
+      // payload rather than as the batch is applied.
       expect(
-        () => processor.checkSurfaceComplete('s'),
+        () => processor.processMessages(
+          AgentToRendererMessage.parseAll(
+            render([
+              {'id': 'root', 'component': 'Card', 'child': 'missing'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });

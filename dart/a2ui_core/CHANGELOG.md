@@ -11,12 +11,22 @@
   catalog for each item through `catalogFor`, and checks each component
   against the catalog it resolves to rather than against every catalog the
   processor supports.
-- **Breaking:** Added `MessageProcessor.checkSurfaceComplete`, which asserts a
-  surface holds a finished render: a `root` component exists and every
-  component is reachable from it. Applying a payload cannot make that check,
-  because a surface is built up over several messages and either condition may
-  be settled by the next one, so completeness is something the caller
-  declares. An agent runs it over the surfaces its turn built before sending.
+- **Breaking:** `MessageProcessor.processMessages` checks every surface the
+  payload creates as one graph once the payload has been applied: a `root`
+  component exists, every reference resolves, and every component is reachable
+  from the root. These three cannot be checked as each message arrives,
+  because a payload may declare a parent before its child, so they answer for
+  the surface the payload leaves behind. A surface the payload only updates is
+  an incremental update to a render it does not own, and is not checked that
+  way.
+- **Breaking:** Added `ValidationConfig`, with `allowOrphanComponents`,
+  `allowDanglingReferences` and `allowMissingRoot`, and the `strict` and
+  `relaxed` presets. `MessageProcessor` takes one, defaulting to `strict`. A
+  caller whose transport delivers one surface across several payloads relaxes
+  the checks that span them; a caller that receives a whole render in one
+  payload leaves them on. Everything else stays unconditional: the catalog
+  schema, duplicate ids, self-references, cycles, depth and data-model paths
+  are not waiting on a later message.
 - **Breaking:** `A2uiMessage` is renamed `AgentToRendererMessage`, the name the
   `a2ui_core` blueprint gives the type a payload parses into and
   `MessageProcessor.processMessages` accepts. It says which direction the
@@ -42,8 +52,8 @@
   against the surface it joins, so duplicate ids, cycles and over-deep chains
   now throw. Whether a reference resolves is not checked there: a payload may
   declare a parent before its child, as the basic catalog's `00_incremental`
-  example does, so references are resolved by `checkSurfaceComplete` once a
-  caller declares the surface finished.
+  example does, so references are resolved once the payload that created the
+  surface has been applied in full.
 - **Breaking:** `Catalog` now takes two type parameters,
   `Catalog<C extends ComponentApi, F extends FunctionApi>`.
 - **Breaking:** `ComponentApi` and `FunctionApi` are concrete classes with
