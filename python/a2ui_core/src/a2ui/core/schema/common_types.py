@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 import sys
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from typing import Annotated, Any, Callable, Dict, List, Literal, Optional, Union
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, GetCoreSchemaHandler, ValidationInfo, field_validator, StrictBool, StrictFloat, StrictInt, StrictStr
 from pydantic_core import CoreSchema, PydanticUndefined
 
@@ -124,7 +124,9 @@ class FunctionCall(StrictBaseModel):
     )
 
 
-def _make_return_type_validator(expected: str):
+def _make_return_type_validator(
+    expected: str,
+) -> Callable[[FunctionCall], FunctionCall]:
     def _validate_return_type(fc: FunctionCall) -> FunctionCall:
         if "return_type" in fc.model_fields_set:
             if fc.return_type != expected:
