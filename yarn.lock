@@ -480,7 +480,6 @@ __metadata:
     "@types/jsdom": "npm:^28.0.3"
     "@types/node": "npm:^25.9.3"
     c8: "npm:^11.0.0"
-    date-fns: "npm:^4.4.0"
     eslint: "npm:^10.4.1"
     google-artifactregistry-auth: "npm:^3.5.0"
     gts: "npm:^7.0.0"
@@ -12042,13 +12041,6 @@ __metadata:
     es-errors: "npm:^1.3.0"
     is-data-view: "npm:^1.0.1"
   checksum: 10c0/fa7aa40078025b7810dcffc16df02c480573b7b53ef1205aa6a61533011005c1890e5ba17018c692ce7c900212b547262d33279fde801ad9843edc0863bf78c4
-  languageName: node
-  linkType: hard
-
-"date-fns@npm:^4.4.0":
-  version: 4.4.0
-  resolution: "date-fns@npm:4.4.0"
-  checksum: 10c0/988f0a13db183f5dfc85c36bbb6847a9c135a9225888bbea4005876ec15539a8613c21a07370a4e7ea543918d5a1cafb423c528b42cdbbde5fdfddb178126b21
   languageName: node
   linkType: hard
 

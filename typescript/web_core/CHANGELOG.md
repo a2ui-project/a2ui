@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Factor out basic catalog function implementations shared between v0.9 and v1.0
+  into a common module (`src/common/basic_functions.ts`). Both versions now
+  share implementation logic for logical operations, string formatting, number
+  formatting, currency fallback formatting (`${currency} ${amount}`), TR35 date
+  formatting, pluralization, and validation. Removed the `date-fns` dependency.
 - (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
 - (v1_0) The v1.0 basic catalog now ships function bodies. It previously
   exported argument schemas only, so a payload calling `formatCurrency`,

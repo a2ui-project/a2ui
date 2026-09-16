@@ -350,8 +350,8 @@ describe('BASIC_FUNCTIONS', () => {
         {value: 1234.56, currency: 'INVALID-CURRENCY', decimals: 2},
         context,
       );
-      // Fallbacks to toFixed
-      assert.strictEqual(result, '1234.56');
+      // Fallbacks to "${currency} ${amount}" matching Python and v1.0 spec
+      assert.strictEqual(result, 'INVALID-CURRENCY 1,234.56');
     });
 
     it('pluralize', () => {

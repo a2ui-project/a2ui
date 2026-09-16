@@ -288,7 +288,6 @@
   "dependencies": {
     "@lit/context": "^1.1.6",
     "@preact/signals-core": "^1.14.2",
-    "date-fns": "^4.4.0",
     "lit": "^3.3.3",
     "validate-color": "^2.2.4",
     "zod": "^3.25.76",
