@@ -68,17 +68,8 @@ def _generate_dynamic_type_def(
     return raw_schema
 
 
-def _get_dynamic_types_defs() -> dict[str, Any]:
-    from ..schema.common_types import (
-        DataBinding,
-        DynamicBoolean,
-        DynamicNumber,
-        DynamicString,
-        FunctionCall,
-    )
-    from ..schema.v1_0.common_types import DynamicValue
-
-    return {
+def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
+    common_base: dict[str, Any] = {
         "ComponentId": {
             "description": (
                 "The unique identifier for a component, used for both"
@@ -130,11 +121,113 @@ def _get_dynamic_types_defs() -> dict[str, Any]:
                 },
             ],
         },
+    }
+
+    if is_at_least_version(protocol_version, "1.0"):
+        from ..schema.v1_0.common_types import (
+            DataBinding as DataBindingV10,
+            DynamicBoolean as DynamicBooleanV10,
+            DynamicNumber as DynamicNumberV10,
+            DynamicString as DynamicStringV10,
+            DynamicStringList as DynamicStringListV10,
+            DynamicValue as DynamicValueV10,
+            FunctionCall as FunctionCallV10,
+        )
+
+        return {
+            **common_base,
+            "AccessibilityAttributes": {
+                "type": "object",
+                "description": (
+                    "Attributes to enhance accessibility when using assistive"
+                    " technologies like screen readers or model understanding."
+                ),
+                "properties": {
+                    "label": {
+                        "$ref": "#/$defs/DynamicString",
+                        "description": (
+                            "A short string, typically 1 to 3 words, used by"
+                            " assistive technologies to convey the purpose or"
+                            " intent of an element. For example, an input field"
+                            " might have an accessible label of 'User ID' or a"
+                            " button might be labeled 'Submit'."
+                        ),
+                    },
+                    "description": {
+                        "$ref": "#/$defs/DynamicString",
+                        "description": (
+                            "Additional information provided by assistive"
+                            " technologies about an element such as instructions,"
+                            " format requirements, or result of an action. For"
+                            " example, a mute button might have a label of 'Mute'"
+                            " and a description of 'Silences notifications about"
+                            " this conversation'."
+                        ),
+                    },
+                    "live": {
+                        "type": "string",
+                        "enum": ["off", "polite", "assertive"],
+                        "default": "off",
+                        "description": (
+                            "Controls screen reader announcements for dynamic updates"
+                            " (WAI-ARIA aria-live). 'polite' waits for user pause;"
+                            " 'assertive' interrupts immediately for alerts."
+                        ),
+                    },
+                    "hidden": {
+                        "$ref": "#/$defs/DynamicBoolean",
+                        "description": (
+                            "Hides the element and its children from assistive"
+                            " technologies when true. Default is false."
+                        ),
+                    },
+                },
+                "additionalProperties": False,
+            },
+            "DynamicString": _generate_dynamic_type_def(
+                DynamicStringV10, description="Represents a string"
+            ),
+            "DynamicNumber": _generate_dynamic_type_def(
+                DynamicNumberV10,
+                description=(
+                    "Represents a value that can be either a literal number, a path"
+                    " to a number in the data model, or a function call returning a"
+                    " number."
+                ),
+            ),
+            "DynamicBoolean": _generate_dynamic_type_def(
+                DynamicBooleanV10,
+                description=(
+                    "A boolean value that can be a literal, a path, or a function"
+                    " call returning a boolean."
+                ),
+            ),
+            "DynamicStringList": _generate_dynamic_type_def(
+                DynamicStringListV10,
+                description=(
+                    "Represents a value that can be either a literal array of"
+                    " strings, a path to a string array in the data model, or a"
+                    " function call returning a string array."
+                ),
+            ),
+            "DynamicValue": _generate_dynamic_type_def(DynamicValueV10),
+            "DataBinding": _generate_dynamic_type_def(DataBindingV10),
+            "FunctionCall": _generate_dynamic_type_def(FunctionCallV10),
+        }
+
+    from ..schema.v0_9.common_types import (
+        DataBinding as DataBindingV09,
+        DynamicValue as DynamicValueV09,
+        FunctionCall as FunctionCallV09,
+    )
+
+    return {
+        **common_base,
         "AccessibilityAttributes": {
             "type": "object",
             "description": (
                 "Attributes to enhance accessibility when using assistive"
-                " technologies like screen readers or model understanding."
+                " technologies like screen readers."
             ),
             "properties": {
                 "label": {
@@ -158,47 +251,75 @@ def _get_dynamic_types_defs() -> dict[str, Any]:
                         " this conversation'."
                     ),
                 },
-                "live": {
-                    "type": "string",
-                    "enum": ["off", "polite", "assertive"],
-                    "default": "off",
-                    "description": (
-                        "Controls screen reader announcements for dynamic updates"
-                        " (WAI-ARIA aria-live). 'polite' waits for user pause;"
-                        " 'assertive' interrupts immediately for alerts."
-                    ),
-                },
-                "hidden": {
-                    "$ref": "#/$defs/DynamicBoolean",
-                    "description": (
-                        "Hides the element and its children from assistive"
-                        " technologies when true. Default is false."
-                    ),
-                },
             },
             "additionalProperties": False,
         },
-        "DynamicString": _generate_dynamic_type_def(
-            DynamicString, description="Represents a string"
-        ),
-        "DynamicNumber": _generate_dynamic_type_def(
-            DynamicNumber,
-            description=(
+        "DynamicString": {
+            "description": "Represents a string",
+            "oneOf": [
+                {"type": "string"},
+                {"$ref": "#/$defs/DataBinding"},
+                {
+                    "allOf": [
+                        {"$ref": "#/$defs/FunctionCall"},
+                        {"properties": {"returnType": {"const": "string"}}},
+                    ]
+                },
+            ],
+        },
+        "DynamicNumber": {
+            "description": (
                 "Represents a value that can be either a literal number, a path"
                 " to a number in the data model, or a function call returning a"
                 " number."
             ),
-        ),
-        "DynamicBoolean": _generate_dynamic_type_def(
-            DynamicBoolean,
-            description=(
+            "oneOf": [
+                {"type": "number"},
+                {"$ref": "#/$defs/DataBinding"},
+                {
+                    "allOf": [
+                        {"$ref": "#/$defs/FunctionCall"},
+                        {"properties": {"returnType": {"const": "number"}}},
+                    ]
+                },
+            ],
+        },
+        "DynamicBoolean": {
+            "description": (
                 "A boolean value that can be a literal, a path, or a function"
                 " call returning a boolean."
             ),
-        ),
-        "DynamicValue": _generate_dynamic_type_def(DynamicValue),
-        "DataBinding": _generate_dynamic_type_def(DataBinding),
-        "FunctionCall": _generate_dynamic_type_def(FunctionCall),
+            "oneOf": [
+                {"type": "boolean"},
+                {"$ref": "#/$defs/DataBinding"},
+                {
+                    "allOf": [
+                        {"$ref": "#/$defs/FunctionCall"},
+                        {"properties": {"returnType": {"const": "boolean"}}},
+                    ]
+                },
+            ],
+        },
+        "DynamicStringList": {
+            "description": (
+                "Represents a value that can be either a literal array of"
+                " strings, a path to a string array in the data model, or a"
+                " function call returning a string array."
+            ),
+            "oneOf": [
+                {"type": "array", "items": {"type": "string"}},
+                {"$ref": "#/$defs/DataBinding"},
+                {
+                    "allOf": [
+                        {"$ref": "#/$defs/FunctionCall"},
+                        {"properties": {"returnType": {"const": "array"}}},
+                    ]
+                },
+            ],
+        },
+        "DynamicValue": _generate_dynamic_type_def(DynamicValueV09),
+        "DataBinding": _generate_dynamic_type_def(DataBindingV09),
+        "FunctionCall": _generate_dynamic_type_def(FunctionCallV09),
     }
 
 
@@ -755,12 +876,13 @@ class Catalog(Generic[TComponent, TFunction]):
                     "DynamicNumber",
                     "DynamicBoolean",
                     "DynamicValue",
+                    "DynamicStringList",
                 )
             ):
                 referenced_dynamics.add("DataBinding")
                 referenced_dynamics.add("FunctionCall")
             dynamic_defs = {
-                **_get_dynamic_types_defs(),
+                **_get_dynamic_types_defs(self.protocol_version),
                 **self.common_types_defs,
             }
             queue = deque(referenced_dynamics)

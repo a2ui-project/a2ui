@@ -171,7 +171,7 @@ AgentFunctionResponse = FunctionResponse
 
 class AgentFunctionResponseMessage(StrictBaseModel):
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
-    agent_function_response: FunctionResponse = Field(
+    agent_function_response: AgentFunctionResponse = Field(
         ..., alias="agentFunctionResponse"
     )
 

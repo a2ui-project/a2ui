@@ -74,7 +74,6 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-
 from .styles import Theme
 from .function_impls import (
     BASIC_FUNCTION_IMPLEMENTATIONS,

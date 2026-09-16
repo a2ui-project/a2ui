@@ -20,6 +20,16 @@ from .common_types import StrictBaseModel, Extensions
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
+class FunctionCallValidationSchema(StrictBaseModel):
+    """JSON Schema structure that validates a wire-level FunctionCall object."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    type: Literal["object"] = Field("object")
+    description: str | None = Field(None)
+    properties: dict[str, Any] = Field(...)
+    required: list[str] = Field(...)
+
+
 class FunctionDefinition(BaseModel):
     """Describes a function's validation schema and interface metadata."""
 

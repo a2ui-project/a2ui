@@ -41,22 +41,37 @@ def generate_common_types(
     defs = common_data.get("$defs", {})
 
     base_symbols = get_base_common_symbols()
+    versioned_symbols = {
+        "ComponentCommon",
+        "FunctionCall",
+        "DynamicString",
+        "DynamicNumber",
+        "DynamicBoolean",
+        "DynamicStringList",
+    }
     # Any class/type defined in base common_types.py is imported and not repeated in versioned folders
     imports_from_common = [
         s
         for s in base_symbols
-        if s != "ComponentCommon"
-        or "ComponentCommon" not in defs
-        or defs["ComponentCommon"].get("properties", {}).keys() <= {"id"}
+        if s not in versioned_symbols
+        or (s in versioned_symbols and s not in defs)
+        or (
+            s == "ComponentCommon"
+            and (
+                "ComponentCommon" not in defs
+                or defs["ComponentCommon"].get("properties", {}).keys() <= {"id"}
+            )
+        )
     ]
     imports_from_common.sort()
     import_list_str = "\n".join(f"    {name}," for name in imports_from_common)
 
     common_blocks = [
         (
-            f"{FILE_HEADER}\nfrom typing import Annotated, Any, Literal\nfrom"
-            " pydantic import AfterValidator, BaseModel, Field,"
-            f" ConfigDict\nfrom ..common_types import (\n{import_list_str}\n)"
+            f"{FILE_HEADER}\nfrom typing import Annotated, Any, Callable, Literal\nfrom"
+            " pydantic import (\n    AfterValidator,\n    BaseModel,\n    Field,\n"
+            "    ConfigDict,\n    StrictBool,\n    StrictFloat,\n    StrictInt,\n"
+            f"    StrictStr,\n)\nfrom ..common_types import (\n{import_list_str}\n)"
         ),
     ]
 
@@ -170,6 +185,178 @@ def generate_common_types(
             processed.add(name)
             return
 
+        if name == "FunctionCall":
+            if "properties" in spec:
+                fn_props = dict(spec["properties"])
+                if "args" in fn_props:
+                    fn_props["args"] = {
+                        "type": "object",
+                        "description": (
+                            fn_props["args"].get(
+                                "description", "Arguments passed to the function."
+                            )
+                        ),
+                    }
+                fn_spec = {
+                    "description": spec.get("description", "Invokes a named function."),
+                    "properties": fn_props,
+                    "required": spec.get("required", ["call"]),
+                }
+                common_blocks.append(
+                    codegen.compile_object_def("FunctionCall", fn_spec)
+                )
+            else:
+                fn_common = defs.get("FunctionCommon", {})
+                fn_props = {}
+                if "call" in fn_common.get("properties", {}):
+                    fn_props["call"] = fn_common["properties"]["call"]
+                else:
+                    fn_props["call"] = {
+                        "type": "string",
+                        "description": "The name of the function to call.",
+                    }
+                fn_props["args"] = {
+                    "type": "object",
+                    "description": "Arguments passed to the function.",
+                }
+                for k, v in fn_common.get("properties", {}).items():
+                    if k != "call":
+                        fn_props[k] = v
+                fn_spec = {
+                    "description": "Invokes a named function.",
+                    "properties": fn_props,
+                    "required": fn_common.get("required", ["call"]),
+                }
+                common_blocks.append(
+                    codegen.compile_object_def("FunctionCall", fn_spec)
+                )
+            processed.add(name)
+            return
+
+        if name in (
+            "DynamicString",
+            "DynamicNumber",
+            "DynamicBoolean",
+            "DynamicStringList",
+        ):
+            strict_prim = {
+                "DynamicString": "StrictStr",
+                "DynamicNumber": "StrictFloat | StrictInt",
+                "DynamicBoolean": "StrictBool",
+                "DynamicStringList": "list[StrictStr]",
+            }[name]
+            expected_rt = None
+            for branch in spec.get("oneOf", []):
+                if isinstance(branch, dict) and "allOf" in branch:
+                    for sub in branch["allOf"]:
+                        if isinstance(sub, dict) and "properties" in sub:
+                            props = sub["properties"]
+                            if isinstance(props, dict) and "returnType" in props:
+                                rt = props["returnType"]
+                                if isinstance(rt, dict) and "const" in rt:
+                                    expected_rt = rt["const"]
+            if expected_rt and "_make_return_type_validator" not in processed:
+                validator_helper = """def _make_return_type_validator(expected: str) -> Callable[[FunctionCall], FunctionCall]:
+    def _validate_return_type(fc: FunctionCall) -> FunctionCall:
+        if "return_type" in fc.model_fields_set:
+            if fc.return_type != expected:
+                raise ValueError(
+                    f"FunctionCall in Dynamic type must have returnType '{expected}', got '{fc.return_type}'"
+                )
+            return fc
+        if fc.return_type != expected:
+            fc = fc.model_copy()
+            object.__setattr__(fc, "return_type", expected)
+        return fc
+
+    return _validate_return_type"""
+                common_blocks.append(validator_helper)
+                processed.add("_make_return_type_validator")
+
+            if expected_rt:
+                fn_branch = (
+                    "Annotated[FunctionCall,"
+                    f' AfterValidator(_make_return_type_validator("{expected_rt}"))]'
+                )
+            else:
+                fn_branch = "FunctionCall"
+            common_blocks.append(f"{name} = {strict_prim} | DataBinding | {fn_branch}")
+            processed.add(name)
+            return
+
+        if name == "DynamicValue":
+            union_items = spec.get("oneOf") or spec.get("anyOf") or []
+            has_negated_object = any(
+                isinstance(it, dict) and it.get("type") == "object" and "not" in it
+                for it in union_items
+            )
+            if has_negated_object:
+                forbidden_keys = set()
+                for it in union_items:
+                    if (
+                        isinstance(it, dict)
+                        and it.get("type") == "object"
+                        and "not" in it
+                    ):
+                        not_clause = it["not"]
+                        if isinstance(not_clause, dict):
+                            if "required" in not_clause:
+                                forbidden_keys.update(not_clause["required"])
+                            any_of = not_clause.get("anyOf")
+                            one_of = not_clause.get("oneOf")
+                            branches = (any_of if isinstance(any_of, list) else []) + (
+                                one_of if isinstance(one_of, list) else []
+                            )
+                            for branch in branches:
+                                if isinstance(branch, dict) and "required" in branch:
+                                    forbidden_keys.update(branch["required"])
+
+                if forbidden_keys:
+                    forbidden_set_repr = (
+                        "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
+                    )
+                else:
+                    forbidden_set_repr = "set()"
+                validator_code = f"""def _validate_literal_object(v: Any) -> dict[str, Any]:
+    if not isinstance(v, dict):
+        raise ValueError("Expected a dictionary object")
+    forbidden = {forbidden_set_repr}
+    found = forbidden.intersection(v.keys())
+    if found:
+        raise ValueError(
+            f"Object in {name} cannot contain forbidden properties: {{', '.join(sorted(found))}}"
+        )
+    return v
+
+LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_object)]"""
+                common_blocks.append(validator_code)
+                common_blocks.append(
+                    "DynamicValue = (\n"
+                    "    StrictStr\n"
+                    "    | StrictFloat\n"
+                    "    | StrictInt\n"
+                    "    | StrictBool\n"
+                    "    | list[Any]\n"
+                    "    | DataBinding\n"
+                    "    | FunctionCall\n"
+                    "    | LiteralObject\n"
+                    ")"
+                )
+            else:
+                common_blocks.append(
+                    "DynamicValue = (\n"
+                    "    StrictStr\n"
+                    "    | StrictFloat\n"
+                    "    | StrictInt\n"
+                    "    | StrictBool\n"
+                    "    | list[Any]\n"
+                    "    | DataBinding\n"
+                    "    | FunctionCall\n"
+                    ")"
+                )
+            processed.add(name)
+            return
+
         # Generic schema compilation:
         if "oneOf" in spec or "anyOf" in spec:
             union_items = spec.get("oneOf") or spec.get("anyOf") or []
@@ -186,17 +373,24 @@ def generate_common_types(
                         and "not" in it
                     ):
                         not_clause = it["not"]
-                        if "required" in not_clause:
-                            forbidden_keys.update(not_clause["required"])
-                        for branch in not_clause.get("anyOf", []) + not_clause.get(
-                            "oneOf", []
-                        ):
-                            if "required" in branch:
-                                forbidden_keys.update(branch["required"])
+                        if isinstance(not_clause, dict):
+                            if "required" in not_clause:
+                                forbidden_keys.update(not_clause["required"])
+                            any_of = not_clause.get("anyOf")
+                            one_of = not_clause.get("oneOf")
+                            branches = (any_of if isinstance(any_of, list) else []) + (
+                                one_of if isinstance(one_of, list) else []
+                            )
+                            for branch in branches:
+                                if isinstance(branch, dict) and "required" in branch:
+                                    forbidden_keys.update(branch["required"])
 
-                forbidden_set_repr = (
-                    "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
-                )
+                if forbidden_keys:
+                    forbidden_set_repr = (
+                        "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
+                    )
+                else:
+                    forbidden_set_repr = "set()"
                 validator_code = f"""def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
@@ -316,9 +510,13 @@ def generate_agent_to_renderer(
             envelope_key = envelope_keys[0]
             payload_schema = mschema.get("properties", {}).get(envelope_key, {})
             if payload_schema:
-                a2r_blocks.append(
-                    codegen.compile_object_def(payload_name, payload_schema)
-                )
+                if "$ref" in payload_schema:
+                    ref_target = payload_schema["$ref"].rsplit("/", 1)[-1]
+                    a2r_blocks.append(f"{payload_name} = {ref_target}")
+                else:
+                    a2r_blocks.append(
+                        codegen.compile_object_def(payload_name, payload_schema)
+                    )
 
             snake_env = to_snake_case(envelope_key)
             alias_opt = f', alias="{envelope_key}"' if snake_env != envelope_key else ""

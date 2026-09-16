@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Callable, Literal
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -31,11 +31,6 @@ from ..common_types import (
     ComponentId,
     ComponentReference,
     DataBinding,
-    DynamicBoolean,
-    DynamicNumber,
-    DynamicString,
-    DynamicStringList,
-    FunctionCall,
     ListReference,
     SingleReference,
     StrictBaseModel,
@@ -43,7 +38,46 @@ from ..common_types import (
 )
 
 
+class FunctionCommon(StrictBaseModel):
+    """Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    call: str = Field(..., description="The name of the function to call.")
+    catalog_id: str | None = Field(
+        None,
+        alias="catalogId",
+        description=(
+            "The catalog ID for this function, overriding any surface-level default"
+            " catalogId."
+        ),
+    )
+
+
+class FunctionCall(StrictBaseModel):
+    """Invokes a named function."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    call: str = Field(..., description="The name of the function to call.")
+    args: dict[str, Any] | None = Field(
+        None, description="Arguments passed to the function."
+    )
+    catalog_id: str | None = Field(
+        None,
+        alias="catalogId",
+        description=(
+            "The catalog ID for this function, overriding any surface-level default"
+            " catalogId."
+        ),
+    )
+
+
 CallId = str
+
+
+DynamicString = StrictStr | DataBinding | FunctionCall
+
+
+DynamicBoolean = StrictBool | DataBinding | FunctionCall
 
 
 class AccessibilityAttributes(StrictBaseModel):
@@ -137,16 +171,10 @@ DynamicValue = (
 )
 
 
-class FunctionCommon(StrictBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    catalog_id: str | None = Field(
-        None,
-        alias="catalogId",
-        description=(
-            "The catalog ID for this function, overriding any surface-level default"
-            " catalogId."
-        ),
-    )
+DynamicNumber = StrictFloat | StrictInt | DataBinding | FunctionCall
+
+
+DynamicStringList = list[StrictStr] | DataBinding | FunctionCall
 
 
 class IndexSystemFunctionArgs(StrictBaseModel):

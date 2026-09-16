@@ -140,3 +140,135 @@ def test_strict_aliases_round_trip():
         validated = adapter.validate_python(value)
         assert adapter.dump_python(validated) == value
         assert type(adapter.dump_python(validated)) is type(value)
+
+
+def test_v09_function_call_return_type_and_catalog_id():
+    """v0.9 FunctionCall accepts returnType (default 'boolean') and forbids catalogId."""
+    from a2ui.core.schema.v0_9.common_types import FunctionCall as FunctionCallV09
+
+    assert FunctionCallV09 is not FunctionCall
+    assert FunctionCallV09.__module__ == "a2ui.core.schema.v0_9.common_types"
+
+    fc_default = FunctionCallV09(call="fn")
+    assert fc_default.return_type == "boolean"
+    assert "return_type" not in fc_default.model_fields_set
+
+    fc_explicit = FunctionCallV09.model_validate({"call": "fn", "returnType": "string"})
+    assert fc_explicit.return_type == "string"
+    assert "return_type" in fc_explicit.model_fields_set
+
+    with pytest.raises(ValidationError):
+        FunctionCallV09.model_validate({"call": "fn", "catalogId": "basic"})
+
+
+def test_base_function_call_is_version_agnostic():
+    """Base FunctionCall in common_types does not have returnType."""
+    fc = FunctionCall(call="fn", catalog_id="basic")
+    assert fc.catalog_id == "basic"
+    with pytest.raises(ValidationError):
+        FunctionCall.model_validate({"call": "fn", "returnType": "boolean"})
+
+
+def test_v10_function_call_catalog_id_and_return_type():
+    """v1.0 FunctionCall accepts catalogId and forbids returnType."""
+    from a2ui.core.schema.v1_0.common_types import FunctionCall as FunctionCallV10
+
+    fc = FunctionCallV10.model_validate({"call": "fn", "catalogId": "basic"})
+    assert fc.catalog_id == "basic"
+
+    with pytest.raises(ValidationError):
+        FunctionCallV10.model_validate({"call": "fn", "returnType": "string"})
+
+
+@pytest.mark.parametrize(
+    ("alias_name", "expected_return_type", "wrong_return_type"),
+    [
+        ("DynamicString", "string", "number"),
+        ("DynamicNumber", "number", "string"),
+        ("DynamicBoolean", "boolean", "string"),
+        ("DynamicStringList", "array", "string"),
+    ],
+)
+def test_v09_dynamic_types_enforce_return_type(
+    alias_name: str, expected_return_type: str, wrong_return_type: str
+):
+    """v0.9 Dynamic* types accept omitted or matching returnType and reject mismatches."""
+    import a2ui.core.schema.v0_9.common_types as v09_common
+
+    alias = getattr(v09_common, alias_name)
+    adapter = TypeAdapter(alias)
+
+    # Omitted returnType is valid per v0.9 JSON Schema (returnType is not required)
+    omitted = adapter.validate_python({"call": "fn"})
+    assert omitted.call == "fn"
+    assert omitted.return_type == expected_return_type
+    assert "return_type" not in omitted.model_fields_set
+    assert omitted.model_dump(by_alias=True, exclude_unset=True) == {"call": "fn"}
+    # Round-trip through model_dump(by_alias=True) re-validates cleanly
+    revalidated = adapter.validate_python(adapter.dump_python(omitted, by_alias=True))
+    assert revalidated.return_type == expected_return_type
+
+    # Matching explicit returnType is valid
+    matched = adapter.validate_python(
+        {"call": "fn", "returnType": expected_return_type}
+    )
+    assert matched.return_type == expected_return_type
+
+    # Mismatched explicit returnType is rejected
+    with pytest.raises(ValidationError):
+        adapter.validate_python({"call": "fn", "returnType": wrong_return_type})
+
+
+def test_v09_basic_catalog_payload_validator_return_type():
+    """PayloadValidator with v0.9 BasicCatalog validates FunctionCall returnType."""
+    from a2ui.core.basic_catalog.v0_9 import BasicCatalog as BasicCatalogV09
+    from a2ui.core.validation.payload_validator import PayloadValidator
+
+    validator = PayloadValidator(BasicCatalogV09())
+
+    # Valid explicit returnType on DynamicString property
+    valid_component = {
+        "id": "txt1",
+        "component": "Text",
+        "text": {
+            "call": "formatString",
+            "args": {"value": "hello"},
+            "returnType": "string",
+        },
+    }
+    assert not validator.validate_component(valid_component)
+
+    # Omitted returnType on DynamicString property
+    omitted_component = {
+        "id": "txt1",
+        "component": "Text",
+        "text": {
+            "call": "formatString",
+            "args": {"value": "hello"},
+        },
+    }
+    assert not validator.validate_component(omitted_component)
+
+    # Mismatched returnType on DynamicString property is rejected
+    mismatched_component = {
+        "id": "txt1",
+        "component": "Text",
+        "text": {
+            "call": "formatString",
+            "args": {"value": "hello"},
+            "returnType": "number",
+        },
+    }
+    assert validator.validate_component(mismatched_component)
+
+    # catalogId on v0.9 FunctionCall is rejected
+    catalog_id_component = {
+        "id": "txt1",
+        "component": "Text",
+        "text": {
+            "call": "formatString",
+            "args": {"value": "hello"},
+            "catalogId": "basic",
+        },
+    }
+    assert validator.validate_component(catalog_id_component)
