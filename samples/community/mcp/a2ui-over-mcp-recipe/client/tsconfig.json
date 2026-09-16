@@ -11,7 +11,30 @@
     "useDefineForClassFields": false,
     "sourceMap": true,
     "isolatedModules": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    // `build` runs `tsc && vite build`; vite emits dist/, so tsc is only a
+    // typecheck pass here. Without this, pulling the out-of-tree catalog source
+    // (see "paths" below) into the program would skew tsc's inferred root dir.
+    "noEmit": true,
+    "baseUrl": ".",
+    // Mirrors the `@a2ui/mcp-catalog` alias in vite.config.ts. See the TODO there.
+    //
+    // The catalog entry sits outside this Yarn root, so Node resolution for its
+    // own imports walks up from `catalogs/mcp/` and never reaches
+    // `samples/community/node_modules`. These mappings point those imports at
+    // the packages this sample installs, which also keeps one copy of
+    // `@a2ui/web_core` in the program. They go away with the alias above.
+    "paths": {
+      "@a2ui/mcp-catalog": ["../../../../../catalogs/mcp/v0_9/src/index.ts"],
+      "@a2ui/web_core/v0_9": ["../../../node_modules/@a2ui/web_core/src/v0_9/index.d.ts"],
+      "@modelcontextprotocol/sdk/client/index.js": [
+        "../../../node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.d.ts"
+      ],
+      "@modelcontextprotocol/sdk/types.js": [
+        "../../../node_modules/@modelcontextprotocol/sdk/dist/esm/types.d.ts"
+      ],
+      "zod": ["../../../node_modules/zod"]
+    }
   },
   "include": ["src/**/*.ts", "*.ts"]
 }
