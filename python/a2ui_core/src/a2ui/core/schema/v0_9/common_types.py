@@ -15,7 +15,16 @@
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
 from typing import Annotated, Any, Literal
-from pydantic import AfterValidator, BaseModel, Field, ConfigDict
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    ConfigDict,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+)
 from ..common_types import (
     Child,
     ChildList,
@@ -64,7 +73,15 @@ class ComponentCommon(StrictBaseModel):
     accessibility: AccessibilityAttributes | None = Field(None)
 
 
-DynamicValue = str | float | bool | list[Any] | DataBinding | FunctionCall
+DynamicValue = (
+    StrictStr
+    | StrictFloat
+    | StrictInt
+    | StrictBool
+    | list[Any]
+    | DataBinding
+    | FunctionCall
+)
 
 
 class CheckRule(StrictBaseModel):

@@ -15,7 +15,7 @@
 from __future__ import annotations
 import sys
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler, ValidationInfo, field_validator, StrictBool, StrictFloat, StrictInt, StrictStr
 from pydantic_core import CoreSchema, PydanticUndefined
 
 
@@ -125,10 +125,10 @@ class FunctionCall(StrictBaseModel):
     )
 
 
-DynamicString = Union[str, DataBinding, FunctionCall]
-DynamicNumber = Union[float, int, DataBinding, FunctionCall]
-DynamicBoolean = Union[bool, DataBinding, FunctionCall]
-DynamicStringList = Union[List[str], DataBinding, FunctionCall]
+DynamicString = Union[StrictStr, DataBinding, FunctionCall]
+DynamicNumber = Union[StrictFloat, StrictInt, DataBinding, FunctionCall]
+DynamicBoolean = Union[StrictBool, DataBinding, FunctionCall]
+DynamicStringList = Union[List[StrictStr], DataBinding, FunctionCall]
 
 
 class TemplateChildList(StrictBaseModel, ListReference):
