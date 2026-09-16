@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Callable, Literal
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -74,10 +74,10 @@ class FunctionCall(StrictBaseModel):
 CallId = str
 
 
-DynamicBoolean = StrictBool | DataBinding | FunctionCall
-
-
 DynamicString = StrictStr | DataBinding | FunctionCall
+
+
+DynamicBoolean = StrictBool | DataBinding | FunctionCall
 
 
 class AccessibilityAttributes(StrictBaseModel):

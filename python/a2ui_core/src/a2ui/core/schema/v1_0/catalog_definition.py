@@ -26,7 +26,7 @@ class FunctionCallValidationSchema(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     type: Literal["object"] = Field("object")
     description: str | None = Field(None)
-    properties: PropertyItem = Field(...)
+    properties: dict[str, Any] = Field(...)
     required: list[str] = Field(...)
 
 

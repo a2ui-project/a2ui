@@ -106,6 +106,8 @@ class PydanticCodegen:
             item_type = self.map_json_type_to_python(prop_name, items)
             return f"list[{item_type}]"
         elif t == "object":
+            if prop_name == "properties":
+                return "dict[str, Any]"
             if self.allow_inline and "properties" in prop:
                 if len(prop["properties"]) == 1:
                     single_prop = list(prop["properties"].keys())[0]

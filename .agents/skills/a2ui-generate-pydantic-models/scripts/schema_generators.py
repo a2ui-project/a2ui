@@ -71,7 +71,7 @@ def generate_common_types(
 
     common_blocks = [
         (
-            f"{FILE_HEADER}\nfrom typing import Annotated, Any, Literal\nfrom"
+            f"{FILE_HEADER}\nfrom typing import Annotated, Any, Callable, Literal\nfrom"
             " pydantic import (\n    AfterValidator,\n    BaseModel,\n    Field,\n"
             "    ConfigDict,\n    StrictBool,\n    StrictFloat,\n    StrictInt,\n"
             f"    StrictStr,\n)\nfrom ..common_types import (\n{import_list_str}\n)"
@@ -259,7 +259,7 @@ def generate_common_types(
                                 if isinstance(rt, dict) and "const" in rt:
                                     expected_rt = rt["const"]
             if expected_rt and "_make_return_type_validator" not in processed:
-                validator_helper = """def _make_return_type_validator(expected: str):
+                validator_helper = """def _make_return_type_validator(expected: str) -> Callable[[FunctionCall], FunctionCall]:
     def _validate_return_type(fc: FunctionCall) -> FunctionCall:
         if "return_type" in fc.model_fields_set:
             if fc.return_type != expected:

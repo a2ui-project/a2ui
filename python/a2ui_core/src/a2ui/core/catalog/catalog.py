@@ -125,13 +125,13 @@ def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
 
     if is_at_least_version(protocol_version, "1.0"):
         from ..schema.v1_0.common_types import (
-            DataBinding,
-            DynamicBoolean,
-            DynamicNumber,
-            DynamicString,
-            DynamicStringList,
-            DynamicValue,
-            FunctionCall,
+            DataBinding as DataBindingV10,
+            DynamicBoolean as DynamicBooleanV10,
+            DynamicNumber as DynamicNumberV10,
+            DynamicString as DynamicStringV10,
+            DynamicStringList as DynamicStringListV10,
+            DynamicValue as DynamicValueV10,
+            FunctionCall as FunctionCallV10,
         )
 
         return {
@@ -185,10 +185,10 @@ def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
                 "additionalProperties": False,
             },
             "DynamicString": _generate_dynamic_type_def(
-                DynamicString, description="Represents a string"
+                DynamicStringV10, description="Represents a string"
             ),
             "DynamicNumber": _generate_dynamic_type_def(
-                DynamicNumber,
+                DynamicNumberV10,
                 description=(
                     "Represents a value that can be either a literal number, a path"
                     " to a number in the data model, or a function call returning a"
@@ -196,29 +196,29 @@ def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
                 ),
             ),
             "DynamicBoolean": _generate_dynamic_type_def(
-                DynamicBoolean,
+                DynamicBooleanV10,
                 description=(
                     "A boolean value that can be a literal, a path, or a function"
                     " call returning a boolean."
                 ),
             ),
             "DynamicStringList": _generate_dynamic_type_def(
-                DynamicStringList,
+                DynamicStringListV10,
                 description=(
                     "Represents a value that can be either a literal array of"
                     " strings, a path to a string array in the data model, or a"
                     " function call returning a string array."
                 ),
             ),
-            "DynamicValue": _generate_dynamic_type_def(DynamicValue),
-            "DataBinding": _generate_dynamic_type_def(DataBinding),
-            "FunctionCall": _generate_dynamic_type_def(FunctionCall),
+            "DynamicValue": _generate_dynamic_type_def(DynamicValueV10),
+            "DataBinding": _generate_dynamic_type_def(DataBindingV10),
+            "FunctionCall": _generate_dynamic_type_def(FunctionCallV10),
         }
 
     from ..schema.v0_9.common_types import (
-        DataBinding,
-        DynamicValue,
-        FunctionCall,
+        DataBinding as DataBindingV09,
+        DynamicValue as DynamicValueV09,
+        FunctionCall as FunctionCallV09,
     )
 
     return {
@@ -317,9 +317,9 @@ def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
                 },
             ],
         },
-        "DynamicValue": _generate_dynamic_type_def(DynamicValue),
-        "DataBinding": _generate_dynamic_type_def(DataBinding),
-        "FunctionCall": _generate_dynamic_type_def(FunctionCall),
+        "DynamicValue": _generate_dynamic_type_def(DynamicValueV09),
+        "DataBinding": _generate_dynamic_type_def(DataBindingV09),
+        "FunctionCall": _generate_dynamic_type_def(FunctionCallV09),
     }
 
 
