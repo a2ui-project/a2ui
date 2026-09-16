@@ -74,10 +74,10 @@ class FunctionCall(StrictBaseModel):
 CallId = str
 
 
-DynamicString = StrictStr | DataBinding | FunctionCall
-
-
 DynamicBoolean = StrictBool | DataBinding | FunctionCall
+
+
+DynamicString = StrictStr | DataBinding | FunctionCall
 
 
 class AccessibilityAttributes(StrictBaseModel):

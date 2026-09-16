@@ -49,6 +49,9 @@ def generate_common_types(
         "DynamicBoolean",
         "DynamicStringList",
     }
+    has_base_function_call = "FunctionCall" not in defs or "returnType" in defs.get(
+        "FunctionCall", {}
+    ).get("properties", {})
     # Any class/type defined in base common_types.py is imported and not repeated in versioned folders
     imports_from_common = [
         s
@@ -61,7 +64,7 @@ def generate_common_types(
                 or defs["ComponentCommon"].get("properties", {}).keys() <= {"id"}
             )
         )
-        or (s != "ComponentCommon" and "FunctionCall" not in defs)
+        or (s != "ComponentCommon" and has_base_function_call)
     ]
     imports_from_common.sort()
     import_list_str = "\n".join(f"    {name}," for name in imports_from_common)
@@ -249,20 +252,24 @@ def generate_common_types(
             for branch in spec.get("oneOf", []):
                 if isinstance(branch, dict) and "allOf" in branch:
                     for sub in branch["allOf"]:
-                        if (
-                            isinstance(sub, dict)
-                            and "properties" in sub
-                            and "returnType" in sub["properties"]
-                            and "const" in sub["properties"]["returnType"]
-                        ):
-                            expected_rt = sub["properties"]["returnType"]["const"]
+                        if isinstance(sub, dict) and "properties" in sub:
+                            props = sub["properties"]
+                            if isinstance(props, dict) and "returnType" in props:
+                                rt = props["returnType"]
+                                if isinstance(rt, dict) and "const" in rt:
+                                    expected_rt = rt["const"]
             if expected_rt and "_make_return_type_validator" not in processed:
                 validator_helper = """def _make_return_type_validator(expected: str):
     def _validate_return_type(fc: FunctionCall) -> FunctionCall:
-        if "return_type" in fc.model_fields_set and fc.return_type != expected:
-            raise ValueError(
-                f"FunctionCall in Dynamic type must have returnType '{expected}', got '{fc.return_type}'"
-            )
+        if "return_type" in fc.model_fields_set:
+            if fc.return_type != expected:
+                raise ValueError(
+                    f"FunctionCall in Dynamic type must have returnType '{expected}', got '{fc.return_type}'"
+                )
+            return fc
+        if fc.return_type != expected:
+            fc = fc.model_copy()
+            object.__setattr__(fc, "return_type", expected)
         return fc
 
     return _validate_return_type"""
@@ -295,17 +302,24 @@ def generate_common_types(
                         and "not" in it
                     ):
                         not_clause = it["not"]
-                        if "required" in not_clause:
-                            forbidden_keys.update(not_clause["required"])
-                        for branch in not_clause.get("anyOf", []) + not_clause.get(
-                            "oneOf", []
-                        ):
-                            if "required" in branch:
-                                forbidden_keys.update(branch["required"])
+                        if isinstance(not_clause, dict):
+                            if "required" in not_clause:
+                                forbidden_keys.update(not_clause["required"])
+                            any_of = not_clause.get("anyOf")
+                            one_of = not_clause.get("oneOf")
+                            branches = (any_of if isinstance(any_of, list) else []) + (
+                                one_of if isinstance(one_of, list) else []
+                            )
+                            for branch in branches:
+                                if isinstance(branch, dict) and "required" in branch:
+                                    forbidden_keys.update(branch["required"])
 
-                forbidden_set_repr = (
-                    "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
-                )
+                if forbidden_keys:
+                    forbidden_set_repr = (
+                        "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
+                    )
+                else:
+                    forbidden_set_repr = "set()"
                 validator_code = f"""def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
@@ -362,17 +376,24 @@ LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_objec
                         and "not" in it
                     ):
                         not_clause = it["not"]
-                        if "required" in not_clause:
-                            forbidden_keys.update(not_clause["required"])
-                        for branch in not_clause.get("anyOf", []) + not_clause.get(
-                            "oneOf", []
-                        ):
-                            if "required" in branch:
-                                forbidden_keys.update(branch["required"])
+                        if isinstance(not_clause, dict):
+                            if "required" in not_clause:
+                                forbidden_keys.update(not_clause["required"])
+                            any_of = not_clause.get("anyOf")
+                            one_of = not_clause.get("oneOf")
+                            branches = (any_of if isinstance(any_of, list) else []) + (
+                                one_of if isinstance(one_of, list) else []
+                            )
+                            for branch in branches:
+                                if isinstance(branch, dict) and "required" in branch:
+                                    forbidden_keys.update(branch["required"])
 
-                forbidden_set_repr = (
-                    "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
-                )
+                if forbidden_keys:
+                    forbidden_set_repr = (
+                        "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
+                    )
+                else:
+                    forbidden_set_repr = "set()"
                 validator_code = f"""def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
