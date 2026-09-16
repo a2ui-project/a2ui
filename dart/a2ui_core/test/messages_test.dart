@@ -16,9 +16,9 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('A2uiMessage.fromJson', () {
+  group('AgentToRendererMessage.fromJson', () {
     test('parses createSurface', () {
-      final msg = A2uiMessage.fromJson({
+      final msg = AgentToRendererMessage.fromJson({
         'version': 'v0.9',
         'createSurface': {
           'surfaceId': 's1',
@@ -38,7 +38,7 @@ void main() {
     });
 
     test('parses createSurface with defaults', () {
-      final msg = A2uiMessage.fromJson({
+      final msg = AgentToRendererMessage.fromJson({
         'version': 'v0.9',
         'createSurface': {'surfaceId': 's1', 'catalogId': 'cat1'},
       });
@@ -49,7 +49,7 @@ void main() {
     });
 
     test('parses updateComponents', () {
-      final msg = A2uiMessage.fromJson({
+      final msg = AgentToRendererMessage.fromJson({
         'version': 'v0.9',
         'updateComponents': {
           'surfaceId': 's1',
@@ -67,7 +67,7 @@ void main() {
     });
 
     test('parses updateDataModel', () {
-      final msg = A2uiMessage.fromJson({
+      final msg = AgentToRendererMessage.fromJson({
         'version': 'v0.9',
         'updateDataModel': {
           'surfaceId': 's1',
@@ -84,7 +84,7 @@ void main() {
     });
 
     test('parses updateDataModel without path or value', () {
-      final msg = A2uiMessage.fromJson({
+      final msg = AgentToRendererMessage.fromJson({
         'version': 'v0.9',
         'updateDataModel': {'surfaceId': 's1'},
       });
@@ -95,7 +95,7 @@ void main() {
     });
 
     test('parses deleteSurface', () {
-      final msg = A2uiMessage.fromJson({
+      final msg = AgentToRendererMessage.fromJson({
         'version': 'v0.9',
         'deleteSurface': {'surfaceId': 's1'},
       });
@@ -107,7 +107,7 @@ void main() {
 
     test('throws on unknown message type', () {
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'unknownType': {'surfaceId': 's1'},
         }),
@@ -117,7 +117,7 @@ void main() {
 
     test('throws when version field is missing', () {
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
         }),
         throwsA(isA<A2uiValidationError>()),
@@ -126,7 +126,7 @@ void main() {
 
     test('throws when version is not v0.9', () {
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.8',
           'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
         }),
@@ -136,7 +136,7 @@ void main() {
 
     test('throws when version is not a string', () {
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 123,
           'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
         }),
@@ -148,14 +148,14 @@ void main() {
       // Reported as a validation error rather than left to fail as a cast: a
       // malformed envelope is a payload defect, not a programming error.
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'createSurface': {'surfaceId': 's1'},
         }),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'updateComponents': {'surfaceId': 's1'},
         }),
@@ -165,21 +165,21 @@ void main() {
 
     test('throws when a body field has the wrong type', () {
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'createSurface': {'surfaceId': 123, 'catalogId': 'c1'},
         }),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'updateComponents': {'surfaceId': 's1', 'components': 'nope'},
         }),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'updateComponents': {
             'surfaceId': 's1',
@@ -189,7 +189,7 @@ void main() {
         throwsA(isA<A2uiValidationError>()),
       );
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'updateDataModel': {'surfaceId': 's1', 'path': 7},
         }),
@@ -199,14 +199,17 @@ void main() {
 
     test('throws when the message body is not an object', () {
       expect(
-        () => A2uiMessage.fromJson({'version': 'v0.9', 'deleteSurface': 's1'}),
+        () => AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'deleteSurface': 's1',
+        }),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('throws when more than one message type is present', () {
       expect(
-        () => A2uiMessage.fromJson({
+        () => AgentToRendererMessage.fromJson({
           'version': 'v0.9',
           'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
           'updateComponents': {'surfaceId': 's1', 'components': <Object?>[]},
@@ -223,7 +226,7 @@ void main() {
         sendDataModel: true,
       );
 
-      final roundtripped = A2uiMessage.fromJson(original.toJson());
+      final roundtripped = AgentToRendererMessage.fromJson(original.toJson());
       expect(roundtripped, isA<CreateSurfaceMessage>());
       final cs = roundtripped as CreateSurfaceMessage;
       expect(cs.surfaceId, 's1');
