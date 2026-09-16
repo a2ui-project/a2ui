@@ -33,7 +33,7 @@ Its core responsibilities include:
 9. **Mixable Catalog Surface Resolution (v1.0+):** Tracks every catalog a surface may draw from, and resolves per-component and per-function `catalogId` overrides against that set rather than against a single surface-wide default. See [Mixable catalogs and component resolution logic](../../specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic).
 10. **Bidirectional RPC Execution (v1.0+):** Coordinates asynchronous and synchronous remote function calls between renderers and server agents via `RpcHandler` (only available starting from version 1.0), managing correlation IDs, timeouts, cancellation callbacks, permission boundaries, and lifecycle disposal. See [Bidirectional RPC Layer](#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc).
 
-#### Package Boundary & Non-Goals
+### Package Boundary & Non-Goals
 
 Core implements the responsibilities above and nothing beyond them. Functionality that the [Agent SDK](a2ui_agent.blueprint.md) or [Framework Adapter](a2ui_framework_adapter.blueprint.md) blueprint assigns to its own layer does not belong in core, even where core defines the types that functionality would operate on. Those two blueprints are the reference for what each layer owns.
 
@@ -106,7 +106,7 @@ graph TD
         CM["ComponentModel"]
 
         MP -->|Delegates RPC requests via| RPC
-        MP -->|1. Validates payloads via| VAL
+        MP -->|1. Resolves each item's catalog, checks it via| VAL
         MP -->|2. Mutates state models| SGM
         RPC -->|Emits outbound responses via| MP
         SGM --> SM
@@ -134,7 +134,7 @@ graph TD
 
 The core modular components are organized within the `a2ui.core` namespace. Public interfaces are exposed cleanly across the package layers:
 
-```
+```text
 a2ui/core/
 ├── exceptions                      # Root exception hierarchy & RPC error codes
 ├── common/                         # Shared primitives with no layer dependencies
@@ -168,10 +168,10 @@ a2ui/core/
 │       └── v1_0                    # v1.0 adapter
 ├── rpc/                            # Bidirectional Remote Procedure Call engine
 │   └── rpc_handler                 # RpcHandler isolating RPC lifecycle, timeout, & callbacks
-├── validation/                     # Layout & payload validation layer
-│   ├── payload_validator           # Pydantic & JSON Schema payload validator with in-memory registry
-│   └── integrity_checker           # Component graph topology, references, and cycle detection
-├── resolution/                     # View Tree Resolution Engine
+├── validation/                     # Layout validation layer
+│   ├── validator                   # Core PayloadValidator class
+│   └── catalog_schema_validator    # JSON schema catalog validator
+├── resolution/                     # View Tree Resolution & Rendering Engine
 │   ├── component_node              # Living node in view hierarchy (Signal props)
 │   ├── component_context           # Per-component resolution scope
 │   ├── node_resolver               # Protocol-version-agnostic node resolution
@@ -707,7 +707,7 @@ A shared base class should implement `extractOperations` once, covering payload 
 
 #### Renderer vs. Agent Execution Patterns
 
-In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it is an optional helper for checking LLM-generated messages against catalogs, verifying data paths, and preparing payloads for transmission:
+In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it is an optional helper for checking model-generated messages against catalogs, verifying data paths, and preparing payloads for transmission. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to:
 
 ```typescript
 // 1. Renderer Usage (Updates layout state and routes UI action events)
@@ -717,21 +717,24 @@ const rendererProcessor = new MessageProcessor({
 });
 rendererProcessor.processMessages(incomingMessagesFromAgent);
 
-// 2. Agent Usage (Optional helper: validates LLM output and prepares payloads)
+// 2. Agent Usage (Optional helper: validates model output and prepares payloads)
 const agentProcessor = new MessageProcessor({
   catalogs: [negotiatedCatalog], // Single negotiated catalog enforces catalog compliance
   actionHandler: undefined, // Agent does not render DOM elements or handle clicks
 });
-agentProcessor.processMessages(parsedLlmPayloadMessages);
+// Same entry point as the renderer: the processor is kept for the session, so
+// each payload is checked against the state the previous ones built.
+agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
 ```
 
-| Execution Aspect              | Renderer                                                                                                          | Agent                                                                    |
-| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
-| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.           |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`).                                                | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).      |
-| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                     |
-| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if LLM generates payload referencing un-negotiated catalog.        |
-| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies LLM-generated payloads and data path references before sending. |
+| Execution Aspect              | Renderer                                                                                                          | Agent                                                                      |
+| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.             |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
+| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, under the default strict `ValidationConfig`.            |
+| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                       |
+| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
+| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending. |
 
 ---
 
@@ -741,7 +744,7 @@ agentProcessor.processMessages(parsedLlmPayloadMessages);
 
 Validation in `a2ui_core` is split into two complementary systems:
 
-1. **Payload & Catalog Schema Validation (`PayloadValidator`)**: Validates a single component payload, a function call, or a surface theme against a specific catalog's schema using strongly-typed models (Pydantic / Zod) or direct JSON Schema Draft 2020-12 validators. Because components on a surface may originate from different catalogs, `PayloadValidator` is strictly single-catalog scoped and exposes granular validation methods (`validateComponent`, `validateFunction`, `validateTheme`). Wire message envelope structure and action validation are handled by version adapters (`VersionAdapter`).
+1. **Payload & Catalog Schema Validation (`PayloadValidator`)**: Validates a single component payload, a function call, or a surface theme against a specific catalog's schema using strongly-typed models (Pydantic / Zod) or direct JSON Schema Draft 2020-12 validators. Because components on a surface may originate from different catalogs, `PayloadValidator` is strictly single-catalog scoped and exposes granular validation methods (`validateComponent`, `validateFunction`, `validateTheme`). Wire message envelope structure is checked by `AgentToRendererMessage.parseAll`, which needs no catalog.
 2. **Graph Topology & Reference Integrity (`SurfaceComponentsModel`)**: Validates relationship integrity across the surface component tree, detecting root presence (`SurfaceModel.rootId`, default `"root"`), missing or dangling child references, orphaned components, cycles and self-references, composition constraints (`allowedParents` / `allowedChildren`), and recursion depth limits.
 
 ```typescript
@@ -768,29 +771,20 @@ export const RELAXED_VALIDATION: ValidationConfig = {
   allowUnknownElements: true,
 };
 
+/** Stateless validator checking one component, one function call, or one theme against one catalog. */
 export class PayloadValidator {
-  constructor(options?: {catalog?: Catalog; config?: ValidationConfig});
+  constructor(catalog: Catalog<any, any>, validationConfig?: ValidationConfig);
 
-  /** Validates a single component dictionary payload against catalog schemas. */
-  validateComponent(comp: Record<string, any>): A2uiErrorDetail[];
+  /** Validates one component's properties against the catalog's JSON schema for its type. */
+  validateComponent(component: Record<string, any>): void;
 
-  /** Validates a surface theme dictionary against the catalog theme schema (v0.8 and v0.9 only). */
-  validateTheme(theme: Record<string, any>): A2uiErrorDetail[];
+  /** Validates one function call's arguments against the catalog's schema for it. */
+  validateFunction(name: string, args: Record<string, any>): void;
 
-  /**
-   * Validates a function call name and arguments against catalog function schemas.
-   * On success, 'args' carries the coerced arguments produced by the schema library
-   * (defaults applied, values coerced, unknown keys stripped). Callers MUST execute
-   * with these rather than the raw input.
-   */
-  validateFunction(
-    name: string,
-    args: Record<string, any>,
-  ): {errors: A2uiErrorDetail[]; args: Record<string, any>};
+  /** Validates theme / surfaceProperties against the catalog's theme schema. */
+  validateTheme(surfaceProperties: Record<string, any> | null): void;
 }
 ```
-
-Validating and then discarding the coerced result is a correctness bug, not a style choice: the same payload then produces different outcomes depending on whether the schema library applied a default or a coercion, which is exactly the kind of divergence conformance suites are meant to catch.
 
 ##### In-Memory Schema Resolution (Zero Network, Zero Disk I/O)
 
@@ -838,34 +832,56 @@ The entire phase is skipped when no `ValidationConfig` is supplied. Supplying no
 
 The non-throwing `validateReferences()` accessor sits outside this pipeline. It exists for consumers that want to inspect a committed surface and report problems rather than abort, and the processor never calls it.
 
+#### Catalog Scope
+
+A component belongs to exactly one catalog, and from v1.0 one surface may mix catalogs: `createSurface.catalogId` is only the surface-level default, and a component or function call may carry a `catalogId` of its own that overrides it. So the catalog is a **per-item** question, and answering it needs every supported catalog. That splits the work in two.
+
+**`PayloadValidator` holds one catalog and checks one item against it.** Take the catalog in the constructor. Expose `validateComponent`, `validateFunction` and `validateTheme`, each checking a single item. Do not give it a payload-level entry point and do not let it reject a payload for naming another catalog: it cannot know which catalog an item belongs to, so deciding is not its job.
+
+**`MessageProcessor` holds every supported catalog and does the routing.** It is the entry point for validation as well as for processing:
+
+- Build one validator per supported catalog, on first use, and reuse it, so resolved component schemas are cached across messages rather than rebuilt per batch.
+- Resolve the catalog for each item in this order: the `catalogId` the item names for itself, then the surface's default from `createSurface`, then the sole supported catalog. Raise `A2uiCatalogError` when none of these settles it, rather than skipping the item — skipping would report a payload valid that nothing had checked.
+- Raise `A2uiCatalogError` when a resolved `catalogId` is not one this processor supports.
+- Record the catalog on the `SurfaceModel` when the surface is created, so a later `updateComponents` resolves against it.
+- Expose `processMessages` as the single entry point for applying a payload to surface state and checking each message against the surface it joins. An agent uses it over its own output too, keeping a processor for the session so each payload is checked against the state the previous ones built.
+- Check every surface a payload creates as one graph once the payload has been applied: a `root` component exists, every reference resolves, and every component is reachable from the root. These three cannot be answered as each message arrives, because a payload may declare a parent before its child, so they answer for the surface the payload leaves behind rather than for each message in turn. `ValidationConfig` governs which of them run, so a caller whose transport delivers one surface across several payloads relaxes the ones that span them. A surface the payload only updates is an incremental update to a render it does not own, and is not held to them.
+- Envelope parsing is `AgentToRendererMessage.parseAll(payload, protocolVersion)`, not a validator method: it needs no catalog, which is what lets a payload be read before each message is matched to its surface.
+
+Envelope parsing takes no catalog: the protocol version tag and the single-update-type rule read none. Make it a static on the message type, so a payload can be parsed before each message is matched to a surface, and so to a catalog.
+
+In an agent, pass the negotiated catalog as the only supported one.
+
 #### Validation Implementation Matrix
 
 The matrix below details the specific validation checks, their responsible component/method in `a2ui_core`, and the specific error class raised upon failure:
 
-| Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                        | Raised Error Type     |
-| :----------------------- | :------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------- | :-------------------- |
-| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `VersionAdapter.extractOperations()`                                          | `A2uiValidationError` |
-| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `VersionAdapter.extractOperations()`                                          | `A2uiValidationError` |
-| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`common/uax31`)                                           | `A2uiValidationError` |
-| **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network  | `PayloadValidator` (`referencing.Registry` / `Ajv`)                           | `A2uiValidationError` |
-| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurfaceOp()` (`SurfaceGroupModel`)             | `A2uiIntegrityError`  |
-| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponentsOp()` / `processUpdateDataModelOp()` | `A2uiIntegrityError`  |
-| **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                     | `A2uiCatalogError`    |
-| **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurfaceOp()`                                   | `A2uiCatalogError`    |
-| **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `PayloadValidator.validateComponent()`                                        | `A2uiValidationError` |
-| **Component Properties** | Property schema validation against catalog definition                                             | `PayloadValidator.validateComponent()`                                        | `A2uiValidationError` |
-| **Theme**                | Surface theme validation against catalog theme schema (v0.8, v0.9 only)                           | `PayloadValidator.validateTheme()`                                            | `A2uiValidationError` |
-| **Function Signatures**  | Function call arguments and return payload validation against catalog function schema             | `PayloadValidator.validateFunction()` / `RpcHandler`                          | `A2uiValidationError` |
-| **Graph Integrity**      | Duplicate component ID within a single update payload                                             | `SurfaceComponentsModel.validateComponentsUpdate()`                           | `A2uiValidationError` |
-| **Graph Integrity**      | Missing root component (`SurfaceModel.rootId`, default `"root"`)                                  | `validateComponentsUpdate()` → `validateTopology()`                           | `A2uiIntegrityError`  |
-| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `validateComponentsUpdate()` → `validateTopology()`                           | `A2uiIntegrityError`  |
-| **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                    | `validateComponentsUpdate()`                                                  | `A2uiValidationError` |
-| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                    | `validateTopology()` → `detectCycles()`                                       | `A2uiRecursionError`  |
-| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                  | `validateTopology()` → `detectCycles()`                                       | `A2uiRecursionError`  |
-| **Graph Topology**       | Unreachable / orphan component detection                                                          | `validateComponentsUpdate()` → `validateTopology()`                           | `A2uiIntegrityError`  |
-| **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)           | `SurfaceComponentsModel.addComponent()`                                       | `A2uiStateError`      |
-| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `VersionAdapter.extractOperations()` / `detectCycles()`                       | `A2uiRecursionError`  |
-| **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `VersionAdapter.extractOperations()` / `PayloadValidator`                     | `A2uiValidationError` |
+| Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type     |
+| :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
+| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError` |
+| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError` |
+| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`common/uax31`)                                       | `A2uiValidationError` |
+| **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network  | `PayloadValidator` (`referencing.Registry` / `Ajv`)                       | `A2uiValidationError` |
+| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
+| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
+| **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`    |
+| **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.catalogFor()`                                           | `A2uiCatalogError`    |
+| **Catalog Scope**        | Each item resolved to its own catalog: item's `catalogId`, else surface default, else sole one    | `MessageProcessor.processMessages()`                                      | `A2uiCatalogError`    |
+| **Catalog Scope**        | Component checked against the catalog it resolves to, not the whole supported set                 | `MessageProcessor.validatorFor(resolvedCatalog)`                          | `A2uiValidationError` |
+| **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `PayloadValidator` (Zod envelope schema)                                  | `A2uiValidationError` |
+| **Component Properties** | Property schema validation against catalog definition                                             | `PayloadValidator.validateComponent()`                                    | `A2uiValidationError` |
+| **Function Arguments**   | Function call arguments validated against the catalog's function schema                           | `PayloadValidator.validateFunction()` / `RpcHandler`                      | `A2uiValidationError` |
+| **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema                                   | `PayloadValidator.validateTheme()`                                        | `A2uiValidationError` |
+| **Graph Integrity**      | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
+| **Graph Integrity**      | Missing root component (`id="root"`)                                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                    | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
+| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                  | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`  |
+| **Graph Topology**       | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                    | `SurfaceComponentsModel.validateComponentsUpdate()`                       | `A2uiValidationError` |
+| **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)           | `SurfaceComponentsModel.addComponent()`                                   | `A2uiStateError`      |
+| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`  |
+| **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `MessageProcessor.processMessages()`                                      | `A2uiValidationError` |
 
 ---
 
@@ -1225,15 +1241,16 @@ class DataModel {
 9.  **Value Ownership**: The data model owns what it stores. Implementations deep-copy on construction and on every `set`, so a caller mutating a payload object afterwards cannot reach into committed state. Storing the caller's reference makes reactivity depend on whether the caller happened to reuse an object.
 
 **Type Coercion Standards**:
-| Input Type | Target Type | Result |
+
+| Input Type                 | Target Type | Result                                                                  |
 | :------------------------- | :---------- | :---------------------------------------------------------------------- |
-| `String` ("true", "false") | `Boolean` | `true` or `false` (case-insensitive). Any other string maps to `false`. |
-| `Number` (non-zero) | `Boolean` | `true` |
-| `Number` (0) | `Boolean` | `false` |
-| `Any` | `String` | Locale-neutral string representation |
-| `null` / `undefined` | `String` | `""` (empty string) |
-| `null` / `undefined` | `Number` | `0` |
-| `String` (numeric) | `Number` | Parsed numeric value or `0` |
+| `String` ("true", "false") | `Boolean`   | `true` or `false` (case-insensitive). Any other string maps to `false`. |
+| `Number` (non-zero)        | `Boolean`   | `true`                                                                  |
+| `Number` (0)               | `Boolean`   | `false`                                                                 |
+| `Any`                      | `String`    | Locale-neutral string representation                                    |
+| `null` / `undefined`       | `String`    | `""` (empty string)                                                     |
+| `null` / `undefined`       | `Number`    | `0`                                                                     |
+| `String` (numeric)         | `Number`    | Parsed numeric value or `0`                                             |
 
 ---
 
