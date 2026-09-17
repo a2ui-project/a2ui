@@ -26,13 +26,13 @@ PLAN = [
     {
         "pypi_name": "a2ui-core",
         "version": "0.1.2",
-        "tag": "python-a2ui-core-v0.1.2",
+        "tag": "python/a2ui-core/v0.1.2",
         "notes": "- Fixed a thing.",
     },
     {
         "pypi_name": "a2ui-agent-sdk",
         "version": "0.6.1",
-        "tag": "python-a2ui-agent-sdk-v0.6.1",
+        "tag": "python/a2ui-agent-sdk/v0.6.1",
         "notes": "- Added a thing.",
     },
 ]
@@ -156,10 +156,10 @@ class ParseTagTest(unittest.TestCase):
 
     def test_parses_both_package_tags(self):
         self.assertEqual(
-            cp.parse_tag("python-a2ui-core-v0.1.2"), ("a2ui-core", "0.1.2")
+            cp.parse_tag("python/a2ui-core/v0.1.2"), ("a2ui-core", "0.1.2")
         )
         self.assertEqual(
-            cp.parse_tag("python-a2ui-agent-sdk-v0.6.1"),
+            cp.parse_tag("python/a2ui-agent-sdk/v0.6.1"),
             ("a2ui-agent-sdk", "0.6.1"),
         )
 
@@ -171,10 +171,11 @@ class ParseTagTest(unittest.TestCase):
 
     def test_ignores_malformed_tags(self):
         for tag in (
-            "python-a2ui-core-v0.1",
-            "python-a2ui-core-0.1.2",
+            "python/a2ui-core/v0.1",
+            "python/a2ui-core/0.1.2",
+            "python-a2ui-core-v0.1.2",
             "a2ui-core-v0.1.2",
-            "python-a2ui-core-vnext",
+            "python/a2ui-core/vnext",
             "",
         ):
             with self.subTest(tag=tag):
@@ -182,7 +183,7 @@ class ParseTagTest(unittest.TestCase):
 
     def test_round_trips_with_multi_digit_versions(self):
         self.assertEqual(
-            cp.parse_tag("python-a2ui-core-v10.20.30"), ("a2ui-core", "10.20.30")
+            cp.parse_tag("python/a2ui-core/v10.20.30"), ("a2ui-core", "10.20.30")
         )
 
 

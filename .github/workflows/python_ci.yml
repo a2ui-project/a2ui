@@ -62,7 +62,7 @@ jobs:
       - name: Verify SDK version tags are reachable
         run: |
           set -euo pipefail
-          for glob in 'python-a2ui-core-v*' 'python-a2ui-agent-sdk-v*'; do
+          for glob in 'python/a2ui-core/v*' 'python/a2ui-agent-sdk/v*'; do
             if ! git describe --tags --match "$glob" >/dev/null 2>&1; then
               echo "::error::No tag matching $glob is reachable, so package" \
                 "versions would fall back instead of coming from tags."

@@ -49,8 +49,8 @@ PYPI_PAGE_URL = "https://pypi.org/project/{name}/{version}/"
 PENDING_MARKER = "Publishing to PyPI has not completed yet"
 
 # Matches the release tags created by release-pypi.yml, for example
-# `python-a2ui-core-v0.1.2`, and ignores unrelated tags such as `v0.9`.
-TAG_RE = re.compile(r"^python-(?P<name>[a-z0-9-]+?)-v(?P<version>\d+\.\d+\.\d+)$")
+# `python/a2ui-core/v0.1.2`, and ignores unrelated tags such as `v0.9`.
+TAG_RE = re.compile(r"^python/(?P<name>[a-z0-9-]+?)/v(?P<version>\d+\.\d+\.\d+)$")
 
 
 def is_published(name: str, version: str, timeout: float = 15.0) -> bool:

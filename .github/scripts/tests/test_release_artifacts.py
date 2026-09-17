@@ -106,7 +106,7 @@ class VerifyTest(unittest.TestCase):
             "pypi_name": "a2ui-core",
             "directory": "pkg",
             "version": "0.1.2",
-            "tag": "python-a2ui-core-v0.1.2",
+            "tag": "python/a2ui-core/v0.1.2",
         }]
 
     def test_passes_when_both_artifacts_match(self):

@@ -15,7 +15,7 @@
 """Version of the ``a2ui-core`` package.
 
 The version is no longer stored here. It is derived from the
-``python-a2ui-core-v*`` git tags at build time by hatch-vcs and baked into the
+``python/a2ui-core/v*`` git tags at build time by hatch-vcs and baked into the
 distribution metadata, which this module reads back. To release a new version,
 see ``docs/contributing/release.md``; do not hand-edit a version string.
 

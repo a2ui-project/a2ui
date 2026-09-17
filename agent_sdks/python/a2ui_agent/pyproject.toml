@@ -45,7 +45,7 @@ requires = [
 ]
 build-backend = "hatchling.build"
 
-# Version is derived from the `python-a2ui-agent-sdk-v*` git tags. See the
+# Version is derived from the `python/a2ui-agent-sdk/v*` git tags. See the
 # equivalent block in a2ui_core/pyproject.toml for why `fallback-version` is the
 # last released version rather than 0.0.0.
 [tool.hatch.version]
@@ -54,7 +54,7 @@ fallback-version = "0.6.0"
 
 [tool.hatch.version.raw-options]
 root = "../../.."
-tag_regex = '^python-a2ui-agent-sdk-v(?P<version>.+)$'
+tag_regex = '^python/a2ui-agent-sdk/v(?P<version>.+)$'
 local_scheme = "no-local-version"
 git_describe_command = [
   "git",
@@ -63,7 +63,7 @@ git_describe_command = [
   "--tags",
   "--long",
   "--match",
-  "python-a2ui-agent-sdk-v*",
+  "python/a2ui-agent-sdk/v*",
 ]
 
 [tool.hatch.build.targets.wheel]

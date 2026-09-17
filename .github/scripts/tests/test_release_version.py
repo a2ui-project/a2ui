@@ -56,17 +56,17 @@ class ParseAndBumpTest(unittest.TestCase):
 class TagTest(unittest.TestCase):
 
     def test_tag_names_do_not_collide_between_packages(self):
-        self.assertEqual(rv.CORE.tag_for("1.2.3"), "python-a2ui-core-v1.2.3")
-        self.assertEqual(rv.AGENT.tag_for("1.2.3"), "python-a2ui-agent-sdk-v1.2.3")
+        self.assertEqual(rv.CORE.tag_for("1.2.3"), "python/a2ui-core/v1.2.3")
+        self.assertEqual(rv.AGENT.tag_for("1.2.3"), "python/a2ui-agent-sdk/v1.2.3")
         self.assertFalse(rv.AGENT.tag_for("1.2.3").startswith(rv.CORE.tag_prefix))
 
     def test_versions_from_tags_ignores_other_packages_and_junk(self):
         tags = [
-            "python-a2ui-core-v0.1.1",
-            "python-a2ui-core-v0.2.0",
-            "python-a2ui-agent-sdk-v0.6.0",
+            "python/a2ui-core/v0.1.1",
+            "python/a2ui-core/v0.2.0",
+            "python/a2ui-agent-sdk/v0.6.0",
             "v0.9",
-            "python-a2ui-core-vnot-a-version",
+            "python/a2ui-core/vnot-a-version",
             "",
         ]
         self.assertEqual(rv.versions_from_tags(rv.CORE, tags), ["0.1.1", "0.2.0"])
