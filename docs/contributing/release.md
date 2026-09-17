@@ -107,10 +107,9 @@ pushing a tag, because the matched claim includes the triggering ref, which is
 why the release is dispatched from `main` and creates its own tag rather than
 being started by one.
 
-Run the
-[OSS Exit Gate access check](../../.github/workflows/wif-smoke-test.yml)
-workflow to test access without publishing anything. See go/oss-exit-gate-builders
-and go/oss-exit-gate-onduty.
+To test access and artifact staging without publishing anything, run the
+[Release Python SDKs](../../.github/workflows/release-pypi.yml) workflow with
+`dry_run: true`. See go/oss-exit-gate-builders and go/oss-exit-gate-onduty.
 
 ### Documentation website
 
