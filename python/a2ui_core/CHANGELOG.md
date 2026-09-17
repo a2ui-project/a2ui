@@ -158,6 +158,19 @@
   suite cannot be parsed, when a case has no `name` or `action`, or when an
   action has no handler. Suites the core library cannot run are named in
   `UNRUNNABLE_SUITES` with a reason.
+- `@index` is defined once, in `a2ui.core.catalog.system_functions`, in terms
+  of the version-neutral types in `a2ui.core.schema.common_types`. The `@`
+  namespace belongs to the runtime rather than to any catalog, and the payload
+  validator previously reached into `basic_catalog.v1_0` to resolve it, which
+  pinned every later protocol version to v1.0's definition. A system function
+  now records the version that introduced it and remains available in every
+  version after that, so v1.1 and beyond inherit `@index` without restating it.
+
+  `a2ui.core.basic_catalog.v1_0` no longer exports `IndexApi` or
+  `IndexImplementation`, and `v1_0/operator_apis.py` is deleted. A version
+  package now exports exactly the functions its published catalog declares, and
+  `@index`, which no catalog declares, is imported from the runtime. A v1.0
+  basic catalog still resolves it as before.
 
 ## 0.1.1
 

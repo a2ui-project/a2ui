@@ -385,42 +385,6 @@ def generate_basic_catalog_index(
     style_symbols = extract_exported_symbols(style_code) if style_code else []
     has_theme = "Theme" in style_symbols or "Styles" in style_symbols
 
-    shared_op_path = os.path.join(os.path.dirname(out_dir), "operator_apis.py")
-    local_op_path = os.path.join(out_dir, "operator_apis.py")
-
-    shared_op_names = []
-    local_op_names = []
-
-    if os.path.exists(shared_op_path) and func_code:
-        with open(shared_op_path, "r", encoding="utf-8") as f:
-            shared_symbols = extract_exported_symbols(f.read())
-        shared_op_names = [s for s in shared_symbols if s.endswith("Api")]
-
-    if os.path.exists(local_op_path) and func_code:
-        with open(local_op_path, "r", encoding="utf-8") as f:
-            local_symbols = extract_exported_symbols(f.read())
-        local_op_names = [
-            s for s in local_symbols if s.endswith("Api") and s not in shared_op_names
-        ]
-
-    operator_sections = []
-    if shared_op_names:
-        op_lines = [f"    {name}," for name in shared_op_names]
-        operator_sections.extend([
-            "from ..operator_apis import (",
-            "\n".join(op_lines),
-            ")",
-        ])
-    if local_op_names:
-        op_lines = [f"    {name}," for name in local_op_names]
-        operator_sections.extend([
-            "from .operator_apis import (",
-            "\n".join(op_lines),
-            ")",
-        ])
-
-    operator_names = shared_op_names + local_op_names
-
     has_func_impls = (
         os.path.exists(os.path.join(out_dir, "function_impls.py"))
         or os.path.exists(os.path.join(os.path.dirname(out_dir), "function_impls.py"))
@@ -446,8 +410,6 @@ def generate_basic_catalog_index(
             "\n".join(func_import_lines),
             ")",
         ])
-    if operator_sections:
-        cat_init.extend(operator_sections)
 
     if has_theme:
         if "Styles" in style_symbols:
@@ -531,7 +493,6 @@ def generate_basic_catalog_index(
         dict.fromkeys(
             comp_exports
             + api_func_names
-            + operator_names
             + theme_exports
             + func_impl_exports
             + ["BasicCatalog"]

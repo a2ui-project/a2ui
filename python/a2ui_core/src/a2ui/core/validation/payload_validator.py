@@ -500,15 +500,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 fn_schema = funcs_schema[name]
                 base_schema = cat_schema
         if fn_def is None and name.startswith("@"):
-            ver = getattr(self.catalog, "protocol_version", None)
-            if (
-                name == "@index"
-                and ver
-                and is_at_least_version(ver, ProtocolVersion.V1_0)
-            ):
-                from ..basic_catalog.v1_0.function_impls import IndexImplementation
+            from ..catalog.system_functions import system_functions_for
 
-                fn_def = IndexImplementation
+            ver = getattr(self.catalog, "protocol_version", None)
+            fn_def = system_functions_for(ver).get(name)
         return fn_def, fn_schema, base_schema
 
     def _validate_model_function(
