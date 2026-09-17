@@ -2,6 +2,20 @@
 
 ## 0.2.0
 
+- **Breaking:** `GenericBinder` resolves dynamic properties to `ResolvedBinding`
+  values instead of raw values, and no longer synthesizes `set<Property>`
+  setter entries; writes go through `WritableBinding.set`. Omitted and
+  explicit-null dynamic properties are read-only bindings of null within
+  existing objects and arrays; absent or null non-dynamic containers are
+  unchanged. Path bindings to missing data remain writable.
+- **Breaking:** `SurfaceModel.dispatchAction` no longer executes `functionCall`
+  payloads; catalog functions run during action resolution instead, and only
+  `event` payloads emit an action.
+- **Breaking:** when an expression-error reporter is supplied, a missing or
+  failing catalog function during data resolution no longer throws to the
+  caller; the bound value resolves to null and the reporter receives the error.
+  `ComponentContext` supplies a reporter, which by default emits an
+  `EXPRESSION_ERROR` client error on the surface.
 - **Breaking:** `MessageProcessor.processMessages` validates messages as it
   processes them, and is the single entry point for validation as well as for
   processing. A message that does not match its catalog now throws instead of
@@ -61,6 +75,35 @@
   `FunctionApi`'s. Subclasses of all three pass `name`, `schema` or
   `argumentSchema`, and `returnType` to `super` rather than overriding
   getters.
+- Added: `DataContext` and `ComponentContext` accept an optional
+  `ExpressionErrorReporter` through `onError`. A standalone `DataContext`
+  without a reporter lets invocation errors propagate.
+- Added: `NodeResolver(surface)` builds a reactive tree of read-only
+  `ComponentNode`s with resolved child references, scoped templates, dynamic
+  bindings, callable actions, and placeholder states for unresolved nodes.
+  It owns node subscriptions and cleanup; consumers dispose the resolver
+  before its surface. Node props and container-valued bindings are detached,
+  recursively unmodifiable snapshots.
+- `WritableBinding.path` exposes the binding's write destination.
+- Validation and node resolution recognize wire/local `$ref` pointers and
+  `REF:` description markers. Resolution additionally recognizes unmarked
+  structural `ChildList` schemas (`ReferenceSchemaReader.structuralChildLists`),
+  which validation deliberately ignores so a batch is never rejected on that
+  guess. Resolution mounts top-level child references and lists, including
+  single-reference fields within arrays of objects.
+- A `ChildList` expands to at most `maxDynamicChildListSize` (10,000) items,
+  matching the TypeScript core's `MAX_DYNAMIC_CHILD_LIST_SIZE`.
+- Changed: `ChildNode` descriptors compare by component id and data scope
+  and serialize as plain JSON in node props. Nested `ChildList` values remain
+  scoped descriptors rather than mounted nodes.
+- Fixed: `GenericBinder.resolvedProps` publishes one complete snapshot per
+  component update instead of intermediate per-property updates.
+- Fixed: disposing a `GenericBinder` stops its bindings from reacting to later
+  data writes. A disposed binder cannot be reconnected.
+- Fixed: `DataContext.resolveListenable` resolves array and map payloads per
+  entry and tracks nested bindings reactively; previously a container holding
+  bindings (such as a function argument list or a nested `{path}` value) was
+  passed through as a static literal.
 - **Behaviour change:** `AgentToRendererMessage.fromJson` throws `A2uiValidationError`
   rather than `TypeError` for a malformed message body.
 - **Behaviour change:** `DataModel` observers no longer fire when a write
