@@ -324,40 +324,59 @@ def _emit(name: str, value: str) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo-root", default=None)
+    # --repo-root is attached to both the top level and every subcommand, so it
+    # works on either side of the subcommand name. SUPPRESS keeps the
+    # subcommand's copy from overwriting a value given before it.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--repo-root", default=argparse.SUPPRESS)
+
+    parser = argparse.ArgumentParser(description=__doc__, parents=[common])
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    current = subparsers.add_parser("current", help="Print the latest released version")
+    current = subparsers.add_parser(
+        "current", help="Print the latest released version", parents=[common]
+    )
     current.add_argument("--package", required=True, choices=sorted(PACKAGES))
 
-    nxt = subparsers.add_parser("next", help="Print the next version for a bump level")
+    nxt = subparsers.add_parser(
+        "next", help="Print the next version for a bump level", parents=[common]
+    )
     nxt.add_argument("--package", required=True, choices=sorted(PACKAGES))
     nxt.add_argument("--bump", required=True, choices=VALID_BUMPS)
 
-    tag = subparsers.add_parser("tag", help="Print the tag name for a version")
+    tag = subparsers.add_parser(
+        "tag", help="Print the tag name for a version", parents=[common]
+    )
     tag.add_argument("--package", required=True, choices=sorted(PACKAGES))
     tag.add_argument("--version", required=True)
 
-    notes = subparsers.add_parser("notes", help="Print the Unreleased changelog body")
+    notes = subparsers.add_parser(
+        "notes", help="Print the Unreleased changelog body", parents=[common]
+    )
     notes.add_argument("--package", required=True, choices=sorted(PACKAGES))
 
-    cut = subparsers.add_parser("cut-changelog", help="Move Unreleased under a version")
+    cut = subparsers.add_parser(
+        "cut-changelog", help="Move Unreleased under a version", parents=[common]
+    )
     cut.add_argument("--package", required=True, choices=sorted(PACKAGES))
     cut.add_argument("--version", required=True)
     cut.add_argument("--write", action="store_true")
 
-    check = subparsers.add_parser("check", help="Run release preflight checks")
+    check = subparsers.add_parser(
+        "check", help="Run release preflight checks", parents=[common]
+    )
     check.add_argument("--package", required=True, choices=sorted(PACKAGES))
     check.add_argument("--version", required=True)
 
-    plan = subparsers.add_parser("plan", help="Emit the release plan as JSON")
+    plan = subparsers.add_parser(
+        "plan", help="Emit the release plan as JSON", parents=[common]
+    )
     plan.add_argument("--package", required=True, choices=[*sorted(PACKAGES), "both"])
     plan.add_argument("--bump", required=True, choices=VALID_BUMPS)
     plan.add_argument("--output", default=None)
 
     args = parser.parse_args(argv)
-    repo_root = args.repo_root or _repo_root()
+    repo_root = getattr(args, "repo_root", None) or _repo_root()
 
     if args.command == "plan":
         entries = build_plan(args.package, args.bump, repo_root)
