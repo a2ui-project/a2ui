@@ -67,19 +67,15 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
 
   protected readonly api = TabsApi;
 
+  /** Index selected by the user. May be stale if the tabs array shrinks; see `render`. */
   @state() activeIndex = 0;
-
-  override willUpdate(changedProperties: any) {
-    super.willUpdate(changedProperties);
-    const props = this.controller.props;
-    if (props?.tabs && this.activeIndex >= props.tabs.length) {
-      this.activeIndex = 0;
-    }
-  }
 
   override render() {
     const props = this.controller.props;
     if (!props || !props.tabs) return nothing;
+
+    // Clamp rather than mutate: the tabs array can shrink between renders.
+    const activeIndex = this.activeIndex < props.tabs.length ? this.activeIndex : 0;
 
     return html`
       <div class="a2ui-tabs">
@@ -89,7 +85,7 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
               <button
                 class=${classMap({
                   'a2ui-tab-button': true,
-                  active: i === this.activeIndex,
+                  active: i === activeIndex,
                 })}
                 @click=${() => (this.activeIndex = i)}
               >
@@ -99,8 +95,8 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
           )}
         </div>
         <div class="a2ui-tab-content">
-          ${props.tabs[this.activeIndex]
-            ? html`${this.renderNode(props.tabs[this.activeIndex].child)}`
+          ${props.tabs[activeIndex]
+            ? html`${this.renderNode(props.tabs[activeIndex].child)}`
             : nothing}
         </div>
       </div>

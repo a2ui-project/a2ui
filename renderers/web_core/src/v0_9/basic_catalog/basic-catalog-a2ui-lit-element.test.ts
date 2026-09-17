@@ -60,7 +60,7 @@ describe('BasicCatalogA2uiLitElement', () => {
       protected override readonly api = TestComponentApi;
 
       override render() {
-        return html`<div class="inner">${this.controller?.props?.text ?? ''}</div>`;
+        return html`<div class="inner">${this.controller.props?.text ?? ''}</div>`;
       }
     }
 

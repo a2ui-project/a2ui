@@ -134,4 +134,59 @@ describe('Tabs Component', () => {
     assert.strictEqual(content?.textContent?.includes('Content 2'), true);
     assert.strictEqual(content?.textContent?.includes('Content 1'), false);
   });
+
+  it('should not throw when updated without a context', async () => {
+    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el);
+
+    assert.ok(el.isConnected);
+    assert.strictEqual(el.querySelectorAll('button.a2ui-tab-button').length, 0);
+  });
+
+  it('should fall back to the first tab when the tabs array shrinks', async () => {
+    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const buttons = el.querySelectorAll('button.a2ui-tab-button') as NodeListOf<HTMLButtonElement>;
+    buttons[1].click();
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(el.activeIndex, 1);
+
+    await asyncUpdate(el, () => {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'comp1',
+                component: 'Tabs',
+                tabs: [{title: 'Tab 1', child: 'txt1'}],
+              },
+            ],
+          },
+        },
+      ]);
+    });
+
+    const remaining = el.querySelectorAll('button.a2ui-tab-button');
+    assert.strictEqual(remaining.length, 1);
+    assert.strictEqual(remaining[0].classList.contains('active'), true);
+
+    const content = el.querySelector('.a2ui-tab-content');
+    assert.strictEqual(content?.textContent?.includes('Content 1'), true);
+
+    // The clamp is a render-time derivation, so the user's selection is left untouched.
+    assert.strictEqual(el.activeIndex, 1);
+  });
 });
