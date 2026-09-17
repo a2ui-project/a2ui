@@ -20,9 +20,9 @@ import 'package:meta/meta.dart';
 import '../core/catalog.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/schema_resolution.dart';
 import 'common_types.g.dart';
 import 'component_refs.dart';
-import 'schema_resolution.dart';
 
 /// Verifies an item in an agent-to-renderer payload.
 ///

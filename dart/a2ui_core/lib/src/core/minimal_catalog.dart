@@ -16,8 +16,9 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../primitives/cancellation.dart';
 import 'catalog.dart';
+import 'common.dart';
 import 'common_schemas.dart';
-import 'contexts.dart';
+import 'data_context.dart';
 
 class MinimalTextApi extends ComponentApi {
   MinimalTextApi()
