@@ -190,9 +190,7 @@ def discover_pending(limit: int = 50) -> list[dict]:
             "--limit",
             str(limit),
             "--json",
-            "tagName",
-            "--jq",
-            ".[].tagName",
+            "tagName,body",
         ],
         capture_output=True,
         text=True,
@@ -200,18 +198,18 @@ def discover_pending(limit: int = 50) -> list[dict]:
     )
 
     pending = []
-    for tag in result.stdout.split():
+    try:
+        releases = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return pending
+
+    for release in releases:
+        tag = release.get("tagName", "")
+        body = release.get("body", "")
         parsed = parse_tag(tag)
         if not parsed:
             continue
         name, version = parsed
-        view = subprocess.run(
-            ["gh", "release", "view", tag, "--json", "body", "--jq", ".body"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        body = view.stdout
         if PENDING_MARKER not in body:
             continue
         # Keep the original changelog entries, which sit above the separator.

@@ -131,7 +131,7 @@ def verify(plan: list[dict[str, str]], repo_root: str) -> list[str]:
         for artifact in artifacts:
             try:
                 name, version = read_metadata(artifact)
-            except (ValueError, OSError) as error:
+            except (ValueError, OSError, tarfile.TarError) as error:
                 problems.append(f"{os.path.basename(artifact)}: {error}")
                 continue
             if name != expected_name:

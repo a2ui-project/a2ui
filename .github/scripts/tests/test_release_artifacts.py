@@ -155,6 +155,13 @@ class VerifyTest(unittest.TestCase):
         problems = ra.verify(self.plan, self.root)
         self.assertTrue(any("0.0.9" in p for p in problems))
 
+    def test_flags_corrupted_sdist(self):
+        write_wheel(self.dist, "a2ui-core", "0.1.2")
+        with open(os.path.join(self.dist, "a2ui_core-0.1.2.tar.gz"), "wb") as handle:
+            handle.write(b"not a valid tarball")
+        problems = ra.verify(self.plan, self.root)
+        self.assertTrue(any("a2ui_core-0.1.2.tar.gz" in p for p in problems))
+
 
 class ManifestTest(unittest.TestCase):
 
