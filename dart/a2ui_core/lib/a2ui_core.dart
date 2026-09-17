@@ -46,6 +46,7 @@ export 'src/processing/expressions.dart';
 // Processing & expressions.
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart';
+export 'src/rendering/resolved_binding.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `MessageProcessor` is the entry point, and
 // `PayloadValidator` checks one item against one catalog.

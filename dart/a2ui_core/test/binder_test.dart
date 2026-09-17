@@ -17,6 +17,7 @@ import 'package:a2ui_core/src/core/contexts.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
+import 'package:a2ui_core/src/rendering/resolved_binding.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -39,10 +40,16 @@ void main() {
       final context = ComponentContext(surface, comp);
       final binder = GenericBinder(context, MinimalTextApi().schema);
 
-      expect(binder.resolvedProps.value['text'], 'initial');
+      expect(
+        (binder.resolvedProps.value['text'] as ResolvedBinding<Object?>).value,
+        'initial',
+      );
 
       surface.dataModel.set('/val', 'updated');
-      expect(binder.resolvedProps.value['text'], 'updated');
+      expect(
+        (binder.resolvedProps.value['text'] as ResolvedBinding<Object?>).value,
+        'updated',
+      );
     });
 
     test('resolves actions into callbacks', () async {
