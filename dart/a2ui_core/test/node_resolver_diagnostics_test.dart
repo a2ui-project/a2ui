@@ -323,9 +323,15 @@ void main() {
           'children': ['weird', 'weird'],
         });
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        final List<ComponentNode> previous = List.of(children());
         surface.componentsModel.removeComponent('weird');
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+        expect(previous.map((node) => node.disposed), everyElement(isTrue));
         expect(children().map((node) => node.type), everyElement('OtherBogus'));
+        expect(
+          children().map((node) => node.state),
+          everyElement(NodeState.unknownType),
+        );
         expect(children().map((node) => node.disposed), everyElement(isFalse));
         expect(resolver.activeNodeCount, 3);
       },

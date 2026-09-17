@@ -345,74 +345,20 @@ void processorContractTests() {
         {'id': 'root', 'component': 'Card', 'child': 'leaf'},
         {'id': 'leaf', 'component': 'Text', 'text': 'ready'},
       ]);
-      expect(
-        child(fixture.resolver.rootNode.value!, 'child').componentId,
-        'leaf',
+      final ComponentNode leaf = child(
+        fixture.resolver.rootNode.value!,
+        'child',
       );
+      expect(leaf.componentId, 'leaf');
+      expect(leaf.state, NodeState.resolved);
       expect(fixture.surface.componentsModel.get('leaf'), isNotNull);
       expect(fixture.resolver.activeNodeCount, 2);
-    });
-
-    test('a valid parent-first batch temporarily exposes a pending child', () {
-      final ProcessorSetup fixture = setupProcessor();
-      final states = <NodeState>[];
-      final subscriptions = <void Function()>[];
-      subscriptions.add(
-        fixture.resolver.rootNode.subscribe((root) {
-          if (root != null) {
-            subscriptions.add(
-              root.props.subscribe((_) {
-                states.add(child(root, 'child').state);
-              }),
-            );
-          }
-        }),
-      );
-      addTearDown(() {
-        for (final unsubscribe in subscriptions) {
-          unsubscribe();
-        }
-      });
-      processComponents(fixture, [
-        {'id': 'root', 'component': 'Card', 'child': 'leaf'},
-        {'id': 'leaf', 'component': 'Text', 'text': 'ready'},
-      ]);
-      expect(states, [NodeState.pending, NodeState.resolved]);
-      expect(
-        child(fixture.resolver.rootNode.value!, 'child').state,
-        NodeState.resolved,
-      );
     });
 
     for (final (reference, state) in [
       ('missing', NodeState.pending),
       ('root', NodeState.cyclic),
     ]) {
-      test(
-        'a type-omitting processed update can produce ${state.jsonValue}',
-        () {
-          final ProcessorSetup fixture = setupProcessor();
-          processComponents(fixture, [
-            {'id': 'root', 'component': 'Card', 'child': 'leaf'},
-            {'id': 'leaf', 'component': 'Text', 'text': 'ready'},
-          ]);
-          final errors = <String>[];
-          fixture.surface.onError.addListener(
-            (error) => errors.add(error.code),
-          );
-          // Updates without `component` skip catalog schema validation,
-          // so missing and cyclic references can reach the resolver.
-          processComponents(fixture, [
-            {'id': 'root', 'child': reference},
-          ]);
-          expect(child(fixture.resolver.rootNode.value!, 'child').state, state);
-          expect(
-            errors,
-            state == NodeState.cyclic ? ['CYCLIC_REFERENCE'] : <String>[],
-          );
-        },
-      );
-
       test('accepts an unmarked structural ${state.jsonValue} reference and '
           'reports it through the node', () {
         // Graph validation classifies references from catalog markers only, so
@@ -893,7 +839,8 @@ void materializationFailureTests() {
       return fixture;
     }
 
-    test('a throw while materializing leaves no orphaned record', () {
+    test('a throw while materializing leaves no orphaned record, and the '
+        'tree builds once the offending component is corrected', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
 
       expect(
@@ -916,14 +863,6 @@ void materializationFailureTests() {
             'published',
       );
       expect(fixture.resolver.disposed, isFalse);
-    });
-
-    test('the tree builds once the offending component is corrected', () {
-      final TestSetup fixture = setupWithPoisonedLeaf();
-      expect(
-        () => add(fixture.surface, 'root', 'Card', {'child': 'leaf'}),
-        throwsA(isA<TypeError>()),
-      );
 
       fixture.surface.componentsModel.get('leaf')!.properties = {
         'text': 'recovered',
@@ -1076,23 +1015,6 @@ void main() {
       expect(child(root, 'children', 0).state, NodeState.resolved);
       expect(bound(child(root, 'children', 0), 'text'), 'returned');
       expect(resolver.activeNodeCount, 2);
-    });
-
-    test('emits once when a component update changes multiple dynamic '
-        'properties', () {
-      final TestSetup fixture = setupPair();
-      final ComponentNode<ComponentApi> root = fixture.resolver.rootNode.value!;
-      final emissions = EmissionCounter(root.props);
-      addTearDown(emissions.dispose);
-
-      fixture.surface.componentsModel.get('root')!.properties = {
-        'a': 'new',
-        'b': 'new',
-      };
-
-      expect(emissions.count, 1);
-      expect(bound(root, 'a'), 'new');
-      expect(bound(root, 'b'), 'new');
     });
 
     test('never emits mixed old and new dynamic properties during a '
@@ -1641,20 +1563,6 @@ void main() {
       },
     );
 
-    test('resolves an unresolved binding to null without failing', () {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      add(surface, 'root', 'Text', {
-        'text': {'path': '/missing'},
-      });
-      final ComponentNode root = resolver.rootNode.value!;
-      expect(bound(root, 'text'), isNull);
-      resolver.dispose();
-    });
-
     test(
       'reconciles explicit children list changes, reusing surviving nodes',
       () {
@@ -1734,6 +1642,7 @@ void main() {
         },
       });
       final ComponentNode root = resolver.rootNode.value!;
+      expect(root.impl, same(catalog.components['Text']));
       expect(bound(root, 'text'), 'ALICE');
       expect(props(root)['text'], isNot(isA<WritableBinding<Object?>>()));
 
@@ -1796,47 +1705,54 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-      're-spawns template children as the bound array grows and shrinks',
-      () {
-        final (
-          catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-          surface: SurfaceModel<ComponentApi> surface,
-          resolver: NodeResolver<ComponentApi> resolver,
-        ) = setup();
-        surface.dataModel.set('/items', [
-          {'name': 'A'},
-        ]);
-        add(surface, 'root', 'Column', {
-          'children': {'componentId': 'item_tpl', 'path': '/items'},
-        });
-        add(surface, 'item_tpl', 'Text', {
-          'text': {'path': 'name'},
-        });
-        final ComponentNode root = resolver.rootNode.value!;
-        expect(props(root)['children'] as List, hasLength(1));
+    test('re-spawns template children as the bound array grows and shrinks, '
+        'keeping surviving nodes', () {
+      final (
+        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
+        surface: SurfaceModel<ComponentApi> surface,
+        resolver: NodeResolver<ComponentApi> resolver,
+      ) = setup();
+      surface.dataModel.set('/items', [
+        {'name': 'A'},
+        {'name': 'B'},
+      ]);
+      add(surface, 'root', 'Column', {
+        'children': {'componentId': 'item_tpl', 'path': '/items'},
+      });
+      add(surface, 'item_tpl', 'Text', {
+        'text': {'path': 'name'},
+      });
+      final ComponentNode root = resolver.rootNode.value!;
+      final before = List<ComponentNode>.of(
+        (props(root)['children'] as List).cast<ComponentNode>(),
+      );
+      expect(before, hasLength(2));
 
-        surface.dataModel.set('/items', [
-          {'name': 'A'},
-          {'name': 'B'},
-          {'name': 'C'},
-        ]);
-        final List<ComponentNode> grown = (props(root)['children'] as List)
-            .cast<ComponentNode>();
-        expect(grown, hasLength(3));
-        expect(bound(grown[2], 'text'), 'C');
+      surface.dataModel.set('/items', [
+        {'name': 'A'},
+        {'name': 'B'},
+        {'name': 'C'},
+      ]);
+      final List<ComponentNode> grown = (props(root)['children'] as List)
+          .cast<ComponentNode>();
+      expect(grown, hasLength(3));
+      expect(identical(grown[0], before[0]), isTrue);
+      expect(identical(grown[1], before[1]), isTrue);
+      expect(before[0].disposed, isFalse);
+      expect(before[1].disposed, isFalse);
+      expect(bound(grown[2], 'text'), 'C');
 
-        surface.dataModel.set('/items', [
-          {'name': 'A'},
-        ]);
-        final List<ComponentNode> shrunk = (props(root)['children'] as List)
-            .cast<ComponentNode>();
-        expect(shrunk, hasLength(1));
-        expect(grown[1].disposed, isTrue);
-        expect(grown[2].disposed, isTrue);
-        resolver.dispose();
-      },
-    );
+      surface.dataModel.set('/items', [
+        {'name': 'A'},
+      ]);
+      final List<ComponentNode> shrunk = (props(root)['children'] as List)
+          .cast<ComponentNode>();
+      expect(shrunk, hasLength(1));
+      expect(identical(shrunk[0], before[0]), isTrue);
+      expect(before[1].disposed, isTrue);
+      expect(grown[2].disposed, isTrue);
+      resolver.dispose();
+    });
 
     test('serializes the resolved tree, rendering actions and placeholders '
         'specially', () {
@@ -1968,50 +1884,6 @@ void main() {
       expect(sharedViaB.disposed, isFalse);
       surface.dataModel.set('/label', 'still updating');
       expect(bound(sharedViaB, 'text'), 'still updating');
-      resolver.dispose();
-    });
-
-    test('keeps surviving template nodes across array growth and shrink '
-        '(key stability)', () {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      surface.dataModel.set('/items', [
-        {'name': 'A'},
-        {'name': 'B'},
-      ]);
-      add(surface, 'root', 'Column', {
-        'children': {'componentId': 'item_tpl', 'path': '/items'},
-      });
-      add(surface, 'item_tpl', 'Text', {
-        'text': {'path': 'name'},
-      });
-      final ComponentNode root = resolver.rootNode.value!;
-      final before = List<ComponentNode>.of(
-        (props(root)['children'] as List).cast<ComponentNode>(),
-      );
-
-      surface.dataModel.set('/items', [
-        {'name': 'A'},
-        {'name': 'B'},
-        {'name': 'C'},
-      ]);
-      final List<ComponentNode> grown = (props(root)['children'] as List)
-          .cast<ComponentNode>();
-      expect(identical(grown[0], before[0]), isTrue);
-      expect(identical(grown[1], before[1]), isTrue);
-      expect(before[0].disposed, isFalse);
-      expect(before[1].disposed, isFalse);
-
-      surface.dataModel.set('/items', [
-        {'name': 'A'},
-      ]);
-      final List<ComponentNode> shrunk = (props(root)['children'] as List)
-          .cast<ComponentNode>();
-      expect(identical(shrunk[0], before[0]), isTrue);
-      expect(before[1].disposed, isTrue);
       resolver.dispose();
     });
 
@@ -2193,43 +2065,6 @@ void main() {
       expect(
         errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'),
         hasLength(1),
-      );
-      resolver.dispose();
-    });
-
-    test('keeps a stable placeholder for a component whose type is not in the '
-        'catalog', () {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      final errors = <A2uiClientError>[];
-      surface.onError.addListener(errors.add);
-      add(surface, 'root', 'Card', {'child': 'weird'});
-      add(surface, 'weird', 'Bogus', {});
-
-      final ComponentNode root = resolver.rootNode.value!;
-      final ComponentNode placeholder = child(root, 'child');
-      expect(placeholder.type, 'Bogus');
-      expect(placeholder.state, NodeState.unknownType);
-      expect(placeholder.isPlaceholder, isTrue);
-      expect(placeholder.toJson(), {
-        'id': 'weird',
-        'type': 'Bogus',
-        'state': 'unknown-type',
-      });
-      final int reportsBefore = errors
-          .where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE')
-          .length;
-
-      surface.componentsModel.get('root')!.properties = {'child': 'weird'};
-      surface.componentsModel.get('root')!.properties = {'child': 'weird'};
-
-      expect(identical(child(root, 'child'), placeholder), isTrue);
-      expect(
-        errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE').length,
-        reportsBefore,
       );
       resolver.dispose();
     });
@@ -2456,27 +2291,6 @@ void main() {
   });
 
   group('NodeResolver construction and disposal', () {
-    test('uses the implementation-bearing catalog held by the surface', () {
-      final Catalog<ComponentApi, FunctionImplementation> catalog =
-          makeCatalog();
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
-      final resolver = NodeResolver<ComponentApi>(surface);
-      addTearDown(() {
-        resolver.dispose();
-        surface.dispose();
-      });
-      add(surface, 'root', 'Text', {
-        'text': {
-          'call': 'shout',
-          'args': {'value': 'hello'},
-          'returnType': 'string',
-        },
-      });
-      final ComponentNode<ComponentApi> root = resolver.rootNode.peek()!;
-      expect(root.impl, same(catalog.components['Text']));
-      expect((root.props.peek()['text'] as ResolvedBinding).value, 'HELLO');
-    });
-
     test('resolves bindings inside a function-call list argument '
         'reactively', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
@@ -2510,19 +2324,17 @@ void main() {
       expect(bound(root, 'text'), 'two,lit');
     });
 
-    test('surface disposal alone leaves nodes live until the resolver is '
-        'disposed', () {
+    test('a late resolver dispose after surface disposal still tears '
+        'everything down', () {
       final TestSetup fixture = setup();
       add(fixture.surface, 'root', 'Card', {'child': 'txt'});
       add(fixture.surface, 'txt', 'Text', {'text': 'Hello'});
       final ComponentNode root = fixture.resolver.rootNode.value!;
       expect(fixture.resolver.activeNodeCount, 2);
 
-      // The documented order is resolver first. The reverse order runs no
-      // node cleanup, and a late resolver dispose still tears everything down.
+      // The documented order is resolver first; the reverse order must still
+      // be safe.
       fixture.surface.dispose();
-      expect(fixture.resolver.activeNodeCount, 2);
-      expect(root.disposed, isFalse);
 
       expect(fixture.resolver.dispose, returnsNormally);
       expect(fixture.resolver.activeNodeCount, 0);

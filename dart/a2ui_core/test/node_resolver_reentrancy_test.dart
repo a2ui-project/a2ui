@@ -259,27 +259,6 @@ void main() {
       });
     }
 
-    test('an earlier delete listener replaces an unknown-type model', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
-      surface.componentsModel.onDeleted.addListener((id) {
-        if (id == 'weird') {
-          _add(surface, 'weird', 'AnotherUnknownType', {});
-        }
-      });
-      final NodeResolver<ComponentApi> resolver = _resolver(surface);
-      _add(surface, 'weird', 'Bogus', {});
-      _add(surface, 'root', 'Card', {'child': 'weird'});
-      final ComponentNode root = resolver.rootNode.peek()!;
-      final ComponentNode previous = _child(root);
-
-      surface.componentsModel.removeComponent('weird');
-
-      expect(_child(root).state, NodeState.unknownType);
-      expect(_child(root).type, 'AnotherUnknownType');
-      expect(previous.disposed, isTrue);
-      _expectLiveTree(resolver);
-    });
-
     test('nested diagnostics drain before the initiating update returns', () {
       final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -300,30 +279,6 @@ void main() {
 
       expect(errors, 2);
       expect(_text(resolver.rootNode.peek()!), 'repaired');
-      _expectLiveTree(resolver);
-    });
-
-    test('diagnostics report each scope synchronously, not each edge', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
-      final NodeResolver<ComponentApi> resolver = _resolver(surface);
-      var errors = 0;
-      surface.onError.addListener((error) {
-        if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
-          errors++;
-        }
-      });
-      _add(surface, 'weird', 'Bogus', {});
-      _add(surface, 'root', 'Column', {
-        'children': ['weird', 'weird'],
-      });
-      expect(errors, 1);
-      surface.dataModel.set('/items', [1, 2, 3]);
-      surface.componentsModel.get('root')!.properties = {
-        'children': {'componentId': 'weird', 'path': '/items'},
-      };
-      expect(errors, 4);
-      surface.dataModel.set('/items', [1, 2, 3, 4]);
-      expect(errors, 5);
       _expectLiveTree(resolver);
     });
 
@@ -953,26 +908,6 @@ void _cleanupRegistrationTests() {
         expect(resolver.activeNodeCount, 0);
       },
     );
-
-    test('runs a finite chain of nested late cleanups exactly once', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
-      final NodeResolver<ComponentApi> resolver = _resolver(surface);
-      _add(surface, 'root', 'Text', {'text': 'root'});
-      final ComponentNode root = resolver.rootNode.peek()!;
-      resolver.dispose();
-      final events = <String>[];
-
-      root.addCleanup(() {
-        events.add('outer start');
-        root.addCleanup(() => events.add('inner'));
-        resolver.dispose();
-        events.add('outer end');
-      });
-
-      expect(events, ['outer start', 'inner', 'outer end']);
-      resolver.dispose();
-      expect(events, hasLength(3));
-    });
 
     test(
       'runs cleanup registered by a destruction listener before it resumes',

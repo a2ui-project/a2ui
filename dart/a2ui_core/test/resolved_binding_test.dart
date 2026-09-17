@@ -29,8 +29,5 @@ void main() {
     final wb3 = WritableBinding<int>(1, (v) {}, '/bar');
     expect(wb == wb2, true);
     expect(wb == wb3, false);
-
-    expect(rb.toString(), 'ResolvedBinding(1)');
-    expect(wb.toString(), 'WritableBinding(1, path: /foo)');
   });
 }

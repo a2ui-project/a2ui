@@ -244,24 +244,23 @@ void main() {
       );
     });
 
-    // Structural matching also treats unrelated objects as child lists.
-    // Graph validation ignores these unmarked references.
-    test('treats any componentId-and-path object as a structural list', () {
-      _expectFields(
-        {
-          'properties': {
-            'auditRecord': {
-              'type': 'object',
-              'properties': {
-                'componentId': {'type': 'string'},
-                'path': {'type': 'string'},
-                'recordedAt': {'type': 'string'},
-              },
+    test('graph validation does not infer references from an unmarked '
+        'componentId-and-path object', () {
+      // Validation rejects a whole batch, so it keeps to what the catalog
+      // marks rather than what a schema resembles.
+      final Catalog<ComponentApi, FunctionImplementation> catalog = _catalog({
+        'properties': {
+          'auditRecord': {
+            'type': 'object',
+            'properties': {
+              'componentId': {'type': 'string'},
+              'path': {'type': 'string'},
+              'recordedAt': {'type': 'string'},
             },
           },
         },
-        resolutionOnlyList: {'auditRecord'},
-      );
+      });
+      expect(extractComponentRefFields(catalog), isNot(contains('Parent')));
     });
 
     test('excludes self properties and unmarked strings', () {
