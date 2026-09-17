@@ -65,7 +65,7 @@ function normalizeDateTimeValue(value: string | null | undefined, type: string):
   return '';
 }
 
-@customElement('a2ui-datetimeinput')
+@customElement('a2ui-basic-datetimeinput')
 export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTimeInputApi> {
   /**
    * The styles of the datetime input can be customized by redefining the following
@@ -193,5 +193,5 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
 
 export const A2uiDateTimeInput: WebComponentImplementation = {
   ...DateTimeInputApi,
-  tagName: 'a2ui-datetimeinput',
+  tagName: 'a2ui-basic-datetimeinput',
 };

@@ -80,7 +80,7 @@ describe('Video Component', () => {
   });
 
   it('should render and attach url correctly', async () => {
-    const el = document.createElement('a2ui-video') as A2uiVideoElement;
+    const el = document.createElement('a2ui-basic-video') as A2uiVideoElement;
     element = el;
     document.body.appendChild(el);
 

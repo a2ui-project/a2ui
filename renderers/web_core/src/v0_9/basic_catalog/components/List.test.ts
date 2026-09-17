@@ -92,7 +92,7 @@ describe('List Component', () => {
   });
 
   it('should render children in list container', async () => {
-    const el = document.createElement('a2ui-list') as A2uiListElement;
+    const el = document.createElement('a2ui-basic-list') as A2uiListElement;
     element = el;
     document.body.appendChild(el);
 
@@ -132,7 +132,7 @@ describe('List Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-list') as A2uiListElement;
+    const el = document.createElement('a2ui-basic-list') as A2uiListElement;
     element = el;
     document.body.appendChild(el);
 

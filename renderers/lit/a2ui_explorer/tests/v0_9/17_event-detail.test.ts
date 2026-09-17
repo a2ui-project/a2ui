@@ -59,7 +59,7 @@ describe('Example: Event Detail', () => {
   });
 
   it('should render icons', async () => {
-    const icons = querySelectorAllDeep(surface, 'a2ui-icon');
+    const icons = querySelectorAllDeep(surface, 'a2ui-basic-icon');
     expect(icons.length).toBeGreaterThanOrEqual(2);
 
     expect(textContent).toContain('calendar_today');

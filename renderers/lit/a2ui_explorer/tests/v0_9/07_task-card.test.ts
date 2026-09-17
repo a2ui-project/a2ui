@@ -67,7 +67,7 @@ describe('Example: Task Card', () => {
   });
 
   it('should render icon', async () => {
-    expect(querySelectorAllDeep(surface, 'a2ui-icon')[0] as HTMLElement)
+    expect(querySelectorAllDeep(surface, 'a2ui-basic-icon')[0] as HTMLElement)
       .withContext('Should have an icon')
       .toBeTruthy();
   });

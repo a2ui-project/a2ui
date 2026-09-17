@@ -52,7 +52,7 @@ describe('Example: Flight Status', () => {
   });
 
   it('should render icon', async () => {
-    const iconInnerEl = querySelectorAllDeep(surface, 'a2ui-icon')[0] as HTMLElement;
+    const iconInnerEl = querySelectorAllDeep(surface, 'a2ui-basic-icon')[0] as HTMLElement;
     expect(iconInnerEl).toBeTruthy();
     expect(getDeepTextContent(iconInnerEl).trim()).toBe('send');
   });

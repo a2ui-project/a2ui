@@ -32,7 +32,7 @@ function toMaterialIconName(name: string): string {
   return name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
-@customElement('a2ui-icon')
+@customElement('a2ui-basic-icon')
 export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> {
   /**
    * The icon component can be customized with the following CSS variables:
@@ -98,5 +98,5 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
 
 export const A2uiIcon: WebComponentImplementation = {
   ...IconApi,
-  tagName: 'a2ui-icon',
+  tagName: 'a2ui-basic-icon',
 };

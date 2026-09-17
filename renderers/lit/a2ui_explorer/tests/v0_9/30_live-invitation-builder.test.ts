@@ -58,7 +58,7 @@ describe('Example: Live Invitation Builder', () => {
   });
 
   function getLivePreview() {
-    const cards = querySelectorAllDeep(surface, 'a2ui-card');
+    const cards = querySelectorAllDeep(surface, 'a2ui-basic-card');
     const livePreview = cards[0];
     expect(livePreview).withContext('Should Live Preview card content wrapper').toBeTruthy();
     return livePreview as HTMLElement;

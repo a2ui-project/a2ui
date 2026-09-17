@@ -20,7 +20,7 @@ import {VideoApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {WebComponentImplementation} from '../../catalog/types.js';
 
-@customElement('a2ui-video')
+@customElement('a2ui-basic-video')
 export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {
   /**
    * The styles of the video can be customized by redefining the following
@@ -59,5 +59,5 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
 
 export const A2uiVideo: WebComponentImplementation = {
   ...VideoApi,
-  tagName: 'a2ui-video',
+  tagName: 'a2ui-basic-video',
 };

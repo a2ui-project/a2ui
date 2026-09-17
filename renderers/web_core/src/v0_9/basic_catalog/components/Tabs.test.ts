@@ -86,7 +86,7 @@ describe('Tabs Component', () => {
   });
 
   it('should render tab headers with first tab active and display first tab content', async () => {
-    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    const el = document.createElement('a2ui-basic-tabs') as A2uiLitTabs;
     element = el;
     document.body.appendChild(el);
 
@@ -110,7 +110,7 @@ describe('Tabs Component', () => {
   });
 
   it('should switch active tab and render corresponding content when tab header is clicked', async () => {
-    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    const el = document.createElement('a2ui-basic-tabs') as A2uiLitTabs;
     element = el;
     document.body.appendChild(el);
 
@@ -136,7 +136,7 @@ describe('Tabs Component', () => {
   });
 
   it('should not throw when updated without a context', async () => {
-    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    const el = document.createElement('a2ui-basic-tabs') as A2uiLitTabs;
     element = el;
     document.body.appendChild(el);
 
@@ -147,7 +147,7 @@ describe('Tabs Component', () => {
   });
 
   it('should fall back to the first tab when the tabs array shrinks', async () => {
-    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    const el = document.createElement('a2ui-basic-tabs') as A2uiLitTabs;
     element = el;
     document.body.appendChild(el);
 

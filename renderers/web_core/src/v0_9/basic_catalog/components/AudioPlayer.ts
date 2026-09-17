@@ -20,7 +20,7 @@ import {AudioPlayerApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {WebComponentImplementation} from '../../catalog/types.js';
 
-@customElement('a2ui-audioplayer')
+@customElement('a2ui-basic-audioplayer')
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlayerApi> {
   static override styles = css`
     .a2ui-audio-player {
@@ -65,5 +65,5 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof Au
 
 export const A2uiAudioPlayer: WebComponentImplementation = {
   ...AudioPlayerApi,
-  tagName: 'a2ui-audioplayer',
+  tagName: 'a2ui-basic-audioplayer',
 };

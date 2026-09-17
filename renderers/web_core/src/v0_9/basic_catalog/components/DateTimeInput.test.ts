@@ -83,7 +83,7 @@ describe('DateTimeInput Component', () => {
   });
 
   it('should render date and label value', async () => {
-    const el = document.createElement('a2ui-datetimeinput') as A2uiDateTimeInputElement;
+    const el = document.createElement('a2ui-basic-datetimeinput') as A2uiDateTimeInputElement;
     element = el;
     document.body.appendChild(el);
 
@@ -130,7 +130,7 @@ describe('DateTimeInput Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-datetimeinput') as A2uiDateTimeInputElement;
+    const el = document.createElement('a2ui-basic-datetimeinput') as A2uiDateTimeInputElement;
     element = el;
     document.body.appendChild(el);
 
@@ -178,7 +178,7 @@ describe('DateTimeInput Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-datetimeinput') as A2uiDateTimeInputElement;
+    const el = document.createElement('a2ui-basic-datetimeinput') as A2uiDateTimeInputElement;
     element = el;
     document.body.appendChild(el);
 
@@ -230,7 +230,7 @@ describe('DateTimeInput Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-datetimeinput') as A2uiDateTimeInputElement;
+    const el = document.createElement('a2ui-basic-datetimeinput') as A2uiDateTimeInputElement;
     element = el;
     document.body.appendChild(el);
 
@@ -287,7 +287,7 @@ describe('DateTimeInput Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-datetimeinput') as A2uiDateTimeInputElement;
+    const el = document.createElement('a2ui-basic-datetimeinput') as A2uiDateTimeInputElement;
     element = el;
     document.body.appendChild(el);
 

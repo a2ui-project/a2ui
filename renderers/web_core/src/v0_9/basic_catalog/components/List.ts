@@ -30,7 +30,7 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-@customElement('a2ui-list')
+@customElement('a2ui-basic-list')
 export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
   static override styles = css`
     .a2ui-list {
@@ -95,5 +95,5 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> 
 
 export const A2uiList: WebComponentImplementation = {
   ...ListApi,
-  tagName: 'a2ui-list',
+  tagName: 'a2ui-basic-list',
 };

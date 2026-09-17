@@ -21,7 +21,7 @@ import {DividerApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {WebComponentImplementation} from '../../catalog/types.js';
 
-@customElement('a2ui-divider')
+@customElement('a2ui-basic-divider')
 export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof DividerApi> {
   /**
    * The styles of the divider can be customized by redefining the following
@@ -71,5 +71,5 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
 
 export const A2uiDivider: WebComponentImplementation = {
   ...DividerApi,
-  tagName: 'a2ui-divider',
+  tagName: 'a2ui-basic-divider',
 };

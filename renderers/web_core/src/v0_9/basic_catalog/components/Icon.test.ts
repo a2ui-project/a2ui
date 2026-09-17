@@ -87,7 +87,7 @@ describe('Icon Component', () => {
   });
 
   it('should render plain material icon <i> with correct classes and name override', async () => {
-    const el = document.createElement('a2ui-icon') as A2uiIconElement;
+    const el = document.createElement('a2ui-basic-icon') as A2uiIconElement;
     element = el;
     document.body.appendChild(el);
 
@@ -105,7 +105,7 @@ describe('Icon Component', () => {
   });
 
   it('should render svg icon with svgPath', async () => {
-    const el = document.createElement('a2ui-icon') as A2uiIconElement;
+    const el = document.createElement('a2ui-basic-icon') as A2uiIconElement;
     element = el;
     document.body.appendChild(el);
 

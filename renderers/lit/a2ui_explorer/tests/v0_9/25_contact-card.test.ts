@@ -57,7 +57,7 @@ describe('Example: Contact Card', () => {
   });
 
   it('should render icons', async () => {
-    const icons = querySelectorAllDeep(surface, 'a2ui-icon');
+    const icons = querySelectorAllDeep(surface, 'a2ui-basic-icon');
     expect(icons.length).toBeGreaterThanOrEqual(3);
 
     expect(textContent).toContain('location_on');

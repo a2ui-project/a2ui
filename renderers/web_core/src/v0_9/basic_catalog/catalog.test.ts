@@ -18,6 +18,7 @@ import * as assert from 'node:assert';
 import {describe, it, before, after} from 'node:test';
 import type {LitElement} from 'lit';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
+import {A2uiLitElement} from '../catalog/a2ui-lit-element.js';
 import {basicCatalog} from './catalog.js';
 
 describe('basicCatalog', () => {
@@ -31,6 +32,19 @@ describe('basicCatalog', () => {
   after(teardownTestDom);
 
   for (const implementation of basicCatalog.components.values()) {
+    it(`should register <${implementation.tagName}> for ${implementation.name}`, () => {
+      // The catalog instantiates elements by `tagName`, so a decorator-only rename compiles
+      // cleanly and then fails in the browser.
+      assert.ok(
+        document.createElement(implementation.tagName) instanceof A2uiLitElement,
+        `${implementation.tagName} does not resolve to an A2uiLitElement`,
+      );
+      assert.ok(
+        implementation.tagName.startsWith('a2ui-basic-'),
+        `${implementation.tagName} is not namespaced to the basic catalog`,
+      );
+    });
+
     it(`should update <${implementation.tagName}> without a context`, async () => {
       const el = document.createElement(implementation.tagName);
       document.body.appendChild(el);
