@@ -16,10 +16,17 @@
 
 import os
 import json
+import re
 import subprocess
 import glob
 import sys
 import shutil
+
+CATALOG_ID_RE = re.compile(
+    r"https://a2ui\.org/specification/v[0-9_]+/catalogs/[A-Za-z0-9_-]+/catalog\.json"
+)
+
+SCANNED_SUFFIXES = (".json", ".md", ".txt", ".jsonl")
 
 
 def run_ajv(schema_path, data_paths, refs=None):
@@ -235,10 +242,107 @@ def compare_schemas(subset_path, standard_path):
     return success
 
 
+def check_catalog_ids(repo_root):
+    """Checks that catalog IDs are declared by a catalog schema before use.
+
+    Two invariants:
+      1. Every catalog schema agrees with itself: `$id` == `catalogId`.
+      2. Every catalog URL referenced anywhere under `specification/` is an ID
+         that some catalog schema actually declares.
+
+    Invariant 2 is what stops an implementation or a doc from inventing a
+    catalog ID that no catalog answers to. A client that does not recognise an
+    ID cannot tell it apart from a typo, so the surface silently renders empty.
+    """
+    print("\n=== Validating catalog IDs ===")
+    success = True
+
+    spec_root = os.path.join(repo_root, "specification")
+    catalog_paths = sorted(
+        glob.glob(os.path.join(spec_root, "*", "catalogs", "*", "catalog.json"))
+    )
+
+    declared = {}
+    for catalog_path in catalog_paths:
+        rel = os.path.relpath(catalog_path, repo_root)
+        try:
+            with open(catalog_path, "r", encoding="utf-8") as f:
+                catalog = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"    [FAIL] Could not read {rel}: {e}")
+            success = False
+            continue
+
+        if not isinstance(catalog, dict):
+            print(f"    [FAIL] {rel} is not a JSON object")
+            success = False
+            continue
+
+        schema_id = catalog.get("$id")
+        catalog_id = catalog.get("catalogId")
+
+        if not catalog_id:
+            print(f"    [FAIL] {rel} declares no 'catalogId'")
+            success = False
+            continue
+
+        if schema_id != catalog_id:
+            print(f"    [FAIL] {rel}: '$id' and 'catalogId' disagree")
+            print(f"           $id       {schema_id}")
+            print(f"           catalogId {catalog_id}")
+            success = False
+
+        # Register even on mismatch: `catalogId` is the field clients match on,
+        # so trusting it here keeps one bad `$id` from cascading into a bogus
+        # "undeclared ID" error for every file that references the catalog.
+        declared.setdefault(catalog_id, []).append(rel)
+
+    if not declared:
+        print("    [FAIL] No catalog schemas found")
+        return False
+
+    print(
+        f"  {len(declared)} catalog ID(s) declared by {len(catalog_paths)} schema(s):"
+    )
+    for catalog_id in sorted(declared):
+        print(f"    {catalog_id}")
+
+    offenders = {}
+    for path in sorted(glob.glob(os.path.join(spec_root, "**", "*"), recursive=True)):
+        if not os.path.isfile(path) or not path.endswith(SCANNED_SUFFIXES):
+            continue
+        if f"{os.sep}node_modules{os.sep}" in path:
+            continue
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except OSError:
+            continue
+        for match in CATALOG_ID_RE.findall(text):
+            if match not in declared:
+                offenders.setdefault(match, set()).add(os.path.relpath(path, repo_root))
+
+    if offenders:
+        success = False
+        for catalog_id, paths in sorted(offenders.items()):
+            print(f"    [FAIL] Undeclared catalog ID: {catalog_id}")
+            print("           No catalog.json under specification/ declares this ID.")
+            print("           Referenced from:")
+            for p in sorted(paths):
+                print(f"             {p}")
+    else:
+        print("    [PASS] Every referenced catalog ID is declared by a schema")
+
+    return success
+
+
 def main():
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
     overall_success = True
+
+    if not check_catalog_ids(repo_root):
+        overall_success = False
 
     # Configuration for versions
     configs = {
