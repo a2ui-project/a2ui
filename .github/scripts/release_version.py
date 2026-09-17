@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime
+import json
 import os
 import re
 import subprocess
@@ -281,6 +282,34 @@ def check_core_constraint(
     )
 
 
+def build_plan(selection: str, bump: BumpLevel, repo_root: str) -> list[dict[str, str]]:
+    """Returns the packages to release, with their new versions and notes.
+
+    a2ui-core is always ordered before a2ui-agent-sdk. When both are released
+    together the agent-sdk depends on the core version going out in the same
+    run, so the core artifact has to be staged and published first.
+    """
+    if selection == "both":
+        selected = [CORE, AGENT]
+    else:
+        selected = [PACKAGES[selection]]
+
+    plan = []
+    for package in selected:
+        version = bump_version(current_version(package, repo_root), bump)
+        changelog = os.path.join(repo_root, package.changelog_path)
+        with open(changelog, encoding="utf-8") as handle:
+            notes = read_unreleased(handle.read())
+        plan.append({
+            "pypi_name": package.pypi_name,
+            "directory": package.directory,
+            "version": version,
+            "tag": package.tag_for(version),
+            "notes": notes,
+        })
+    return plan
+
+
 def _repo_root() -> str:
     return _git(["rev-parse", "--show-toplevel"], os.getcwd()).strip()
 
@@ -322,8 +351,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     check.add_argument("--package", required=True, choices=sorted(PACKAGES))
     check.add_argument("--version", required=True)
 
+    plan = subparsers.add_parser("plan", help="Emit the release plan as JSON")
+    plan.add_argument("--package", required=True, choices=[*sorted(PACKAGES), "both"])
+    plan.add_argument("--bump", required=True, choices=VALID_BUMPS)
+    plan.add_argument("--output", default=None)
+
     args = parser.parse_args(argv)
     repo_root = args.repo_root or _repo_root()
+
+    if args.command == "plan":
+        entries = build_plan(args.package, args.bump, repo_root)
+        rendered = json.dumps(entries, indent=2)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as handle:
+                handle.write(rendered + "\n")
+        print(rendered)
+        return 0
+
     package = PACKAGES[args.package]
 
     if args.command == "current":

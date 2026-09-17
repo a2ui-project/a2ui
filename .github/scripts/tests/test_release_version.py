@@ -243,5 +243,44 @@ class CoreConstraintTest(unittest.TestCase):
         )
 
 
+class PlanTest(unittest.TestCase):
+
+    def setUp(self):
+        self.repo_root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=os.path.dirname(__file__),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    def test_both_puts_core_first(self):
+        """a2ui-agent-sdk depends on a2ui-core, so core must publish first."""
+        plan = rv.build_plan("both", "patch", self.repo_root)
+        self.assertEqual(
+            [entry["pypi_name"] for entry in plan],
+            ["a2ui-core", "a2ui-agent-sdk"],
+        )
+
+    def test_single_package_selection(self):
+        plan = rv.build_plan("a2ui-core", "patch", self.repo_root)
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0]["pypi_name"], "a2ui-core")
+
+    def test_tag_matches_version(self):
+        for selection in ("a2ui-core", "a2ui-agent-sdk"):
+            with self.subTest(selection=selection):
+                entry = rv.build_plan(selection, "minor", self.repo_root)[0]
+                self.assertTrue(entry["tag"].endswith(entry["version"]))
+                rv.parse_version(entry["version"])
+
+    def test_plan_advances_past_the_released_version(self):
+        entry = rv.build_plan("a2ui-core", "patch", self.repo_root)[0]
+        released = rv.current_version(rv.CORE, self.repo_root)
+        self.assertGreater(
+            rv.parse_version(entry["version"]), rv.parse_version(released)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
