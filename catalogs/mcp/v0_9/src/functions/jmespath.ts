@@ -26,33 +26,27 @@ import {resolveDynamicValueDeep} from '../dynamic-values.js';
 import {asyncable, withSettledArgs} from './common.js';
 
 /**
- * Function API definition for `jmespath`, published in `mcp_catalog.json`.
- *
- * The dialect is the original JMESPath grammar and nothing more, so an
- * expression runs unchanged on a client built against a stock JMESPath library.
- * See `catalogs/mcp/README.md` for the idioms that stand in for the syntax the
- * grammar leaves out.
+ * Function API definition for `jmespath`, using standard JMESPath syntax
+ * (https://jmespath.org).
  */
 export const JmespathApi = {
   name: 'jmespath',
   returnType: 'any',
   schema: z.object({
     expression: asyncable(z.any()).describe(
-      'A JMESPath expression, as specified at jmespath.org, evaluated against `data`.',
+      'A standard JMESPath expression evaluated against `data`.',
     ),
-    data: asyncable(z.any()).describe('The document the expression reads.'),
+    data: asyncable(z.any()).describe('The input data to evaluate the expression against.'),
   }),
 } as const;
 
 /**
- * Evaluates a JMESPath expression against `data`, giving what it selects.
+ * Evaluates a JMESPath expression against `data` and returns the result.
  *
- * Both arguments are resolved deeply first, so a literal document can mix tool
- * output with values already held in the data model. A field the expression
- * does not find reads as null rather than failing the call.
+ * Deeply resolves dynamic values in both `expression` and `data` before evaluation.
+ * Returns `null` if a queried field does not exist.
  *
- * @throws A2uiExpressionError when the expression is not a string or does not
- *     parse.
+ * @throws A2uiExpressionError if `expression` is not a valid JMESPath string.
  */
 export const JmespathImplementation: FunctionImplementation = createFunctionImplementation(
   JmespathApi,

@@ -19,27 +19,23 @@ import {z} from 'zod';
 
 import {asyncable, overValue, pattern, withSettledArgs} from './common.js';
 
-/** Function API definition for `regexCapture`, published in `mcp_catalog.json`. */
+/** Function API definition for `regexCapture`. */
 export const RegexCaptureApi = {
   name: 'regexCapture',
   returnType: 'any',
   schema: z.object({
-    value: asyncable(z.any()).describe(
-      'The string to match. An array is matched element by element, giving an array of results.',
-    ),
+    value: asyncable(z.any()).describe('The string or array of strings to match against.'),
     pattern: asyncable(z.any()).describe(
-      'An RE2 pattern. The result is the capture groups of the first match, or null when the pattern does not match. A group that did not participate reads as an empty string.',
+      'An RE2 regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings.',
     ),
   }),
 } as const;
 
 /**
- * Returns the capture groups of the first match, or null when nothing matches.
+ * Matches a string (or each element of an array of strings) against an RE2 pattern
+ * and returns the capture groups from the first match, or `null` if no match is found.
  *
- * An array of strings is matched element by element, giving one result per
- * element, which is how a payload pulls fields out of a column of tool output.
- *
- * @throws A2uiExpressionError when the pattern does not compile as RE2.
+ * @throws A2uiExpressionError if `pattern` is not a valid RE2 regular expression.
  */
 export const RegexCaptureImplementation: FunctionImplementation = createFunctionImplementation(
   RegexCaptureApi,

@@ -20,28 +20,30 @@ import {z} from 'zod';
 
 import {asyncable, overValue, pattern, withSettledArgs} from './common.js';
 
-/** Function API definition for `regexReplace`, published in `mcp_catalog.json`. */
+/** Function API definition for `regexReplace`. */
 export const RegexReplaceApi = {
   name: 'regexReplace',
   returnType: 'any',
   schema: z.object({
     value: asyncable(z.any()).describe(
-      'The string to rewrite. An array is rewritten element by element.',
+      'The string or array of strings to perform replacements on.',
     ),
-    pattern: asyncable(z.any()).describe('An RE2 pattern. Every match is replaced.'),
+    pattern: asyncable(z.any()).describe(
+      'An RE2 regular expression matching substrings to replace.',
+    ),
     replacement: asyncable(z.any()).describe(
-      'Literal replacement text. A group reference such as $1 is not expanded.',
+      'Literal replacement string. Capture group references like $1 are treated as literal text.',
     ),
   }),
 } as const;
 
 /**
- * Replaces every match of an RE2 pattern with literal text.
+ * Replaces all matches of an RE2 pattern with literal replacement text.
  *
- * The replacement is quoted before use, so text that happens to contain `$1`
- * is written out as typed rather than read as a group reference.
+ * Replacement text is escaped so `$1` and similar sequences are inserted literally
+ * rather than interpreted as capture group references.
  *
- * @throws A2uiExpressionError when the pattern does not compile as RE2.
+ * @throws A2uiExpressionError if `pattern` is not a valid RE2 regular expression.
  */
 export const RegexReplaceImplementation: FunctionImplementation = createFunctionImplementation(
   RegexReplaceApi,

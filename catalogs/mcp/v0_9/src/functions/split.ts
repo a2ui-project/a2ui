@@ -19,25 +19,21 @@ import {z} from 'zod';
 
 import {asyncable, overValue, withSettledArgs} from './common.js';
 
-/** Function API definition for `split`, published in `mcp_catalog.json`. */
+/** Function API definition for `split`. */
 export const SplitApi = {
   name: 'split',
   returnType: 'any',
   schema: z.object({
-    value: asyncable(z.any()).describe(
-      'The string to split. An array is split element by element, giving an array of arrays.',
-    ),
+    value: asyncable(z.any()).describe('The string or array of strings to split.'),
     separator: asyncable(z.any()).describe(
-      'The separator to split on. An empty separator splits into characters.',
+      'The delimiter string to split on. An empty string splits into individual characters.',
     ),
   }),
 } as const;
 
 /**
- * Splits a string on a literal separator, giving an array of strings.
- *
- * An array of strings is split element by element, giving an array of arrays.
- * This is the usual first step on tool output that arrives as lines of text.
+ * Splits a string into an array of substrings using a literal separator, or maps
+ * the split operation across each element of an array of strings.
  */
 export const SplitImplementation: FunctionImplementation = createFunctionImplementation(
   SplitApi,

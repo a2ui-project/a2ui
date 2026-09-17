@@ -19,41 +19,23 @@ import {fileURLToPath} from 'node:url';
 import {defineConfig} from 'vitest/config';
 
 /**
- * Where the MCP server listens.
- *
- * `yarn dev` starts `mcp-proxy` on this port, which runs the reference
- * filesystem MCP server and relays it over Streamable HTTP. The page reaches
- * it at a same-origin `/mcp`, so nothing in the app knows the port.
+ * Target URL for the local MCP proxy server started by `yarn dev`.
  */
 const MCP_PROXY_URL = process.env['A2UI_MCP_URL'] ?? 'http://127.0.0.1:8787';
 
 /**
- * Entry point of the shared A2UI MCP catalog (`@a2ui/mcp-catalog`).
+ * Source alias for `@a2ui/mcp-catalog`.
  *
- * TODO(https://github.com/a2ui-project/a2ui/issues/1698): drop this alias and
- * declare `@a2ui/mcp-catalog` as a normal dependency once the catalog is
- * published to npm. `samples/community/` is a self-contained Yarn root that
- * consumes the published `@a2ui/*` packages rather than the monorepo workspace,
- * so it cannot reference the catalog as `workspace:*`. Until the package ships,
- * resolve it from source here so application code can still import it by its
- * real name.
+ * TODO(https://github.com/a2ui-project/a2ui/issues/1698): Replace this alias
+ * with a standard package dependency once `@a2ui/mcp-catalog` is published to npm.
  */
 const a2uiMcpCatalogEntry = fileURLToPath(
   new URL('../../../../../catalogs/mcp/v0_9/src/index.ts', import.meta.url),
 );
 
 /**
- * The packages the catalog entry imports, resolved from this sample.
- *
- * That entry lives outside this Yarn root, so Node resolution for its imports
- * walks up from `catalogs/mcp/` and misses `samples/community/node_modules`.
- * Resolving here binds them to the copies this sample installs, which also
- * keeps `@a2ui/web_core` to a single copy in the bundle. `tsconfig.json`
- * carries the same list for the type checker. All of it goes away with the
- * alias above.
- *
- * `import.meta.resolve` applies the `import` condition, so the bundle gets the
- * ESM build of each package rather than the CommonJS one.
+ * Resolves dependencies imported by `@a2ui/mcp-catalog` against this sample's
+ * `node_modules` so Vite bundles a single shared copy of each package.
  */
 const a2uiMcpCatalogDependencies = [
   '@a2ui/web_core/v0_9',
@@ -67,12 +49,7 @@ const a2uiMcpCatalogDependencies = [
   replacement: fileURLToPath(import.meta.resolve(specifier)),
 }));
 
-/**
- * Matches one specifier and nothing beneath it.
- *
- * A string `find` matches by prefix, which would send `zod/v4` to
- * `…/zod/index.js/v4`. Subpaths must keep resolving on their own.
- */
+/** Creates an exact-match regular expression for a module specifier so subpath imports are not affected. */
 function exactly(specifier: string): RegExp {
   return new RegExp(`^${specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
@@ -91,14 +68,10 @@ export default defineConfig({
   server: {
     port: 5174,
     strictPort: true,
-    // Keeps the page and the MCP server on one origin. `changeOrigin: false`
-    // preserves the Host header, which a Streamable HTTP server may check.
     proxy: {'/mcp': {target: MCP_PROXY_URL, changeOrigin: false}},
-    // The A2UI payload sits beside the client rather than inside it.
     fs: {allow: [fileURLToPath(new URL('..', import.meta.url))]},
   },
   test: {
-    // The app is a custom element, so tests need DOM globals.
     environment: 'jsdom',
   },
 });

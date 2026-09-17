@@ -15,12 +15,10 @@
  */
 
 /**
- * A2UI MCP Catalog: `callMcpTool`, for invoking Model Context Protocol tools
- * from A2UI surfaces, and the data functions that shape what a tool returns.
+ * A2UI MCP Catalog providing `callMcpTool` and data transformation functions
+ * (`jmespath`, `split`, `regexCapture`, `regexReplace`, `updateDataModel`).
  *
- * `MessageProcessor` reads its catalogs lazily, so pass it the array before
- * filling it in. That builds the processor first and keeps the wiring direct.
- *
+ * Example setup:
  * ```ts
  * const catalogs: Catalog<any>[] = [];
  * const processor = new MessageProcessor(catalogs, onAction);
@@ -42,11 +40,7 @@ import {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/upd
 export const MCP_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json';
 
 /**
- * Every data function API, in the order the catalog lists them.
- *
- * These carry the argument schemas without the implementations, so a host can
- * publish the catalog without loading an expression evaluator or a regular
- * expression engine.
+ * API definitions and schemas for the catalog's data transformation functions.
  */
 export const DATA_FUNCTION_APIS = [
   JmespathApi,
@@ -56,7 +50,7 @@ export const DATA_FUNCTION_APIS = [
   UpdateDataModelApi,
 ] as const;
 
-/** The data function implementations, ready to register in a `Catalog`. */
+/** Function implementations for the catalog's data transformation functions. */
 export const DATA_FUNCTIONS: FunctionImplementation[] = [
   JmespathImplementation,
   SplitImplementation,
@@ -66,11 +60,11 @@ export const DATA_FUNCTIONS: FunctionImplementation[] = [
 ];
 
 /**
- * Returns every function this catalog defines: `callMcpTool` bound to the host's
- * hooks, followed by the data functions.
+ * Creates all functions defined in the MCP catalog, including `callMcpTool`
+ * and the data transformation functions.
  *
- * @param getMcpClientForTool Supplies the client to call a given tool on.
- * @param processor Receives the A2UI messages decoded from tool results.
+ * @param getMcpClientForTool Callback that resolves the MCP client for a tool name.
+ * @param processor Message processor that receives A2UI messages decoded from tool results.
  */
 export function createMcpCatalogFunctions(
   getMcpClientForTool: McpClientResolver,

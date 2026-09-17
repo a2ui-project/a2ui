@@ -15,31 +15,20 @@
  */
 
 /**
- * Shared plumbing for the data functions of this catalog.
+ * Shared utilities for MCP catalog data functions.
  *
- * ## Why several arguments are typed loosely
- *
- * A2UI resolves a function call's arguments before invoking it, and an argument
- * may itself be a function call. When the inner call is asynchronous, as
- * `callMcpTool` is, the runtime has nothing to await it with and hands the
- * outer function the pending `Promise` instead of the value. The data functions
- * accept that and settle it themselves, so every argument that can receive the
- * output of another function is declared with `asyncable`.
- *
- * A payload author never writes a promise. The published catalog schema
- * therefore states the plain type, which is what the author must supply.
- *
- * The same reasoning sets every return type to `any`: a function handed a
- * pending argument returns a promise for its own result, so no narrower type
- * describes both cases. The description of each function states what it
- * produces once its arguments have settled.
+ * Because A2UI resolves arguments before invoking a function, nested async
+ * calls (like `callMcpTool`) arrive as pending Promises. Data functions use
+ * `asyncable` and `withSettledArgs` to accept and await Promise arguments
+ * automatically while remaining synchronous when all arguments are already
+ * resolved.
  */
 
 import {A2uiExpressionError} from '@a2ui/web_core/v0_9';
 import {RE2JS} from 're2js';
 import {z} from 'zod';
 
-/** Reports whether a value is thenable, which is how a pending argument arrives. */
+/** Checks whether a value is a Promise-like object. */
 export function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
     typeof value === 'object' &&
@@ -49,17 +38,13 @@ export function isThenable(value: unknown): value is PromiseLike<unknown> {
 }
 
 /**
- * Widens a schema to also admit a pending argument.
- *
- * The sync case keeps its validation. The async case cannot be checked here,
- * because the value does not exist yet, so the implementation re-checks it
- * after the promise settles.
+ * Widens a Zod schema to accept either a resolved value or a pending Promise.
  */
 export function asyncable<T extends z.ZodTypeAny>(schema: T) {
   return z.union([schema, z.custom<PromiseLike<unknown>>(isThenable)]);
 }
 
-/** Narrows to an object literal, leaving a class instance or a promise out. */
+/** Checks whether a value is a plain object (not an array, null, or class instance). */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
@@ -69,11 +54,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Awaits every promise nested inside `value`, rebuilding arrays and object
- * literals around the settled entries.
+ * Recursively awaits all Promises nested inside `value`.
  *
- * Returns the value itself when nothing is pending, which is what keeps the
- * synchronous path of `withSettledArgs` synchronous.
+ * Returns `value` synchronously if no nested Promises are found.
  */
 function settleDeep(value: unknown): unknown | Promise<unknown> {
   if (isThenable(value)) {
@@ -96,11 +79,10 @@ function settleDeep(value: unknown): unknown | Promise<unknown> {
 }
 
 /**
- * Runs `body` once every argument has settled.
+ * Executes `body` once all arguments have resolved.
  *
- * A call whose arguments hold no promise returns synchronously, so a function
- * used inside a binding stays reactive. A call that had to await one returns a
- * promise for the same result.
+ * Runs synchronously if no arguments contain Promises, preserving reactive bindings,
+ * or returns a Promise if any argument is asynchronous.
  */
 export function withSettledArgs<T>(
   args: Record<string, unknown>,
@@ -112,19 +94,17 @@ export function withSettledArgs<T>(
     : body(settled as Record<string, unknown>);
 }
 
-/** Upper bound on compiled patterns held for the life of the process. */
+/** Maximum number of compiled regex patterns to cache. */
 const MAX_CACHED_PATTERNS = 100;
 
 const compiledPatterns = new Map<string, ReturnType<typeof RE2JS.compile>>();
 
 /**
- * Compiles an RE2 pattern, reusing an earlier compilation of the same source.
+ * Compiles and caches an RE2 regular expression.
  *
- * RE2 rejects a pattern that could backtrack exponentially, so a payload cannot
- * stall the client with one.
- *
- * @param fn Name of the calling function, which the error reports.
- * @throws A2uiExpressionError when the pattern does not compile.
+ * @param source The regular expression string to compile.
+ * @param fn The name of the calling function for error reporting.
+ * @throws A2uiExpressionError if the pattern is invalid.
  */
 export function pattern(source: string, fn: string): ReturnType<typeof RE2JS.compile> {
   let compiled = compiledPatterns.get(source);
@@ -150,11 +130,9 @@ export function pattern(source: string, fn: string): ReturnType<typeof RE2JS.com
 }
 
 /**
- * Applies `fn` to a string, or element by element to an array of them.
+ * Applies `fn` to a single string or maps it across an array of strings.
  *
- * Every text function of this catalog maps over an array this way, so one call
- * can rewrite a whole column of tool output. Null and undefined read as an
- * empty string rather than failing the call.
+ * Converts null and undefined values to empty strings.
  */
 export function overValue<T>(value: unknown, fn: (item: string) => T): T | T[] {
   const asText = (item: unknown) => String(item ?? '');

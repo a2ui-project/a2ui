@@ -1,29 +1,16 @@
 # A2UI over MCP Demo - Filesystem Browser
 
-A file browser with no agent, no A2UI server, and no client code that knows
-anything about files. The UI is a static A2UI JSON payload, the data comes from
-the reference
-[filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem),
-and the A2UI MCP catalog is the only thing between them.
+This sample implements an interactive filesystem browser using a static A2UI JSON payload, the reference [filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem), and the A2UI MCP catalog.
 
 ![The sample reading a file from the local filesystem](screenshot.png)
 
 ## What this sample shows
 
-An A2UI mini-app can ship real functionality to a host that already speaks MCP.
-This one demonstrates three things:
+An A2UI mini-app can deliver interactive functionality to any host that supports MCP:
 
-- **The payload drives the tools.** Every button in
-  [a2ui_filesystem.json](a2ui_filesystem.json) is a chain of catalog function
-  calls with `callMcpTool` at its centre. Clicking a row runs no application
-  code.
-- **A server that never heard of A2UI still renders.** The filesystem server
-  answers in plain text. The payload splits that text, captures fields out of
-  each line with a regular expression, shapes the result with JMESPath, and
-  writes it into the data model.
-- **The host is scaffolding only.** [client/app.ts](client/app.ts) connects one
-  MCP client, hands the payload to the renderer, and runs the action the payload
-  names as its first. It contains no filesystem logic and no UI.
+- **Declarative tool execution**: Every button in [a2ui_filesystem.json](a2ui_filesystem.json) invokes a chain of catalog functions centered on `callMcpTool`. Clicking a row executes no custom client-side application logic.
+- **Data transformation for standard MCP servers**: The filesystem server returns plain text. The payload splits the text into lines, extracts fields using regular expressions, transforms the result with JMESPath, and writes the structured entries into the data model.
+- **Minimal host scaffolding**: [client/app.ts](client/app.ts) connects an MCP client, loads the A2UI payload into the renderer, and executes the initial `/startup` action.
 
 ## Run it
 
@@ -222,27 +209,13 @@ button assembles, where `rows` is one array of capture groups per matched line:
 }
 ```
 
-Four things in it are worth reading twice:
+Key details in this expression:
 
-- **The filter does the cleanup.** `regexCapture` returns `null` for a line the
-  pattern misses, so `rows[?@ != null]` drops the blank line, the `Total:`
-  footer, and every dotfile in one step. Dotfiles are excluded by the `[^.]` in
-  the pattern rather than by a second filter.
-- **A row is indexed, not named.** Each element of `rows` is the capture group
-  array of one line, so `[0]` is `DIR` or `FILE`, `[1]` is the name, and `[2]`
-  is the size.
-- **There is no ternary.** A conditional is written `(cond && a) || b`.
-- **There are no `let` bindings.** A pipe into a multi-select hash names the
-  intermediate values instead, which is what the leading
-  `{dir: dir, rows: rows[?@ != null]}` stage does.
-
-One more absence shows up in the button rather than the expression: a JMESPath
-raw string cannot hold a newline, since `'\n'` is a backslash and an `n`. Each
-button passes a real newline in as data under the key `nl`, and the expression
-reads it by name in `join(nl, result.content[?type == 'text'].text)`.
-
-Parsing `[DIR] name  size` lines into row objects is the whole adapter, and it
-ships with the UI rather than with the client.
+- **Filtering**: `regexCapture` returns `null` for lines that do not match the pattern, so `rows[?@ != null]` removes blank lines, summary footers, and dotfiles (excluded by `[^.]` in the regex) in one step.
+- **Indexed capture groups**: Each element of `rows` is an array of capture groups for a single line (`[0]` is `DIR` or `FILE`, `[1]` is the name, and `[2]` is the size).
+- **Conditionals**: Standard JMESPath does not include a ternary operator, so conditionals are written as `(cond && a) || b`.
+- **Intermediate values**: Piping into a multi-select hash (`{dir: dir, rows: rows[?@ != null]}`) binds intermediate values for use in subsequent stages.
+- **Newlines**: Because JMESPath raw strings do not process escape sequences, each button passes a newline character in `data` under the key `nl` and references it in `join(nl, result.content[?type == 'text'].text)`.
 
 ## Files
 

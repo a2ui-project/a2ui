@@ -24,26 +24,23 @@ import {z} from 'zod';
 import {resolveDynamicValueDeep} from '../dynamic-values.js';
 import {asyncable, withSettledArgs} from './common.js';
 
-/** Function API definition for `updateDataModel`, published in `mcp_catalog.json`. */
+/** Function API definition for `updateDataModel`. */
 export const UpdateDataModelApi = {
   name: 'updateDataModel',
   returnType: 'any',
   schema: z.object({
     updates: asyncable(z.any()).describe(
-      'An object whose keys are data model paths and whose values are what to write there, for example {"/entries": [...], "/title": "Home"}. A key starting with "/" is absolute; a relative key resolves against the data context the call was made from, which is the row scope when the call came from a template list.',
+      'An object mapping data model paths to the values to write (e.g., {"/entries": [...], "/title": "Home"}). Paths starting with "/" are absolute; relative paths resolve against the current data context.',
     ),
   }),
 } as const;
 
 /**
- * Writes an object of data model paths into the surface the call ran on.
+ * Writes multiple path-value pairs to the surface data model.
  *
- * One call can fill several parts of the model and leave the rest alone, which
- * is what lets a payload turn a single tool result into a screen. Nothing is
- * written when `updates` is null or undefined, so a chain whose earlier step
- * found nothing is not an error.
+ * Ignores `null` or `undefined` updates without throwing an error.
  *
- * @throws A2uiExpressionError when `updates` is neither an object nor nothing.
+ * @throws A2uiExpressionError if `updates` is not a plain object, `null`, or `undefined`.
  */
 export const UpdateDataModelImplementation: FunctionImplementation = createFunctionImplementation(
   UpdateDataModelApi,
@@ -62,8 +59,7 @@ export const UpdateDataModelImplementation: FunctionImplementation = createFunct
         );
       }
       for (const [path, value] of Object.entries(updates as Record<string, unknown>)) {
-        // A container is cloned so a later write cannot mutate what the tool
-        // result still holds. A primitive has nothing to share.
+        // Clone objects and arrays to prevent mutations from affecting cached tool results.
         context.set(
           path,
           typeof value === 'object' && value !== null ? structuredClone(value) : value,

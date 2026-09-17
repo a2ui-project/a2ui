@@ -89,13 +89,7 @@ interface FakeClientOptions {
   listToolsError?: Error;
 }
 
-/**
- * A stand-in for the MCP client that records what the catalog asked of it.
- *
- * `McpToolClient` is structural, so this satisfies it directly. Only
- * `listTools` differs: it is required there but optional here, so tests can
- * cover a client that does not implement it at all.
- */
+/** Mock MCP client that records tool calls and resource reads. */
 interface FakeClient {
   calls: RecordedCall[];
   reads: string[];
@@ -105,7 +99,7 @@ interface FakeClient {
   listTools?(): Promise<{tools: any[]}>;
 }
 
-/** Presents a test double as the client the catalog expects. */
+/** Casts a `FakeClient` to `McpToolClient`. */
 const asClient = (client: FakeClient) => client as McpToolClient;
 
 function createFakeClient(options: FakeClientOptions = {}): FakeClient {
@@ -157,10 +151,9 @@ const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '
 };
 
 describe('callMcpTool', () => {
-  /** Surfaces created from UI resources live under this catalog. */
   let processor: MessageProcessor<any>;
 
-  /** Builds the MCP catalog over a fixed client. */
+  /** Creates a test catalog bound to `client`. */
   const catalogFor = (client: FakeClient) =>
     new Catalog<any>(
       MCP_CATALOG_ID,
@@ -168,7 +161,7 @@ describe('callMcpTool', () => {
       [createCallMcpToolImplementation(() => asClient(client), processor)],
     );
 
-  /** An inline A2UI payload, as a tool must send it: an embedded resource. */
+  /** Creates an inline A2UI resource content block. */
   const dataBlock = (value: Record<string, unknown>, surfaceId = 'test-surface') => ({
     type: 'resource' as const,
     resource: {

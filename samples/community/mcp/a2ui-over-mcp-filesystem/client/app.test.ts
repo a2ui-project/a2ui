@@ -15,16 +15,10 @@
  */
 
 /**
- * Tests for the payload, which is where this sample keeps its behaviour.
+ * Integration tests for the A2UI filesystem browser payload (`a2ui_filesystem.json`).
  *
- * The MCP server is mocked with responses copied from a real one, so these
- * cover what the sample actually ships: the payload validating against the
- * catalog, the function chains behind its controls turning server text into
- * the data model, and the host running the startup action the payload names.
- *
- * Each control is driven the way the renderer drives it. The test reads the
- * action off the component and resolves it, rather than assembling a call of
- * its own, so what runs is the payload rather than a paraphrase of it.
+ * Uses mocked MCP server responses to verify payload schema validation, startup action
+ * execution, and UI control actions updating the surface data model.
  */
 
 import {DataContext} from '@a2ui/web_core/v0_9';
@@ -32,7 +26,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {A2uiFilesystemApp, CATALOG_ID} from './app';
 
-/** A real `list_directory_with_sizes` response, including its totals block. */
+/** Sample response from list_directory_with_sizes. */
 const LISTING = [
   '[DIR] Documents                      ',
   '[FILE] .bash_profile                       568 B',
@@ -42,25 +36,19 @@ const LISTING = [
   'Combined size: 2.94 KB',
 ].join('\n');
 
-/** A real `read_text_file` response. */
+/** Sample response from read_text_file. */
 const FILE_TEXT = 'line one\nline two\nline three';
 
-/** A real `search_files` response. */
+/** Sample response from search_files. */
 const MATCHES = '/Users/ada/a.md\n/Users/ada/notes/b.md';
 
-/**
- * The pattern a directory row carries, which splits the listing its click
- * fetches.
- *
- * A row carries the pattern for its own tool's output, because the row is what
- * knows which tool it will call.
- */
+/** Regex pattern used by directory rows to parse directory listing lines. */
 const LISTING_PATTERN = '^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$';
 
-/** The pattern a file row carries: file text has no columns to pick apart. */
+/** Regex pattern used by file rows to match full lines. */
 const LINE_PATTERN = '^(.*)$';
 
-/** The rows `LISTING` yields once the dotfile and the totals block are dropped. */
+/** Expected entries parsed from `LISTING` after filtering out dotfiles and summary lines. */
 const HOME_ENTRIES = [
   {
     name: 'Documents',
@@ -80,7 +68,7 @@ const HOME_ENTRIES = [
   },
 ];
 
-/** A search hit, which is a whole path rather than a name within a directory. */
+/** Creates an expected entry object for a search result path. */
 const hit = (name: string) => ({
   name,
   size: '',
@@ -97,7 +85,7 @@ let mockClient: {
   readResource: ReturnType<typeof vi.fn>;
 };
 
-/** Text the mocked server answers with, by tool name. */
+/** Mock tool responses keyed by tool name. */
 let responses: Record<string, string>;
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
@@ -112,20 +100,18 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
   }),
 }));
 
-/** Runs the connect-and-bootstrap lifecycle the way Lit would. */
+/** Initializes the app component and runs its startup lifecycle. */
 const bootstrap = (app: A2uiFilesystemApp) => (app as any).firstUpdated();
 
-/** Every `tools/call` the mocked server has received, in order. */
+/** Returns the parameters of all `tools/call` requests recorded by the mock client. */
 const toolCalls = () => mockClient.request.mock.calls.map(call => call[0].params);
 
-/** Reads a data model path off the live surface. */
+/** Reads a value from the surface data model at the given path. */
 const read = (app: A2uiFilesystemApp, path: string) => app.surface!.dataModel.get(path);
 
 /**
- * Runs the action a control declares, in the scope the renderer gives it.
- *
- * A failure inside an action is reported to the surface rather than thrown, so
- * the error check is what keeps a broken chain from passing as a no-op.
+ * Executes a component's `action` function call within the specified data context scope
+ * and asserts that no surface error occurred.
  */
 async function press(app: A2uiFilesystemApp, componentId: string, scope = '/') {
   const component = app.surface!.componentsModel.get(componentId);
@@ -138,13 +124,7 @@ async function press(app: A2uiFilesystemApp, componentId: string, scope = '/') {
   expect((app as any).error, `${componentId} dispatched a surface error`).toBe('');
 }
 
-/**
- * Clicks one row of the entries list.
- *
- * The row template reads `name`, `tool`, `expr`, and `pattern` relative to the
- * entry it renders, so its action runs scoped to that entry rather than to the
- * surface root.
- */
+/** Triggers the `entry_button` action scoped to the entry at `index`. */
 const pressRow = (app: A2uiFilesystemApp, index: number) =>
   press(app, 'entry_button', `/entries/${index}`);
 

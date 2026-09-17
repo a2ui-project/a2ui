@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json",
   "title": "A2UI MCP Catalog",
-  "description": "A2UI Catalog for interacting with Model Context Protocol (MCP) servers, and for reshaping what a tool returns into data model updates.",
+  "description": "A2UI catalog for calling Model Context Protocol (MCP) tools and transforming tool results into data model updates.",
   "catalogId": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json",
   "components": {},
   "functions": {
     "callMcpTool": {
       "type": "object",
-      "description": "Executes a tool on a connected Model Context Protocol (MCP) server and returns the result. To turn that result into data model updates, nest this call inside `jmespath` and `updateDataModel`.",
+      "description": "Invokes a tool on a connected Model Context Protocol (MCP) server and returns the result. Can be combined with `jmespath` and `updateDataModel` to update the surface data model from tool output.",
       "properties": {
         "call": {
           "const": "callMcpTool"
@@ -40,7 +40,7 @@
     },
     "jmespath": {
       "type": "object",
-      "description": "Evaluates a JMESPath expression against a document.",
+      "description": "Evaluates a JMESPath expression against input data.",
       "properties": {
         "call": {
           "const": "jmespath"
@@ -50,11 +50,11 @@
           "properties": {
             "expression": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
-              "description": "A JMESPath expression, as specified at jmespath.org, evaluated against `data`."
+              "description": "A standard JMESPath expression evaluated against `data`."
             },
             "data": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue",
-              "description": "The document the expression reads."
+              "description": "The input data to evaluate the expression against."
             }
           },
           "required": ["expression", "data"],
@@ -69,7 +69,7 @@
     },
     "split": {
       "type": "object",
-      "description": "Splits a string, or each element of an array, on a separator.",
+      "description": "Splits a string or array of strings by a separator.",
       "properties": {
         "call": {
           "const": "split"
@@ -79,11 +79,11 @@
           "properties": {
             "value": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue",
-              "description": "The string to split. An array is split element by element, giving an array of arrays."
+              "description": "The string or array of strings to split."
             },
             "separator": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
-              "description": "The separator to split on. An empty separator splits into characters."
+              "description": "The delimiter string to split on. An empty string splits into individual characters."
             }
           },
           "required": ["value", "separator"],
@@ -98,7 +98,7 @@
     },
     "regexCapture": {
       "type": "object",
-      "description": "Returns the capture groups of the first RE2 match.",
+      "description": "Extracts capture groups from the first RE2 regular expression match.",
       "properties": {
         "call": {
           "const": "regexCapture"
@@ -108,11 +108,11 @@
           "properties": {
             "value": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue",
-              "description": "The string to match. An array is matched element by element, giving an array of results."
+              "description": "The string or array of strings to match against."
             },
             "pattern": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
-              "description": "An RE2 pattern. The result is the capture groups of the first match, or null when the pattern does not match. A group that did not participate reads as an empty string."
+              "description": "An RE2 regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings."
             }
           },
           "required": ["value", "pattern"],
@@ -127,7 +127,7 @@
     },
     "regexReplace": {
       "type": "object",
-      "description": "Replaces every RE2 match with literal text.",
+      "description": "Replaces all matches of an RE2 regular expression with literal text.",
       "properties": {
         "call": {
           "const": "regexReplace"
@@ -137,15 +137,15 @@
           "properties": {
             "value": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue",
-              "description": "The string to rewrite. An array is rewritten element by element."
+              "description": "The string or array of strings to perform replacements on."
             },
             "pattern": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
-              "description": "An RE2 pattern. Every match is replaced."
+              "description": "An RE2 regular expression matching substrings to replace."
             },
             "replacement": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
-              "description": "Literal replacement text. A group reference such as $1 is not expanded."
+              "description": "Literal replacement string. Capture group references like $1 are treated as literal text."
             }
           },
           "required": ["value", "pattern", "replacement"],
@@ -160,7 +160,7 @@
     },
     "updateDataModel": {
       "type": "object",
-      "description": "Writes an object of data model paths into the calling surface.",
+      "description": "Writes key-value pairs to the surface data model.",
       "properties": {
         "call": {
           "const": "updateDataModel"
@@ -170,7 +170,7 @@
           "properties": {
             "updates": {
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue",
-              "description": "An object whose keys are data model paths and whose values are what to write there, for example {\"/entries\": [...], \"/title\": \"Home\"}. A key starting with \"/\" is absolute; a relative key resolves against the data context the call was made from, which is the row scope when the call came from a template list."
+              "description": "An object mapping data model paths to the values to write (e.g., {\"/entries\": [...], \"/title\": \"Home\"}). Paths starting with \"/\" are absolute; relative paths resolve against the current data context."
             }
           },
           "required": ["updates"],

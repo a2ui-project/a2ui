@@ -15,14 +15,11 @@
  */
 
 /**
- * A file browser with no agent, no A2UI server, and no code that knows
- * anything about files.
+ * Client application for the A2UI-over-MCP filesystem browser sample.
  *
- * The host below is the entire client. It connects to an MCP server, hands
- * `a2ui_filesystem.json` to the renderer, and runs the action the payload names
- * as its first. Everything after that — which tool each control calls, and how
- * each response becomes data — is a chain of catalog functions inside the
- * payload.
+ * Connects to a filesystem MCP server, loads the static A2UI payload
+ * (`a2ui_filesystem.json`), and executes the initial `/startup` action.
+ * All tool calls and data transformations are defined declaratively in the payload.
  */
 
 import {Context, basicCatalog} from '@a2ui/lit/v0_9';
@@ -38,41 +35,38 @@ import {customElement, state} from 'lit/decorators.js';
 
 import surfaceMessages from '../a2ui_filesystem.json';
 
-/** The surface `fs_browser_a2ui.json` creates. */
+/** Surface ID defined in `a2ui_filesystem.json`. */
 export const SURFACE_ID = 'fs-browser';
 
-/** Basic components and functions, plus `callMcpTool`. */
+/** Catalog ID combining basic A2UI components with MCP catalog functions. */
 export const CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
 
-/** Endpoint Vite proxies to the MCP server. See `vite.config.ts`. */
+/** Local proxy endpoint forwarding requests to the MCP server. */
 export const MCP_ENDPOINT = '/mcp';
 
 @customElement('a2ui-filesystem-app')
 export class A2uiFilesystemApp extends LitElement {
-  /** File contents arrive as fenced code, so the viewer needs Markdown. */
+  /** Markdown renderer for displaying file contents and formatted text. */
   @provide({context: Context.markdown})
   markdownRenderer = (value: string, options?: unknown) =>
     Promise.resolve(renderMarkdown(value, options as never));
 
   readonly processor: MessageProcessor<any>;
 
-  /** The one connected server, which serves every tool the payload names. */
+  /** Connected MCP client instance. */
   private mcpClient?: Client;
 
   @state() private accessor error = '';
 
   constructor() {
     super();
-    // `MessageProcessor` reads its catalog array lazily, so the processor can
-    // exist before the catalog whose function reports back to it.
+    // Initialize MessageProcessor with the catalog list before populating functions that reference it.
     const catalogs: Array<Catalog<any>> = [];
     this.processor = new MessageProcessor<any>(catalogs);
     catalogs.push(
       new Catalog<any>(CATALOG_ID, Array.from(basicCatalog.components.values()), [
         ...Array.from(basicCatalog.functions.values()),
-        // Before the connection completes there is no client. `callMcpTool`
-        // reports that as a failed call rather than crashing the surface.
         ...createMcpCatalogFunctions(() => this.mcpClient, this.processor),
       ]),
     );
@@ -85,7 +79,7 @@ export class A2uiFilesystemApp extends LitElement {
     });
   }
 
-  /** Returns the live surface, once the payload has been processed. */
+  /** Returns the active filesystem browser surface. */
   get surface() {
     return this.processor.model.getSurface(SURFACE_ID);
   }
@@ -102,9 +96,7 @@ export class A2uiFilesystemApp extends LitElement {
 
       this.processor.processMessages(surfaceMessages as unknown as A2uiMessage[]);
 
-      // The payload declares the action that fills the first screen, in the
-      // same form its buttons declare theirs, so the host runs it without
-      // knowing which functions it names.
+      // Execute startup actions defined in the payload data model to populate the initial view.
       const surface = this.surface;
       const startup = surface?.dataModel.get('/startup');
       if (surface && Array.isArray(startup)) {
