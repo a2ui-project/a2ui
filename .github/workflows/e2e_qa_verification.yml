@@ -1,0 +1,155 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: A2UI E2E & QA Verification
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - "v*.*.*"
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      demo_target:
+        description: "Target demo to verify (lit, react, angular, flutter, all, or skip)"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - lit
+          - react
+          - angular
+          - flutter
+          - skip
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Stage 1: Fast Component, Button & Multi-Sample QA Check
+  component-qa:
+    name: Component & Button QA (11 Samples)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Run Script Unit Tests
+        run: |
+          node --test scripts/qa_scripts.test.mjs
+
+      - name: Run Sample QA (verify_samples.js)
+        id: run_tests
+        continue-on-error: true
+        run: |
+          node scripts/verify_samples.js
+
+      - name: Generate QA Summary (generate_qa_summary.js)
+        if: always()
+        run: |
+          node scripts/generate_qa_summary.js
+
+      - name: Add Job Summary
+        if: always()
+        run: |
+          if [ -f summary.md ]; then
+            cat summary.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload QA Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: qa-logs-and-reports
+          path: |
+            logs/
+            summary.md
+            screenshots/
+            videos/
+          retention-days: 14
+
+      - name: Check QA Status
+        if: steps.run_tests.outcome != 'success'
+        run: |
+          echo "::error title=QA Regressions Detected::Component QA detected errors in one or more samples (see Job Summary)."
+          exit 1
+
+  # Stage 2: Full-Stack Demo Compilation & Live Agent Verification
+  fullstack-demos:
+    name: Verify Demo (${{ matrix.demo }})
+    needs: component-qa
+    if: github.event.inputs.demo_target != 'skip'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [lit, react, angular, flutter]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
+
+      - name: Install Python Agent Dependencies
+        run: |
+          cd samples/agent/adk/restaurant_finder
+          uv sync
+
+      - name: Setup Node.js (Web Demos)
+        if: matrix.demo != 'flutter'
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Flutter & Dart
+        if: matrix.demo == 'flutter'
+        uses: ./.github/actions/setup-dart
+        with:
+          channel: stable
+
+      - name: Run Demo Verification
+        env:
+          GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+          TARGET_DEMO: ${{ inputs.demo_target }}
+        run: |
+          chmod +x ./scripts/test_demos.sh
+          if [ -n "$TARGET_DEMO" ] && [ "$TARGET_DEMO" != "all" ] && [ "$TARGET_DEMO" != "${{ matrix.demo }}" ]; then
+            echo "Skipping ${{ matrix.demo }} (target was $TARGET_DEMO)"
+            exit 0
+          fi
+
+          ./scripts/test_demos.sh "${{ matrix.demo }}"
