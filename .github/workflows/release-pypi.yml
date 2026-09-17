@@ -157,7 +157,11 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add '*/CHANGELOG.md'
+          # Stage only the changelogs this release touched. A glob could pick
+          # up an unrelated CHANGELOG.md from another language's packages.
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            git add "${directory}/CHANGELOG.md"
+          done
           git commit -m "chore(release): $(jq -r '[.[] | "\(.pypi_name) \(.version)"] | join(", ")' release-plan.json)"
           # Tags are created on the changelog commit but not pushed yet. A
           # failure before the upload succeeds must not leave a tag behind on
