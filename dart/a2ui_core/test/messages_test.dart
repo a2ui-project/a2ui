@@ -302,6 +302,25 @@ void main() {
       expect(() => parse('createSurface'), throwsA(isA<A2uiValidationError>()));
     });
 
+    test('rejects an object with non-string keys', () {
+      // `cast` is lazy, so this used to escape as a TypeError from whatever
+      // later copied the map rather than as a payload defect.
+      expect(
+        () => parse({1: 'createSurface'}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => parse([
+          {
+            'messages': [
+              {2: 'nope'},
+            ],
+          },
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
     test("rejects a wrapper whose 'messages' is not a list", () {
       expect(
         () => parse({'messages': createSurface('s1')}),
@@ -409,6 +428,33 @@ void main() {
       expect(error.message, 'no such component');
       expect(error.path, '/components/0/text');
       expect(error.details, isNull);
+    });
+
+    test('rejects a validation failure that names no path', () {
+      // The VALIDATION_FAILED variant requires 'path', and no other field says
+      // what failed, so a body without it is rejected rather than parsed into
+      // an error an agent cannot act on.
+      expect(
+        () => RendererToAgentMessage.fromJson({
+          'version': 'v0.9',
+          'error': {
+            'code': 'VALIDATION_FAILED',
+            'surfaceId': 's1',
+            'message': 'no such component',
+          },
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('parses a generic error that names no path', () {
+      // Only the VALIDATION_FAILED variant requires it.
+      final msg = RendererToAgentMessage.fromJson({
+        'version': 'v0.9',
+        'error': {'code': 'RENDER_FAILED', 'surfaceId': 's1', 'message': 'x'},
+      });
+
+      expect((msg as ErrorMessage).error.path, isNull);
     });
 
     test('roundtrips a validation failure with its path', () {

@@ -171,6 +171,16 @@ List<Map<String, Object?>> _envelopesOf(Object? payload) {
     return [for (final Object? entry in payload) ..._envelopesOf(entry)];
   }
   if (payload is Map) {
+    // `cast` is lazy, so a non-string key would escape as a `TypeError` from
+    // whatever later copies the map. A malformed payload is a payload defect,
+    // not a programming error, so it is rejected here instead.
+    if (payload.keys.any((Object? key) => key is! String)) {
+      throw A2uiValidationError(
+        'A payload object must have string keys; got '
+        '${payload.keys.map((Object? k) => k.runtimeType).toSet().join(', ')}.',
+        details: payload,
+      );
+    }
     if (!payload.containsKey('messages')) {
       return [payload.cast<String, Object?>()];
     }
@@ -527,19 +537,36 @@ class A2uiClientError {
     required this.message,
     this.path,
     this.details,
-  });
+  }) : assert(
+         code != validationFailedCode || path != null,
+         "A '$validationFailedCode' error must name the 'path' that failed.",
+       );
+
+  /// The error code whose variant requires [path].
+  static const String validationFailedCode = 'VALIDATION_FAILED';
 
   /// Parses the body of an `error` envelope.
   ///
-  /// Throws [A2uiValidationError] for a missing or mistyped field.
-  factory A2uiClientError.fromJson(Map<String, dynamic> json) =>
-      A2uiClientError(
-        code: _required<String>(json, 'code', 'error'),
-        surfaceId: _required<String>(json, 'surfaceId', 'error'),
-        message: _required<String>(json, 'message', 'error'),
-        path: _optional<String>(json, 'path', 'error'),
-        details: json['details'],
+  /// Throws [A2uiValidationError] for a missing or mistyped field, and for a
+  /// [validationFailedCode] error that names no [path]: the variant requires
+  /// it, and it is the only field saying what failed.
+  factory A2uiClientError.fromJson(Map<String, dynamic> json) {
+    final String code = _required<String>(json, 'code', 'error');
+    final String? path = _optional<String>(json, 'path', 'error');
+    if (code == validationFailedCode && path == null) {
+      throw A2uiValidationError(
+        "Field 'error.path' is required of a '$validationFailedCode' error.",
+        details: json,
       );
+    }
+    return A2uiClientError(
+      code: code,
+      surfaceId: _required<String>(json, 'surfaceId', 'error'),
+      message: _required<String>(json, 'message', 'error'),
+      path: path,
+      details: json['details'],
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'code': code,

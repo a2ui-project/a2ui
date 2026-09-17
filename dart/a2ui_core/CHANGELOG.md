@@ -28,7 +28,9 @@
 - `A2uiClientError` carries `path`, the JSON pointer the `VALIDATION_FAILED`
   variant of `client_to_server.json` requires. No other field names the field
   that failed, so without it a validation failure lost its location on the way
-  through `toJson` and `A2uiClientError.fromJson`.
+  through `toJson` and `A2uiClientError.fromJson`. The variant requires it, so
+  `fromJson` rejects a `VALIDATION_FAILED` body that names no `path`, and the
+  constructor asserts the same.
 - The `{messages: [...]}` wrapper is handled by each payload's `fromJson` and
   `toJson` rather than by a wrapper class per direction: it carries nothing but
   the list, so a type holding one field would be a second name for it.
