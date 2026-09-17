@@ -129,8 +129,16 @@ def _git(args: Sequence[str], repo_root: str) -> str:
 def list_tags(package: Package, repo_root: str) -> list[str]:
     """Returns the tag names for a package, newest version first."""
     output = _git(["tag", "--list", f"{package.tag_prefix}*"], repo_root)
+    valid_tags = []
+    for line in output.splitlines():
+        tag = line.strip()
+        if not tag:
+            continue
+        candidate = tag[len(package.tag_prefix) :]
+        if _VERSION_RE.match(candidate):
+            valid_tags.append(tag)
     return sorted(
-        (line.strip() for line in output.splitlines() if line.strip()),
+        valid_tags,
         key=lambda tag: parse_version(tag[len(package.tag_prefix) :]),
         reverse=True,
     )

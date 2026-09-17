@@ -59,8 +59,7 @@ on:
         default: true
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 # Releases must not overlap. Two runs staging different versions of the same
 # package would race on the Artifact Registry and the manifest bucket.
@@ -81,13 +80,18 @@ jobs:
     name: Build, stage and publish
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Require the main branch
         if: github.ref != 'refs/heads/main'
+        env:
+          TRIGGER_REF: ${{ github.ref }}
         run: |
           echo "::error::Releases must run from main. The OSS Exit Gate only" \
             "trusts this workflow at refs/heads/main, so a run from" \
-            "${{ github.ref }} cannot authenticate."
+            "$TRIGGER_REF cannot authenticate."
           exit 1
 
       # Full history and tags: the version of each package is derived from its
@@ -202,11 +206,11 @@ jobs:
           done
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
       # Staging is ordered core first, which is the order the plan emits, so a
       # new a2ui-core is in place before the a2ui-agent-sdk that requires it.
@@ -290,7 +294,7 @@ jobs:
       # notes that contain newlines and backticks.
       - name: Hand the plan to the confirm job
         if: ${{ !inputs.dry_run }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-plan
           path: release-plan.json
@@ -310,7 +314,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-plan
 

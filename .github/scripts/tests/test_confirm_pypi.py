@@ -14,9 +14,11 @@
 
 """Tests for .github/scripts/confirm_pypi.py."""
 
+import json
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -203,6 +205,37 @@ class PendingMarkerTest(unittest.TestCase):
         pending = cp.release_notes(PLAN[0], published=False)
         recovered = pending.split("\n---\n")[0].strip()
         self.assertEqual(recovered, "- Fixed a thing.")
+
+
+class DiscoverPendingTest(unittest.TestCase):
+
+    @mock.patch("subprocess.run")
+    def test_parses_releases_and_filters_pending(self, mock_run):
+        mock_releases = [
+            {
+                "tagName": "python/a2ui-core/v0.1.2",
+                "body": "- Fixed bug.\n---\n" + cp.PENDING_MARKER,
+            },
+            {
+                "tagName": "python/a2ui-core/v0.1.1",
+                "body": "- Older release.\n---\nPublished to PyPI.",
+            },
+            {
+                "tagName": "v0.9",
+                "body": "Spec release.\n---\n" + cp.PENDING_MARKER,
+            },
+        ]
+        mock_run.return_value = mock.Mock(stdout=json.dumps(mock_releases))
+        pending = cp.discover_pending(limit=50)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["pypi_name"], "a2ui-core")
+        self.assertEqual(pending[0]["version"], "0.1.2")
+        self.assertEqual(pending[0]["notes"], "- Fixed bug.")
+
+    @mock.patch("subprocess.run")
+    def test_handles_invalid_json(self, mock_run):
+        mock_run.return_value = mock.Mock(stdout="not valid json")
+        self.assertEqual(cp.discover_pending(limit=50), [])
 
 
 if __name__ == "__main__":

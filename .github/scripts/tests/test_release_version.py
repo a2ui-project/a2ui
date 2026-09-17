@@ -112,6 +112,16 @@ class CurrentVersionTest(unittest.TestCase):
             rv.current_version(rv.CORE, self.repo), rv.CORE.bootstrap_version
         )
 
+    def test_list_tags_ignores_non_conforming_tags(self):
+        self._git("tag", "python/a2ui-core/v0.1.1")
+        self._git("tag", "python/a2ui-core/v0.1.2")
+        self._git("tag", "python/a2ui-core/v0.2.0-alpha")
+        self._git("tag", "python/a2ui-core/vnext")
+        self.assertEqual(
+            rv.list_tags(rv.CORE, self.repo),
+            ["python/a2ui-core/v0.1.2", "python/a2ui-core/v0.1.1"],
+        )
+
 
 class ChangelogTest(unittest.TestCase):
 
