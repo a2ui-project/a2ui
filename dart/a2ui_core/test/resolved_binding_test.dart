@@ -20,20 +20,16 @@ void main() {
     final rb = const ResolvedBinding<int>(1);
     final wb = WritableBinding<int>(1, (v) {}, '/foo');
 
-    // They must not be equal
     expect(rb == wb, false);
     expect(wb == rb, false);
 
-    // Same values but one is writable
     expect(rb, isNot(equals(wb)));
 
-    // Writable bindings compare on path
     final wb2 = WritableBinding<int>(1, (v) {}, '/foo');
     final wb3 = WritableBinding<int>(1, (v) {}, '/bar');
     expect(wb == wb2, true);
     expect(wb == wb3, false);
 
-    // toString check
     expect(rb.toString(), 'ResolvedBinding(1)');
     expect(wb.toString(), 'WritableBinding(1, path: /foo)');
   });

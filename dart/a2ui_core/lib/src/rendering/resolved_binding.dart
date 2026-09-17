@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// A resolved dynamic value in a node's props: a snapshot of the current
-/// value, pinned at emission. A new binding arrives through the node's props
-/// whenever the underlying value changes, so reading [value] never observes
-/// a state no emission delivered.
+/// A snapshot of a dynamic property value in a node's props.
+///
+/// When the underlying value changes, the node emits a new binding. Existing
+/// bindings retain their snapshot values.
 ///
 /// Literal and function-call values resolve to a read-only [ResolvedBinding],
 /// so a write without narrowing to [WritableBinding] is a compile error

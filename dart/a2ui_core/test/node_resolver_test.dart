@@ -400,9 +400,8 @@ void processorContractTests() {
           fixture.surface.onError.addListener(
             (error) => errors.add(error.code),
           );
-          // The processor does not validate updates that omit `component`.
-          // This pins what the resolver does with them, not that the
-          // processor should keep accepting them.
+          // Updates without `component` skip catalog schema validation,
+          // so missing and cyclic references can reach the resolver.
           processComponents(fixture, [
             {'id': 'root', 'child': reference},
           ]);

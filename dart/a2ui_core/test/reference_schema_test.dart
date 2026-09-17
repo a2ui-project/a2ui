@@ -244,10 +244,8 @@ void main() {
       );
     });
 
-    // Pins the breadth of the structural guess rather than endorsing it: any
-    // object schema declaring both componentId and path is taken for a child
-    // list. Because only the resolver uses the guess, a false positive mounts
-    // a property that is not a child list; it never rejects a batch.
+    // Structural matching also treats unrelated objects as child lists.
+    // Graph validation ignores these unmarked references.
     test('treats any componentId-and-path object as a structural list', () {
       _expectFields(
         {
