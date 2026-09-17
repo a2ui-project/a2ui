@@ -1243,7 +1243,7 @@
     },
     "callMcpTool": {
       "type": "object",
-      "description": "Executes a tool on a connected Model Context Protocol (MCP) server.",
+      "description": "Invokes a tool on a connected Model Context Protocol (MCP) server and returns the result. Can be combined with `jmespath` and `updateDataModel` to update the surface data model from tool output.",
       "properties": {
         "call": {
           "const": "callMcpTool"
@@ -1252,18 +1252,163 @@
           "type": "object",
           "properties": {
             "name": {
-              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The name of the MCP tool to execute."
             },
             "arguments": {
               "type": "object",
               "description": "The arguments to pass to the MCP tool.",
               "additionalProperties": {
-                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+                "$ref": "common_types.json#/$defs/DynamicValue"
               }
             }
           },
           "required": ["name"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "jmespath": {
+      "type": "object",
+      "description": "Evaluates a JMESPath expression against input data.",
+      "properties": {
+        "call": {
+          "const": "jmespath"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "A standard JMESPath expression evaluated against `data`."
+            },
+            "data": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The input data to evaluate the expression against."
+            }
+          },
+          "required": ["expression", "data"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "split": {
+      "type": "object",
+      "description": "Splits a string or array of strings by a separator.",
+      "properties": {
+        "call": {
+          "const": "split"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to split."
+            },
+            "separator": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The delimiter string to split on. An empty string splits into individual characters."
+            }
+          },
+          "required": ["value", "separator"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regexCapture": {
+      "type": "object",
+      "description": "Extracts capture groups from the first RE2 regular expression match.",
+      "properties": {
+        "call": {
+          "const": "regexCapture"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to match against."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "An RE2 regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings."
+            }
+          },
+          "required": ["value", "pattern"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regexReplace": {
+      "type": "object",
+      "description": "Replaces all matches of an RE2 regular expression with literal text.",
+      "properties": {
+        "call": {
+          "const": "regexReplace"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to perform replacements on."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "An RE2 regular expression matching substrings to replace."
+            },
+            "replacement": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Literal replacement string. Capture group references like $1 are treated as literal text."
+            }
+          },
+          "required": ["value", "pattern", "replacement"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "updateDataModel": {
+      "type": "object",
+      "description": "Writes key-value pairs to the surface data model.",
+      "properties": {
+        "call": {
+          "const": "updateDataModel"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "updates": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "An object mapping data model paths to the values to write (e.g., {\"/entries\": [...], \"/title\": \"Home\"}). Paths starting with \"/\" are absolute; relative paths resolve against the current data context."
+            }
+          },
+          "required": ["updates"],
           "additionalProperties": false
         },
         "returnType": {
@@ -1411,6 +1556,21 @@
         },
         {
           "$ref": "#/functions/callMcpTool"
+        },
+        {
+          "$ref": "#/functions/jmespath"
+        },
+        {
+          "$ref": "#/functions/split"
+        },
+        {
+          "$ref": "#/functions/regexCapture"
+        },
+        {
+          "$ref": "#/functions/regexReplace"
+        },
+        {
+          "$ref": "#/functions/updateDataModel"
         }
       ]
     }

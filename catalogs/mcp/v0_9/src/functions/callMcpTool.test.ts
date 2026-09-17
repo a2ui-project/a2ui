@@ -24,7 +24,12 @@ import {
   MessageProcessor,
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {CallMcpToolApi} from './callMcpToolApi.js';
+import {
+  CallMcpToolApi,
+  DATA_FUNCTION_APIS,
+  MCP_CATALOG_ID,
+  createMcpCatalogFunctions,
+} from '../index.js';
 import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,
@@ -33,7 +38,6 @@ import {
   readUiResourceUris,
   type McpToolClient,
 } from './callMcpTool.js';
-import {MCP_CATALOG_ID} from '../index.js';
 import mcpCatalogJson from '../../mcp_catalog.json' with {type: 'json'};
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -85,13 +89,7 @@ interface FakeClientOptions {
   listToolsError?: Error;
 }
 
-/**
- * A stand-in for the MCP client that records what the catalog asked of it.
- *
- * `McpToolClient` is structural, so this satisfies it directly. Only
- * `listTools` differs: it is required there but optional here, so tests can
- * cover a client that does not implement it at all.
- */
+/** Mock MCP client that records tool calls and resource reads. */
 interface FakeClient {
   calls: RecordedCall[];
   reads: string[];
@@ -101,7 +99,7 @@ interface FakeClient {
   listTools?(): Promise<{tools: any[]}>;
 }
 
-/** Presents a test double as the client the catalog expects. */
+/** Casts a `FakeClient` to `McpToolClient`. */
 const asClient = (client: FakeClient) => client as McpToolClient;
 
 function createFakeClient(options: FakeClientOptions = {}): FakeClient {
@@ -153,10 +151,9 @@ const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '
 };
 
 describe('callMcpTool', () => {
-  /** Surfaces created from UI resources live under this catalog. */
   let processor: MessageProcessor<any>;
 
-  /** Builds the MCP catalog over a fixed client. */
+  /** Creates a test catalog bound to `client`. */
   const catalogFor = (client: FakeClient) =>
     new Catalog<any>(
       MCP_CATALOG_ID,
@@ -164,7 +161,7 @@ describe('callMcpTool', () => {
       [createCallMcpToolImplementation(() => asClient(client), processor)],
     );
 
-  /** An inline A2UI payload, as a tool must send it: an embedded resource. */
+  /** Creates an inline A2UI resource content block. */
   const dataBlock = (value: Record<string, unknown>, surfaceId = 'test-surface') => ({
     type: 'resource' as const,
     resource: {
@@ -316,6 +313,29 @@ describe('callMcpTool', () => {
           assert.ok(err instanceof A2uiExpressionError);
           assert.strictEqual(err.expression, 'callMcpTool');
           assert.ok(err.message.includes('No MCP client connected'));
+          return true;
+        },
+      );
+    });
+
+    it('throws A2uiExpressionError when resolver returns null or undefined', async () => {
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        [],
+        [createCallMcpToolImplementation(() => undefined, processor)],
+      );
+      const context = createTestDataContext(new DataModel({}), catalog);
+
+      await assert.rejects(
+        async () => {
+          await catalog.invoker('callMcpTool', {name: 'missing_tool'}, context);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiExpressionError);
+          assert.strictEqual(err.expression, 'callMcpTool');
+          assert.ok(
+            err.message.includes("MCP client for tool 'missing_tool' could not be resolved."),
+          );
           return true;
         },
       );
@@ -667,10 +687,58 @@ describe('callMcpTool', () => {
       assert.deepStrictEqual(valid, {name: 'read_resource', arguments: {uri: 'a2ui://form'}});
     });
 
-    it('does not declare a server argument in the published schema', () => {
+    it('declares exactly the supported arguments in the published schema', () => {
       const args = (mcpCatalogJson as any).functions.callMcpTool.properties.args;
       assert.deepStrictEqual(Object.keys(args.properties), ['name', 'arguments']);
+      // A server argument is not among them: the host resolves servers.
       assert.strictEqual(args.additionalProperties, false);
+    });
+
+    it('no longer publishes a result expression, which the data functions replace', () => {
+      const args = (mcpCatalogJson as any).functions.callMcpTool.properties.args;
+      assert.strictEqual(args.properties.dataModelUpdate, undefined);
+      assert.strictEqual('dataModelUpdate' in CallMcpToolApi.schema.shape, false);
+    });
+
+    it('publishes every function a host registers', () => {
+      // A function missing from the JSON is invisible to an agent writing a
+      // payload, however well it works at runtime.
+      const registered = createMcpCatalogFunctions(
+        () => asClient(createFakeClient()),
+        new MessageProcessor([], async () => {}),
+      ).map(fn => fn.name);
+      assert.deepStrictEqual(
+        Object.keys((mcpCatalogJson as any).functions).sort(),
+        registered.sort(),
+      );
+    });
+
+    it('publishes the argument names and descriptions the schemas carry', () => {
+      // The catalog JSON is what an agent reads before writing a payload, and
+      // it is generated from these schemas. This catches it going stale.
+      for (const api of DATA_FUNCTION_APIS) {
+        const published = (mcpCatalogJson as any).functions[api.name];
+        assert.ok(published, `${api.name} is not published`);
+        assert.strictEqual(published.properties.returnType.const, api.returnType);
+
+        const args = published.properties.args;
+        const fields = Object.keys(api.schema.shape);
+        assert.deepStrictEqual(Object.keys(args.properties), fields, `${api.name} arguments`);
+        assert.deepStrictEqual(args.required, fields, `${api.name} required arguments`);
+        assert.strictEqual(args.additionalProperties, false);
+
+        for (const field of fields) {
+          assert.strictEqual(
+            args.properties[field].description,
+            (api.schema.shape as Record<string, {description?: string}>)[field].description,
+            `${api.name}.${field} description`,
+          );
+        }
+      }
+    });
+
+    it('leaves pattern matching to the basic catalog rather than publishing its own', () => {
+      assert.ok(!(mcpCatalogJson as any).functions.regexMatch, 'regexMatch is still published');
     });
   });
 

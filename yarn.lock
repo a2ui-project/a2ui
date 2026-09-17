@@ -265,9 +265,12 @@ __metadata:
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@modelcontextprotocol/sdk": "npm:^1.0.1"
+    "@types/jmespath": "npm:^0.15.2"
     "@types/node": "npm:^25.9.3"
     eslint: "npm:^10.4.1"
+    jmespath: "npm:^0.16.0"
     prettier: "npm:^3.8.4"
+    re2js: "npm:^2.8.6"
     tsx: "npm:^4.22.4"
     typescript: "npm:5.9.3"
     zod: "npm:^3.25.76"
@@ -8969,6 +8972,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/jmespath@npm:^0.15.2":
+  version: 0.15.2
+  resolution: "@types/jmespath@npm:0.15.2"
+  checksum: 10c0/61e45c2785f845f758df3cdb093ad30d32d3ca9c6e20c5ddf6eeb74125d7b6c0426ac175ca994fec47517b7fb0a4b89a91d47155709fec15ab03969ac3bcadc5
+  languageName: node
+  linkType: hard
+
 "@types/js-yaml@npm:^4.0.9":
   version: 4.0.9
   resolution: "@types/js-yaml@npm:4.0.9"
@@ -15896,6 +15906,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jmespath@npm:^0.16.0":
+  version: 0.16.0
+  resolution: "jmespath@npm:0.16.0"
+  checksum: 10c0/84cdca62c4a3d339701f01cc53decf16581c76ce49e6455119be1c5f6ab09a19e6788372536bd261d348d21cd817981605f8debae67affadba966219a2bac1c5
+  languageName: node
+  linkType: hard
+
 "jose@npm:^5.1.0":
   version: 5.10.0
   resolution: "jose@npm:5.10.0"
@@ -20131,6 +20148,13 @@ __metadata:
     iconv-lite: "npm:~0.4.24"
     unpipe: "npm:~1.0.0"
   checksum: 10c0/449844344fc90547fb994383a494b83300e4f22199f146a79f68d78a199a8f2a923ea9fd29c3be979bfd50291a3884733619ffc15ba02a32e703b612f8d3f74a
+  languageName: node
+  linkType: hard
+
+"re2js@npm:^2.8.6":
+  version: 2.8.6
+  resolution: "re2js@npm:2.8.6"
+  checksum: 10c0/70a7ae4778429ddd8dfef6af3ee65e152999e31a894f19f3eb4820f5267d2ac0c5797b60f988139a5d72a9f06bb5c0b7fd05c4aaa6272970b006772aa956fb51
   languageName: node
   linkType: hard
 
