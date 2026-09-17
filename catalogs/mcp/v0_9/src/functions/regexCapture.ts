@@ -19,6 +19,7 @@ import {z} from 'zod';
 
 import {asyncable, overValue, pattern, withSettledArgs} from './common.js';
 
+/** Function API definition for `regexCapture`, published in `mcp_catalog.json`. */
 export const RegexCaptureApi = {
   name: 'regexCapture',
   returnType: 'any',
@@ -32,7 +33,14 @@ export const RegexCaptureApi = {
   }),
 } as const;
 
-/** Returns capture groups of the first RE2 match, or null if no match is found. */
+/**
+ * Returns the capture groups of the first match, or null when nothing matches.
+ *
+ * An array of strings is matched element by element, giving one result per
+ * element, which is how a payload pulls fields out of a column of tool output.
+ *
+ * @throws A2uiExpressionError when the pattern does not compile as RE2.
+ */
 export const RegexCaptureImplementation: FunctionImplementation = createFunctionImplementation(
   RegexCaptureApi,
   args =>

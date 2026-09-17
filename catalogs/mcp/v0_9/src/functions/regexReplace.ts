@@ -20,6 +20,7 @@ import {z} from 'zod';
 
 import {asyncable, overValue, pattern, withSettledArgs} from './common.js';
 
+/** Function API definition for `regexReplace`, published in `mcp_catalog.json`. */
 export const RegexReplaceApi = {
   name: 'regexReplace',
   returnType: 'any',
@@ -34,7 +35,14 @@ export const RegexReplaceApi = {
   }),
 } as const;
 
-/** Replaces all RE2 pattern matches in a string or array of strings with literal text. */
+/**
+ * Replaces every match of an RE2 pattern with literal text.
+ *
+ * The replacement is quoted before use, so text that happens to contain `$1`
+ * is written out as typed rather than read as a group reference.
+ *
+ * @throws A2uiExpressionError when the pattern does not compile as RE2.
+ */
 export const RegexReplaceImplementation: FunctionImplementation = createFunctionImplementation(
   RegexReplaceApi,
   args =>

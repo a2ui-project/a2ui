@@ -19,6 +19,7 @@ import {z} from 'zod';
 
 import {asyncable, overValue, withSettledArgs} from './common.js';
 
+/** Function API definition for `split`, published in `mcp_catalog.json`. */
 export const SplitApi = {
   name: 'split',
   returnType: 'any',
@@ -32,7 +33,12 @@ export const SplitApi = {
   }),
 } as const;
 
-/** Splits a string or each element of an array of strings by `separator`. */
+/**
+ * Splits a string on a literal separator, giving an array of strings.
+ *
+ * An array of strings is split element by element, giving an array of arrays.
+ * This is the usual first step on tool output that arrives as lines of text.
+ */
 export const SplitImplementation: FunctionImplementation = createFunctionImplementation(
   SplitApi,
   args =>

@@ -25,6 +25,14 @@ import {z} from 'zod';
 import {resolveDynamicValueDeep} from '../dynamic-values.js';
 import {asyncable, withSettledArgs} from './common.js';
 
+/**
+ * Function API definition for `jmespath`, published in `mcp_catalog.json`.
+ *
+ * The dialect is the original JMESPath grammar and nothing more, so an
+ * expression runs unchanged on a client built against a stock JMESPath library.
+ * See `catalogs/mcp/README.md` for the idioms that stand in for the syntax the
+ * grammar leaves out.
+ */
 export const JmespathApi = {
   name: 'jmespath',
   returnType: 'any',
@@ -36,7 +44,16 @@ export const JmespathApi = {
   }),
 } as const;
 
-/** Evaluates a standard JMESPath expression against `data`. */
+/**
+ * Evaluates a JMESPath expression against `data`, giving what it selects.
+ *
+ * Both arguments are resolved deeply first, so a literal document can mix tool
+ * output with values already held in the data model. A field the expression
+ * does not find reads as null rather than failing the call.
+ *
+ * @throws A2uiExpressionError when the expression is not a string or does not
+ *     parse.
+ */
 export const JmespathImplementation: FunctionImplementation = createFunctionImplementation(
   JmespathApi,
   (args, context) => {

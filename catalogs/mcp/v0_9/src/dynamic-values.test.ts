@@ -186,6 +186,18 @@ describe('dynamic-values', () => {
         returnType: 'any',
       });
     });
+
+    it('stops at the depth cap when two bindings resolve to one another', () => {
+      // Neither binding resolves to itself, so only the depth cap ends this.
+      const context = createContext({
+        ping: {path: '/pong'},
+        pong: {path: '/ping'},
+      });
+
+      const resolved = resolveDynamicValueDeep({path: '/ping'}, context);
+
+      assert.strictEqual(isDataBinding(resolved), true);
+    });
   });
 
   describe('resolveDynamicRecord', () => {

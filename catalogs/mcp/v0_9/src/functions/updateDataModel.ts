@@ -24,6 +24,7 @@ import {z} from 'zod';
 import {resolveDynamicValueDeep} from '../dynamic-values.js';
 import {asyncable, withSettledArgs} from './common.js';
 
+/** Function API definition for `updateDataModel`, published in `mcp_catalog.json`. */
 export const UpdateDataModelApi = {
   name: 'updateDataModel',
   returnType: 'any',
@@ -34,7 +35,16 @@ export const UpdateDataModelApi = {
   }),
 } as const;
 
-/** Writes a map of data model path updates into the calling surface. */
+/**
+ * Writes an object of data model paths into the surface the call ran on.
+ *
+ * One call can fill several parts of the model and leave the rest alone, which
+ * is what lets a payload turn a single tool result into a screen. Nothing is
+ * written when `updates` is null or undefined, so a chain whose earlier step
+ * found nothing is not an error.
+ *
+ * @throws A2uiExpressionError when `updates` is neither an object nor nothing.
+ */
 export const UpdateDataModelImplementation: FunctionImplementation = createFunctionImplementation(
   UpdateDataModelApi,
   (args, context) => {
@@ -52,7 +62,12 @@ export const UpdateDataModelImplementation: FunctionImplementation = createFunct
         );
       }
       for (const [path, value] of Object.entries(updates as Record<string, unknown>)) {
-        context.set(path, value === undefined ? undefined : structuredClone(value));
+        // A container is cloned so a later write cannot mutate what the tool
+        // result still holds. A primitive has nothing to share.
+        context.set(
+          path,
+          typeof value === 'object' && value !== null ? structuredClone(value) : value,
+        );
       }
     });
   },

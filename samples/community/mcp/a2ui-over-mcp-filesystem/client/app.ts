@@ -71,7 +71,9 @@ export class A2uiFilesystemApp extends LitElement {
     catalogs.push(
       new Catalog<any>(CATALOG_ID, Array.from(basicCatalog.components.values()), [
         ...Array.from(basicCatalog.functions.values()),
-        ...createMcpCatalogFunctions(() => this.mcpClient!, this.processor),
+        // Before the connection completes there is no client. `callMcpTool`
+        // reports that as a failed call rather than crashing the surface.
+        ...createMcpCatalogFunctions(() => this.mcpClient, this.processor),
       ]),
     );
 
@@ -103,10 +105,10 @@ export class A2uiFilesystemApp extends LitElement {
       // The payload declares the action that fills the first screen, in the
       // same form its buttons declare theirs, so the host runs it without
       // knowing which functions it names.
-      const surface = this.surface!;
-      const context = new DataContext(surface, '/');
-      const startup = surface.dataModel.get('/startup');
-      if (Array.isArray(startup)) {
+      const surface = this.surface;
+      const startup = surface?.dataModel.get('/startup');
+      if (surface && Array.isArray(startup)) {
+        const context = new DataContext(surface, '/');
         for (const action of startup) {
           await context.resolveDynamicValue(action);
         }
