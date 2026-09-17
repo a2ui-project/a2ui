@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/inference_formats/inference_format_schema.json",
+  "title": "A2UI Inference Format Conformance Test Suite Schema",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Unique name of the test case."
+      },
+      "description": {
+        "type": "string",
+        "description": "Optional description of what the test verifies."
+      },
+      "format": {
+        "type": "string",
+        "description": "Optional inference format name (e.g. 'express', 'atom', 'elemental'). Inferred from subfolder if omitted."
+      },
+      "catalog": {
+        "description": "Catalog specification for the test: name, path, or detailed configuration. If omitted, defaults to the basic catalog.",
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Catalog name ('basic') or path to catalog JSON file."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" },
+              "path": { "type": "string" },
+              "s2c_schema": {
+                "oneOf": [{ "type": "string" }, { "type": "object" }]
+              },
+              "catalog_schema": {
+                "oneOf": [{ "type": "string" }, { "type": "object" }]
+              },
+              "common_types_schema": {
+                "oneOf": [{ "type": "string" }, { "type": "object" }]
+              }
+            }
+          }
+        ]
+      },
+      "version": {
+        "type": "string",
+        "description": "Target A2UI protocol version (e.g. 'v1.0', 'v0.9.1', 'v0.9')."
+      },
+      "action": {
+        "type": "string",
+        "description": "The action to perform.",
+        "enum": ["compile", "decompile", "round_trip", "generate_prompt"]
+      }
+    },
+    "required": ["name", "action"],
+    "allOf": [
+      {
+        "oneOf": [
+          { "$ref": "#/$defs/CompileTest" },
+          { "$ref": "#/$defs/DecompileTest" },
+          { "$ref": "#/$defs/RoundTripTest" },
+          { "$ref": "#/$defs/GeneratePromptTest" }
+        ]
+      }
+    ]
+  },
+  "$defs": {
+    "CompileTest": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "compile" },
+        "input": {
+          "type": "string",
+          "description": "Raw DSL string to compile."
+        },
+        "input_file": {
+          "type": "string",
+          "description": "Relative path to input DSL file."
+        },
+        "surface_id": {
+          "type": "string",
+          "description": "Surface ID for the compiled payload."
+        },
+        "catalog_id": {
+          "type": "string",
+          "description": "Catalog ID for the compiled payload."
+        },
+        "is_final": {
+          "type": "boolean",
+          "description": "Whether the compilation is for a final chunk (default true)."
+        },
+        "expect": {
+          "description": "Expected compiled A2UI payload (envelope object or list of messages).",
+          "oneOf": [
+            { "type": "array", "items": { "type": "object" } },
+            { "type": "object" }
+          ]
+        },
+        "expect_file": {
+          "type": "string",
+          "description": "Relative path to expected JSON payload file."
+        },
+        "expect_error": { "$ref": "#/$defs/ExpectError" }
+      },
+      "oneOf": [
+        { "required": ["input"] },
+        { "required": ["input_file"] }
+      ],
+      "anyOf": [
+        { "required": ["expect"] },
+        { "required": ["expect_file"] },
+        { "required": ["expect_error"] }
+      ]
+    },
+    "DecompileTest": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "decompile" },
+        "input": {
+          "description": "A2UI payload (envelope object or list of messages) to decompile.",
+          "oneOf": [
+            { "type": "array", "items": { "type": "object" } },
+            { "type": "object" }
+          ]
+        },
+        "input_file": {
+          "type": "string",
+          "description": "Relative path to input JSON payload file."
+        },
+        "surface_id": {
+          "type": "string",
+          "description": "Surface ID for decompiled payload."
+        },
+        "expect": {
+          "type": "string",
+          "description": "Expected decompiled DSL string."
+        },
+        "expect_file": {
+          "type": "string",
+          "description": "Relative path to expected DSL file."
+        },
+        "expect_contains": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Strings that must appear in the decompiled DSL output."
+        },
+        "expect_error": { "$ref": "#/$defs/ExpectError" }
+      },
+      "oneOf": [
+        { "required": ["input"] },
+        { "required": ["input_file"] }
+      ],
+      "anyOf": [
+        { "required": ["expect"] },
+        { "required": ["expect_file"] },
+        { "required": ["expect_contains"] },
+        { "required": ["expect_error"] }
+      ]
+    },
+    "RoundTripTest": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "round_trip" },
+        "input": {
+          "description": "A2UI payload (envelope object or list of messages) for round trip.",
+          "oneOf": [
+            { "type": "array", "items": { "type": "object" } },
+            { "type": "object" }
+          ]
+        },
+        "input_file": {
+          "type": "string",
+          "description": "Relative path to input JSON payload file."
+        },
+        "input_dsl": {
+          "type": "string",
+          "description": "DSL string for round trip starting from DSL."
+        },
+        "surface_id": {
+          "type": "string",
+          "description": "Surface ID for the round trip."
+        },
+        "catalog_id": {
+          "type": "string",
+          "description": "Catalog ID for the round trip."
+        },
+        "expect_error": { "$ref": "#/$defs/ExpectError" }
+      },
+      "oneOf": [
+        { "required": ["input"] },
+        { "required": ["input_file"] },
+        { "required": ["input_dsl"] }
+      ]
+    },
+    "GeneratePromptTest": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "generate_prompt" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "role_description": { "type": "string" },
+            "workflow_description": { "type": "string" },
+            "ui_description": { "type": "string" },
+            "include_schema": { "type": "boolean" },
+            "include_examples": { "type": "boolean" },
+            "examples_path": { "type": "string" },
+            "validate_examples": { "type": "boolean" },
+            "allowed_components": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "allowed_functions": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "allowed_messages": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "expect": { "type": "string" },
+        "expect_contains": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "expect_not_contains": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "expect_error": { "$ref": "#/$defs/ExpectError" }
+      },
+      "required": ["args"],
+      "anyOf": [
+        { "required": ["expect"] },
+        { "required": ["expect_contains"] },
+        { "required": ["expect_not_contains"] },
+        { "required": ["expect_error"] }
+      ]
+    },
+    "ExpectError": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Expected error message (regex) if this step/action should fail."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "enum": [
+                "ParseError",
+                "ValidationError",
+                "CatalogError",
+                "IntegrityError",
+                "RecursionError",
+                "CompileError",
+                "DataError"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "description": "Expected error message (regex) if this step/action should fail."
+            },
+            "details": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "code": { "type": "string" }
+                },
+                "required": ["path", "code"]
+              }
+            }
+          },
+          "required": ["category"]
+        }
+      ]
+    }
+  }
+}
