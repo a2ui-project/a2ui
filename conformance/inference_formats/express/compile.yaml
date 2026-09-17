@@ -290,7 +290,7 @@
 - name: test_compile_bare_dollar_path
   description: Validates bare $ path compilation.
   action: compile
-  input: 'root = Text($)'
+  input: "root = Text($)"
   expect:
     - version: "v1.0"
       createSurface:
@@ -462,7 +462,6 @@
             component: "Text"
             text: "Hi"
 
-
 - name: test_compile_v0_9_standalone_function_call_error
   description: Validates that standalone function calls raise an error in v0.9.
   action: compile
@@ -475,7 +474,7 @@
 - name: test_compile_error_syntax_unrecognized_char
   description: Validates that unrecognized syntax characters raise an error.
   action: compile
-  input: 'root = Column(@rep)'
+  input: "root = Column(@rep)"
   expect_error:
     category: "CompileError"
 
@@ -491,7 +490,7 @@
 - name: test_compile_error_template_missing_args
   description: Validates that template helper with missing arguments raises an error.
   action: compile
-  input: 'root = List(_template($/path))'
+  input: "root = List(_template($/path))"
   expect_error:
     category: "CompileError"
 
@@ -766,4 +765,3 @@
           - id: "root"
             component: "Text"
             text: "Body"
-

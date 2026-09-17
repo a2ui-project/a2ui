@@ -73,6 +73,7 @@ def assert_raises_conformance(expect_error):
         message = expect_error
 
     class Context:
+
         def __enter__(self):
             self._ctx = pytest.raises(expected_class)
             self.excinfo = self._ctx.__enter__()
@@ -103,23 +104,28 @@ def normalize_value(val: Any) -> Any:
             evt = val["event"]
             if "context" in evt and not evt["context"]:
                 val["event"] = {k: v for k, v in evt.items() if k != "context"}
-        return {
-            k: normalize_value(v)
-            for k, v in val.items()
-            if k != "returnType"
-        }
+        return {k: normalize_value(v) for k, v in val.items() if k != "returnType"}
     if isinstance(val, list):
         return [normalize_value(item) for item in val]
     return val
 
 
 def get_catalog_for_test(catalog_spec: Any, version: str = "v1.0") -> A2uiCatalog:
-    norm_version = "0.9" if version in ["v0.9", "0.9"] else ("0.9.1" if version in ["v0.9.1", "0.9.1"] else "1.0")
+    norm_version = (
+        "0.9"
+        if version in ["v0.9", "0.9"]
+        else ("0.9.1" if version in ["v0.9.1", "0.9.1"] else "1.0")
+    )
     spec_dir_name = "v0_9" if norm_version in ["0.9", "0.9.1"] else "v1_0"
 
     if catalog_spec is None or catalog_spec == "basic":
         cat_path = os.path.join(
-            REPO_ROOT, "specification", spec_dir_name, "catalogs", "basic", "catalog.json"
+            REPO_ROOT,
+            "specification",
+            spec_dir_name,
+            "catalogs",
+            "basic",
+            "catalog.json",
         )
         config = CatalogConfig.from_path("basic", cat_path)
         return A2uiCatalog.from_config(config, version=norm_version)
@@ -132,10 +138,13 @@ def get_catalog_for_test(catalog_spec: Any, version: str = "v1.0") -> A2uiCatalo
     if isinstance(catalog_spec, dict):
         if "path" in catalog_spec:
             cat_path = os.path.join(REPO_ROOT, catalog_spec["path"])
-            config = CatalogConfig.from_path(catalog_spec.get("name", "test_catalog"), cat_path)
+            config = CatalogConfig.from_path(
+                catalog_spec.get("name", "test_catalog"), cat_path
+            )
             return A2uiCatalog.from_config(config, version=norm_version)
         if "catalog_schema" in catalog_spec:
             from a2ui.schema.catalog_provider import InMemoryCatalogProvider
+
             config = CatalogConfig(
                 name=catalog_spec.get("name", "test_catalog"),
                 provider=InMemoryCatalogProvider(catalog_spec["catalog_schema"]),
@@ -143,7 +152,6 @@ def get_catalog_for_test(catalog_spec: Any, version: str = "v1.0") -> A2uiCatalo
             return A2uiCatalog.from_config(config, version=norm_version)
 
     raise ValueError(f"Unsupported catalog spec: {catalog_spec}")
-
 
 
 def assert_payloads_match(actual: List[Dict[str, Any]], expected: Any) -> None:
@@ -175,15 +183,18 @@ def assert_payloads_match(actual: List[Dict[str, Any]], expected: Any) -> None:
         if "callFunction" in envelope:
             expected_msg = next((m for m in messages if "callFunction" in m), None)
             assert expected_msg is not None
-            assert expected_msg["callFunction"]["call"] == envelope["callFunction"]["call"]
-            assert normalize_value(expected_msg["callFunction"].get("args", {})) == normalize_value(
-                envelope["callFunction"].get("args", {})
+            assert (
+                expected_msg["callFunction"]["call"] == envelope["callFunction"]["call"]
             )
+            assert normalize_value(
+                expected_msg["callFunction"].get("args", {})
+            ) == normalize_value(envelope["callFunction"].get("args", {}))
             return
 
         if "updateDataModel" in envelope:
             expected_msg = next(
-                (m for m in messages if "updateDataModel" in m or "updateData" in m), None
+                (m for m in messages if "updateDataModel" in m or "updateData" in m),
+                None,
             )
             assert expected_msg is not None
             expected_val = (
@@ -223,7 +234,8 @@ def assert_payloads_match(actual: List[Dict[str, Any]], expected: Any) -> None:
             assert key in act_env
             if key == "createSurface" and "components" in exp_env["createSurface"]:
                 act_comps = sorted(
-                    act_env["createSurface"].get("components", []), key=lambda x: x["id"]
+                    act_env["createSurface"].get("components", []),
+                    key=lambda x: x["id"],
                 )
                 exp_comps = sorted(
                     exp_env["createSurface"]["components"], key=lambda x: x["id"]
@@ -251,9 +263,9 @@ def get_conformance_test_cases(pattern_rel: str) -> List[tuple[str, Dict[str, An
 
 
 # Collect test cases for each category
-compile_cases = get_conformance_test_cases("express/compile.yaml") + get_conformance_test_cases(
-    "express/examples.yaml"
-)
+compile_cases = get_conformance_test_cases(
+    "express/compile.yaml"
+) + get_conformance_test_cases("express/examples.yaml")
 decompile_cases = get_conformance_test_cases("express/decompile.yaml")
 round_trip_cases = get_conformance_test_cases("round_trip.yaml")
 prompt_cases = get_conformance_test_cases("express/prompt_generation.yaml")
@@ -268,7 +280,9 @@ def test_inference_format_compile(name: str, test_case: Dict[str, Any]):
     compiler = ExpressCompiler(catalog, version=version)
 
     if "input_file" in test_case:
-        with open(os.path.join(REPO_ROOT, test_case["input_file"]), "r", encoding="utf-8") as f:
+        with open(
+            os.path.join(REPO_ROOT, test_case["input_file"]), "r", encoding="utf-8"
+        ) as f:
             input_content = f.read()
     else:
         input_content = test_case["input"]
@@ -322,7 +336,9 @@ def test_inference_format_decompile(name: str, test_case: Dict[str, Any]):
         actual = decompiler.decompile(input_payload)
 
         if "expect_file" in test_case:
-            with open(os.path.join(REPO_ROOT, test_case["expect_file"]), "r", encoding="utf-8") as f:
+            with open(
+                os.path.join(REPO_ROOT, test_case["expect_file"]), "r", encoding="utf-8"
+            ) as f:
                 expected = f.read()
             assert actual.strip() == expected.strip()
         elif "expect" in test_case:
@@ -364,7 +380,10 @@ def test_inference_format_round_trip(name: str, test_case: Dict[str, Any]):
                 "version": version,
                 "createSurface": {
                     "surfaceId": surface_id,
-                    "catalogId": catalog_id or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                    "catalogId": (
+                        catalog_id
+                        or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                    ),
                     "components": components_list,
                 },
             }
@@ -414,7 +433,6 @@ def test_inference_format_generate_prompt(name: str, test_case: Dict[str, Any]):
         generate_kwargs["client_ui_capabilities"] = args["client_ui_capabilities"]
 
     prompt = generator.generate(**generate_kwargs)
-
 
     if "expect" in test_case:
         assert prompt.strip() == test_case["expect"].strip()

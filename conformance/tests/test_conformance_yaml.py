@@ -55,7 +55,9 @@ def get_yaml_test_params():
 @pytest.mark.parametrize(
     "yaml_path,schema",
     get_yaml_test_params(),
-    ids=lambda item: os.path.basename(item[0]) if isinstance(item, tuple) else str(item),
+    ids=lambda item: os.path.basename(item[0])
+    if isinstance(item, tuple)
+    else str(item),
 )
 def test_validate_conformance_yaml(yaml_path, schema):
     yaml_data = load_yaml_file(yaml_path)
@@ -64,4 +66,3 @@ def test_validate_conformance_yaml(yaml_path, schema):
         jsonschema.validate(instance=yaml_data, schema=schema)
     except jsonschema.ValidationError as e:
         pytest.fail(f"{basename} failed schema validation: {e.message}")
-

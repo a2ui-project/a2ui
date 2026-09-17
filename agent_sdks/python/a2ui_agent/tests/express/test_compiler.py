@@ -196,8 +196,6 @@ class TestExpressCompiler(unittest.TestCase):
         comment_comps = comment_envelope["createSurface"]["components"]
         self.assertEqual(len(comment_comps), 2)
 
-
-
     def test_compiler_concurrency(self):
         """Verifies that ExpressCompiler is thread-safe and supports concurrent compilation."""
         import threading
@@ -263,8 +261,6 @@ btnLabel = Text("Click Thread 2")
         # It can be enabled by passing 'version_1_0' in experiments
         validator = A2uiValidator(catalog, experiments={"version_1_0"})
         self.assertEqual(validator.version, "1.0")
-
-
 
     def test_polymorphic_catalog_initialization(self):
         """Verifies compiler, decompiler, prompt generator, and parser with polymorphic catalogs."""
@@ -371,8 +367,6 @@ root = Text("Hello")"""
         env_call = compiler.compile(dsl_call)[0]
         self.assertEqual(env_call["callFunction"]["call"], "openUrl")
 
-
-
     def test_custom_exception_types(self):
         """Verifies specific ExpressCompilerError subclasses are raised for invalid DSL constructs."""
         compiler = ExpressCompiler(self.catalog)
@@ -412,8 +406,6 @@ root = Text("Hello")"""
         with self.assertRaises(ExpressUndefinedRootError) as ctx:
             compiler.compile('some_var = Text("Hello")')
         self.assertEqual(ctx.exception.root_target, "root")
-
-
 
 
 if __name__ == "__main__":

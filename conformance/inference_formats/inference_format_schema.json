@@ -28,17 +28,17 @@
           {
             "type": "object",
             "properties": {
-              "name": { "type": "string" },
-              "version": { "type": "string" },
-              "path": { "type": "string" },
+              "name": {"type": "string"},
+              "version": {"type": "string"},
+              "path": {"type": "string"},
               "s2c_schema": {
-                "oneOf": [{ "type": "string" }, { "type": "object" }]
+                "oneOf": [{"type": "string"}, {"type": "object"}]
               },
               "catalog_schema": {
-                "oneOf": [{ "type": "string" }, { "type": "object" }]
+                "oneOf": [{"type": "string"}, {"type": "object"}]
               },
               "common_types_schema": {
-                "oneOf": [{ "type": "string" }, { "type": "object" }]
+                "oneOf": [{"type": "string"}, {"type": "object"}]
               }
             }
           }
@@ -58,10 +58,10 @@
     "allOf": [
       {
         "oneOf": [
-          { "$ref": "#/$defs/CompileTest" },
-          { "$ref": "#/$defs/DecompileTest" },
-          { "$ref": "#/$defs/RoundTripTest" },
-          { "$ref": "#/$defs/GeneratePromptTest" }
+          {"$ref": "#/$defs/CompileTest"},
+          {"$ref": "#/$defs/DecompileTest"},
+          {"$ref": "#/$defs/RoundTripTest"},
+          {"$ref": "#/$defs/GeneratePromptTest"}
         ]
       }
     ]
@@ -70,7 +70,7 @@
     "CompileTest": {
       "type": "object",
       "properties": {
-        "action": { "const": "compile" },
+        "action": {"const": "compile"},
         "input": {
           "type": "string",
           "description": "Raw DSL string to compile."
@@ -93,37 +93,28 @@
         },
         "expect": {
           "description": "Expected compiled A2UI payload (envelope object or list of messages).",
-          "oneOf": [
-            { "type": "array", "items": { "type": "object" } },
-            { "type": "object" }
-          ]
+          "oneOf": [{"type": "array", "items": {"type": "object"}}, {"type": "object"}]
         },
         "expect_file": {
           "type": "string",
           "description": "Relative path to expected JSON payload file."
         },
-        "expect_error": { "$ref": "#/$defs/ExpectError" }
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
-      "oneOf": [
-        { "required": ["input"] },
-        { "required": ["input_file"] }
-      ],
+      "oneOf": [{"required": ["input"]}, {"required": ["input_file"]}],
       "anyOf": [
-        { "required": ["expect"] },
-        { "required": ["expect_file"] },
-        { "required": ["expect_error"] }
+        {"required": ["expect"]},
+        {"required": ["expect_file"]},
+        {"required": ["expect_error"]}
       ]
     },
     "DecompileTest": {
       "type": "object",
       "properties": {
-        "action": { "const": "decompile" },
+        "action": {"const": "decompile"},
         "input": {
           "description": "A2UI payload (envelope object or list of messages) to decompile.",
-          "oneOf": [
-            { "type": "array", "items": { "type": "object" } },
-            { "type": "object" }
-          ]
+          "oneOf": [{"type": "array", "items": {"type": "object"}}, {"type": "object"}]
         },
         "input_file": {
           "type": "string",
@@ -143,32 +134,26 @@
         },
         "expect_contains": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {"type": "string"},
           "description": "Strings that must appear in the decompiled DSL output."
         },
-        "expect_error": { "$ref": "#/$defs/ExpectError" }
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
-      "oneOf": [
-        { "required": ["input"] },
-        { "required": ["input_file"] }
-      ],
+      "oneOf": [{"required": ["input"]}, {"required": ["input_file"]}],
       "anyOf": [
-        { "required": ["expect"] },
-        { "required": ["expect_file"] },
-        { "required": ["expect_contains"] },
-        { "required": ["expect_error"] }
+        {"required": ["expect"]},
+        {"required": ["expect_file"]},
+        {"required": ["expect_contains"]},
+        {"required": ["expect_error"]}
       ]
     },
     "RoundTripTest": {
       "type": "object",
       "properties": {
-        "action": { "const": "round_trip" },
+        "action": {"const": "round_trip"},
         "input": {
           "description": "A2UI payload (envelope object or list of messages) for round trip.",
-          "oneOf": [
-            { "type": "array", "items": { "type": "object" } },
-            { "type": "object" }
-          ]
+          "oneOf": [{"type": "array", "items": {"type": "object"}}, {"type": "object"}]
         },
         "input_file": {
           "type": "string",
@@ -186,59 +171,55 @@
           "type": "string",
           "description": "Catalog ID for the round trip."
         },
-        "expect_error": { "$ref": "#/$defs/ExpectError" }
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
-      "oneOf": [
-        { "required": ["input"] },
-        { "required": ["input_file"] },
-        { "required": ["input_dsl"] }
-      ]
+      "oneOf": [{"required": ["input"]}, {"required": ["input_file"]}, {"required": ["input_dsl"]}]
     },
     "GeneratePromptTest": {
       "type": "object",
       "properties": {
-        "action": { "const": "generate_prompt" },
+        "action": {"const": "generate_prompt"},
         "args": {
           "type": "object",
           "properties": {
-            "role_description": { "type": "string" },
-            "workflow_description": { "type": "string" },
-            "ui_description": { "type": "string" },
-            "include_schema": { "type": "boolean" },
-            "include_examples": { "type": "boolean" },
-            "examples_path": { "type": "string" },
-            "validate_examples": { "type": "boolean" },
+            "role_description": {"type": "string"},
+            "workflow_description": {"type": "string"},
+            "ui_description": {"type": "string"},
+            "include_schema": {"type": "boolean"},
+            "include_examples": {"type": "boolean"},
+            "examples_path": {"type": "string"},
+            "validate_examples": {"type": "boolean"},
             "allowed_components": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {"type": "string"}
             },
             "allowed_functions": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {"type": "string"}
             },
             "allowed_messages": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {"type": "string"}
             }
           }
         },
-        "expect": { "type": "string" },
+        "expect": {"type": "string"},
         "expect_contains": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {"type": "string"}
         },
         "expect_not_contains": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {"type": "string"}
         },
-        "expect_error": { "$ref": "#/$defs/ExpectError" }
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["args"],
       "anyOf": [
-        { "required": ["expect"] },
-        { "required": ["expect_contains"] },
-        { "required": ["expect_not_contains"] },
-        { "required": ["expect_error"] }
+        {"required": ["expect"]},
+        {"required": ["expect_contains"]},
+        {"required": ["expect_not_contains"]},
+        {"required": ["expect_error"]}
       ]
     },
     "ExpectError": {
@@ -271,8 +252,8 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "path": { "type": "string" },
-                  "code": { "type": "string" }
+                  "path": {"type": "string"},
+                  "code": {"type": "string"}
                 },
                 "required": ["path", "code"]
               }
