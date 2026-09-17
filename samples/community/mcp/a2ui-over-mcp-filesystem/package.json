@@ -1,0 +1,20 @@
+{
+  "name": "a2ui-over-mcp-filesystem",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "concurrently -k -n mcp,web -c cyan,magenta \"yarn dev:mcp\" \"yarn dev:web\"",
+    "dev:mcp": "npx -y mcp-proxy@6.7.16 --port 8787 --host 127.0.0.1 -- npx -y @modelcontextprotocol/server-filesystem@latest \"${A2UI_FS_ROOT:-~}\"",
+    "dev:web": "yarn workspace a2ui-over-mcp-filesystem-client run dev",
+    "build": "yarn workspace a2ui-over-mcp-filesystem-client run build",
+    "preview": "yarn workspace a2ui-over-mcp-filesystem-client run preview",
+    "test": "yarn workspace a2ui-over-mcp-filesystem-client run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
