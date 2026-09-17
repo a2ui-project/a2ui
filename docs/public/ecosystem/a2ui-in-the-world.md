@@ -72,6 +72,27 @@ GenUI SDK uses **A2UI as the underlying protocol** for communication between ser
 
 ---
 
+### Google Genkit: Full-Stack AI Framework
+
+[Genkit](https://genkit.dev/) is Google's open-source framework for building production-grade AI-powered applications and agents across **JavaScript/TypeScript**, **Go**, **Dart**, and **Python**. Genkit provides first-class A2UI support through dedicated server middleware and client helpers in its JavaScript/TypeScript (`@genkit-ai/a2ui`), Go (`github.com/firebase/genkit/go/plugins/a2ui/exp`), and Dart (`genkit_a2ui`) SDKs.
+
+**How Genkit uses A2UI:**
+
+Genkit's A2UI middleware turns standard AI agents into interactive UI generators without manual prompt engineering or brittle JSON parsing. Because emitted envelopes are byte-compatible across all Genkit SDKs, an agent written in TypeScript, Go, or Dart can stream interactive UI surfaces to web renderers (`@a2ui/lit`, `@a2ui/react`, `@a2ui/angular`) or Flutter (`genui`).
+
+- **Multi-language middleware**: Enable A2UI on any agent or prompt in TypeScript (`a2ui()`), Go (`&a2uix.Surfaces{}`), or Dart (`a2ui()`).
+- **Automatic catalog injection & validation**: Automatically injects your approved component definitions into system instructions and validates every streamed envelope against your catalog schema.
+- **Two-way interactive loop**: Client helpers (`a2uiEnvelopesFromParts` and `actionToMessage`) make it seamless to stream live UI updates and route user interactions back to the agent as the next conversation turn.
+- **Full observability**: Inspect every prompt, tool call, and streamed A2UI envelope in the local Genkit Developer UI (`genkit start`).
+
+**Try it:**
+
+- [Genkit A2UI Documentation](https://genkit.dev/docs/agents/a2ui) ([JavaScript/TypeScript](https://genkit.dev/docs/js/agents/a2ui) · [Go](https://genkit.dev/docs/go/agents/a2ui) · [Dart](https://genkit.dev/docs/dart/agents/a2ui))
+- [Building A2UI Agents with Genkit Guide](../guides/genkit.md)
+- [Full-Stack Dart & Flutter Sample](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart) | [Go A2UI Middleware Sample](https://github.com/genkit-ai/genkit/tree/main/go/samples/basic-middleware/a2ui)
+
+---
+
 ### Google ADK: Agent Development Kit
 
 The [Agent Development Kit](https://google.github.io/adk-docs/) (ADK) is Google's open-source framework for building and deploying AI agents. The built-in developer UI, [ADK Web](https://github.com/google/adk-web), includes native A2UI rendering.
@@ -166,6 +187,11 @@ As Google adopts AI across the company, A2UI provides a **standardized way for A
 The A2UI community is building exciting projects:
 
 ### Open Source Examples
+
+- **Dining Concierge (Genkit + Flutter)** ([genkit-ai/samples/a2ui-reservations_dart](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart))
+    - Full-stack pure Dart & Flutter interactive reservation agent
+    - Shared component catalog between server (`genkit_a2ui`) and client (`genui`)
+    - Live two-way streaming and multi-turn action handling
 
 - **Restaurant Finder** ([samples/agent/adk/restaurant_finder](../../../samples/agent/adk/restaurant_finder))
     - Table reservation with dynamic forms

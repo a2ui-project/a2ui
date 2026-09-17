@@ -19,8 +19,14 @@ User interactions from the client can be treated as new user input.
 
 ## Sample Agents
 
-The A2UI repository includes sample agents you can learn from:
+The A2UI ecosystem includes sample agents you can learn from:
 
+- [Dining Concierge (Genkit Dart + Flutter)](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart)
+    - Interactive restaurant reservation flow with live two-way streaming.
+    - Written with Google Genkit (`genkit_a2ui`) and rendered natively in Flutter with `genui`.
+- [Weather Assistant (Genkit Go)](https://github.com/genkit-ai/genkit/tree/main/go/samples/basic-middleware/a2ui)
+    - Server-side A2UI middleware sample in Go (`github.com/firebase/genkit/go/plugins/a2ui/exp`).
+    - See the [Genkit A2UI documentation](https://genkit.dev/docs/agents/a2ui) for TypeScript, Go, and Dart guides.
 - [Restaurant Finder](../../../samples/agent/adk/restaurant_finder)
     - Table reservations with forms.
     - Written with the ADK.
