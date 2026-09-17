@@ -19,10 +19,17 @@
     "ui",
     "renderer"
   ],
+  "files": [
+    "dist",
+    "!dist/*.md",
+    "!dist/LICENSE"
+  ],
   "scripts": {
     "build": "wireit",
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
-    "publish:package": "yarn build && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepublishOnly": "node -e \"console.error('Error: Do not publish this package directly. Use yarn publish:package instead.'); process.exit(1);\"",
+    "prepack": "node ../scripts/prepare-publish.mjs --prepack",
+    "postpack": "node ../scripts/prepare-publish.mjs --postpack",
+    "publish:package": "yarn build && yarn npm publish --access public",
     "demo": "yarn workspace @a2ui/angular-explorer dev",
     "test": "wireit",
     "test:unit": "wireit",

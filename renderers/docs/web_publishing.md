@@ -111,9 +111,8 @@ actual publishing will be sent automatically. Publishing normally takes around
 
 A2UI web packages depend on each other via `workspace:*` links during development. When `publish_npm.mjs` invokes a package's `publish:package` target, the following preparation steps occur:
 
-1. **Build & Metadata Transformation**: `prepare-publish.mjs` copies build output into `dist/`, replaces internal `workspace:` protocols with absolute semantic version ranges (e.g., `^0.10.3`), and strips development scripts/dependencies.
-2. **Boundary Isolation**: Because the root workspace config excludes `dist/` (`!**/dist`), an empty `yarn.lock` is initialized inside `dist/` to establish it as an independent package boundary.
-3. **Clean Upload**: `yarn npm publish --access public` executes strictly inside `dist/`, ensuring only clean production assets are uploaded.
+1. **Build**: `yarn build` compiles the package output into `dist/`.
+2. **Clean Upload**: `yarn npm publish --access public` executes directly from the package root. Yarn v4 automatically resolves internal `workspace:*` protocols to concrete semantic versions during packaging, includes only the production assets declared in `"files"`, and respects `.yarnrc.yml` to publish directly to the Google Cloud Artifact Registry without executing dynamic dependency resolution or modifying lockfiles.
 
 ---
 
