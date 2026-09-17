@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      https://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,23 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: a2ui_monorepo
-publish_to: none
-license: BSD-3-Clause
+name: simple_chat
+publish_to: "none"
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
   flutter: ">=3.35.7 <4.0.0"
 
-workspace:
-  - samples/client/flutter/restaurant_finder/app
-  - samples/client/flutter/restaurant_finder/e2e_test
-  - dart/a2ui_agent
-  - dart/a2ui_core
-  - dart/a2ui_flutter
-  - dart/a2ui_flutter/example
+resolution: workspace
+
+dependencies:
+  a2ui_core: ^0.2.0
+  a2ui_flutter: ^0.11.0-wip001
+  dartantic_ai: ^3.2.0
+  flutter:
+    sdk: flutter
+  flutter_markdown_plus: ^1.0.7
+  json_schema_builder: ^0.1.3
+  logging: ^1.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  network_image_mock: ^2.1.1
 
 flutter:
   uses-material-design: true
-dev_dependencies:
-  lints: ^6.1.0
+
+  assets:
+    - assets/climbing/

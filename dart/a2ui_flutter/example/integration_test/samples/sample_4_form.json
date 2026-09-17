@@ -1,0 +1,49 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "sample_4_form",
+      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "sample_4_form",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["field_type", "field_size", "submit_btn"]
+        },
+        {
+          "id": "field_type",
+          "component": "TextField",
+          "label": "Type",
+          "text": ""
+        },
+        {
+          "id": "field_size",
+          "component": "TextField",
+          "label": "Size",
+          "text": ""
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "child": "btn_text",
+          "action": {
+            "event": {
+              "name": "submit_form"
+            }
+          }
+        },
+        {
+          "id": "btn_text",
+          "component": "Text",
+          "text": "Submit Filters"
+        }
+      ]
+    }
+  }
+]

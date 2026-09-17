@@ -1,0 +1,54 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "sample_5_mixed",
+      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "sample_5_mixed",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["question", "btn_yes", "btn_no"]
+        },
+        {
+          "id": "question",
+          "component": "Text",
+          "text": "Do you want to proceed?"
+        },
+        {
+          "id": "btn_yes",
+          "component": "Button",
+          "child": "yes_text",
+          "action": {
+            "event": {"name": "proceed_yes"}
+          }
+        },
+        {
+          "id": "yes_text",
+          "component": "Text",
+          "text": "Yes, proceed"
+        },
+        {
+          "id": "btn_no",
+          "component": "Button",
+          "child": "no_text",
+          "variant": "borderless",
+          "action": {
+            "event": {"name": "proceed_no"}
+          }
+        },
+        {
+          "id": "no_text",
+          "component": "Text",
+          "text": "No, cancel"
+        }
+      ]
+    }
+  }
+]

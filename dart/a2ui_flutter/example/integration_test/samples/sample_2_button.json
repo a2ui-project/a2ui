@@ -1,0 +1,40 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "sample_2_button",
+      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "sample_2_button",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["the_button"]
+        },
+        {
+          "id": "the_button",
+          "component": "Button",
+          "child": "btn_label",
+          "action": {
+            "event": {
+              "name": "submit",
+              "context": {
+                "value": "Button Clicked"
+              }
+            }
+          }
+        },
+        {
+          "id": "btn_label",
+          "component": "Text",
+          "text": "Click Me"
+        }
+      ]
+    }
+  }
+]
