@@ -67,8 +67,8 @@ workflow.
 
 #### Versions come from git tags
 
-Each package has its own tag series, `python-a2ui-core-v*` and
-`python-a2ui-agent-sdk-v*`, and hatch-vcs derives the package version from it at
+Each package has its own tag series, `python/a2ui-core/v*` and
+`python/a2ui-agent-sdk/v*`, and hatch-vcs derives the package version from it at
 build time. Do not hand-edit a version anywhere; the `version.py` in each
 package only reads the version back out of the installed distribution metadata.
 
