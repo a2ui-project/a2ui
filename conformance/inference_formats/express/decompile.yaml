@@ -1,0 +1,163 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# --- Express Format Decompilation Conformance Tests ---
+
+- name: test_decompile_call_function_custom
+  description: Verifies decompiling callFunction with custom function not in catalog.
+  action: decompile
+  input:
+    version: "v1.0"
+    callFunction:
+      call: "myCustomRPC"
+      args:
+        argA: "hello"
+        argB: 42
+  expect_contains:
+    - 'myCustomRPC("hello", 42)'
+
+- name: test_decompile_button_function_call_action
+  description: Verifies decompiling local action functionCall in Button action.
+  action: decompile
+  input:
+    version: "v1.0"
+    createSurface:
+      surfaceId: "test_surf"
+      components:
+        - id: "root"
+          component: "Button"
+          child: "btnText"
+          action:
+            functionCall:
+              call: "openUrl"
+              args:
+                url: "https://example.com"
+        - id: "btnText"
+          component: "Text"
+          text: "Click me"
+  expect_contains:
+    - 'root = Button(btnText, _, openUrl("https://example.com"))'
+
+- name: test_decompile_functional_expression
+  description: Verifies decompiling dynamic functional expressions with call.
+  action: decompile
+  input:
+    version: "v1.0"
+    createSurface:
+      surfaceId: "test_surf"
+      components:
+        - id: "root"
+          component: "Text"
+          text:
+            call: "length"
+            args:
+              value:
+                path: "/name"
+              min: 5
+  expect_contains:
+    - "root = Text(length($/name, 5))"
+
+- name: test_decompile_check_with_custom_message
+  description: Verifies decompiling validation checks with custom error messages.
+  action: decompile
+  input:
+    version: "v1.0"
+    createSurface:
+      surfaceId: "test_surf"
+      components:
+        - id: "root"
+          component: "TextField"
+          label: "Name"
+          value:
+            path: "/name"
+          checks:
+            - condition:
+                call: "required"
+                args:
+                  value:
+                    path: "/name"
+              message: "Name is required!"
+  expect_contains:
+    - 'root = TextField("Name", $/name, ?required("Name is required!"))'
+
+- name: test_decompile_delete_surface
+  description: Verifies decompiling deleteSurface envelope.
+  action: decompile
+  input:
+    version: "v1.0"
+    deleteSurface:
+      surfaceId: "surf_1"
+  expect: 'deleteSurface("surf_1")'
+
+- name: test_decompile_update_data_model
+  description: Verifies decompiling updateDataModel envelope into data model assignments.
+  action: decompile
+  input:
+    version: "v1.0"
+    updateDataModel:
+      value:
+        foo: "bar"
+        num: 123
+  expect_contains:
+    - '$/foo = "bar"'
+    - "$/num = 123"
+
+- name: test_decompile_update_components
+  description: Verifies decompiling updateComponents envelope into component assignments.
+  action: decompile
+  input:
+    version: "v1.0"
+    updateComponents:
+      surfaceId: "main"
+      components:
+        - id: "root"
+          component: "Text"
+          text: "Updated"
+  expect_contains:
+    - 'root = Text("Updated")'
+
+- name: test_decompile_call_function_list_args
+  description: Verifies decompiling callFunction with a list of arguments directly.
+  action: decompile
+  input:
+    version: "v1.0"
+    callFunction:
+      call: "myCustomFunc"
+      args: ["hello", "middle", "world"]
+  expect: 'myCustomFunc("hello", "middle", "world")'
+
+- name: test_decompile_string_quotes_and_escapes
+  description: Verifies decompiler formatting choices for quotes, newlines, and raw paths.
+  action: decompile
+  input:
+    version: "v1.0"
+    createSurface:
+      surfaceId: "main"
+      components:
+        - id: "root"
+          component: "Column"
+          children: ["t1", "t2", "t3"]
+        - id: "t1"
+          component: "Text"
+          text: 'hello "world"'
+        - id: "t2"
+          component: "Text"
+          text: "hello \n world"
+        - id: "t3"
+          component: "Text"
+          text: 'C:\path\to\file'
+  expect_contains:
+    - 't1 = Text("hello \"world\"")'
+    - "t2 = Text(\"\"\"hello \n world\"\"\")"
+    - 't3 = Text(r"C:\path\to\file")'

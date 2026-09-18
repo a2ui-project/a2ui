@@ -1,0 +1,767 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# --- Express Format Compilation Conformance Tests ---
+
+- name: test_compile_basic_components
+  description: Validates compiling basic components, text fields, and validation checks.
+  action: compile
+  surface_id: "test_surf"
+  input: |
+    root = Column([repField, valueField])
+    repField = TextField("Representative", $/form/rep, "Enter name")
+    valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "test_surf"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["repField", "valueField"]
+          - id: "repField"
+            component: "TextField"
+            label: "Representative"
+            value:
+              path: "/form/rep"
+            placeholder: "Enter name"
+          - id: "valueField"
+            component: "TextField"
+            label: "Deal Value"
+            value:
+              path: "/form/value"
+            placeholder: "0.00"
+            variant: "number"
+            checks:
+              - condition:
+                  call: "required"
+                  args:
+                    value:
+                      path: "/form/value"
+                message: "Required check failed"
+
+- name: test_compile_format_string_and_actions
+  description: Validates compilation of string interpolation and interactive actions.
+  action: compile
+  input: |
+    root = Column([welcome, saveButton])
+    welcome = Text(formatString("Welcome, ${/user/name}!"))
+    saveButton = Button(saveLabel, "primary", Event("submitDeal", {rep: $/form/rep}))
+    saveLabel = Text("Save")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["welcome", "saveButton"]
+          - id: "welcome"
+            component: "Text"
+            text:
+              call: "formatString"
+              args:
+                value: "Welcome, ${/user/name}!"
+          - id: "saveButton"
+            component: "Button"
+            child: "saveLabel"
+            variant: "primary"
+            action:
+              event:
+                name: "submitDeal"
+                context:
+                  rep:
+                    path: "/form/rep"
+          - id: "saveLabel"
+            component: "Text"
+            text: "Save"
+
+- name: test_compile_standalone_function_call
+  description: Validates compilation of standalone function calls into callFunction envelopes.
+  action: compile
+  input: 'openUrl("https://example.com")'
+  expect:
+    - version: "v1.0"
+      callFunction:
+        call: "openUrl"
+        args:
+          url: "https://example.com"
+
+- name: test_compile_map_variable_inlining
+  description: Validates compiling variable assignments holding map literals and inlining them.
+  action: compile
+  input: |
+    root = Tabs([tab1])
+    tab1 = {title: "Overview", child: contentCol}
+    contentCol = Column([])
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Tabs"
+            tabs:
+              - title: "Overview"
+                child: "contentCol"
+          - id: "contentCol"
+            component: "Column"
+            children: []
+
+- name: test_compile_event_and_list_variable_inlining
+  description: Validates that Event helper assignments and custom list arrays assigned to variables inline correctly.
+  action: compile
+  input: |
+    root = Column([btn1, btn2])
+    btn1 = Button(btn1Label, "primary", myAction)
+    btn1Label = Text("Save")
+    btn2 = Button(btn2Label, "borderless", closeAction)
+    btn2Label = Text("Cancel")
+    myAction = Event("submit", {val: "42"})
+    closeAction = Event("close")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1", "btn2"]
+          - id: "btn1"
+            component: "Button"
+            child: "btn1Label"
+            variant: "primary"
+            action:
+              event:
+                name: "submit"
+                context:
+                  val: "42"
+          - id: "btn1Label"
+            component: "Text"
+            text: "Save"
+          - id: "btn2"
+            component: "Button"
+            child: "btn2Label"
+            variant: "borderless"
+            action:
+              event:
+                name: "close"
+                context: {}
+          - id: "btn2Label"
+            component: "Text"
+            text: "Cancel"
+
+- name: test_compile_skipped_and_omitted_arguments
+  description: Validates skipped (_) and trailing omitted positional arguments compile correctly.
+  action: compile
+  input: |
+    root = Column([btn1, btn2])
+    btn1 = Button(btn1_label, _, Event("click"))
+    btn1_label = Text("Click")
+    btn2 = Button(btn2_label)
+    btn2_label = Text("Submit")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1", "btn2"]
+          - id: "btn1"
+            component: "Button"
+            child: "btn1_label"
+            action:
+              event:
+                name: "click"
+                context: {}
+          - id: "btn1_label"
+            component: "Text"
+            text: "Click"
+          - id: "btn2"
+            component: "Button"
+            child: "btn2_label"
+          - id: "btn2_label"
+            component: "Text"
+            text: "Submit"
+
+- name: test_compile_delete_surface
+  description: Validates standalone deleteSurface compilation.
+  action: compile
+  input: 'deleteSurface("my-surface-123")'
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "my-surface-123"
+
+- name: test_compile_rootless_update_data_model
+  description: Validates rootless updateDataModel compilation.
+  action: compile
+  surface_id: "data-surf"
+  input: |
+    $/form/firstName = "Alice"
+    $/form/lastName = "Smith"
+    $/age = 25
+  expect:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "data-surf"
+        path: "/"
+        value:
+          form:
+            firstName: "Alice"
+            lastName: "Smith"
+          age: 25
+
+- name: test_compile_template_helper
+  description: Validates _template helper list compilation.
+  action: compile
+  input: |
+    root = Card(breedList)
+    breedList = List(_template($/breeds, breedTemplate))
+    breedTemplate = Image($url)
+    $/breeds = [{"url": "https://example.com/poodle.jpg"}]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        dataModel:
+          breeds:
+            - url: "https://example.com/poodle.jpg"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "breedList"
+          - id: "breedList"
+            component: "List"
+            children:
+              path: "/breeds"
+              componentId: "breedTemplate"
+          - id: "breedTemplate"
+            component: "Image"
+            url:
+              path: "url"
+
+- name: test_compile_nested_array_of_maps
+  description: Validates map literal parsing and nested array of maps in data model.
+  action: compile
+  input: '$/form/data = [{"id": 1, "meta": {"name": "Alice"}}]'
+  expect:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "main"
+        path: "/"
+        value:
+          form:
+            data:
+              - id: 1
+                meta:
+                  name: "Alice"
+
+- name: test_compile_equals_in_string
+  description: Validates string containing '=' character inside assignment value.
+  action: compile
+  input: |
+    welcome = Text("Hello = World")
+    root = Column([welcome])
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["welcome"]
+          - id: "welcome"
+            component: "Text"
+            text: "Hello = World"
+
+- name: test_compile_bare_dollar_path
+  description: Validates bare $ path compilation.
+  action: compile
+  input: "root = Text($)"
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              path: ""
+
+- name: test_compile_nested_checks
+  description: Validates nested check compilation and active value path injection.
+  action: compile
+  input: 'root = TextField("Label", $/form/email, "placeholder", "shortText", ?and([?required, ?email]))'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Label"
+            value:
+              path: "/form/email"
+            placeholder: "placeholder"
+            variant: "shortText"
+            checks:
+              - condition:
+                  call: "and"
+                  args:
+                    values:
+                      - call: "required"
+                        args:
+                          value:
+                            path: "/form/email"
+                      - call: "email"
+                        args:
+                          value:
+                            path: "/form/email"
+                message: "And check failed"
+
+- name: test_compile_inline_component
+  description: Validates inline component constructor unrolling.
+  action: compile
+  input: 'root = Row([Text("Soup"), Text("$8")])'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Row"
+            children: ["_inline_1", "_inline_2"]
+          - id: "_inline_1"
+            component: "Text"
+            text: "Soup"
+          - id: "_inline_2"
+            component: "Text"
+            text: "$8"
+
+- name: test_compile_comments
+  description: Validates comment line skipping (#, // and /* */).
+  action: compile
+  input: |
+    # This is a comment at the top
+    /* Multi-line block comment
+       that spans multiple lines */
+    root = Row([btn]) /* Inline block comment */ # Inline comment here
+    // Another comment block
+    btn = Button("Submit") // Inline comment 2
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Row"
+            children: ["btn"]
+          - id: "btn"
+            component: "Button"
+            child: "Submit"
+
+- name: test_compile_custom_validation_messages
+  description: Validates custom validation error messages.
+  action: compile
+  input: 'root = TextField("Name", $/name, _, _, ?required("Custom required!"))'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Name"
+            value:
+              path: "/name"
+            checks:
+              - condition:
+                  call: "required"
+                  args:
+                    value:
+                      path: "/name"
+                message: "Custom required!"
+
+- name: test_compile_fallback_function
+  description: Validates unregistered fallback function compilation.
+  action: compile
+  input: 'root = TextField("Label", my_unregistered_func(1, 2))'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Label"
+            value:
+              call: "my_unregistered_func"
+              args: [1, 2]
+
+- name: test_compile_v0_9_multi_message
+  description: Validates compilation targeting A2UI v0.9 emits separate messages.
+  action: compile
+  version: "v0.9"
+  surface_id: "surf_v09"
+  input: |
+    root = Column([txt])
+    txt = Text("Hello World")
+    $/user/name = "Alice"
+  expect:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "surf_v09"
+        catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "surf_v09"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["txt"]
+          - id: "txt"
+            component: "Text"
+            text: "Hello World"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "surf_v09"
+        path: "/"
+        value:
+          user:
+            name: "Alice"
+
+- name: test_compile_v0_9_1_target
+  description: Validates compilation targeting A2UI v0.9.1 emits v0.9.1 version tags.
+  action: compile
+  version: "v0.9.1"
+  surface_id: "surf_v091"
+  input: 'root = Text("Hi")'
+  expect:
+    - version: "v0.9.1"
+      createSurface:
+        surfaceId: "surf_v091"
+        catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    - version: "v0.9.1"
+      updateComponents:
+        surfaceId: "surf_v091"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hi"
+
+- name: test_compile_v0_9_standalone_function_call_error
+  description: Validates that standalone function calls raise an error in v0.9.
+  action: compile
+  version: "v0.9"
+  input: 'openUrl("https://example.com")'
+  expect_error:
+    category: "CompileError"
+    message: "Standalone function calls are not supported in A2UI v0.9"
+
+- name: test_compile_error_syntax_unrecognized_char
+  description: Validates that unrecognized syntax characters raise an error.
+  action: compile
+  input: "root = Column(@rep)"
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_error_parser_expression
+  description: Validates that malformed argument expressions raise an error.
+  action: compile
+  input: |
+    root = Column(repField)
+    repField = TextField(,)
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_error_template_missing_args
+  description: Validates that template helper with missing arguments raises an error.
+  action: compile
+  input: "root = List(_template($/path))"
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_error_unknown_property
+  description: Validates that unknown properties raise an error.
+  action: compile
+  input: 'root = Text("Hi", unknownProp="val")'
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_error_duplicate_property
+  description: Validates that duplicate property definitions raise an error.
+  action: compile
+  input: 'root = Text("Hi", text="Hi again")'
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_error_invalid_param_count
+  description: Validates that too many positional parameters raise an error.
+  action: compile
+  input: 'root = Text("Hi", "extra1", "extra2", "extra3", "extra4")'
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_error_forbidden_databinding
+  description: Validates that databinding on properties that forbid it raises an error.
+  action: compile
+  input: |
+    root = Column([txt], align=$/bad/align)
+    txt = Text("Hi")
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_error_undefined_root
+  description: Validates that omitting the root component raises an error.
+  action: compile
+  input: 'myComp = Text("Hi")'
+  expect_error:
+    category: "CompileError"
+
+- name: test_compile_semicolons
+  description: Validates optional semicolons at the end of statements.
+  action: compile
+  input: |
+    root = Column([btn1]);
+    btn1 = Button("Click Me");
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1"]
+          - id: "btn1"
+            component: "Button"
+            child: "Click Me"
+
+- name: test_compile_trailing_commas
+  description: Validates trailing commas in lists, maps, calls, and checks.
+  action: compile
+  input: |
+    root = Column([btn1, btn2,],);
+    btn1 = Button("Label", "primary", myAction,);
+    btn2 = TextField("Input", $/val, "placeholder", _, ?numeric(1, 10,),);
+    myAction = Event("click", {a: 1, b: 2,},);
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1", "btn2"]
+          - id: "btn1"
+            component: "Button"
+            child: "Label"
+            variant: "primary"
+            action:
+              event:
+                name: "click"
+                context:
+                  a: 1
+                  b: 2
+          - id: "btn2"
+            component: "TextField"
+            label: "Input"
+            value:
+              path: "/val"
+            placeholder: "placeholder"
+            checks:
+              - condition:
+                  call: "numeric"
+                  args:
+                    value:
+                      path: "/val"
+                    min: 1
+                    max: 10
+                message: "Numeric check failed"
+
+- name: test_compile_line_continuation
+  description: Validates line continuation across newlines.
+  action: compile
+  input: |
+    root
+      =
+      Column
+      (
+        [
+          btn1
+        ]
+      )
+    btn1 = Text("Hello World")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1"]
+          - id: "btn1"
+            component: "Text"
+            text: "Hello World"
+
+- name: test_compile_strict_enum_validation
+  description: Validates that an invalid enum option raises an error.
+  action: compile
+  input: 'root = Button("Click", "invalid_variant")'
+  expect_error:
+    category: "CompileError"
+    message: "is not a valid enum choice for property 'variant'"
+
+- name: test_compile_nested_databinding_validation_direct
+  description: Validates that databinding on a static property raises an error.
+  action: compile
+  input: 'root = Button("Click", $/some/path)'
+  expect_error:
+    category: "CompileError"
+    message: "does not support dynamic data bindings"
+
+- name: test_compile_nested_databinding_validation_list
+  description: Validates that nested databinding inside a list on a static property raises an error.
+  action: compile
+  input: 'root = Button("Click", [$/some/path])'
+  expect_error:
+    category: "CompileError"
+    message: "does not support dynamic data bindings"
+
+- name: test_compile_nested_databinding_validation_dict
+  description: Validates that deeply nested databinding on a static property raises an error.
+  action: compile
+  input: 'root = Button("Click", [{label: "Click", value: $/some/path}])'
+  expect_error:
+    category: "CompileError"
+    message: "does not support dynamic data bindings"
+
+- name: test_compile_keyword_arguments
+  description: Validates compilation of Express DSL statements using keyword arguments.
+  action: compile
+  input: |
+    root = Card(child=main_col)
+    main_col = Column(children=[t1, b1], align="center")
+    t1 = Text(text="Save Changes", variant="body")
+    b1 = Button(child=Text("Click"), action=Event("save", {id: 42}))
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "main_col"
+          - id: "main_col"
+            component: "Column"
+            children: ["t1", "b1"]
+            align: "center"
+          - id: "t1"
+            component: "Text"
+            text: "Save Changes"
+            variant: "body"
+          - id: "b1"
+            component: "Button"
+            child: "_inline_1"
+            action:
+              event:
+                name: "save"
+                context:
+                  id: 42
+          - id: "_inline_1"
+            component: "Text"
+            text: "Click"
+
+- name: test_compile_flexible_hybrid_nesting
+  description: Validates compilation of Express DSL statements using inline/hybrid nested component syntax.
+  action: compile
+  input: |
+    card1 = Card(child=Text("Inside Card"))
+    root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event("submit"))], align="center")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["_inline_2", "card1", "_inline_3"]
+            align: "center"
+          - id: "card1"
+            component: "Card"
+            child: "_inline_1"
+          - id: "_inline_1"
+            component: "Text"
+            text: "Inside Card"
+          - id: "_inline_2"
+            component: "Text"
+            text: "Top Header"
+          - id: "_inline_3"
+            component: "Button"
+            child: "Click"
+            action:
+              event:
+                name: "submit"
+                context: {}
+
+- name: test_compile_surface_directive
+  description: Validates surface directive sets surfaceId and catalogId in compiled output.
+  action: compile
+  input: |
+    surface(surfaceId="custom-surface-123", catalogId="custom-catalog-uri")
+    root = Text("Hello Surface")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "custom-surface-123"
+        catalogId: "custom-catalog-uri"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello Surface"
+
+- name: test_compile_delete_surface_kwargs
+  description: Validates deleteSurface directive with keyword argument surfaceId.
+  action: compile
+  input: 'deleteSurface(surfaceId="custom-surface-456")'
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "custom-surface-456"
+
+- name: test_compile_multi_surface
+  description: Validates sequential multi-surface scopes in a single DSL block.
+  action: compile
+  input: |
+    surface("header-surface")
+    root = Text("Header")
+
+    surface("body-surface")
+    root = Text("Body")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "header-surface"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Header"
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "body-surface"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Body"
