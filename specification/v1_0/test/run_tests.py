@@ -28,9 +28,12 @@ SCHEMA_DIR = os.path.join(SPEC_DIR, "json")
 CASES_DIR = os.path.join(TEST_DIR, "cases")
 TEMP_FILE = os.path.join(TEST_DIR, "temp_data.json")
 TEMP_CATALOG_FILE = os.path.join(TEST_DIR, "catalog.json")
+# Catalogs are versioned independently of the protocol and live under the
+# top-level catalogs/ directory.
+BASIC_CATALOG_FILE = os.path.join(REPO_ROOT, "catalogs/basic/v1/catalog.json")
 
 # Map of schema filenames to their full paths
-# Note: catalog.json is dynamically created from catalogs/basic/catalog.json
+# Note: catalog.json is dynamically created from catalogs/basic/v1/catalog.json
 SCHEMAS = {
     "agent_to_renderer.json": os.path.join(SCHEMA_DIR, "agent_to_renderer.json"),
     "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
@@ -40,15 +43,20 @@ SCHEMAS = {
 }
 
 
-def setup_catalog_alias(catalog_file="catalogs/basic/catalog.json"):
+def setup_catalog_alias(catalog_file=None):
     """
-    Creates a temporary catalog.json from catalogs/basic/catalog.json (or the
-    specified file) with the $id modified to match what agent_to_renderer.json
+    Creates a temporary catalog.json from catalogs/basic/v1/catalog.json (or
+    the specified file, resolved relative to the test directory and then the
+    repository root) with the $id modified to match what agent_to_renderer.json
     expects.
     """
-    basic_catalog_path = os.path.join(SPEC_DIR, catalog_file)
-    if not os.path.exists(basic_catalog_path):
+    if catalog_file is None:
+        catalog_file = BASIC_CATALOG_FILE
+        basic_catalog_path = BASIC_CATALOG_FILE
+    else:
         basic_catalog_path = os.path.join(TEST_DIR, catalog_file)
+        if not os.path.exists(basic_catalog_path):
+            basic_catalog_path = os.path.join(REPO_ROOT, catalog_file)
 
     if not os.path.exists(basic_catalog_path):
         print(
@@ -128,8 +136,7 @@ def run_suite(suite_path):
             print(f"Error parsing JSON in {suite_path}: {e}")
             return 0, 0
 
-    catalog_file = suite.get("catalog", "catalogs/basic/catalog.json")
-    setup_catalog_alias(catalog_file)
+    setup_catalog_alias(suite.get("catalog"))
 
     try:
         schema_name = suite.get("schema", "agent_to_renderer.json")
@@ -232,10 +239,7 @@ def validate_catalogs_structure():
         json.dump(validator_schema, f)
 
     catalogs_to_validate = [
-        (
-            "catalogs/basic/catalog.json",
-            os.path.join(SPEC_DIR, "catalogs/basic/catalog.json"),
-        ),
+        ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -279,10 +283,7 @@ def validate_catalogs_identifiers():
     strictly conform to Unicode UAX #31 identifier naming rules.
     """
     catalogs_to_validate = [
-        (
-            "catalogs/basic/catalog.json",
-            os.path.join(SPEC_DIR, "catalogs/basic/catalog.json"),
-        ),
+        ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
