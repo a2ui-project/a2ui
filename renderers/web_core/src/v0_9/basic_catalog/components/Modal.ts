@@ -132,4 +132,5 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
 export const A2uiModal: WebComponentImplementation = {
   ...ModalApi,
   tagName: 'a2ui-modal',
+  element: A2uiLitModal,
 };

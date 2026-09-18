@@ -99,4 +99,5 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
 export const A2uiIcon: WebComponentImplementation = {
   ...IconApi,
   tagName: 'a2ui-icon',
+  element: A2uiIconElement,
 };

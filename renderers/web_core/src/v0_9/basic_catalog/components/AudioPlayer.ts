@@ -66,4 +66,5 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof Au
 export const A2uiAudioPlayer: WebComponentImplementation = {
   ...AudioPlayerApi,
   tagName: 'a2ui-audioplayer',
+  element: A2uiAudioPlayerElement,
 };

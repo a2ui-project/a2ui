@@ -142,4 +142,5 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
 export const A2uiText: WebComponentImplementation = {
   ...TextApi,
   tagName: 'a2ui-basic-text',
+  element: A2uiBasicTextElement,
 };

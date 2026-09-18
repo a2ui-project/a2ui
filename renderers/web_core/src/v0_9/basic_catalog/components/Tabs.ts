@@ -111,4 +111,5 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
 export const A2uiTabs: WebComponentImplementation = {
   ...TabsApi,
   tagName: 'a2ui-tabs',
+  element: A2uiLitTabs,
 };

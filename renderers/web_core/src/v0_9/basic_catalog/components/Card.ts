@@ -62,4 +62,5 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
 export const A2uiCard: WebComponentImplementation = {
   ...CardApi,
   tagName: 'a2ui-card',
+  element: A2uiCardElement,
 };

@@ -82,4 +82,5 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
 export const A2uiImage: WebComponentImplementation = {
   ...ImageApi,
   tagName: 'a2ui-image',
+  element: A2uiImageElement,
 };

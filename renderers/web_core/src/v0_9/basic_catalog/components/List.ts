@@ -93,4 +93,5 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> 
 export const A2uiList: WebComponentImplementation = {
   ...ListApi,
   tagName: 'a2ui-list',
+  element: A2uiListElement,
 };
