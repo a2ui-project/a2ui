@@ -17,7 +17,11 @@
 import {nothing} from 'lit';
 import {html, unsafeStatic} from 'lit/static-html.js';
 import {ComponentContext, Catalog} from '@a2ui/web_core/v0_9';
-import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import {
+  isWebComponentImplementation,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '@a2ui/web_core/v0_9/universal';
 
 /**
  * Pure function that acts as a generic container for A2UI components in Lit.
@@ -33,6 +37,11 @@ export function renderA2uiNode(context: ComponentContext, catalog: Catalog<any>)
   if (!implementation) {
     console.warn(`Component implementation not found for type: ${type}`);
     return nothing;
+  }
+
+  // Basic catalog elements are defined on first render rather than on import.
+  if (isWebComponentImplementation(implementation)) {
+    registerUniversalElement(implementation);
   }
 
   const tagName = (implementation as WebComponentImplementation).tagName;

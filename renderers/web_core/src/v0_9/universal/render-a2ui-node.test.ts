@@ -94,6 +94,15 @@ describe('renderA2uiNode', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
+  it('defines the custom element on first render', () => {
+    assert.strictEqual(customElements.get('a2ui-mock-button'), undefined);
+
+    const context = new ComponentContext(surface, 'btn1');
+    renderA2uiNode(context, testCatalog);
+
+    assert.strictEqual(customElements.get('a2ui-mock-button'), MockButtonElement);
+  });
+
   it('renders a Lit TemplateResult with the registered component tagName and context', () => {
     const context = new ComponentContext(surface, 'btn1');
     const result = renderA2uiNode(context, testCatalog);
