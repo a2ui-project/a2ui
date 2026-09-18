@@ -55,11 +55,10 @@ class ComponentReference {
 /// documents write it, and the `REF:` description pointer that catalogs built
 /// in Dart carry (see `CommonSchemas`). Local `$ref`s are followed first
 /// against the component's own `$defs`, then against the catalog document.
-/// Combinator branches use the same classification as the node resolver.
 ///
-/// Unlike the resolver, this does not treat an unmarked `componentId`-and-
-/// `path` object as a child list. Validation rejects a whole batch, so it
-/// keeps to what the catalog states rather than what a schema resembles.
+/// An unmarked `componentId`-and-`path` object is not treated as a child
+/// list: validation rejects a whole batch, so it keeps to what the catalog
+/// states rather than what a schema resembles.
 Map<String, ComponentRefFields> extractComponentRefFields<
   C extends ComponentApi,
   F extends FunctionApi

@@ -31,10 +31,8 @@ const String placeholderType = 'Placeholder';
 ///   [ComponentNode.impl] is set.
 /// - [pending]: the component definition has not arrived; replaced at the same
 ///   child position when it does.
-/// - [unknownType]: the definition arrived but its type has no catalog
-///   entry; an `UNKNOWN_COMPONENT_TYPE` error was dispatched.
-/// - [cyclic]: the reference repeats one of the node's own ancestors; a
-///   `CYCLIC_REFERENCE` error was dispatched.
+/// - [unknownType]: the definition arrived but its type has no catalog entry.
+/// - [cyclic]: the reference repeats one of the node's own ancestors.
 enum NodeState {
   resolved('resolved'),
   pending('pending'),
@@ -54,13 +52,11 @@ typedef NodeProps = Map<String, Object?>;
 ///
 /// A node's [props] hold resolved values: a [ResolvedBinding]
 /// (snapshot plus optional write) for each dynamic value, a
-/// `Future<void> Function()` closure for each action, which resolves the
-/// action's context at call time and dispatches it, and live
-/// [ComponentNode] references (or lists of them) for supported
-/// child-reference positions. Deeper single references
-/// remain id strings, and deeper `ChildList` values remain scoped [ChildNode]
-/// descriptors, not mounted nodes. To traverse the tree, follow child
-/// references from the resolver's root.
+/// `Future<void> Function()` closure for each action, and live
+/// [ComponentNode] references (or lists of them) for mounted child
+/// references. Deeper single references remain id strings, and deeper
+/// `ChildList` values remain scoped [ChildNode] descriptors, not mounted
+/// nodes. To traverse the tree, follow child references from the root.
 ///
 /// Emission contract: [props] emits when this node's own resolved properties
 /// change, including when a child *reference* is replaced (a placeholder
@@ -103,8 +99,8 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   /// map, are detached, unmodifiable snapshots. Write through
   /// [WritableBinding.set] or invoke action closures instead of mutating them.
   ///
-  /// See `GenericBinder.resolvedProps` for omitted and null dynamic-property
-  /// behavior.
+  /// A dynamic property the payload omits or sets to null is present as a
+  /// read-only binding of null.
   ReadonlySignal<NodeProps> get props;
 
   /// Fires exactly once, when this node is disposed. Listener failures are
@@ -249,8 +245,8 @@ final class MutableComponentNode<T extends ComponentApi>
   }
 }
 
-// Destruction must attempt every listener. Keep this policy local to nodes:
-// ordinary EventNotifier events still propagate listener exceptions unchanged.
+// Destruction must attempt every listener, so a failure is logged instead of
+// propagated.
 class _DestructionListeners implements EventListenable<void> {
   final List<void Function(void)> _listeners = [];
 
@@ -279,11 +275,10 @@ class _DestructionListeners implements EventListenable<void> {
   }
 }
 
-/// Whether two prop values count as unchanged for the shallow comparison in
-/// [MutableComponentNode.setProps]: reference identity, with value equality
-/// for primitives (equal strings are not always [identical], so identity
-/// alone would report equal-value updates as changes), bindings and unresolved
-/// child-reference descriptors.
+/// Whether two prop values count as unchanged: reference identity, with value
+/// equality for primitives (equal strings are not always [identical], so
+/// identity alone would report equal-value updates as changes), bindings and
+/// unresolved child-reference descriptors.
 bool sameValue(Object? a, Object? b) {
   if (identical(a, b)) return true;
   if (a is String && b is String) return a == b;

@@ -65,8 +65,8 @@ class SurfaceModel<T extends ComponentApi> {
       );
       _onAction.emit(action);
     }
-    // functionCall payloads run inside GenericBinder's payload resolution;
-    // only server-bound events are emitted here.
+    // Only event payloads are emitted; functionCall payloads are not
+    // dispatched here.
   }
 
   /// Dispatches an error from this surface.

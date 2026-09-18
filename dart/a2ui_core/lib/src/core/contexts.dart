@@ -45,8 +45,7 @@ class DataContext {
   final String path;
 
   /// With [onError], failed invocations are reported and resolve to null.
-  /// Without it, the original exception is rethrown; reactive reads follow
-  /// the signal library's exception handling.
+  /// Without it, the original exception is rethrown.
   DataContext(
     this.dataModel,
     this._invoke,

@@ -38,8 +38,7 @@ final class NestedRef extends RefKind {
 
   const NestedRef(this.fields, {this.includesIds = false});
 
-  /// Single-reference keys mounted by the node resolver. Nested child lists
-  /// remain unresolved descriptors, but graph validation still checks them.
+  /// The item properties holding a single reference.
   Set<String> get keys => {
     for (final entry in fields.entries)
       if (entry.value is SingleRef) entry.key,
@@ -140,7 +139,7 @@ class ReferenceSchemaReader {
   }
 
   /// Classifies the supported component-reference positions. Self-describing
-  /// top-level `id` and `component` properties never create graph edges.
+  /// top-level `id` and `component` properties are never references.
   RefFields fields() {
     final result = <String, RefKind>{};
     for (final MapEntry<String, Object?> entry in properties(

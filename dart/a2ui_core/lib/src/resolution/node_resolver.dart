@@ -95,11 +95,10 @@ class _NodeRecord<T extends ComponentApi> {
 /// torn down when its parent stops referencing it or the resolver is
 /// disposed.
 ///
-/// Reference classification is shared with graph validation for wire `$ref`
-/// pointers, Dart `REF:` descriptions, and local aliases. Structural
-/// `ChildList` shapes (an object schema declaring `componentId` and `path`)
-/// are recognized by the resolver only. An unmarked string property is not a
-/// child reference.
+/// Child references are recognized by wire `$ref` pointers, Dart `REF:`
+/// descriptions, local aliases, and structural `ChildList` shapes (an object
+/// schema declaring `componentId` and `path`). An unmarked string property is
+/// not a child reference.
 ///
 /// Supported positions are top-level single references, top-level `ChildList`
 /// markers or structural unions, top-level arrays of component-id references,
@@ -240,8 +239,8 @@ class NodeResolver<T extends ComponentApi> {
       ),
     );
     if (_updateDepth == 0 && !_dispatchingErrors && !_errorFlushScheduled) {
-      // A binder notification normally drains this synchronously after the
-      // rebuild finishes. An unchanged null result may emit no notification.
+      // Normally drained synchronously once the rebuild finishes; a rebuild
+      // that changes no binding value emits nothing, so schedule a fallback.
       _errorFlushScheduled = true;
       scheduleMicrotask(() {
         _errorFlushScheduled = false;
@@ -501,9 +500,9 @@ class NodeResolver<T extends ComponentApi> {
     record.binder = binder;
     final void Function() unsubscribe;
     // subscribe fires synchronously with the current value, which seeds the
-    // first materialization. That seeding can throw (a child's binder may
-    // reject a malformed property), so the partially registered record has to
-    // be torn down before the exception reaches the caller.
+    // first materialization. That seeding can throw, so the partially
+    // registered record has to be torn down before the exception reaches the
+    // caller.
     try {
       unsubscribe = binder.resolvedProps.subscribe((_) {
         _runUpdate(() => _materialize(record));
@@ -908,7 +907,7 @@ const _idPartEscapes = {
 };
 
 /// Escapes id parts in one pass so literal suffixes and scopes cannot collide
-/// with composed ids. Matches the TypeScript node layer's escaping scheme.
+/// with composed ids.
 String _escapeIdPart(String part) => part.replaceAllMapped(
   RegExp(r'[~#\[\]>@]'),
   (match) => _idPartEscapes[match[0]]!,

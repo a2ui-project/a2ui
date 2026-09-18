@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// A snapshot of a dynamic property value in a node's props.
+/// A snapshot of a dynamic property value.
 ///
-/// When the underlying value changes, the node emits a new binding. Existing
+/// When the underlying value changes, a new binding is emitted. Existing
 /// bindings retain their snapshot values.
 class ResolvedBinding<T> {
   final T value;
@@ -24,10 +24,8 @@ class ResolvedBinding<T> {
   Type get _equalityType => ResolvedBinding;
 
   /// Bindings compare by writability, authored path, and snapshot value, so
-  /// the shallow comparison in the node's props update can suppress no-op
-  /// emissions even though each update constructs a new binding instance.
-  /// Lists and maps compare structurally; other values use Dart's `==`
-  /// operator.
+  /// two instances built from the same payload state are equal. Lists and
+  /// maps compare structurally; other values use Dart's `==` operator.
   @override
   bool operator ==(Object other) {
     if (other is! ResolvedBinding) return false;
@@ -47,7 +45,8 @@ final class WritableBinding<T> extends ResolvedBinding<T> {
   /// Writes through to the bound data path.
   final void Function(T) set;
 
-  /// The authored data path, not resolved against the node's data scope.
+  /// The data path as authored in the payload, not resolved to an absolute
+  /// path.
   final String path;
 
   const WritableBinding(super.value, this.set, this.path);

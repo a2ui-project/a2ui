@@ -19,8 +19,8 @@ import '../primitives/reference_schema.dart';
 export '../primitives/reference_schema.dart'
     show ListRef, NestedRef, RefFields, RefKind, SingleRef;
 
-/// Uses graph validation's schema classification plus the resolver-only
-/// structural `ChildList` recognition.
+/// Classifies the child-reference properties of [schema], including
+/// structural `ChildList` shapes.
 ///
 /// Classification is not cached by schema identity: local aliases can resolve
 /// differently when the same schema is used in different catalog documents.

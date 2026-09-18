@@ -37,9 +37,7 @@ class BehaviorNode {
 /// An unresolved child reference and the data scope it would render against.
 ///
 /// The binder emits one per entry of a static `ChildList` array or expanded
-/// template. The node resolver mounts the positions it supports and publishes
-/// the rest unchanged; a descriptor is not a mounted node and owns no
-/// lifecycle.
+/// template. A descriptor is not a mounted node and owns no lifecycle.
 class ChildNode {
   /// The referenced component id.
   final String id;
@@ -74,9 +72,9 @@ class GenericBinder {
   bool _isConnected = false;
   bool _disposed = false;
 
-  // Actions resolve to closures, which downstream value comparison cannot
-  // inspect; reusing the closure while the raw payload is unchanged keeps
-  // unchanged action props identical across rebuilds.
+  // Actions resolve to closures, which cannot be compared by value; reusing
+  // the closure while the raw payload is unchanged keeps unchanged action
+  // props identical across rebuilds.
   final Map<String, ({Object? raw, Future<void> Function() closure})>
   _actionClosures = {};
   static const DeepCollectionEquality _deepEquals = DeepCollectionEquality();
@@ -486,15 +484,13 @@ class GenericBinder {
   }
 }
 
-/// The maximum number of children a `ChildList` expands to. Bounds resource
-/// use when a template is bound to a very large array and matches
-/// `MAX_DYNAMIC_CHILD_LIST_SIZE` in the TypeScript core.
+/// The maximum number of children a `ChildList` expands to, bounding resource
+/// use when a template is bound to a very large array.
 const int maxDynamicChildListSize = 10000;
 
-/// Copies container values handed to [WritableBinding.set], so a consumer
-/// that writes a published snapshot back, or a partial copy still holding
-/// one, does not store an unmodifiable container in the data model, where the
-/// next nested write would throw. Opaque values keep their identity.
+/// Copies container values handed to [WritableBinding.set], so a published
+/// unmodifiable snapshot written back, or a partial copy still holding one,
+/// is stored as a mutable container. Opaque values keep their identity.
 Object? _mutableCopy(Object? value) {
   if (value is List) {
     return <Object?>[for (final Object? item in value) _mutableCopy(item)];
