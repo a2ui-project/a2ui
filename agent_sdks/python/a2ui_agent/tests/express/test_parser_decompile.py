@@ -25,12 +25,12 @@ from a2ui.schema.constants import VERSION_1_0
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
-SPEC_DIR = os.path.abspath(
+CATALOGS_DIR = os.path.abspath(
     os.path.join(
-        os.path.dirname(__file__), "..", "..", "..", "..", "..", "specification", "v1_0"
+        os.path.dirname(__file__), "..", "..", "..", "..", "..", "catalogs", "v1_0"
     )
 )
-CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "basic", "catalog.json")
 
 
 class TestExpressParser(unittest.TestCase):

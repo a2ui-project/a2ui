@@ -25,9 +25,17 @@ import {fileURLToPath} from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
 
-function copySchemas(version) {
-  const srcJsonDir = join(rootDir, '..', '..', 'specification', version, 'json');
-  const srcCatalogsDir = join(rootDir, '..', '..', 'specification', version, 'catalogs');
+const repoRoot = join(rootDir, '..', '..');
+
+/**
+ * Copies the JSON schemas for a protocol version into `src/<version>/schemas`.
+ *
+ * @param version The protocol version directory name (e.g. `v1_0`).
+ * @param srcCatalogsDir The directory holding the catalogs for that version, or
+ *   `undefined` when the version ships no standalone catalogs.
+ */
+function copySchemas(version, srcCatalogsDir) {
+  const srcJsonDir = join(repoRoot, 'specification', version, 'json');
   const destDir = join(rootDir, 'src', version, 'schemas');
 
   mkdirSync(destDir, {recursive: true});
@@ -38,11 +46,13 @@ function copySchemas(version) {
       .forEach(file => cpSync(join(srcJsonDir, file), join(destDir, file)));
   }
 
-  if (version !== 'v0_8') {
+  if (srcCatalogsDir) {
     cpSync(srcCatalogsDir, join(destDir, 'catalogs'), {recursive: true});
   }
 }
 
 copySchemas('v0_8');
-copySchemas('v0_9');
-copySchemas('v1_0');
+copySchemas('v0_9', join(repoRoot, 'specification', 'v0_9', 'catalogs'));
+// Catalogs are versioned independently of the protocol and live under the
+// top-level catalogs/ directory (see catalogs/README.md).
+copySchemas('v1_0', join(repoRoot, 'catalogs', 'v1_0'));
