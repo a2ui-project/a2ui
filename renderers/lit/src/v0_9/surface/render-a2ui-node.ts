@@ -16,7 +16,8 @@
 
 import {nothing} from 'lit';
 import {html, unsafeStatic} from 'lit/static-html.js';
-import {ComponentContext, Catalog, WebComponentImplementation} from '@a2ui/web_core/v0_9';
+import {ComponentContext, Catalog} from '@a2ui/web_core/v0_9';
+import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 
 /**
  * Pure function that acts as a generic container for A2UI components in Lit.
