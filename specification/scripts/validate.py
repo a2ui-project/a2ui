@@ -262,9 +262,9 @@ def main():
             "root_schema": "specification/v1_0/json/agent_to_renderer.json",
             "refs": [
                 "specification/v1_0/json/common_types.json",
-                "specification/v1_0/catalogs/basic/catalog.json",
+                "catalogs/v1_0/basic/catalog.json",
             ],
-            "examples": "specification/v1_0/catalogs/basic/examples/*.json",
+            "examples": "catalogs/v1_0/basic/examples/*.json",
         },
     }
 

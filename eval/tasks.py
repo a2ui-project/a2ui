@@ -148,7 +148,7 @@ def a2ui_v1_0_eval(
         )
 
     active_version = "1.0"
-    default_catalog_path = "specification/v1_0/catalogs/basic/catalog.json"
+    default_catalog_path = "catalogs/v1_0/basic/catalog.json"
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
     )

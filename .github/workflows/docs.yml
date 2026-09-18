@@ -107,6 +107,12 @@ jobs:
         run: |
           mkdir -p docs/public/specification/
           cp -R specification/* docs/public/specification/
+          # Catalogs live in the top-level catalogs/ directory but are published
+          # under specification/<version>/catalogs/ so that catalog $id URLs
+          # (e.g. https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json)
+          # keep resolving.
+          mkdir -p docs/public/specification/v1_0/catalogs
+          cp -R catalogs/v1_0/* docs/public/specification/v1_0/catalogs/
           # Flatten JSON files to version roots to support clean URLs without redirects
           for version in v0_8 v0_9 v0_9_1 v1_0; do
             if [ -d "docs/public/specification/$version/json" ]; then
