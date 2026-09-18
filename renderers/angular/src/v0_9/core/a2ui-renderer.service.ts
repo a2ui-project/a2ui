@@ -33,6 +33,8 @@ import {
   clearDefaultUniversalInjector,
   setDefaultUniversalInjector,
 } from '../catalog/to_web_component';
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {MarkdownRenderer} from './markdown';
 import {initializeAngularReactivity} from './reactivity';
 
 /**
@@ -84,6 +86,10 @@ export class A2uiRendererService implements OnDestroy {
     // Angular components wrapped as Web Components need an injector when a universal container
     // creates them outside of ComponentHostComponent.
     setDefaultUniversalInjector(this._injector);
+    const markdownRenderer = this._injector.get(MarkdownRenderer, null);
+    if (markdownRenderer) {
+      setMarkdownRenderer((markdown, options) => markdownRenderer.render(markdown, options));
+    }
     this._catalogs = this._config?.catalogs ?? [];
     this._messageProcessor = new MessageProcessor<CatalogComponentImplementation>(
       this._catalogs,
