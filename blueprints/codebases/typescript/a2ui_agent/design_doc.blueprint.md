@@ -53,10 +53,10 @@ Three are not in `web_core` as of this writing but are expected. **This design a
 they exist**, and targets their agreed cross-language names rather than working around
 their absence.
 
-| Contract           | State when last checked                                | This SDK's assumption                                              |
-| ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------ |
-| `PayloadValidator` | Not in `web_core`; Python has it in `core/validation/` | Per-catalog checks only, behind `MessageProcessor` — see section 6 |
-| `A2uiCatalogError` | Not defined                                            | Imported from core rather than declared locally                    |
+| Contract           | State when last checked                                       | This SDK's assumption                                              |
+| ------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `PayloadValidator` | Specified in the `a2ui_core` blueprint; not yet in `web_core` | Per-catalog checks only, behind `MessageProcessor` — see section 6 |
+| `A2uiCatalogError` | Not defined                                                   | Imported from core rather than declared locally                    |
 
 **The validator is `PayloadValidator`, and it is not the entry point.** The `a2ui_core`
 blueprint makes `MessageProcessor` the single entry point that both processes and
@@ -445,12 +445,12 @@ is shaped differently:
 
 |           | Direct JSON (v1.0-relevant)        | Express                               |
 | --------- | ---------------------------------- | ------------------------------------- |
-| Total     | ~1,770 lines                       | ~2,790 lines                          |
-| Streaming | 1,143-line incremental JSON healer | 113-line parser over the shared lexer |
+| Total     | ~2,000 lines                       | ~4,200 lines                          |
+| Streaming | 1,349-line incremental JSON healer | 113-line parser over the shared lexer |
 | Grammar   | none                               | ANTLR, generated from `Express.g4`    |
 
 Direct JSON is less code overall, but its bulk is intricate hand-written JSON repair —
-healing truncated payloads mid-stream — which is where its 76 streaming conformance
+healing truncated payloads mid-stream — which is where its 82 streaming conformance
 cases concentrate. Express is more code, but most of it is generated from a declarative
 grammar, and its streaming story is nearly free because the DSL tokenizes cleanly at
 expression boundaries. Express also costs meaningfully fewer output tokens at inference
@@ -504,14 +504,26 @@ one component or function at a time. This SDK calls neither directly beyond cons
 the processor; it adds no validator wrapper of its own.
 
 ```typescript
-const processor = new MessageProcessor({catalogs: negotiatedCatalogs});
+const processor = new MessageProcessor(negotiatedCatalogs, undefined, {version: 'v1.0'});
+processor.processMessages(messages);
 ```
 
-Constructed with the negotiated catalogs, the processor rejects a `createSurface` whose
+> [!IMPORTANT]
+> `MessageProcessorOptions.version` defaults to `'v0.9'`. A v1.0-only SDK must pass
+> `'v1.0'` explicitly on every construction, or it will silently validate against the
+> wrong version adapter. This is the single easiest mistake to make in this layer.
+
+`processMessages` is the entry point: it applies a payload to surface state and checks
+each message against the surface it joins. The processor rejects a `createSurface` whose
 `catalogId` was never negotiated, or a component drawn from a catalog the renderer did
 not offer, with `A2uiCatalogError`. Surface lifecycle violations — creating a surface
-twice, updating one that does not exist — raise `A2uiIntegrityError`. Envelope shape and
-protocol version are checked against the Zod schema.
+twice, updating one that does not exist — raise `A2uiIntegrityError`.
+
+Envelope structure is not the validator's job. The version adapter checks the version
+header, confirms exactly one update type is present, and validates against the versioned
+protocol schema before any catalog is consulted. `PayloadValidator` cannot see a whole
+envelope, and exposes only `validateComponent`, `validateFunction`, and `validateTheme`
+— one item, one catalog, per call.
 
 ### Why the processor rather than a validator
 
@@ -545,16 +557,17 @@ of this SDK's work, and so is extending it.
 
 ### What the suite contains today
 
-| Suite                   | Cases | Protocol versions    | Format           |
-| ----------------------- | ----- | -------------------- | ---------------- |
-| `parser.yaml`           | 19    | unversioned          | `<a2ui-json>`    |
-| `streaming_parser.yaml` | 76    | 38 × v0.8, 38 × v0.9 | `<a2ui-json>`    |
-| `inference_format.yaml` | 20    | 1 × v1.0             | `<a2ui-json>`    |
-| `skill.yaml`            | 4     | v1.0 basic catalog   | `<a2ui-express>` |
+| Suite                   | Cases | Protocol versions              | Format           |
+| ----------------------- | ----- | ------------------------------ | ---------------- |
+| `parser.yaml`           | 23    | unversioned, plus 3 × v1.0     | `<a2ui-json>`    |
+| `streaming_parser.yaml` | 81    | 39 × v0.8, 41 × v0.9, 1 × v1.0 | `<a2ui-json>`    |
+| `inference_format.yaml` | 23    | 8 × v0.8/v0.9, 1 × v1.0        | `<a2ui-json>`    |
+| `skill.yaml`            | 4     | v1.0 basic catalog             | `<a2ui-express>` |
 
-Direct JSON carries 115 of the 119 cases. The four in `skill.yaml` are the only Express
+Direct JSON carries 127 of the 131 cases. The four in `skill.yaml` are the only Express
 coverage anywhere in the repository, and they test skill generation rather than parsing.
-`streaming_parser.yaml`, the largest suite, still has no v1.0 cases at all.
+The suite grew by 12 cases in September, and v1.0 coverage finally appeared: 3 in
+`parser.yaml` and 2 `process_chunk` cases.
 
 ### What is actually reachable
 
@@ -567,10 +580,10 @@ only:
 | `select_catalog`                                          | 8     | Yes, with a caveat — see below                  |
 | `load_catalog`                                            | 3     | Yes — format- and version-agnostic              |
 | `has_parts`                                               | 3     | Yes — unversioned, Direct JSON tags             |
-| `parse_full`                                              | 9     | Yes — unversioned, Direct JSON tags             |
-| `fix_payload`                                             | 7     | Yes — unversioned JSON repair                   |
-| `process_chunk` (v1.0)                                    | 1     | Yes                                             |
-| `process_chunk` (v0.8/v0.9)                               | 76    | No — protocol versions this SDK does not target |
+| `parse_full`                                              | 15    | Yes — 12 unversioned, 3 × v1.0                  |
+| `fix_payload`                                             | 8     | Yes — unversioned JSON repair                   |
+| `process_chunk` (v1.0)                                    | 2     | Yes                                             |
+| `process_chunk` (v0.8/v0.9)                               | 80    | No — protocol versions this SDK does not target |
 | `generate_prompt`                                         | 8     | No — see below                                  |
 | `from_format`, `core_syntax`, `from_catalog`, `skill_set` | 4     | Not yet — need Express and a skill generator    |
 
@@ -579,7 +592,7 @@ The `select_catalog` caveat: the action has no counterpart in
 specified method. Review flagged the cases themselves as needing an update, so treat the
 8 as provisionally rather than definitively reachable.
 
-**31 of 119 cases run**, rising to 35 once Express and skill generation land. Everything
+**39 of 131 cases run**, rising to 43 once Express and skill generation land. Everything
 skipped is gated on protocol version, on a deprecated API, or on Express — not on
 anything Direct JSON does.
 
@@ -769,7 +782,8 @@ be resolved before the affected area is finished.
 ## 11. Verification log
 
 Checked against the repository on 2026-09-11 at commit `6e3e9d3`, re-checked on
-2026-09-14 at `2297b4ac`, and revised on 2026-09-18 against review feedback on PR #2651.
+2026-09-14 at `2297b4ac`, revised on 2026-09-18 against review feedback on PR #2651, and
+re-verified the same day at `99f4fd17`, the tip of the `v1_0` branch.
 
 Confirmed present and shaped as documented: `Catalog`, `loadCatalogFromSchema`,
 `AgentToRendererMessage`, `RendererToAgentMessage`, `V10RendererCapabilities`,
@@ -799,8 +813,19 @@ Section 3's `PromptGenerator` follows
 the `a2ui_agent` module. Its four conformance cases in `conformance/agent/skill.yaml` all
 generate Express skills against `specification/v1_0/catalogs/basic/catalog.json`.
 
+Re-verified at `99f4fd17`. `MessageProcessor` takes catalogs positionally rather than in
+an options bag, and its `version` option defaults to `'v0.9'` — section 6 was corrected
+on both counts. The `a2ui_core` blueprint now specifies `PayloadValidator` as
+single-catalog with `validateComponent` / `validateFunction` / `validateTheme`, and names
+`processMessages` the single entry point, which matches what section 6 already described.
+`AgentToRendererMessage.parseAll`, which that blueprint names as the envelope check, does
+not exist in `web_core` yet. The v1.0 basic catalog subpath gained function bodies but
+still exports no assembled `Catalog`, and `scripts/copy-spec.js` still copies the
+specification JSON, so both notes in section 1 stand.
+
 Conformance figures in section 7 come from parsing `conformance/agent/*.yaml` and
-counting cases by `action` and by the `version` in each case's arguments. Line counts in
+counting cases by `action` and by protocol version, which streaming cases carry on
+`catalog.protocolVersion` rather than a top-level field. Line counts in
 section 5 come from the Python packages under
 `python/a2ui_agent/src/a2ui/inference_formats/`.
 
