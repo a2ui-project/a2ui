@@ -1,0 +1,22 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "test-bad-txt-prop",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "test-bad-txt-prop",
+      "components": [
+        {
+          "id": "root",
+          "component": "Text",
+          "txt": "Misspelled property name"
+        }
+      ]
+    }
+  }
+]

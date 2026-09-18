@@ -1,0 +1,34 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "multi-s1",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "multi-s1",
+      "components": [
+        {
+          "id": "root",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "multi-s1",
+      "path": "/",
+      "value": {
+        "title": "Hello World"
+      }
+    }
+  }
+]

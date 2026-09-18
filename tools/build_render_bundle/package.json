@@ -1,0 +1,17 @@
+{
+  "name": "@a2ui/build_render_bundle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "esbuild": "^0.28.1",
+    "lit": "^3.3.3",
+    "zod": "^3.25.76"
+  }
+}
