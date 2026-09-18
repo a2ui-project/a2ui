@@ -99,10 +99,9 @@ struct JSONValuePathTests {
     #expect(value == .string("hello"))
   }
 
-  @Test func subscriptSetAutoVivifiesArrayFromPrimitive() {
+  @Test func subscriptSetLeavesAPrimitiveAlone() {
     var value: JSONValue = "primitive"
     value["0/name"] = "Alice"
-    #expect(value.arrayValue?.count == 1)
-    #expect(value["0/name"]?.stringValue == "Alice")
+    #expect(value == .string("primitive"))
   }
 }

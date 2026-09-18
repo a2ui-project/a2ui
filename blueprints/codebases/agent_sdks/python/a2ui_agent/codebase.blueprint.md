@@ -2,7 +2,8 @@
 codebase_path: agent_sdks/python/a2ui_agent
 associated_module: a2ui_agent
 module_blueprint_commit: null
-implemented_features: []
+implemented_features:
+  - skill_generator
 local_development:
   test_command: 'uv run pytest'
   lint_command: 'uv run pyink --check .'

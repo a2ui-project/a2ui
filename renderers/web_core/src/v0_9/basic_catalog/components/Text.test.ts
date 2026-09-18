@@ -24,6 +24,7 @@ import {
   ComponentApi,
   SurfaceModel,
 } from '../../index.js';
+import {setMarkdownRenderer} from '../directives/markdown.js';
 import type {A2uiBasicTextElement} from './Text.js';
 
 describe('Text Component', () => {
@@ -121,6 +122,27 @@ describe('Text Component', () => {
     await asyncUpdate(el, () => {});
 
     assert.strictEqual(span?.textContent?.trim(), 'Updated dynamic text');
+  });
+
+  it('should render formatted markdown when a markdown renderer is configured', async () => {
+    setMarkdownRenderer(async text => `<strong>${text}</strong>`);
+
+    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 't_static');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    await new Promise(r => setTimeout(r, 20));
+
+    const strong = el.querySelector('strong');
+    assert.notStrictEqual(strong, null);
+    assert.strictEqual(strong?.textContent?.trim(), 'Hello static text');
+
+    setMarkdownRenderer(undefined);
   });
 
   it('should apply caption variant styling structure', async () => {

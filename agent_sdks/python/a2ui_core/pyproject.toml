@@ -38,8 +38,11 @@ path = "src/a2ui/core/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a2ui"]
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
-

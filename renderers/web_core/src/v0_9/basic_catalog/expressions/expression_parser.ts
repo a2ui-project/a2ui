@@ -18,6 +18,21 @@ import {DynamicValue} from '../../schema/common-types.js';
 import {A2uiExpressionError} from '../../errors.js';
 
 /**
+ * The maximum allowed length for expression template strings to prevent resource exhaustion (CWE-400),
+ * measured in UTF-16 code units (i.e. JavaScript `string.length`, not characters and not bytes).
+ */
+export const MAX_EXPRESSION_TEMPLATE_LENGTH = 10_000;
+
+/**
+ * The maximum allowed number of parts in an expression template to prevent resource exhaustion (CWE-400).
+ *
+ * A "part" is an individual segment produced when parsing the template string: each interpolated
+ * expression (`${...}`), escaped interpolation delimiter (`\${`), or literal text span between
+ * interpolations that forms an element in the parsed output array.
+ */
+export const MAX_EXPRESSION_PARTS = 1_000;
+
+/**
  * A parser for A2UI expressions, supporting string interpolation and functional calls.
  *
  * The parser converts strings with `${...}` placeholders into arrays of `DynamicValue`s.
@@ -44,6 +59,11 @@ export class ExpressionParser {
     if (depth > ExpressionParser.MAX_DEPTH) {
       throw new A2uiExpressionError('Max recursion depth reached in parse');
     }
+    if (input && input.length > MAX_EXPRESSION_TEMPLATE_LENGTH) {
+      throw new A2uiExpressionError(
+        `Expression template length (${input.length}) exceeds maximum limit (${MAX_EXPRESSION_TEMPLATE_LENGTH})`,
+      );
+    }
     if (!input || !input.includes('${')) {
       return [input];
     }
@@ -52,6 +72,11 @@ export class ExpressionParser {
     const scanner = new Scanner(input);
 
     while (!scanner.isAtEnd()) {
+      if (parts.length >= MAX_EXPRESSION_PARTS) {
+        throw new A2uiExpressionError(
+          `Expression parts count exceeds maximum limit (${MAX_EXPRESSION_PARTS})`,
+        );
+      }
       if (scanner.matches('${')) {
         scanner.advance(2);
         const content = this.extractInterpolationContent(scanner);
