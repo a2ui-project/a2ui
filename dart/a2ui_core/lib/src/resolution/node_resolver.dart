@@ -98,28 +98,21 @@ class _NodeRecord<T extends ComponentApi> {
 /// Reference classification is shared with graph validation for wire `$ref`
 /// pointers, Dart `REF:` descriptions, and local aliases. Structural
 /// `ChildList` shapes (an object schema declaring `componentId` and `path`)
-/// are recognized by the resolver only; validation never rejects a batch on
-/// that guess. An unmarked string property is not a child reference.
+/// are recognized by the resolver only. An unmarked string property is not a
+/// child reference.
 ///
 /// Supported positions are top-level single references, top-level `ChildList`
 /// markers or structural unions, top-level arrays of component-id references,
 /// and arrays of objects whose properties are single-component references.
-/// Deeper
-/// single references (including plain arrays of ids) remain strings; deeper
-/// `ChildList` values remain unresolved [ChildNode] descriptors. Templates
-/// retain their per-item data scope, as in TypeScript. Static `ChildList`
-/// arrays also retain descriptors in Dart, whereas TypeScript leaves their
-/// ids as strings.
-/// Nested descriptors are not mounted nodes. Their first publication logs one
-/// warning per resolver and property path, with array indices grouped as `[]`.
-///
-/// Construction takes a surface and uses its implementation-bearing catalog.
+/// Deeper single references (including plain arrays of ids) remain strings;
+/// deeper `ChildList` values remain unresolved [ChildNode] descriptors with
+/// their per-item data scope. The first publication of such a descriptor logs
+/// one warning per resolver and property path, with array indices grouped as
+/// `[]`.
 ///
 /// Node identity is parent-scoped: each referencing position gets its own
 /// node, so one component id mounted at two positions yields two nodes and
 /// dropping one position never tears down the other.
-/// Instance ids are distinct among siblings, not globally unique or stable
-/// identifiers for data items across list insertions and reorders.
 ///
 /// Unknown-type and cycle diagnostics are deduplicated per code, component id,
 /// and data path. Deleting the component, resolving a node at that scope, or
@@ -130,8 +123,6 @@ class _NodeRecord<T extends ComponentApi> {
 /// its ownership and props are committed. If expression evaluation produces no
 /// changed binding value and therefore no tree update, its diagnostic is
 /// delivered in a fallback microtask. Disposal cancels pending diagnostics.
-/// The mounting owner must dispose the resolver before the surface: disposing
-/// the surface alone does not run node cleanup.
 class NodeResolver<T extends ComponentApi> {
   final SurfaceModel<T> _surface;
 

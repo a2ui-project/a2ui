@@ -68,8 +68,7 @@ typedef NodeProps = Map<String, Object?>;
 /// internal properties change; subscribe to the child's [props] for that.
 ///
 /// The resolver creates, updates, and disposes nodes; application code reads
-/// them through this interface. [MutableComponentNode] is the only
-/// implementation.
+/// them through this interface.
 abstract interface class ComponentNode<T extends ComponentApi> {
   /// Identifier for this node in the rendered tree, distinct among siblings.
   /// The component id at the root data scope; for template-spawned items the
@@ -116,10 +115,8 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   bool get disposed;
 
   /// True for any unresolved stand-in ([state] other than
-  /// [NodeState.resolved]). A placeholder holds the child position with
-  /// empty props; when its component becomes resolvable, the resolver
-  /// disposes it and replaces it at the same child position with a real node;
-  /// the parent emits once.
+  /// [NodeState.resolved]): a node holding its child position with empty
+  /// props.
   bool get isPlaceholder;
 
   /// Registers teardown work to run when this node is disposed.
@@ -135,9 +132,8 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   Map<String, Object?> toJson();
 }
 
-/// The write side and only implementation of [ComponentNode]. Not exported
-/// from the package barrel: the resolver constructs, updates, and disposes
-/// nodes; application code sees the read-only interface.
+/// The write side and only implementation of [ComponentNode]; not exported
+/// from the package barrel.
 final class MutableComponentNode<T extends ComponentApi>
     implements ComponentNode<T> {
   @override
@@ -212,9 +208,7 @@ final class MutableComponentNode<T extends ComponentApi>
   }
 
   /// Tears down this node: runs registered cleanups, then fires
-  /// [onDestroyed]. Work appended during the cleanup pass runs in that same
-  /// pass, after already queued work; registration afterward runs immediately.
-  /// Idempotent, including while a cleanup is running.
+  /// [onDestroyed]. Idempotent, including while a cleanup is running.
   void dispose() {
     if (_disposed) {
       return;

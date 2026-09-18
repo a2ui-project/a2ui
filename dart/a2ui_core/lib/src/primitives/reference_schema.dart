@@ -60,13 +60,6 @@ class ReferenceSchemaReader {
 
   /// Whether an unmarked object schema carrying `componentId` and `path`
   /// counts as a child list.
-  ///
-  /// The resolver needs this: a catalog may declare a child-list template
-  /// without a `$ref` or `REF:` marker, and the reference would otherwise
-  /// never mount. Graph validation passes false, because rejecting a batch on
-  /// a guess turns an unmarked property that merely resembles a template into
-  /// a validation failure. An unmarked reference the validator lets through is
-  /// still reported by the resolver as a node state.
   final bool structuralChildLists;
 
   const ReferenceSchemaReader(

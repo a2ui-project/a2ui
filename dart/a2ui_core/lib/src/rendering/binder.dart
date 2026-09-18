@@ -36,14 +36,10 @@ class BehaviorNode {
 
 /// An unresolved child reference and the data scope it would render against.
 ///
-/// The binder uses these values for both static `ChildList` arrays and expanded
-/// templates. The node resolver replaces supported reference positions with
-/// mounted nodes, but publishes these descriptors unchanged in nested positions
-/// it does not resolve. A descriptor is not a mounted node and owns no
+/// The binder emits one per entry of a static `ChildList` array or expanded
+/// template. The node resolver mounts the positions it supports and publishes
+/// the rest unchanged; a descriptor is not a mounted node and owns no
 /// lifecycle.
-///
-/// Unlike TypeScript's binder, which leaves static child arrays as id strings,
-/// Dart uses the same scoped descriptor for static lists and templates.
 class ChildNode {
   /// The referenced component id.
   final String id;
@@ -491,7 +487,7 @@ class GenericBinder {
 }
 
 /// The maximum number of children a `ChildList` expands to. Bounds resource
-/// use when a template is bound to a very large array (CWE-400) and matches
+/// use when a template is bound to a very large array and matches
 /// `MAX_DYNAMIC_CHILD_LIST_SIZE` in the TypeScript core.
 const int maxDynamicChildListSize = 10000;
 
