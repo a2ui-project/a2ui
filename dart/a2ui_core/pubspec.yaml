@@ -15,7 +15,7 @@
 name: a2ui_core
 description: Core package for A2UI protocol.
 repository: https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_core
-version: 0.2.0
+version: 0.2.1
 
 resolution: workspace
 
@@ -26,7 +26,7 @@ dependencies:
   collection: ^1.18.0
   json_schema_builder: ^0.1.7
   meta: ^1.17.0
-  preact_signals: ^1.9.4
+  preact_signals: ">=1.9.4 <8.0.0"
 
 dev_dependencies:
   path: ^1.9.0
