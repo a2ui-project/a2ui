@@ -21,27 +21,29 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
 } from '../../index.js';
-import type {A2uiLitTabs} from './Tabs.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Tabs Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Tabs.js');
-    await import('./Text.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiLitTabs | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -86,7 +88,7 @@ describe('Tabs Component', () => {
   });
 
   it('should render tab headers with first tab active and display first tab content', async () => {
-    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    const el = document.createElement('a2ui-tabs') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -110,7 +112,7 @@ describe('Tabs Component', () => {
   });
 
   it('should switch active tab and render corresponding content when tab header is clicked', async () => {
-    const el = document.createElement('a2ui-tabs') as A2uiLitTabs;
+    const el = document.createElement('a2ui-tabs') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

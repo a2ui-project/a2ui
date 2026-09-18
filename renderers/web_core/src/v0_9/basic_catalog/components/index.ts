@@ -35,23 +35,21 @@ export {
   VideoApi,
 } from './basic_components.js';
 
-export {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-
-export {A2uiAudioPlayerElement, A2uiAudioPlayer} from './AudioPlayer.js';
-export {A2uiBasicButtonElement, A2uiButton} from './Button.js';
-export {A2uiCardElement, A2uiCard} from './Card.js';
-export {A2uiCheckBoxElement, A2uiCheckBox} from './CheckBox.js';
-export {A2uiChoicePickerElement, A2uiChoicePicker} from './ChoicePicker.js';
-export {A2uiBasicColumnElement, A2uiColumn} from './Column.js';
-export {A2uiDateTimeInputElement, A2uiDateTimeInput} from './DateTimeInput.js';
-export {A2uiDividerElement, A2uiDivider} from './Divider.js';
-export {A2uiIconElement, A2uiIcon} from './Icon.js';
-export {A2uiImageElement, A2uiImage} from './Image.js';
-export {A2uiListElement, A2uiList} from './List.js';
-export {A2uiLitModal, A2uiModal} from './Modal.js';
-export {A2uiBasicRowElement, A2uiRow} from './Row.js';
-export {A2uiSliderElement, A2uiSlider} from './Slider.js';
-export {A2uiLitTabs, A2uiTabs} from './Tabs.js';
-export {A2uiBasicTextElement, A2uiText} from './Text.js';
-export {A2uiBasicTextFieldElement, A2uiTextField} from './TextField.js';
-export {A2uiVideoElement, A2uiVideo} from './Video.js';
+export {A2uiAudioPlayer} from './AudioPlayer.js';
+export {A2uiButton} from './Button.js';
+export {A2uiCard} from './Card.js';
+export {A2uiCheckBox} from './CheckBox.js';
+export {A2uiChoicePicker} from './ChoicePicker.js';
+export {A2uiColumn} from './Column.js';
+export {A2uiDateTimeInput} from './DateTimeInput.js';
+export {A2uiDivider} from './Divider.js';
+export {A2uiIcon} from './Icon.js';
+export {A2uiImage} from './Image.js';
+export {A2uiList} from './List.js';
+export {A2uiModal} from './Modal.js';
+export {A2uiRow} from './Row.js';
+export {A2uiSlider} from './Slider.js';
+export {A2uiTabs} from './Tabs.js';
+export {A2uiText} from './Text.js';
+export {A2uiTextField} from './TextField.js';
+export {A2uiVideo} from './Video.js';
