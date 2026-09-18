@@ -48,31 +48,45 @@ accept them without redeclaring the shape.
 
 ### Core contracts landing in `web_core`
 
-The v1.0 core work defines contracts that each language SDK should find in its core
-package. Four of them are not in `web_core` as of this writing but are being added.
-**This design assumes they exist**, and targets their agreed cross-language names rather
-than working around their absence.
+The v1.0 core work defines contracts each language SDK should find in its core package.
+Three are not in `web_core` as of this writing but are expected. **This design assumes
+they exist**, and targets their agreed cross-language names rather than working around
+their absence.
 
-`v1_0_implementation_plan.md`, at the repository root, is the authority on what lands
-and under what name. It settles the validator: `A2uiValidator`, in a `validation/`
-module, in both Python and TypeScript. Python's current
-`a2ui.core.validation.payload_validator.PayloadValidator` is the pre-rename name.
+| Contract           | State when last checked                                | This SDK's assumption                                              |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| `PayloadValidator` | Not in `web_core`; Python has it in `core/validation/` | Per-catalog checks only, behind `MessageProcessor` — see section 6 |
+| `A2uiCatalogError` | Not defined                                            | Imported from core rather than declared locally                    |
 
-| Contract                   | State when last checked                         | This SDK's assumption                                                                |
-| -------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `A2uiValidator`            | No validator class in `web_core`                | Used directly for payload validation, per section 6. Name confirmed by the v1.0 plan |
-| `A2uiRendererCapabilities` | Exists as `V10RendererCapabilities`             | Uses the cross-language name once available                                          |
-| `A2uiCatalogError`         | Not defined                                     | Imported from core rather than declared locally                                      |
-| `BasicCatalog`             | Only `BASIC_COMPONENTS` / `BASIC_FUNCTION_APIS` | Backs `BundledCatalogProvider`, per section 4                                        |
+**The validator is `PayloadValidator`, and it is not the entry point.** The `a2ui_core`
+blueprint makes `MessageProcessor` the single entry point that both processes and
+validates messages, because only it can span a mixed-catalog surface. `PayloadValidator`
+is scoped to one catalog and checks a single component or function within it. An earlier
+draft of this document had a standalone `A2uiValidator` doing whole-payload validation;
+that class does not exist and would be the wrong shape if it did. Section 6 is written
+around the processor instead.
 
-The same plan renames two `web_core` directories this SDK imports from: `validating/`
-becomes `validation/`, and `errors.ts` becomes `exceptions/`. The subpaths in the table
-above are the ones that resolve today, and will need revisiting when that lands.
+**Renderer capabilities are `V10RendererCapabilities`**, used directly. Because this SDK
+targets v1.0 only, there is nothing to abstract over and no reason to introduce an alias.
+Review raised the possibility of an `A2uiRendererCapabilities` union spanning
+`V09RendererCapabilities` as well — that becomes the right shape if and only if the SDK
+takes on v0.9, which is open question 1. Until then the concrete type is the simpler and
+more honest one.
 
-Two consequences. First, if any of these land under a different name, the changes here
-are import-level rather than structural. Second, `BasicCatalog` may make the export gap
-below moot: if core exposes a ready-built basic catalog, this SDK never needs to reach
-for the bundled JSON itself.
+There is no longer a `BasicCatalog` contract to wait on. `BASIC_COMPONENTS` and
+`BASIC_FUNCTION_APIS` are defined programmatically, so a catalog is a `new Catalog(...)`
+away — which is why `BundledCatalogProvider` was removed from the TypeScript side
+entirely. One asymmetry to know about: `web_core` ships a ready-built `basicCatalog`
+instance for **v0.9 only**, at `v0_9/basic_catalog/catalog.ts`. The v1.0 subpath exports
+components and functions but no assembled catalog, so this SDK builds its own. A
+ready-built v1.0 equivalent would be welcome but is not required.
+
+> [!NOTE]
+> The basic catalog may move out of the core modules altogether. Nothing here should
+> depend on its current location beyond the single re-export module described below.
+
+If any of these land under a different name, the changes here are import-level rather
+than structural.
 
 Errors this SDK raises extend `A2uiError` from `@a2ui/web_core/errors`, so callers can
 catch agent and core failures uniformly. `ParseError` is defined locally on that base.
@@ -113,29 +127,23 @@ implications:
 - Funnel those imports through a single internal re-export module so the swap touches
   one file.
 
-### Known gap: the basic catalog JSON is not exported
+### The bundled spec JSON is not a dependency
 
-`web_core` copies `specification/v1_0/catalogs/basic/catalog.json` into its build output
-at `dist/src/v1_0/schemas/catalogs/basic/catalog.json`, but its `package.json` `exports`
-map has no entry that reaches it. Only `./data/*` is mapped, and that points at `v0_8`.
+`web_core` currently copies `specification/<version>/json` and
+`specification/<version>/catalogs` into its build output via `scripts/copy-spec.js`, and
+no `exports` entry reaches the result. An earlier draft treated that as a gap this SDK
+needed closed, on the assumption that the basic catalog had to be loaded from
+`catalog.json`.
 
-This matters because the catalog JSON is the only place the basic catalog's
-`instructions` string lives, and those instructions materially affect prompt quality.
-The `BASIC_COMPONENTS` / `BASIC_FUNCTION_APIS` exports carry component and function
-signatures but not the instructions.
+That assumption is obsolete. `web_core` is moving to Zod schemas as the single source of
+truth and is expected to stop copying the JSON, and the v1.0 basic components and
+functions are already defined programmatically. This SDK therefore builds catalogs from
+the exported constants and never reads the bundled JSON, so the missing export entry
+costs it nothing.
 
-Options, in order of preference:
-
-1. Add a `./v1_0/schemas/*` entry to the `web_core` exports map, then have the bundled
-   provider load `catalog.json` through `loadCatalogFromSchema`. This matches what
-   Python already does — its `BundledCatalogProvider` reads the catalog JSON rather
-   than assembling one from component constants.
-2. Construct the catalog from `BASIC_COMPONENTS` and `BASIC_FUNCTION_APIS`, accepting
-   that `instructions` is absent or duplicated.
-
-Option 1 is the recommendation, and the catalog layer depends on it. It also survives
-the `a2ui_core` split cleanly: the basic catalog JSON is framework-agnostic, so the same
-export entry moves to the new package with the rest of the catalog code.
+One consequence to accept: the `instructions` string that lives in `catalog.json` has no
+programmatic equivalent. Prompt quality depends on it, so if it is not carried over to
+the Zod definitions it has to be supplied by the agent as part of its own preamble.
 
 ---
 
@@ -189,82 +197,49 @@ typescript/a2ui_agent/
 
 ## 3. Base contracts
 
-Method names are camelCase, which is the only systematic departure from the blueprint's
-Python spelling.
+`blueprints/modules/a2ui_agent.blueprint.md` defines these contracts for every language,
+and they are not restated here. This section records only where the TypeScript SDK
+departs from it, and why.
+
+| Contract          | Departure                                                                    |
+| ----------------- | ---------------------------------------------------------------------------- |
+| all               | Method names are camelCase rather than the blueprint's Python spelling       |
+| `CatalogProvider` | `load()` returns a promise, since the filesystem provider uses `fs.promises` |
+| `Parser`          | Adds `hasA2uiParts`, and `parseStream` as async-iterable sugar               |
+| `PromptGenerator` | Split into three sub-methods; `generate` takes an options object             |
+| response parts    | Models the blueprint's structured shape, not Python's flat one               |
 
 ### Response parts
 
-These follow the blueprint's structured model rather than the flat `ResponsePart` shape
-currently in the Python SDK. Python is being brought into line with the blueprint, so
-modelling the target structure here avoids writing code we would immediately have to
-unwind.
+The blueprint's structured model — `TextPart`, `RawA2uiPart`, `RawResponsePart`,
+`A2uiPart`, and `ResponsePart` as a union of text and compiled payload — is used as
+written. The Python SDK still ships a flat `ResponsePart` carrying every field at once,
+and is being brought into line. Modelling the target here avoids writing code we would
+immediately have to unwind.
 
-```typescript
-/** Conversational text extracted from an LLM response. */
-export interface TextPart {
-  /** Text content intended for user display. */
-  text: string;
-}
+### Parser
 
-/** An uncompiled A2UI format block extracted from an LLM response. */
-export interface RawA2uiPart {
-  /** Raw, uncompiled format content, such as an Express DSL expression. */
-  a2uiRaw: string;
-}
+Two additions to the blueprint's abstract `Parser`.
 
-/** An uncompiled token from an LLM response stream. */
-export interface RawResponsePart {
-  /** Either conversational text or an uncompiled A2UI block. */
-  part: TextPart | RawA2uiPart;
-  /** False when the block was truncated mid-stream rather than closed. */
-  isFinal: boolean;
-}
+`hasA2uiParts(content)` reports whether the content holds at least one complete format
+block, with an unterminated opening tag counting as false. The blueprint's `Parser` has
+no content predicate, but the conformance suite exercises one through the `has_parts`
+action and Python implements it as `has_format_content`. Review confirmed this is a
+blueprint omission that will be corrected, so the method stays.
 
-/** Compiled A2UI payload messages ready to deliver to a renderer. */
-export interface A2uiPart {
-  /** Validated messages to send to the client renderer. */
-  a2ui: AgentToRendererMessage[];
-}
-
-/** A parsed segment of an LLM response: either text or compiled payload. */
-export type ResponsePart = TextPart | A2uiPart;
-```
-
-### Catalog transformers
-
-```typescript
-/**
- * A rule applied to a catalog before it is used for prompting or validation.
- *
- * Transformers exist mainly to shrink the schema that reaches the model: dropping
- * components or functions an agent will never emit cuts prompt tokens and reduces the
- * chance of the model reaching for something the renderer cannot draw. Implementations
- * must be pure and must return a new catalog rather than mutating the input.
- */
-export interface CatalogTransformer {
-  transform(catalog: SchemaCatalog): SchemaCatalog;
-}
-
-/** Prunes catalog components down to an allowlist. */
-export class ComponentPruningTransformer implements CatalogTransformer {
-  constructor(allowedComponents: string[]);
-  transform(catalog: SchemaCatalog): SchemaCatalog;
-}
-
-/** Prunes catalog functions down to an allowlist. */
-export class FunctionPruningTransformer implements CatalogTransformer {
-  constructor(allowedFunctions: string[]);
-  transform(catalog: SchemaCatalog): SchemaCatalog;
-}
-```
+`parseStream(chunks, wrapped)` wraps `parseChunk` as an async generator, for `for await`
+over a model stream. Every AI SDK this package intends to document exposes its response
+stream as an async iterable, so this is the shape callers reach for. It adds no behavior:
+`parseChunk` stays the primitive, and the conformance harness drives that rather than
+this.
 
 ### Prompt generator
 
 `blueprints/features/skill_generator.blueprint.md` requires every language SDK to split
 prompt generation into three independently callable pieces, with `generate` as a template
-method over them. The split exists so that a skill generator can emit the base rules on
-their own as a standalone core skill, and each catalog's instructions as its own catalog
-skill, without duplicating any prompt-building logic.
+method over them. The split exists so a skill generator can emit the base rules alone as
+a standalone core skill, and each catalog's instructions as its own catalog skill,
+without duplicating prompt-building logic.
 
 ```typescript
 /** Options for assembling a complete system prompt. */
@@ -277,133 +252,28 @@ export interface PromptOptions {
   validateExamples?: boolean; // defaults to false
 }
 
-/**
- * Builds the system prompt for one inference format and catalog set.
- */
 export abstract class PromptGenerator {
-  constructor(
-    protected readonly catalogs: SchemaCatalog[],
-    /** Example turns keyed by a description of what the turn demonstrates. */
-    protected readonly examples?: Record<string, AgentToRendererMessage[]>,
-  ) {}
-
-  /**
-   * Base syntax contracts, grammar, and sentinel tags for this format.
-   *
-   * Must be catalog-agnostic: a skill generator emits this verbatim as a standalone
-   * core skill, with no catalog bound.
-   */
+  /** Catalog-agnostic syntax contracts, grammar, and sentinel tags. */
   abstract generateBaseRules(): string;
 
-  /** Component and function signatures for one catalog, or for all bound catalogs. */
+  /** Signatures for one catalog, or for all bound catalogs. */
   abstract generateCatalogInstructions(includeSchema?: boolean, catalog?: SchemaCatalog): string;
 
   /** Few-shot examples for one catalog, or for all bound catalogs. */
   abstract generateExamples(catalog?: SchemaCatalog, validate?: boolean): string;
 
-  /**
-   * Assembles a complete system prompt from the three pieces above.
-   *
-   * Concrete formats override the pieces, not the assembly: the order is fixed by the
-   * feature blueprint so prompts stay comparable across languages. Sections are joined
-   * with blank lines, and empty ones are dropped — role, then base rules and workflow
-   * under `## Workflow Description:`, then `## UI Description:`, then catalog
-   * instructions, then `### Examples:`.
-   */
+  /** Template method assembling the three above. Formats override the pieces, not this. */
   generate(options?: PromptOptions): string;
 }
 ```
 
-> One deviation. The feature blueprint gives `generate` six positional parameters with
-> defaults. Six positional booleans and strings read poorly in TypeScript and are easy to
-> transpose at a call site, so this SDK takes a single options object. The field names are
-> the blueprint's parameter names in camelCase, which is also how the conformance YAML
-> already spells them, so the mapping is mechanical.
+The feature blueprint gives `generate` six positional parameters with defaults. Six
+positional strings and booleans read poorly in TypeScript and are easy to transpose at a
+call site, so this SDK takes a single options object whose fields are those parameter
+names in camelCase — which is also how the conformance YAML already spells them.
 
 Multi-catalog behavior is mandated rather than chosen: when several catalogs are bound, a
-generator compiles instructions for _every_ one of them. It never picks a default.
-
-### Parser
-
-```typescript
-/**
- * Turns raw model output into ResponseParts for a single inference format.
- *
- * A parser instance is stateful when streaming, since it buffers across chunks. Create
- * a fresh parser per response rather than sharing one.
- */
-export abstract class Parser {
-  /**
-   * Reports whether the content contains at least one complete format block.
-   *
-   * Not in the module blueprint, but the conformance suite exercises it via the
-   * `has_parts` action, and Python provides the equivalent as `has_format_content`.
-   * An unterminated opening tag counts as false.
-   */
-  abstract hasA2uiParts(content: string): boolean;
-
-  /** Serializes parts back to a string, re-adding sentinel tags around A2UI blocks. */
-  abstract wrap(blocks: RawResponsePart[]): string;
-
-  /**
-   * Tokenizes a response into ordered raw parts, preserving the original interleaving
-   * of conversational text and tagged payload blocks. Does not compile.
-   */
-  abstract unwrap(content: string): RawResponsePart[];
-
-  /** Compiles one raw format string into A2UI messages. */
-  abstract compile(formatContent: string): AgentToRendererMessage[];
-
-  /** Renders A2UI messages back into this format's raw notation. */
-  abstract decompile(payload: AgentToRendererMessage[]): string;
-
-  /**
-   * Parses a complete, non-streamed response.
-   * @param wrapped False when the content is a bare payload with no sentinel tags.
-   */
-  parseResponse(content: string, wrapped = true): ResponsePart[] {
-    /* unwrap, then compile each raw A2UI part */
-  }
-
-  /**
-   * Consumes one streaming chunk and returns the parts that became complete.
-   * Returns an empty array when the chunk only advanced an unfinished block.
-   * @param wrapped False when the stream is a bare payload with no sentinel tags.
-   */
-  abstract parseChunk(chunk: string, wrapped?: boolean): ResponsePart[];
-
-  /**
-   * Async-iterable wrapper over parseChunk, for `for await` over a model stream.
-   *
-   * TypeScript-specific addition. Every AI SDK we intend to document exposes its
-   * response stream as an async iterable, so this is the shape callers reach for.
-   * It adds no behavior of its own; parseChunk stays the primitive, and the
-   * conformance harness drives that rather than this.
-   */
-  async *parseStream(chunks: AsyncIterable<string>, wrapped = true): AsyncGenerator<ResponsePart> {
-    /* delegates to parseChunk, flushes any trailing buffer at completion */
-  }
-}
-```
-
-### Inference format facade
-
-```typescript
-/** Pairs a prompt generator with a matching parser for one output format. */
-export interface InferenceFormat {
-  readonly promptGenerator: PromptGenerator;
-  /** Returns a fresh parser. Never reuse one across responses. */
-  createParser(): Parser;
-}
-
-/** Constructs an InferenceFormat once the active catalogs are known. */
-export interface InferenceFormatFactory {
-  createFormat(
-    catalogs: SchemaCatalog[],
-    examples?: Record<string, AgentToRendererMessage[]>,
-  ): InferenceFormat;
-}
-```
+generator compiles instructions for every one of them, never picking a default.
 
 ---
 
@@ -444,19 +314,13 @@ export class InMemoryCatalogProvider implements CatalogProvider {
   );
   load(): Promise<SchemaCatalog>;
 }
-
-/**
- * Loads the bundled v1.0 basic catalog with no configuration.
- *
- * Not in the module blueprint's provider list, but Python ships this as
- * `BundledCatalogProvider`. The name is kept identical here for cross-language parity.
- * Depends on the export gap in section 1.
- */
-export class BundledCatalogProvider implements CatalogProvider {
-  constructor(version?: string);
-  load(): Promise<SchemaCatalog>;
-}
 ```
+
+There is deliberately no bundled-catalog provider. Python has a
+`BundledCatalogProvider` because it loads the basic catalog out of bundled JSON, but the
+TypeScript equivalent was removed once `BASIC_COMPONENTS` and `BASIC_FUNCTION_APIS`
+became programmatic definitions. Building the basic catalog is a `new Catalog(...)` call,
+which needs no provider indirection. See section 1 for the v0.9 and v1.0 asymmetry.
 
 ### `CatalogConfig`
 
@@ -632,35 +496,45 @@ section 10.
 
 ## 6. Validation
 
-Validation uses `A2uiValidator` from core, as the blueprint specifies. It covers protocol version branching, deep structural checks (component
-uniqueness, root reachability, cycle prevention, recursion depth caps), and JSON Pointer
-syntax for data bindings. This SDK adds no validator wrapper of its own.
+Validation runs through `MessageProcessor` from `@a2ui/web_core/processing`. The
+`a2ui_core` blueprint makes it the single entry point that both processes and validates
+messages, and it is the only component that can see a whole surface built from more than
+one catalog. `PayloadValidator` sits underneath it, scoped to a single catalog, checking
+one component or function at a time. This SDK calls neither directly beyond constructing
+the processor; it adds no validator wrapper of its own.
 
-`A2uiValidator` is one of the contracts still landing in `web_core` (section 1). If it
-arrives under a different name, only the import changes. If it does not arrive, the
-equivalent can be assembled from primitives that already exist —
-`AgentToRendererMessageSchema.parse()` for envelope shape, each `ComponentApi`'s Zod
-`schema` for component props, and `validateRecursionAndPaths()` plus
-`getComponentReferences()` and `buildComponentRefMap()` with `V10_CHILD_REF_OPTIONS` for
-structure — but that is a fallback, not the plan.
+```typescript
+const processor = new MessageProcessor({catalogs: negotiatedCatalogs});
+```
 
-### Surface state during validation
+Constructed with the negotiated catalogs, the processor rejects a `createSurface` whose
+`catalogId` was never negotiated, or a component drawn from a catalog the renderer did
+not offer, with `A2uiCatalogError`. Surface lifecycle violations — creating a surface
+twice, updating one that does not exist — raise `A2uiIntegrityError`. Envelope shape and
+protocol version are checked against the Zod schema.
 
-A validator sees one outbound payload at a time. When a payload updates a surface it did
-not itself create, it carries no component tree, so a reference to a component the agent
-sent in an earlier payload cannot be checked and is accepted by default. Cycles spanning
+### Why the processor rather than a validator
+
+Checking a payload in isolation is weaker than it looks. When a payload updates a surface
+it did not create, it carries no component tree, so a reference to a component the agent
+sent in an earlier payload cannot be resolved and is accepted by default. Cycles spanning
 two payloads go unnoticed for the same reason.
 
-An agent that runs `MessageProcessor` from `@a2ui/web_core/processing` over its own
-outbound messages holds that tree. References then resolve against what the surface
-already has, and cycles are found across the whole surface rather than one payload at a
-time. The renderer runs equivalent checks on arrival, so doing this first catches a bad
-payload before it is sent instead of after.
+Running the processor over outbound messages keeps that tree. References resolve against
+what the surface already holds, and cycles are found across the whole surface rather than
+one payload at a time. The renderer performs equivalent checks on arrival, so doing this
+first catches a bad payload before it is sent rather than after.
 
 `A2uiRequestProcessor` therefore maintains a `MessageProcessor` over the messages it has
-emitted, and validates against that accumulated surface state. This costs memory
-proportional to surface size and makes the processor stateful across a session, which is
-worth being deliberate about.
+emitted and validates against that accumulated state. This costs memory proportional to
+surface size and makes the processor stateful across a session, which is worth being
+deliberate about.
+
+> [!NOTE]
+> An earlier draft of this section had a standalone `A2uiValidator` performing
+> whole-payload validation. No such class exists, and review established that it would be
+> the wrong shape: single-catalog validation and surface-spanning validation are
+> different jobs, split across `PayloadValidator` and `MessageProcessor` respectively.
 
 ---
 
@@ -690,7 +564,7 @@ only:
 
 | Action                                                    | Cases | Reachable?                                      |
 | --------------------------------------------------------- | ----- | ----------------------------------------------- |
-| `select_catalog`                                          | 8     | Yes — format- and version-agnostic              |
+| `select_catalog`                                          | 8     | Yes, with a caveat — see below                  |
 | `load_catalog`                                            | 3     | Yes — format- and version-agnostic              |
 | `has_parts`                                               | 3     | Yes — unversioned, Direct JSON tags             |
 | `parse_full`                                              | 9     | Yes — unversioned, Direct JSON tags             |
@@ -699,6 +573,11 @@ only:
 | `process_chunk` (v0.8/v0.9)                               | 76    | No — protocol versions this SDK does not target |
 | `generate_prompt`                                         | 8     | No — see below                                  |
 | `from_format`, `core_syntax`, `from_catalog`, `skill_set` | 4     | Not yet — need Express and a skill generator    |
+
+The `select_catalog` caveat: the action has no counterpart in
+`blueprints/modules/a2ui_agent.blueprint.md`, so what it asserts is not traceable to a
+specified method. Review flagged the cases themselves as needing an update, so treat the
+8 as provisionally rather than definitively reachable.
 
 **31 of 119 cases run**, rising to 35 once Express and skill generation land. Everything
 skipped is gated on protocol version, on a deprecated API, or on Express — not on
@@ -815,37 +694,21 @@ Cross-language questions this SDK cannot settle alone. Grouped by what kind of d
 each needs. Nothing here blocks starting implementation; items marked **blocking** must
 be resolved before the affected area is finished.
 
-### A. The module blueprint and the Python SDK disagree
+### A. Scope
 
-Python's agent SDK has not finished its v1.0 migration: the facades, providers, and
-directory layout the blueprint describes are Stage 4 of `v1_0_implementation_plan.md`,
-and none of it has landed. Comparisons below are against Python as it stands today, so
-the migration may settle some of them on its own.
-
-1. **`CatalogConfig` holds a catalog, or a provider?** The blueprint contradicts itself.
-   Its summary calls `CatalogConfig` a dataclass encapsulating catalog _providers_ and
-   examples; its type definition declares an already-resolved `catalog` plus
-   `transformers`. Python matches the summary, taking `name`, `provider`, and
-   `examples_path`. The difference is a real one: whether catalog loading happens when
-   the config is constructed, or is deferred to negotiation.
-   _This SDK follows the type definition._ **Blocking** for the catalog layer, since
-   reversing it later changes when I/O happens and whether construction is async.
-
-2. **`parseChunk` or `processChunk`?** The blueprint says `parse_chunk(chunk, wrapped)`.
-   Python implements `process_chunk(chunk)` — different name, and no `wrapped`
-   parameter. The conformance suite labels the action `process_chunk`.
-   _This SDK follows the blueprint (`parseChunk`, with `wrapped`)._ Cosmetic, but it is
-   the method every SDK's streaming path is named after, so it is worth converging.
-
-3. **The blueprint's `Parser` is missing a content predicate.** Python has
-   `has_format_content`, and the conformance suite tests it through the `has_parts`
-   action, but the blueprint's `Parser` does not declare it. Any SDK written strictly
-   from the blueprint will fail those cases.
-   _This SDK adds `hasA2uiParts`._ The blueprint should gain the method.
+1. **Should this SDK support v0.9 as well as v1.0?** This document assumes v1.0 only.
+   Review challenged that: Dart will support v0.9 and v1.0, Python supports v0.8 through
+   v1.0, and all of them are expected to be forward compatible. A TypeScript SDK that
+   stops at v1.0 would be the odd one out.
+   The cost is not evenly spread. Supporting v0.9 means a second set of catalogs and
+   capability types, but it also unlocks the 76 v0.8/v0.9 streaming conformance cases
+   that section 7 currently writes off — reachability would go from 31 of 119 to well
+   over 100.
+   **Blocking** for section 7's scope and for the capability types in section 1.
 
 ### B. Decisions with repository-wide reach
 
-4. **Which ANTLR TypeScript runtime?** Generating from the shared
+2. **Which ANTLR TypeScript runtime?** Generating from the shared
    `specification/inference_formats/express/Express.g4` is decided: a single grammar
    compiled for both languages makes TypeScript/Python dialect divergence structurally
    impossible rather than merely unlikely, which is worth a codegen step. What remains
@@ -854,39 +717,30 @@ the migration may settle some of them on its own.
    stories, and the choice sets precedent for any future TS grammar work.
    **Blocking** for the Express compiler.
 
-5. **Should Express graduate out of `proposals/`?** Its specification lives at
+3. **Should Express graduate out of `proposals/`?** Its specification lives at
    `specification/proposals/express/a2ui_express.md` while its grammar sits at
    `specification/inference_formats/express/Express.g4`, and the Python implementation
    is under `inference_formats/experimental/`. Less urgent now that Direct JSON carries
    the SDK, but still worth settling before Express ships to users: either promote the
    spec, or record that implementations are knowingly ahead of it.
-
-6. **Should `BundledCatalogProvider` be in the blueprint?** Python ships it, this SDK
-   wants it, and `v1_0_implementation_plan.md` schedules v1.0 work on it, so the
-   blueprint's provider list looks incomplete.
+   Express decisions, including this one and question 2, are owned by the Express format
+   maintainer rather than settled here.
 
 ### C. Dependencies on other work
 
-7. **Core contracts landing in `web_core`.** This design assumes `A2uiValidator`,
-   `A2uiRendererCapabilities`, `A2uiCatalogError`, and `BasicCatalog`, none of which
-   exist yet (section 1). Only `A2uiValidator` has a confirmed name; the other three
-   need one before the imports can be written once and left alone. **Blocking** for
-   validation and the bundled provider.
+4. **Core contracts landing in `web_core`.** This design assumes `PayloadValidator` and
+   `A2uiCatalogError`, neither of which exists there yet (section 1). **Blocking** for
+   validation.
 
-8. **`web_core` export gap.** If `BasicCatalog` lands in core, this may resolve itself —
-   a ready-built catalog means this SDK never reaches for the bundled JSON. If it does
-   not, a `./v1_0/schemas/*` export entry is still needed, and that touches a shared
-   package.
-
-9. **Does the YAML expectation format change with structured parts?** Existing cases put
+5. **Does the YAML expectation format change with structured parts?** Existing cases put
    `text` and `a2ui` in one entry, which the structured model splits into two parts.
    This SDK's harness translates (section 7), but if the Python migration also revises
    the YAML format, the translation should be dropped rather than duplicated in every
    SDK. Whoever lands the Python change should decide.
 
-10. **`a2ui_core` package.** Section 1 assumes the framework-agnostic half of `web_core`
-    eventually moves there. Timing affects when this SDK repoints its imports, but
-    nothing here waits on it.
+6. **`a2ui_core` package.** Section 1 assumes the framework-agnostic half of `web_core`
+   eventually moves there. Timing affects when this SDK repoints its imports, but
+   nothing here waits on it.
 
 ### Resolved
 
@@ -897,15 +751,25 @@ the migration may settle some of them on its own.
 - **Skill generation.** Deliberately excluded, per section 8, but the `PromptGenerator`
   decomposition it mandates is adopted in section 3.
 - **ANTLR for Express.** Generating from the shared `Express.g4` is settled; only the
-  runtime package remains open (question 4).
-- **The validator's name.** `A2uiValidator`, per section 1.
+  runtime package remains open (question 2).
+- **What validates a payload.** `MessageProcessor` is the entry point and
+  `PayloadValidator` the per-catalog check, per section 6. There is no `A2uiValidator`.
+- **`CatalogConfig` holds a resolved `Catalog`**, not a provider — confirmed in review.
+  It held a provider originally and was changed once `BasicCatalog` could be referenced
+  directly. The module blueprint still reads both ways and will be made consistent.
+- **The streaming method is `parseChunk`**, matching `parseResponse` — confirmed in
+  review. Python's `process_chunk` is the one that moves.
+- **`Parser` gains a content predicate.** Confirmed as a blueprint omission; it will be
+  added there, and this SDK keeps `hasA2uiParts`.
+- **No `BundledCatalogProvider`.** Removed from TypeScript; the basic catalog is
+  constructed directly, per sections 1 and 4.
 
 ---
 
 ## 11. Verification log
 
-Checked against the repository on 2026-09-11 at commit `6e3e9d3`, and re-checked on
-2026-09-14 at `2297b4ac`, the tip of the `v1_0` branch.
+Checked against the repository on 2026-09-11 at commit `6e3e9d3`, re-checked on
+2026-09-14 at `2297b4ac`, and revised on 2026-09-18 against review feedback on PR #2651.
 
 Confirmed present and shaped as documented: `Catalog`, `loadCatalogFromSchema`,
 `AgentToRendererMessage`, `RendererToAgentMessage`, `V10RendererCapabilities`,
@@ -913,9 +777,17 @@ Confirmed present and shaped as documented: `Catalog`, `loadCatalogFromSchema`,
 in `@a2ui/web_core/errors`, and Node-safe subpath imports for every `web_core` path in
 section 1.
 
-Confirmed absent as of the re-check, and assumed to be landing: `A2uiValidator`,
-`A2uiCatalogError`, `BasicCatalog`, and the `A2uiRendererCapabilities` alias. Also still
-absent: any export path reaching the bundled v1.0 basic catalog JSON.
+Confirmed absent from `web_core` and assumed to be landing: any validator class and
+`A2uiCatalogError`. Also absent: `V09RendererCapabilities`, which this SDK would only
+need if it took on v0.9, and any export path reaching the bundled v1.0 basic catalog
+JSON, which it no longer needs either way.
+
+Verified while acting on review feedback. `BundledCatalogProvider` is gone from
+TypeScript but still present in `python/a2ui_agent/src/a2ui/basic_catalog/provider.py`
+and the legacy Kotlin SDK. A ready-built `basicCatalog` instance exists only at
+`v0_9/basic_catalog/catalog.ts`; the v1.0 subpath exports components and functions with
+no assembled catalog. `scripts/copy-spec.js` still copies the specification JSON and
+catalogs into the build, so the move to Zod-only is intent rather than current state.
 
 Section 10 was reconciled against `v1_0_implementation_plan.md` on 2026-09-14. The
 Python agent SDK is at the end of that plan's Stage 3: `A2uiGenerator`,
