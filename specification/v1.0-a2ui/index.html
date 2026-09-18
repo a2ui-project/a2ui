@@ -4422,6 +4422,7 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 </ul>
 <h3 id="renderer-capabilities">Renderer capabilities<a class="headerlink" href="#renderer-capabilities" title="Permanent link">¶</a></h3>
 <p>The <code>a2uiRendererCapabilities</code> object in the transport metadata follows the [<code>renderer_capabilities.json</code>] schema to describe the renderer's capabilities.</p>
+<p>If <code>a2uiRendererCapabilities</code> is carried on message metadata (eg, in A2A), it should be scoped to that conversation turn, and omitting it on subsequent messages should withdraw A2UI support for those turns. If <code>a2uiRendererCapabilities</code> is carried on session metadata (eg, in MCP initialize) it should be scoped to the session.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li><code>v1.0</code> (object, required): The capability structure for version 1.0 of the A2UI protocol.</li>
