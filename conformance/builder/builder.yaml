@@ -1,0 +1,212 @@
+# A2UI Fluent Builder Conformance Test Definitions
+# Used across all SDK languages (Python, Dart, TypeScript) to verify builder serialization parity.
+
+suite: "a2ui_fluent_builder_conformance"
+version: "v0.9"
+
+tests:
+  - id: "01_primitive_components"
+    description: "Primitive components with static attributes and strict enums"
+    golden: "01_primitive_components.json"
+    type: "tree"
+    input:
+      - component: "Text"
+        id: "header_text"
+        text: "Welcome to A2UI"
+        variant: "h1"
+      - component: "Divider"
+        id: "divider_0"
+        axis: "horizontal"
+      - component: "Text"
+        id: "body_text"
+        text: "This is a simple text component."
+        variant: "body"
+
+  - id: "02_nested_hierarchy_and_slots"
+    description: "Nested component trees with single and multi-child slots"
+    golden: "02_nested_hierarchy_and_slots.json"
+    type: "tree"
+    input:
+      component: "Card"
+      id: "main_card"
+      child:
+        component: "Column"
+        id: "main_col"
+        children:
+          - component: "Text"
+            id: "title"
+            text: "Dashboard"
+            variant: "h2"
+          - component: "Divider"
+            id: "div_1"
+          - component: "Row"
+            id: "action_row"
+            children:
+              - component: "Icon"
+                id: "save_icon"
+                name: "check"
+              - component: "Button"
+                id: "btn_save"
+                variant: "primary"
+                child:
+                  component: "Text"
+                  id: "btn_save_text"
+                  text: "Save Changes"
+                action:
+                  event: "save_changes"
+
+  - id: "03_automatic_id_allocation"
+    description: "Scoped deterministic ID allocation via IdAllocator"
+    golden: "03_automatic_id_allocation.json"
+    type: "tree"
+    root_id: "panel"
+    input:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: "First Item"
+          - component: "Text"
+            text: "Second Item"
+
+  - id: "04_data_bindings"
+    description: "Dynamic data bindings with path normalization"
+    golden: "04_data_bindings.json"
+    type: "tree"
+    input:
+      component: "Card"
+      id: "profile_card"
+      child:
+        component: "Column"
+        id: "profile_col"
+        children:
+          - component: "Text"
+            id: "user_greeting"
+            text:
+              $bind: "user/displayName"
+            variant: "h3"
+          - component: "Text"
+            id: "user_balance"
+            text:
+              $bind: "/account/balance"
+            variant: "body"
+
+  - id: "05_accessibility_attributes"
+    description: "Native serialization of AccessibilityAttributes"
+    golden: "05_accessibility_attributes.json"
+    type: "tree"
+    input:
+      component: "Button"
+      id: "accessible_button"
+      accessibility:
+        label: "Submit Application"
+        description: "Transmits all form entries to the review server"
+        live: "assertive"
+        hidden:
+          $bind: "/form/isSubmitting"
+      child:
+        component: "Text"
+        id: "btn_label"
+        text: "Submit"
+      action:
+        event: "submit_application"
+
+  - id: "06_actions_and_function_calls"
+    description: "Actions with server event context maps and client functions"
+    golden: "06_actions_and_function_calls.json"
+    type: "tree"
+    input:
+      component: "Column"
+      id: "action_col"
+      children:
+        - component: "Button"
+          id: "btn_checkout"
+          variant: "primary"
+          child:
+            component: "Text"
+            id: "txt_checkout"
+            text: "Checkout"
+          action:
+            event: "order_checkout"
+            context:
+              cartId: "cart_99"
+              userId:
+                $bind: "/session/uid"
+              total: 49.99
+        - component: "Button"
+          id: "btn_help"
+          child:
+            component: "Text"
+            id: "txt_help"
+            text: "Help Center"
+          action:
+            function:
+              call: "openUrl"
+              args:
+                url: "https://a2ui.org/docs"
+              callId: "nav_help"
+
+  - id: "07_dynamic_child_list"
+    description: "Collection-bound dynamic child templates"
+    golden: "07_dynamic_child_list.json"
+    type: "tree"
+    input:
+      component: "Column"
+      id: "feed_container"
+      children:
+        $dynamicChildList:
+          dataModelPath: "feed/posts"
+          template:
+            component: "Card"
+            id: "post_card"
+            child:
+              component: "Text"
+              id: "post_title"
+              text:
+                $bind: "title"
+
+  - id: "08_component_references"
+    description: "External surface component slot references (ComponentRef)"
+    golden: "08_component_references.json"
+    type: "tree"
+    input:
+      component: "Card"
+      id: "outer_card"
+      child:
+        component: "Column"
+        id: "inner_col"
+        children:
+          - component: "Text"
+            id: "intro_text"
+            text: "Header"
+          - $componentRef: "existing_surface_widget"
+
+  - id: "09_surface_lifecycle_envelopes"
+    description: "Packaging component trees into standard A2UI envelopes"
+    golden: "09_surface_lifecycle_envelopes.json"
+    type: "envelopes"
+    surface_id: "main_surface"
+    catalog_id: "org.a2ui.basic"
+    data_model:
+      /session/user: "Alice"
+    input:
+      component: "Card"
+      id: "hero_card"
+      child:
+        component: "Text"
+        id: "hero_txt"
+        text: "A2UI"
+
+  - id: "10_validation_rules"
+    description: "Client validation rules (CheckRule) with function condition"
+    golden: "10_validation_rules.json"
+    type: "rule"
+    input:
+      condition:
+        call: "regex"
+        args:
+          value:
+            $bind: "/user/zip"
+          pattern: "^[0-9]{5}$"
+      message: "ZIP code must be 5 digits"
