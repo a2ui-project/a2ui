@@ -1,5 +1,12 @@
 ## Unreleased
 
+- (v0_9) Support universal Web Components in the v0.9 renderer:
+  - Add `provideA2Ui` configuration function and `useUniversalComponents` option in `RendererConfiguration` for initializing Angular applications.
+  - Update `AngularCatalog` to extend `Catalog<CatalogComponentImplementation>`, supporting both W3C Web Components and native Angular components.
+  - Add `CatalogComponentImplementation` union type and `isAngularComponentImplementation` type guard.
+  - `createComponentImplementation` now returns an entry that is both an `AngularComponentImplementation` and a `WebComponentImplementation`: it reuses the element of a `WebComponentImplementation` API, or wraps the Angular component into an `a2ui-ng-<name>` Custom Element, so universal container components can always render it as a child.
+  - Update `A2uiRendererService` and `ComponentHostComponent` to render either universal Web Components or native Angular components depending on `useUniversalComponents`. [#2273](https://github.com/a2ui-project/a2ui/pull/2273)
+
 ## 0.10.7
 
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` now combines the surface id, component id, and data context path instead of using the surface-scoped component id alone, and checkboxes no longer receive a `name`. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)

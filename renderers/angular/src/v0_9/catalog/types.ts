@@ -16,7 +16,12 @@
 
 import {Type} from '@angular/core';
 import {Catalog, ComponentApi} from '@a2ui/web_core/v0_9';
+import {
+  WebComponentImplementation,
+  isWebComponentImplementation,
+} from '@a2ui/web_core/v0_9/universal';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
+import {toWebComponent} from './to_web_component';
 
 /**
  * Temporary type used during basic catalog schema alignment to bypass strict type checking.
@@ -41,32 +46,78 @@ export interface AngularComponentImplementation extends ComponentApi {
 }
 
 /**
- * A collection of Angular component and function implementations mapped to
+ * A component implementation supported by the Angular catalog, which can be
+ * either a native W3C Custom Element or an Angular `@Component` declaration.
+ */
+export type CatalogComponentImplementation =
+  | WebComponentImplementation
+  | AngularComponentImplementation;
+
+/**
+ * A collection of component and function implementations mapped to
  * A2UI protocol types.
+ *
+ * Supports both native Angular component declarations (`.component`) and
+ * W3C Custom Elements (`WebComponentImplementation`).
  *
  * Catalogs are used by the {@link MessageProcessor} to resolve component
  * definitions and by {@link ComponentHostComponent} to instantiate the
  * correct Angular components.
  */
-export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
+export class AngularCatalog extends Catalog<CatalogComponentImplementation> {}
 
 /**
- * Helper function to create an {@link AngularComponentImplementation}.
+ * Type guard to check if a component declaration is an AngularComponentImplementation.
  *
- * It extracts the name and schema from a generic {@link ComponentApi} and
- * associates it with the given Angular component type.
+ * Uses structural duck-typing (`'component' in api && typeof api.component === 'function'`)
+ * to preserve backwards compatibility with existing applications and catalogs constructed
+ * using plain JavaScript/TypeScript object literals without requiring class inheritance or
+ * private brand symbols.
  *
- * @param api The generic component API definition.
- * @param component The Angular component class implementing the API.
- * @returns The structured Angular component implementation.
+ * @note This duck-typing check may be replaced or removed in a future major version release.
+ */
+export function isAngularComponentImplementation(
+  api: unknown,
+): api is AngularComponentImplementation {
+  return (
+    typeof api === 'object' &&
+    api !== null &&
+    'component' in api &&
+    typeof (api as {component?: unknown}).component === 'function'
+  );
+}
+
+/**
+ * Creates a catalog entry for an Angular component that can be rendered both natively and as a
+ * universal Web Component.
+ *
+ * The returned implementation is an {@link AngularComponentImplementation} (via `component`) and a
+ * {@link WebComponentImplementation} (via `tagName` and `element`) at the same time. The Angular
+ * renderer picks the native component or the Web Component depending on
+ * `RendererConfiguration.useUniversalComponents`, while universal container components, which
+ * resolve their children by tag name, can always render it.
+ *
+ * When `componentApi` is already a `WebComponentImplementation` (for example a `@a2ui/web_core`
+ * basic catalog component), its element is used for universal rendering. Otherwise `component` is
+ * wrapped into a Custom Element with {@link toWebComponent}.
+ *
+ * @param componentApi The ComponentApi or WebComponentImplementation defining the schema and name.
+ * @param component The Angular Component class.
+ * @returns The structured implementation.
  */
 export function createComponentImplementation(
-  api: ComponentApi,
+  componentApi: ComponentApi | WebComponentImplementation,
   component: Type<CatalogComponentInstance>,
-): AngularComponentImplementation {
+): AngularComponentImplementation & WebComponentImplementation {
+  const webComponent = isWebComponentImplementation(componentApi)
+    ? componentApi
+    : toWebComponent({name: componentApi.name, schema: componentApi.schema, component});
+
   return {
-    name: api.name,
-    schema: api.schema,
+    name: componentApi.name,
+    schema: componentApi.schema,
+    tagName: webComponent.tagName,
+    element: webComponent.element,
     component,
   };
 }

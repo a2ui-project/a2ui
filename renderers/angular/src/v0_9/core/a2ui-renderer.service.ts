@@ -20,17 +20,19 @@ import {
   InjectionToken,
   inject,
   EnvironmentInjector,
-  EnvironmentProviders,
-  makeEnvironmentProviders,
+  Injector,
 } from '@angular/core';
 import {
   MessageProcessor,
   SurfaceGroupModel,
-  ActionListener as ActionHandler,
+  ActionListener,
   A2uiMessage,
-  A2uiClientAction as Action,
 } from '@a2ui/web_core/v0_9';
-import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
+import {AngularCatalog, CatalogComponentImplementation} from '../catalog/types';
+import {
+  clearDefaultUniversalInjector,
+  setDefaultUniversalInjector,
+} from '../catalog/to_web_component';
 import {initializeAngularReactivity} from './reactivity';
 
 /**
@@ -40,12 +42,19 @@ export interface RendererConfiguration {
   /** The catalogs containing the available components and functions. */
   catalogs: AngularCatalog[];
   /**
-   * Optional handler for actions dispatched from any surface.
+   * When true, catalog entries that are both an Angular component and a Web Component (see
+   * `createComponentImplementation`) render as W3C universal Web Components application-wide.
+   * When false (default), they render as native Angular components.
    *
-   * This callback is invoked whenever a component in any surface triggers an action
-   * (e.g., clicking a button with an `onTap` property).
+   * This only affects components rendered directly by the Angular renderer. Children of a
+   * universal container component are always rendered as Web Components, because the container
+   * resolves them by tag name.
    */
-  actionHandler?: (action: Action) => void;
+  useUniversalComponents?: boolean;
+  /**
+   * Optional handler for actions dispatched from any surface.
+   */
+  actionHandler?: ActionListener;
 }
 
 /**
@@ -56,25 +65,6 @@ export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
 );
 
 /**
- * Provides the A2UI renderer configuration.
- *
- * @param configOrFactory The configuration or a factory function that returns the configuration.
- * @returns The providers for the A2UI renderer.
- */
-export function provideA2Ui(
-  configOrFactory: RendererConfiguration | (() => RendererConfiguration),
-): EnvironmentProviders {
-  return makeEnvironmentProviders([
-    {
-      provide: A2UI_RENDERER_CONFIG,
-      ...(typeof configOrFactory === 'function'
-        ? {useFactory: configOrFactory}
-        : {useValue: configOrFactory}),
-    },
-  ]);
-}
-
-/**
  * Manages A2UI v0.9 rendering sessions by bridging the MessageProcessor to Angular.
  *
  * This service is the central entry point for the A2UI renderer. It maintains a
@@ -83,17 +73,21 @@ export function provideA2Ui(
  */
 @Injectable({providedIn: 'root'})
 export class A2uiRendererService implements OnDestroy {
-  private _messageProcessor: MessageProcessor<AngularComponentImplementation>;
+  private _messageProcessor: MessageProcessor<CatalogComponentImplementation>;
   private _catalogs: AngularCatalog[] = [];
-  private _config = inject(A2UI_RENDERER_CONFIG);
+  private readonly _injector = inject(Injector);
+  private readonly _config = inject(A2UI_RENDERER_CONFIG, {optional: true});
+  private readonly _useUniversalComponents = this._config?.useUniversalComponents ?? false;
 
   constructor() {
-    initializeAngularReactivity(inject(EnvironmentInjector));
-    this._catalogs = this._config.catalogs;
-    console.log('[A2uiRendererService] constructor, config:', this._config);
-    this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
+    initializeAngularReactivity(this._injector.get(EnvironmentInjector));
+    // Angular components wrapped as Web Components need an injector when a universal container
+    // creates them outside of ComponentHostComponent.
+    setDefaultUniversalInjector(this._injector);
+    this._catalogs = this._config?.catalogs ?? [];
+    this._messageProcessor = new MessageProcessor<CatalogComponentImplementation>(
       this._catalogs,
-      this._config.actionHandler as ActionHandler,
+      this._config?.actionHandler,
     );
   }
 
@@ -113,11 +107,19 @@ export class A2uiRendererService implements OnDestroy {
    *
    * Surfaces can be retrieved from this group using their `surfaceId`.
    */
-  get surfaceGroup(): SurfaceGroupModel<AngularComponentImplementation> {
+  get surfaceGroup(): SurfaceGroupModel<CatalogComponentImplementation> {
     return this._messageProcessor.model;
+  }
+
+  /**
+   * Whether universal web components rendering is enabled application-wide.
+   */
+  get useUniversalComponents(): boolean {
+    return this._useUniversalComponents;
   }
 
   ngOnDestroy(): void {
     this._messageProcessor.model.dispose();
+    clearDefaultUniversalInjector(this._injector);
   }
 }
