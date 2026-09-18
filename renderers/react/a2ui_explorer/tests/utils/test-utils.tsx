@@ -25,16 +25,29 @@ let activeRoot: Root | null = null;
 const TEST_CONTAINER_ID = 'test-container';
 
 /**
+ * Configuration options for loading an explorer example in tests.
+ */
+export interface LoadExampleOptions {
+  /** Optional callback to capture action dispatch events. */
+  onAction?: (action: A2uiClientAction) => void;
+}
+
+/**
  * Mounts the <App> component preloaded with the specified example.
  *
  * @param filename The exact filename of the A2UI JSON example (e.g., "02_email-compose.json").
- * @param onAction Optional callback to capture action dispatch events.
+ * @param onActionOrOptions Optional callback or options object to configure action capture.
  * @returns A promise that resolves to the container element.
  */
 export async function loadExample(
   filename: string,
-  onAction?: (action: A2uiClientAction) => void,
+  onActionOrOptions?: ((action: A2uiClientAction) => void) | LoadExampleOptions,
 ): Promise<HTMLDivElement> {
+  const options: LoadExampleOptions =
+    typeof onActionOrOptions === 'function'
+      ? {onAction: onActionOrOptions}
+      : (onActionOrOptions ?? {});
+
   // Clean up previous runs
   await cleanup();
 
@@ -49,7 +62,7 @@ export async function loadExample(
   activeRoot = root;
 
   await act(async () => {
-    root.render(<App initialExampleId={id} onAction={onAction} />);
+    root.render(<App initialExampleId={id} onAction={options.onAction} />);
     await whenSettled();
   });
 
