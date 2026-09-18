@@ -25,7 +25,7 @@
 import {Context, basicCatalog} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {createMcpCatalogFunctions} from '@a2ui/mcp-catalog';
+import {createMcpCatalogFunctions} from '@a2ui/catalog-mcp';
 import {Catalog, MessageProcessor, type A2uiMessage, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {provide} from '@lit/context';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
