@@ -106,3 +106,31 @@ def test_handles_parsing_paths_with_special_characters(parser):
 def test_returns_error_on_missing_colon_in_function_args(parser):
     with pytest.raises(ValueError, match="Expected ':'"):
         parser.parse_expression("add(a 10, b: 20)")
+
+
+def test_parses_non_ascii_identifiers_and_paths(parser):
+    assert parser.parse("${señor}") == [{"path": "señor"}]
+    assert parser.parse("${café/precio}") == [{"path": "café/precio"}]
+    assert parser.parse("${日本}") == [{"path": "日本"}]
+    assert parser.parse("hola ${señor} qué tal") == [
+        "hola ",
+        {"path": "señor"},
+        " qué tal",
+    ]
+    # UAX #31 combining marks (decomposed Unicode)
+    assert parser.parse("${sen\u0303or}") == [{"path": "sen\u0303or"}]
+    assert parser.parse("${cafe\u0301/precio}") == [{"path": "cafe\u0301/precio"}]
+    # Keywords followed by identifier continuation characters
+    assert parser.parse("${true_val}") == [{"path": "true_val"}]
+    assert parser.parse("${trueñ}") == [{"path": "trueñ"}]
+    assert parser.parse("${true1}") == [{"path": "true1"}]
+    assert parser.parse("${true𐐷}") == [{"path": "true𐐷"}]
+    # Supplementary plane Unicode characters (U+10437 Deseret Small Letter Yee)
+    assert parser.parse("${𐐷}") == [{"path": "𐐷"}]
+    assert parser.parse("${a𐐷b}") == [{"path": "a𐐷b"}]
+    # Identifiers in function calls
+    assert parser.parse_expression("add(número: 10, 日本: 20)") == {
+        "call": "add",
+        "args": {"número": 10, "日本": 20},
+        "returnType": "any",
+    }

@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+- Support non-ASCII data model keys in templates.
 - **Breaking:** `MessageProcessor.processMessages` validates messages as it
   processes them, and is the single entry point for validation as well as for
   processing. A message that does not match its catalog now throws instead of

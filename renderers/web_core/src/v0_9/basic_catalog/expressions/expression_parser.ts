@@ -204,7 +204,7 @@ export class ExpressionParser {
     const start = scanner.pos;
     while (!scanner.isAtEnd()) {
       const c = scanner.peek();
-      if (this.isAlnum(c) || c === '/' || c === '.' || c === '_' || c === '-') {
+      if (isIdContinue(c) || c === '/' || c === '.' || c === '-') {
         scanner.advance();
       } else {
         break;
@@ -251,7 +251,7 @@ export class ExpressionParser {
 
   private scanIdentifier(scanner: Scanner): string {
     const start = scanner.pos;
-    while (!scanner.isAtEnd() && (this.isAlnum(scanner.peek()) || scanner.peek() === '_')) {
+    while (!scanner.isAtEnd() && isIdContinue(scanner.peek())) {
       scanner.advance();
     }
     return scanner.input.substring(start, scanner.pos);
@@ -291,13 +291,19 @@ export class ExpressionParser {
     return Number(text);
   }
 
-  private isAlnum(c: string): boolean {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
-  }
-
   private isDigit(c: string): boolean {
     return c >= '0' && c <= '9';
   }
+}
+
+const XID_CONTINUE_REGEX = /^\p{XID_Continue}$/u;
+
+function isIdContinue(input: string): boolean {
+  if (Array.from(input).length !== 1) {
+    return false;
+  }
+
+  return XID_CONTINUE_REGEX.test(input);
 }
 
 class Scanner {
@@ -309,13 +315,22 @@ class Scanner {
   }
 
   peek(offset = 0): string {
-    if (this.pos + offset >= this.input.length) return '\0';
-    return this.input[this.pos + offset];
+    const targetPos = this.pos + offset;
+    if (targetPos >= this.input.length) return '\0';
+
+    // 1. Get the numeric 32-bit code point at the target index
+    const codePoint = this.input.codePointAt(targetPos);
+    if (codePoint === undefined) return '\0';
+
+    // 2. Convert that code point back to its full string representation.
+    // String.fromCodePoint correctly reconstructs surrogate pairs automatically.
+    return String.fromCodePoint(codePoint);
   }
 
-  advance(count = 1): string {
-    const char = this.input.substring(this.pos, this.pos + count);
-    this.pos += count;
+  advance(count?: number): string {
+    const step = count ?? (this.peek() === '\0' ? 1 : this.peek().length);
+    const char = this.input.substring(this.pos, this.pos + step);
+    this.pos += step;
     return char;
   }
 
@@ -341,7 +356,7 @@ class Scanner {
   matchesKeyword(keyword: string): boolean {
     if (this.input.startsWith(keyword, this.pos)) {
       const next = this.peek(keyword.length);
-      if (!/[a-zA-Z0-9_]/.test(next)) {
+      if (!isIdContinue(next)) {
         this.advance(keyword.length);
         return true;
       }
