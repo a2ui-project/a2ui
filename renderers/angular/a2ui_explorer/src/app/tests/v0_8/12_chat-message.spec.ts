@@ -20,7 +20,7 @@ describe('Example: Chat Message (basic) (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Chat Message (basic)', Version.V0_8);
+    await loadExample({name: 'Chat Message (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

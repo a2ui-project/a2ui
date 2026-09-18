@@ -20,7 +20,7 @@ describe('Example: Calendar Day', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Calendar Day');
+    await loadExample({name: 'Calendar Day'});
     textContent = getCanvas().textContent;
   });
 

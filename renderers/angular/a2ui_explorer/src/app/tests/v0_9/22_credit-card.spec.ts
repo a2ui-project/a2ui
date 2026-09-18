@@ -23,7 +23,7 @@ describe('Example: Credit Card', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Credit Card');
+    fixture = await loadExample({name: 'Credit Card'});
     textContent = getCanvas().textContent;
   });
 
