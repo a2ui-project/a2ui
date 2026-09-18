@@ -15,11 +15,10 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {ListApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation, ResolvedChildList} from '../../universal/index.js';
+import type {ResolvedChildList, WebComponentImplementation} from '../../universal/index.js';
 
 function getChildKey(child: any): string {
   return typeof child === 'object' && child !== null
@@ -27,8 +26,7 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-@customElement('a2ui-list')
-export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
+class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
   static override styles = css`
     .a2ui-list {
       display: flex;

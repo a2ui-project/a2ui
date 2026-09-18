@@ -21,29 +21,31 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
   A2uiClientAction,
 } from '../../index.js';
-import type {A2uiBasicButtonElement} from './Button.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Button Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
     // Ensure components are registered
-    await import('./Button.js');
-    await import('./Text.js');
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiBasicButtonElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -96,7 +98,7 @@ describe('Button Component', () => {
   });
 
   it('should render and dispatch action on click', async () => {
-    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    const el = document.createElement('a2ui-basic-button') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -121,7 +123,7 @@ describe('Button Component', () => {
   });
 
   it('should be disabled when isValid is false', async () => {
-    const el = document.createElement('a2ui-basic-button') as A2uiBasicButtonElement;
+    const el = document.createElement('a2ui-basic-button') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

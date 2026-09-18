@@ -15,14 +15,13 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
+import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {ChoicePickerApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-choicepicker')
-export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePickerApi> {
+class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePickerApi> {
   /**
    * The styles of the choice picker can be customized by redefining the following
    * CSS variables:
