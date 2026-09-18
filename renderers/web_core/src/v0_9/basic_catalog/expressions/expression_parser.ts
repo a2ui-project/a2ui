@@ -40,12 +40,13 @@ export const MAX_EXPRESSION_PARTS = 1_000;
  * nested function calls with named arguments.
  */
 /**
- * Digits, an optional decimal point, and optional further digits.
+ * An optional minus, digits, an optional decimal point with optional further
+ * digits, and an optional exponent whose digits are required.
  *
  * Every client implementation accepts a trailing point (`1.`) today and none
  * accepts a second point (`1.2.3`), so the grammar is written to keep that.
  */
-const NUMBER_LITERAL = /^\d+\.?\d*$/;
+const NUMBER_LITERAL = /^-?\d+\.?\d*([eE][+-]?\d+)?$/;
 
 export class ExpressionParser {
   /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
@@ -179,7 +180,9 @@ export class ExpressionParser {
     if (scanner.matchesString("'") || scanner.matchesString('"')) {
       return this.parseStringLiteral(scanner);
     }
-    if (this.isDigit(scanner.peek())) {
+    // A hyphen starts a number only when a digit follows it. Otherwise it belongs to the
+    // path being scanned below, which keeps `${-a}` and `${a-b}` data bindings.
+    if (this.isDigit(scanner.peek()) || (scanner.peek() === '-' && this.isDigit(scanner.peek(1)))) {
       return this.parseNumberLiteral(scanner);
     }
     if (scanner.matchesKeyword('true')) return true;
@@ -279,8 +282,20 @@ export class ExpressionParser {
 
   private parseNumberLiteral(scanner: Scanner): number {
     const start = scanner.pos;
+    if (scanner.peek() === '-') {
+      scanner.advance();
+    }
     while (!scanner.isAtEnd() && (this.isDigit(scanner.peek()) || scanner.peek() === '.')) {
       scanner.advance();
+    }
+    if (scanner.peek() === 'e' || scanner.peek() === 'E') {
+      scanner.advance();
+      if (scanner.peek() === '+' || scanner.peek() === '-') {
+        scanner.advance();
+      }
+      while (!scanner.isAtEnd() && this.isDigit(scanner.peek())) {
+        scanner.advance();
+      }
     }
     const text = scanner.input.substring(start, scanner.pos);
     // The grammar is spelled out here rather than delegated to the platform's
@@ -288,7 +303,13 @@ export class ExpressionParser {
     if (!NUMBER_LITERAL.test(text)) {
       throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
     }
-    return Number(text);
+    const value = Number(text);
+    // An exponent large enough to overflow gives Infinity, which JSON cannot
+    // carry and no consumer can render.
+    if (!Number.isFinite(value)) {
+      throw new A2uiExpressionError(`Number literal is out of range: '${text}'`);
+    }
+    return value;
   }
 
   private isAlnum(c: string): boolean {
