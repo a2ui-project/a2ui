@@ -45,7 +45,7 @@ TODO: Add a detailed guide.
 
 [AG-UI](https://ag-ui.com/) translates A2UI messages to AG-UI events and handles transport and state sync automatically. It is commonly used for full stack React, Vue, and Angular applications. CopilotKit is AG-UI's creator and primary consumer.
 
-**See:** [Use A2UI with Any Agent Framework (Using AG-UI)](../guides/a2ui-with-any-agent-framework.md): Set up CopilotKit with your agent framework of choice and enable A2UI rendering.
+**See:** [Building A2UI Agents with CopilotKit](../guides/copilotkit.md): Set up CopilotKit with your agent framework of choice and enable A2UI rendering.
 
 ## Custom Transports
 

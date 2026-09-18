@@ -45,9 +45,9 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 | -------------------------------- | -------------- | ---------------------------------------------------------------------------------- |
 | **Any agent with A2A support**   | ✅ Complete    | Day-zero compatibility thanks to A2A protocol                                      |
 | **Any agent with AG-UI support** | ✅ Complete    | Day-zero compatibility thanks to AG-UI protocol                                    |
-| **AG2**                          | ✅ Complete    | [A2UIAgent](https://docs.ag2.ai/latest/docs/user-guide/reference-agents/a2uiagent) |
-| **ADK**                          | 🚧 In Progress | Still designing developer ergonomics, see [samples](../../samples/agent/adk)       |
-| **Genkit**                       | 💡 Proposed    | Community interest                                                                 |
+| **AG2**                          | ✅ Complete    | [A2UIAgent](https://docs.ag2.ai/latest/docs/user-guide/reference-agents/a2uiagent)                                   |
+| **Genkit**                       | ✅ Complete    | Native [A2UI middleware](https://genkit.dev/docs/agents/a2ui) across TypeScript (`@genkit-ai/a2ui`), Go, and Dart    |
+| **ADK**                          | 🚧 In Progress | Still designing developer ergonomics, see [samples](../../samples/agent/adk)                                         |
 | **LangGraph**                    | 💡 Proposed    | Community interest                                                                 |
 | **CrewAI**                       | 💡 Proposed    | Community interest                                                                 |
 | **Claude Agent SDK**             | 💡 Proposed    | Community interest                                                                 |
