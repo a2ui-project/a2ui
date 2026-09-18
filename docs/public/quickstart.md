@@ -380,8 +380,9 @@ Explore the [samples/client](../../samples/client) directory to see all availabl
 Check out the following links to learn more:
 
 - **[Learn Core Concepts](concepts/overview.md)**: Understand surfaces, components, and data binding
-- **[Build an Agent](guides/agent-development.md)**: Create agents that generate A2UI responses
+- **[Build an Agent with Genkit](guides/genkit.md)**: Create A2UI agents in TypeScript/JavaScript, Go, or Dart
+- **[Build an Agent with ADK](guides/adk.md)**: Create A2UI agents in Python with Google ADK
 - **[Set Up Your Own Client](guides/client-setup.md)**: Integrate A2UI into your own app
 - **[Define Your Own Catalog](guides/defining-your-own-catalog.md)**: Move past the Basic Catalog, and control the UI elements used to generate your app
-- **[Use an Existing Agent App](guides/a2ui-with-any-agent-framework.md)**: Add A2UI through CopilotKit + AG-UI for ADK, LangGraph, CrewAI, Mastra, or a custom service
+- **[Build with CopilotKit](guides/copilotkit.md)**: Add A2UI through CopilotKit + AG-UI for ADK, LangGraph, CrewAI, Mastra, or a custom service
 - **[Explore the Protocol](reference/messages.md)**: Dive into the technical specification

@@ -89,7 +89,7 @@ Genkit's A2UI middleware turns standard AI agents into interactive UI generators
 
 - [Genkit A2UI Documentation](https://genkit.dev/docs/agents/a2ui) ([JavaScript/TypeScript](https://genkit.dev/docs/js/agents/a2ui) · [Go](https://genkit.dev/docs/go/agents/a2ui) · [Dart](https://genkit.dev/docs/dart/agents/a2ui))
 - [Building A2UI Agents with Genkit Guide](../guides/genkit.md)
-- [Full-Stack Dart & Flutter Sample](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart) | [Go A2UI Middleware Sample](https://github.com/genkit-ai/genkit/tree/main/go/samples/basic-middleware/a2ui)
+- [JavaScript/TypeScript + Lit Sample](https://github.com/genkit-ai/genkit/tree/main/js/testapps/a2ui) · [Go A2UI Middleware Sample](https://github.com/genkit-ai/genkit/tree/main/go/samples/basic-middleware/a2ui) · [Full-Stack Dart & Flutter Sample](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart)
 
 ---
 
@@ -109,7 +109,7 @@ ADK integrated the A2UI v0.8 basic catalog to automatically render spec-complian
 
 - [ADK Documentation](https://google.github.io/adk-docs/)
 - [ADK Web](https://github.com/google/adk-web) (developer UI with A2UI support)
-- [Agent Development Guide](../guides/agent-development.md) (building A2UI agents with ADK)
+- [Building A2UI Agents with ADK](../guides/adk.md)
 
 ---
 
@@ -219,7 +219,9 @@ Have you built something with A2UI? [Share it with the community!](community.md)
 For more information, see the following resources:
 
 - [Quickstart Guide](../quickstart.md) - Try the demo.
-- [Agent Development](../guides/agent-development.md) - Build an agent.
+- [Building A2UI Agents with Genkit](../guides/genkit.md) - Build an agent with Genkit (TypeScript, Go, Dart).
+- [Building A2UI Agents with ADK](../guides/adk.md) - Build an agent with Google ADK (Python).
+- [Building A2UI Agents with CopilotKit](../guides/copilotkit.md) - Full-stack apps with CopilotKit & AG-UI.
 - [Client Setup](../guides/client-setup.md) - Integrate a renderer.
 - [Community](community.md) - Join the community.
 

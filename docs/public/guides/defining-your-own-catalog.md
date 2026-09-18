@@ -59,4 +59,5 @@ When defining and registering catalogs:
 
 - **[Theming & Styling](theming.md)**: Customize the look and feel of components.
 - **[Component Reference](../reference/components.md)**: Explore standard types that might be available for reuse.
-- **[Agent Development](agent-development.md)**: Build agents that interact with your Catalog.
+- **[Building A2UI Agents with Genkit](genkit.md)**: Build Genkit agents that interact with your Catalog.
+- **[Building A2UI Agents with ADK](adk.md)**: Build ADK agents that interact with your Catalog.

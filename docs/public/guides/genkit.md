@@ -84,6 +84,7 @@ Choose your Genkit backend language and attach the A2UI middleware to your agent
     	genkitx "github.com/firebase/genkit/go/genkit/exp"
     	a2uix "github.com/firebase/genkit/go/plugins/a2ui/exp"
     	"github.com/firebase/genkit/go/plugins/googlegenai"
+    	"github.com/firebase/genkit/go/plugins/middleware"
     )
 
     func main() {
@@ -97,13 +98,15 @@ Choose your Genkit backend language and attach the A2UI middleware to your agent
     		aix.InlinePrompt{
     			ai.WithModelName("googleai/gemini-flash-latest"),
     			ai.WithSystem("You help users. Render UI when it is clearer than prose."),
-    			ai.WithUse(&a2uix.Surfaces{}),
+    			ai.WithUse(&middleware.Retry{MaxRetries: 5}, &a2uix.Surfaces{}),
     		},
     		aix.WithSessionStore(localstore.NewInMemorySessionStore[any]()),
     	)
 
     	mux := http.NewServeMux()
     	mux.Handle("/api/uiAgent", genkit.Handler(uiAgent))
+    	mux.Handle("/api/uiAgent/getSnapshot", genkit.Handler(uiAgent.GetSnapshotAction()))
+    	mux.Handle("/api/uiAgent/abort", genkit.Handler(uiAgent.AbortAction()))
     	http.ListenAndServe(":8080", mux)
     }
     ```
@@ -115,38 +118,44 @@ Choose your Genkit backend language and attach the A2UI middleware to your agent
     Add `genkit_a2ui` alongside your core Genkit packages:
 
     ```bash
-    dart pub add genkit genkit_a2ui genkit_google_genai genkit_shelf
+    dart pub add genkit genkit_a2ui genkit_google_genai genkit_shelf shelf_router
     ```
 
-    Register `A2uiPlugin()` and pass `a2ui()` in your agent's `use` list:
+    Register `A2uiPlugin()` in `Genkit(plugins: [...])` and pass `a2ui()` in your agent's `use` list:
 
     ```dart
+    import 'package:genkit/experimental.dart';
     import 'package:genkit/genkit.dart';
     import 'package:genkit_a2ui/a2ui.dart';
     import 'package:genkit_google_genai/genkit_google_genai.dart';
     import 'package:genkit_shelf/genkit_shelf.dart';
     import 'package:shelf/shelf_io.dart' as io;
+    import 'package:shelf_router/shelf_router.dart';
 
+    // Register A2uiPlugin so `use: [a2ui()]` resolves from the registry
     final ai = Genkit(plugins: [googleAI(), A2uiPlugin()]);
 
     final uiAgent = ai.defineAgent(
       name: 'uiAgent',
       model: googleAI.gemini('gemini-flash-latest'),
       system:
-          'You are the dining concierge for Cymbal Bistro. Keep text responses brief.\n'
-          'Use checkAvailability before rendering a reservation form card, and use '
-          'confirmReservation when the user submits their booking to render a '
-          'confirmation card with their confirmation code.',
-      use: [a2ui()], // or pass a custom catalog: a2ui(catalog: myCatalog)
+          'You help users. Render an A2UI surface whenever a result is clearer '
+          'shown than told. Keep prose brief; put the primary substance in the UI.',
+      use: [a2ui()], // defaults to the bundled 'basic' catalog
       store: InMemorySessionStore(),
     );
 
     void main() async {
-      await io.serve(shelfHandler(uiAgent.action), 'localhost', 8080);
+      final app = Router()
+        ..post('/api/uiAgent', shelfHandler(uiAgent.action))
+        ..post('/api/uiAgent/getSnapshot', shelfHandler(uiAgent.getSnapshotDataAction))
+        ..post('/api/uiAgent/abort', shelfHandler(uiAgent.abortAgentAction));
+
+      await io.serve(app.call, 'localhost', 8080);
     }
     ```
 
-    See the [Genkit Dart A2UI Docs](https://genkit.dev/docs/dart/agents/a2ui) and the [Full-Stack Dart & Flutter Sample](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart).
+    See the [Genkit Dart A2UI Docs](https://genkit.dev/docs/dart/agents/a2ui), the [Dart A2UI Testapp](https://github.com/genkit-ai/genkit-dart/tree/main/testapps/a2ui), and the [Full-Stack Dart & Flutter Sample](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart).
 
 ---
 
@@ -175,21 +184,28 @@ Client applications connect to any Genkit backend endpoint (`POST /api/uiAgent`)
         message: actionToMessage(action as unknown as A2uiClientAction),
       });
       for await (const chunk of turn.stream) {
+        if (chunk.text) appendProseText(chunk.text);
         const envelopes = a2uiEnvelopesFromParts(chunk.raw.modelChunk?.content);
         if (envelopes.length > 0) processor.processMessages(envelopes);
       }
+      await turn.response;
     });
     ```
 
 === "Flutter (Dart / genui)"
 
     ```dart
+    import 'dart:convert';
     import 'package:a2ui_core/a2ui_core.dart' as core;
-    import 'package:genkit/client.dart';
+    import 'package:genkit/experimental_client.dart';
     import 'package:genkit_a2ui/client.dart';
     import 'package:genui/genui.dart' hide basicCatalogId, DataPart;
 
-    final agent = remoteAgent(url: 'http://localhost:8080/api/uiAgent');
+    final agent = remoteAgent(
+      url: 'http://localhost:8080/api/uiAgent',
+      getSnapshotUrl: 'http://localhost:8080/api/uiAgent/getSnapshot',
+      abortUrl: 'http://localhost:8080/api/uiAgent/abort',
+    );
     final chat = agent.chat();
     final surfaceController = SurfaceController(
       catalogs: [BasicCatalogItems.asCatalog().copyWith(catalogId: basicCatalogId)],
@@ -198,18 +214,105 @@ Client applications connect to any Genkit backend endpoint (`POST /api/uiAgent`)
     // Stream prose deltas and A2UI envelopes
     final turn = chat.sendStream(text: 'Book a table for 4 tomorrow evening');
     await for (final chunk in turn.stream) {
+      if (chunk.text.isNotEmpty) appendProse(chunk.text);
       for (final envelope in a2uiEnvelopesFromParts(chunk.raw.modelChunk?.content)) {
         surfaceController.handleMessage(core.A2uiMessage.fromJson(envelope));
       }
     }
+    await turn.response;
 
     // Forward surface button clicks and form submissions back to the agent
-    surfaceController.onSubmit.listen((message) async {
-      final action = extractClientAction(message);
-      if (action != null) {
-        await chat.sendStream(message: actionToMessage(action));
+    surfaceController.onSubmit.listen((ChatMessage message) async {
+      for (final part in message.parts) {
+        final interaction = part.asUiInteractionPart?.interaction;
+        if (interaction == null) continue;
+        final decoded = jsonDecode(interaction);
+        final m = (decoded is Map ? decoded['action'] : null) as Map?;
+        if (m != null) {
+          final action = A2uiClientAction(
+            name: (m['name'] as String?) ?? 'action',
+            surfaceId: (m['surfaceId'] as String?) ?? '',
+            sourceComponentId: (m['widgetId'] as String?) ?? '',
+            timestamp: DateTime.now().toUtc().toIso8601String(),
+            context: (m['context'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          await chat.sendStream(message: actionToMessage(action));
+        }
       }
     });
+    ```
+
+---
+
+## 3. Registering Custom Catalogs
+
+To extend or replace the built-in `basic` catalog with custom domain widgets, register a catalog in the Genkit registry using `loadCatalog` (TypeScript/Dart) or `a2uix.LoadCatalog` (Go) and reference its ID in the middleware configuration:
+
+=== "JavaScript / TypeScript"
+
+    ```ts
+    import { loadCatalog, basicCatalog, a2ui, type A2uiCatalog } from '@genkit-ai/a2ui';
+
+    const dashboardCatalog: A2uiCatalog = {
+      id: 'https://example.com/catalogs/dashboard.json',
+      components: [
+        ...basicCatalog.components,
+        {
+          name: 'MetricCard',
+          description: 'Displays a key metric with a title, numeric value, and trend indicator.',
+          props: 'title: string (required); value: string|number (required); trend?: up|down|neutral.',
+        },
+      ],
+    };
+
+    await loadCatalog(ai, { id: 'dashboard', catalog: dashboardCatalog });
+
+    // Attach to your agent with strict validation:
+    // use: [a2ui({ catalog: 'dashboard', validate: 'strict' })]
+    ```
+
+=== "Go"
+
+    ```go
+    myCatalog := &a2uix.Catalog{
+    	ID: "https://example.com/catalogs/dashboard.json",
+    	Components: []a2uix.CatalogComponent{
+    		{
+    			Name:        "MetricCard",
+    			Description: "Displays a key metric with a title, numeric value, and trend indicator.",
+    			Props:       "title: string (required); value: string|number (required); trend?: up|down|neutral.",
+    		},
+    	},
+    }
+    _ = a2uix.LoadCatalog(g, myCatalog)
+
+    // Attach to your agent or Generate call:
+    // ai.WithUse(&a2uix.Surfaces{CatalogID: myCatalog.ID, Validate: "strict"})
+    ```
+
+=== "Dart"
+
+    ```dart
+    import 'package:genkit_a2ui/a2ui.dart';
+
+    const dashboardCatalogId = 'https://example.com/catalogs/dashboard.json';
+
+    final dashboardCatalog = A2uiCatalog(
+      id: dashboardCatalogId,
+      components: [
+        ...basicCatalog.components,
+        const A2uiCatalogComponent(
+          name: 'MetricCard',
+          description: 'Displays a key metric with a title, numeric value, and trend indicator.',
+          props: 'title: string (required); value: string|number (required); trend?: up|down|neutral.',
+        ),
+      ],
+    );
+
+    await loadCatalog(ai, id: dashboardCatalogId, catalog: dashboardCatalog);
+
+    // Attach to your agent:
+    // use: [a2ui(catalog: dashboardCatalogId, validate: 'strict')]
     ```
 
 ---
@@ -239,5 +342,7 @@ In the Developer UI, you can inspect:
     - **[Go (`github.com/firebase/genkit/go/plugins/a2ui/exp`)](https://genkit.dev/docs/go/agents/a2ui)**
     - **[Dart (`package:genkit_a2ui`)](https://genkit.dev/docs/dart/agents/a2ui)**
 - **Sample Applications**:
-    - **[Full-Stack Dining Concierge (Dart & Flutter)](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart)**
+    - **[JavaScript / TypeScript + Lit Sample](https://github.com/genkit-ai/genkit/tree/main/js/testapps/a2ui)**
     - **[Go A2UI Middleware Sample](https://github.com/genkit-ai/genkit/tree/main/go/samples/basic-middleware/a2ui)**
+    - **[Dart + Flutter A2UI Testapp](https://github.com/genkit-ai/genkit-dart/tree/main/testapps/a2ui)**
+    - **[Full-Stack Dining Concierge (Dart & Flutter)](https://github.com/genkit-ai/samples/tree/main/a2ui-reservations_dart)**

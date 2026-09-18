@@ -46,7 +46,7 @@ Create an agent that generates A2UI responses for any compatible client.
 
 Include the A2UI schema in your LLM prompts, generate JSONL messages, and stream to clients over SSE, WebSockets, or A2A.
 
-**Next:** [Genkit Guide](../guides/genkit.md) | [Agent Development Guide](../guides/agent-development.md)
+**Next:** [Building A2UI Agents with Genkit](../guides/genkit.md) | [Building A2UI Agents with ADK](../guides/adk.md) | [Building A2UI Agents with CopilotKit](../guides/copilotkit.md)
 
 ---
 
