@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-import preset from '../../eslint.preset.mjs';
+import preset from '../../../eslint.preset.mjs';
 
 export default [...preset];

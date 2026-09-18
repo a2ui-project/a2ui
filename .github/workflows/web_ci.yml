@@ -75,6 +75,7 @@ jobs:
               - 'samples/personalized_learning/**'
               - 'specification/**'
               - 'catalogs/**'
+              - 'typescript/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'
