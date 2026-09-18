@@ -59,7 +59,7 @@ browser                                  node
 |   updateDataModel(jmespath( |  /mcp    |   proxy /mcp -> 127.0.0.1:8787 |
 |     regexCapture(split(     | <------> | mcp-proxy       (port 8787)    |
 |       callMcpTool(...)))))  |          |   | stdio                      |
-| @a2ui/mcp-catalog           |          |   v                            |
+| @a2ui/catalog-mcp           |          |   v                            |
 | client/app.ts (scaffolding) |          | server-filesystem (npx)        |
 +-----------------------------+          +--------------------------------+
 ```

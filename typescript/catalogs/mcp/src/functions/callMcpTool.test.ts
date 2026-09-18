@@ -38,7 +38,7 @@ import {
   readUiResourceUris,
   type McpToolClient,
 } from './callMcpTool.js';
-import mcpCatalogJson from '../../mcp_catalog.json' with {type: 'json'};
+import mcpCatalogJson from '../catalog.json' with {type: 'json'};
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 const UI_RESOURCE_URI = 'a2ui://sample-ui';
@@ -672,7 +672,7 @@ describe('callMcpTool', () => {
     });
   });
 
-  describe('mcp_catalog.json Schema Verification', () => {
+  describe('catalog.json Schema Verification', () => {
     it('loads schema into a valid Catalog using Catalog.fromSchema', () => {
       const schemaCatalog = Catalog.fromSchema(mcpCatalogJson);
       assert.strictEqual(schemaCatalog.id, MCP_CATALOG_ID);

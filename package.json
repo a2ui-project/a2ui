@@ -4,6 +4,7 @@
   "packageManager": "yarn@4.13.0",
   "workspaces": [
     "catalogs/*",
+    "typescript/catalogs/*",
     "renderers/*",
     "renderers/angular/*",
     "renderers/lit/*",
