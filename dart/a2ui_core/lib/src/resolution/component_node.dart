@@ -104,7 +104,8 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   /// map, are detached, unmodifiable snapshots. Write through
   /// [WritableBinding.set] or invoke action closures instead of mutating them.
   ///
-  /// See [ResolvedBinding] for omitted and null dynamic-property behavior.
+  /// See `GenericBinder.resolvedProps` for omitted and null dynamic-property
+  /// behavior.
   ReadonlySignal<NodeProps> get props;
 
   /// Fires exactly once, when this node is disposed. Listener failures are

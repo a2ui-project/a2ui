@@ -88,7 +88,10 @@ class GenericBinder {
   /// The live properties for the component. Dynamic properties resolve to
   /// [ResolvedBinding] wrappers: a read-only [ResolvedBinding] for literals
   /// and function calls, a [WritableBinding] for path bindings, and a read-only
-  /// null binding for omitted or null dynamic properties.
+  /// null binding for omitted or null dynamic properties, including within
+  /// existing nested objects and arrays. Absent or null non-dynamic containers
+  /// are not synthesized. A path binding to missing data is still a
+  /// [WritableBinding] whose value is null.
   ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
 
   GenericBinder(this.context, this.schema) {

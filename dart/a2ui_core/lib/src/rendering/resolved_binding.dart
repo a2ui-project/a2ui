@@ -16,15 +16,6 @@
 ///
 /// When the underlying value changes, the node emits a new binding. Existing
 /// bindings retain their snapshot values.
-///
-/// Literal and function-call values resolve to a read-only [ResolvedBinding],
-/// so a write without narrowing to [WritableBinding] is a compile error
-/// rather than a silent no-op.
-///
-/// Omitted and explicit null dynamic properties resolve to read-only bindings
-/// whose value is null, including within existing nested objects and arrays.
-/// Absent or null non-dynamic containers are not synthesized. A path binding
-/// to missing data still produces a [WritableBinding] whose value is null.
 class ResolvedBinding<T> {
   final T value;
 
