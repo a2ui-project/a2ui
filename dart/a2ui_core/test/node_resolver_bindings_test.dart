@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The omitted-property fixture is adapted from web_core's node-resolver suite.
-// The remaining cases cover nulls, arrays, updates, and binder output in Dart.
+// Covers omitted properties, nulls, arrays, updates, and binder output.
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';

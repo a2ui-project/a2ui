@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Node-layer conformance cases adapted from web_core's
-/// `node-resolver.test.ts`, plus Dart-specific regression coverage.
+/// Node-layer conformance cases, plus Dart-specific regression coverage.
 ///
 /// The conformance fixtures write directly to `componentsModel`. A separate
 /// group covers the `MessageProcessor` path: which batches it rejects, and
@@ -364,8 +363,7 @@ void processorContractTests() {
         // Graph validation classifies references from catalog markers only, so
         // an unmarked structural template is invisible to it and the batch is
         // applied. The resolver does recognize the template, so the problem
-        // surfaces as a node state instead of a rejected batch. This matches
-        // the TypeScript node layer, where cycles are a node state too.
+        // surfaces as a node state instead of a rejected batch.
         final catalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'structural-test',
           components: [
