@@ -69,7 +69,8 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
   }
 }
 
-export const A2uiDivider: WebComponentImplementation = {
+export const A2uiDivider: WebComponentImplementation<typeof DividerApi.schema> = {
   ...DividerApi,
   tagName: 'a2ui-divider',
+  element: A2uiDividerElement,
 };

@@ -108,7 +108,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
   }
 }
 
-export const A2uiCheckBox: WebComponentImplementation = {
+export const A2uiCheckBox: WebComponentImplementation<typeof CheckBoxApi.schema> = {
   ...CheckBoxApi,
   tagName: 'a2ui-checkbox',
+  element: A2uiCheckBoxElement,
 };

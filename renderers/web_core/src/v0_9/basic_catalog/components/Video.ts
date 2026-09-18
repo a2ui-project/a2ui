@@ -57,7 +57,8 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
   }
 }
 
-export const A2uiVideo: WebComponentImplementation = {
+export const A2uiVideo: WebComponentImplementation<typeof VideoApi.schema> = {
   ...VideoApi,
   tagName: 'a2ui-video',
+  element: A2uiVideoElement,
 };

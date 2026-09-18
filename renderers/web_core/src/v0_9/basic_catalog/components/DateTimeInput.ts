@@ -191,7 +191,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
   }
 }
 
-export const A2uiDateTimeInput: WebComponentImplementation = {
+export const A2uiDateTimeInput: WebComponentImplementation<typeof DateTimeInputApi.schema> = {
   ...DateTimeInputApi,
   tagName: 'a2ui-datetimeinput',
+  element: A2uiDateTimeInputElement,
 };

@@ -15,7 +15,7 @@
  */
 
 import * as assert from 'node:assert';
-import {describe, it, before, beforeEach, after} from 'node:test';
+import {describe, it, beforeEach, after} from 'node:test';
 import {setupTestDom, teardownTestDom} from '../test/dom-setup.js';
 import {nothing} from 'lit';
 import {z} from 'zod';
@@ -26,24 +26,31 @@ import {renderA2uiNode} from './render-a2ui-node.js';
 import {Catalog} from '../catalog/types.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
+// The mock element below extends HTMLElement, so the DOM globals have to be in place before this
+// module's class declarations are evaluated.
+setupTestDom();
+
 describe('renderA2uiNode', () => {
-  before(setupTestDom);
   after(teardownTestDom);
 
   let processor: MessageProcessor<any>;
   let surface: any;
   let testCatalog: Catalog<WebComponentImplementation>;
 
+  class MockButtonElement extends HTMLElement {}
+
   const mockButtonImpl: WebComponentImplementation = {
     name: 'Button',
     schema: z.object({text: z.string().optional()}),
     tagName: 'a2ui-mock-button',
+    element: MockButtonElement,
   };
 
   const mockImplWithoutTag: WebComponentImplementation = {
     name: 'MissingTag',
     schema: z.object({}),
     tagName: '' as any,
+    element: MockButtonElement,
   };
 
   beforeEach(() => {

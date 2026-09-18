@@ -93,7 +93,8 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
   }
 }
 
-export const A2uiColumn: WebComponentImplementation = {
+export const A2uiColumn: WebComponentImplementation<typeof ColumnApi.schema> = {
   ...ColumnApi,
   tagName: 'a2ui-basic-column',
+  element: A2uiBasicColumnElement,
 };
