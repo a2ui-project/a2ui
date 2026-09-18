@@ -28,4 +28,6 @@ export interface WebComponentImplementation<
 > extends ComponentApi<Schema> {
   /** The HTML tag name of the Custom Element registered for this component. */
   readonly tagName: string;
+  /** The CustomElementConstructor implementing this component. */
+  readonly element: CustomElementConstructor;
 }

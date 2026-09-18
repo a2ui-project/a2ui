@@ -236,7 +236,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
   }
 }
 
-export const A2uiChoicePicker: WebComponentImplementation = {
+export const A2uiChoicePicker: WebComponentImplementation<typeof ChoicePickerApi.schema> = {
   ...ChoicePickerApi,
   tagName: 'a2ui-choicepicker',
+  element: A2uiChoicePickerElement,
 };

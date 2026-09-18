@@ -82,7 +82,8 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
   }
 }
 
-export const A2uiSlider: WebComponentImplementation = {
+export const A2uiSlider: WebComponentImplementation<typeof SliderApi.schema> = {
   ...SliderApi,
   tagName: 'a2ui-slider',
+  element: A2uiSliderElement,
 };

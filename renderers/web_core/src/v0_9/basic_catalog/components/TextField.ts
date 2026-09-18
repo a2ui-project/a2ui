@@ -113,7 +113,8 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
   }
 }
 
-export const A2uiTextField: WebComponentImplementation = {
+export const A2uiTextField: WebComponentImplementation<typeof TextFieldApi.schema> = {
   ...TextFieldApi,
   tagName: 'a2ui-basic-textfield',
+  element: A2uiBasicTextFieldElement,
 };

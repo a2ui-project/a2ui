@@ -91,7 +91,8 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
   }
 }
 
-export const A2uiRow: WebComponentImplementation = {
+export const A2uiRow: WebComponentImplementation<typeof RowApi.schema> = {
   ...RowApi,
   tagName: 'a2ui-basic-row',
+  element: A2uiBasicRowElement,
 };

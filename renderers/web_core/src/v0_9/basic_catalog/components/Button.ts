@@ -116,7 +116,8 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
   }
 }
 
-export const A2uiButton: WebComponentImplementation = {
+export const A2uiButton: WebComponentImplementation<typeof ButtonApi.schema> = {
   ...ButtonApi,
   tagName: 'a2ui-basic-button',
+  element: A2uiBasicButtonElement,
 };
