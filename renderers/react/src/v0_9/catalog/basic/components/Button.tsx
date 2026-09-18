@@ -17,16 +17,15 @@
 import {createComponentImplementation} from '../../../adapter';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
-import styles from './Button.module.css';
 
 export const Button = createComponentImplementation(ButtonApi, ({props, buildChild}) => {
   useBasicCatalogStyles();
 
-  const classes = [styles.button];
+  const classes = ['a2ui-button'];
   if (props.variant === 'primary') {
-    classes.push(styles.primary);
+    classes.push('primary');
   } else if (props.variant === 'borderless') {
-    classes.push(styles.borderless);
+    classes.push('borderless');
   }
 
   return (
