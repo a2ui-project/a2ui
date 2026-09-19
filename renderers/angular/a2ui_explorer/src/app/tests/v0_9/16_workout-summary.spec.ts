@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample} from '../utils';
 
 describe('Example: Workout Summary', () => {
   let fixture: ComponentFixture<DemoComponent>;
