@@ -22,6 +22,8 @@ from a2ui_eval.strategies import STRATEGIES
 # Automatically limit Inspect AI's connection rate-limiter limit and cap model retry backoffs to prevent 503 errors
 os.environ["INSPECT_MAX_CONNECTIONS"] = "10"
 os.environ["INSPECT_MODEL_MAX_BACKOFF"] = "300"
+if "GEMINI_API_KEY" in os.environ and "GOOGLE_API_KEY" not in os.environ:
+    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
 
 from inspect_ai.dataset import MemoryDataset
@@ -135,7 +137,8 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool, express,"
-            " elemental, atom). Can be comma-separated or specified multiple times."
+            " elemental, atom, skill_preloaded, skill_interactive_tool). Can be"
+            " comma-separated or specified multiple times."
         ),
     )
     parser.add_argument(
@@ -192,11 +195,28 @@ def main() -> None:
                 f"Unknown evaluation strategy: {strat}. Valid choices:"
                 f" {', '.join(STRATEGIES.keys())}"
             )
-        task_func = (
-            a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom", "direct"]
-            else a2ui_v0_9_1_eval
-        )
+        if selected_dataset and (
+            "0_9" in str(selected_dataset) or "0.9" in str(selected_dataset)
+        ):
+            task_func = a2ui_v0_9_1_eval
+        elif selected_dataset and (
+            "1_0" in str(selected_dataset) or "1.0" in str(selected_dataset)
+        ):
+            task_func = a2ui_v1_0_eval
+        else:
+            task_func = (
+                a2ui_v1_0_eval
+                if strat
+                in [
+                    "express",
+                    "elemental",
+                    "atom",
+                    "direct",
+                    "skill_preloaded",
+                    "skill_interactive_tool",
+                ]
+                else a2ui_v0_9_1_eval
+            )
         task_obj = task_func(
             strategy=strat,
             grading_model=grading_model,
