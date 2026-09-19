@@ -134,13 +134,15 @@ void _seedReferencedSurfaces(
   };
   if (referenced.isEmpty) return;
 
-  processor.processMessages([
-    for (final String id in referenced)
-      CreateSurfaceMessage(
-        surfaceId: id,
-        catalogId: processor.catalogs.single.id,
-      ),
-  ]);
+  processor.processMessages(
+    AgentToRendererMessagePayload([
+      for (final String id in referenced)
+        CreateSurfaceMessage(
+          surfaceId: id,
+          catalogId: processor.catalogs.single.id,
+        ),
+    ]),
+  );
 }
 
 /// The steps a case runs, whether it declares one payload or several.
