@@ -73,3 +73,13 @@ class A2uiCompileError(A2uiError):
     """Exception raised when compiling or translating alternative UI formats/DSLs."""
 
     pass
+
+
+class A2uiDataError(A2uiError):
+    """Exception raised when a JSON Pointer write cannot be applied.
+
+    The `DataError` category of `conformance/core/data_model.yaml`, matching
+    `A2uiDataError` in the Dart client and `A2uiDataError` in `web_core`.
+    """
+
+    pass
