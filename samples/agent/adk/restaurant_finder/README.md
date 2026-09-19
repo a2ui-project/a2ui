@@ -31,6 +31,14 @@ This sample is featured in [Quickstart: Run A2UI in 5 Minutes](https://a2ui.org/
    uv run .
    ```
 
+   The console output is also saved to `logs/a2ui.log`. This UTF-8 log records
+   the A2A request flow, client UI events, model/tool activity, generated A2UI
+   JSON, schema validation, and response parts. It rotates at 10 MiB and keeps
+   three backups. Set `A2UI_LOG_FILE` in `.env` to use another location.
+
+   The log can contain user messages and submitted form values. Treat it as
+   local development data and do not publish it.
+
 4. In another terminal window:
    - verify that the agent is available via A2A:
 
