@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
 import 'data_model.dart';
+import 'messages.dart';
 import 'surface_model.dart';
 
 /// A function that invokes a catalog function by name.
@@ -27,6 +29,9 @@ typedef FunctionInvoker =
       DataContext context,
     );
 
+/// Reports a failed function evaluation without depending on a surface.
+typedef ExpressionErrorReporter = void Function(A2uiExpressionError error);
+
 /// Provides data access relative to a specific path in the DataModel.
 ///
 /// Similar to a working directory: a DataContext scoped to `/users/0`
@@ -36,9 +41,17 @@ typedef FunctionInvoker =
 class DataContext {
   final DataModel dataModel;
   final FunctionInvoker _invoke;
+  final ExpressionErrorReporter? _onError;
   final String path;
 
-  DataContext(this.dataModel, this._invoke, this.path);
+  /// With [onError], failed invocations are reported and resolve to null.
+  /// Without it, the original exception is rethrown.
+  DataContext(
+    this.dataModel,
+    this._invoke,
+    this.path, {
+    ExpressionErrorReporter? onError,
+  }) : _onError = onError;
 
   String resolvePath(String relativePath) {
     if (relativePath.startsWith('/')) return relativePath;
@@ -52,63 +65,133 @@ class DataContext {
 
   /// Returns the evaluated result of a dynamic value (literal, data binding,
   /// or function call) at the current moment. Does not create subscriptions.
+  ///
+  /// An array or map payload resolves per element, since a dynamic value may
+  /// be nested at any depth inside literal structure. A payload holding no
+  /// bindings or calls is returned as-is rather than copied.
   Object? resolveSync(Object? value) {
-    if (value is Map && value.containsKey('path')) {
-      return dataModel.get(resolvePath(value['path'] as String));
-    }
-    if (value is Map && value.containsKey('call')) {
-      final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
-      final args = <String, dynamic>{};
-      for (final MapEntry<String, dynamic> entry in call.args.entries) {
-        args[entry.key] = resolveSync(entry.value);
-      }
-      final Object? result = _invoke(call.call, args, this);
-      if (result is ReadonlySignal) {
-        return result.value;
-      }
-      return result;
-    }
     if (value is Map) {
-      final result = <String, dynamic>{};
-      for (final MapEntry<Object?, Object?> entry in value.entries) {
-        result[entry.key as String] = resolveSync(entry.value);
+      if (value.containsKey('path')) {
+        return dataModel.get(resolvePath(value['path'] as String));
       }
-      return result;
+      if (value.containsKey('call')) {
+        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+        final args = <String, dynamic>{};
+        for (final MapEntry<String, dynamic> entry in call.args.entries) {
+          args[entry.key] = resolveSync(entry.value);
+        }
+        final Object? result = _evaluateFunction(call.call, args);
+        if (result is ReadonlySignal) {
+          return result.value;
+        }
+        return result;
+      }
+      if (!_containsDynamicValue(value)) return value;
+      return <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key as String: resolveSync(entry.value),
+      };
     }
     if (value is List) {
+      if (!_containsDynamicValue(value)) {
+        return value;
+      }
       return value.map(resolveSync).toList();
     }
     return value;
   }
 
-  /// Returns a reactive signal that re-evaluates a dynamic value
-  /// whenever its underlying data dependencies change.
-  ReadonlySignal<Object?> resolveListenable(Object? value) {
-    if (value is Map && value.containsKey('path')) {
-      return dataModel.watch(resolvePath(value['path'] as String));
+  /// Whether a value (typically an array element) contains any dynamic
+  /// parts (path bindings or function calls) that require resolution.
+  static bool _containsDynamicValue(Object? value) {
+    if (value is List) {
+      return value.any(_containsDynamicValue);
     }
-    if (value is Map && value.containsKey('call')) {
-      final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
-      return computed(() {
-        final args = <String, dynamic>{};
-        for (final MapEntry<String, dynamic> entry in call.args.entries) {
-          final ReadonlySignal<Object?> resolved = resolveListenable(
-            entry.value,
-          );
-          args[entry.key] = resolved.value;
-        }
-        final Object? result = _invoke(call.call, args, this);
-        if (result is ReadonlySignal) {
-          return result.value;
-        }
-        return result;
-      });
+    if (value is Map) {
+      if (value.containsKey('path') || value.containsKey('call')) return true;
+      return value.values.any(_containsDynamicValue);
+    }
+    return false;
+  }
+
+  /// Returns a reactive signal that re-evaluates a dynamic value
+  /// whenever its underlying data dependencies change. Array and map
+  /// payloads resolve per entry, mirroring [resolveSync].
+  ReadonlySignal<Object?> resolveListenable(Object? value) {
+    if (value is Map) {
+      if (value.containsKey('path')) {
+        return dataModel.watch(resolvePath(value['path'] as String));
+      }
+      if (value.containsKey('call')) {
+        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+        return computed(() {
+          final args = <String, dynamic>{};
+          for (final MapEntry<String, dynamic> entry in call.args.entries) {
+            final ReadonlySignal<Object?> resolved = resolveListenable(
+              entry.value,
+            );
+            args[entry.key] = resolved.value;
+          }
+          final Object? result = _evaluateFunction(call.call, args);
+          if (result is ReadonlySignal) {
+            return result.value;
+          }
+          return result;
+        });
+      }
+      if (!_containsDynamicValue(value)) {
+        return signal(value);
+      }
+      final Map<String, ReadonlySignal<Object?>> entries = {
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key as String: resolveListenable(entry.value),
+      };
+      return computed(
+        () => {
+          for (final MapEntry<String, ReadonlySignal<Object?>> entry
+              in entries.entries)
+            entry.key: entry.value.value,
+        },
+      );
+    }
+    if (value is List) {
+      if (!_containsDynamicValue(value)) {
+        return signal(value);
+      }
+      final List<ReadonlySignal<Object?>> elements = value
+          .map(resolveListenable)
+          .toList();
+      return computed(() => elements.map((element) => element.value).toList());
     }
     return signal(value);
   }
 
+  /// Invokes a function, reporting a failure only when a reporter was supplied.
+  Object? _evaluateFunction(String name, Map<String, dynamic> args) {
+    try {
+      return _invoke(name, args, this);
+    } catch (error) {
+      final ExpressionErrorReporter? onError = _onError;
+      if (onError == null) rethrow;
+      onError(
+        error is A2uiExpressionError
+            ? error
+            : A2uiExpressionError(
+                error is A2uiError ? error.message : error.toString(),
+                expression: name,
+              ),
+      );
+      return null;
+    }
+  }
+
   DataContext nested(String relativePath) {
-    return DataContext(dataModel, _invoke, resolvePath(relativePath));
+    return DataContext(
+      dataModel,
+      _invoke,
+      resolvePath(relativePath),
+      onError: _onError,
+    );
   }
 
   void set(String relativePath, Object? value) {
@@ -122,12 +205,30 @@ class ComponentContext {
   final ComponentModel componentModel;
   final DataContext dataContext;
 
-  ComponentContext(this.surface, this.componentModel, {String? basePath})
-    : dataContext = DataContext(
-        surface.dataModel,
-        surface.catalog.invoke,
-        basePath ?? '/',
-      );
+  /// By default, expression errors are dispatched immediately on the surface.
+  /// Supply [onError] to control their reporting policy instead.
+  ComponentContext(
+    this.surface,
+    this.componentModel, {
+    String? basePath,
+    ExpressionErrorReporter? onError,
+  }) : dataContext = DataContext(
+         surface.dataModel,
+         surface.catalog.invoke,
+         basePath ?? '/',
+         onError:
+             onError ??
+             (error) {
+               surface.dispatchError(
+                 A2uiClientError(
+                   code: 'EXPRESSION_ERROR',
+                   surfaceId: surface.id,
+                   message: error.message,
+                   details: error.details,
+                 ),
+               );
+             },
+       );
 
   /// Dispatches an action from the component.
   Future<void> dispatchAction(Map<String, dynamic> action) {
@@ -144,6 +245,7 @@ class ComponentContext {
       surface,
       childModel,
       basePath: basePath ?? dataContext.path,
+      onError: dataContext._onError,
     );
   }
 }
