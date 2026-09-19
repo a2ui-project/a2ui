@@ -14,6 +14,8 @@
 
 import logging
 import os
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import click
 from a2a.server.apps import A2AStarletteApplication
@@ -27,8 +29,41 @@ from starlette.staticfiles import StaticFiles
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+
+def configure_logging() -> Path:
+    """Log the demo's A2A/A2UI flow to both the console and a local file."""
+    sample_dir = Path(__file__).resolve().parent
+    configured_path = os.getenv("A2UI_LOG_FILE", "logs/a2ui.log")
+    log_path = Path(configured_path)
+    if not log_path.is_absolute():
+        log_path = sample_dir / log_path
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    file_handler = RotatingFileHandler(
+        log_path,
+        maxBytes=10 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[console_handler, file_handler],
+        force=True,
+    )
+    return log_path
+
+
+log_path = configure_logging()
 logger = logging.getLogger(__name__)
+logger.info("Persistent A2UI log: %s", log_path)
 
 
 class MissingAPIKeyError(Exception):
@@ -75,7 +110,9 @@ def main(host, port):
 
         app.mount("/static", StaticFiles(directory="images"), name="static")
 
-        uvicorn.run(app, host=host, port=port)
+        # Keep Uvicorn on the root logging configuration so its lifecycle and
+        # access messages are written to the same persistent log.
+        uvicorn.run(app, host=host, port=port, log_config=None)
     except MissingAPIKeyError as e:
         logger.error(f"Error: {e}")
         exit(1)
