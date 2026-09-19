@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {ComponentFixture} from '@angular/core/testing';
-import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample} from '../utils';
+import { ComponentFixture } from '@angular/core/testing';
+import { DemoComponent } from '../../demo.component';
+import { getCanvas, loadExample } from '../utils';
 
 describe('Example: Workout Summary', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -39,6 +39,6 @@ describe('Example: Workout Summary', () => {
 
   it('should render icon', async () => {
     expect(fixture.nativeElement.querySelector('.a2ui-icon')).toBeTruthy();
-    expect(textContent).toContain('directions_run');
+    expect(textContent).toContain('favorite');
   });
 });
