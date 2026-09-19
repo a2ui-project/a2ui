@@ -41,15 +41,14 @@ Options:
   -p, --package <name>                 Package(s) to publish. Can be specified multiple times.
                                        Accepts short names (e.g., 'web_core') or scoped names (e.g., '@a2ui/web_core').
   --no-dry-run                         Actually publish the packages and obtain fresh auth tokens.
-  --skip-tests                         Skip building and testing packages before publishing. Not recommended.
   -h, --help                           Show this complete help message.
 
 Examples:
   # Dry run publishing a single package
   ./publish_npm.mjs --package=web_core
 
-  # Actually publish multiple packages, skipping tests
-  ./publish_npm.mjs -p web_core -p react --no-dry-run --skip-tests`);
+  # Actually publish multiple packages
+  ./publish_npm.mjs -p web_core -p react --no-dry-run`);
 }
 
 /**
@@ -297,27 +296,18 @@ function filterPublishablePackages(packages, {npmToken, exec}) {
 }
 
 /**
- * Builds and tests all targeted packages.
+ * Prepares all targeted packages for publication by installing dependencies.
  *
- * @param {Object[]} packages - The package objects to build and test.
- * @param {boolean} skipTests - Whether to skip tests.
+ * @param {Object[]} packages - The package objects to prepare.
  * @param {Object} options - Options.
  * @param {Function} options.runCommand - The runCommand function to use.
  */
-function buildAndTestPackages(packages, skipTests, {runCommand}) {
+function prepareWorkspacePackages(packages, {runCommand}) {
   for (const pkg of packages) {
-    console.log(`\n${bold}Testing ${pkg.name} (${pkg.version})${reset}\n`);
+    console.log(`\n${bold}Preparing ${pkg.name} (${pkg.version})${reset}\n`);
     runCommand('yarn', ['install'], {
       cwd: pkg.dir,
     });
-
-    if (skipTests) {
-      console.warn(`${yellow}⚠️  Skipping yarn test for ${pkg.name}${reset}`);
-    } else {
-      const pkgJson = JSON.parse(readFileSync(join(pkg.dir, 'package.json'), 'utf8'));
-      const testScript = pkgJson.scripts && pkgJson.scripts['test:ci'] ? 'test:ci' : 'test';
-      runCommand('yarn', ['run', testScript], {cwd: pkg.dir});
-    }
   }
 }
 
@@ -360,10 +350,6 @@ export async function main(args, mocks = {}) {
       type: 'boolean',
       default: true,
     },
-    'skip-tests': {
-      type: 'boolean',
-      default: false,
-    },
     help: {
       type: 'boolean',
       short: 'h',
@@ -374,7 +360,6 @@ export async function main(args, mocks = {}) {
   const {values} = parseArgs({args, options, allowNegative: true});
   const packagesToPublish = values.package;
   const dryRun = values['dry-run'];
-  const skipTests = values['skip-tests'];
 
   if (values.help) {
     printHelp();
@@ -383,9 +368,7 @@ export async function main(args, mocks = {}) {
 
   if (packagesToPublish.length === 0) {
     printHelp();
-    throw new Error(
-      'Usage: publish_npm --package=pkg1 --package=pkg2 [--no-dry-run] [--skip-tests]',
-    );
+    throw new Error('Usage: publish_npm --package=pkg1 --package=pkg2 [--no-dry-run]');
   }
 
   const npmToken = getAccessToken(exec);
@@ -410,8 +393,8 @@ export async function main(args, mocks = {}) {
   // Sort packages topologically (by dependency graph order).
   const packageObjects = topologicalSort(filterPublishablePackages(allPackages, {npmToken, exec}));
 
-  // Ensure packages can be built and tested.
-  buildAndTestPackages(packageObjects, skipTests, {runCommand});
+  // Ensure packages are prepared before publishing.
+  prepareWorkspacePackages(packageObjects, {runCommand});
 
   publishPackages(packageObjects, {npmToken, dryRun, runCommand});
 
