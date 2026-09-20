@@ -428,6 +428,19 @@ class GenericBinder {
     }
     visiting.addAll(schemasToInspect);
 
+    if (_schemaReader.referencesType(schemasToInspect, 'Action')) {
+      return BehaviorNode(Behavior.action);
+    }
+    if (const [
+      'DynamicValue',
+      'DynamicString',
+      'DynamicNumber',
+      'DynamicBoolean',
+      'DynamicStringList',
+    ].any((type) => _schemaReader.referencesType(schemasToInspect, type))) {
+      return BehaviorNode(Behavior.dynamic);
+    }
+
     bool hasEvent = schemasToInspect.any(
       (s) =>
           s['properties'] != null && (s['properties'] as Map)['event'] != null,

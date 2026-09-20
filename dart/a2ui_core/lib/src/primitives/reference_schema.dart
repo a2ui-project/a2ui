@@ -47,7 +47,7 @@ final class NestedRef extends RefKind {
 
 typedef RefFields = Map<String, RefKind>;
 
-/// Reads child-reference semantics without depending on a catalog or renderer.
+/// Reads common-type references and schema structure without a renderer.
 ///
 /// Local pointers resolve against the component root first, then the catalog
 /// document. Wire pointers and Dart `REF:` descriptions identify the same
@@ -127,6 +127,10 @@ class ReferenceSchemaReader {
       _ => <String, Object?>{'allOf': items},
     };
   }
+
+  /// Whether a schema references the named shared type, directly or by marker.
+  bool referencesType(List<Map<String, Object?>> schemas, String name) =>
+      _marks(schemas, '/\$defs/$name');
 
   /// Identifies a single id or a complete child list, not arbitrary arrays.
   RefKind? referenceKind(List<Map<String, Object?>> schemas) {
