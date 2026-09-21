@@ -466,11 +466,9 @@ function inspectShapeField(
   const elemShape = elem._def.shape();
   for (const [subKey, subSchema] of Object.entries(elemShape)) {
     const subRes = analyzeChildRefSchema(subSchema, options);
-    if (subRes.isChild) {
+    if (subRes.isChild || subRes.isChildList) {
       acc.listRefs.add(key);
       addNestedRef(acc, key, subKey);
-    } else if (subRes.isChildList) {
-      acc.listRefs.add(key);
     }
   }
 }
@@ -515,11 +513,9 @@ function inspectRawProperties(
 
     for (const [subKey, subSchema] of Object.entries(itemProps)) {
       const subRes = analyzeChildRefSchema(subSchema, options);
-      if (subRes.isChild) {
+      if (subRes.isChild || subRes.isChildList) {
         acc.listRefs.add(key);
         addNestedRef(acc, key, subKey);
-      } else if (subRes.isChildList) {
-        acc.listRefs.add(key);
       }
     }
   }

@@ -124,6 +124,35 @@ describe('Integrity Verification', () => {
 
       assert.deepEqual(refIds, ['a', 'b']);
     });
+
+    it('extracts child list arrays from structured array items matching nestedKeys', () => {
+      const refMap: ComponentRefMap = {
+        Accordion: {
+          singleRefs: new Set<string>(),
+          listRefs: new Set(['sections']),
+          nestedRefs: {sections: new Set(['children'])},
+        },
+      };
+
+      const comp = {
+        id: 'c1',
+        component: {
+          Accordion: {
+            sections: [
+              {title: 'Section 1', children: ['c2', 'c3']},
+              {title: 'Section 2', children: ['c4']},
+            ],
+          },
+        },
+      };
+
+      const refs = Array.from(getComponentReferences(comp, refMap));
+      assert.deepEqual(refs, [
+        ['c2', 'sections[0].children[0]'],
+        ['c3', 'sections[0].children[1]'],
+        ['c4', 'sections[1].children[0]'],
+      ]);
+    });
   });
 
   describe('validateRecursionAndPaths', () => {

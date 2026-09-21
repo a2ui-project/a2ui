@@ -86,9 +86,8 @@ function* extractPointers(
       // The catalog declared exactly which sub-keys carry a child, so sibling
       // properties such as a tab title are not references.
       for (const subKey of nestedKeys) {
-        const subVal = obj[subKey];
-        if (typeof subVal === 'string') {
-          yield [subVal, `${currentPath}.${subKey}`];
+        if (subKey in obj) {
+          yield* extractPointers(obj[subKey], `${currentPath}.${subKey}`);
         }
       }
     } else {

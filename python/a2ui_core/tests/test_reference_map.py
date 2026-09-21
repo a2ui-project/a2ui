@@ -551,3 +551,37 @@ def test_unreferenced_child_property_names_return_empty_ref_spec():
     spec = analyze_child_ref_schema(schema)
     assert spec.single_refs == set()
     assert spec.list_refs == set()
+
+
+def test_nested_child_list_in_structured_array_items():
+    schema = {
+        "type": "object",
+        "properties": {
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "children": {"$ref": "#/$defs/ChildList"},
+                    },
+                },
+            },
+        },
+    }
+    spec = analyze_child_ref_schema(schema)
+    assert spec.list_refs == {"sections"}
+    assert spec.nested_refs == {"sections": {"children"}}
+
+    props = {
+        "sections": [
+            {"title": "S1", "children": ["c1", "c2"]},
+            {"title": "S2", "children": ["c3"]},
+        ]
+    }
+    extracted = list(spec.extract_child_references(props))
+    assert extracted == [
+        ("c1", "sections[0].children[0]"),
+        ("c2", "sections[0].children[1]"),
+        ("c3", "sections[1].children[0]"),
+    ]

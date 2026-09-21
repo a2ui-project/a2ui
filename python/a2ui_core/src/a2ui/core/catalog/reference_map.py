@@ -137,6 +137,10 @@ def _is_pydantic_list_ref(typ: Any) -> tuple[bool, set[str]]:
                         alias = f_info.alias or f_name
                         if _is_pydantic_single_ref(f_info.annotation):
                             nested.add(alias)
+                        else:
+                            is_sub_l, _ = _is_pydantic_list_ref(f_info.annotation)
+                            if is_sub_l:
+                                nested.add(alias)
                     if nested:
                         return True, nested
     if origin is Union or origin is types.UnionType:
@@ -289,12 +293,22 @@ class ComponentRefSpec:
                                 ], f"{key}[{idx}].{COMPONENT_ID_KEY}"
                             elif nested_keys:
                                 for sub_k in nested_keys:
-                                    if (
-                                        sub_k in item
-                                        and isinstance(item[sub_k], str)
-                                        and item[sub_k]
-                                    ):
-                                        yield item[sub_k], f"{key}[{idx}].{sub_k}"
+                                    if sub_k in item:
+                                        for (
+                                            ref_id,
+                                            sub_path,
+                                        ) in extract_child_refs_from_val(item[sub_k]):
+                                            prefix = f"{key}[{idx}].{sub_k}"
+                                            full_path = (
+                                                f"{prefix}{sub_path}"
+                                                if sub_path.startswith("[")
+                                                else (
+                                                    f"{prefix}.{sub_path}"
+                                                    if sub_path
+                                                    else prefix
+                                                )
+                                            )
+                                            yield (ref_id, full_path)
                             else:
                                 for ref_id, sub_path in extract_child_refs_from_val(
                                     item
@@ -422,7 +436,9 @@ def analyze_child_ref_schema(
                                     for sub_k, sub_schema in items[
                                         "properties"
                                     ].items():
-                                        if _is_single_child_json_schema(sub_schema):
+                                        if _is_single_child_json_schema(
+                                            sub_schema
+                                        ) or _is_child_list_json_schema(sub_schema):
                                             list_refs.add(prop_name)
                                             nested_refs.setdefault(
                                                 prop_name, set()
