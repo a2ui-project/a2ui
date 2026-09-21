@@ -55,9 +55,10 @@ workflow. There is no version file to edit and no script to run locally.
 
 3. Check the dry run output, then run it again with `dry_run` disabled.
 
-4. Review and merge the changelog pull request the workflow opens. Do this
-   before the next release: until it lands, the entries stay under
-   `## Unreleased` and the next release repeats them in its notes.
+4. Open and merge the changelog pull request. The release run prepares the edit
+   on a branch and puts a one-click link in its job summary. Do this before the
+   next release: until it lands, the entries stay under `## Unreleased` and the
+   next release repeats them in its notes.
 
 The workflow works out the new version from the latest release tag, tags the
 release, builds, stages the artifacts in the OSS Exit Gate Artifact Registry,
@@ -84,6 +85,15 @@ unreachable once the pull request is squashed, and the `git describe` check in
 
 If `main` moves while a release is running, the run fails before anything is
 staged and asks you to try again.
+
+#### Why the changelog pull request is not opened for you
+
+The release prepares the changelog edit on a `release/changelog-*` branch and
+stops there. It could open the pull request, but that pull request could never
+be merged: GitHub does not start workflow runs for events caused by the
+built-in `GITHUB_TOKEN`, so none of the required checks would ever report, and
+the ruleset allows no bypass. Opening it yourself from the link in the job
+summary costs one click and gets a normal CI run.
 
 #### Versions come from git tags
 

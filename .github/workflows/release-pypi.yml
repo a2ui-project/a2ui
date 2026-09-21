@@ -33,7 +33,8 @@
 # requires a pull request and lists no bypass actors, so a direct push is
 # refused, and being refused mid-run would strand artifacts in the Artifact
 # Registry. Only tags are pushed, which no ruleset covers. The changelog edit
-# that accompanies a release is raised as an ordinary pull request at the end.
+# that accompanies a release is prepared on a branch at the end, for a
+# maintainer to open as an ordinary pull request.
 #
 # Because of that, tags point at a commit that is already on `main`, which is
 # what keeps `git describe --match` in python_ci.yml working.
@@ -384,22 +385,33 @@ jobs:
             --plan release-plan.json \
             --timeout-seconds 1200
 
-  # The changelog edit cannot be pushed to `main` (see the header), so it is
-  # raised as an ordinary pull request. It is a separate job because it is
-  # housekeeping: the packages are already published by this point, and a
-  # failure here must not stop `confirm` from linking the GitHub releases.
+  # The changelog edit cannot be pushed to `main` (see the header), so it goes
+  # out as an ordinary pull request. This job prepares the branch but stops
+  # short of opening the pull request, and that is deliberate.
   #
-  # Merge the pull request before the next release. Until it lands the entries
-  # stay under `## Unreleased`, and the next release repeats them in its notes.
+  # GitHub does not start workflow runs for events caused by `GITHUB_TOKEN`, so
+  # a pull request opened here would never get `format-check`, `static-checks`,
+  # `ci-*` or `build_and_deploy`. The `Restrict Default Branch` ruleset requires
+  # all of them and allows no bypass, so that pull request could never be
+  # merged — and until it merged, the entries would stay under `## Unreleased`
+  # and every later release would repeat them. An automated pull request nobody
+  # can merge is worse than none.
+  #
+  # Pushing the branch has no such problem, because nothing needs to trigger on
+  # the push. A maintainer then opens the pull request from the link in the job
+  # summary, and because a person opened it, CI runs normally.
+  #
+  # Separate job because it is housekeeping: the packages are already published
+  # by this point, and a failure here must not stop `confirm` from linking the
+  # GitHub releases.
   changelog:
-    name: Propose the changelog update
+    name: Prepare the changelog update
     needs: release
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -407,11 +419,9 @@ jobs:
         with:
           name: release-plan
 
-      - name: Open the pull request
+      - name: Push the changelog branch
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: release/changelog-${{ github.run_id }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           jq -r '.[] | "\(.pypi_name)\t\(.version)"' release-plan.json |
@@ -434,17 +444,13 @@ jobs:
           git commit -m "chore(release): changelog for ${released}"
           git push origin "HEAD:refs/heads/${BRANCH}"
 
-          cat > pr-body.md <<EOF
-          Moves the \`## Unreleased\` entries under the released versions.
-          Raised automatically by [this release run](${RUN_URL}).
-
-          Please merge before the next release: until this lands the entries
-          stay under \`## Unreleased\`, and the next release repeats them in its
-          notes.
-          EOF
-
-          gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "chore(release): changelog for ${released}" \
-            --body-file pr-body.md
+          compare="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${BRANCH}?expand=1"
+          {
+            echo "### Changelog branch ready"
+            echo
+            echo "[Open the pull request](${compare})"
+            echo
+            echo "Merge it before the next release. Until it lands, the entries"
+            echo "stay under \`## Unreleased\` and the next release repeats them"
+            echo "in its notes."
+          } >> "$GITHUB_STEP_SUMMARY"

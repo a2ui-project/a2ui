@@ -53,6 +53,13 @@ spending a CI run: is there anything to release, and will preflight reject it.
 Never run `cut-changelog --write`, `git tag`, `git push`, `uv build` or `twine`
 by hand to perform a release. If the workflow cannot do it, fix the workflow.
 
+> [!IMPORTANT]
+> One exception, and it is deliberate: **the changelog pull request has to be
+> opened by a person, not by the workflow.** GitHub does not start workflow runs
+> for events caused by `GITHUB_TOKEN`, so a pull request the workflow opened
+> would never get the required checks and could never be merged. The workflow
+> pushes the branch; Step 6 opens the pull request.
+
 ---
 
 ## Step 1: Work out what is being released
@@ -126,18 +133,22 @@ entries and the resulting versions, and let them correct it.
 These checks cost seconds and catch the failures that are expensive to hit
 mid-run. Run all of them before dispatching anything.
 
-**1. No unmerged changelog pull request from a previous release.** This is the
-one the workflow cannot detect. Until the last release's changelog PR merges,
-the entries are still under `## Unreleased`, and this release would repeat them
-in its notes.
+**1. No outstanding changelog branch from a previous release.** This is the one
+the workflow cannot detect. Until the last release's changelog lands, the
+entries are still under `## Unreleased`, and this release would repeat them in
+its notes.
 
 ```bash
-gh pr list --repo a2ui-project/a2ui --state open \
-  --search "head:release/changelog-" --json number,title,url
+git ls-remote --heads origin 'release/changelog-*'
 ```
 
-Anything other than `[]` means stop. Get that PR merged first, then start over
-from Step 1 — the pending entries will have changed.
+Check the branch, not the pull request: the release stops at the branch, so
+there may be no pull request yet. The repository deletes branches on merge, so
+empty output means the last changelog landed.
+
+Any output means stop. Get that change merged first — open the pull request if
+nobody has — then start over from Step 1, because the pending entries will have
+changed.
 
 **2. The checkout is clean and matches the remote.** Step 1 already fetched. The
 concern here is local edits: the workflow reads the changelogs and tags from
@@ -243,7 +254,7 @@ Three jobs follow:
 | :---------- | :----------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `release`   | Builds, tags, stages, triggers publishing  | Real failure. See Troubleshooting.                                                                                                               |
 | `confirm`   | Polls PyPI, then links the GitHub releases | A timeout is not a failure. The hourly [Confirm PyPI publication](../../../.github/workflows/release-verify-pypi.yml) workflow finishes the job. |
-| `changelog` | Opens the changelog pull request           | Publishing already succeeded. Cut the changelog by hand and open the PR yourself.                                                                |
+| `changelog` | Pushes the changelog branch                | Publishing already succeeded. Cut the changelog by hand and open the PR yourself.                                                                |
 
 > [!IMPORTANT]
 > **The run stays active for several minutes after `release` goes green, and
@@ -289,17 +300,24 @@ A release is not done when the workflow goes green.
    - **`confirm` failed for another reason** — read the log. The publish itself
      may still have succeeded, so check PyPI before concluding anything.
 
-2. **Get the changelog pull request merged.** Find it, check it only touches
-   `CHANGELOG.md` files, and ask the maintainer to review it.
+2. **Open the changelog pull request and get it merged.** The release pushed the
+   branch but deliberately did not open the pull request — see "What runs
+   where". Open it yourself:
 
    ```bash
-   gh pr list --repo a2ui-project/a2ui --state open --search "head:release/changelog-" --json number,url
+   BRANCH=$(git ls-remote --heads origin 'release/changelog-*' \
+     | sed 's#.*refs/heads/##')
+   gh pr create --repo a2ui-project/a2ui --base main --head "$BRANCH" \
+     --title "chore(release): changelog for ${RELEASED}" \
+     --body "Moves the \`## Unreleased\` entries under the released versions."
    ```
 
-   Do not leave this open. Step 2 will block the next release until it lands.
+   Check the diff touches only `CHANGELOG.md` files, then ask the maintainer to
+   review it. Do not leave it open: Step 2 blocks the next release until the
+   branch is gone.
 
 3. **Report** the published versions, the GitHub release links, and the
-   changelog PR link.
+   changelog pull request link.
 
 ---
 
