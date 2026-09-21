@@ -90,14 +90,15 @@ import json
 import sys
 from basic import (
     Action,
+    ActionEvent,
     Button,
     Card,
     Column,
+    DataBinding,
+    OpenUrl,
     Row,
     Text,
-    bind,
     create_surface,
-    open_url,
     update_components,
 )
 
@@ -107,10 +108,15 @@ tree = Card(
             Text(text="Welcome to A2UI", variant="h1"),
             Row(
                 children=[
-                    Text(text=bind("/app/status"), variant="caption"),
+                    Text(text=DataBinding(path="/app/status"), variant="caption"),
                     Button(
                         child=Text(text="Explore Docs"),
-                        action=Action(event="open_link", context={"url": "https://a2ui.org"}),
+                        action=Action(
+                            event=ActionEvent(
+                                name="open_link",
+                                context={"url": "https://a2ui.org"},
+                            )
+                        ),
                     ),
                 ]
             ),
@@ -118,15 +124,20 @@ tree = Card(
     )
 )
 
-fn_call = open_url(url="https://a2ui.org/specification")
+fn_call = OpenUrl(url="https://a2ui.org/specification")
 surface_msgs = create_surface("surface_main", root=tree, catalog_id="org.a2ui.basic")
 update_msgs = update_components("surface_main", root=tree)
 
+
+def dump(messages):
+    return [m.model_dump(by_alias=True, exclude_none=True) for m in messages]
+
+
 output = {
-    "surface_messages": surface_msgs,
-    "update_messages": update_msgs,
-    "components": tree.to_components(),
-    "function_call": fn_call.to_dict(),
+    "surface_messages": dump(surface_msgs),
+    "update_messages": dump(update_msgs),
+    "components": tree.flatten(),
+    "function_call": fn_call.model_dump(by_alias=True, exclude_none=True),
 }
 print(json.dumps(output))
 ''';
@@ -280,7 +291,7 @@ except ValidationError as e:
     );
 
     test(
-      'verifies generated open enums accept custom string variants in Python',
+      'verifies generated enums are strict when authoring and open when parsing',
       () {
         final tmpDir = Directory.systemTemp.createTempSync('dart-cli-py-enum-');
         try {
@@ -294,24 +305,28 @@ except ValidationError as e:
             tmpDir.path,
           ], workingDirectory: packageRoot);
 
+          // The generated enums carry OPEN_ENUM metadata: the annotation stays
+          // the strict Literal so authoring and static analysis reject a typo,
+          // and an unknown value from a newer catalog revision is only accepted
+          // when the caller explicitly asks for lenient parsing.
           const pyScript = '''
 import json
-from basic import Action, Button, Text
+from pydantic import ValidationError
+from a2ui.builder.v0_9 import LENIENT_ENUM_CONTEXT
+from basic import Text
 
-btn = Button(
-    child=Text(text="Custom Variant", variant="custom-hero-heading"),
-    action=Action(event="click"),
-    variant="custom-pill-gradient",
+try:
+    Text(text="Custom Variant", variant="custom-hero-heading")
+    authoring = "ACCEPTED"
+except ValidationError:
+    authoring = "REJECTED"
+
+parsed = Text.model_validate(
+    {"component": "Text", "text": "Custom Variant", "variant": "custom-hero-heading"},
+    context=LENIENT_ENUM_CONTEXT,
 )
-comps = btn.to_components()
-button_comp = next(c for c in comps if c["component"] == "Button")
-text_comp = next(c for c in comps if c["component"] == "Text")
 
-output = {
-    "button_variant": button_comp.get("variant"),
-    "text_variant": text_comp.get("variant"),
-}
-print(json.dumps(output))
+print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
 ''';
 
           final scriptFile = File(p.join(tmpDir.path, 'test_enum.py'));
@@ -333,12 +348,17 @@ print(json.dumps(output))
             environment: pyEnv,
           );
 
-          expect(pyResult.exitCode, equals(0));
+          expect(
+            pyResult.exitCode,
+            equals(0),
+            reason:
+                'Python script failed:\n${pyResult.stdout}\n${pyResult.stderr}',
+          );
           final output =
               jsonDecode(pyResult.stdout.toString().trim())
                   as Map<String, dynamic>;
-          expect(output['button_variant'], equals('custom-pill-gradient'));
-          expect(output['text_variant'], equals('custom-hero-heading'));
+          expect(output['authoring'], equals('REJECTED'));
+          expect(output['parsed_variant'], equals('custom-hero-heading'));
         } finally {
           tmpDir.deleteSync(recursive: true);
         }

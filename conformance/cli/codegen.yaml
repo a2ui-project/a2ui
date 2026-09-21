@@ -124,47 +124,34 @@
 
           __a2ui_codegen__ = "@a2ui/cli"
 
-          from typing import Any, Mapping, Literal, Optional, Sequence, Union
+          from typing import Literal
 
           from a2ui.builder.v0_9 import (
+              AccessibilityAttributes,
               Action,
+              ActionEvent,
+              BuilderBaseModel,
               CheckRule,
+              Child,
+              ChildList,
               ComponentBuilderNode,
               ComponentRef,
               ComponentTree,
               DataBinding,
               DynamicChildList,
-              ExternalComponentBuilderNode,
               FunctionCall,
               IdAllocator,
-              Slot,
-              SlotList,
-              bind,
+              OPEN_ENUM,
               create_surface,
               flatten_component_tree,
               update_components,
           )
 
 
-          def _serialize_prop(val: Any) -> Any:
-              if hasattr(val, "to_dict"):
-                  return val.to_dict()
-              if isinstance(val, (list, tuple)):
-                  return [_serialize_prop(item) for item in val]
-              if isinstance(val, dict):
-                  return {k: _serialize_prop(v) for k, v in val.items()}
-              return val
-
-
-          # =============================================================================
-          # Types & Enums
-          # =============================================================================
-
-
-
           # =============================================================================
           # Components
           # =============================================================================
+
 
           class Heading(ComponentBuilderNode):
               r"""Heading component."""
@@ -172,20 +159,31 @@
               component: Literal["Heading"] = "Heading"
               text: str
 
-              def to_dict(self) -> dict[str, Any]:
-                  d: dict[str, Any] = {"component": self.component}
-                  if self.text is not None:
-                      d["text"] = _serialize_prop(self.text)
-                  if self.id is not None:
-                      d["id"] = self.id
-                  return d
 
           # =============================================================================
           # Exports
           # =============================================================================
 
-          __all__ = ["Heading", "Action", "CheckRule", "ComponentBuilderNode", "ComponentRef", "ComponentTree", "DataBinding", "DynamicChildList", "ExternalComponentBuilderNode", "FunctionCall", "IdAllocator", "Slot", "SlotList", "bind", "create_surface", "flatten_component_tree", "update_components"]
-
+          __all__ = [
+              "Heading",
+              "AccessibilityAttributes",
+              "Action",
+              "ActionEvent",
+              "BuilderBaseModel",
+              "CheckRule",
+              "Child",
+              "ChildList",
+              "ComponentBuilderNode",
+              "ComponentRef",
+              "ComponentTree",
+              "DataBinding",
+              "DynamicChildList",
+              "FunctionCall",
+              "IdAllocator",
+              "create_surface",
+              "flatten_component_tree",
+              "update_components",
+          ]
 - name: test_codegen_all_primitive_types_and_defaults
   description: Tests generating code with string, integer, float, boolean, and any primitive types with defaults.
   catalog_schema:
@@ -242,47 +240,34 @@
 
           __a2ui_codegen__ = "@a2ui/cli"
 
-          from typing import Any, Mapping, Literal, Optional, Sequence, Union
+          from typing import Any, Literal, Optional
 
           from a2ui.builder.v0_9 import (
+              AccessibilityAttributes,
               Action,
+              ActionEvent,
+              BuilderBaseModel,
               CheckRule,
+              Child,
+              ChildList,
               ComponentBuilderNode,
               ComponentRef,
               ComponentTree,
               DataBinding,
               DynamicChildList,
-              ExternalComponentBuilderNode,
               FunctionCall,
               IdAllocator,
-              Slot,
-              SlotList,
-              bind,
+              OPEN_ENUM,
               create_surface,
               flatten_component_tree,
               update_components,
           )
 
 
-          def _serialize_prop(val: Any) -> Any:
-              if hasattr(val, "to_dict"):
-                  return val.to_dict()
-              if isinstance(val, (list, tuple)):
-                  return [_serialize_prop(item) for item in val]
-              if isinstance(val, dict):
-                  return {k: _serialize_prop(v) for k, v in val.items()}
-              return val
-
-
-          # =============================================================================
-          # Types & Enums
-          # =============================================================================
-
-
-
           # =============================================================================
           # Components
           # =============================================================================
+
 
           class PrimitiveBox(ComponentBuilderNode):
               r"""PrimitiveBox component."""
@@ -294,28 +279,31 @@
               active: Optional[bool] = True
               meta: Optional[Any] = None
 
-              def to_dict(self) -> dict[str, Any]:
-                  d: dict[str, Any] = {"component": self.component}
-                  if self.text is not None:
-                      d["text"] = _serialize_prop(self.text)
-                  if self.count is not None:
-                      d["count"] = _serialize_prop(self.count)
-                  if self.ratio is not None:
-                      d["ratio"] = _serialize_prop(self.ratio)
-                  if self.active is not None:
-                      d["active"] = _serialize_prop(self.active)
-                  if self.meta is not None:
-                      d["meta"] = _serialize_prop(self.meta)
-                  if self.id is not None:
-                      d["id"] = self.id
-                  return d
 
           # =============================================================================
           # Exports
           # =============================================================================
 
-          __all__ = ["PrimitiveBox", "Action", "CheckRule", "ComponentBuilderNode", "ComponentRef", "ComponentTree", "DataBinding", "DynamicChildList", "ExternalComponentBuilderNode", "FunctionCall", "IdAllocator", "Slot", "SlotList", "bind", "create_surface", "flatten_component_tree", "update_components"]
-
+          __all__ = [
+              "PrimitiveBox",
+              "AccessibilityAttributes",
+              "Action",
+              "ActionEvent",
+              "BuilderBaseModel",
+              "CheckRule",
+              "Child",
+              "ChildList",
+              "ComponentBuilderNode",
+              "ComponentRef",
+              "ComponentTree",
+              "DataBinding",
+              "DynamicChildList",
+              "FunctionCall",
+              "IdAllocator",
+              "create_surface",
+              "flatten_component_tree",
+              "update_components",
+          ]
 - name: test_codegen_open_enums
   description: Tests generating open enum types with trailing '| str' for catalog evolution.
   catalog_schema:
@@ -365,48 +353,45 @@
 
           __a2ui_codegen__ = "@a2ui/cli"
 
-          from typing import Any, Mapping, Literal, Optional, Sequence, Union
+          from typing import Annotated, Literal
 
           from a2ui.builder.v0_9 import (
+              AccessibilityAttributes,
               Action,
+              ActionEvent,
+              BuilderBaseModel,
               CheckRule,
+              Child,
+              ChildList,
               ComponentBuilderNode,
               ComponentRef,
               ComponentTree,
               DataBinding,
               DynamicChildList,
-              ExternalComponentBuilderNode,
               FunctionCall,
               IdAllocator,
-              Slot,
-              SlotList,
-              bind,
+              OPEN_ENUM,
               create_surface,
               flatten_component_tree,
               update_components,
           )
 
 
-          def _serialize_prop(val: Any) -> Any:
-              if hasattr(val, "to_dict"):
-                  return val.to_dict()
-              if isinstance(val, (list, tuple)):
-                  return [_serialize_prop(item) for item in val]
-              if isinstance(val, dict):
-                  return {k: _serialize_prop(v) for k, v in val.items()}
-              return val
-
-
           # =============================================================================
           # Types & Enums
           # =============================================================================
+          #
+          # Catalog enums carry OPEN_ENUM metadata: the annotation stays the strict Literal
+          # for authoring and type checking, and unknown values are only accepted when
+          # parsing with a lenient validation context.
 
-          StatusBadgeStatus = Literal["draft", "published", "archived"] | str
+          StatusBadgeStatus = Annotated[Literal["draft", "published", "archived"], OPEN_ENUM]
 
 
           # =============================================================================
           # Components
           # =============================================================================
+
 
           class StatusBadge(ComponentBuilderNode):
               r"""StatusBadge component."""
@@ -415,22 +400,32 @@
               label: str
               status: StatusBadgeStatus
 
-              def to_dict(self) -> dict[str, Any]:
-                  d: dict[str, Any] = {"component": self.component}
-                  if self.label is not None:
-                      d["label"] = _serialize_prop(self.label)
-                  if self.status is not None:
-                      d["status"] = _serialize_prop(self.status)
-                  if self.id is not None:
-                      d["id"] = self.id
-                  return d
 
           # =============================================================================
           # Exports
           # =============================================================================
 
-          __all__ = ["StatusBadgeStatus", "StatusBadge", "Action", "CheckRule", "ComponentBuilderNode", "ComponentRef", "ComponentTree", "DataBinding", "DynamicChildList", "ExternalComponentBuilderNode", "FunctionCall", "IdAllocator", "Slot", "SlotList", "bind", "create_surface", "flatten_component_tree", "update_components"]
-
+          __all__ = [
+              "StatusBadgeStatus",
+              "StatusBadge",
+              "AccessibilityAttributes",
+              "Action",
+              "ActionEvent",
+              "BuilderBaseModel",
+              "CheckRule",
+              "Child",
+              "ChildList",
+              "ComponentBuilderNode",
+              "ComponentRef",
+              "ComponentTree",
+              "DataBinding",
+              "DynamicChildList",
+              "FunctionCall",
+              "IdAllocator",
+              "create_surface",
+              "flatten_component_tree",
+              "update_components",
+          ]
 - name: test_codegen_python_keyword_sanitization
   description: Tests sanitizing property names that collide with Python reserved keywords (from, class, def, pass).
   catalog_schema:
@@ -483,77 +478,70 @@
 
           __a2ui_codegen__ = "@a2ui/cli"
 
-          from typing import Any, Mapping, Literal, Optional, Sequence, Union
+          from typing import Literal, Optional
+          from pydantic import Field
 
           from a2ui.builder.v0_9 import (
+              AccessibilityAttributes,
               Action,
+              ActionEvent,
+              BuilderBaseModel,
               CheckRule,
+              Child,
+              ChildList,
               ComponentBuilderNode,
               ComponentRef,
               ComponentTree,
               DataBinding,
               DynamicChildList,
-              ExternalComponentBuilderNode,
               FunctionCall,
               IdAllocator,
-              Slot,
-              SlotList,
-              bind,
+              OPEN_ENUM,
               create_surface,
               flatten_component_tree,
               update_components,
           )
 
 
-          def _serialize_prop(val: Any) -> Any:
-              if hasattr(val, "to_dict"):
-                  return val.to_dict()
-              if isinstance(val, (list, tuple)):
-                  return [_serialize_prop(item) for item in val]
-              if isinstance(val, dict):
-                  return {k: _serialize_prop(v) for k, v in val.items()}
-              return val
-
-
-          # =============================================================================
-          # Types & Enums
-          # =============================================================================
-
-
-
           # =============================================================================
           # Components
           # =============================================================================
+
 
           class KeywordItem(ComponentBuilderNode):
               r"""KeywordItem component."""
 
               component: Literal["KeywordItem"] = "KeywordItem"
-              from_: str
-              class_: str
-              def_: Optional[float] = None
-              pass_: Optional[bool] = None
+              from_: str = Field(serialization_alias="from")
+              class_: str = Field(serialization_alias="class")
+              def_: Optional[float] = Field(default=None, serialization_alias="def")
+              pass_: Optional[bool] = Field(default=None, serialization_alias="pass")
 
-              def to_dict(self) -> dict[str, Any]:
-                  d: dict[str, Any] = {"component": self.component}
-                  if self.from_ is not None:
-                      d["from"] = _serialize_prop(self.from_)
-                  if self.class_ is not None:
-                      d["class"] = _serialize_prop(self.class_)
-                  if self.def_ is not None:
-                      d["def"] = _serialize_prop(self.def_)
-                  if self.pass_ is not None:
-                      d["pass"] = _serialize_prop(self.pass_)
-                  if self.id is not None:
-                      d["id"] = self.id
-                  return d
 
           # =============================================================================
           # Exports
           # =============================================================================
 
-          __all__ = ["KeywordItem", "Action", "CheckRule", "ComponentBuilderNode", "ComponentRef", "ComponentTree", "DataBinding", "DynamicChildList", "ExternalComponentBuilderNode", "FunctionCall", "IdAllocator", "Slot", "SlotList", "bind", "create_surface", "flatten_component_tree", "update_components"]
-
+          __all__ = [
+              "KeywordItem",
+              "AccessibilityAttributes",
+              "Action",
+              "ActionEvent",
+              "BuilderBaseModel",
+              "CheckRule",
+              "Child",
+              "ChildList",
+              "ComponentBuilderNode",
+              "ComponentRef",
+              "ComponentTree",
+              "DataBinding",
+              "DynamicChildList",
+              "FunctionCall",
+              "IdAllocator",
+              "create_surface",
+              "flatten_component_tree",
+              "update_components",
+          ]
 - name: test_codegen_custom_base_import
   description: Tests configuring custom base import path via --base-import.
   catalog_schema:
@@ -633,7 +621,9 @@
       direct_output.py:
         content_contains:
           - "class Heading(ComponentBuilderNode):"
-          - "def to_dict(self) -> dict[str, Any]:"
+          - 'component: Literal["Heading"] = "Heading"'
+        content_not_contains:
+          - "def to_dict("
 
 - name: test_codegen_short_cli_flags
   description: Tests running code generation using short flags -c and -o.
@@ -687,9 +677,16 @@
       fn_catalog.py:
         content_contains:
           - "class LinkButton(ComponentBuilderNode):"
-          - "def open_url(*, url: str, target: Optional[str] = None, call_id: Optional[str] = None) -> FunctionCall:"
+          - "class OpenUrl(FunctionCall):"
+          - "def __init__(self, *, url: str, target: Optional[str] = None, **kwargs: Any):"
+          - 'super().__init__(call="openUrl", args=args, **kwargs)'
           - 'r"""Opens a URL in the browser."""'
-          - 'return FunctionCall(call="openUrl", args=args, call_id=call_id)'
+          - '"OpenUrl"'
+        content_not_contains:
+          - "call_id"
+          # A catalog function has one spelling: its class. No lowercase
+          # factory is emitted beside it.
+          - "def open_url("
           - '"open_url"'
 
 - name: test_cli_unknown_option
@@ -756,65 +753,65 @@
 
           __a2ui_codegen__ = "@a2ui/cli"
 
-          from typing import Any, Mapping, Literal, Optional, Sequence, Union
+          from typing import Literal
 
           from a2ui.builder.v0_9 import (
+              AccessibilityAttributes,
               Action,
+              ActionEvent,
+              BuilderBaseModel,
               CheckRule,
+              Child,
+              ChildList,
               ComponentBuilderNode,
               ComponentRef,
               ComponentTree,
               DataBinding,
               DynamicChildList,
-              ExternalComponentBuilderNode,
               FunctionCall,
               IdAllocator,
-              Slot,
-              SlotList,
-              bind,
+              OPEN_ENUM,
               create_surface,
               flatten_component_tree,
               update_components,
           )
 
 
-          def _serialize_prop(val: Any) -> Any:
-              if hasattr(val, "to_dict"):
-                  return val.to_dict()
-              if isinstance(val, (list, tuple)):
-                  return [_serialize_prop(item) for item in val]
-              if isinstance(val, dict):
-                  return {k: _serialize_prop(v) for k, v in val.items()}
-              return val
-
-
-          # =============================================================================
-          # Types & Enums
-          # =============================================================================
-
-
-
           # =============================================================================
           # Components
           # =============================================================================
+
 
           class Divider(ComponentBuilderNode):
               r"""Divider component."""
 
               component: Literal["Divider"] = "Divider"
 
-              def to_dict(self) -> dict[str, Any]:
-                  d: dict[str, Any] = {"component": self.component}
-                  if self.id is not None:
-                      d["id"] = self.id
-                  return d
 
           # =============================================================================
           # Exports
           # =============================================================================
 
-          __all__ = ["Divider", "Action", "CheckRule", "ComponentBuilderNode", "ComponentRef", "ComponentTree", "DataBinding", "DynamicChildList", "ExternalComponentBuilderNode", "FunctionCall", "IdAllocator", "Slot", "SlotList", "bind", "create_surface", "flatten_component_tree", "update_components"]
-
+          __all__ = [
+              "Divider",
+              "AccessibilityAttributes",
+              "Action",
+              "ActionEvent",
+              "BuilderBaseModel",
+              "CheckRule",
+              "Child",
+              "ChildList",
+              "ComponentBuilderNode",
+              "ComponentRef",
+              "ComponentTree",
+              "DataBinding",
+              "DynamicChildList",
+              "FunctionCall",
+              "IdAllocator",
+              "create_surface",
+              "flatten_component_tree",
+              "update_components",
+          ]
 - name: test_codegen_complex_nested_types
   description: Tests generating code for complex types including sequences of strings and key-value mapping properties.
   catalog_schema:
@@ -843,8 +840,9 @@
           - "tags: Sequence[str]"
           - "metadata: Optional[Mapping[str, Any]] = None"
           - "payload: Optional[Mapping[str, Any]] = None"
-          - "if self.tags is not None:"
-          - 'd["tags"] = _serialize_prop(self.tags)'
+        content_not_contains:
+          - "_serialize_prop"
+          - "def to_dict("
 
 - name: test_codegen_official_basic_catalog
   description: Tests generating code from the authoritative official basic catalog schema file.
@@ -867,9 +865,34 @@
           - "class Text(ComponentBuilderNode):"
           - "class Modal(ComponentBuilderNode):"
           - "class ChoicePicker(ComponentBuilderNode):"
-          - 'TextVariant = Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | str'
-          - "child: Slot"
-          - "children: SlotList | DynamicChildList"
-          - "def open_url("
+          # Enums stay strict Literals, opened only by the OPEN_ENUM metadata.
+          # Long aliases wrap at 88 columns, so assert the pieces.
+          - "TextVariant = Annotated["
+          - 'Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"], OPEN_ENUM'
+          # Child slots drive flattening; there is no separate traversal.
+          - "child: Child"
+          - "children: ChildList"
+          # Checkable components expose their validation rules.
+          - "checks: Optional[Sequence[CheckRule]] = None"
+          # accessibility resolves through the shared common_types ref.
+          - "accessibility: Optional[AccessibilityAttributes] = None"
+          # Inline object schemas become named models, named after their parent
+          # unless the parent is already the singular of the property.
+          - "class TabItem(BuilderBaseModel):"
+          - "class ChoicePickerOption(BuilderBaseModel):"
+          - "tabs: Sequence[TabItem]"
+          - "options: Sequence[ChoicePickerOption]"
+          # Every oneOf branch survives, including Icon.name's custom SVG form.
+          - "name: IconName | IconNameSvgPath | DataBinding | FunctionCall"
+          # Wire names that differ from the Python name carry an alias.
+          - 'serialization_alias="validationRegexp"'
+          - "class OpenUrl(FunctionCall):"
           - '"create_surface"'
           - '"update_components"'
+        content_not_contains:
+          - "def to_dict("
+          - "_serialize_prop"
+          - "call_id"
+          - "Slot"
+          # Functions are reached through their class alone.
+          - "def open_url("
