@@ -15,6 +15,7 @@ The Agent SDK is responsible for:
 - **Prompt engineering**
 - **Response parsing**
 - **Payload validation**
+- **Typesafe UI authoring**
 - **Transport packaging**
 
 It enables Large Language Models (LLMs) and autonomous agents to understand available UI capabilities and ensures that generated UI payloads conform strictly to negotiated specification contracts before transmission to client renderers.
@@ -86,6 +87,9 @@ a2ui_agent/
 ├── catalog_transformers/      # Catalog and Protocol Transformers
 │   ├── base                   # Abstract CatalogTransformer class
 │   └── pruning                # ComponentPruningTransformer, FunctionPruningTransformer
+├── builder/                   # Typesafe authoring API (see section 3H)
+│   ├── core/                  # Version-independent authoring runtime
+│   └── <version>/             # Versioned models, envelopes, generated catalogs
 └── utils/                     # Utility helpers layer
     └── catalog_resolver       # resolve_catalogs capability resolution function
 ```
@@ -697,6 +701,58 @@ def resolve_catalogs(
     """
     pass
 ```
+
+---
+
+### H. Typesafe Builder API (`a2ui.builder`)
+
+The builder API is the authoring counterpart to the inference formats. Where a format asks a model to emit A2UI, the builder lets application code construct it directly, with the catalog's component and function set expressed as native types so that a mistake is a compile-time or construction-time error rather than a rejected payload.
+
+It is organised as a hand-written runtime plus generated catalog modules:
+
+```
+a2ui/builder/
+├── core/                      # Version-independent authoring runtime
+│   ├── base_node              # ComponentBuilderNode, ExternalComponentBuilderNode
+│   ├── child                  # Child slot annotation, FlattenContext, serializer
+│   ├── id_allocator           # Deterministic component ID allocation
+│   ├── open_enum              # OPEN_ENUM metadata and lenient parsing context
+│   ├── flattener              # flatten_component_tree entry point
+│   └── tree                   # ComponentTree aggregate
+└── <version>/                 # One package per protocol version (e.g. v0_9)
+    ├── models                 # DataBinding, FunctionCall, Action, CheckRule, ChildList
+    ├── envelopes              # create_surface, update_components, typed messages
+    └── catalogs/              # GENERATED: one module per catalog
+```
+
+#### Authoring model
+
+A builder tree is nested; the wire format is flat. Every component references its children by ID and appears as a sibling in a single component list. The transformation between the two is the builder's only real behaviour, and it is attached to the child slot type rather than implemented as a separate traversal:
+
+- A field typed as a **child slot** serialises to the referenced component's allocated ID and, as a side effect, appends that child's subtree to the flat output.
+- Flattening runs as two passes over the same tree: a scan that reserves author-supplied IDs, then an emit pass that allocates the remainder and collects components in depth-first post-order, so no reference can point at a component that does not exist.
+- The same object appearing in two slots is one component referenced twice, not a duplicate.
+- An **external component reference** marks a slot boundary: it is referenced by its existing ID, never re-emitted and never namespaced.
+
+Implementations must not hand-roll serialization per model. Field shape, aliases, defaults and null handling belong to the host language's serialization library; only child resolution is the builder's own.
+
+#### Strict authoring, lenient parsing
+
+Authoring validation is strict: unknown properties are rejected, so a misspelled attribute fails at construction rather than silently reaching a renderer. Enum properties are declared as the exact value set the catalog defines, so a static type checker rejects an invalid value at edit time.
+
+Parsing has the opposite requirement, because a peer may legitimately send a value from a newer catalog revision. Implementations therefore carry enum metadata that relaxes the value check only when an explicit lenient context is supplied, rather than widening the declared type for everyone.
+
+#### Generated catalog modules
+
+Catalog modules are generated from the catalog JSON schema by the A2UI CLI and are never edited by hand. A conforming generator must:
+
+- Emit one class per component, typed against the runtime's child-slot, action, binding and check-rule types.
+- Promote inline object schemas (a tab, a picker option) to named models, so a component slot nested inside one is still a child slot.
+- Preserve every branch of a `oneOf`. Narrowing a property to its most common branch rejects payloads the catalog permits.
+- Resolve name clashes across enums, item models and components rather than letting one shadow another.
+- Emit a class and a factory per catalog function, so a call site can be typed by the function it invokes.
+- Reserve no property for call correlation: correlating a call with its response is a message-level concern, not a property of an invocation inside a component.
+- Derive the generated module's name from the catalog's own identifier when the output target is a directory. A regenerated catalog then lands on the path already committed, so drift shows up as a diff rather than as a second module nobody imports.
 
 ---
 

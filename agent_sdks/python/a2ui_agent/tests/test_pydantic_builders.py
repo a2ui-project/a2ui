@@ -40,7 +40,7 @@ from a2ui.builder.v0_9 import (
     flatten_component_tree,
     update_components,
 )
-from a2ui.builder.v0_9.catalogs.basic_catalog import (
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,
@@ -461,8 +461,8 @@ def test_data_model_paths_are_normalized():
 
 def test_tab_item_and_choice_option_models():
     """Verifies typed item models resolve nested children through the same serializer."""
-    from a2ui.builder.v0_9.catalogs.basic_catalog import (
-        ChoiceOption,
+    from a2ui.builder.v0_9.catalogs.basic import (
+        ChoicePickerOption,
         ChoicePicker,
         TabItem,
         Tabs,
@@ -493,8 +493,8 @@ def test_tab_item_and_choice_option_models():
         id="my_picker",
         value=["opt1"],
         options=[
-            ChoiceOption(label="Option 1", value="opt1"),
-            ChoiceOption(label="Option 2", value="opt2"),
+            ChoicePickerOption(label="Option 1", value="opt1"),
+            ChoicePickerOption(label="Option 2", value="opt2"),
         ],
     )
     picker_comps = flatten_component_tree(picker)
@@ -510,7 +510,7 @@ def test_typed_function_call_classes():
     assert fn_obj.call == "openUrl"
     assert fn_obj.args == {"url": "https://example.com"}
 
-    from a2ui.builder.v0_9.catalogs.basic_catalog import OpenUrl
+    from a2ui.builder.v0_9.catalogs.basic import OpenUrl
 
     assert isinstance(fn_obj, OpenUrl)
     assert fn_obj.model_dump(by_alias=True, exclude_none=True) == OpenUrl(
@@ -531,7 +531,7 @@ def test_static_typechecker_compiler_rejections():
         pytest.skip("mypy is not installed in the environment")
 
     preamble = (
-        "from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text\n"
+        "from a2ui.builder.v0_9.catalogs.basic import Button, Text\n"
         "from a2ui.builder.v0_9 import event\n"
     )
 

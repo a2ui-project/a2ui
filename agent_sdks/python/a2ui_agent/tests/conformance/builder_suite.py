@@ -47,7 +47,7 @@ from a2ui.builder.v0_9 import (
     create_surface,
     update_components,
 )
-from a2ui.builder.v0_9.catalogs import basic_catalog
+from a2ui.builder.v0_9.catalogs import basic
 from a2ui.core.validating.validator import ValidationConfig
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
@@ -175,12 +175,12 @@ def build_ast(value: Any) -> Any:
         return _build_action(value["$action"])
     if "$tabItem" in value:
         spec = value["$tabItem"]
-        return basic_catalog.TabItem(
+        return basic.TabItem(
             title=build_ast(spec["title"]), child=build_ast(spec["child"])
         )
     if "$choiceOption" in value:
         spec = value["$choiceOption"]
-        return basic_catalog.ChoiceOption(
+        return basic.ChoicePickerOption(
             label=build_ast(spec["label"]), value=spec["value"]
         )
     if "call" in value:
@@ -189,7 +189,7 @@ def build_ast(value: Any) -> Any:
             args={k: build_ast(v) for k, v in value.get("args", {}).items()},
         )
     if "component" in value:
-        cls = getattr(basic_catalog, value["component"])
+        cls = getattr(basic, value["component"])
         return cls(**{k: build_ast(v) for k, v in value.items() if k != "component"})
 
     return {k: build_ast(v) for k, v in value.items()}

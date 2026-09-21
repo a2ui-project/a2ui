@@ -14,6 +14,6 @@
 
 """A2UI Protocol v0.9 component catalogs."""
 
-from . import basic_catalog
+from . import basic
 
-__all__ = ["basic_catalog"]
+__all__ = ["basic"]

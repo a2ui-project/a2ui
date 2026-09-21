@@ -16,7 +16,7 @@ Components are instantiated as Python objects. Containers accept child component
 
 ```python
 from a2ui.builder.v0_9 import event
-from a2ui.builder.v0_9.catalogs.basic_catalog import Card, Column, Text, Button
+from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text, Button
 
 tree = Card(
     child=Column(
@@ -167,7 +167,7 @@ You can subclass generated components to create domain-specific building blocks 
 ```python
 from typing import Any
 from a2ui.builder.v0_9 import event
-from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text
+from a2ui.builder.v0_9.catalogs.basic import Button, Text
 
 class PrimaryActionButton(Button):
     """Button configured with primary styling and default event name."""
@@ -206,6 +206,30 @@ Because `MetricCard` inherits from `ComponentBuilderNode` and annotates `icon` a
 - Any child component placed in `icon` is assigned an ID and replaced with an ID reference.
 - No custom serialization code is required, or accepted: annotating the slot is the whole mechanism.
 - It passes validation when nested inside standard containers (`Card`, `Column`, `Row`).
+
+## Code generation
+
+Everything under `v0_9/catalogs/` is generated from the catalog JSON schema by the A2UI CLI (`dart/a2ui_cli`) and should never be edited by hand. Only the runtime in `core/` and `v0_9/` is written directly.
+
+To regenerate after a catalog change:
+
+```sh
+cd dart/a2ui_cli
+dart run bin/a2ui.dart codegen \
+  --catalog ../../specification/v0_9_1/catalogs/basic/catalog.json \
+  --out ../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
+```
+
+Pointing `--out` at the directory lets the generator name the module from the catalog ID, which is how the committed filename and the generator stay in step. Passing an explicit `.py` path works too, and is how a catalog whose ID does not make a good module name is handled.
+
+The generator makes a few naming decisions worth knowing, because they determine the public API a catalog exposes:
+
+- **Enums** are named `<Component><Property>`, except where a single type is shared across components (`Row.justify` and `Column.justify` both yield `FlexJustify`). The same value set reached from two places produces one type, regardless of the order the catalog lists it in.
+- **Item models** come from inline object schemas. An array property whose singular matches its parent is suffixed (`Tabs.tabs` gives `TabItem`); anything else is qualified by its parent (`ChoicePicker.options` gives `ChoicePickerOption`). A component slot nested inside one of these is annotated `Child` and resolves exactly like a direct slot.
+- **Function classes** are the Pascal-case form of the catalog function name (`formatString` gives `FormatString`), paired with a snake_case factory (`format_string`). Python keywords take a trailing underscore, so the `not` function is `not_`.
+- **Name clashes** are resolved rather than allowed to shadow. `Icon.name` is a `oneOf` of an icon enum and a custom SVG object, both of which want the name `IconName`; the object becomes `IconNameSvgPath` after the property that distinguishes it.
+
+Every branch of a `oneOf` is preserved. Narrowing a property to its most common branch would quietly reject payloads the catalog permits, so `Icon.name` is typed `IconName | IconNameSvgPath | DataBinding | FunctionCall` rather than just the enum.
 
 ## Design decisions
 
