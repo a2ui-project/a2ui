@@ -461,6 +461,8 @@ V1_0_EXPERIMENTS = frozenset({"version_1_0"})
 
 CONFORMANCE_SURFACE_ID = "default_surface"
 
+DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
+
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
 KNOWN_GAPS = {
@@ -545,6 +547,92 @@ KNOWN_GAPS = {
         "a map key that is not an identifier is written unquoted, which the"
         " grammar does not admit"
     ),
+    # Response parser. A part carries text and payload together, where the
+    # suites fix one or the other per part, so every case with text beside a
+    # block comes back short.
+    "test_unwrap_express_text_between_blocks": (
+        "the text before a block is attached to the same part as the payload"
+        " rather than being a part of its own"
+    ),
+    "test_unwrap_text_before_between_and_after_blocks": (
+        "the text before a block is attached to the same part as the payload"
+        " rather than being a part of its own"
+    ),
+    "test_parse_response_express_two_blocks": (
+        "the text before a block is attached to the same part as the payload"
+        " rather than being a part of its own"
+    ),
+    "test_parse_response_keeps_text_and_payloads_in_order": (
+        "the text before a block is attached to the same part as the payload"
+        " rather than being a part of its own"
+    ),
+    # `wrap` is `wrap_decompiled_blocks` here and takes raw payload strings
+    # rather than parts, so it always writes a tagged block and can neither
+    # write a text part nor leave the tags off.
+    "test_wrap_express_text_only_parts_are_the_text": (
+        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
+        " part cannot be written"
+    ),
+    "test_wrap_text_only_parts_are_the_text": (
+        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
+        " part cannot be written"
+    ),
+    "test_wrap_express_no_parts_is_an_empty_string": (
+        "wrap_decompiled_blocks writes an empty tagged block rather than an"
+        " empty string"
+    ),
+    "test_wrap_no_parts_is_an_empty_string": (
+        "wrap_decompiled_blocks writes an empty tagged block rather than an"
+        " empty string"
+    ),
+    "test_wrap_express_restores_tags_and_order": (
+        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
+        " part is dropped and does not survive the round trip"
+    ),
+    "test_wrap_keeps_text_and_blocks_in_order": (
+        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
+        " parts are dropped and do not survive the round trip"
+    ),
+    "test_wrap_express_tags_sit_on_their_own_lines": (
+        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
+        " part is dropped"
+    ),
+    # Direct JSON unwrapping raises where the suites return parts. These are
+    # the three decisions the suite header calls out as departures from
+    # legacy/parser.yaml.
+    "test_unwrap_response_without_tags_is_one_text_part": (
+        "a response with no tags raises ParseError rather than unwrapping to"
+        " one text part"
+    ),
+    "test_parse_response_without_tags_is_one_text_part": (
+        "a response with no tags raises ParseError rather than unwrapping to"
+        " one text part"
+    ),
+    "test_unwrap_empty_response_has_no_parts": (
+        "an empty response raises ParseError rather than unwrapping to no parts"
+    ),
+    "test_unwrap_unterminated_block_is_not_final": (
+        "an unterminated block raises ParseError rather than coming back as a"
+        " part that is not final"
+    ),
+    # The rest.
+    "test_parse_response_express_unwrapped_compiles_the_whole_body": (
+        "parse_response takes no `wrapped` argument, so a response the case"
+        " declares unwrapped cannot be handed to the compiler whole"
+    ),
+    "test_parse_response_unwrapped_compiles_the_whole_body": (
+        "parse_response takes no `wrapped` argument, so a response the case"
+        " declares unwrapped cannot be handed to the compiler whole"
+    ),
+    "test_parse_response_compile_failure_surfaces": (
+        "parse_response catches the compiler's A2uiParseError and re-raises it"
+        " as A2uiCompilationError, which is not an A2uiError, so the category"
+        " is lost on the way out"
+    ),
+    "test_parse_response_express_validation_failure_surfaces": (
+        "a component the catalog does not declare is dropped from the compiled"
+        " surface instead of failing the parse"
+    ),
 }
 
 
@@ -571,8 +659,13 @@ def setup_catalog_from_document(relative_path):
 
 
 def make_parser(args):
-    """Builds the parser for the format a case names."""
-    catalog = setup_catalog_from_document(args["catalog"])
+    """Builds the parser for the format a case names.
+
+    The unwrap and wrap cases carry no catalog, since neither call consults one,
+    but both formats need one to build a parser at all. Those cases get the
+    simplified fixture, which they never read.
+    """
+    catalog = setup_catalog_from_document(args.get("catalog", DEFAULT_CATALOG))
     format_name = args["format"]
 
     if format_name == "express":
@@ -656,3 +749,79 @@ def test_decompiler_conformance(name, test_case):
 
     if test_case.get("expect_round_trip"):
         assert parser.compile(notation) == messages
+
+
+# --- Response Parser Conformance ---
+#
+# Where a payload begins and ends, rather than what it means. `unwrap` splits a
+# response into ordered text and raw payload parts, `wrap` writes parts back out
+# as a model would have emitted them, and `parse_response` does both and
+# compiles each block it finds.
+#
+# The unwrap and wrap cases carry no catalog, because neither call consults one.
+#
+# This SDK names `wrap` `wrap_decompiled_blocks` and gives it a list of raw
+# payload strings rather than the parts the blueprint declares, so it can only
+# write blocks and has nowhere to put a text part. The harness calls it with the
+# raw blocks a case names; a case whose parts are not all payload therefore
+# fails, and is marked as the gap it is rather than worked around here.
+
+
+def assert_raw_parts_match(actual_parts, expected_parts):
+    """Compares unwrapped parts, which carry raw payload text rather than messages."""
+    assert len(actual_parts) == len(expected_parts), (
+        f"expected {len(expected_parts)} parts, got"
+        f" {[(p.text, p.a2ui_raw) for p in actual_parts]}"
+    )
+    for actual, expected in zip(actual_parts, expected_parts):
+        assert actual.text == expected.get("text", "")
+        assert actual.a2ui_raw == expected.get("a2ui_raw")
+        assert actual.is_final == expected.get("is_final", True)
+
+
+def wrap_parts(parser, parts):
+    """Writes parts back out through whatever this SDK offers for `wrap`."""
+    return parser.wrap_decompiled_blocks(
+        [part["a2ui_raw"] for part in parts if "a2ui_raw" in part]
+    )
+
+
+cases_response_parser = get_marked_conformance_cases(
+    "agent/express/response_parser.yaml",
+    "agent/direct_json/response_parser.yaml",
+)
+
+
+@pytest.mark.parametrize("name, test_case", cases_response_parser)
+def test_response_parser_conformance(name, test_case):
+    args = test_case["args"]
+    parser = make_parser(args)
+    action = test_case["action"]
+
+    if action == "unwrap":
+        assert_raw_parts_match(parser.unwrap(test_case["input"]), test_case["expect"])
+
+    elif action == "wrap":
+        parts = test_case["parts"]
+        output = wrap_parts(parser, parts)
+
+        if "expect_output" in test_case:
+            assert output == test_case["expect_output"]
+        for fragment in test_case.get("expect_contains", []):
+            assert fragment in output, f"{fragment!r} not in {output!r}"
+        if test_case.get("expect_round_trip"):
+            assert_raw_parts_match(parser.unwrap(output), parts)
+
+    elif action == "parse_response":
+        kwargs = {} if args.get("wrapped", True) else {"wrapped": False}
+
+        if "expect_error" in test_case:
+            with assert_raises(test_case["expect_error"]):
+                parser.parse_response(test_case["input"], **kwargs)
+            return
+
+        parts = parser.parse_response(test_case["input"], **kwargs)
+        assert_parts_match(parts, test_case["expect"])
+
+    else:
+        raise ValueError(f"Unknown response parser action: {action}")
