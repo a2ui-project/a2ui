@@ -43,6 +43,25 @@ from .errors import (
 )
 
 
+def _parse_version(v: str) -> tuple[int, int, int]:
+    """Parses a version string into a 3-part integer tuple for comparison."""
+    clean = v.lstrip("vV").strip()
+    parts = []
+    for part in clean.split("."):
+        if part.isdigit():
+            parts.append(int(part))
+        else:
+            break
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def is_version_at_least(v: str, target: str) -> bool:
+    """Returns True if version v is greater than or equal to target."""
+    return _parse_version(v) >= _parse_version(target)
+
+
 def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
     """Populates a nested dictionary path from a JSON pointer-like string.
 
@@ -361,7 +380,7 @@ class ExpressCompiler:
             }]
 
         if standalone_function_calls:
-            if target_version in ("v0.9", "v0.9.1"):
+            if not is_version_at_least(target_version, "1.0"):
                 raise ExpressValidationError(
                     "Standalone function calls are not supported in A2UI"
                     f" {target_version}"
@@ -425,7 +444,19 @@ class ExpressCompiler:
             compiled_components.extend(ctx.extra_components)
             ctx.extra_components = []
 
-            if target_version in ("v0.9", "v0.9.1"):
+            if is_version_at_least(target_version, "1.0"):
+                envelope = {
+                    "version": target_version,
+                    SurfaceOperation.CREATE: {
+                        "surfaceId": scope_surf_id,
+                        "catalogId": scope_cat_id,
+                        "components": compiled_components,
+                    },
+                }
+                if data_model:
+                    envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
+                result_messages.append(envelope)
+            else:
                 result_messages.extend([
                     {
                         "version": target_version,
@@ -451,18 +482,6 @@ class ExpressCompiler:
                             "value": data_model,
                         },
                     })
-            else:
-                envelope = {
-                    "version": target_version,
-                    SurfaceOperation.CREATE: {
-                        "surfaceId": scope_surf_id,
-                        "catalogId": scope_cat_id,
-                        "components": compiled_components,
-                    },
-                }
-                if data_model:
-                    envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
-                result_messages.append(envelope)
 
         return result_messages
 
