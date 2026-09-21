@@ -173,7 +173,7 @@ def get_conformance_cases(filename):
 
 
 # --- Streaming Parser Conformance ---
-cases_parser = get_conformance_cases("agent/streaming_parser.yaml")
+cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -204,7 +204,7 @@ def test_parser_conformance(name, test_case):
 
 
 # --- Non-Streaming Parser Conformance ---
-cases_parser_non_streaming = get_conformance_cases("agent/parser.yaml")
+cases_parser_non_streaming = get_conformance_cases("agent/legacy/parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -329,7 +329,7 @@ def test_catalog_conformance(name, test_case):
 
 
 # --- Schema Manager Conformance ---
-cases_schema_manager = get_conformance_cases("agent/inference_format.yaml")
+cases_schema_manager = get_conformance_cases("agent/legacy/inference_format.yaml")
 
 
 @pytest.mark.parametrize(
