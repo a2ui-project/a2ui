@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import os
 import yaml
 import pytest
@@ -436,3 +437,222 @@ def test_schema_manager_conformance(name, test_case):
             for expected in test_case["expect_contains"]:
                 expected_normalized = re.sub(r"\s+", "", expected.strip())
                 assert expected_normalized in output_normalized
+
+
+# --- Compiler / Decompiler Conformance ---
+#
+# These suites are written against the blueprint `Parser` interface, so a case
+# names the call it exercises (`compile`, `decompile`) and carries its catalog
+# as a path into `conformance/test_data/`.
+#
+# Two things the suites leave to the harness:
+#
+# - The surface a block compiles into. The suites fix `default_surface` as the
+#   surface id a block that names no surface compiles against, which is what
+#   `ExpressCompiler.compile` defaults to; `ExpressParser` takes it as a
+#   constructor argument and defaults to `main` instead, so the harness passes
+#   it explicitly rather than testing a constructor default other languages may
+#   not have.
+# - Turning on v1.0 validation, which this SDK gates behind an experiment. The
+#   suites are all v1.0, so without it every catalog fails to build a validator.
+
+
+V1_0_EXPERIMENTS = frozenset({"version_1_0"})
+
+CONFORMANCE_SURFACE_ID = "default_surface"
+
+# Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
+# fixing the implementation fails the marker instead of passing silently.
+KNOWN_GAPS = {
+    # Compiler, Express.
+    "test_compile_express_inline_nesting": (
+        "an inline component is hoisted out as `_inline_1` rather than"
+        " `<parent id>_<property>`"
+    ),
+    "test_compile_express_event_action": (
+        "an Event with no context compiles `context: {}` rather than leaving"
+        " `context` out"
+    ),
+    "test_compile_express_event_variable_is_inlined_at_each_use": (
+        "an Event with no context compiles `context: {}` rather than leaving"
+        " `context` out"
+    ),
+    "test_compile_express_standalone_function_call": (
+        "a standalone call compiles to `functionCallId`/`callFunction` at the"
+        " top level, which agent_to_renderer.json rejects, rather than to"
+        " `callRendererFunction`"
+    ),
+    "test_compile_express_unknown_component_is_a_validation_error": (
+        "a component the catalog does not declare is dropped from the compiled"
+        " surface instead of failing the compile"
+    ),
+    "test_compile_express_missing_required_property_is_a_validation_error": (
+        "a component missing a property its catalog requires compiles without"
+        " it instead of failing the compile"
+    ),
+    "test_compile_express_unknown_function_is_a_validation_error": (
+        "a call to a function the catalog does not declare compiles instead of"
+        " failing the compile"
+    ),
+    # The remaining compile failures are all one defect: the Express compiler
+    # raises A2uiCompilationError, which descends from Exception rather than
+    # from A2uiError, so no error category can match it.
+    "test_compile_express_empty_block_is_a_parse_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    "test_compile_express_syntax_error_is_a_parse_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    "test_compile_express_empty_argument_is_a_parse_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    "test_compile_express_unexpected_character_is_a_parse_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    "test_compile_express_template_without_a_component_is_a_parse_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    "test_compile_express_undeclared_property_is_a_validation_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    "test_compile_express_value_outside_an_enum_is_a_validation_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    "test_compile_express_binding_a_static_property_is_a_validation_error": (
+        "raises A2uiCompilationError, which is not an A2uiError"
+    ),
+    # Decompiler, Express.
+    "test_decompile_express_update_components": (
+        "an updateComponents writes a block naming no root, which the compiler"
+        " then rejects, so the round trip fails"
+    ),
+    "test_decompile_express_update_data_model": (
+        "a standalone updateDataModel writes no surface line, so the round trip"
+        " lands on the default surface"
+    ),
+    "test_decompile_express_nested_data_model_is_one_assignment_per_leaf": (
+        "a standalone updateDataModel writes no surface line, so the round trip"
+        " lands on the default surface"
+    ),
+    "test_decompile_express_escapes_a_quote_in_a_string": (
+        "a string holding a quote is written as a triple quoted string rather"
+        " than with the quote escaped"
+    ),
+    "test_decompile_express_renderer_function_call": (
+        "a callRendererFunction decompiles to the empty string"
+    ),
+    "test_decompile_express_quotes_a_map_key_that_is_not_an_identifier": (
+        "a map key that is not an identifier is written unquoted, which the"
+        " grammar does not admit"
+    ),
+}
+
+
+# Cases this SDK has no API to run at all, as opposed to running and
+# disagreeing.
+UNSUPPORTED = {
+    "test_compile_express_surface_targeting_names_a_catalog": (
+        "a parser holds one catalog, so a block targeting a second catalog by"
+        " id cannot be compiled"
+    ),
+}
+
+
+def setup_catalog_from_document(relative_path):
+    """Builds an A2uiCatalog from a conformance catalog fixture path."""
+    document = load_json_file(relative_path)
+    version = str(document.get("protocolVersion", "1.0"))
+    config = CatalogConfig.from_path(
+        name=os.path.basename(relative_path).replace(".json", ""),
+        catalog_path=_get_conformance_path(relative_path),
+    )
+    catalog = A2uiCatalog.from_config(config, version=version)
+    return dataclasses.replace(catalog, experiments=V1_0_EXPERIMENTS)
+
+
+def make_parser(args):
+    """Builds the parser for the format a case names."""
+    catalog = setup_catalog_from_document(args["catalog"])
+    format_name = args["format"]
+
+    if format_name == "express":
+        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+        return ExpressFormat(
+            catalog=catalog, surface_id=CONFORMANCE_SURFACE_ID, version="v1.0"
+        ).parser
+
+    if format_name == "direct_json":
+        from a2ui.inference_formats.direct_json.parser import DirectJsonParser
+
+        return DirectJsonParser(catalog=catalog, validator=catalog.validator)
+
+    raise ValueError(f"Unknown inference format: {format_name}")
+
+
+def resolve_pointer(payload, pointer):
+    """Resolves a slash separated pointer into a compiled payload."""
+    current = payload
+    for token in pointer.strip("/").split("/"):
+        current = current[int(token)] if isinstance(current, list) else current[token]
+    return current
+
+
+def get_marked_conformance_cases(*filenames):
+    """Loads cases from several suites, marking the ones this SDK cannot pass."""
+    params = []
+    for filename in filenames:
+        for name, case in get_conformance_cases(filename):
+            marks = []
+            if name in UNSUPPORTED:
+                marks.append(pytest.mark.skip(reason=UNSUPPORTED[name]))
+            elif name in KNOWN_GAPS:
+                marks.append(pytest.mark.xfail(reason=KNOWN_GAPS[name], strict=True))
+            params.append(pytest.param(name, case, marks=marks, id=name))
+    return params
+
+
+cases_compiler = get_marked_conformance_cases(
+    "agent/express/compiler.yaml",
+    "agent/direct_json/compiler.yaml",
+)
+
+
+@pytest.mark.parametrize("name, test_case", cases_compiler)
+def test_compiler_conformance(name, test_case):
+    parser = make_parser(test_case["args"])
+    payload = test_case["input"]
+
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            parser.compile(payload)
+        return
+
+    compiled = parser.compile(payload)
+
+    if "expect_present" in test_case:
+        for pointer in test_case["expect_present"]:
+            assert resolve_pointer(compiled, pointer) not in (None, "")
+        return
+
+    assert compiled == test_case["expect"]
+
+
+cases_decompiler = get_marked_conformance_cases(
+    "agent/express/decompiler.yaml",
+    "agent/direct_json/decompiler.yaml",
+)
+
+
+@pytest.mark.parametrize("name, test_case", cases_decompiler)
+def test_decompiler_conformance(name, test_case):
+    parser = make_parser(test_case["args"])
+    messages = test_case["messages"]
+
+    notation = parser.decompile(messages if len(messages) > 1 else messages[0])
+
+    for fragment in test_case.get("expect_contains", []):
+        assert fragment in notation, f"{fragment!r} not in {notation!r}"
+
+    if test_case.get("expect_round_trip"):
+        assert parser.compile(notation) == messages
