@@ -31,6 +31,8 @@ from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
 from .errors import (
     ExpressCompilerError,
+    ExpressParseError,
+    ExpressValidationError,
     ExpressUnknownPropertyError,
     ExpressDuplicatePropertyError,
     ExpressInvalidParamError,
@@ -283,7 +285,7 @@ class ExpressCompiler:
             else:
                 if isinstance(e, SyntaxError) and getattr(e, "_is_lexer", False):
                     raise e
-                raise ValueError(f"Failed to parse expression: {e}") from e
+                raise ExpressParseError(f"Failed to parse expression: {e}") from e
 
         scopes: list[_SurfaceScope] = []
         current_scope: Optional[_SurfaceScope] = None
@@ -360,7 +362,7 @@ class ExpressCompiler:
 
         if standalone_function_calls:
             if target_version in ("v0.9", "v0.9.1"):
-                raise ValueError(
+                raise ExpressValidationError(
                     "Standalone function calls are not supported in A2UI"
                     f" {target_version}"
                 )
@@ -553,7 +555,7 @@ class ExpressCompiler:
             enum_vals = self.helper.get_property_enum(comp_name, prop_name)
             if enum_vals and isinstance(mapped_val, str):
                 if mapped_val not in enum_vals:
-                    raise ValueError(
+                    raise ExpressValidationError(
                         f"Value '{mapped_val}' is not a valid enum choice for"
                         f" property '{prop_name}' of component '{comp_name}'."
                         f" Allowed values are: {enum_vals}"
@@ -729,7 +731,7 @@ class ExpressCompiler:
                 # Is it a reserved Template signature?
                 if fn_name == "_template":
                     if len(fn_args) < 2:
-                        raise ValueError(
+                        raise ExpressParseError(
                             "_template helper requires exactly 2 arguments: path and"
                             " templateComponent."
                         )
@@ -737,7 +739,7 @@ class ExpressCompiler:
                         fn_args[0], raw_symbols, ctx, is_action
                     )
                     if not isinstance(path_val, dict) or "path" not in path_val:
-                        raise ValueError(
+                        raise ExpressParseError(
                             "The first argument to _template must be a dynamic data"
                             f" binding path (prefixed by $), got: {fn_args[0]}"
                         )

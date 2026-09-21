@@ -496,33 +496,6 @@ KNOWN_GAPS = {
         "a call to a function the catalog does not declare compiles instead of"
         " failing the compile"
     ),
-    # The remaining compile failures are all one defect: the Express compiler
-    # raises A2uiCompilationError, which descends from Exception rather than
-    # from A2uiError, so no error category can match it.
-    "test_compile_express_empty_block_is_a_parse_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
-    "test_compile_express_syntax_error_is_a_parse_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
-    "test_compile_express_empty_argument_is_a_parse_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
-    "test_compile_express_unexpected_character_is_a_parse_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
-    "test_compile_express_template_without_a_component_is_a_parse_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
-    "test_compile_express_undeclared_property_is_a_validation_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
-    "test_compile_express_value_outside_an_enum_is_a_validation_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
-    "test_compile_express_binding_a_static_property_is_a_validation_error": (
-        "raises A2uiCompilationError, which is not an A2uiError"
-    ),
     # Decompiler, Express.
     "test_decompile_express_update_components": (
         "an updateComponents writes a block naming no root, which the compiler"
