@@ -43,8 +43,8 @@ from a2ui.schema.constants import (
     SPEC_VERSION_MAP,
 )
 from a2ui.schema.utils import load_from_bundled_resource
-from a2ui.builder import ComponentBuilderNode
-from a2ui.builder.catalogs.basic import (
+from a2ui.builder.v0_9 import ComponentBuilderNode
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,
@@ -585,7 +585,9 @@ def list_macros():
                     clearance_level=rec["clearanceLevel"],
                     verified_at=rec["verifiedAt"],
                 )
-                t_dict["layoutTemplate"] = t_layout.to_dict()
+                t_dict["layoutTemplate"] = t_layout.model_dump(
+                    by_alias=True, exclude_none=True
+                )
                 try:
                     salary_card_py = inspect.getsource(SalaryCard)
                 except Exception:

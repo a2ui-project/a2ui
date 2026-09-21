@@ -23,8 +23,8 @@ from __future__ import annotations
 from typing import Any, List, Sequence
 
 from a2ui.inference_formats.experimental.macros import macro
-from a2ui.builder import Action, ComponentBuilderNode, ComponentRef
-from a2ui.builder.catalogs.basic import (
+from a2ui.builder.v0_9 import Action, ActionEvent, ComponentBuilderNode, ComponentRef
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,
@@ -116,7 +116,7 @@ def SalaryCard(
                     children=[
                         Text(text=f"Verified: {verified_at}", variant="caption"),
                         Button(
-                            action=Action(event="download_pay_stub"),
+                            action=Action(event=ActionEvent(name="download_pay_stub")),
                             child=Text(text="Download Pay Stub"),
                         ),
                     ],
@@ -225,7 +225,7 @@ def GoalItem(
                     children=[
                         Text(text=f"Due: {targetDate}", variant="caption"),
                         Button(
-                            action=Action(event="view_details"),
+                            action=Action(event=ActionEvent(name="view_details")),
                             child=Text(text="View Details"),
                         ),
                     ],
