@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests focusing on the A2UI Express Decompiler."""
+"""Unit tests focusing on the A2UI Express Decompiler.
+
+Decompilation behaviour the protocol fixes for every language lives in
+`conformance/agent/express/decompiler.yaml`, which this SDK runs from
+`tests/conformance/test_conformance.py`. What stays here is what conformance
+does not reach: the positional argument spellings a catalog's
+`positionalIndex` produces, an unknown function call, `has_format_content`, and
+behaviour the suites rule against and mark `xfail`.
+"""
 
 import json
 import os
@@ -266,12 +274,6 @@ class TestExpressParser(unittest.TestCase):
         # Case E: Non-ref static type
         static_type = {"type": "string"}
         self.assertFalse(_is_component_reference_property(static_type))
-
-    def test_decompile_delete_surface(self):
-        decompiler = ExpressParser(self.catalog)
-        envelope = {"version": "v1.0", "deleteSurface": {"surfaceId": "surf_1"}}
-        decompiled = decompiler.decompile(envelope)
-        self.assertEqual(decompiled, 'deleteSurface("surf_1")')
 
     def test_decompile_update_data_model(self):
         decompiler = ExpressParser(self.catalog)
