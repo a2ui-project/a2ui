@@ -13,14 +13,18 @@
 # limitations under the License.
 
 # Direct JSON response parsing: turning what a model emitted into ordered text
-# and A2UI payload parts.
+# and raw payload blocks, and writing those parts back out.
 #
-# The suite covers the four steps of the parser contract and the entry point
-# that runs them. `unwrap` tokenizes a response into raw parts.
-# `wrap` writes raw parts back out as a model would have emitted them.
-# `compile` turns one raw block into A2UI messages, `decompile`
-# writes messages back into the format's own notation, and `parse_response`
-# unwraps a whole response and compiles each block it finds.
+# `unwrap` tokenizes a response into raw parts. `wrap` writes
+# raw parts back out as a model would have emitted them. `parse_response`
+# unwraps a whole response and compiles each block it finds, so it is the entry
+# point an agent actually calls.
+#
+# Compiling a block into messages is `agent/direct_json/compiler.yaml`, and
+# writing messages back out as JSON is `agent/direct_json/decompiler.yaml`. The
+# blueprint's `Parser` declares all five calls as one interface, so the suites
+# are split by call rather than by interface: a case in this file is about where
+# a payload begins and ends, and a case in those two about what it means.
 #
 # A direct JSON payload sits between `<a2ui-json>` tags.
 #
@@ -38,22 +42,11 @@
 # - An empty response unwraps to no parts at all.
 # - A text run is trimmed of leading and trailing whitespace, and a run left
 #   empty by that is dropped. The whitespace between two blocks is not a part.
-# - `ParseError` is for payload text the format cannot read. `ValidationError`
-#   is for a payload that reads but names something the catalog does not
-#   declare. No case uses `CompileError`, because the compilation error type
-#   does not yet descend from the base error type and so no harness can match
-#   that category.
-# - A component carrying a property its catalog does not declare is invalid,
-#   but the rule lives in the message envelope rather than in the catalog. Like
-#   the published catalogs, the fixtures here leave their component schemas
-#   open, and `agent_to_renderer.json` closes each component with
-#   `unevaluatedProperties` once it has added the envelope's own `id`. An
-#   implementation that validates a component against the bare catalog schema
-#   will miss this; it has to validate the message it is about to emit.
-# - Decompiling is the inverse of compiling, so every envelope a case compiles
-#   has a decompile case that writes it back out and recompiles it to the same
-#   messages. A format that cannot round-trip an envelope cannot be used to
-#   author the prompt examples the snippet carries.
+#
+# The `parse_response` cases compile as well as unwrap, so a compilation failure
+# surfaces through them. `ParseError` is for payload text the format cannot
+# read and `ValidationError` for a payload that reads but names something the
+# catalog does not declare; `compiler.yaml` states the rule in full.
 #
 # The Express counterpart of this suite is `agent/express/response_parser.yaml`.
 # The two are deliberately parallel: a rule that holds for both formats has a
@@ -208,159 +201,6 @@
     - text: "Here is the surface."
     - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
     - text: "Tell me if you want it changed."
-  expect_round_trip: true
-
-# --- Compiling a payload ---
-
-- name: test_compile_json_message_list
-  description: A well formed message list compiles to those messages.
-  action: compile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: |-
-    [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
-      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}
-    ]
-  expect:
-    - version: "v1.0"
-      createSurface:
-        surfaceId: "s1"
-        catalogId: "conformance/simplified"
-    - version: "v1.0"
-      updateComponents:
-        surfaceId: "s1"
-        components:
-          - id: "root"
-            component: "Text"
-            text: "Hello"
-
-- name: test_compile_json_single_object_is_wrapped_in_a_list
-  description: A payload that is one message rather than a list compiles to a list of one.
-  action: compile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}'
-  expect:
-    - version: "v1.0"
-      deleteSurface:
-        surfaceId: "s1"
-
-- name: test_compile_json_trailing_commas_removed
-  description: Trailing commas in a list and an object are dropped rather than failing the parse.
-  action: compile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello",},]}},]'
-  expect:
-    - version: "v1.0"
-      updateComponents:
-        surfaceId: "s1"
-        components:
-          - id: "root"
-            component: "Text"
-            text: "Hello"
-
-- name: test_compile_json_smart_quotes_normalised
-  description: Curly quotes a model reached for are read as straight quotes.
-  action: compile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: "[{“version”: “v1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
-  expect:
-    - version: "v1.0"
-      deleteSurface:
-        surfaceId: "s1"
-
-- name: test_compile_json_malformed_is_a_parse_error
-  description: Payload text that is not JSON is a parse error.
-  action: compile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: "here is your surface"
-  expect_error:
-    category: "ParseError"
-
-- name: test_compile_json_empty_block_is_a_parse_error
-  description: A block with nothing in it is a parse error rather than an empty message list.
-  action: compile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: ""
-  expect_error:
-    category: "ParseError"
-
-- name: test_compile_json_unknown_component_is_a_validation_error
-  description: A payload that reads but names a component the catalog does not declare is a validation error.
-  action: compile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Sparkline", "values": [1, 2]}]}}]'
-  expect_error:
-    category: "ValidationError"
-
-# --- Writing messages back out ---
-
-- name: test_decompile_json_messages
-  description: Messages are written back out as the JSON a model would have emitted, and compiling that returns them.
-  action: decompile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  messages:
-    - version: "v1.0"
-      createSurface:
-        surfaceId: "s1"
-        catalogId: "conformance/simplified"
-    - version: "v1.0"
-      updateComponents:
-        surfaceId: "s1"
-        components:
-          - id: "root"
-            component: "Text"
-            text: "Hello"
-  expect_contains:
-    - '"updateComponents"'
-    - '"Hello"'
-  expect_round_trip: true
-
-- name: test_decompile_json_update_data_model
-  description: A data model update writes back out with its path and value, so an example that changes state can be authored from messages.
-  action: decompile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  messages:
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/title"
-        value: "Hello"
-  expect_contains:
-    - '"updateDataModel"'
-    - '"/title"'
-  expect_round_trip: true
-
-- name: test_decompile_json_delete_surface
-  description: A surface deletion writes back out as its own message, which is the envelope most likely to be dropped by a decompiler that only walks components.
-  action: decompile
-  args:
-    format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  messages:
-    - version: "v1.0"
-      deleteSurface:
-        surfaceId: "s1"
-  expect_contains:
-    - '"deleteSurface"'
-    - '"s1"'
   expect_round_trip: true
 
 # --- Parsing a whole response ---

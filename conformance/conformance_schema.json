@@ -1054,6 +1054,11 @@
           "items": {"type": "object"},
           "description": "The compiled AgentToRendererMessage objects."
         },
+        "expect_present": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "JSON Pointers into the compiled messages that must hold a non-empty value whose spelling is not fixed by the protocol. A harness removes each of these from what the implementation produced, asserting on the way that it was there and not empty, and then compares what is left against `expect`. The `expect` block therefore omits them. This is for a value the format has to supply but the protocol does not dictate, such as the message on a check that was written without one."
+        },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args", "input"]

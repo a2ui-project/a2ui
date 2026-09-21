@@ -30,8 +30,8 @@
 # a property read off it. The pair of cases at the end of this file is the only
 # use of it: one shows that a response using the negotiated catalog parses, the
 # other that a response reaching past it does not. Parsing as such belongs to
-# the per-format `response_parser.yaml` suites, which need no negotiation to
-# state their rules.
+# the per-format `response_parser.yaml`, `compiler.yaml` and `decompiler.yaml`
+# suites, which need no negotiation to state their rules.
 #
 # Capability negotiation follows three settled rules. A request with no
 # capabilities at all activates every registered catalog, because a renderer

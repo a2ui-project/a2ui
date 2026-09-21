@@ -32,8 +32,12 @@ The suites that do not depend on an inference format sit directly under `agent/`
 Everything a format decides for itself is covered once per format, in a folder named for it:
 
 - `prompt_generator.yaml`: Rendering the system prompt snippet for a set of active catalogs. Both folders.
-- `response_parser.yaml`: Unwrapping, wrapping, compiling, decompiling and parsing whole model responses. Both folders.
+- `response_parser.yaml`: Unwrapping a response into raw blocks, wrapping parts back into a response, and parsing a whole response end to end. Both folders.
+- `compiler.yaml`: Compiling one raw block into A2UI messages. Both folders.
+- `decompiler.yaml`: Writing messages back into the format's own notation, which is how a prompt example is authored as messages and shown to a model as notation. Both folders.
 - `response_streaming.yaml`: Parsing a response one chunk at a time, including the point at which a payload can first be emitted. `direct_json/` only, since the Express parser does not implement `parse_chunk` and an Express agent parses a buffered response whole.
+
+The blueprint declares `wrap`, `unwrap`, `compile`, `decompile` and `parse_response` on a single `Parser` interface, so `response_parser.yaml`, `compiler.yaml` and `decompiler.yaml` are three files for one interface. They are split by call because each has rules of its own: where a payload begins and ends, what it means, and how it is written back. The Express compiler suite is by far the largest of the three, since Express has a grammar to get right and direct JSON does not.
 
 Each folder is self-contained. A rule that holds for both formats has a case in each, written against that format's own output, rather than one shared case that a harness would have to gate. That costs some duplication and buys two things: an implementer adding a format can run one folder and know when they are done, and a rule that turns out to differ by format has somewhere to differ. The differences are real — a direct JSON parser reads a payload progressively as it streams, while Express does not stream at all — and the suite headers say which asymmetries are deliberate.
 
@@ -89,9 +93,11 @@ A case states allowlists literally. Keeping everything is said by applying no tr
 
 Parser cases use the part union from the blueprint. `unwrap` returns raw parts, each carrying either `text` or `a2ui_raw` with an `is_final` flag; `parse_response` and `parse_chunk` return parts carrying either `text` or compiled `a2ui` messages. Text that precedes a payload is its own part, which is the difference from the legacy suites under `agent/legacy/`, where one item carried both.
 
-A `create_processor` case can parse a response through the processor it just built, by way of a `then_parse` block holding an `input` and its own `expect` or `expect_error`. It sits beside `expect` rather than inside it because it is a call made on the processor, not a property read off it. Use it only for rules that need negotiation to have happened first; a rule about parsing as such belongs in the per-format `response_parser.yaml`.
+A `create_processor` case can parse a response through the processor it just built, by way of a `then_parse` block holding an `input` and its own `expect` or `expect_error`. It sits beside `expect` rather than inside it because it is a call made on the processor, not a property read off it. Use it only for rules that need negotiation to have happened first; a rule about parsing as such belongs in the per-format `response_parser.yaml`, and one about what a payload compiles to in `compiler.yaml`.
 
 Where a format decides the exact spelling of its output, a case asserts an invariant rather than a string: `expect_round_trip` on `wrap` and `decompile`, `expect_deterministic` on `generate_prompt_snippet`, and `expect_matches_single_shot` on `parse_chunk`, which says chunk boundaries change when parts arrive and nothing else. Prompt cases assert substrings through `expect_contains` and `expect_absent`, because the wording around a catalog belongs to the implementation.
+
+`expect_present` on `compile` covers the narrower case of a single value the format must supply but the protocol does not dictate, such as the message on a check written without one. It lists JSON Pointers into the compiled messages; a harness removes each from what the implementation produced, asserting on the way that it was there and not empty, then compares the remainder against `expect`. The `expect` block therefore omits those paths. Reach for it only when pinning the value would freeze one implementation's wording into the protocol, since everything it covers is a thing no other implementation has to match.
 
 Two error categories carry the load: `ParseError` for text that does not parse, and `ValidationError` for a payload that parses but names something the active catalogs do not declare. `CompileError` is deliberately unused, since `A2uiCompilationError` does not yet descend from the base error type and no harness can match it.
 
