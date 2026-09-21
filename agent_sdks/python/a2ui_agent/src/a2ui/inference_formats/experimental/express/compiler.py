@@ -23,6 +23,8 @@ The grammar for A2UI Express is defined in Express.g4.
 from typing import Any, Optional, Union
 from antlr4 import InputStream, CommonTokenStream
 from a2ui.core.catalog import Catalog
+from a2ui.core.common.semver import is_at_least_version
+from a2ui.core.schema import ProtocolVersion
 from a2ui.schema.catalog import A2uiCatalog
 from .generated.express_lexer import ExpressLexer
 from .generated.express_parser import ExpressParser
@@ -41,25 +43,6 @@ from .errors import (
     ExpressUndefinedRootError,
     ExpressUndefinedChildError,
 )
-
-
-def _parse_version(v: str) -> tuple[int, int, int]:
-    """Parses a version string into a 3-part integer tuple for comparison."""
-    clean = v.lstrip("vV").strip()
-    parts = []
-    for part in clean.split("."):
-        if part.isdigit():
-            parts.append(int(part))
-        else:
-            break
-    while len(parts) < 3:
-        parts.append(0)
-    return tuple(parts[:3])
-
-
-def is_version_at_least(v: str, target: str) -> bool:
-    """Returns True if version v is greater than or equal to target."""
-    return _parse_version(v) >= _parse_version(target)
 
 
 def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
@@ -380,7 +363,7 @@ class ExpressCompiler:
             }]
 
         if standalone_function_calls:
-            if not is_version_at_least(target_version, "1.0"):
+            if not is_at_least_version(target_version, ProtocolVersion.V1_0):
                 raise ExpressValidationError(
                     "Standalone function calls are not supported in A2UI"
                     f" {target_version}"
@@ -444,7 +427,7 @@ class ExpressCompiler:
             compiled_components.extend(ctx.extra_components)
             ctx.extra_components = []
 
-            if is_version_at_least(target_version, "1.0"):
+            if is_at_least_version(target_version, ProtocolVersion.V1_0):
                 envelope = {
                     "version": target_version,
                     SurfaceOperation.CREATE: {
