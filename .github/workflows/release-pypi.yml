@@ -72,6 +72,11 @@ permissions:
 
 # Releases must not overlap. Two runs staging different versions of the same
 # package would race on the Artifact Registry and the manifest bucket.
+#
+# The group is deliberately not keyed by the `package` input: `both` and
+# `a2ui-core` would then land in different groups and be free to run at the same
+# time, which is exactly the collision this is meant to prevent. Releases are
+# manual and infrequent, so serialising all of them costs nothing.
 concurrency:
   group: release-pypi
   cancel-in-progress: false
@@ -291,13 +296,16 @@ jobs:
       # ahead, so the tags become permanent. Only tags are pushed: `main` is
       # covered by a ruleset that requires a pull request, and the changelog
       # edit goes through that route at the end of the job.
+      #
+      # --atomic, so a `both` release cannot end up with a2ui-core tagged and
+      # a2ui-agent-sdk not. Recovering from that by hand means working out which
+      # half landed while artifacts are already staged.
       - name: Push the tags
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          jq -r '.[].tag' release-plan.json | while read -r tag; do
-            git push origin "refs/tags/${tag}"
-          done
+          readarray -t refs < <(jq -r '.[] | "refs/tags/\(.tag)"' release-plan.json)
+          git push --atomic origin "${refs[@]}"
 
       - name: Write the publishing manifest
         if: ${{ !inputs.dry_run }}
