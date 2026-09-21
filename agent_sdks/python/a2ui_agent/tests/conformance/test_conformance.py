@@ -597,11 +597,6 @@ KNOWN_GAPS = {
         "parse_response takes no `wrapped` argument, so a response the case"
         " declares unwrapped cannot be handed to the compiler whole"
     ),
-    "test_parse_response_compile_failure_surfaces": (
-        "parse_response catches the compiler's A2uiParseError and re-raises it"
-        " as A2uiCompilationError, which is not an A2uiError, so the category"
-        " is lost on the way out"
-    ),
     "test_parse_response_express_validation_failure_surfaces": (
         "a component the catalog does not declare is dropped from the compiled"
         " surface instead of failing the parse"
