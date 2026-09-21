@@ -16,7 +16,12 @@
 
 from typing import TYPE_CHECKING
 
-from a2ui.core import A2uiError, A2uiParseError, A2uiValidationError
+from a2ui.core import (
+    A2uiError,
+    A2uiErrorDetail,
+    A2uiParseError,
+    A2uiValidationError,
+)
 
 if TYPE_CHECKING:
     from a2ui.parser.response_part import ResponsePart
@@ -39,8 +44,9 @@ class A2uiCompilationError(A2uiError):
         column: int | None = None,
         help_message: str | None = None,
         partial_results: list["ResponsePart"] | None = None,
+        details: list[A2uiErrorDetail] | None = None,
     ):
-        super().__init__(message)
+        super().__init__(message, details=details)
         self.raw_content = raw_content
         self.line = line
         self.column = column

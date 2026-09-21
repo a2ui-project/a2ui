@@ -122,12 +122,14 @@ class ExpressParser(Parser):
                 getattr(e, "help_message", None)
                 or "Please correct the syntax error in your Express DSL."
             )
+            details = getattr(e, "details", None)
             raise _compilation_error_class(e)(
                 message=str(e),
                 raw_content=format_content,
                 line=line,
                 column=column,
                 help_message=help_msg,
+                details=details,
             ) from e
 
     def decompile(self, val: Union[dict[str, Any], List[dict[str, Any]]]) -> str:
