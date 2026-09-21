@@ -100,8 +100,32 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
   }),
 }));
 
-/** Initializes the app component and runs its startup lifecycle. */
-const bootstrap = (app: A2uiFilesystemApp) => (app as any).firstUpdated();
+if (!(document as any).adoptedStyleSheets) {
+  (document as any).adoptedStyleSheets = [];
+}
+if (typeof ShadowRoot !== 'undefined' && !(ShadowRoot.prototype as any).adoptedStyleSheets) {
+  (ShadowRoot.prototype as any).adoptedStyleSheets = [];
+}
+
+/** Initializes the app component, renders `<a2ui-surface>`, and flushes startup updates. */
+async function bootstrap(app: A2uiFilesystemApp) {
+  const firstUpdatedDone = new Promise<void>(resolve => {
+    const orig = (app as any).firstUpdated.bind(app);
+    (app as any).firstUpdated = async () => {
+      await orig();
+      resolve();
+    };
+  });
+  document.body.replaceChildren(app);
+  await firstUpdatedDone;
+  await app.updateComplete;
+  const surfaceEl = app.shadowRoot?.querySelector('a2ui-surface') as {
+    updateComplete?: Promise<unknown>;
+  } | null;
+  await surfaceEl?.updateComplete;
+  // Flush pending microtasks from async MCP tool execution and data model updates.
+  await new Promise(resolve => setTimeout(resolve, 0));
+}
 
 /** Returns the parameters of all `tools/call` requests recorded by the mock client. */
 const toolCalls = () => mockClient.request.mock.calls.map(call => call[0].params);

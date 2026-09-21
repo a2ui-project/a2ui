@@ -14,7 +14,17 @@
         {
           "id": "root",
           "component": "Column",
-          "children": ["title", "subtitle", "body"]
+          "children": ["title", "subtitle", "body"],
+          "accessibility": {
+            "description": {
+              "call": "updateDataModel",
+              "args": {
+                "updates": {
+                  "path": "/startup"
+                }
+              }
+            }
+          }
         },
         {
           "id": "title",
@@ -539,59 +549,60 @@
         "entries_title": "Loading your home directory",
         "viewer_title": "No file open",
         "viewer_body": "Choose a file on the left to read it.",
-        "startup": [
-          {
-            "call": "updateDataModel",
-            "args": {
-              "updates": {
-                "call": "jmespath",
+        "startup": {
+          "call": "jmespath",
+          "args": {
+            "expression": {
+              "path": "/expr/list"
+            },
+            "data": {
+              "once": {
+                "call": "updateDataModel",
                 "args": {
-                  "expression": {
-                    "path": "/expr/list"
-                  },
-                  "data": {
-                    "dir": "~",
-                    "nl": "\n",
-                    "rows": {
-                      "call": "regexCapture",
-                      "args": {
-                        "value": {
-                          "call": "split",
-                          "args": {
-                            "value": {
-                              "call": "jmespath",
+                  "updates": {
+                    "/startup": null
+                  }
+                }
+              },
+              "dir": "~",
+              "nl": "\n",
+              "rows": {
+                "call": "regexCapture",
+                "args": {
+                  "value": {
+                    "call": "split",
+                    "args": {
+                      "value": {
+                        "call": "jmespath",
+                        "args": {
+                          "expression": "join(nl, result.content[?type == 'text'].text)",
+                          "data": {
+                            "nl": "\n",
+                            "result": {
+                              "call": "callMcpTool",
                               "args": {
-                                "expression": "join(nl, result.content[?type == 'text'].text)",
-                                "data": {
-                                  "nl": "\n",
-                                  "result": {
-                                    "call": "callMcpTool",
-                                    "args": {
-                                      "name": "list_directory_with_sizes",
-                                      "arguments": {
-                                        "call": "jmespath",
-                                        "args": {
-                                          "expression": "{path: @}",
-                                          "data": "~"
-                                        }
-                                      }
-                                    }
+                                "name": "list_directory_with_sizes",
+                                "arguments": {
+                                  "call": "jmespath",
+                                  "args": {
+                                    "expression": "{path: @}",
+                                    "data": "~"
                                   }
                                 }
                               }
-                            },
-                            "separator": "\n"
+                            }
                           }
-                        },
-                        "pattern": "^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$"
-                      }
+                        }
+                      },
+                      "separator": "\n"
                     }
-                  }
+                  },
+                  "pattern": "^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$"
                 }
               }
             }
           }
-        ],
+        },
         "expr": {
           "list": "{dir: dir, rows: rows[?@ != null]} | {\n  \"/dir\": dir,\n  \"/row_base\": join('', [dir, '/']),\n  \"/entries\": rows[*].{\n    name: [1],\n    size: [2] || '',\n    icon: ([0] == 'DIR' && 'folder') || 'attachFile',\n    tool: ([0] == 'DIR' && 'list_directory_with_sizes') || 'read_text_file',\n    expr: {path: ([0] == 'DIR' && '/expr/list') || '/expr/read'},\n    pattern: ([0] == 'DIR' && '^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$') || '^(.*)$'\n  },\n  \"/entries_title\": join('', [\n    to_string(length(rows)),\n    (length(rows) == `1` && ' entry') || ' entries'\n  ]),\n  \"/viewer_title\": (dir == '~' && 'Home Directory (~)') || dir,\n  \"/viewer_body\": 'Choose a file on the left to read it.'\n}",
           "read": "{\n  \"/viewer_title\": dir,\n  \"/viewer_body\": join('', ['```', nl, join(nl, rows[*][0] | [0:200]), nl, '```'])\n}",

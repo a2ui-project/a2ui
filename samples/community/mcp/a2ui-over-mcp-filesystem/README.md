@@ -10,7 +10,7 @@ An A2UI mini-app can deliver interactive functionality to any host that supports
 
 - **Declarative tool execution**: Every button in [a2ui_filesystem.json](a2ui_filesystem.json) invokes a chain of catalog functions centered on `callMcpTool`. Clicking a row executes no custom client-side application logic.
 - **Data transformation for standard MCP servers**: The filesystem server returns plain text. The payload splits the text into lines, extracts fields using regular expressions, transforms the result with JMESPath, and writes the structured entries into the data model.
-- **Minimal host scaffolding**: [client/app.ts](client/app.ts) connects an MCP client, loads the A2UI payload into the renderer, and executes the initial `/startup` action.
+- **Minimal host scaffolding**: [client/app.ts](client/app.ts) only connects an MCP client and feeds the static A2UI payload into the renderer.
 
 ## Run it
 
@@ -81,10 +81,10 @@ A directory listing lands at `/entries`, and the row template turns each entry
 into a button whose tool name comes from the entry itself: a directory calls
 `list_directory_with_sizes`, a file calls `read_text_file`.
 
-The payload also declares its own first call, under `/startup`. Each element is
-a complete `{call, args}` action, which the host runs with
-`context.resolveDynamicValue(action)`, so even the opening screen is the
-payload's decision.
+The payload also triggers its own initial load on mount: `root` binds
+`accessibility.description` to `updateDataModel` reading `/startup`, which
+synchronously clears `/startup` to `null` (`once`) and runs the initial
+`list_directory_with_sizes` call without any custom startup code in `app.ts`.
 
 The proxy exists because the filesystem server speaks JSON-RPC over stdio,
 which a page cannot open. `mcp-proxy` runs it as a child process and relays it
@@ -103,7 +103,7 @@ The payload keeps its whole state in the surface data model:
 | `/entries_title`                | The heading above the list.                                                                                 |
 | `/viewer_title`, `/viewer_body` | The right pane, which shows a file as fenced Markdown.                                                      |
 | `/expr`                         | The three JMESPath expressions, named `list`, `read`, and `search`.                                         |
-| `/startup`                      | The actions the host runs once the surface exists.                                                          |
+| `/startup`                      | The initial `jmespath` expression evaluated when `root` mounts, then cleared to `null`.                     |
 
 A listing sets `/row_base` to `/dir` plus a slash. A search sets it to the empty
 string, because `search_files` already answers with absolute paths.
