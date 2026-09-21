@@ -69,6 +69,15 @@ String toSnakeCase(String name) {
   return snake;
 }
 
+/// Upper-cases the first character, leaving the rest of the identifier intact.
+///
+/// Catalog function names are already camel case, so this turns `formatString`
+/// into `FormatString` without disturbing the internal word boundaries.
+String capitalizeIdent(String name) {
+  if (name.isEmpty) return name;
+  return name[0].toUpperCase() + name.substring(1);
+}
+
 String typeToPython(TypeDescriptor desc) {
   switch (desc) {
     case PrimitiveType(:final primitive):
@@ -87,9 +96,13 @@ String typeToPython(TypeDescriptor desc) {
     case EnumType(:final name):
       return name;
     case ComponentRefType():
-      return 'Slot';
+      return 'Child';
     case ComponentListType():
-      return 'SlotList | DynamicChildList';
+      return 'ChildList';
+    case AccessibilityType():
+      return 'AccessibilityAttributes';
+    case ObjectModelType(:final name):
+      return name;
     case DynamicType(:final inner):
       final innerPy = typeToPython(inner);
       return '$innerPy | DataBinding | FunctionCall';

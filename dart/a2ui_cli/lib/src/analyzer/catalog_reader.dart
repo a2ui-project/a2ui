@@ -100,6 +100,40 @@ class CodegenCatalog {
     return curr;
   }
 
+  /// Schemas for the `common_types.json` definitions a catalog may compose in.
+  ///
+  /// Catalog components inherit shared behaviour through `allOf` refs into the
+  /// protocol's common types document. That document is not bundled with the
+  /// catalog, so the refs cannot be followed; the shapes they contribute are
+  /// fixed by the specification and are reproduced here instead. Anything not
+  /// listed contributes no properties, which is the previous behaviour.
+  static const Map<String, Map<String, dynamic>> _commonTypeSubSchemas = {
+    'ComponentCommon': {
+      'properties': {
+        'accessibility': {
+          r'$ref':
+              'https://a2ui.org/specification/v0_9/'
+              'common_types.json#/\$defs/AccessibilityAttributes',
+          'description': 'Accessibility properties',
+        },
+      },
+    },
+    'Checkable': {
+      'properties': {
+        'checks': {
+          'type': 'array',
+          'description':
+              'Client-side validation rules evaluated against this component.',
+          'items': {
+            r'$ref':
+                'https://a2ui.org/specification/v0_9/'
+                'common_types.json#/\$defs/CheckRule',
+          },
+        },
+      },
+    },
+  };
+
   static void _collectSubSchemas(
     Map<String, dynamic> schema,
     Map<String, dynamic> rootDoc,
@@ -125,15 +159,13 @@ class CodegenCatalog {
                 );
               }
             }
-          } else if (ref.contains('ComponentCommon')) {
-            result.add({
-              'properties': {
-                'accessibility': {
-                  'type': 'any',
-                  'description': 'Accessibility properties',
-                },
-              },
-            });
+          } else {
+            final defName = ref.split('/').last;
+            final known = _commonTypeSubSchemas[defName];
+            if (known != null && !visited.contains(ref)) {
+              visited.add(ref);
+              result.add(known);
+            }
           }
         } else {
           _collectSubSchemas(subMap, rootDoc, result, visited);
