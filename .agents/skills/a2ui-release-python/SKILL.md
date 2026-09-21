@@ -341,10 +341,6 @@ github_workflow:a2ui-project/a2ui/.github/workflows/release-pypi.yml@refs/heads/
 Renaming or moving the workflow file breaks releases until the internal config
 is updated. It also cannot be triggered from a branch or a tag, only `main`.
 
-**`main advanced since this run checked out ...`** — someone merged while the
-release was building. Nothing was staged or pushed. Start again from Step 1,
-since the pending changelog entries may have changed.
-
 **`... is already on PyPI`** — the version was published previously. It cannot be
 republished. Work out why the tag series and PyPI disagree before retrying.
 

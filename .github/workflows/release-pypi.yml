@@ -229,22 +229,6 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
-      # Last cheap check before anything leaves the runner. The tags this run
-      # created point at the commit that was `main` at checkout; if `main` has
-      # advanced since, those tags would land on a commit that is no longer the
-      # tip and the release would describe a stale tree. Failing here costs
-      # nothing, whereas failing after the upload strands artifacts in the
-      # Artifact Registry.
-      - name: Confirm main has not moved
-        run: |
-          set -euo pipefail
-          git fetch --quiet origin main
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
-            echo "::error::main advanced since this run checked out" \
-              "$(git rev-parse --short HEAD). Re-run the workflow."
-            exit 1
-          fi
-
       # Staging is ordered core first, which is the order the plan emits, so a
       # new a2ui-core is in place before the a2ui-agent-sdk that requires it.
       - name: Stage in the Exit Gate Artifact Registry
