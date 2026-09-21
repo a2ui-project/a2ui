@@ -18,9 +18,12 @@ import pytest
 from enum import Enum
 from typing import Any, Literal, Optional, Sequence, Union
 
+from pydantic import BaseModel, ValidationError
+
 from a2ui.inference_formats.experimental.macros import (
     AccessibilityAttributes,
     Action,
+    ActionEvent,
     CheckRule,
     Child,
     ChildList,
@@ -33,20 +36,19 @@ from a2ui.inference_formats.experimental.macros import (
     DynamicString,
     DynamicStringList,
     DynamicValue,
-    ExternalComponentBuilderNode,
     FunctionCall,
     MacroInferenceFormat,
     MacroProcessor,
     ComponentTree,
-    bind,
     clear_macros,
+    create_surface,
     flatten_component_tree,
     get_macro,
     list_macros,
     macro,
 )
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.builder.catalogs.basic import (
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,
@@ -62,51 +64,85 @@ def cleanup_macros():
     clear_macros()
 
 
-def test_data_binding():
-    b1 = bind("user/name")
-    assert b1.to_dict() == {"path": "/user/name"}
+def wire(model: BaseModel) -> dict:
+    """Dumps a builder model exactly as the transport would."""
+    return model.model_dump(by_alias=True, exclude_none=True)
 
-    b2 = bind("/user/name")
-    assert b2.to_dict() == {"path": "/user/name"}
+
+def test_data_binding():
+    # Paths reach the wire as written: a relative path resolves against the
+    # scope a collection template creates, so it must not gain a leading slash.
+    b1 = DataBinding(path="user/name")
+    assert wire(b1) == {"path": "user/name"}
+
+    b2 = DataBinding(path="/user/name")
+    assert wire(b2) == {"path": "/user/name"}
 
 
 def test_function_call_and_action():
     fn = FunctionCall(call="formatString", args={"value": "Hello ${/user/name}"})
-    assert fn.to_dict() == {
+    assert wire(fn) == {
         "call": "formatString",
         "args": {"value": "Hello ${/user/name}"},
     }
 
-    action_fn = Action(function=fn)
-    assert action_fn.to_dict() == {
-        "function": {
+    action_fn = Action(function_call=fn)
+    assert wire(action_fn) == {
+        "functionCall": {
             "call": "formatString",
             "args": {"value": "Hello ${/user/name}"},
         }
     }
 
-    action_ev = Action(event={"name": "submit_form", "data": {"id": 123}})
-    assert action_ev.to_dict() == {
-        "event": {"name": "submit_form", "data": {"id": 123}}
+    action_ev = Action(event=ActionEvent(name="submit_form", context={"id": 123}))
+    assert wire(action_ev) == {
+        "event": {"name": "submit_form", "context": {"id": 123}}
     }
+
+
+def test_action_requires_exactly_one_branch():
+    with pytest.raises(ValidationError):
+        Action()
+    with pytest.raises(ValidationError):
+        Action(
+            event=ActionEvent(name="submit"),
+            function_call=FunctionCall(call="noop"),
+        )
 
 
 def test_check_rule():
     cond = FunctionCall(call="regex", args={"pattern": "^[A-Z]"})
     rule = CheckRule(condition=cond, message="Must start with uppercase letter")
-    assert rule.to_dict() == {
+    assert wire(rule) == {
         "condition": {"call": "regex", "args": {"pattern": "^[A-Z]"}},
         "message": "Must start with uppercase letter",
     }
 
 
 def test_dynamic_child_list():
-    template = Card(child=Text(text=bind("item/title")))
+    template = Card(child=Text(text=DataBinding(path="item/title")))
     dyn = DynamicChildList(data_model_path="items", template=template)
-    d = dyn.to_dict()
-    assert d["dataModelPath"] == "/items"
-    assert "template" in d
-    assert d["template"]["component"] == "Card"
+    d = wire(dyn)
+    # Relative, so a template nested in an outer loop can address its own list.
+    assert d["path"] == "items"
+    # Outside a flatten pass the template dumps inline; inside one it collapses
+    # to the ID the template was allocated (see test_dynamic_child_list_flattens).
+    assert d["componentId"]["component"] == "Card"
+
+
+def test_dynamic_child_list_flattens_template_to_a_sibling_id():
+    template = Card(child=Text(text=DataBinding(path="item/title")))
+    parent = Column(children=DynamicChildList(path="/items", template=template))
+
+    flat = flatten_component_tree(parent, root_id="list_root")
+
+    by_id = {c["id"]: c for c in flat}
+    children = by_id["list_root"]["children"]
+    assert children["path"] == "/items"
+    # The template is emitted as an ordinary sibling and referenced by ID.
+    template_id = children["componentId"]
+    assert template_id in by_id
+    assert by_id[template_id]["component"] == "Card"
 
 
 def test_flatten_single_node():
@@ -196,11 +232,18 @@ def test_component_tree_serialization_and_messages():
         surface_id="home",
         root=Card(child=Text(text="Welcome")),
     )
-    comps = tree.to_components()
+    comps = tree.flatten()
     assert len(comps) == 2
     assert tree.to_json() is not None
 
-    messages = tree.to_surface(data_model={"user": {"name": "Alice"}})
+    # A tree knows its own shape but not how a protocol version packages it;
+    # envelope construction lives in the versioned helper.
+    messages = [
+        wire(m)
+        for m in create_surface(
+            "home", tree.root, data_model={"user": {"name": "Alice"}}
+        )
+    ]
     assert len(messages) == 3
     assert "createSurface" in messages[0]
     assert messages[0]["createSurface"]["surfaceId"] == "home"

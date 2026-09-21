@@ -29,7 +29,7 @@ from typing import (
     get_type_hints,
 )
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     CheckRule,
@@ -37,7 +37,6 @@ from a2ui.builder import (
     ComponentRef,
     DataBinding,
     DynamicChildList,
-    ExternalComponentBuilderNode,
     FunctionCall,
 )
 
@@ -124,7 +123,8 @@ def _map_type_hint_to_schema(
             return _map_type_hint_to_schema(non_none_args[0], param_desc)
 
         has_binding = any(
-            a is DataBinding or (isinstance(a, type) and issubclass(a, DataBinding))
+            a is DataBinding
+            or (isinstance(a, type) and issubclass(a, DataBinding))
             for a in non_none_args
         )
         has_func = any(
@@ -132,18 +132,19 @@ def _map_type_hint_to_schema(
             for a in non_none_args
         )
         types_set = set(non_none_args)
+        expr_types = {DataBinding, FunctionCall}
 
         if has_binding or has_func:
             if (
                 str in types_set
-                and len(types_set - {str, DataBinding, FunctionCall}) == 0
+                and len(types_set - (expr_types | {str})) == 0
             ):
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicString"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
             elif (int in types_set or float in types_set) and len(
-                types_set - {int, float, DataBinding, FunctionCall}
+                types_set - (expr_types | {int, float})
             ) == 0:
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicNumber"}
                 if param_desc:
@@ -151,7 +152,7 @@ def _map_type_hint_to_schema(
                 return schema
             elif (
                 bool in types_set
-                and len(types_set - {bool, DataBinding, FunctionCall}) == 0
+                and len(types_set - (expr_types | {bool})) == 0
             ):
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicBoolean"}
                 if param_desc:
@@ -166,12 +167,7 @@ def _map_type_hint_to_schema(
                     schema["description"] = param_desc
                 return schema
             elif any(
-                a
-                in (
-                    ComponentBuilderNode,
-                    ComponentRef,
-                    ExternalComponentBuilderNode,
-                )
+                a in (ComponentBuilderNode, ComponentRef)
                 or (isinstance(a, type) and issubclass(a, ComponentBuilderNode))
                 for a in types_set
             ):
@@ -196,12 +192,7 @@ def _map_type_hint_to_schema(
                 return schema
 
         if any(
-            a
-            in (
-                ComponentBuilderNode,
-                ComponentRef,
-                ExternalComponentBuilderNode,
-            )
+            a in (ComponentBuilderNode, ComponentRef)
             or (isinstance(a, type) and issubclass(a, ComponentBuilderNode))
             for a in types_set
         ) and any(
@@ -273,11 +264,9 @@ def _map_type_hint_to_schema(
         return schema
 
     # Single Child Slots
-    if t in (
-        ComponentBuilderNode,
-        ExternalComponentBuilderNode,
-        ComponentRef,
-    ) or (isinstance(t, type) and issubclass(t, ComponentBuilderNode)):
+    if t in (ComponentBuilderNode, ComponentRef) or (
+        isinstance(t, type) and issubclass(t, ComponentBuilderNode)
+    ):
         schema = {
             "$ref": f"{COMMON_REF_PREFIX}ComponentId",
             "description": (
@@ -291,8 +280,7 @@ def _map_type_hint_to_schema(
         origin in (list, Sequence, AbcSequence, tuple, set)
         and args
         and (
-            args[0]
-            in (ComponentBuilderNode, ExternalComponentBuilderNode, ComponentRef)
+            args[0] in (ComponentBuilderNode, ComponentRef)
             or (isinstance(args[0], type) and issubclass(args[0], ComponentBuilderNode))
         )
     ):

@@ -20,7 +20,7 @@ The `@macro` decorator inspects a Python function's type annotations and docstri
 
 ```python
 from a2ui.inference_formats.experimental.macros import macro
-from a2ui.builder.catalogs.basic import Card, Column, Text, Button, Action
+from a2ui.builder.v0_9.catalogs.basic import Action, Button, Card, Column, Text
 
 @macro
 def product_card(
@@ -58,9 +58,9 @@ The decorator maps Python type hints to A2UI JSON schema definitions:
 
 - **Primitives**: `str`, `int`, `float`, and `bool` map to standard JSON schema types.
 - **Enums**: `Enum` subclasses or `Literal["a", "b"]` map to enum string schemas.
-- **Slots (Single Child)**: Parameters typed as `ComponentBuilderNode`, `Slot`, or concrete component classes (like `Text`) map to `#/$defs/ComponentId`. When the model passes a component ID or nested tag, `MacroProcessor` coerces the input into a `ComponentRef(id=...)`.
-- **Slot lists (Children)**: Parameters typed as `Sequence[ComponentBuilderNode]` or `SlotList` map to `#/$defs/ChildList`. Incoming ID arrays are coerced to lists of `ComponentRef`.
-- **Actions**: Parameters typed as `Action` map to `#/$defs/Action`.
+- **Slots (Single Child)**: Parameters typed as `ComponentBuilderNode`, `Child`, or concrete component classes (like `Text`) map to `#/$defs/ComponentId`. When the model passes a component ID or nested tag, `MacroProcessor` coerces the input into a `ComponentRef(id=...)`.
+- **Slot lists (Children)**: Parameters typed as `Sequence[ComponentBuilderNode]` or `ChildList` map to `#/$defs/ChildList`. Incoming ID arrays are coerced to lists of `ComponentRef`.
+- **Actions**: Parameters typed as `Action` map to `#/$defs/Action`. In Python, build one as `Action(event=ActionEvent(name="name", context=...))`; `Action` has no string shorthand, because a validator that accepted one would be invisible to a type checker. `MacroProcessor` still accepts the shorthands a model emits (`"name"`, `{"event": "name"}`, `{"name": ..., "context": ...}`) and coerces them.
 - **Data bindings**: Values passed as `{"path": "/..."}` are coerced into `DataBinding` objects.
 
 ### Docstring contract
@@ -77,7 +77,7 @@ A macro function must return a `ComponentBuilderNode` (such as `Card`, `Column`,
 During expansion:
 
 1. `MacroProcessor` calls the function with coerced arguments.
-2. The returned node hierarchy is flattened into component dictionaries via `tree.to_components()`.
+2. The returned node hierarchy is flattened into component dictionaries via `tree.flatten()`.
 3. The root component of the returned tree inherits the macro's instance ID. Any parent components that referenced the macro now reference this root component seamlessly.
 
 ## Integrating macros with inference formats

@@ -14,9 +14,10 @@
 
 """A2UI Macros (Programmatic Components and Typesafe Builders)."""
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
+    ActionEvent,
     CheckRule,
     Child,
     ChildList,
@@ -29,12 +30,12 @@ from a2ui.builder import (
     DynamicString,
     DynamicStringList,
     DynamicValue,
-    ExternalComponentBuilderNode,
     FunctionCall,
     ComponentTree,
     IdAllocator,
-    bind,
+    create_surface,
     flatten_component_tree,
+    update_components,
 )
 from a2ui.inference_formats.experimental.macros.format import (
     MacroInferenceFormat,
@@ -70,7 +71,6 @@ __all__ = [
     "MacroParser",
     "AccessibilityAttributes",
     "ComponentBuilderNode",
-    "ExternalComponentBuilderNode",
     "ComponentRef",
     "DataBinding",
     "DynamicBoolean",
@@ -81,11 +81,13 @@ __all__ = [
     "DynamicValue",
     "Child",
     "ChildList",
-    "bind",
     "FunctionCall",
     "Action",
+    "ActionEvent",
     "CheckRule",
     "IdAllocator",
     "ComponentTree",
     "flatten_component_tree",
+    "create_surface",
+    "update_components",
 ]
