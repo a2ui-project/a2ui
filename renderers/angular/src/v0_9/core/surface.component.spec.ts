@@ -54,7 +54,8 @@ describe('SurfaceComponent', () => {
           componentsModel: new Map([
             ['root', new ComponentModel('root', 'Text', {text: {value: 'Hello'}}, mockCatalog)],
           ]),
-          catalog: mockCatalog,
+          defaultCatalog: mockCatalog,
+          availableCatalogs: new Map(),
         }),
       },
     };

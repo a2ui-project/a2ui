@@ -46,7 +46,7 @@ describe('renderA2uiNode', () => {
   };
 
   beforeEach(() => {
-    testCatalog = new Catalog<WebComponentImplementation>('test-catalog', [
+    testCatalog = new Catalog<WebComponentImplementation>('test-catalog', '0.9', [
       mockButtonImpl,
       mockImplWithoutTag,
     ]);

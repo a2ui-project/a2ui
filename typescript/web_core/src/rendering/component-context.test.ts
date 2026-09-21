@@ -22,7 +22,7 @@ import {ComponentModel} from '../state/component-model.js';
 import {Catalog} from '../catalog/types.js';
 
 describe('ComponentContext', () => {
-  const mockCatalog = new Catalog('mock', []);
+  const mockCatalog = new Catalog('mock', '1.0', []);
   const mockSurface = new SurfaceModel('surface1', mockCatalog);
   const componentId = 'comp1';
 
@@ -66,7 +66,7 @@ describe('ComponentContext', () => {
 
   it('exposes theme from surface', () => {
     const theme = {primaryColor: '#FF5733'};
-    const themedSurface = new SurfaceModel('themed', mockCatalog, theme);
+    const themedSurface = new SurfaceModel('themed', mockCatalog, new Map(), theme);
     const comp = new ComponentModel('c1', 'Text', {}, mockCatalog);
     themedSurface.componentsModel.addComponent(comp);
 

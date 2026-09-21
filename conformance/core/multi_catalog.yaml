@@ -126,3 +126,45 @@
         component: GeoMap
         catalogId: "map_catalog"
   expectSelected: "map_catalog"
+
+# --- End-to-end catalogId override on a function call ---
+#
+# The cases above assert catalog *selection* in the abstract. This one drives a
+# real payload through the message processor: the surface's default catalog
+# declares no functions at all, so the call can only succeed if the engine
+# honours the `catalogId` on the function call itself.
+
+- name: test_multi_catalog_function_call_catalog_id_override
+  description: Verifies a function call naming a non-default catalogId is evaluated by that catalog.
+  action: validate
+  catalogs:
+    - catalogId: "app-cat"
+      protocolVersion: "v1.0"
+      components:
+        Text:
+          type: object
+          properties:
+            text:
+              $ref: "#/$defs/DynamicString"
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "app-cat"
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatDate"
+                  catalogId: "basic"
+                  args:
+                    value: "2026-09-04T12:00:00Z"
+                    format: "yyyy-MM-dd"
+  expect:
+    surfaces:
+      main:
+        components:
+          root:
+            component: "Text"
+            text: "2026-09-04"

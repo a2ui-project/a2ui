@@ -61,7 +61,8 @@ describe('ListComponent', () => {
               new ComponentModel('child-2', 'Text', {text: {value: 'Child 2'}}, mockCatalog),
             ],
           ]),
-          catalog: mockCatalog,
+          defaultCatalog: mockCatalog,
+          availableCatalogs: new Map(),
         }),
       },
     };

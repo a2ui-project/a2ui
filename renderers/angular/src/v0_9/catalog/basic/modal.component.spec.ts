@@ -60,7 +60,8 @@ describe('ModalComponent', () => {
               new ComponentModel('modal-content', 'Text', {text: {value: 'Modal'}}, mockCatalog),
             ],
           ]),
-          catalog: mockCatalog,
+          defaultCatalog: mockCatalog,
+          availableCatalogs: new Map(),
         }),
       },
     };

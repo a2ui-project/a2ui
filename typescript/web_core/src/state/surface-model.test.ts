@@ -31,8 +31,8 @@ describe('SurfaceModel', () => {
   beforeEach(() => {
     actions = [];
     errors = [];
-    catalog = new Catalog('test-catalog', []);
-    surface = new SurfaceModel<ComponentApi>('surface-1', catalog, {});
+    catalog = new Catalog('test-catalog', '1.0', []);
+    surface = new SurfaceModel<ComponentApi>('surface-1', catalog, new Map(), {});
     surface.onAction.subscribe(async action => {
       actions.push(action);
     });
@@ -47,13 +47,15 @@ describe('SurfaceModel', () => {
 
   it('accepts custom data model in constructor', () => {
     const customData = new DataModel({custom: 'data'});
-    const customSurface = new SurfaceModel('surface-2', catalog, {}, false, customData);
+    const customSurface = new SurfaceModel('surface-2', catalog, new Map(), {}, false, customData);
     assert.strictEqual(customSurface.dataModel, customData);
     assert.strictEqual(customSurface.dataModel.get('/custom'), 'data');
   });
 
   it('exposes components model', () => {
-    surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}, surface.catalog));
+    surface.componentsModel.addComponent(
+      new ComponentModel('c1', 'Button', {}, surface.defaultCatalog),
+    );
     assert.ok(surface.componentsModel.get('c1'));
   });
 
@@ -67,6 +69,44 @@ describe('SurfaceModel', () => {
     assert.deepStrictEqual(action.context, {foo: 'bar'});
     assert.ok(action.timestamp);
     assert.doesNotThrow(() => new Date(action.timestamp));
+  });
+
+  it('exposes the default catalog through the deprecated catalog alias', () => {
+    assert.strictEqual(surface.defaultCatalog, catalog);
+    assert.strictEqual(surface.catalog, catalog);
+  });
+
+  it('defaults availableCatalogs to empty when none are supplied', () => {
+    assert.strictEqual(surface.availableCatalogs.size, 0);
+  });
+
+  it('exposes the catalogs it was constructed with', () => {
+    const other = new Catalog<ComponentApi>('other-catalog', '1.0', []);
+    const multi = new SurfaceModel<ComponentApi>(
+      'surface-multi',
+      catalog,
+      new Map([
+        [catalog.id, catalog],
+        [other.id, other],
+      ]),
+    );
+    assert.strictEqual(multi.availableCatalogs.get('other-catalog'), other);
+    assert.strictEqual(multi.availableCatalogs.get('test-catalog'), catalog);
+  });
+
+  it('carries an explicit catalogId into the dispatched action', async () => {
+    await surface.dispatchAction(
+      {functionCall: {call: 'submit', args: {}, catalogId: 'other-catalog'}},
+      'comp-1',
+    );
+    assert.strictEqual(actions.length, 1);
+    assert.strictEqual(actions[0].catalogId, 'other-catalog');
+  });
+
+  it('omits catalogId when the payload does not name a catalog', async () => {
+    await surface.dispatchAction({event: {name: 'click'}}, 'comp-1');
+    assert.strictEqual(actions.length, 1);
+    assert.ok(!('catalogId' in actions[0]));
   });
 
   it('dispatches functionCall actions with call and args', async () => {
@@ -97,7 +137,9 @@ describe('SurfaceModel', () => {
   });
 
   it('creates a component context', () => {
-    surface.componentsModel.addComponent(new ComponentModel('root', 'Box', {}, surface.catalog));
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'Box', {}, surface.defaultCatalog),
+    );
     const ctx = new ComponentContext(surface, 'root', '/mydata');
     assert.ok(ctx);
     assert.strictEqual(ctx.dataContext.path, '/mydata');

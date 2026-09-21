@@ -174,7 +174,7 @@ export class ComponentHostComponent {
     basePath: string,
   ): void {
     // Resolve component from the surface's catalog
-    const catalog = surface.catalog as AngularCatalog;
+    const catalog = surface.defaultCatalog as AngularCatalog;
     const api = catalog.components.get(componentModel.type);
 
     if (!api) {

@@ -55,19 +55,42 @@ export {
   V10_CHILD_REF_OPTIONS,
 };
 
-function* extractPointers(val: unknown, currentPath: string): Generator<[string, string]> {
+/**
+ * Yields `[referencedId, path]` pairs for every child reference reachable from a
+ * property value.
+ *
+ * @param val The property value to walk.
+ * @param currentPath The property path accumulated so far.
+ * @param nestedKeys Item sub-keys the catalog declared as child references, for
+ *   a list property whose items are structured objects. When omitted, every
+ *   sub-key of such an item is walked.
+ */
+function* extractPointers(
+  val: unknown,
+  currentPath: string,
+  nestedKeys?: ReadonlySet<string>,
+): Generator<[string, string]> {
   if (typeof val === 'string') {
     yield [val, currentPath];
   } else if (Array.isArray(val)) {
     for (let idx = 0; idx < val.length; idx++) {
       const item = val[idx];
       const subPath = `${currentPath}[${idx}]`;
-      yield* extractPointers(item, subPath);
+      yield* extractPointers(item, subPath, nestedKeys);
     }
   } else if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>;
     if ('componentId' in obj && typeof obj.componentId === 'string' && 'path' in obj) {
       yield [obj.componentId, `${currentPath}.componentId`];
+    } else if (nestedKeys?.size) {
+      // The catalog declared exactly which sub-keys carry a child, so sibling
+      // properties such as a tab title are not references.
+      for (const subKey of nestedKeys) {
+        const subVal = obj[subKey];
+        if (typeof subVal === 'string') {
+          yield [subVal, `${currentPath}.${subKey}`];
+        }
+      }
     } else {
       for (const [subKey, subVal] of Object.entries(obj)) {
         yield* extractPointers(subVal, `${currentPath}.${subKey}`);
@@ -121,10 +144,11 @@ export function* getComponentReferences(
   const childRefs = refFieldsMap[compType];
   const singleRefs = childRefs ? childRefs.singleRefs : new Set<string>();
   const listRefs = childRefs ? childRefs.listRefs : new Set<string>();
+  const nestedRefs = childRefs?.nestedRefs;
 
   for (const [key, value] of Object.entries(props)) {
     if (singleRefs.has(key) || listRefs.has(key)) {
-      yield* extractPointers(value, key);
+      yield* extractPointers(value, key, nestedRefs?.[key]);
     }
   }
 }

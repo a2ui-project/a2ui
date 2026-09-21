@@ -33,7 +33,7 @@ const CustomWidgetApi = {
 }; // satisfies LitComponentApi
 
 // A custom catalog wrapping the component
-const customCatalog = new Catalog<LitComponentApi>('custom-catalog-v1', [CustomWidgetApi]);
+const customCatalog = new Catalog<LitComponentApi>('custom-catalog-v1', '0.9', [CustomWidgetApi]);
 
 /**
  * Verifies that:

@@ -35,7 +35,7 @@ import {DataContext} from '../../../rendering/data-context.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../../errors.js';
 import {Catalog, ComponentApi} from '../../../catalog/types.js';
 
-const testCatalog = new Catalog<ComponentApi>('test', [], BASIC_FUNCTIONS);
+const testCatalog = new Catalog<ComponentApi>('test', '1.0', [], BASIC_FUNCTIONS);
 
 const createTestDataContext = (
   model: DataModel,
@@ -44,7 +44,8 @@ const createTestDataContext = (
 ) => {
   const mockSurface = {
     dataModel: model,
-    catalog: {invoker: functionInvoker},
+    defaultCatalog: {invoker: functionInvoker},
+    availableCatalogs: new Map(),
     dispatchError: () => {},
   } as any;
   return new DataContext(mockSurface, contextPath);
@@ -282,6 +283,7 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
     it('honours an explicit locale', () => {
       const deCatalog = new Catalog<ComponentApi>(
         'test-de',
+        '1.0',
         [],
         createBasicCatalogFunctions({locale: 'de-DE'}),
       );
@@ -456,6 +458,7 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
     it('names months and weekdays in the configured locale', () => {
       const deCatalog = new Catalog<ComponentApi>(
         'test-de-date',
+        '1.0',
         [],
         createBasicCatalogFunctions({locale: 'de-DE'}),
       );
@@ -513,6 +516,7 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
     it('applies the CLDR rules of an explicit locale', () => {
       const cyCatalog = new Catalog<ComponentApi>(
         'test-cy',
+        '1.0',
         [],
         createBasicCatalogFunctions({locale: 'cy'}),
       );
@@ -628,6 +632,7 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
       it(`formats as en-US for the unusable tag "${locale}"`, () => {
         const catalog = new Catalog<ComponentApi>(
           `test-${locale}`,
+          '1.0',
           [],
           createBasicCatalogFunctions({locale}),
         );
@@ -651,6 +656,7 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
     it('still honours a tag Intl has data for', () => {
       const catalog = new Catalog<ComponentApi>(
         'test-de-fallback',
+        '1.0',
         [],
         createBasicCatalogFunctions({locale: 'de-DE'}),
       );

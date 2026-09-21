@@ -29,7 +29,7 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
    * @param actionHandler Optional action listener callback.
    */
   constructor(actionHandler: any = async () => {}) {
-    super('test', new Catalog('test-catalog', []), {});
+    super('test', new Catalog('test-catalog', '0.9', []), new Map(), {});
     this.onAction.subscribe(actionHandler);
   }
 }
@@ -43,7 +43,12 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
  */
 export function createTestContext(properties: any, actionHandler: any = async () => {}) {
   const surface = new TestSurfaceModel(actionHandler);
-  const component = new ComponentModel('test-id', 'TestComponent', properties, surface.catalog);
+  const component = new ComponentModel(
+    'test-id',
+    'TestComponent',
+    properties,
+    surface.defaultCatalog,
+  );
   surface.componentsModel.addComponent(component);
 
   const context = new ComponentContext(surface, 'test-id', '/');

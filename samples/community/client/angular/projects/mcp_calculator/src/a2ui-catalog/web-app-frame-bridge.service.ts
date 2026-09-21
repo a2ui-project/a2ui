@@ -276,7 +276,11 @@ export class WebAppFrameBridgeService {
       if (surface) {
         const dataContext = new DataContext(surface, '/');
         try {
-          const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
+          const result = await surface.defaultCatalog.invoker(
+            data.call,
+            data.args || {},
+            dataContext,
+          );
           this.appPort?.postMessage({
             type: A2uiMessageType.FunctionResult,
             call: data.call,

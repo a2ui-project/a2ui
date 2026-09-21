@@ -81,6 +81,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
   const mockCatalog = new Catalog(
     'basic',
+    '1.0',
     [],
     [
       customRpcImpl,
@@ -617,14 +618,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('rejects callRendererFunction when catalog protocolVersion is newer and incompatible', async () => {
-    const v20Catalog = new Catalog(
-      'v20_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      'v2.0',
-    );
+    const v20Catalog = new Catalog('v20_catalog', 'v2.0', [], [customRpcImpl]);
     const handler = new RpcHandler([v20Catalog]);
     const surface = new SurfaceModel('s1', v20Catalog);
     const context = new DataContext(surface, '/');
@@ -656,14 +650,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('rejects callRendererFunction when catalog protocolVersion is pre-v1.0 (e.g. v0.9 on v1.0)', async () => {
-    const v09Catalog = new Catalog(
-      'v09_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      'v0.9',
-    );
+    const v09Catalog = new Catalog('v09_catalog', 'v0.9', [], [customRpcImpl]);
     const handler = new RpcHandler([v09Catalog]);
     const surface = new SurfaceModel('s1', v09Catalog);
     const context = new DataContext(surface, '/');
@@ -694,14 +681,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('rejects callRendererFunction when message version is outside supported compatibility sets (e.g. v2.0 on v1.0)', async () => {
-    const v10Catalog = new Catalog(
-      'v10_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      'v1.0',
-    );
+    const v10Catalog = new Catalog('v10_catalog', 'v1.0', [], [customRpcImpl]);
     const handler = new RpcHandler([v10Catalog]);
     const surface = new SurfaceModel('s1', v10Catalog);
     const context = new DataContext(surface, '/');
@@ -735,14 +715,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('allows callRendererFunction when message minor version differs within 1.x (e.g. v1.1 on v1.0)', async () => {
-    const v10Catalog = new Catalog(
-      'v10_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      'v1.0',
-    );
+    const v10Catalog = new Catalog('v10_catalog', 'v1.0', [], [customRpcImpl]);
     const handler = new RpcHandler([v10Catalog]);
     const surface = new SurfaceModel('s1', v10Catalog);
     const context = new DataContext(surface, '/');
@@ -768,14 +741,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('allows callRendererFunction when catalog protocolVersion formatting differs but normalizes to same version (e.g. v1_0 on 1.0.0)', async () => {
-    const v10Catalog = new Catalog(
-      'v10_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      'v1_0',
-    );
+    const v10Catalog = new Catalog('v10_catalog', 'v1_0', [], [customRpcImpl]);
     const handler = new RpcHandler([v10Catalog]);
     const surface = new SurfaceModel('s1', v10Catalog);
     const context = new DataContext(surface, '/');
@@ -801,14 +767,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('allows callRendererFunction when catalog protocolVersion is compatible via explicit mapping (e.g. v0.9 catalog on v0.9.1 message)', async () => {
-    const v09Catalog = new Catalog(
-      'v09_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      'v0.9',
-    );
+    const v09Catalog = new Catalog('v09_catalog', 'v0.9', [], [customRpcImpl]);
     const handler = new RpcHandler([v09Catalog]);
     const surface = new SurfaceModel('s1', v09Catalog);
     const context = new DataContext(surface, '/');
@@ -834,14 +793,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('allows callRendererFunction when catalog protocolVersion matches message version', async () => {
-    const v10Catalog = new Catalog(
-      'v10_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      'v1.0',
-    );
+    const v10Catalog = new Catalog('v10_catalog', 'v1.0', [], [customRpcImpl]);
     const handler = new RpcHandler([v10Catalog]);
     const surface = new SurfaceModel('s1', v10Catalog);
     const context = new DataContext(surface, '/');
@@ -867,14 +819,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('allows callRendererFunction when version prefix differs (e.g. 1.0 vs v1.0)', async () => {
-    const unprefixCatalog = new Catalog(
-      'unprefix_catalog',
-      [],
-      [customRpcImpl],
-      undefined,
-      undefined,
-      '1.0',
-    );
+    const unprefixCatalog = new Catalog('unprefix_catalog', '1.0', [], [customRpcImpl]);
     const handler = new RpcHandler([unprefixCatalog]);
     const surface = new SurfaceModel('s1', unprefixCatalog);
     const context = new DataContext(surface, '/');

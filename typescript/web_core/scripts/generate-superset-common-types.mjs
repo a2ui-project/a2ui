@@ -131,6 +131,56 @@ export function mergeObjectSchemas(schemas) {
   return merged;
 }
 
+/**
+ * Inlines the properties of same-document `allOf` `$ref` branches into a schema.
+ *
+ * JSON Schema treats `allOf` as an intersection, but the superset merge only
+ * reads `properties`. A def that inherits its envelope from a shared base, as
+ * v1.0 `FunctionCall` does from `FunctionCommon`, would otherwise contribute no
+ * properties and be silently dropped from the merged superset.
+ *
+ * @param {object} schema The definition to flatten.
+ * @param {Record<string, object>} defs All `$defs` from the same document.
+ * @param {Set<string>} seen Definition names already inlined, guarding cycles.
+ * @returns {object} The schema with inherited properties folded in.
+ */
+export function inlineAllOfRefs(schema, defs, seen = new Set()) {
+  if (!schema || typeof schema !== 'object' || !Array.isArray(schema.allOf)) {
+    return schema;
+  }
+
+  const inheritedProperties = {};
+  const inheritedRequired = [];
+
+  for (const branch of schema.allOf) {
+    const ref = typeof branch?.$ref === 'string' ? branch.$ref : '';
+    if (!ref.startsWith('#/$defs/')) continue;
+
+    const name = ref.slice('#/$defs/'.length);
+    if (seen.has(name)) continue;
+    seen.add(name);
+
+    const base = inlineAllOfRefs(defs[name], defs, seen);
+    if (!base || !base.properties) continue;
+
+    Object.assign(inheritedProperties, base.properties);
+    if (Array.isArray(base.required)) {
+      inheritedRequired.push(...base.required);
+    }
+  }
+
+  if (Object.keys(inheritedProperties).length === 0) {
+    return schema;
+  }
+
+  return {
+    ...schema,
+    type: schema.type ?? 'object',
+    properties: {...inheritedProperties, ...(schema.properties ?? {})},
+    required: Array.from(new Set([...inheritedRequired, ...(schema.required ?? [])])),
+  };
+}
+
 export function mergeEnumSchemas(schemas) {
   const enumValues = new Set();
   for (const s of schemas) {
@@ -420,7 +470,9 @@ export function generateSupersetCommonTypes(options = {}) {
 
   const mergedDefs = {};
   for (const name of allDefNames) {
-    const versionsWithDef = allDefsByVersion.map(v => v.defs[name]).filter(Boolean);
+    const versionsWithDef = allDefsByVersion
+      .map(({defs}) => (defs[name] ? inlineAllOfRefs(defs[name], defs) : undefined))
+      .filter(Boolean);
     mergedDefs[name] = deepMergeSchemas(versionsWithDef);
   }
 

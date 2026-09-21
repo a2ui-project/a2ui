@@ -75,6 +75,7 @@ export function renderA2uiComponent(
 
   const catalog = new Catalog<ReactComponentImplementation>(
     'test-catalog',
+    '0.9',
     [impl, ...additionalImpls, StubChild],
     functions,
   );

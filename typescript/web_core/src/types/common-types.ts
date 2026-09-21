@@ -65,6 +65,10 @@ export const FunctionCallSchema = z
       .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
       .describe('The expected return type of the function call.')
       .optional(),
+    'catalogId': z
+      .string()
+      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
+      .optional(),
   })
   .describe(
     'REF:common_types.json#/$defs/FunctionCall|Invokes a named function, combining common function properties with the catalog function definition.',

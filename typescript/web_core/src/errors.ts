@@ -126,6 +126,21 @@ export class A2uiStateError extends A2uiError {
 }
 
 /**
+ * Error thrown during catalog management, loading, or resolution.
+ */
+export class A2uiCatalogError extends A2uiError {
+  /**
+   * Initializes a new `A2uiCatalogError` instance.
+   *
+   * @param message Error description.
+   * @param code Error category code. Defaults to 'CATALOG_ERROR'.
+   */
+  constructor(message: string, code: string = 'CATALOG_ERROR') {
+    super(message, code);
+  }
+}
+
+/**
  * Error thrown when component tree integrity checks fail (duplicate IDs, dangling references, missing root).
  */
 export class A2uiIntegrityError extends A2uiValidationError {

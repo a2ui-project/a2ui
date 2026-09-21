@@ -42,6 +42,7 @@ import {A2uiModal} from './components/Modal.js';
  */
 export const basicCatalog = new Catalog<WebComponentImplementation>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+  '0.9',
   [
     A2uiText,
     A2uiButton,
@@ -64,6 +65,4 @@ export const basicCatalog = new Catalog<WebComponentImplementation>(
   ],
   BASIC_FUNCTIONS,
   BasicCatalogThemeSchema,
-  undefined,
-  'v0.9',
 );

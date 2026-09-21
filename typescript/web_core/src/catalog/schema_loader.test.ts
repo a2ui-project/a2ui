@@ -36,7 +36,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
   });
 
   it('loads basic catalog successfully and dynamically resolves weight and accessibility', () => {
-    const catalog = Catalog.fromSchema(basicCatalogJson);
+    const catalog = Catalog.fromSchema(basicCatalogJson, '0.9');
 
     assert.strictEqual(
       catalog.id,
@@ -103,7 +103,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
   });
 
   it('parses functions from catalog into FunctionApi map', () => {
-    const catalog = Catalog.fromSchema(basicCatalogJson);
+    const catalog = Catalog.fromSchema(basicCatalogJson, '0.9');
     assert.ok(catalog.functions.size > 0);
 
     const reqFn = catalog.functions.get('required');
@@ -133,7 +133,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(customCatalog);
+    const catalog = Catalog.fromSchema(customCatalog, '0.9');
     const btn = catalog.components.get('CustomButton');
     assert.ok(btn);
 
@@ -179,7 +179,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogWithDefs);
+    const catalog = Catalog.fromSchema(catalogWithDefs, '0.9');
     const widget = catalog.components.get('HeaderWidget');
     assert.ok(widget);
 
@@ -219,7 +219,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(v1Catalog);
+    const catalog = Catalog.fromSchema(v1Catalog, '0.9');
     const card = catalog.components.get('V1Card');
     assert.ok(card);
 
@@ -246,7 +246,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogWithEnums);
+    const catalog = Catalog.fromSchema(catalogWithEnums, '0.9');
     const widget = catalog.components.get('EnumWidget');
     assert.ok(widget);
 
@@ -272,7 +272,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     const parentComp = catalog.components.get('ParentContainer');
     const childComp = catalog.components.get('ChildWidget');
 
@@ -309,7 +309,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     assert.strictEqual(catalog.functions.size, 1);
     assert.ok(catalog.functions.has('allowedFunc'));
     assert.strictEqual(catalog.functions.has('disallowedFunc'), false);
@@ -330,7 +330,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       components: {},
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     assert.strictEqual(catalog.instructions, 'Use minimal styling and concise copy.');
     assert.ok(catalog.themeSchema instanceof z.ZodObject);
 
@@ -363,7 +363,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     assert.strictEqual(catalog.functions.size, 0);
   });
 
@@ -392,7 +392,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     assert.strictEqual(catalog.functions.size, 2);
     assert.ok(catalog.functions.has('my/slash'));
     assert.ok(catalog.functions.has('my~tilde'));
@@ -414,7 +414,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     assert.strictEqual(catalog.components.size, 0);
   });
 
@@ -439,7 +439,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     assert.strictEqual(catalog.components.size, 2);
     assert.ok(catalog.components.has('my/comp'));
     assert.ok(catalog.components.has('my~comp'));
@@ -458,7 +458,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     const comp = catalog.components.get('StrictNode');
     assert.ok(comp);
     assert.deepStrictEqual(comp.allowedParents, ['ParentValid']);
@@ -485,7 +485,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     const fn1 = catalog.functions.get('secureAction');
     assert.ok(fn1);
     assert.strictEqual(fn1.returnType, 'void');
@@ -514,7 +514,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     const card = catalog.components.get('FlexibleCard');
     assert.ok(card);
     const result = card.schema.safeParse({
@@ -539,7 +539,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     assert.ok(catalog.themeSchema);
     const result = catalog.themeSchema.safeParse({
       id: 'theme-1',
@@ -577,7 +577,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     const openCard = catalog.components.get('OpenCard');
     const schemaCard = catalog.components.get('SchemaCard');
     const strictCard = catalog.components.get('StrictCard');
@@ -608,7 +608,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     const inputComp = catalog.components.get('FlexibleInput');
     assert.ok(inputComp);
 
@@ -658,7 +658,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson);
+    const catalog = Catalog.fromSchema(catalogJson, '0.9');
     const openFn = catalog.functions.get('openFn');
     const schemaFn = catalog.functions.get('schemaFn');
     const strictFn = catalog.functions.get('strictFn');
@@ -722,5 +722,39 @@ describe('Catalog.fromSchema & schema_loader', () => {
       () => Catalog.fromSchema(futureV11Catalog),
       /Invalid UAX #31 component identifier/,
     );
+  });
+
+  it('keeps nested child references from inline object array items', () => {
+    const catalog = Catalog.fromSchema({
+      catalogId: 'tabs-cat',
+      protocolVersion: '0.9',
+      components: {
+        Tabs: {
+          type: 'object',
+          properties: {
+            tabs: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: {type: 'string'},
+                  child: {$ref: '#/$defs/ComponentId'},
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const refs = catalog.componentRefMap['Tabs'];
+    assert.deepStrictEqual([...refs.listRefs], ['tabs']);
+    assert.deepStrictEqual([...(refs.nestedRefs?.['tabs'] ?? [])], ['child']);
+
+    // The item schema is structural rather than an opaque record, but still
+    // tolerates keys the catalog did not declare.
+    const schema = catalog.components.get('Tabs')!.schema;
+    assert.ok(schema.safeParse({tabs: [{title: 'Overview', child: 'c1', extra: 1}]}).success);
+    assert.ok(!schema.safeParse({tabs: [{title: 42}]}).success);
   });
 });

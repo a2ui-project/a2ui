@@ -41,7 +41,7 @@ describe('Catalog Types', () => {
       () => 'result',
     );
 
-    const catalog = new Catalog('test-cat', [mockComponent], [mockFunc]);
+    const catalog = new Catalog('test-cat', '1.0', [mockComponent], [mockFunc]);
 
     assert.strictEqual(catalog.id, 'test-cat');
     assert.strictEqual(catalog.components.size, 1);
@@ -53,7 +53,7 @@ describe('Catalog Types', () => {
   });
 
   it('throws A2uiExpressionError when function is not found', () => {
-    const catalog = new Catalog('test-cat', []);
+    const catalog = new Catalog('test-cat', '1.0', []);
     const ctx = {} as any;
 
     assert.throws(
@@ -79,7 +79,7 @@ describe('Catalog Types', () => {
       },
       () => 'result',
     );
-    const catalog = new Catalog('test-cat', [], [mockFunc]);
+    const catalog = new Catalog('test-cat', '1.0', [], [mockFunc]);
     const ctx = {} as any;
 
     assert.throws(
@@ -103,7 +103,7 @@ describe('Catalog Types', () => {
       }),
     } satisfies ComponentApi;
 
-    const catalog = new Catalog('guid-1234', [mockComponent]);
+    const catalog = new Catalog('guid-1234', '1.0', [mockComponent]);
     assert.doesNotThrow(() => {
       const refMap = catalog.componentRefMap;
       assert.ok(refMap.Container);
@@ -120,7 +120,7 @@ describe('Catalog Types', () => {
       }),
     } satisfies ComponentApi;
 
-    const catalog = new Catalog('https://example.com/custom-cat.json', [mockComponent]);
+    const catalog = new Catalog('https://example.com/custom-cat.json', '1.0', [mockComponent]);
 
     const schema = catalog.catalogSchema;
     const defs = schema['$defs'] as Record<string, any>;

@@ -27,7 +27,7 @@ import {DataContext} from '../../../rendering/data-context.js';
 import {A2uiExpressionError} from '../../../errors.js';
 import {Catalog, ComponentApi} from '../../../catalog/types.js';
 
-const testCatalog = new Catalog<ComponentApi>('test', [], BASIC_FUNCTIONS);
+const testCatalog = new Catalog<ComponentApi>('test', '0.9', [], BASIC_FUNCTIONS);
 
 describe('BASIC_FUNCTION_APIS Spec Parity', () => {
   it('matches the exact function names defined in specification/v0_9/catalogs/basic/catalog.json', () => {
@@ -55,7 +55,8 @@ const createTestDataContext = (
 ) => {
   const mockSurface = {
     dataModel: model,
-    catalog: {invoker: functionInvoker},
+    defaultCatalog: {invoker: functionInvoker},
+    availableCatalogs: new Map(),
     dispatchError: () => {},
   } as any;
   return new DataContext(mockSurface, path);
@@ -368,6 +369,7 @@ describe('BASIC_FUNCTIONS', () => {
     it('pluralize with Welsh locale', () => {
       const cyCatalog = new Catalog<ComponentApi>(
         'test-cy',
+        '0.9',
         [],
         createBasicCatalogFunctions({locale: 'cy'}),
       );

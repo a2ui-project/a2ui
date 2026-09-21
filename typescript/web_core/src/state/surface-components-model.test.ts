@@ -23,7 +23,7 @@ import {ComponentModel} from './component-model.js';
 
 describe('SurfaceComponentsModel', () => {
   let model: SurfaceComponentsModel;
-  const defaultCatalog = new Catalog('default', []);
+  const defaultCatalog = new Catalog('default', '1.0', []);
 
   beforeEach(() => {
     model = new SurfaceComponentsModel();
@@ -141,7 +141,7 @@ describe('SurfaceComponentsModel', () => {
         name: 'Text',
         schema: z.object({text: z.string()}),
       };
-      testCatalog = new Catalog('test-cat', [boxApi, containerApi, textApi]);
+      testCatalog = new Catalog('test-cat', '1.0', [boxApi, containerApi, textApi]);
       model.setCatalog(testCatalog);
     });
 
@@ -258,7 +258,7 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('extracts references and validates topology across mixed catalogs', () => {
-      const customCatalog = new Catalog('custom-cat', [
+      const customCatalog = new Catalog('custom-cat', '1.0', [
         {
           name: 'CustomCard',
           schema: z.object({
@@ -303,7 +303,7 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('detects cycles between components from different catalogs', () => {
-      const customCatalog = new Catalog('custom-cat', [
+      const customCatalog = new Catalog('custom-cat', '1.0', [
         {
           name: 'CustomContainer',
           schema: z.object({

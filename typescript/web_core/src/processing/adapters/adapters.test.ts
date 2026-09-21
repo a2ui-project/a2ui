@@ -372,7 +372,7 @@ describe('MessageProcessor Dependency Injection', () => {
       },
     };
 
-    const processor = new MessageProcessor([new Catalog('basic', [])], undefined, {
+    const processor = new MessageProcessor([new Catalog('basic', '0.9', [])], undefined, {
       adapterRegistry: customRegistry,
     });
 
@@ -389,7 +389,7 @@ describe('MessageProcessor Dependency Injection', () => {
         color: z.string().optional(),
       }),
     };
-    const catalog = new Catalog('basic', [textApi]);
+    const catalog = new Catalog('basic', '1.0', [textApi]);
     const processor = new MessageProcessor([catalog]);
 
     processor.processMessages({

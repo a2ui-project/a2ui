@@ -56,7 +56,8 @@ describe('RowComponent', () => {
         ['child2', new ComponentModel('child2', 'Child', {}, mockCatalog)],
         ['template1', new ComponentModel('template1', 'Child', {}, mockCatalog)],
       ]),
-      catalog: mockCatalog,
+      defaultCatalog: mockCatalog,
+      availableCatalogs: new Map(),
     };
 
     mockSurfaceGroup = {

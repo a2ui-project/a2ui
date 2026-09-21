@@ -48,7 +48,7 @@ describe('GenericBinder Checkable Trait', () => {
           args.value.length >= args.min,
       },
     ];
-    const mockCatalog = new Catalog('test', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
     const schema = z.object({
@@ -78,7 +78,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -124,7 +124,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -172,7 +172,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ] as unknown as Array<{condition: unknown; message?: string}>,
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -193,7 +193,7 @@ describe('GenericBinder Checkable Trait', () => {
         value: 'hello',
         checks: [],
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -225,7 +225,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -280,7 +280,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -332,7 +332,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -382,7 +382,7 @@ describe('GenericBinder Checkable Trait', () => {
           path: '/items',
         },
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -424,7 +424,7 @@ describe('GenericBinder Checkable Trait', () => {
           path: '/largeItems',
         },
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -465,7 +465,7 @@ describe('GenericBinder Checkable Trait', () => {
       {
         value: {path: '/fieldVal'},
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -492,7 +492,7 @@ describe('GenericBinder Checkable Trait', () => {
       {
         value: {path: '/val'},
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -635,7 +635,7 @@ describe('GenericBinder Checkable Trait', () => {
             },
           },
         },
-        surface.catalog,
+        surface.defaultCatalog,
       );
       surface.componentsModel.addComponent(compModel);
 
@@ -655,9 +655,9 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should support v1.0 ValidationResult objects and dynamic messages', async () => {
-    const mockCatalog = new Catalog('test', [], []);
+    const mockCatalog = new Catalog('test', '1.0', [], []);
     const surface = new SurfaceModel('s1', mockCatalog);
-    (surface.catalog as any).functions = new Map([
+    (surface.defaultCatalog as any).functions = new Map([
       [
         'validate_email',
         {
@@ -672,8 +672,8 @@ describe('GenericBinder Checkable Trait', () => {
         },
       ],
     ]);
-    (surface.catalog as any).invoker = (name: string, args: any) => {
-      const fn = (surface.catalog as any).functions.get(name);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
       return fn.execute(args);
     };
 
@@ -697,7 +697,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -716,9 +716,9 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should reset custom message to fallback message when subsequent evaluation returns boolean or no custom message', async () => {
-    const mockCatalog = new Catalog('test', [], []);
+    const mockCatalog = new Catalog('test', '1.0', [], []);
     const surface = new SurfaceModel('s1', mockCatalog);
-    (surface.catalog as any).functions = new Map([
+    (surface.defaultCatalog as any).functions = new Map([
       [
         'dynamic_validator',
         {
@@ -738,8 +738,8 @@ describe('GenericBinder Checkable Trait', () => {
         },
       ],
     ]);
-    (surface.catalog as any).invoker = (name: string, args: any) => {
-      const fn = (surface.catalog as any).functions.get(name);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
       return fn.execute(args);
     };
 
@@ -764,7 +764,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -816,7 +816,7 @@ describe('GenericBinder Checkable Trait', () => {
         label: 'Select all',
         unannotatedChecks: [{condition: 'some_expr'}],
       },
-      surface.catalog,
+      surface.defaultCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 

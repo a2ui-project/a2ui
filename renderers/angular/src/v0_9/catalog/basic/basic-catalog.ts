@@ -164,7 +164,7 @@ export class BasicCatalogBase extends AngularCatalog {
       ...(options.extraComponents ?? []),
     ];
 
-    super(id, components, functions, options.themeSchema ?? BasicCatalogThemeSchema);
+    super(id, '0.9', components, functions, options.themeSchema ?? BasicCatalogThemeSchema);
   }
 }
 

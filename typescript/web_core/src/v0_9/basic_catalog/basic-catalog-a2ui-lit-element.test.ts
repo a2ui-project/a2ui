@@ -69,7 +69,7 @@ describe('BasicCatalogA2uiLitElement', () => {
       customElements.define('a2ui-test-basic-element', TestBasicElement);
     }
 
-    customCatalog = new Catalog('https://test.catalog', [TestComponentApi]);
+    customCatalog = new Catalog('https://test.catalog', '0.9', [TestComponentApi]);
   });
 
   after(teardownTestDom);

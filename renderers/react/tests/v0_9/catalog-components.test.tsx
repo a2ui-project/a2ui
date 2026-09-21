@@ -258,7 +258,7 @@ describe('Basic Catalog Components', () => {
               'itemComp',
               'Text',
               {text: {path: 'n'}},
-              new Catalog('text-cat', [Text]),
+              new Catalog('text-cat', '0.9', [Text]),
             ),
           ],
         },

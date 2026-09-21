@@ -147,6 +147,7 @@ export const SHOW_WINNER_MODAL_FN = createFunctionImplementation(
 
 export const DEMO_CATALOG = new Catalog(
   MCP_APP_CATALOG_ID,
+  '0.9',
   [
     {name: 'McpApp', component: McpApp, schema: McpAppSchema},
     {name: 'PongScoreBoard', component: PongScoreBoard, schema: PongScoreBoardSchema},

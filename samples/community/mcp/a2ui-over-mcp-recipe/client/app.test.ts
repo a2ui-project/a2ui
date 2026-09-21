@@ -96,7 +96,7 @@ describe('A2uiRecipeApp', () => {
 
       const surface = app.getSurface('composite-surface');
       expect(surface).toBeDefined();
-      expect(surface!.catalog.functions.has('callMcpTool')).toBe(true);
+      expect(surface!.defaultCatalog.functions.has('callMcpTool')).toBe(true);
     });
   });
 

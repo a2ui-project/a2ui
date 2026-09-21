@@ -238,7 +238,7 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
 
     return renderA2uiNode(
       new ComponentContext(surface, componentId, path),
-      surface.catalog as Catalog<WebComponentImplementation>,
+      surface.defaultCatalog as Catalog<WebComponentImplementation>,
     );
   }
 

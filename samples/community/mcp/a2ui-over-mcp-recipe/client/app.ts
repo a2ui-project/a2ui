@@ -84,6 +84,7 @@ export class A2uiRecipeApp extends LitElement {
     this.processor = new MessageProcessor<any>(catalogs);
     this.catalog = new Catalog<any>(
       BASIC_WITH_MCP_CATALOG_ID,
+      '0.9',
       Array.from(basicCatalog.components.values()),
       [
         ...Array.from(basicCatalog.functions.values()),

@@ -18,7 +18,7 @@ import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
-import {A2uiExpressionError} from '../errors.js';
+import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
 import {
@@ -210,8 +210,8 @@ export declare interface CatalogInterface<
 > {
   /** Unique identifier for the catalog (usually a URI). */
   readonly id: string;
-  /** Optional protocol specification version supported by this catalog. */
-  readonly protocolVersion?: ProtocolVersion | string;
+  /** Protocol specification version supported by this catalog. */
+  readonly protocolVersion: ProtocolVersion | string;
   /** Map of registered component definitions. */
   readonly components: ReadonlyMap<string, T>;
   /** Map of registered function definitions. */
@@ -247,9 +247,9 @@ export class Catalog<
   readonly id: string;
 
   /**
-   * Optional protocol specification version supported by this catalog.
+   * Protocol specification version supported by this catalog.
    */
-  readonly protocolVersion?: ProtocolVersion | string;
+  readonly protocolVersion: ProtocolVersion | string;
 
   /**
    * Map of available components keyed by component name.
@@ -302,16 +302,31 @@ export class Catalog<
     return this._componentRefMap;
   }
 
+  /**
+   * Initializes a new `Catalog`.
+   *
+   * @param id Unique identifier for the catalog, usually a URI.
+   * @param protocolVersion Protocol specification version this catalog targets.
+   * @param components Component definitions to register.
+   * @param functions Function definitions to register.
+   * @param themeSchema Schema for this catalog's theme parameters.
+   * @param instructions System instructions or usage guidelines.
+   * @throws {A2uiCatalogError} When `protocolVersion` is empty.
+   */
   constructor(
     id: string,
-    components: T[],
+    protocolVersion: ProtocolVersion | string,
+    components: T[] = [],
     functions: F[] = [],
     themeSchema?: z.ZodTypeAny,
     instructions?: string,
-    protocolVersion?: ProtocolVersion | string,
   ) {
+    if (!protocolVersion) {
+      throw new A2uiCatalogError('protocolVersion must be provided.');
+    }
+
     this.id = id;
-    this.protocolVersion = typeof protocolVersion === 'string' ? protocolVersion : undefined;
+    this.protocolVersion = protocolVersion;
 
     const compMap = new Map<string, T>();
     for (const comp of components) {
@@ -362,9 +377,14 @@ export class Catalog<
    * Constructs a schema-only Catalog directly from a raw A2UI catalog schema.
    *
    * @param catalogSchema Raw catalog schema or client capabilities payload object.
+   * @param protocolVersion Protocol version to use when the schema does not
+   *   declare one. Catalog schemas published before v1.0 omit the field.
    * @returns A new Catalog populated with component and function schemas.
    */
-  static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
-    return loadCatalogFromSchema(catalogSchema);
+  static fromSchema(
+    catalogSchema: Record<string, any>,
+    protocolVersion?: string,
+  ): Catalog<ComponentApi, FunctionApi> {
+    return loadCatalogFromSchema(catalogSchema, protocolVersion);
   }
 }

@@ -27,7 +27,7 @@ import {
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
-const mockCatalog = new Catalog('test', [], []);
+const mockCatalog = new Catalog('test', '0.9', [], []);
 
 describe('adapter', () => {
   it('should render component with resolved props', () => {
@@ -169,7 +169,7 @@ describe('adapter', () => {
       <span data-testid="resolved">{props.text}</span>
     ));
 
-    const testCatalog = new Catalog('test', [TestParent, TestChild], []);
+    const testCatalog = new Catalog('test', '0.9', [TestParent, TestChild], []);
     const surface = new SurfaceModel<any>('test-surface', testCatalog);
 
     // 1. Initial State: Parent component exists, but its child is missing from the surface.

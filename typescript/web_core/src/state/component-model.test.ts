@@ -21,7 +21,7 @@ import {ComponentModel} from './component-model.js';
 
 describe('ComponentModel', () => {
   let component: ComponentModel;
-  const defaultCatalog = new Catalog('default', []);
+  const defaultCatalog = new Catalog('default', '1.0', []);
 
   beforeEach(() => {
     component = new ComponentModel('c1', 'Button', {label: 'Click Me'}, defaultCatalog);
@@ -79,7 +79,7 @@ describe('ComponentModel', () => {
     assert.strictEqual(component.catalog, defaultCatalog);
     assert.strictEqual(component.catalog.id, 'default');
 
-    const testCatalog = new Catalog('custom-cat', []);
+    const testCatalog = new Catalog('custom-cat', '1.0', []);
     const customComp = new ComponentModel('c2', 'Card', {title: 'Hello'}, testCatalog);
     assert.strictEqual(customComp.catalog, testCatalog);
     assert.strictEqual(customComp.catalog.id, 'custom-cat');

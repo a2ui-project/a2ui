@@ -56,7 +56,8 @@ describe('CardComponent', () => {
               new ComponentModel('child-1', 'Text', {text: {value: 'Child 1'}}, mockCatalog),
             ],
           ]),
-          catalog: mockCatalog,
+          defaultCatalog: mockCatalog,
+          availableCatalogs: new Map(),
         }),
       },
     };

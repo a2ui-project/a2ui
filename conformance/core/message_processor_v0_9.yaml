@@ -463,6 +463,74 @@
     category: "ValidationError"
     message: "Orphaned component"
 
+- name: test_topology_structured_array_child_ref_ignores_sibling_strings
+  description: >-
+    Tests that inside an array of structured items, only the sub-keys the catalog
+    declares as component references are treated as such. A sibling string
+    property, such as a tab title, must not be read as a dangling reference.
+  action: process_messages
+  strictMode: true
+  catalogs:
+    - catalogId: tabs-cat
+      components:
+        Tabs:
+          type: object
+          properties:
+            tabs:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  child:
+                    $ref: "#/$defs/ComponentId"
+          required:
+            - component
+            - tabs
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - component
+            - text
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "tabs-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Tabs"
+            tabs:
+              - title: "Overview"
+                child: "tab_one"
+              - title: "Details"
+                child: "tab_two"
+          - id: "tab_one"
+            component: "Text"
+            text: "First"
+          - id: "tab_two"
+            component: "Text"
+            text: "Second"
+  expect:
+    surfaces:
+      s1:
+        components:
+          root:
+            component: "Tabs"
+          tab_one:
+            component: "Text"
+            text: "First"
+          tab_two:
+            component: "Text"
+            text: "Second"
+
 # --- Strict Schema Validation & Atomic Rollback ---
 
 - name: test_update_components_strict_schema_validation_failure

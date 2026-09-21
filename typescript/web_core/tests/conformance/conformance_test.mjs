@@ -49,51 +49,51 @@ const v1_0Components = V1_0_BASIC_COMPONENTS;
 
 const v0_8Catalog = new Catalog(
   'v0.8:basic',
+  'v0.8',
   v0_8Components,
   [],
   V0_8_ThemeSchema,
   undefined,
-  'v0.8',
 );
 const v0_9Catalog = new Catalog(
   'v0.9:basic',
+  'v0.9',
   v0_9Components,
   V0_9_BASIC_FUNCTIONS,
   V0_9_ThemeSchema,
   undefined,
-  'v0.9',
 );
 const v1_0Catalog = new Catalog(
   'v1.0:basic',
+  'v1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
   undefined,
-  'v1.0',
 );
 const v0_8BasicCatalog = new Catalog(
   'basic',
+  'v0.8',
   v0_8Components,
   [],
   V0_8_ThemeSchema,
   undefined,
-  'v0.8',
 );
 const v0_9BasicCatalog = new Catalog(
   'basic',
+  'v0.9',
   v0_9Components,
   V0_9_BASIC_FUNCTIONS,
   V0_9_ThemeSchema,
   undefined,
-  'v0.9',
 );
 const v1_0BasicCatalog = new Catalog(
   'basic',
+  'v1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
   undefined,
-  'v1.0',
 );
 
 const __filename = fileURLToPath(import.meta.url);
@@ -411,7 +411,7 @@ async function validateRpcTestCase(testCase) {
   const catVersion =
     args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || 'v1.0';
 
-  const cat = new Catalog(catId, [], funcs, undefined, undefined, catVersion);
+  const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
   const processor = new MessageProcessor([cat], undefined, {
     version: 'v1.0',
@@ -671,7 +671,7 @@ function validateSelectCatalogTestCase(testCase) {
       const pVer = catDef.protocolVersion || 'v1.0';
       catalogsDict.set(
         catId,
-        new Catalog(catId, flexibleComponents, [], undefined, undefined, pVer),
+        new Catalog(catId, pVer, flexibleComponents, [], undefined, undefined),
       );
     }
   } else {
@@ -679,14 +679,14 @@ function validateSelectCatalogTestCase(testCase) {
     for (const catId of supported) {
       catalogsDict.set(
         catId,
-        new Catalog(catId, flexibleComponents, [], undefined, undefined, 'v1.0'),
+        new Catalog(catId, 'v1.0', flexibleComponents, [], undefined, undefined),
       );
     }
   }
 
   const defaultCat =
     catalogsDict.get(defaultCatId) ||
-    new Catalog(defaultCatId, flexibleComponents, [], undefined, undefined, 'v1.0');
+    new Catalog(defaultCatId, 'v1.0', flexibleComponents, [], undefined, undefined);
 
   const executeSelect = () => {
     // 1. Check protocol version consistency across catalogs
@@ -1101,31 +1101,31 @@ function getBasicCatalog(version) {
   if (norm === '1.0') {
     return new Catalog(
       'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+      'v1.0',
       v1_0Components,
       V1_0_BASIC_FUNCTIONS,
       undefined,
       undefined,
-      'v1.0',
     );
   }
   if (norm === '0.9' || norm === '0.9.1') {
     return new Catalog(
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+      'v0.9',
       v0_9Components,
       V0_9_BASIC_FUNCTIONS,
       V0_9_ThemeSchema,
       undefined,
-      'v0.9',
     );
   }
   if (norm === '0.8') {
     return new Catalog(
       'https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json',
+      'v0.8',
       v0_8Components,
       [],
       V0_8_ThemeSchema,
       undefined,
-      'v0.8',
     );
   }
   throw new Error(`Unsupported BasicCatalog protocol version: ${version}`);
@@ -1212,7 +1212,7 @@ function validateCatalogSchemaTestCase(testCase) {
 
     if (testCase.expectError) {
       try {
-        Catalog.fromSchema(rawSchema);
+        Catalog.fromSchema(rawSchema, pVer);
       } catch (err) {
         if (testCase.expectError.code && !err.message.includes(testCase.expectError.code)) {
           throw new Error(
@@ -1224,7 +1224,7 @@ function validateCatalogSchemaTestCase(testCase) {
       throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
     }
 
-    catalog = Catalog.fromSchema(rawSchema);
+    catalog = Catalog.fromSchema(rawSchema, pVer);
   }
 
   assert.ok(catalog, 'Catalog should be initialized.');
@@ -1400,18 +1400,18 @@ function getCatalogsForTestCase(testCase) {
         id,
         new Catalog(
           id,
+          ver || declared.protocolVersion || version,
           Array.from(declared.components.values()),
           Array.from(declared.functions.values()),
           declared.themeSchema,
           declared.instructions,
-          ver || declared.protocolVersion || version,
         ),
       );
       return;
     }
     catalogsMap.set(
       id,
-      new Catalog(id, flexibleComponents, [], undefined, undefined, ver || version),
+      new Catalog(id, ver || version, flexibleComponents, [], undefined, undefined),
     );
   };
 
@@ -1538,7 +1538,7 @@ function getCatalogsForTestCase(testCase) {
  */
 function collectResolvedNodes(surface) {
   const byId = new Map();
-  const resolver = new NodeResolver(surface, surface.catalog);
+  const resolver = new NodeResolver(surface, surface.defaultCatalog);
   const seen = new Set();
 
   // A property the catalog types as dynamic arrives wrapped in its snapshot,

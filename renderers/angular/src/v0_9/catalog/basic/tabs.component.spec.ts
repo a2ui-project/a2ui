@@ -60,7 +60,8 @@ describe('TabsComponent', () => {
               new ComponentModel('content-2', 'Text', {text: {value: 'Content 2'}}, mockCatalog),
             ],
           ]),
-          catalog: mockCatalog,
+          defaultCatalog: mockCatalog,
+          availableCatalogs: new Map(),
         }),
       },
     };

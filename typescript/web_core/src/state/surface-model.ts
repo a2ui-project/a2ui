@@ -26,6 +26,12 @@ export interface ActionPayload {
   sourceComponentId: string;
   timestamp: string;
   context: Record<string, unknown>;
+  /**
+   * Identifier of the catalog that declares the invoked function, when the
+   * payload named one explicitly. Absent when the surface's default catalog
+   * resolved the call.
+   */
+  catalogId?: string;
   [key: string]: unknown;
 }
 
@@ -75,7 +81,12 @@ export class SurfaceModel<
    * Initializes a new `SurfaceModel` instance.
    *
    * @param id The unique identifier for this surface.
-   * @param catalog The component catalog used by this surface.
+   * @param defaultCatalog The catalog that resolves components and functions
+   *   that do not name a catalog explicitly.
+   * @param availableCatalogs Every catalog a payload on this surface may select
+   *   by `catalogId`, keyed by that identifier. The message processor populates
+   *   it with the catalogs whose protocol version is compatible with the
+   *   surface's own.
    * @param theme The theme to apply to this surface.
    * @param sendDataModel If true, the renderer will send the full data model.
    * @param dataModel Optional custom DataModel instance. If provided, the SurfaceModel assumes
@@ -83,13 +94,25 @@ export class SurfaceModel<
    */
   constructor(
     readonly id: string,
-    readonly catalog: Catalog<T, F>,
+    readonly defaultCatalog: Catalog<T, F>,
+    readonly availableCatalogs: ReadonlyMap<string, Catalog<T, F>> = new Map(),
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
     dataModel?: DataModel,
   ) {
     this.dataModel = dataModel ?? new DataModel({});
-    this.componentsModel = new SurfaceComponentsModel(catalog);
+    this.componentsModel = new SurfaceComponentsModel(defaultCatalog);
+  }
+
+  /**
+   * The surface's default catalog.
+   *
+   * @deprecated Use {@link defaultCatalog}. Renamed for symmetry with the other
+   *   SDKs now that a surface can carry more than one catalog. This alias will
+   *   be removed in a future release.
+   */
+  get catalog(): Catalog<T, F> {
+    return this.defaultCatalog;
   }
 
   /**
@@ -135,6 +158,12 @@ export class SurfaceModel<
         timestamp: new Date().toISOString(),
         context,
       };
+
+      // Only set the key when the payload named a catalog, so listeners can
+      // distinguish an explicit override from default-catalog resolution.
+      if (typeof eventPayload.catalogId === 'string' && eventPayload.catalogId) {
+        actionToDispatch.catalogId = eventPayload.catalogId;
+      }
 
       await this._onAction.emit(actionToDispatch);
     }

@@ -60,8 +60,9 @@ describe('ComponentHostComponent', () => {
     mockSurface = {
       id: 'surf1',
       componentsModel: mockSurfaceComponentsModel,
-      catalog: mockCatalog,
-    } as SurfaceModel<any>;
+      defaultCatalog: mockCatalog,
+      availableCatalogs: new Map(),
+    } as unknown as SurfaceModel<any>;
 
     mockSurfaceGroup = {
       getSurface: jasmine.createSpy('getSurface').and.returnValue(mockSurface),

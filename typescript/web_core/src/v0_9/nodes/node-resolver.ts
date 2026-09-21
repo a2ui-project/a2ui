@@ -106,7 +106,7 @@ export class NodeResolver<
    * @throws {A2uiStateError} If the catalog instance differs from the surface's catalog.
    */
   constructor(surface: SurfaceModel<C, F>, catalog: Catalog<C, F>) {
-    if ((catalog as unknown) !== (surface.catalog as unknown)) {
+    if ((catalog as unknown) !== (surface.defaultCatalog as unknown)) {
       throw new A2uiStateError(
         'NodeResolver requires the same catalog instance its surface was constructed with.',
       );

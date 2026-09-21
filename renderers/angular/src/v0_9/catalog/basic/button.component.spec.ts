@@ -62,7 +62,8 @@ describe('ButtonComponent', () => {
       componentsModel: new Map([
         ['child1', new ComponentModel('child1', 'Text', {text: 'Child Content'}, mockCatalog)],
       ]),
-      catalog: mockCatalog,
+      defaultCatalog: mockCatalog,
+      availableCatalogs: new Map(),
     };
 
     mockSurfaceGroup = {

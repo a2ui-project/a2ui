@@ -62,6 +62,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
 
     const catalog = new Catalog(
       'https://example.com/test-catalog.json',
+      '1.0',
       [textComp, containerComp],
       [greetFunc],
       themeSchema,
@@ -150,7 +151,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(rawCatalog);
+    const catalog = Catalog.fromSchema(rawCatalog, '0.9');
     const generated = catalog.catalogSchema;
 
     assert.strictEqual(generated['catalogId'], 'https://example.com/ingested_catalog.json');
@@ -177,7 +178,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
   });
 
   it('memoizes the catalogSchema getter across multiple reads', () => {
-    const catalog = new Catalog('https://example.com/memo.json', []);
+    const catalog = new Catalog('https://example.com/memo.json', '1.0', []);
     const schema1 = catalog.catalogSchema;
     const schema2 = catalog.catalogSchema;
     assert.strictEqual(schema1, schema2);
@@ -188,7 +189,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       name: 'CustomText',
       schema: z.object({text: z.string()}),
     };
-    const catalog = new Catalog('https://example.com/envelope.json', [textComp]);
+    const catalog = new Catalog('https://example.com/envelope.json', '1.0', [textComp]);
     const schema = generateCatalogSchema(catalog, {
       componentEnvelopeRef: 'https://example.com/base.json#/$defs/Base',
     });
@@ -209,7 +210,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
         value: z.number(),
       }),
     };
-    const catalog = new Catalog('https://example.com/discrim.json', [compWithComponentProp]);
+    const catalog = new Catalog('https://example.com/discrim.json', '1.0', [compWithComponentProp]);
     const schema = catalog.catalogSchema;
     const components = schema['components'] as Record<string, any>;
 
@@ -242,7 +243,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
   });
 
   it('handles empty catalogs and catalogs without functions or theme', () => {
-    const catalog = new Catalog('https://example.com/empty.json', []);
+    const catalog = new Catalog('https://example.com/empty.json', '1.0', []);
     const schema = catalog.catalogSchema;
 
     assert.strictEqual(schema['catalogId'], 'https://example.com/empty.json');
@@ -260,7 +261,13 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       palette: ColorPalette,
     });
 
-    const catalog = new Catalog('https://example.com/theme-defs.json', [], [], ThemeWithSubDefs);
+    const catalog = new Catalog(
+      'https://example.com/theme-defs.json',
+      '1.0',
+      [],
+      [],
+      ThemeWithSubDefs,
+    );
     const schema = catalog.catalogSchema;
     const defs = schema['$defs'] as Record<string, any>;
     assert.ok(defs);
@@ -284,7 +291,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       execute: async () => {},
     };
 
-    const catalog = new Catalog('https://example.com/fn-defs.json', [], [updateAddressFunc]);
+    const catalog = new Catalog('https://example.com/fn-defs.json', '1.0', [], [updateAddressFunc]);
     const schema = catalog.catalogSchema;
     const functions = schema['functions'] as Record<string, any>;
     assert.ok(functions['updateAddress']);
@@ -307,6 +314,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
 
     const catalog = new Catalog(
       'https://example.com/unevaluated.json',
+      '1.0',
       [SimpleWidget],
       [],
       SimpleTheme,
@@ -327,7 +335,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       }),
     };
 
-    const catalog = new Catalog('https://example.com/envelope.json', [CustomWidget]);
+    const catalog = new Catalog('https://example.com/envelope.json', '1.0', [CustomWidget]);
     const schema = generateCatalogSchema(catalog, {
       componentEnvelopeRef: 'common_types.json#/$defs/ComponentCommon',
     });
@@ -347,7 +355,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       }),
     };
 
-    const catalog = new Catalog('guid-550e8400-e29b-41d4-a716-446655440000', [CustomWidget]);
+    const catalog = new Catalog('guid-550e8400-e29b-41d4-a716-446655440000', '1.0', [CustomWidget]);
 
     for (const v10Ver of ['v1.0', '1.0', 'v1_0', '1.0.0', 'V1.0']) {
       const v10Schema = generateCatalogSchema(catalog, {
@@ -387,7 +395,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       CustomType: {type: 'string', description: 'Explicit custom definition'},
     };
 
-    const catalog = new Catalog('https://example.com/arbitrary-id', [CustomWidget]);
+    const catalog = new Catalog('https://example.com/arbitrary-id', '1.0', [CustomWidget]);
     const schema = generateCatalogSchema(catalog, {
       standardDefs: customDefs,
     });
@@ -416,6 +424,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
 
     const catalog = new Catalog(
       'https://example.com/functions-unevaluated.json',
+      '1.0',
       [],
       [strictFunction as any, openFunction as any],
     );

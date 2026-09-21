@@ -28,7 +28,8 @@ const createTestDataContext = (
 ) => {
   const mockSurface = {
     dataModel: model,
-    catalog: {invoker: functionInvoker},
+    defaultCatalog: {invoker: functionInvoker},
+    availableCatalogs: new Map(),
     dispatchError: () => {},
   } as any;
   return new DataContext(mockSurface, path);

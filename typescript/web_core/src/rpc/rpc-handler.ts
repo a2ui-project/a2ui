@@ -357,8 +357,8 @@ export class RpcHandler {
       if (!catalog) {
         return {error: `Catalog not found: ${catalogId}`};
       }
-    } else if (context?.surface?.catalog) {
-      catalog = context.surface.catalog;
+    } else if (context?.surface?.defaultCatalog) {
+      catalog = context.surface.defaultCatalog;
     }
 
     if (!catalog) {

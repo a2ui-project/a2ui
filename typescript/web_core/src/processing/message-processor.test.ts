@@ -54,7 +54,7 @@ describe('MessageProcessor', () => {
 
   beforeEach(() => {
     actions = [];
-    testCatalog = new Catalog('test-catalog', []);
+    testCatalog = new Catalog('test-catalog', '0.9', []);
     processor = new MessageProcessor<ComponentApi>([testCatalog], async a => {
       actions.push(a);
     });
@@ -78,7 +78,7 @@ describe('MessageProcessor', () => {
         name: 'CustomButton',
         schema: z.object({label: z.string()}),
       };
-      const proc = new MessageProcessor([new Catalog('cat-custom', [strictComp])]);
+      const proc = new MessageProcessor([new Catalog('cat-custom', '1.0', [strictComp])]);
       const caps = proc.getRendererCapabilities({
         includeInlineCatalogs: true,
         componentEnvelopeRef: 'https://example.com/schema.json#/$defs/Base',
@@ -91,7 +91,7 @@ describe('MessageProcessor', () => {
     });
 
     it('keeps $ref on basic catalog child references despite per-usage descriptions', () => {
-      const cat = new Catalog('cat-basic', [CardApi, RowApi, TabsApi]);
+      const cat = new Catalog('cat-basic', '1.0', [CardApi, RowApi, TabsApi]);
       const proc = new MessageProcessor([cat]);
 
       const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
@@ -118,7 +118,7 @@ describe('MessageProcessor', () => {
         schema: z.object({name: z.string()}),
         execute: async (args: any) => `Hello, ${args.name}!`,
       };
-      const cat = new Catalog('cat-v1', [CardApi], [greetFunc]);
+      const cat = new Catalog('cat-v1', '1.0', [CardApi], [greetFunc]);
       const proc = new MessageProcessor([cat], undefined, {version: 'v1.0'});
 
       const caps = proc.getRendererCapabilities({
@@ -144,6 +144,9 @@ describe('MessageProcessor', () => {
     });
 
     it('returns data model payload for surfaces with sendDataModel enabled', () => {
+      const processor = new MessageProcessor<ComponentApi>([
+        new Catalog('test-catalog', '1.0', []),
+      ]);
       processor.processMessages({
         version: 'v1.0',
         createSurface: {
@@ -265,6 +268,25 @@ describe('MessageProcessor', () => {
       }, /Catalog not found: unknown-catalog/);
     });
 
+    it('exposes only version-compatible catalogs on the new surface', () => {
+      const v09 = new Catalog<ComponentApi>('cat-0-9', '0.9', []);
+      const alsoV09 = new Catalog<ComponentApi>('cat-0-9-b', '0.9', []);
+      const v10 = new Catalog<ComponentApi>('cat-1-0', '1.0', []);
+      const proc = new MessageProcessor<ComponentApi>([v09, alsoV09, v10]);
+
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-0-9'},
+      });
+
+      const surface = proc.model.getSurface('s1')!;
+      assert.strictEqual(surface.defaultCatalog, v09);
+      assert.deepStrictEqual([...surface.availableCatalogs.keys()].sort(), [
+        'cat-0-9',
+        'cat-0-9-b',
+      ]);
+    });
+
     it('throws when duplicate surface created', () => {
       processor.processMessages({
         version: 'v0.9',
@@ -308,6 +330,9 @@ describe('MessageProcessor', () => {
     });
 
     it('processes updateDataModel message at root and specific JSON pointer paths', () => {
+      const processor = new MessageProcessor<ComponentApi>([
+        new Catalog('test-catalog', '1.0', []),
+      ]);
       processor.processMessages({
         version: 'v1.0',
         createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
@@ -364,6 +389,9 @@ describe('MessageProcessor', () => {
       // A key is a property name, not a JSON Pointer fragment. Building a
       // pointer per key would read 'a/b' as a nested path and '~' as the
       // start of an escape.
+      const processor = new MessageProcessor<ComponentApi>([
+        new Catalog('test-catalog', '1.0', []),
+      ]);
       processor.processMessages({
         version: 'v1.0',
         createSurface: {
@@ -440,7 +468,7 @@ describe('MessageProcessor', () => {
           })
           .strict(),
       };
-      const proc = new MessageProcessor([new Catalog('cat-m3', [strictButtonApi])]);
+      const proc = new MessageProcessor([new Catalog('cat-m3', '0.9', [strictButtonApi])]);
       proc.processMessages([
         {
           version: 'v0.9',
@@ -481,7 +509,7 @@ describe('MessageProcessor', () => {
 
   describe('ValidationConfig', () => {
     it('enforces targetVersion matching when configured', () => {
-      const proc = new MessageProcessor([new Catalog('cat-test', [])], undefined, {
+      const proc = new MessageProcessor([new Catalog('cat-test', '1.0', [])], undefined, {
         validationConfig: {targetVersion: 'v1.0'},
       });
 
@@ -514,7 +542,7 @@ describe('MessageProcessor', () => {
     });
 
     it('enforces allowedMessages filter when configured', () => {
-      const proc = new MessageProcessor([new Catalog('cat-test', [])], undefined, {
+      const proc = new MessageProcessor([new Catalog('cat-test', '1.0', [])], undefined, {
         validationConfig: {allowedMessages: ['createSurface', 'updateComponents']},
       });
 
@@ -544,6 +572,7 @@ describe('MessageProcessor', () => {
     it('validates themeSchema when validationConfig is active', () => {
       const themeCatalog = new Catalog(
         'cat-theme',
+        '0.9',
         [],
         undefined,
         z.object({primaryColor: z.string()}),
@@ -572,7 +601,7 @@ describe('MessageProcessor', () => {
     });
 
     it('validates surface theme against the basic catalog themeSchema', () => {
-      const themedCatalog = new Catalog('themed-cat', [], [], BasicCatalogThemeSchema);
+      const themedCatalog = new Catalog('themed-cat', '0.9', [], [], BasicCatalogThemeSchema);
       const proc = new MessageProcessor([themedCatalog], undefined, {
         validationConfig: THEME_ONLY_VALIDATION,
       });
@@ -646,7 +675,7 @@ describe('MessageProcessor', () => {
         defaultedField: z.string().default('default-val'),
       });
       const proc = new MessageProcessor(
-        [new Catalog('transform-cat', [], [], transformSchema)],
+        [new Catalog('transform-cat', '0.9', [], [], transformSchema)],
         undefined,
         {
           validationConfig: THEME_ONLY_VALIDATION,
@@ -669,7 +698,7 @@ describe('MessageProcessor', () => {
     });
 
     it('enforces allowUnknownElements: false by rejecting unregistered components', () => {
-      const proc = new MessageProcessor([new Catalog('cat-strict', [])], undefined, {
+      const proc = new MessageProcessor([new Catalog('cat-strict', '1.0', [])], undefined, {
         validationConfig: {allowUnknownElements: false, allowMissingRoot: true},
       });
 
@@ -701,7 +730,7 @@ describe('MessageProcessor', () => {
     });
 
     it('permits unregistered components when allowUnknownElements is true', () => {
-      const proc = new MessageProcessor([new Catalog('cat-loose', [])], undefined, {
+      const proc = new MessageProcessor([new Catalog('cat-loose', '1.0', [])], undefined, {
         validationConfig: {allowUnknownElements: true, allowMissingRoot: true},
       });
 
@@ -727,7 +756,7 @@ describe('MessageProcessor', () => {
         name: 'Card',
         schema: z.object({}),
       };
-      const cat = new Catalog('cat-root', [compApi]);
+      const cat = new Catalog('cat-root', '1.0', [compApi]);
 
       // allowMissingRoot: false throws when no root component exists
       const strictProc = new MessageProcessor([cat], undefined, {
@@ -780,7 +809,7 @@ describe('MessageProcessor', () => {
         name: 'Container',
         schema: z.object({child: z.string().describe('REF:common_types.json#/$defs/ComponentId')}),
       };
-      const cat = new Catalog('cat-refs', [containerApi]);
+      const cat = new Catalog('cat-refs', '1.0', [containerApi]);
 
       const strictProc = new MessageProcessor([cat], undefined, {
         validationConfig: {allowDanglingReferences: false},
@@ -833,7 +862,7 @@ describe('MessageProcessor', () => {
         name: 'Card',
         schema: z.object({}),
       };
-      const cat = new Catalog('cat-orphans', [compApi]);
+      const cat = new Catalog('cat-orphans', '1.0', [compApi]);
 
       const strictProc = new MessageProcessor([cat], undefined, {
         validationConfig: {allowOrphanComponents: false},
@@ -891,7 +920,7 @@ describe('MessageProcessor', () => {
         name: 'Card',
         schema: z.object({}),
       };
-      const cat = new Catalog('cat-preset', [compApi]);
+      const cat = new Catalog('cat-preset', '1.0', [compApi]);
 
       const strictProc = new MessageProcessor([cat], undefined, {
         validationConfig: STRICT_VALIDATION,
@@ -938,7 +967,7 @@ describe('MessageProcessor', () => {
   });
 
   describe('Mixed Catalogs Support', () => {
-    const basicCat: Catalog<ComponentApi> = new Catalog('cat-basic', [
+    const basicCat: Catalog<ComponentApi> = new Catalog('cat-basic', '1.0', [
       {
         name: 'Box',
         schema: z.object({child: z.string().describe('ChildComponentId').optional()}),
@@ -949,7 +978,7 @@ describe('MessageProcessor', () => {
       },
     ]);
 
-    const customCat: Catalog<ComponentApi> = new Catalog('cat-custom', [
+    const customCat: Catalog<ComponentApi> = new Catalog('cat-custom', '1.0', [
       {
         name: 'CustomCard',
         schema: z.object({
@@ -1085,22 +1114,12 @@ describe('MessageProcessor', () => {
     });
 
     it('fails when component references a catalog with incompatible specification version', () => {
-      const surfaceCatalog = new Catalog(
-        'cat-v1',
-        [{name: 'RootBox', schema: z.object({})}],
-        [],
-        undefined,
-        undefined,
-        '1.0',
-      );
-      const incompatCatalog = new Catalog(
-        'cat-v08',
-        [{name: 'OldCard', schema: z.object({})}],
-        [],
-        undefined,
-        undefined,
-        '0.8',
-      );
+      const surfaceCatalog = new Catalog('cat-v1', '1.0', [
+        {name: 'RootBox', schema: z.object({})},
+      ]);
+      const incompatCatalog = new Catalog('cat-v08', '0.8', [
+        {name: 'OldCard', schema: z.object({})},
+      ]);
       const processor = new MessageProcessor([surfaceCatalog, incompatCatalog]);
 
       processor.processMessages({
@@ -1138,7 +1157,7 @@ describe('MessageProcessor', () => {
   });
 
   describe('MessageProcessor Full Pipeline & Validation Integration', () => {
-    const basicCatalog = new Catalog('https://a2ui.org/catalog', BASIC_COMPONENTS);
+    const basicCatalog = new Catalog('https://a2ui.org/catalog', '1.0', BASIC_COMPONENTS);
 
     it('validates a valid message envelope stream', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
@@ -1287,7 +1306,7 @@ describe('MessageProcessor', () => {
     });
 
     it('validates v0.9 envelope messages with version adapter', () => {
-      const v09Catalog = new Catalog('basic', BASIC_COMPONENTS);
+      const v09Catalog = new Catalog('basic', '0.9', BASIC_COMPONENTS);
       const proc = new MessageProcessor([v09Catalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
@@ -1346,13 +1365,13 @@ describe('MessageProcessor', () => {
     });
 
     it('processes and validates multi-surface payloads across mixed catalogs', () => {
-      const catalogA = new Catalog('cat-a', [
+      const catalogA = new Catalog('cat-a', '1.0', [
         {
           name: 'BoxA',
           schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
         },
       ]);
-      const catalogB = new Catalog('cat-b', [
+      const catalogB = new Catalog('cat-b', '1.0', [
         {
           name: 'BoxB',
           schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
@@ -1389,7 +1408,7 @@ describe('MessageProcessor', () => {
     });
 
     it('validates full component properties on updates', () => {
-      const counterCatalog = new Catalog('counter-cat', [
+      const counterCatalog = new Catalog('counter-cat', '1.0', [
         {
           name: 'Counter',
           schema: z.object({
@@ -1463,7 +1482,7 @@ describe('MessageProcessor', () => {
     });
 
     it('replaces component properties on update so omitted properties are removed', () => {
-      const cardCatalog = new Catalog('card-cat', [
+      const cardCatalog = new Catalog('card-cat', '1.0', [
         {
           name: 'Card',
           schema: z.object({
@@ -1533,7 +1552,7 @@ describe('MessageProcessor', () => {
     });
 
     it('preserves container child relationships in composition constraint validation during updates', () => {
-      const constraintCatalog = new Catalog('constraint-cat', [
+      const constraintCatalog = new Catalog('constraint-cat', '1.0', [
         {
           name: 'StrictParent',
           schema: z.object({
@@ -1579,7 +1598,7 @@ describe('MessageProcessor', () => {
     });
 
     it('does not treat non-reference string properties matching child component IDs as child references', () => {
-      const constraintCatalog = new Catalog('constraint-cat-2', [
+      const constraintCatalog = new Catalog('constraint-cat-2', '1.0', [
         {
           name: 'RootContainer',
           schema: z.object({
@@ -1782,7 +1801,7 @@ describe('MessageProcessor', () => {
         }),
       };
 
-      const customCat = new Catalog('custom-stream', [cardComp, buttonComp]);
+      const customCat = new Catalog('custom-stream', '1.0', [cardComp, buttonComp]);
       const proc = new MessageProcessor([customCat], undefined, {
         validationConfig: {allowOrphanComponents: true, allowMissingRoot: true},
       });
@@ -1841,7 +1860,7 @@ describe('MessageProcessor', () => {
     };
     const secureImpl = createFunctionImplementation(secureApi, () => true);
 
-    const rpcCatalog = new Catalog('rpc-cat', [], [rpcImpl, secureImpl]);
+    const rpcCatalog = new Catalog('rpc-cat', '1.0', [], [rpcImpl, secureImpl]);
 
     it('processes callRendererFunction via processMessagesAsync and returns response', async () => {
       const proc = new MessageProcessor([rpcCatalog]);
@@ -2030,7 +2049,7 @@ describe('MessageProcessor', () => {
 
   describe('Backwards Compatibility Shims', () => {
     it('provides getClientCapabilities alias', () => {
-      const cat = new Catalog('test-cat', []);
+      const cat = new Catalog('test-cat', '0.9', []);
       const proc = new MessageProcessor([cat]);
       const caps = proc.getClientCapabilities();
       assert.deepStrictEqual(caps, proc.getRendererCapabilities());
@@ -2038,7 +2057,7 @@ describe('MessageProcessor', () => {
     });
 
     it('provides getClientDataModel alias', () => {
-      const cat = new Catalog('test-cat', []);
+      const cat = new Catalog('test-cat', '0.9', []);
       const proc = new MessageProcessor([cat]);
       proc.processMessages({
         version: 'v0.9',
@@ -2062,7 +2081,7 @@ describe('MessageProcessor', () => {
     });
 
     it('provides resolvePath method on MessageProcessor', () => {
-      const cat = new Catalog('test-cat', []);
+      const cat = new Catalog('test-cat', '0.9', []);
       const proc = new MessageProcessor([cat]);
       assert.strictEqual(proc.resolvePath('/absolute/path'), '/absolute/path');
       assert.strictEqual(proc.resolvePath('relative', '/base'), '/base/relative');
@@ -2071,7 +2090,7 @@ describe('MessageProcessor', () => {
     });
 
     it('rejects component with non-string or empty id', () => {
-      const cat = new Catalog('test-cat', []);
+      const cat = new Catalog('test-cat', '0.9', []);
       const proc = new MessageProcessor([cat]);
       proc.processMessages({
         version: 'v0.9',

@@ -25,6 +25,16 @@ export interface ComponentChildRefs {
   readonly singleRefs: ReadonlySet<string>;
   /** Property names holding child list references or dynamic templates. */
   readonly listRefs: ReadonlySet<string>;
+  /**
+   * For list properties whose items are structured objects, the item sub-keys
+   * that hold a single child reference.
+   *
+   * Keys are property names that also appear in {@link listRefs}. A property is
+   * absent when its items are plain references rather than objects, or when the
+   * schema declared no child-bearing sub-key. Consumers treat an absent entry as
+   * "inspect every sub-key", which is what callers did before this map existed.
+   */
+  readonly nestedRefs?: Readonly<Record<string, ReadonlySet<string>>>;
 }
 
 /** Map of component type names to child reference properties. */
@@ -413,59 +423,108 @@ export function isChildOrChildListSchema(
   return res.isChild || res.isChildList;
 }
 
+/** Mutable collector threaded through schema inspection. */
+interface ChildRefAccumulator {
+  readonly singleRefs: Set<string>;
+  readonly listRefs: Set<string>;
+  readonly nestedRefs: Record<string, Set<string>>;
+}
+
+function addNestedRef(acc: ChildRefAccumulator, key: string, subKey: string): void {
+  const existing = acc.nestedRefs[key];
+  if (existing) {
+    existing.add(subKey);
+    return;
+  }
+  acc.nestedRefs[key] = new Set([subKey]);
+}
+
 function inspectShapeField(
   key: string,
   fieldSchema: unknown,
-  singleRefs: Set<string>,
-  listRefs: Set<string>,
+  acc: ChildRefAccumulator,
   options: ChildRefAnalysisOptions,
 ): void {
   const res = analyzeChildRefSchema(fieldSchema, options);
   if (res.isChildList) {
-    listRefs.add(key);
+    acc.listRefs.add(key);
     return;
   }
   if (res.isChild) {
-    singleRefs.add(key);
+    acc.singleRefs.add(key);
     return;
   }
 
   const inner = unwrapZodType(fieldSchema);
-  if (inner?._def?.typeName === 'ZodArray') {
-    const elem = unwrapZodType(inner._def.type);
-    if (elem?._def?.typeName === 'ZodObject' && typeof elem._def.shape === 'function') {
-      const elemShape = elem._def.shape();
-      for (const [, subSchema] of Object.entries(elemShape)) {
-        const subRes = analyzeChildRefSchema(subSchema, options);
-        if (subRes.isChild || subRes.isChildList) {
-          listRefs.add(key);
-          break;
-        }
-      }
+  if (inner?._def?.typeName !== 'ZodArray') return;
+
+  const elem = unwrapZodType(inner._def.type);
+  if (elem?._def?.typeName !== 'ZodObject' || typeof elem._def.shape !== 'function') return;
+
+  // An array of structured objects. Record which sub-keys hold a child so that
+  // sibling properties are not mistaken for references during traversal.
+  const elemShape = elem._def.shape();
+  for (const [subKey, subSchema] of Object.entries(elemShape)) {
+    const subRes = analyzeChildRefSchema(subSchema, options);
+    if (subRes.isChild) {
+      acc.listRefs.add(key);
+      addNestedRef(acc, key, subKey);
+    } else if (subRes.isChildList) {
+      acc.listRefs.add(key);
     }
   }
 }
 
+/**
+ * Returns the `properties` of an array property's item schema, or null when the
+ * schema is not an array of inline structured objects.
+ */
+function rawArrayItemProperties(propSchema: unknown): Record<string, unknown> | null {
+  if (typeof propSchema !== 'object' || propSchema === null) return null;
+
+  const schema = propSchema as Record<string, unknown>;
+  if (schema['type'] !== 'array' && !('items' in schema)) return null;
+
+  const items = schema['items'];
+  if (typeof items !== 'object' || items === null) return null;
+
+  const itemProps = (items as Record<string, unknown>)['properties'];
+  if (typeof itemProps !== 'object' || itemProps === null) return null;
+
+  return itemProps as Record<string, unknown>;
+}
+
 function inspectRawProperties(
   properties: Record<string, unknown>,
-  singleRefs: Set<string>,
-  listRefs: Set<string>,
+  acc: ChildRefAccumulator,
   options: ChildRefAnalysisOptions,
 ): void {
   for (const [key, propSchema] of Object.entries(properties)) {
     const res = analyzeChildRefSchema(propSchema, options);
     if (res.isChildList) {
-      listRefs.add(key);
-    } else if (res.isChild) {
-      singleRefs.add(key);
+      acc.listRefs.add(key);
+      continue;
+    }
+    if (res.isChild) {
+      acc.singleRefs.add(key);
+      continue;
+    }
+
+    const itemProps = rawArrayItemProperties(propSchema);
+    if (!itemProps) continue;
+
+    for (const [subKey, subSchema] of Object.entries(itemProps)) {
+      if (isChildSchema(subSchema, options)) {
+        acc.listRefs.add(key);
+        addNestedRef(acc, key, subKey);
+      }
     }
   }
 }
 
 function inspectComponentSchema(
   schema: unknown,
-  singleRefs: Set<string>,
-  listRefs: Set<string>,
+  acc: ChildRefAccumulator,
   options: ChildRefAnalysisOptions,
 ): void {
   if (!schema) return;
@@ -474,7 +533,7 @@ function inspectComponentSchema(
   if (current?._def?.typeName === 'ZodObject' && typeof current._def.shape === 'function') {
     const shape = current._def.shape();
     for (const [key, fieldSchema] of Object.entries(shape)) {
-      inspectShapeField(key, fieldSchema, singleRefs, listRefs, options);
+      inspectShapeField(key, fieldSchema, acc, options);
     }
     return;
   }
@@ -482,7 +541,7 @@ function inspectComponentSchema(
   if (typeof schema === 'object' && schema !== null && 'properties' in schema) {
     const rawProps = (schema as {properties?: Record<string, unknown>}).properties;
     if (typeof rawProps === 'object' && rawProps !== null) {
-      inspectRawProperties(rawProps, singleRefs, listRefs, options);
+      inspectRawProperties(rawProps, acc, options);
     }
   }
 }
@@ -492,7 +551,7 @@ function inspectComponentSchema(
  *
  * @param catalogOrComponents Catalog instance, array of ComponentApi objects, or Map of ComponentApis.
  * @param options Required configuration specifying recognized child definition names.
- * @returns ComponentRefMap containing single and list reference properties.
+ * @returns ComponentRefMap containing single, list, and nested reference properties.
  */
 export function buildComponentRefMap(
   catalogOrComponents: Catalog<any, any> | ComponentApi[] | Map<string, ComponentApi>,
@@ -507,12 +566,19 @@ export function buildComponentRefMap(
         : Array.from((catalogOrComponents as Map<string, ComponentApi>).values());
 
   for (const compApi of componentApis) {
-    const singleRefs = new Set<string>();
-    const listRefs = new Set<string>();
+    const acc: ChildRefAccumulator = {
+      singleRefs: new Set<string>(),
+      listRefs: new Set<string>(),
+      nestedRefs: {},
+    };
 
-    inspectComponentSchema(compApi.schema, singleRefs, listRefs, options);
+    inspectComponentSchema(compApi.schema, acc, options);
 
-    refMap[compApi.name] = {singleRefs, listRefs};
+    refMap[compApi.name] = {
+      singleRefs: acc.singleRefs,
+      listRefs: acc.listRefs,
+      nestedRefs: acc.nestedRefs,
+    };
   }
 
   return refMap;

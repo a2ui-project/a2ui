@@ -27,7 +27,7 @@ import {
 } from './data-context.js';
 import {Catalog} from '../catalog/types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/common-types.js';
-import {A2uiExpressionError} from '../errors.js';
+import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -37,7 +37,8 @@ const createTestDataContext = (
 ) => {
   const mockSurface = {
     dataModel: model,
-    catalog: {invoker: functionInvoker},
+    defaultCatalog: {invoker: functionInvoker},
+    availableCatalogs: new Map(),
     dispatchError,
   } as any;
   return new DataContext(mockSurface, path);
@@ -696,6 +697,7 @@ describe('DataContext', () => {
     it('validateFunctionArgs allows valid keys when schema is available', () => {
       const catalog = new Catalog(
         'test-cat',
+        '1.0',
         [],
         [
           {
@@ -720,6 +722,7 @@ describe('DataContext', () => {
     it('validateFunctionArgs throws error on unknown arguments', () => {
       const catalog = new Catalog(
         'test-cat',
+        '1.0',
         [],
         [
           {
@@ -749,6 +752,7 @@ describe('DataContext', () => {
     it('validateFunctionArgs throws error when exceeding maximum argument limits', () => {
       const catalog = new Catalog(
         'test-cat',
+        '1.0',
         [],
         [
           {
@@ -789,6 +793,7 @@ describe('DataContext', () => {
 
       const catalog = new Catalog(
         'test-cat',
+        '1.0',
         [],
         [
           {
@@ -803,7 +808,8 @@ describe('DataContext', () => {
       let dispatchedError: any = null;
       const mockSurface = {
         dataModel: customModel,
-        catalog,
+        defaultCatalog: catalog,
+        availableCatalogs: new Map(),
         dispatchError: (err: any) => {
           dispatchedError = err;
         },
@@ -828,6 +834,7 @@ describe('DataContext', () => {
     it('resolveDynamicValue dispatches error on unknown arguments', () => {
       const catalog = new Catalog(
         'test-cat',
+        '1.0',
         [],
         [
           {
@@ -842,7 +849,8 @@ describe('DataContext', () => {
       let dispatchedError: any = null;
       const mockSurface = {
         dataModel: new DataModel({}),
-        catalog,
+        defaultCatalog: catalog,
+        availableCatalogs: new Map(),
         dispatchError: (err: any) => {
           dispatchedError = err;
         },
@@ -862,6 +870,64 @@ describe('DataContext', () => {
       assert.ok(dispatchedError);
       assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
       assert.match(dispatchedError.message, /Unknown argument 'junk'/);
+    });
+  });
+
+  describe('Multi-catalog function resolution', () => {
+    const makeCatalog = (id: string, result: string) =>
+      new Catalog(
+        id,
+        '1.0',
+        [],
+        [
+          {
+            name: 'greet',
+            returnType: 'string',
+            schema: z.object({}),
+            execute: () => result,
+          },
+        ],
+      );
+
+    const makeSurface = (defaultCatalog: Catalog<any>, available: Array<Catalog<any>>) =>
+      ({
+        dataModel: new DataModel({}),
+        defaultCatalog,
+        availableCatalogs: new Map(available.map(c => [c.id, c])),
+        dispatchError: () => {},
+      }) as any;
+
+    it('invokes the named catalog rather than the default', () => {
+      const primary = makeCatalog('cat-primary', 'from-primary');
+      const secondary = makeCatalog('cat-secondary', 'from-secondary');
+      const ctx = new DataContext(makeSurface(primary, [primary, secondary]), '/');
+
+      assert.strictEqual(
+        ctx.resolveDynamicValue({call: 'greet', args: {}, catalogId: 'cat-secondary'} as any),
+        'from-secondary',
+      );
+    });
+
+    it('falls back to the default catalog when the call names none', () => {
+      const primary = makeCatalog('cat-primary', 'from-primary');
+      const secondary = makeCatalog('cat-secondary', 'from-secondary');
+      const ctx = new DataContext(makeSurface(primary, [primary, secondary]), '/');
+
+      assert.strictEqual(ctx.resolveDynamicValue({call: 'greet', args: {}}), 'from-primary');
+    });
+
+    it('throws A2uiCatalogError when the named catalog is not available', () => {
+      const primary = makeCatalog('cat-primary', 'from-primary');
+      const ctx = new DataContext(makeSurface(primary, [primary]), '/');
+
+      assert.throws(
+        () => ctx.resolveDynamicValue({call: 'greet', args: {}, catalogId: 'cat-missing'} as any),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiCatalogError);
+          assert.match((err as Error).message, /Catalog not found: cat-missing/);
+          return true;
+        },
+      );
     });
   });
 });

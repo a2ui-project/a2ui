@@ -24,7 +24,7 @@
  * const catalogs: Catalog<any>[] = [];
  * const processor = new MessageProcessor(catalogs);
  * const functions = createMcpCatalogFunctions(getMcpClientForTool, processor);
- * catalogs.push(new Catalog(MCP_CATALOG_ID, [], functions));
+ * catalogs.push(new Catalog(MCP_CATALOG_ID, '0.9', [], functions));
  * ```
  *
  * ## Supported MCP UI Responses

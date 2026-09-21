@@ -26,26 +26,26 @@ describe('SurfaceGroupModel', () => {
 
   beforeEach(() => {
     model = new SurfaceGroupModel<ComponentApi>();
-    catalog = new Catalog('test-catalog', []);
+    catalog = new Catalog('test-catalog', '1.0', []);
   });
 
   it('adds surface', () => {
-    const surface = new SurfaceModel('s1', catalog, {});
+    const surface = new SurfaceModel('s1', catalog, new Map(), {});
     model.addSurface(surface);
     assert.ok(model.getSurface('s1'));
     assert.strictEqual(model.getSurface('s1'), surface);
   });
 
   it('ignores duplicate surface addition', () => {
-    const s1 = new SurfaceModel('s1', catalog, {});
-    const s2 = new SurfaceModel('s1', catalog, {}); // Same ID
+    const s1 = new SurfaceModel('s1', catalog, new Map(), {});
+    const s2 = new SurfaceModel('s1', catalog, new Map(), {}); // Same ID
     model.addSurface(s1);
     model.addSurface(s2);
     assert.strictEqual(model.getSurface('s1'), s1); // Should still be the first one
   });
 
   it('deletes surface', () => {
-    const surface = new SurfaceModel('s1', catalog, {});
+    const surface = new SurfaceModel('s1', catalog, new Map(), {});
     model.addSurface(surface);
     assert.ok(model.getSurface('s1'));
 
@@ -64,7 +64,7 @@ describe('SurfaceGroupModel', () => {
       deletedId = id;
     });
 
-    const surface = new SurfaceModel('s1', catalog, {});
+    const surface = new SurfaceModel('s1', catalog, new Map(), {});
     model.addSurface(surface);
     assert.ok(created);
     assert.strictEqual(created?.id, 's1');
@@ -79,7 +79,7 @@ describe('SurfaceGroupModel', () => {
       receivedAction = action;
     });
 
-    const surface = new SurfaceModel('s1', catalog, {});
+    const surface = new SurfaceModel('s1', catalog, new Map(), {});
     model.addSurface(surface);
 
     await surface.dispatchAction({event: {name: 'test'}}, 'c1');
@@ -94,7 +94,7 @@ describe('SurfaceGroupModel', () => {
       callCount++;
     });
 
-    const surface = new SurfaceModel('s1', catalog, {});
+    const surface = new SurfaceModel('s1', catalog, new Map(), {});
     model.addSurface(surface);
     model.deleteSurface('s1');
 
@@ -103,7 +103,7 @@ describe('SurfaceGroupModel', () => {
   });
 
   it('exposes surfacesMap', () => {
-    const surface = new SurfaceModel('s1', catalog, {});
+    const surface = new SurfaceModel('s1', catalog, new Map(), {});
     model.addSurface(surface);
     const map = model.surfacesMap;
     assert.strictEqual(map.size, 1);
@@ -111,8 +111,8 @@ describe('SurfaceGroupModel', () => {
   });
 
   it('disposes correctly', () => {
-    const s1 = new SurfaceModel('s1', catalog, {});
-    const s2 = new SurfaceModel('s2', catalog, {});
+    const s1 = new SurfaceModel('s1', catalog, new Map(), {});
+    const s2 = new SurfaceModel('s2', catalog, new Map(), {});
     model.addSurface(s1);
     model.addSurface(s2);
 

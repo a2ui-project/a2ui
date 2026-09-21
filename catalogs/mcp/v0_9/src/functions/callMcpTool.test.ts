@@ -145,7 +145,8 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
 const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '/') => {
   const mockSurface = {
     dataModel: model,
-    catalog: {invoker: catalog.invoker},
+    defaultCatalog: {invoker: catalog.invoker},
+    availableCatalogs: new Map(),
     dispatchError: () => {},
   } as any;
   return new DataContext(mockSurface, path);
@@ -158,6 +159,7 @@ describe('callMcpTool', () => {
   const catalogFor = (client: FakeClient) =>
     new Catalog<any>(
       MCP_CATALOG_ID,
+      '0.9',
       [],
       [createCallMcpToolImplementation(() => asClient(client), processor)],
     );
@@ -177,7 +179,7 @@ describe('callMcpTool', () => {
 
   beforeEach(() => {
     processor = new MessageProcessor<any>(
-      [new Catalog(SURFACE_CATALOG_ID, [], [])],
+      [new Catalog(SURFACE_CATALOG_ID, '0.9', [], [])],
       async () => {},
     );
   });
@@ -264,6 +266,7 @@ describe('callMcpTool', () => {
       const clock = createFakeClient();
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [
           createCallMcpToolImplementation(
@@ -284,6 +287,7 @@ describe('callMcpTool', () => {
       const client = createFakeClient();
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [createCallMcpToolImplementation(async () => asClient(client), processor)],
       );
@@ -297,6 +301,7 @@ describe('callMcpTool', () => {
     it('throws A2uiExpressionError when the client cannot be resolved', async () => {
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [
           createCallMcpToolImplementation(() => {
@@ -653,7 +658,7 @@ describe('callMcpTool', () => {
     it('passes literal objects that merely contain a path property through untouched', async () => {
       const client = createFakeClient();
       const impl = createCallMcpToolImplementation(() => asClient(client), processor);
-      const catalog = new Catalog('test-literal-objects', [], [impl]);
+      const catalog = new Catalog('test-literal-objects', '0.9', [], [impl]);
       const dataModel = new DataModel({docs: 'SHOULD_NOT_RESOLVE', city: 'Paris'});
       const context = createTestDataContext(dataModel, catalog);
 
@@ -675,7 +680,9 @@ describe('callMcpTool', () => {
 
   describe('mcp_catalog.json Schema Verification', () => {
     it('loads schema into a valid Catalog using Catalog.fromSchema', () => {
-      const schemaCatalog = Catalog.fromSchema(mcpCatalogJson);
+      // v0.9 catalog JSONs predate the `protocolVersion` field, so the loader
+      // needs it supplied.
+      const schemaCatalog = Catalog.fromSchema(mcpCatalogJson, '0.9');
       assert.strictEqual(schemaCatalog.id, MCP_CATALOG_ID);
       assert.strictEqual(schemaCatalog.functions.has('callMcpTool'), true);
 
@@ -748,7 +755,7 @@ describe('callMcpTool', () => {
       const client = createFakeClient();
       const mcpCatalog = catalogFor(client);
       processor = new MessageProcessor(
-        [new Catalog(SURFACE_CATALOG_ID, [], []), mcpCatalog],
+        [new Catalog(SURFACE_CATALOG_ID, '0.9', [], []), mcpCatalog],
         async () => {},
       );
 

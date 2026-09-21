@@ -30,6 +30,7 @@ import {
 } from '../types/common-types.js';
 import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {A2uiCatalogError} from '../errors.js';
 
 const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicString: DynamicStringSchema,
@@ -235,7 +236,24 @@ function convertPropertyToZod(
       return b;
     }
     case 'object': {
-      let obj: z.ZodTypeAny = z.record(z.unknown());
+      // An inline object that declares its properties is converted structurally
+      // rather than collapsed to an opaque record. Without this, a child
+      // reference nested inside an array item is invisible to the reference map,
+      // so the component graph would look as if it had no children there.
+      const props = propSchema.properties;
+      let obj: z.ZodTypeAny;
+      if (typeof props === 'object' && props !== null) {
+        const required = Array.isArray(propSchema.required)
+          ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
+          : new Set<string>();
+        obj = z
+          .object(
+            convertPropertiesToShape(props as Record<string, unknown>, required, false, rootDoc),
+          )
+          .passthrough();
+      } else {
+        obj = z.record(z.unknown());
+      }
       if (typeof propSchema.description === 'string') obj = obj.describe(propSchema.description);
       return obj;
     }
@@ -591,11 +609,16 @@ function parseThemeSchema(
  * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
  *
  * @param catalogSchema Raw catalog schema or capabilities definition object.
+ * @param protocolVersion Protocol version to use when the schema does not declare
+ *   one. Catalog schemas published before v1.0 omit `protocolVersion`, so the
+ *   caller must supply it.
  * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
  * @throws {Error} If the catalog ID is missing or not a string.
+ * @throws {A2uiCatalogError} If no protocol version is declared or supplied.
  */
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, unknown>,
+  protocolVersion?: string,
 ): Catalog<ComponentApi, FunctionApi> {
   const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
@@ -607,8 +630,13 @@ export function loadCatalogFromSchema(
   const anyComp = defs?.anyComponent as Record<string, unknown> | undefined;
   const permittedNames = extractPermittedNames(anyComp?.oneOf, '#/components/');
 
-  const protocolVersion = catalogSchema.protocolVersion as string | undefined;
-  const isAtLeastV10 = isAtLeastVersion(protocolVersion, '1.0');
+  const resolvedVersion = protocolVersion ?? (catalogSchema.protocolVersion as string | undefined);
+  if (!resolvedVersion) {
+    throw new A2uiCatalogError(
+      `Catalog '${catalogId}' declares no protocolVersion, and none was supplied.`,
+    );
+  }
+  const isAtLeastV10 = isAtLeastVersion(resolvedVersion, '1.0');
 
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
   const components = parseCatalogComponents(
@@ -633,5 +661,5 @@ export function loadCatalogFromSchema(
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
 
-  return new Catalog(catalogId, components, functions, themeSchema, instructions, protocolVersion);
+  return new Catalog(catalogId, resolvedVersion, components, functions, themeSchema, instructions);
 }
