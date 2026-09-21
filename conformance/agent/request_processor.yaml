@@ -33,15 +33,12 @@
 # the per-format `response_parser.yaml`, `compiler.yaml` and `decompiler.yaml`
 # suites, which need no negotiation to state their rules.
 #
-# Capability negotiation follows three settled rules. A request with no
-# capabilities at all activates every registered catalog, because a renderer
-# that says nothing is not saying no. A request with a present but empty
-# `supportedCatalogIds` and no inline catalogs is a `CatalogError`, because the
-# renderer has said it can render nothing. Active catalogs come back in the
+# Capability negotiation requires the renderer to declare its capabilities:
+# create_processor cannot be called without them. A request with a present but
+# empty `supportedCatalogIds` and no inline catalogs is a `CatalogError`, because
+# the renderer has said it can render nothing. Active catalogs come back in the
 # renderer's preference order rather than the agent's registration order, so
-# the renderer's first choice is the first catalog the model reads about. With
-# no capabilities there is no preference to follow, so registration order
-# stands.
+# the renderer's first choice is the first catalog the model reads about.
 #
 # Resolved catalogs are the transformed ones. A pruning transformer is
 # therefore visible twice: in the prompt snippet, and in what the processor
@@ -63,8 +60,7 @@
 #
 # Sentinel tags are the format's own: `<a2ui-json>` for direct JSON and
 # `<a2ui>` for Express, per the Express specification under
-# `specification/proposals/express/`. The agent blueprint spells the Express
-# tag `<a2ui-express>`, which is an error in the blueprint.
+# `specification/proposals/express/`.
 #
 # Prompt assertions are substrings, never whole texts, because the wording
 # around a catalog is an implementation's own. The version a case runs under is
@@ -159,16 +155,16 @@
   expect:
     active_catalog_ids: ["conformance/custom"]
 
-- name: test_absent_capabilities_activate_every_catalog
-  description: A request that carries no capabilities activates everything the agent registered, in registration order, because a renderer that says nothing is not saying no.
+- name: test_absent_capabilities_is_an_error
+  description: A request that carries no capabilities fails, because create_processor requires renderer capabilities to negotiate against.
   action: create_processor
   args:
     format: direct_json
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
       - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
-  expect:
-    active_catalog_ids: ["conformance/simplified", "conformance/custom"]
+  expect_error:
+    category: CatalogError
 
 - name: test_active_catalogs_follow_the_renderer_preference_order
   description: The active catalogs come back in the order the renderer listed them, not the order the agent registered them.

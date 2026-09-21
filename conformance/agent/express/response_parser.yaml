@@ -26,9 +26,8 @@
 # call rather than by interface: a case in this file is about where a payload
 # begins and ends, and a case in those two about what the payload means.
 #
-# An Express payload sits between `<a2ui>` tags. The agent blueprint calls the
-# Express tag `<a2ui-express>`, which is an error in the blueprint; the Express
-# specification's `<a2ui>` is what these cases use.
+# An Express payload sits between `<a2ui>` tags, per the Express specification
+# under `specification/proposals/express/`.
 #
 # A part carries either text or a payload, never both. Text that precedes a
 # payload is its own list item, which is the union the parser returns.
@@ -54,10 +53,10 @@
 # a rule that holds for both formats has a case in each, written against that
 # format's own notation. Streaming is the exception. There is no Express
 # streaming suite, because the Express parser does not implement `parse_chunk`:
-# an Express agent buffers a response and parses it whole, through the cases
-# here. The blueprint declares `parse_chunk` abstract on every parser and says
-# the Express parser handles streaming chunks, which is a claim the code has
-# never met; if Express does gain streaming, its suite belongs beside
+# an Express block resolves references across its whole body, so a partial
+# block names components that are not yet defined. An Express agent buffers a
+# response and parses it whole, through the cases here. If Express does gain
+# streaming, its suite belongs beside
 # `agent/direct_json/response_streaming.yaml`.
 #
 # The catalogs under test live in `args`, and every case here is written against
