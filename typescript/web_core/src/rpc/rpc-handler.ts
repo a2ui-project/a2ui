@@ -27,6 +27,7 @@ import {
   CallAgentFunctionMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
+import {PayloadValidator} from '../validation/payload-validator.js';
 
 /**
  * Standard error codes for A2UI RPC failures.
@@ -186,7 +187,7 @@ export class RpcHandler {
       return errorResponse;
     }
 
-    const parsedArgsResult = this.parseArguments(resolved.funcImpl, args, call);
+    const parsedArgsResult = this.parseArguments(resolved.catalog, resolved.funcImpl, args, call);
     if ('error' in parsedArgsResult) {
       const errorResponse = this.createResponseError(
         functionCallId,
@@ -350,7 +351,7 @@ export class RpcHandler {
     call: string,
     context?: DataContext,
     expectedVersion?: string,
-  ): {funcImpl: FunctionImplementation} | {error: string} {
+  ): {funcImpl: FunctionImplementation; catalog: Catalog<any>} | {error: string} {
     let catalog: Catalog<any> | undefined;
     if (catalogId) {
       catalog = this.catalogs.find(c => c.id === catalogId);
@@ -377,7 +378,7 @@ export class RpcHandler {
     if (!funcImpl) {
       return {error: `Function not found: ${call}`};
     }
-    return {funcImpl};
+    return {funcImpl, catalog};
   }
 
   private checkExecutionPermissions(
@@ -397,14 +398,16 @@ export class RpcHandler {
   }
 
   private parseArguments(
+    catalog: Catalog<any>,
     funcImpl: FunctionImplementation,
     args: Record<string, unknown> | undefined,
     call: string,
   ): {args: Record<string, unknown>} | {error: string} {
-    if (!funcImpl.schema) {
-      return {args: args ?? {}};
-    }
     try {
+      new PayloadValidator(catalog, {allowUnknownElements: false}).validateFunction(call, args);
+      if (!funcImpl.schema) {
+        return {args: args ?? {}};
+      }
       const parsed = funcImpl.schema.parse(args ?? {}) as Record<string, unknown>;
       return {args: parsed};
     } catch (err: unknown) {

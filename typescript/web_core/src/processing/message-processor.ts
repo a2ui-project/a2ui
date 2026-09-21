@@ -133,6 +133,7 @@ export interface MessageProcessorOptions {
 }
 
 import {formatZodIssue} from './format-zod-issue.js';
+import {PayloadValidator} from '../validation/payload-validator.js';
 export {formatZodIssue};
 
 /**
@@ -626,15 +627,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     let validatedTheme = theme;
     if (theme && catalog.themeSchema) {
-      const themeResult = catalog.themeSchema.safeParse(theme);
-      if (!themeResult.success) {
-        const formattedErrors = themeResult.error.errors.map(formatZodIssue).join(', ');
-        throw new A2uiValidationError(
-          `Validation failed for theme on surface '${surfaceId}': ${formattedErrors}`,
-          themeResult.error.issues,
-        );
+      try {
+        validatedTheme = new PayloadValidator(catalog, this.validationConfig).validateTheme(theme);
+      } catch (err: unknown) {
+        if (err instanceof A2uiValidationError) {
+          throw new A2uiValidationError(
+            err.message.replace(
+              /^Validation failed for theme:/,
+              `Validation failed for theme on surface '${surfaceId}':`,
+            ),
+            err.details,
+          );
+        }
+        throw err;
       }
-      validatedTheme = themeResult.data;
     }
 
     // A payload may address any registered catalog by `catalogId`, but only
@@ -680,7 +686,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
   ): void {
-    const {id, component, ...properties} = comp;
+    const {id, component} = comp;
     const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
 
     if (typeof id !== 'string' || !id) {
@@ -708,34 +714,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       targetCatalog = found;
     }
 
-    const existing = surface.componentsModel.get(id as string);
-    const componentType = typeof component === 'string' ? component : existing?.type;
-    if (!existing && !component) {
-      throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
-    }
-    if (componentType) {
-      const componentApi = targetCatalog.components.get(componentType);
-      if (!componentApi) {
-        if (this.validationConfig && !this.validationConfig.allowUnknownElements) {
-          throw new A2uiValidationError(
-            `Unknown component type '${componentType}' not found in catalog '${targetCatalog.id}'.`,
-          );
-        }
-      } else {
-        const validationResult = componentApi.schema.safeParse(properties);
-        if (!validationResult.success) {
-          const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
-          console.error("[A2UI Validation Error] Component '" + componentType + "' (" + id + '):', {
-            propertyKeys: Object.keys(properties),
-            issues: validationResult.error.issues,
-          });
-          throw new A2uiValidationError(
-            `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-            validationResult.error.issues,
-          );
-        }
-      }
-    }
+    // A partial update names no component type; the existing model supplies it.
+    const existing = surface.componentsModel.get(id);
+    new PayloadValidator(
+      targetCatalog,
+      this.validationConfig,
+      surface.availableCatalogs,
+    ).validateComponent(comp, existing?.type);
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {

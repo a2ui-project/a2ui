@@ -1424,9 +1424,9 @@ describe('MessageProcessor', () => {
       });
 
       const components = [
-        {id: 'root', component: 'BoxA', catalogId: 'cat-a', childSlot: 'node-b'},
-        {id: 'node-b', component: 'BoxB', catalogId: 'cat-b', contentSlot: 'leaf-b'},
-        {id: 'leaf-b', component: 'LeafB', catalogId: 'cat-b', text: 'Hello'},
+        {id: 'root', component: 'BoxA', catalogId: 'cat-a', childSlot: 'node_b'},
+        {id: 'node_b', component: 'BoxB', catalogId: 'cat-b', contentSlot: 'leaf_b'},
+        {id: 'leaf_b', component: 'LeafB', catalogId: 'cat-b', text: 'Hello'},
       ];
 
       assert.doesNotThrow(() =>

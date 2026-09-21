@@ -814,6 +814,15 @@ function validateValidateTestCase(testCase) {
           );
         }
       }
+      if (typeof expErrObj === 'object' && expErrObj.message) {
+        const normalizedActual = thrown.message.replaceAll('"', "'").replaceAll("','", "', '");
+        const normalizedExpected = expErrObj.message.replaceAll('"', "'").replaceAll("','", "', '");
+        if (!normalizedActual.includes(normalizedExpected)) {
+          throw new Error(
+            `Expected error message containing '${expErrObj.message}' but received: ${thrown.message}`,
+          );
+        }
+      }
       return;
     }
 
@@ -1467,8 +1476,19 @@ function getCatalogsForTestCase(testCase) {
       // The published basic catalogs are represented by the built-in fixtures
       // rather than being re-parsed from the specification tree.
       if (p.includes('basic/catalog.json')) {
-        const matchingBasic =
+        const baseBasic =
           version === '1.0' ? v1_0Catalog : version === '0.8' ? v0_8Catalog : v0_9Catalog;
+        const matchingBasic =
+          baseBasic.id === cId
+            ? baseBasic
+            : new Catalog(
+                cId,
+                baseBasic.protocolVersion || version,
+                Array.from(baseBasic.components.values()),
+                Array.from(baseBasic.functions.values()),
+                baseBasic.themeSchema,
+                baseBasic.instructions,
+              );
         catalogsMap.set(cId, matchingBasic);
         specifiedCatalogs.push(matchingBasic);
       } else if (json.components) {

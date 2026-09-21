@@ -27,10 +27,11 @@ import {
   CheckRuleSchema,
   CheckableSchema,
   AccessibilityAttributesSchema,
+  DataBindingSchema,
+  FunctionCallSchema,
 } from '../types/common-types.js';
 import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
-
 /**
  * Protocol version assumed for a catalog schema that does not declare one.
  *
@@ -38,6 +39,9 @@ import {isAtLeastVersion} from '../common/semver.js';
  * that omits it predates that field.
  */
 export const DEFAULT_PROTOCOL_VERSION = '0.9';
+
+import {assertUax31Identifier} from '../common/uax31.js';
+import {A2uiCatalogError} from '../errors.js';
 
 const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicString: DynamicStringSchema,
@@ -51,6 +55,8 @@ const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   CheckRule: CheckRuleSchema,
   Checkable: CheckableSchema,
   AccessibilityAttributes: AccessibilityAttributesSchema,
+  DataBinding: DataBindingSchema,
+  FunctionCall: FunctionCallSchema,
 };
 
 /**
@@ -102,6 +108,35 @@ function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
   );
 }
 
+/**
+ * Applies `not`, `default`, and `description` modifiers to a converted Zod schema.
+ */
+function finalizePropertyZod(
+  baseZod: z.ZodTypeAny,
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
+): z.ZodTypeAny {
+  let result = baseZod;
+  if (propSchema.not && typeof propSchema.not === 'object') {
+    const notSchema = convertPropertyToZod(
+      propSchema.not as Record<string, unknown>,
+      rootDoc,
+      new Set(visitedPointers),
+    );
+    result = result.refine(val => !notSchema.safeParse(val).success, {
+      message: 'Value matched prohibited "not" schema',
+    });
+  }
+  if (propSchema.default !== undefined) {
+    result = result.default(propSchema.default);
+  }
+  if (typeof propSchema.description === 'string') {
+    result = result.describe(propSchema.description);
+  }
+  return result;
+}
+
 function convertPropertyToZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
@@ -125,21 +160,33 @@ function convertPropertyToZod(
     }
 
     // Document-local $defs reference
-    if (rootDoc && ref.startsWith('#/') && !visitedPointers.has(ref)) {
-      visitedPointers.add(ref);
+    if (rootDoc && ref.startsWith('#/')) {
       const localTarget = resolveJsonPointer(rootDoc, ref);
-      if (localTarget) {
-        let zodType = convertPropertyToZod(localTarget, rootDoc, visitedPointers);
-        if (typeof propSchema.description === 'string') {
-          zodType = zodType.describe(propSchema.description);
-        }
-        return zodType;
+      if (!localTarget) {
+        return z.unknown().superRefine((_val, ctx) => {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Unresolvable schema reference: '${ref}'`,
+          });
+        });
       }
+      if (visitedPointers.has(ref)) {
+        // Recursive $ref cycle: defer evaluation to validation time via z.lazy
+        return z.lazy(() => convertPropertyToZod(localTarget, rootDoc, new Set([ref])));
+      }
+      const nextVisited = new Set(visitedPointers);
+      nextVisited.add(ref);
+      let zodType = convertPropertyToZod(localTarget, rootDoc, nextVisited);
+      if (typeof propSchema.description === 'string') {
+        zodType = zodType.describe(propSchema.description);
+      }
+      return zodType;
     }
   }
 
-  // oneOf / anyOf inspection (e.g. Icon.name which has enum + DataBinding, or arbitrary type unions)
+  // oneOf / anyOf inspection
   if (Array.isArray(propSchema.oneOf) || Array.isArray(propSchema.anyOf)) {
+    const isOneOf = Array.isArray(propSchema.oneOf);
     const rawBranches = (propSchema.oneOf || propSchema.anyOf) as unknown[];
     const branches = rawBranches.filter(
       (b): b is Record<string, unknown> => typeof b === 'object' && b !== null,
@@ -148,48 +195,57 @@ function convertPropertyToZod(
     const hasBinding = branches.some(
       b => typeof b.$ref === 'string' && b.$ref.includes('DataBinding'),
     );
-    if (enumBranch && Array.isArray(enumBranch.enum)) {
-      let enumZod = convertEnumToZod(enumBranch.enum);
-      if (propSchema.default !== undefined) {
-        enumZod = enumZod.default(propSchema.default);
-      }
-      const desc =
-        (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
-        (hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
-      if (desc) {
-        enumZod = enumZod.describe(desc);
-      }
-      return enumZod;
-    }
 
     if (branches.length > 0) {
-      const zodBranches = branches.map(b => convertPropertyToZod(b, rootDoc, visitedPointers));
+      const zodBranches = branches.map(b =>
+        convertPropertyToZod(b, rootDoc, new Set(visitedPointers)),
+      );
       let unionZod: z.ZodTypeAny;
       if (zodBranches.length === 1) {
         unionZod = zodBranches[0];
       } else {
         unionZod = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
+        if (isOneOf) {
+          unionZod = unionZod.superRefine((val, ctx) => {
+            let matches = 0;
+            for (const b of zodBranches) {
+              if (b.safeParse(val).success) {
+                matches++;
+                if (matches > 1) {
+                  ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'Value matched more than one schema in oneOf',
+                  });
+                  return;
+                }
+              }
+            }
+          });
+        }
       }
       if (propSchema.default !== undefined) {
         unionZod = unionZod.default(propSchema.default);
       }
-      if (typeof propSchema.description === 'string') {
-        unionZod = unionZod.describe(propSchema.description);
+      const desc =
+        (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
+        (enumBranch && hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
+      if (desc) {
+        unionZod = unionZod.describe(desc);
       }
       return unionZod;
     }
   }
 
+  // Const literal
+  if (propSchema.const !== undefined) {
+    const constZod = z.literal(propSchema.const as string | number | boolean);
+    return finalizePropertyZod(constZod, propSchema, rootDoc, visitedPointers);
+  }
+
   // Enums
   if (Array.isArray(propSchema.enum) && propSchema.enum.length > 0) {
-    let enumZod = convertEnumToZod(propSchema.enum);
-    if (propSchema.default !== undefined) {
-      enumZod = enumZod.default(propSchema.default);
-    }
-    if (typeof propSchema.description === 'string') {
-      enumZod = enumZod.describe(propSchema.description);
-    }
-    return enumZod;
+    const enumZod = convertEnumToZod(propSchema.enum);
+    return finalizePropertyZod(enumZod, propSchema, rootDoc, visitedPointers);
   }
 
   // Arrays
@@ -199,48 +255,66 @@ function convertPropertyToZod(
         ? convertPropertyToZod(
             propSchema.items as Record<string, unknown>,
             rootDoc,
-            visitedPointers,
+            new Set(visitedPointers),
           )
         : z.unknown();
     let arr: z.ZodTypeAny = z.array(itemSchema);
-    if (typeof propSchema.description === 'string') {
-      arr = arr.describe(propSchema.description);
+    if (typeof propSchema.minItems === 'number') {
+      arr = (arr as z.ZodArray<any>).min(propSchema.minItems);
     }
-    return arr;
+    if (typeof propSchema.maxItems === 'number') {
+      arr = (arr as z.ZodArray<any>).max(propSchema.maxItems);
+    }
+    if (propSchema.uniqueItems === true) {
+      arr = arr.refine(
+        (items: unknown[]) => new Set(items.map(i => JSON.stringify(i))).size === items.length,
+        {message: 'Array items must be unique'},
+      );
+    }
+    return finalizePropertyZod(arr, propSchema, rootDoc, visitedPointers);
   }
 
   // Primitives
   switch (propSchema.type) {
     case 'string': {
-      let s: z.ZodTypeAny = z.string();
+      let s = z.string();
+      if (typeof propSchema.minLength === 'number') {
+        s = s.min(propSchema.minLength);
+      }
+      if (typeof propSchema.maxLength === 'number') {
+        s = s.max(propSchema.maxLength);
+      }
       if (typeof propSchema.pattern === 'string') {
         try {
-          s = (s as z.ZodString).regex(new RegExp(propSchema.pattern, 'u'));
+          s = s.regex(new RegExp(propSchema.pattern, 'u'));
         } catch {
           // ignore regex compilation failure
         }
       }
-      if (propSchema.default !== undefined) s = s.default(propSchema.default);
-      if (typeof propSchema.description === 'string') s = s.describe(propSchema.description);
-      return s;
+      return finalizePropertyZod(s, propSchema, rootDoc, visitedPointers);
     }
-    case 'integer': {
-      let n: z.ZodTypeAny = z.number().int();
-      if (propSchema.default !== undefined) n = n.default(propSchema.default);
-      if (typeof propSchema.description === 'string') n = n.describe(propSchema.description);
-      return n;
-    }
+    case 'integer':
     case 'number': {
-      let n: z.ZodTypeAny = z.number();
-      if (propSchema.default !== undefined) n = n.default(propSchema.default);
-      if (typeof propSchema.description === 'string') n = n.describe(propSchema.description);
-      return n;
+      let n = propSchema.type === 'integer' ? z.number().int() : z.number();
+      if (typeof propSchema.minimum === 'number') {
+        n = n.min(propSchema.minimum);
+      }
+      if (typeof propSchema.maximum === 'number') {
+        n = n.max(propSchema.maximum);
+      }
+      if (typeof propSchema.exclusiveMinimum === 'number') {
+        n = n.gt(propSchema.exclusiveMinimum);
+      }
+      if (typeof propSchema.exclusiveMaximum === 'number') {
+        n = n.lt(propSchema.exclusiveMaximum);
+      }
+      if (typeof propSchema.multipleOf === 'number') {
+        n = n.multipleOf(propSchema.multipleOf);
+      }
+      return finalizePropertyZod(n, propSchema, rootDoc, visitedPointers);
     }
     case 'boolean': {
-      let b: z.ZodTypeAny = z.boolean();
-      if (propSchema.default !== undefined) b = b.default(propSchema.default);
-      if (typeof propSchema.description === 'string') b = b.describe(propSchema.description);
-      return b;
+      return finalizePropertyZod(z.boolean(), propSchema, rootDoc, visitedPointers);
     }
     case 'object': {
       // An inline object that declares its properties is converted structurally
@@ -253,21 +327,25 @@ function convertPropertyToZod(
         const required = Array.isArray(propSchema.required)
           ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
           : new Set<string>();
-        obj = z
-          .object(
-            convertPropertiesToShape(props as Record<string, unknown>, required, false, rootDoc),
-          )
-          .passthrough();
+        const baseObj = z.object(
+          convertPropertiesToShape(
+            props as Record<string, unknown>,
+            required,
+            false,
+            rootDoc,
+            visitedPointers,
+          ),
+        );
+        const forbidExtra =
+          propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false;
+        obj = forbidExtra ? baseObj.strict() : baseObj.passthrough();
       } else {
         obj = z.record(z.unknown());
       }
-      if (typeof propSchema.description === 'string') obj = obj.describe(propSchema.description);
-      return obj;
+      return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers);
     }
     default: {
-      let unk: z.ZodTypeAny = z.unknown();
-      if (typeof propSchema.description === 'string') unk = unk.describe(propSchema.description);
-      return unk;
+      return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers);
     }
   }
 }
@@ -277,6 +355,7 @@ function convertPropertiesToShape(
   requiredSet: Set<string>,
   omitEnvelopeFields = false,
   rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [propName, propSchema] of Object.entries(properties)) {
@@ -288,6 +367,7 @@ function convertPropertiesToShape(
         ? (propSchema as Record<string, unknown>)
         : {},
       rootDoc,
+      visitedPointers ? new Set(visitedPointers) : new Set<string>(),
     );
     shape[propName] = requiredSet.has(propName) ? zodField : zodField.optional();
   }
@@ -403,26 +483,6 @@ function convertFunctionArgsJsonSchemaToZod(
   return allowExtra ? obj.passthrough() : obj.strict();
 }
 
-/**
- * Identifiers permitted by the v1.0 specification, per UAX #31.
- *
- * The optional leading `@` accommodates the reserved system-function prefix.
- */
-const UAX31_IDENTIFIER = /^@?[\p{ID_Start}_][\p{ID_Continue}]*$/u;
-
-/**
- * Throws when an identifier does not satisfy UAX #31.
- *
- * @param name Identifier to check.
- * @param context Description of what the identifier names, used in the error.
- * @throws {Error} If `name` is not a valid UAX #31 identifier.
- */
-function assertUax31Identifier(name: string, context: string): void {
-  if (!UAX31_IDENTIFIER.test(name)) {
-    throw new Error(`Invalid UAX #31 ${context}`);
-  }
-}
-
 function parseFunctionDefinitions(
   rawFunctions: unknown,
   rootDoc?: Record<string, unknown>,
@@ -482,7 +542,22 @@ function parseFunctionDefinitions(
       if (!defn || typeof defn !== 'object') continue;
       const d = defn as Record<string, unknown>;
       const props = d.properties as Record<string, unknown> | undefined;
-      const argsSchema = props?.args ?? d.args ?? d.parameters;
+      let argsSchema = props?.args ?? d.args ?? d.parameters;
+      if (!argsSchema && props && !('call' in props) && !('function' in props)) {
+        argsSchema = d;
+      } else if (
+        argsSchema &&
+        typeof argsSchema === 'object' &&
+        !('properties' in argsSchema) &&
+        !('type' in argsSchema)
+      ) {
+        argsSchema = {
+          type: 'object',
+          properties: argsSchema,
+          required: d.required,
+          additionalProperties: d.additionalProperties,
+        };
+      }
       const paramSchema =
         argsSchema && typeof argsSchema === 'object'
           ? convertFunctionArgsJsonSchemaToZod(argsSchema as Record<string, unknown>, rootDoc)

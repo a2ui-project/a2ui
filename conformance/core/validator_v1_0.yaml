@@ -398,7 +398,7 @@
       expectError:
         category: "ValidationError"
 
-- name: test_v10_uax31_invalid_identifier_error
+- name: test_v10_uax31_in123invalid_identifier_error
   description: Tests that component IDs violating UAX#31 identifier syntax fail validation in v1.0.
   action: validate
   protocolVersion: "v1.0"
@@ -410,12 +410,14 @@
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        - version: "v1.0"
-          updateComponents:
-            surfaceId: "s1"
             components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "123invalid_id"
               - id: "123invalid_id"
                 component: "Text"
                 text: "Invalid ID"
       expectError:
         category: "ValidationError"
+        message: "Component id '123invalid_id' must be a valid"

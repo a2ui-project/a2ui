@@ -309,10 +309,6 @@ function processSingleFunction(
   fn: FunctionApi,
   defs: Record<string, unknown>,
 ): Record<string, unknown> {
-  if ('rawSchema' in fn && fn.rawSchema && typeof fn.rawSchema === 'object') {
-    return fn.rawSchema as Record<string, unknown>;
-  }
-
   let paramSchemaObj: Record<string, unknown>;
   if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
     const rawZod = zodToJsonSchema(fn.schema, {
