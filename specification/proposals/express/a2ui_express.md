@@ -164,7 +164,7 @@ deleteSurface("dashboard-surface-1")
 
 #### Executing client-side functions (RPC)
 
-When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a standard `callFunction` RPC message with an auto-generated `functionCallId`:
+When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a `callRendererFunction` message with an auto-generated `functionCallId`:
 
 ```
 openUrl("https://example.com")
@@ -173,15 +173,20 @@ openUrl("https://example.com")
 ```json
 {
   "version": "v1.0",
-  "functionCallId": "call_1",
-  "callFunction": {
-    "call": "openUrl",
-    "args": {
-      "url": "https://example.com"
+  "callRendererFunction": {
+    "functionCallId": "call_1",
+    "callFunction": {
+      "catalogId": "https://a2ui.org/catalog.json",
+      "call": "openUrl",
+      "args": {
+        "url": "https://example.com"
+      }
     }
   }
 }
 ```
+
+The `functionCallId` and the `callFunction` both sit inside `callRendererFunction`, and `catalogId` is required on the call. See `CallRendererFunctionMessage` in `specification/v1_0/json/agent_to_renderer.json` for the normative definition.
 
 ## Compilation pipeline
 
