@@ -158,14 +158,22 @@ class ComponentModel:
         tree.update(self._properties)
         return tree
 
-    def validate(self, config: Any | None = None) -> list[A2uiErrorDetail]:
+    def validate(
+        self,
+        config: Any | None = None,
+        available_catalogs: dict[str, Any] | None = None,
+    ) -> list[A2uiErrorDetail]:
         """Validates this component instance against its bound catalog using PayloadValidator."""
         from ..validation.payload_validator import PayloadValidator
 
         comp_dict = {"id": self.id, "component": self.type, **self.properties}
         if not isinstance(self.catalog, Catalog):
             return []
-        validator = PayloadValidator(self.catalog, config=config)
+        validator = PayloadValidator(
+            self.catalog,
+            config=config,
+            available_catalogs=available_catalogs,
+        )
         return validator.validate_component(comp_dict)
 
     def get_child_references(

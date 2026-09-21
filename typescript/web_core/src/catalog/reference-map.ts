@@ -514,9 +514,12 @@ function inspectRawProperties(
     if (!itemProps) continue;
 
     for (const [subKey, subSchema] of Object.entries(itemProps)) {
-      if (isChildSchema(subSchema, options)) {
+      const subRes = analyzeChildRefSchema(subSchema, options);
+      if (subRes.isChild) {
         acc.listRefs.add(key);
         addNestedRef(acc, key, subKey);
+      } else if (subRes.isChildList) {
+        acc.listRefs.add(key);
       }
     }
   }

@@ -158,9 +158,11 @@ export function inlineAllOfRefs(schema, defs, seen = new Set()) {
 
     const name = ref.slice('#/$defs/'.length);
     if (seen.has(name)) continue;
-    seen.add(name);
 
-    const base = inlineAllOfRefs(defs[name], defs, seen);
+    const nextSeen = new Set(seen);
+    nextSeen.add(name);
+
+    const base = inlineAllOfRefs(defs[name], defs, nextSeen);
     if (!base || !base.properties) continue;
 
     Object.assign(inheritedProperties, base.properties);

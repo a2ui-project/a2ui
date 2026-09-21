@@ -46,7 +46,6 @@ const FileUploadSchema = z
 
 export const DEMO_CATALOG = new Catalog(
   FILE_UPLOAD_CATALOG_ID,
-  '0.9',
   [
     ...BASIC_COMPONENTS,
     {name: 'FileUpload', component: FileUploadComponent, schema: FileUploadSchema},

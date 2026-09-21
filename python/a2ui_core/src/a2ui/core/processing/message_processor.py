@@ -469,6 +469,7 @@ class MessageProcessor:
             new_component_models,
             root_id=surface.root_id or "root",
             config=self.validation_config,
+            available_catalogs=surface.available_catalogs,
         )
 
         for new_comp in new_component_models:

@@ -878,3 +878,68 @@ def test_collect_defs_refs_nested_subpath():
     }
     _collect_defs_refs(node, refs)
     assert refs == {"TemplateChildList", "SimpleDef", "NestedDef"}
+
+
+def test_payload_validator_nested_function_with_catalog_id():
+    """Verifies PayloadValidator resolves nested functions via available_catalogs."""
+    from a2ui.core.validation.payload_validator import ValidationConfig
+    from a2ui.core.catalog import FunctionImplementation
+
+    comp_api = ComponentApi(
+        name="CustomComp",
+        schema={
+            "type": "object",
+            "properties": {"val": {"type": "object"}},
+        },
+    )
+    app_cat = Catalog(
+        catalog_id="app-cat",
+        protocol_version="v1.0",
+        components=[comp_api],
+        functions=[],
+    )
+    math_fn = FunctionImplementation(
+        name="add",
+        return_type="number",
+        schema={
+            "type": "object",
+            "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+            "required": ["a", "b"],
+        },
+        execute=lambda args, *_: args["a"] + args["b"],
+    )
+    math_cat = Catalog(
+        catalog_id="math-cat",
+        protocol_version="v1.0",
+        components=[],
+        functions=[math_fn],
+    )
+
+    valid_comp = {
+        "id": "c1",
+        "component": "CustomComp",
+        "val": {
+            "call": "add",
+            "catalogId": "math-cat",
+            "args": {"a": 1, "b": 2},
+        },
+    }
+    validator = PayloadValidator(
+        catalog=app_cat,
+        available_catalogs={"app-cat": app_cat, "math-cat": math_cat},
+    )
+    errors = validator.validate_component(valid_comp)
+    assert not errors
+
+    missing_cat_comp = {
+        "id": "c2",
+        "component": "CustomComp",
+        "val": {
+            "call": "add",
+            "catalogId": "unknown-cat",
+            "args": {"a": 1, "b": 2},
+        },
+    }
+    errors = validator.validate_component(missing_cat_comp)
+    assert len(errors) == 1
+    assert errors[0].code == "catalog_error"

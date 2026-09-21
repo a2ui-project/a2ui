@@ -83,9 +83,30 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         self,
         catalog: Catalog[TComponent, TFunction],
         config: ValidationConfig | None = None,
+        available_catalogs: (
+            dict[str, Catalog[TComponent, TFunction]]
+            | list[Catalog[TComponent, TFunction]]
+            | None
+        ) = None,
     ) -> None:
         self.catalog: Catalog[TComponent, TFunction] = catalog
         self.config = config
+        self.available_catalogs: dict[str, Any] = {}
+        if available_catalogs is not None:
+            if isinstance(available_catalogs, dict):
+                self.available_catalogs = dict(available_catalogs)
+            else:
+                self.available_catalogs = {
+                    getattr(c, "catalog_id", ""): c
+                    for c in available_catalogs
+                    if hasattr(c, "catalog_id")
+                }
+        if (
+            hasattr(catalog, "catalog_id")
+            and catalog.catalog_id
+            and catalog.catalog_id not in self.available_catalogs
+        ):
+            self.available_catalogs[catalog.catalog_id] = catalog
 
     def validate(
         self, payload: dict[str, Any] | list[dict[str, Any]]
@@ -329,8 +350,29 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             if fn_name and isinstance(fn_name, str):
                 fn_args = val.get("args")
                 args_dict = fn_args if isinstance(fn_args, dict) else {}
+                cat_id = val.get("catalogId")
+                target_validator = self
+                if cat_id:
+                    if self.available_catalogs and cat_id in self.available_catalogs:
+                        target_cat = self.available_catalogs[cat_id]
+                        target_validator = PayloadValidator(
+                            target_cat,
+                            config=self.config,
+                            available_catalogs=self.available_catalogs,
+                        )
+                    else:
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=f"components.{comp_id}.{path}"
+                                if path
+                                else f"components.{comp_id}",
+                                code="catalog_error",
+                                message=f"Catalog not found: {cat_id}",
+                            )
+                        )
+                        return
                 try:
-                    self.validate_function(fn_name, args_dict)
+                    target_validator.validate_function(fn_name, args_dict)
                 except A2uiValidationError as e:
                     if e.details:
                         errors.extend(e.details)

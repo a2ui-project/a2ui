@@ -417,7 +417,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       }
       const dataContext = new DataContext(surface, '/');
 
-      const result = await surface.defaultCatalog.invoker(params.call, params.args, dataContext);
+      const result = await surface.catalog.invoker(params.call, params.args, dataContext);
 
       return {
         status: 'success',

@@ -199,7 +199,7 @@ export class DataContext {
     readonly path: string,
   ) {
     this.dataModel = surface.dataModel;
-    this.functionInvoker = surface.defaultCatalog.invoker;
+    this.functionInvoker = (surface.defaultCatalog ?? surface.catalog).invoker;
   }
 
   /**
@@ -526,9 +526,9 @@ export class DataContext {
    */
   private resolveFunctionCatalog(catalogId?: string): Catalog<any> {
     if (catalogId === undefined) {
-      return this.surface.defaultCatalog;
+      return this.surface.defaultCatalog ?? this.surface.catalog;
     }
-    const target = this.surface.availableCatalogs.get(catalogId);
+    const target = this.surface.availableCatalogs?.get(catalogId);
     if (!target) {
       throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
     }

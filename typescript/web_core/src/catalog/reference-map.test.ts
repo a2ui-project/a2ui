@@ -300,4 +300,33 @@ describe('reference-map schema introspection', () => {
     assert.deepStrictEqual(Array.from(refMap.CardCounter.singleRefs), ['mainSlot']);
     assert.strictEqual(refMap.CardCounter.listRefs.size, 0);
   });
+
+  it('extracts nested child references and child lists from raw JSON schemas with array items', () => {
+    const rawComponent = {
+      name: 'SectionList',
+      schema: {
+        type: 'object',
+        properties: {
+          sections: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: {type: 'string'},
+                headerChild: {$ref: '#/$defs/ComponentId'},
+                childItems: {$ref: '#/$defs/ChildList'},
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const catalog = new Catalog('section-cat', '1.0', [rawComponent as any]);
+    const refMap = catalog.componentRefMap;
+    assert.ok(refMap.SectionList);
+    assert.ok(refMap.SectionList.listRefs.has('sections'));
+    assert.ok(refMap.SectionList.nestedRefs?.sections.has('headerChild'));
+    assert.strictEqual(refMap.SectionList.nestedRefs?.sections.has('title'), false);
+  });
 });

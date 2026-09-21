@@ -929,5 +929,34 @@ describe('DataContext', () => {
         },
       );
     });
+
+    it('falls back to surface.catalog when defaultCatalog is undefined on legacy mock surfaces', () => {
+      const primary = makeCatalog('cat-legacy', 'from-legacy');
+      const legacySurface = {
+        dataModel: new DataModel({}),
+        catalog: primary,
+      } as any;
+      const ctx = new DataContext(legacySurface, '/');
+
+      assert.strictEqual(ctx.resolveDynamicValue({call: 'greet', args: {}}), 'from-legacy');
+    });
+
+    it('handles legacy mock surfaces lacking availableCatalogs map when naming an unknown catalog', () => {
+      const primary = makeCatalog('cat-legacy', 'from-legacy');
+      const legacySurface = {
+        dataModel: new DataModel({}),
+        catalog: primary,
+      } as any;
+      const ctx = new DataContext(legacySurface, '/');
+
+      assert.throws(
+        () => ctx.resolveDynamicValue({call: 'greet', args: {}, catalogId: 'cat-missing'} as any),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiCatalogError);
+          assert.match((err as Error).message, /Catalog not found: cat-missing/);
+          return true;
+        },
+      );
+    });
   });
 });
