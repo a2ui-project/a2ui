@@ -242,11 +242,14 @@ jobs:
               "${directory}"/dist/*
           done
 
-      # always(), because a partial upload is exactly when the cleanup matters:
-      # with `package: both`, core can land and agent-sdk fail, and the default
-      # success() condition would skip the step and leave core behind.
-      - name: Discard the staged artifacts (dry run)
-        if: ${{ always() && inputs.dry_run && steps.plan.conclusion == 'success' }}
+      # always(), because cleanup is needed on dry runs and on failed publish
+      # runs: with `package: both`, core can land and agent-sdk fail, and
+      # leaving core behind blocks subsequent release attempts because Artifact
+      # Registry rejects uploading duplicate versions.
+      - name: Discard the staged artifacts
+        if: ${{ always() && steps.plan.conclusion == 'success' && (inputs.dry_run || failure()) }}
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
@@ -268,14 +271,26 @@ jobs:
                 --project="${EXIT_GATE_PROJECT}" \
                 --quiet
             done
-          {
-            echo "### Dry run"
-            echo
-            echo "Staged and then removed the following. No tag was pushed and"
-            echo "nothing was published."
-            echo
-            jq -r '.[] | "* \(.pypi_name) \(.version) (\(.tag))"' release-plan.json
-          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${DRY_RUN}" = "true" ]; then
+            {
+              echo "### Dry run"
+              echo
+              echo "Staged and then removed the following. No tag was pushed and"
+              echo "nothing was published."
+              echo
+              jq -r '.[] | "* \(.pypi_name) \(.version) (\(.tag))"' release-plan.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### Staging failed — cleaned up"
+              echo
+              echo "A failure occurred during staging. Cleaned up any staged"
+              echo "artifacts from the Exit Gate Artifact Registry. No tags were pushed"
+              echo "and nothing was published."
+              echo
+              jq -r '.[] | "* \(.pypi_name) \(.version) (\(.tag))"' release-plan.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # Past this point the artifacts are staged and the release is going
       # ahead, so the tags become permanent. Only tags are pushed: `main` is

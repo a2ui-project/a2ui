@@ -344,8 +344,9 @@ is updated. It also cannot be triggered from a branch or a tag, only `main`.
 **`... is already on PyPI`** — the version was published previously. It cannot be
 republished. Work out why the tag series and PyPI disagree before retrying.
 
-**A dry run left artifacts behind** — the cleanup step runs even on partial
-failure, but if it was itself skipped, remove the staged version by hand:
+**A dry run or failed staging left artifacts behind** — the cleanup step runs
+even on partial failure, but if it was itself skipped, remove the staged version
+by hand:
 
 ```bash
 gcloud artifacts versions delete "${VERSION}" --package="${PYPI_NAME}" \
