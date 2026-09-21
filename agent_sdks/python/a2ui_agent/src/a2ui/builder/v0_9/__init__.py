@@ -15,6 +15,9 @@
 """A2UI Protocol v0.9 typesafe builder models and wire packaging helpers."""
 
 from ..core import (
+    LENIENT_ENUM_CONTEXT,
+    OPEN_ENUM,
+    Child,
     ComponentBuilderNode,
     ComponentRef,
     ComponentTree,
@@ -24,16 +27,14 @@ from ..core import (
 )
 from .envelopes import (
     create_surface,
-    to_surface_messages,
-    to_update_message,
     update_components,
 )
 from .models import (
     A2uiExpression,
     AccessibilityAttributes,
     Action,
+    ActionEvent,
     CheckRule,
-    Child,
     ChildList,
     DataBinding,
     DynamicBoolean,
@@ -44,12 +45,16 @@ from .models import (
     DynamicValue,
     FunctionCall,
     bind,
+    event,
 )
 
 __all__ = [
+    "LENIENT_ENUM_CONTEXT",
+    "OPEN_ENUM",
     "A2uiExpression",
     "AccessibilityAttributes",
     "Action",
+    "ActionEvent",
     "CheckRule",
     "Child",
     "ChildList",
@@ -68,8 +73,7 @@ __all__ = [
     "IdAllocator",
     "bind",
     "create_surface",
+    "event",
     "flatten_component_tree",
-    "to_surface_messages",
-    "to_update_message",
     "update_components",
 ]

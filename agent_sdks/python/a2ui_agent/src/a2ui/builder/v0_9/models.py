@@ -12,21 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Protocol v0.9 data models, bindings, actions, and type aliases for A2UI builders."""
+"""Protocol v0.9 data models, bindings, actions, and type aliases for A2UI builders.
+
+These are builder-owned models rather than re-exports of ``a2ui.core.schema``.
+The core models describe the wire as a client parses it; these describe the wire
+as an author writes it, which is a different job: authoring wants nested children,
+narrow enums, shorthand constructors and no defaulted fields appearing on the wire
+that the author never asked for. Keeping them separate keeps either side free to
+change without the other's consent.
+
+No model here defines a custom serializer. Field shape, aliases, defaults and null
+handling are Pydantic's; the only behaviour the builder adds is child resolution,
+which lives on the :data:`~a2ui.builder.core.child.Child` type.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, TypeAlias, Union
+from typing import Any, Mapping, Optional, Sequence, TypeAlias, Union
 from pydantic import (
     AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
     field_validator,
-    model_serializer,
+    model_validator,
 )
 
-from ..core.base_node import ComponentBuilderNode
+from ..core.child import Child
 
 
 class A2uiExpression(BaseModel):
@@ -37,6 +49,16 @@ class A2uiExpression(BaseModel):
         arbitrary_types_allowed=False,
         validate_by_name=True,
     )
+
+
+def _absolute_pointer(path: str) -> str:
+    """Normalizes a data model path to the absolute form the wire requires.
+
+    Every path in A2UI is rooted at the data model. Authors habitually write the
+    relative-looking ``"user/name"``, which a client would fail to resolve, so
+    the leading slash is supplied here rather than left to each caller.
+    """
+    return path if path.startswith("/") else f"/{path}"
 
 
 class DataBinding(A2uiExpression):
@@ -54,14 +76,7 @@ class DataBinding(A2uiExpression):
     @field_validator("path")
     @classmethod
     def _normalize_path(cls, v: str) -> str:
-        return v if v.startswith("/") else f"/{v}"
-
-    @model_serializer
-    def serialize_model(self) -> dict[str, Any]:
-        return {"path": self.path}
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"path": self.path}
+        return _absolute_pointer(v)
 
 
 def bind(path: str) -> DataBinding:
@@ -83,33 +98,15 @@ class AccessibilityAttributes(BaseModel):
     live: Optional[str] = None
     hidden: Optional[Union[bool, DataBinding]] = None
 
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(exclude_none=True, by_alias=True)
-
 
 class FunctionCall(A2uiExpression):
-    """Invocation of a client-side catalog function."""
+    """Invocation of a client-side catalog function.
 
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        populate_by_name=True,
-    )
-
-    call: str
-    args: dict[str, Any] = Field(default_factory=dict)
-    call_id: Optional[str] = Field(
-        default=None,
-        serialization_alias="callId",
-        validation_alias=AliasChoices("call_id", "callId"),
-    )
-
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(exclude_none=True, by_alias=True)
-
-
-class Action(BaseModel):
-    """An interaction handler dispatching a server event or client function."""
+    Note there is no call identifier here. Correlating a call with its response
+    is a v1.0 agent-function concern, carried as ``functionCallId`` on the
+    call and response messages, not a property of a catalog function invoked
+    from inside a component.
+    """
 
     model_config = ConfigDict(
         extra="forbid",
@@ -117,52 +114,73 @@ class Action(BaseModel):
         validate_by_name=True,
     )
 
-    event: Optional[Union[str, dict[str, Any]]] = None
-    function: Optional[FunctionCall] = None
+    call: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class ActionEvent(BaseModel):
+    """A named event dispatched to the server when an action fires."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
+
+    name: str
     context: Optional[dict[str, Any]] = None
 
-    @model_serializer
-    def serialize_model(self) -> dict[str, Any]:
-        if self.event is not None:
-            if isinstance(self.event, str):
-                d: dict[str, Any] = {"name": self.event}
-                if self.context:
-                    d["context"] = {
-                        k: (
-                            v.model_dump(exclude_none=True, by_alias=True)
-                            if isinstance(v, BaseModel)
-                            else (v.to_dict() if hasattr(v, "to_dict") else v)
-                        )
-                        for k, v in self.context.items()
-                    }
-                return {"event": d}
-            elif isinstance(self.event, dict):
-                ev = dict(self.event)
-                if self.context and "context" not in ev:
-                    ev["context"] = {
-                        k: (
-                            v.model_dump(exclude_none=True, by_alias=True)
-                            if isinstance(v, BaseModel)
-                            else (v.to_dict() if hasattr(v, "to_dict") else v)
-                        )
-                        for k, v in self.context.items()
-                    }
-                if "name" in ev:
-                    return {"event": ev}
-                return {"event": {"name": ev.get("name", "action"), **ev}}
-            return {"event": self.event}
-        if self.function is not None:
-            return {
-                "function": self.function.model_dump(exclude_none=True, by_alias=True)
-            }
-        return {}
 
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(exclude_none=True, by_alias=True)
+class Action(BaseModel):
+    """An interaction handler dispatching a server event or a client function.
+
+    The spec models this as a ``oneOf``: an action carries an ``event`` or a
+    ``functionCall``, never both and never neither. That constraint is enforced
+    here rather than left to the wire, because an action with neither branch
+    silently does nothing at runtime.
+
+    There is no string shorthand for ``event``. A before-validator accepting
+    ``Action(event="save")`` would be invisible to a type checker, which then
+    reports the ergonomic spelling as an error. Use :func:`event` instead.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
+
+    event: Optional[ActionEvent] = None
+    function_call: Optional[FunctionCall] = Field(
+        default=None,
+        serialization_alias="functionCall",
+        validation_alias=AliasChoices("function_call", "functionCall"),
+    )
+
+    @model_validator(mode="after")
+    def _require_exactly_one_branch(self) -> Action:
+        if (self.event is None) == (self.function_call is None):
+            raise ValueError(
+                "Action requires exactly one of 'event' or 'function_call'."
+            )
+        return self
+
+
+def event(name: str, context: Optional[Mapping[str, Any]] = None) -> Action:
+    """Ergonomic helper to construct a server-event Action."""
+    return Action(
+        event=ActionEvent(name=name, context=dict(context) if context else None)
+    )
 
 
 class CheckRule(BaseModel):
-    """A client-side validation check (condition + error message)."""
+    """A client-side validation check (condition + error message).
+
+    ``condition`` is narrowed to a :class:`FunctionCall` even though the spec
+    allows any ``DynamicBoolean``. A bare literal or data binding as a check
+    condition is almost always a mistake, and the catalog's validation functions
+    are the intended way to express one.
+    """
 
     model_config = ConfigDict(
         extra="forbid",
@@ -173,12 +191,15 @@ class CheckRule(BaseModel):
     condition: FunctionCall
     message: str
 
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(exclude_none=True, by_alias=True)
-
 
 class DynamicChildList(BaseModel):
-    """Generates dynamic children from a collection in the data model."""
+    """Generates children by repeating one template component over a data model list.
+
+    On the wire this is ``{"componentId": <id>, "path": <str>}``: the template is
+    an ordinary sibling component, referenced by ID exactly like any other child.
+    Authors nest the template here, and the :data:`Child` serializer resolves it
+    to the ID it was allocated, so the reference cannot dangle.
+    """
 
     model_config = ConfigDict(
         extra="forbid",
@@ -186,29 +207,18 @@ class DynamicChildList(BaseModel):
         validate_by_name=True,
     )
 
-    data_model_path: str = Field(
-        serialization_alias="dataModelPath",
-        validation_alias=AliasChoices("data_model_path", "dataModelPath"),
+    path: str = Field(
+        validation_alias=AliasChoices("path", "data_model_path", "dataModelPath"),
     )
-    template: ComponentBuilderNode
+    template: Child = Field(
+        serialization_alias="componentId",
+        validation_alias=AliasChoices("template", "componentId"),
+    )
 
-    @field_validator("data_model_path")
+    @field_validator("path")
     @classmethod
     def _normalize_path(cls, v: str) -> str:
-        return v if v.startswith("/") else f"/{v}"
-
-    @model_serializer(mode="wrap")
-    def _serialize(self, handler: Any) -> dict[str, Any]:
-        tmpl = self.template
-        return {
-            "dataModelPath": self.data_model_path,
-            "template": (
-                tmpl.to_dict() if hasattr(tmpl, "to_dict") else tmpl.model_dump()
-            ),
-        }
-
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(exclude_none=True, by_alias=True)
+        return _absolute_pointer(v)
 
 
 # Canonical Protocol Type Aliases
@@ -218,5 +228,4 @@ DynamicBoolean = Union[bool, A2uiExpression]
 DynamicStringList = Union[Sequence[str], A2uiExpression]
 DynamicValue = Union[Any, A2uiExpression]
 
-Child: TypeAlias = ComponentBuilderNode
-ChildList: TypeAlias = Union[Sequence[ComponentBuilderNode], DynamicChildList]
+ChildList: TypeAlias = Union[Sequence[Child], DynamicChildList]

@@ -43,13 +43,6 @@ class ComponentBuilderNode(BaseModel):
     def component_name(self) -> str:
         return self.component
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serializes this component into an A2UI wire format dictionary."""
-        d: dict[str, Any] = {"component": self.component}
-        if self.id is not None:
-            d["id"] = self.id
-        return d
-
     def to_components(self, prefix: Optional[str] = None) -> list[dict[str, Any]]:
         """Flattens this component subtree into A2UI wire-format dictionaries."""
         from .flattener import flatten_component_tree
@@ -61,14 +54,13 @@ class ExternalComponentBuilderNode(ComponentBuilderNode):
     """Represents a component defined outside the current macro (slot reference).
 
     External components are referenced strictly by ID. They are never assigned
-    namespaced IDs during macro expansion, preserving outer component addresses.
+    namespaced IDs during macro expansion, preserving outer component addresses,
+    and they are never emitted as components because they already exist on the
+    surface. Both behaviours live in the child slot serializer.
     """
 
     def __init__(self, id: str, **kwargs: Any):
         super().__init__(id=id, component="ExternalComponent", **kwargs)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"id": self.id}
 
 
 # Ergonomic alias for referencing external/existing components

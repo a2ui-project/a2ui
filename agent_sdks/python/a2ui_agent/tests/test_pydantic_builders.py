@@ -12,18 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for Phase 1 Pydantic builder models, ComponentTree, and envelope helpers."""
+"""Tests for the Python authoring surface of the fluent builders.
+
+Wire-format parity is covered by the language-agnostic conformance suite. What
+is tested here is the part that suite cannot express, because it is specific to
+this SDK: what the type checker rejects, what Pydantic rejects at runtime, and
+the graph behaviours (ID allocation, slot boundaries, shared children) that the
+child serializer is responsible for.
+"""
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
 from a2ui.builder.v0_9 import (
+    LENIENT_ENUM_CONTEXT,
     Action,
+    ActionEvent,
+    CheckRule,
     ComponentBuilderNode,
+    ComponentRef,
     ComponentTree,
+    DynamicChildList,
     FunctionCall,
     bind,
     create_surface,
+    event,
     flatten_component_tree,
     update_components,
 )
@@ -34,7 +47,15 @@ from a2ui.builder.v0_9.catalogs.basic_catalog import (
     Text,
     Image,
     Icon,
+    TextField,
+    open_url,
+    regex,
 )
+
+
+# =============================================================================
+# Model basics
+# =============================================================================
 
 
 def test_pydantic_inheritance():
@@ -45,7 +66,7 @@ def test_pydantic_inheritance():
     assert text.component == "Text"
     assert text.component_name == "Text"
 
-    action = Action(event="click")
+    action = event("click")
     assert isinstance(action, BaseModel)
 
     binding = bind("/user/name")
@@ -65,38 +86,6 @@ def test_strict_authoring_validation_rejects_typos():
     assert "lable" in str(exc_info.value)
 
 
-def test_strict_enums_reject_unknown_variants():
-    """Verifies that unrecognized enum string variants raise ValidationError."""
-    # Standard catalog variants succeed
-    t_std = Text(text="Standard Heading", variant="h1")
-    assert t_std.variant == "h1"
-
-    b_std = Button(
-        child=Text(text="Click"),
-        action=Action(event="click"),
-        variant="primary",
-    )
-    assert b_std.variant == "primary"
-
-    # Unrecognized variants fail validation immediately
-    with pytest.raises(ValidationError) as exc_info:
-        Text(text="Custom Display", variant="display-super-large")
-    assert "variant" in str(exc_info.value)
-    assert "literal_error" in str(exc_info.value)
-
-    with pytest.raises(ValidationError) as exc_info:
-        Button(
-            child=Text(text="Click"),
-            action=Action(event="click"),
-            variant="brand-gradient",
-        )
-    assert "variant" in str(exc_info.value)
-
-    with pytest.raises(ValidationError) as exc_info:
-        Image(url="https://example.com/img.png", fit="custom-smart-crop")
-    assert "fit" in str(exc_info.value)
-
-
 def test_missing_required_parameters_rejected():
     """Verifies that omitting required parameters raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -105,7 +94,7 @@ def test_missing_required_parameters_rejected():
     assert "missing" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info:
-        Button(action=Action(event="click"))  # missing required 'child'
+        Button(action=event("click"))  # missing required 'child'
     assert "child" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info:
@@ -125,7 +114,7 @@ def test_arbitrary_objects_rejected():
     with pytest.raises(ValidationError):
         Button(
             child=CustomArbitraryObject(),  # type: ignore
-            action=Action(event="click"),
+            action=event("click"),
         )
 
 
@@ -143,13 +132,123 @@ def test_assignment_validation_rejects_invalid_mutations():
     assert t.text == "Valid Text"
 
 
+# =============================================================================
+# Enums: strict when authoring, open when parsing
+# =============================================================================
+
+
+def test_strict_enums_reject_unknown_variants():
+    """Verifies that unrecognized enum string variants raise ValidationError."""
+    assert Text(text="Standard Heading", variant="h1").variant == "h1"
+    assert (
+        Button(
+            child=Text(text="Click"), action=event("click"), variant="primary"
+        ).variant
+        == "primary"
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        Text(text="Custom Display", variant="display-super-large")
+    assert "variant" in str(exc_info.value)
+    assert "literal_error" in str(exc_info.value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Button(
+            child=Text(text="Click"),
+            action=event("click"),
+            variant="brand-gradient",
+        )
+    assert "variant" in str(exc_info.value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Image(url="https://example.com/img.png", fit="custom-smart-crop")
+    assert "fit" in str(exc_info.value)
+
+
+def test_lenient_context_accepts_forward_compatible_enum_values():
+    """Verifies that parsing with a lenient context preserves values from newer catalogs.
+
+    Dropping or rejecting an unrecognized variant on the parse path would lose
+    information that a newer client understood perfectly well. Authoring stays
+    strict, which is why this is a context flag rather than a wider annotation.
+    """
+    payload = {"component": "Text", "text": "Hi", "variant": "displayLarge"}
+
+    with pytest.raises(ValidationError):
+        Text.model_validate(payload)
+
+    parsed = Text.model_validate(payload, context=LENIENT_ENUM_CONTEXT)
+    assert parsed.variant == "displayLarge"
+
+    # Known values are unaffected by the relaxation.
+    assert (
+        Text.model_validate(
+            {"component": "Text", "text": "Hi", "variant": "h1"},
+            context=LENIENT_ENUM_CONTEXT,
+        ).variant
+        == "h1"
+    )
+
+
+# =============================================================================
+# Actions
+# =============================================================================
+
+
+def test_action_requires_exactly_one_branch():
+    """Verifies the spec's oneOf between a server event and a client function call."""
+    with pytest.raises(ValidationError) as exc_info:
+        Action()
+    assert "exactly one" in str(exc_info.value)
+
+    with pytest.raises(ValidationError):
+        Action(
+            event=ActionEvent(name="save"),
+            function_call=open_url(url="https://example.com"),
+        )
+
+
+def test_event_helper_and_context_serialization():
+    """Verifies the event helper and that bindings inside a context map serialize."""
+    assert event("simple_event").model_dump(by_alias=True, exclude_none=True) == {
+        "event": {"name": "simple_event"}
+    }
+
+    with_context = event(
+        "server_action", {"server": "db1", "port": 5432, "user": bind("/session/uid")}
+    )
+    assert with_context.model_dump(by_alias=True, exclude_none=True) == {
+        "event": {
+            "name": "server_action",
+            "context": {
+                "server": "db1",
+                "port": 5432,
+                "user": {"path": "/session/uid"},
+            },
+        }
+    }
+
+
+def test_function_call_action_uses_wire_key():
+    """Verifies the client-function branch emits 'functionCall', the key the spec requires."""
+    action = Action(function_call=open_url(url="https://a2ui.org"))
+    assert action.model_dump(by_alias=True, exclude_none=True) == {
+        "functionCall": {"call": "openUrl", "args": {"url": "https://a2ui.org"}}
+    }
+
+
+# =============================================================================
+# Flattening: IDs, slot boundaries, shared children
+# =============================================================================
+
+
 def test_direct_node_serialization():
     """Verifies that node.to_components() serializes subtrees directly."""
     layout = Card(
         child=Column(
             children=[
                 Text(text="Title", variant="h2"),
-                Button(child=Text(text="Submit"), action=Action(event="submit")),
+                Button(child=Text(text="Submit"), action=event("submit")),
             ]
         )
     )
@@ -162,40 +261,157 @@ def test_direct_node_serialization():
     assert "Text" in comp_types
     assert "Button" in comp_types
 
-    # With prefix
     prefixed_comps = layout.to_components(prefix="macro_test")
     assert any("macro_test" in c["id"] for c in prefixed_comps)
 
 
-def test_component_tree_envelope_packaging():
-    """Verifies ComponentTree container methods: to_components, to_update, to_surface."""
-    card = Card(child=Text(text="Dashboard Info"))
-    tree = ComponentTree(root=card, surface_id="dashboard")
+def test_children_are_emitted_before_their_parent():
+    """Verifies depth-first post-order, so every reference resolves to an earlier sibling."""
+    comps = flatten_component_tree(
+        Card(id="outer", child=Column(id="inner", children=[Text(id="leaf", text="x")]))
+    )
+    assert [c["id"] for c in comps] == ["outer__leaf", "outer__inner", "outer"]
 
-    # 1. Flat components
-    comps = tree.to_components()
-    assert len(comps) == 2
+    seen: set[str] = set()
+    for comp in comps:
+        for key in ("child", "children"):
+            if key not in comp:
+                continue
+            refs = comp[key] if isinstance(comp[key], list) else [comp[key]]
+            assert all(ref in seen for ref in refs)
+        seen.add(comp["id"])
 
-    # 2. Incremental update envelope
-    update_msg = tree.to_update()
-    assert "updateComponents" in update_msg
-    assert update_msg["updateComponents"]["surfaceId"] == "dashboard"
-    assert len(update_msg["updateComponents"]["components"]) == 2
 
-    # 3. Surface creation envelope
-    surface_msgs = tree.to_surface(catalog_id="basic")
-    assert len(surface_msgs) == 2
-    assert "createSurface" in surface_msgs[0]
-    assert surface_msgs[0]["createSurface"]["surfaceId"] == "dashboard"
-    assert surface_msgs[0]["createSurface"]["catalogId"] == "basic"
-    assert "updateComponents" in surface_msgs[1]
+def test_id_collision_prevention():
+    """Verifies that auto-generated sequential IDs never collide with user-provided IDs.
+
+    Allocation happens lazily during serialization, so an explicit ID declared
+    later in the tree would collide with an earlier auto-allocated one. A scan
+    pass reserves every author-supplied ID before allocation begins.
+    """
+    tree = Column(
+        id="root",
+        children=[
+            Text(id="text_1", text="Explicit text_1"),
+            Text(text="Auto-allocated text"),
+        ],
+    )
+    ids = [c["id"] for c in flatten_component_tree(tree)]
+    assert len(ids) == len(set(ids)), f"Duplicate IDs detected: {ids}"
+    assert "root__text_1" in ids
+    assert "root__text_2" in ids
+
+    # The collision-prone ordering: the auto-allocated node comes first.
+    reordered = Column(
+        id="root",
+        children=[
+            Text(text="Auto-allocated text"),
+            Text(id="text_1", text="Explicit text_1"),
+        ],
+    )
+    reordered_ids = [c["id"] for c in flatten_component_tree(reordered)]
+    assert len(reordered_ids) == len(set(reordered_ids)), reordered_ids
+    assert "root__text_1" in reordered_ids
+
+
+def test_component_ref_is_referenced_not_redefined():
+    """Verifies slot boundaries keep their address and are never emitted or namespaced."""
+    comps = flatten_component_tree(
+        Column(id="wrapper", children=[ComponentRef(id="already_on_surface")])
+    )
+    assert [c["id"] for c in comps] == ["wrapper"]
+    assert comps[0]["children"] == ["already_on_surface"]
+
+
+def test_shared_child_is_emitted_once_and_referenced_twice():
+    """Verifies that the same node object in two slots is one component, not two."""
+    shared = Text(id="shared", text="Reused")
+    comps = flatten_component_tree(
+        Column(id="wrapper", children=[shared, shared])
+    )
+    assert [c["id"] for c in comps] == ["wrapper__shared", "wrapper"]
+    assert comps[1]["children"] == ["wrapper__shared", "wrapper__shared"]
+
+
+def test_dynamic_child_list_emits_a_component_id_reference():
+    """Verifies the spec shape, where the template is an ordinary sibling component."""
+    comps = flatten_component_tree(
+        Column(
+            id="feed",
+            children=DynamicChildList(
+                path="posts", template=Card(id="tpl", child=Text(text="t"))
+            ),
+        )
+    )
+    assert comps[-1]["children"] == {"path": "/posts", "componentId": "feed__tpl"}
+    # The reference resolves: the template really is in the emitted list.
+    assert "feed__tpl" in {c["id"] for c in comps}
+
+
+def test_serialization_aliases_are_honoured():
+    """Verifies snake_case fields reach the wire under their camelCase alias."""
+    comp = flatten_component_tree(
+        TextField(id="zip", label="ZIP", validation_regexp="^[0-9]{5}$")
+    )[0]
+    assert comp["validationRegexp"] == "^[0-9]{5}$"
+    assert "validation_regexp" not in comp
+
+
+def test_checks_serialize_on_checkable_components():
+    """Verifies CheckRule reaches the wire via a component's checks slot."""
+    comp = flatten_component_tree(
+        TextField(
+            id="zip",
+            label="ZIP",
+            checks=[
+                CheckRule(
+                    condition=regex(value=bind("/user/zip"), pattern="^[0-9]{5}$"),
+                    message="ZIP code must be 5 digits",
+                )
+            ],
+        )
+    )[0]
+    assert comp["checks"] == [
+        {
+            "condition": {
+                "call": "regex",
+                "args": {"value": {"path": "/user/zip"}, "pattern": "^[0-9]{5}$"},
+            },
+            "message": "ZIP code must be 5 digits",
+        }
+    ]
+
+
+def test_bare_model_dump_keeps_children_nested():
+    """Verifies a builder tree stays inspectable outside a flatten pass."""
+    tree = Card(id="c", child=Text(id="t", text="Hi"))
+    dumped = tree.model_dump(by_alias=True, exclude_none=True)
+    assert dumped["child"] == {
+        "component": "Text",
+        "id": "t",
+        "text": "Hi",
+        "variant": "body",
+    }
+
+
+# =============================================================================
+# Trees and envelopes
+# =============================================================================
+
+
+def test_component_tree_methods():
+    """Verifies the ComponentTree container's shape-only responsibilities."""
+    card = Card(child=Text(text="Tree Test"))
+    tree = ComponentTree(root=card, surface_id="s1")
+    assert tree.surface_id == "s1"
+    assert len(tree.to_components()) == 2
+    assert tree.to_json() is not None
 
 
 def test_top_level_envelope_helpers():
-    """Verifies create_surface and update_components functional helpers."""
+    """Verifies create_surface and update_components emit typed, versioned messages."""
     root_col = Column(children=[Text(text="Status")])
 
-    # create_surface helper emits CreateSurfaceMessage + UpdateComponentsMessage
     create_msgs = create_surface(
         "my-surface", root=root_col, catalog_id="org.a2ui.basic"
     )
@@ -207,111 +423,44 @@ def test_top_level_envelope_helpers():
     dumped = [m.model_dump(by_alias=True, exclude_none=True) for m in create_msgs]
     assert "createSurface" in dumped[0]
     assert "updateComponents" in dumped[1]
+    # Every envelope carries the protocol version; the validator requires it.
+    assert all("version" in m for m in dumped)
 
-    # update_components helper emits ONLY updateComponents (does not reset surface)
+    # update_components emits ONLY updateComponents, so it does not reset the surface.
     update_msgs = update_components("my-surface", root=root_col)
     assert len(update_msgs) == 1
     assert update_msgs[0].update_components.surface_id == "my-surface"
 
 
-def test_component_tree_methods():
-    """Verifies that ComponentTree methods and serialization work as expected."""
-    card = Card(child=Text(text="Tree Test"))
-    tree = ComponentTree(root=card, surface_id="s1")
-    assert tree.surface_id == "s1"
-
-    # to_components and to_json
-    comps = tree.to_components()
-    assert len(comps) == 2
-    assert tree.to_json() is not None
-
-    # to_update
-    update_msg = tree.to_update()
-    assert "updateComponents" in update_msg
-    assert update_msg["updateComponents"]["surfaceId"] == "s1"
-
-    # to_surface with data_model
-    surface_msgs = tree.to_surface(
-        catalog_id="basic", data_model={"user/name": "Alice"}
+def test_envelope_helpers_accept_a_list_of_roots():
+    """Verifies a forest packages as cleanly as a single tree."""
+    msgs = update_components(
+        "s", root=[Text(id="a", text="A"), Text(id="b", text="B")]
     )
-    assert len(surface_msgs) == 3
-    assert "createSurface" in surface_msgs[0]
-    assert "updateComponents" in surface_msgs[1]
-    assert "updateDataModel" in surface_msgs[2]
-    assert surface_msgs[2]["updateDataModel"]["path"] == "/user/name"
-    assert surface_msgs[2]["updateDataModel"]["value"] == "Alice"
+    components = msgs[0].update_components.components
+    assert [c["id"] for c in components] == ["a", "b"]
 
 
-def test_action_context_convenience():
-    """Verifies Action accepts both string events and dict events with context."""
-    a1 = Action(event="simple_event")
-    assert a1.to_dict() == {"event": {"name": "simple_event"}}
-
-    a2 = Action(event="server_action", context={"server": "db1", "port": 5432})
-    assert a2.to_dict() == {
-        "event": {
-            "name": "server_action",
-            "context": {"server": "db1", "port": 5432},
-        }
-    }
-
-
-def test_static_typechecker_compiler_rejections():
-    """Verifies that static type checker (mypy) halts with compiler errors on invalid syntax."""
-    try:
-        import mypy.api
-    except ImportError:
-        pytest.skip("mypy is not installed in the environment")
-
-    # 1. Invalid enum variant
-    code_bad_enum = """
-from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text
-from a2ui.builder.v0_9 import Action
-b = Button(child=Text(text="Hi"), action=Action(event="click"), variant="invalid_variant")
-"""
-    normal_report, _, exit_status = mypy.api.run(["-c", code_bad_enum])
-    assert exit_status != 0
-    assert 'Argument "variant" to "Button" has incompatible type' in normal_report
-
-    # 2. Misspelled argument name
-    code_typo_arg = """
-from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text
-from a2ui.builder.v0_9 import Action
-b = Button(child=Text(text="Hi"), action=Action(event="click"), lable="Save")
-"""
-    normal_report, _, exit_status = mypy.api.run(["-c", code_typo_arg])
-    assert exit_status != 0
-    assert 'Unexpected keyword argument "lable" for "Button"' in normal_report
-
-    # 3. Invalid child type (raw string instead of component node)
-    code_bad_child = """
-from a2ui.builder.v0_9.catalogs.basic_catalog import Button
-from a2ui.builder.v0_9 import Action
-b = Button(child="not_a_component", action=Action(event="click"))
-"""
-    normal_report, _, exit_status = mypy.api.run(["-c", code_bad_child])
-    assert exit_status != 0
-    assert 'Argument "child" to "Button" has incompatible type' in normal_report
-
-
-def test_id_collision_prevention():
-    """Verifies that auto-generated sequential IDs never collide with user-provided IDs."""
-    tree = Column(
-        id="root",
-        children=[
-            Text(id="text_1", text="Explicit text_1"),
-            Text(text="Auto-allocated text"),
-        ],
+def test_data_model_paths_are_normalized():
+    """Verifies updateDataModel paths gain a leading slash."""
+    msgs = create_surface(
+        "s",
+        root=Card(child=Text(text="x")),
+        catalog_id="basic",
+        data_model={"user/name": "Alice"},
     )
-    comps = flatten_component_tree(tree)
-    ids = [c["id"] for c in comps]
-    assert len(ids) == len(set(ids)), f"Duplicate IDs detected: {ids}"
-    assert "root__text_1" in ids
-    assert "root__text_2" in ids
+    dumped = msgs[2].model_dump(by_alias=True, exclude_none=True)
+    assert dumped["updateDataModel"]["path"] == "/user/name"
+    assert dumped["updateDataModel"]["value"] == "Alice"
+
+
+# =============================================================================
+# Item models and function calls
+# =============================================================================
 
 
 def test_tab_item_and_choice_option_models():
-    """Verifies typed TabItem and ChoiceOption item models with nested child resolution."""
+    """Verifies typed item models resolve nested children through the same serializer."""
     from a2ui.builder.v0_9.catalogs.basic_catalog import (
         ChoiceOption,
         ChoicePicker,
@@ -328,7 +477,7 @@ def test_tab_item_and_choice_option_models():
                 child=Button(
                     id="tab2_btn",
                     child=Text(text="Click"),
-                    action=Action(event="click"),
+                    action=event("click"),
                 ),
             ),
         ],
@@ -355,21 +504,53 @@ def test_tab_item_and_choice_option_models():
 
 
 def test_typed_function_call_classes():
-    """Verifies typed FunctionCall classes and factory helpers."""
-    from a2ui.builder.v0_9.catalogs.basic_catalog import (
-        OpenUrl,
-        open_url,
-    )
-
-    fn_obj = OpenUrl(url="https://example.com", call_id="c1")
+    """Verifies typed FunctionCall classes and their factory helpers agree."""
+    fn_obj = open_url(url="https://example.com")
     assert isinstance(fn_obj, FunctionCall)
     assert fn_obj.call == "openUrl"
     assert fn_obj.args == {"url": "https://example.com"}
-    assert fn_obj.call_id == "c1"
 
-    fn_helper = open_url(url="https://example.com", call_id="c1")
-    assert isinstance(fn_helper, OpenUrl)
-    assert fn_helper.to_dict() == fn_obj.to_dict()
+    from a2ui.builder.v0_9.catalogs.basic_catalog import OpenUrl
+
+    assert isinstance(fn_obj, OpenUrl)
+    assert fn_obj.model_dump(by_alias=True, exclude_none=True) == OpenUrl(
+        url="https://example.com"
+    ).model_dump(by_alias=True, exclude_none=True)
 
 
+# =============================================================================
+# Static typing
+# =============================================================================
 
+
+def test_static_typechecker_compiler_rejections():
+    """Verifies that a static type checker halts on invalid builder syntax."""
+    try:
+        import mypy.api
+    except ImportError:
+        pytest.skip("mypy is not installed in the environment")
+
+    preamble = (
+        "from a2ui.builder.v0_9.catalogs.basic_catalog import Button, Text\n"
+        "from a2ui.builder.v0_9 import event\n"
+    )
+
+    cases = [
+        (
+            'b = Button(child=Text(text="Hi"), action=event("click"), variant="invalid_variant")',
+            'Argument "variant" to "Button" has incompatible type',
+        ),
+        (
+            'b = Button(child=Text(text="Hi"), action=event("click"), lable="Save")',
+            'Unexpected keyword argument "lable" for "Button"',
+        ),
+        (
+            'b = Button(child="not_a_component", action=event("click"))',
+            'Argument "child" to "Button" has incompatible type',
+        ),
+    ]
+
+    for code, expected in cases:
+        report, _, exit_status = mypy.api.run(["-c", preamble + code])
+        assert exit_status != 0, code
+        assert expected in report, f"{code}\n{report}"

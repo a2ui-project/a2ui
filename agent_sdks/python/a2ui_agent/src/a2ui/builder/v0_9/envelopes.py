@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence, Union
 from a2ui.core.schema.server_to_client import (
     A2uiMessage,
     CreateSurface,
@@ -31,32 +31,53 @@ from ..core.flattener import flatten_component_tree
 
 DEFAULT_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 
+Root = Union[ComponentBuilderNode, Sequence[ComponentBuilderNode]]
 
-def to_update_message(
-    root: ComponentBuilderNode, surface_id: str = "main"
+
+def _default_root_id(root: Root) -> Optional[str]:
+    """Anchors a single root to its own ID; a list of roots has no shared anchor."""
+    if isinstance(root, ComponentBuilderNode):
+        return root.id or "root"
+    return None
+
+
+def _to_update_message(
+    root: Root,
+    surface_id: str = "main",
+    root_id: Optional[str] = None,
 ) -> UpdateComponentsMessage:
-    """Packages a component hierarchy into a v0.9 updateComponents message."""
+    """Packages a component hierarchy into a v0.9 updateComponents message.
+
+    Shared by both public entry points: establishing a surface sends this
+    alongside a createSurface, and updating one sends it alone.
+    """
     return UpdateComponentsMessage(
         update_components=UpdateComponents(
             surface_id=surface_id,
-            components=flatten_component_tree(root, root_id=root.id or "root"),
+            components=flatten_component_tree(
+                root, root_id=root_id or _default_root_id(root)
+            ),
         )
     )
 
 
-def to_surface_messages(
-    root: ComponentBuilderNode,
-    surface_id: str = "main",
-    catalog_id: Optional[str] = None,
+def create_surface(
+    surface_id: str,
+    root: Root,
+    *,
+    catalog_id: str | None = None,
     data_model: Optional[dict[str, Any]] = None,
+    root_id: Optional[str] = None,
 ) -> list[A2uiMessage]:
-    """Packages a component hierarchy into v0.9 createSurface, updateComponents, and optional updateDataModel messages."""
-    cat_id = catalog_id or DEFAULT_CATALOG_ID
+    """Creates messages to establish a new surface (createSurface + updateComponents + optional updateDataModel)."""
     messages: list[A2uiMessage] = [
         CreateSurfaceMessage(
-            create_surface=CreateSurface(surface_id=surface_id, catalog_id=cat_id)
+            create_surface=CreateSurface(
+                surface_id=surface_id,
+                catalog_id=catalog_id or DEFAULT_CATALOG_ID,
+            )
         ),
-        to_update_message(root, surface_id=surface_id),
+        _to_update_message(root, surface_id=surface_id, root_id=root_id),
     ]
     if data_model:
         for path, val in data_model.items():
@@ -73,25 +94,11 @@ def to_surface_messages(
     return messages
 
 
-def create_surface(
-    surface_id: str,
-    root: ComponentBuilderNode,
-    *,
-    catalog_id: str | None = None,
-    data_model: Optional[dict[str, Any]] = None,
-) -> list[A2uiMessage]:
-    """Creates messages to establish a new surface (createSurface + updateComponents + optional updateDataModel)."""
-    return to_surface_messages(
-        root=root,
-        surface_id=surface_id,
-        catalog_id=catalog_id,
-        data_model=data_model,
-    )
-
-
 def update_components(
     surface_id: str,
-    root: ComponentBuilderNode,
+    root: Root,
+    *,
+    root_id: Optional[str] = None,
 ) -> list[A2uiMessage]:
     """Creates an incremental surface update message (updateComponents only)."""
-    return [to_update_message(root=root, surface_id=surface_id)]
+    return [_to_update_message(root=root, surface_id=surface_id, root_id=root_id)]

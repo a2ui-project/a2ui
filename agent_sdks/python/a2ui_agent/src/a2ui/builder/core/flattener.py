@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tree traversal and flattener converting hierarchical builder nodes to flat wire dicts."""
+"""Converts hierarchical builder nodes into the flat A2UI wire component list."""
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Sequence, Union
-from pydantic import BaseModel
+from typing import Any, Optional, Sequence, Union
 
 from .base_node import ComponentBuilderNode, ExternalComponentBuilderNode
+from .child import FlattenContext, dump_component, emit_component
 from .id_allocator import IdAllocator
 
 
@@ -27,180 +27,55 @@ def flatten_component_tree(
     root: Union[ComponentBuilderNode, Sequence[ComponentBuilderNode]],
     root_id: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """Flattens a tree or list of ComponentBuilderNode objects into flat A2UI dictionaries.
+    """Flattens a builder tree, or list of trees, into flat A2UI component dicts.
 
-    Implements:
-    1. Root ID anchor stitching (returned root node inherits root_id).
-    2. Sub-component namespacing (f"{root_id}__{local_id}").
-    3. Slot boundary preservation (ExternalComponentBuilderNode IDs are untouched).
-    4. Reference rewriting for child / children slots.
+    Traversal is Pydantic's: this sets up the ID allocator and then hands off to
+    ``model_dump``, which drives the :data:`~.child.Child` serializer. This
+    function is only responsible for the two things that are genuinely not
+    field-level concerns:
+
+    1. Anchoring the returned root to ``root_id`` so a macro stitches into the
+       caller's surface.
+    2. Namespacing every sub-component as ``f"{root_id}__{local_id}"`` so two
+       expansions of the same macro cannot collide.
+
+    Slot boundaries (:class:`ExternalComponentBuilderNode`) are referenced by
+    their original ID and never namespaced or re-emitted.
     """
-    flat_list: list[dict[str, Any]] = []
-
     if isinstance(root, Sequence) and not isinstance(
         root, (str, bytes, ComponentBuilderNode)
     ):
-        # List of roots (e.g. table rows)
-        for i, item in enumerate(root):
-            item_root_id = f"{root_id}_{i}" if root_id else None
-            flat_list.extend(flatten_component_tree(item, root_id=item_root_id))
-        return flat_list
+        # A list of roots, e.g. table rows: each is flattened into its own scope.
+        components: list[dict[str, Any]] = []
+        for index, item in enumerate(root):
+            item_root_id = f"{root_id}_{index}" if root_id else None
+            components.extend(flatten_component_tree(item, root_id=item_root_id))
+        return components
 
     if isinstance(root, ExternalComponentBuilderNode):
-        # External components are already on surface
+        # Already on the surface; there is nothing to emit.
         return []
 
-    prefix = root_id or (root.id if root.id else "root")
-    existing_ids: set[str] = set()
+    prefix = root_id or root.id or "root"
+
+    # Pass 1: reserve author-supplied IDs so allocation cannot collide with one.
+    scan = FlattenContext(prefix=prefix)
+    emit_component(root, scan)
+    reserved = scan.reserved
     if root_id:
-        existing_ids.add(root_id)
+        reserved.add(root_id)
 
-    # Pre-scan existing user-provided IDs to avoid collisions
-    def scan_existing_ids(node: ComponentBuilderNode) -> None:
-        if node.id:
-            existing_ids.add(node.id)
-            existing_ids.add(f"{prefix}__{node.id}")
-        attrs = dict(node.__dict__)
-        extra = getattr(node, "__pydantic_extra__", None)
-        if extra is not None:
-            attrs.update(extra)
-        for k, v in attrs.items():
-            if k in ("component_name", "component", "id"):
-                continue
-            if isinstance(v, ComponentBuilderNode):
-                scan_existing_ids(v)
-            elif isinstance(v, Mapping):
-                for sub in v.values():
-                    if isinstance(sub, ComponentBuilderNode):
-                        scan_existing_ids(sub)
-            elif isinstance(v, Sequence) and not isinstance(v, (str, bytes)):
-                for sub in v:
-                    if isinstance(sub, ComponentBuilderNode):
-                        scan_existing_ids(sub)
-            elif hasattr(v, "template") and isinstance(v.template, ComponentBuilderNode):
-                scan_existing_ids(v.template)
+    # Pass 2: allocate and emit.
+    context = FlattenContext(
+        prefix=prefix,
+        allocator=IdAllocator(scope_prefix=prefix, existing_ids=reserved),
+        reserved=reserved,
+    )
+    assert context.allocator is not None
+    resolved_root_id = root_id or root.id or context.allocator.allocate(root.component)
+    context.assigned[id(root)] = resolved_root_id
 
-    scan_existing_ids(root)
-    allocator = IdAllocator(scope_prefix=prefix, existing_ids=existing_ids)
-    id_map: dict[int, str] = {}
-
-    # Phase 1: Assign IDs to all nodes
-    def assign_ids(node: ComponentBuilderNode, is_root: bool = False) -> str:
-        node_key = id(node)
-        if node_key in id_map:
-            return id_map[node_key]
-
-        if isinstance(node, ExternalComponentBuilderNode):
-            # Preserved verbatim
-            assigned = node.id or ""
-            id_map[node_key] = assigned
-            return assigned
-
-        comp_name = node.component
-        if is_root:
-            assigned = (
-                root_id
-                if root_id
-                else (node.id if node.id else allocator.allocate(comp_name))
-            )
-        else:
-            assigned = allocator.allocate(comp_name, preferred_id=node.id)
-
-        id_map[node_key] = assigned
-
-        # Recurse through children
-        def traverse(val: Any) -> None:
-            if isinstance(val, ComponentBuilderNode):
-                assign_ids(val, is_root=False)
-            elif isinstance(val, Mapping):
-                for v in val.values():
-                    traverse(v)
-            elif isinstance(val, Sequence) and not isinstance(val, (str, bytes)):
-                for item in val:
-                    traverse(item)
-            elif hasattr(val, "template") and isinstance(
-                val.template, ComponentBuilderNode
-            ):
-                traverse(val.template)
-            elif isinstance(val, BaseModel):
-                for v in val.__dict__.values():
-                    traverse(v)
-
-        attrs = dict(node.__dict__)
-        extra = getattr(node, "__pydantic_extra__", None)
-        if extra is not None:
-            attrs.update(extra)
-        for attr_name, attr_val in attrs.items():
-            if attr_name not in ("component_name", "component", "id"):
-                traverse(attr_val)
-
-        return assigned
-
-    assign_ids(root, is_root=True)
-
-    # Phase 2: Emit component dictionaries with rewritten references
-    visited_nodes: set[int] = set()
-
-    def serialize_node(node: ComponentBuilderNode) -> None:
-        node_key = id(node)
-        if node_key in visited_nodes or isinstance(node, ExternalComponentBuilderNode):
-            return
-        visited_nodes.add(node_key)
-
-        comp_name = node.component
-        d: dict[str, Any] = {"component": comp_name, "id": id_map[node_key]}
-
-        def traverse_and_serialize(val: Any) -> Any:
-            if isinstance(val, ComponentBuilderNode):
-                serialize_node(val)
-                return id_map[id(val)]
-            elif isinstance(val, Mapping):
-                return {k: traverse_and_serialize(v) for k, v in val.items()}
-            elif isinstance(val, Sequence) and not isinstance(val, (str, bytes)):
-                return [traverse_and_serialize(item) for item in val]
-            elif hasattr(val, "template") and isinstance(
-                val.template, ComponentBuilderNode
-            ):
-                serialize_node(val.template)
-                if isinstance(val, BaseModel):
-                    return val.model_dump(exclude_none=True, by_alias=True)
-                return val.to_dict() if hasattr(val, "to_dict") else val
-            elif isinstance(val, BaseModel):
-                has_child_node = any(
-                    isinstance(v, ComponentBuilderNode)
-                    or (
-                        isinstance(v, Sequence)
-                        and not isinstance(v, (str, bytes))
-                        and any(isinstance(x, ComponentBuilderNode) for x in v)
-                    )
-                    for v in val.__dict__.values()
-                )
-                if has_child_node:
-                    fields = {}
-                    for k, v in val.__dict__.items():
-                        if not k.startswith("_") and v is not None:
-                            fields[k] = traverse_and_serialize(v)
-                    return fields
-                if hasattr(val, "to_dict"):
-                    return val.to_dict()
-                return val.model_dump(exclude_none=True, by_alias=True)
-            elif hasattr(val, "to_dict"):
-                return val.to_dict()
-            else:
-                return val
-
-        attrs = dict(node.__dict__)
-        extra = getattr(node, "__pydantic_extra__", None)
-        if extra is not None:
-            attrs.update(extra)
-        for attr_name, attr_val in attrs.items():
-            if attr_name in ("component_name", "component", "id"):
-                continue
-            if attr_val is None:
-                continue
-            d[attr_name] = traverse_and_serialize(attr_val)
-
-        flat_list.append(d)
-
-    serialize_node(root)
-    return flat_list
+    # dump_component emits the root's descendants first, so the root lands last.
+    payload = dump_component(root, resolved_root_id, context)
+    context.components.append(payload)
+    return context.components

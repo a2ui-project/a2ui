@@ -24,7 +24,13 @@ from .flattener import flatten_component_tree
 
 
 class ComponentTree:
-    """An in-memory hierarchy of components rooted at a single ComponentBuilderNode."""
+    """An in-memory hierarchy of components rooted at a single ComponentBuilderNode.
+
+    A tree is deliberately transport-agnostic: it knows its own shape but not how
+    a given protocol version packages it. Envelope construction lives in the
+    versioned ``envelopes`` module so the message schema and the protocol version
+    stay in one place.
+    """
 
     def __init__(
         self,
@@ -42,36 +48,3 @@ class ComponentTree:
         """Serializes the component list into a JSON string."""
         return json.dumps(self.to_components(), indent=indent)
 
-    def to_update(self, surface_id: str | None = None) -> dict[str, Any]:
-        """Packages the tree into an updateComponents envelope for incremental updates."""
-        target_id = surface_id or self.surface_id or "main"
-        return {
-            "updateComponents": {
-                "surfaceId": target_id,
-                "components": self.to_components(),
-            }
-        }
-
-    def to_surface(
-        self,
-        surface_id: str | None = None,
-        catalog_id: str | None = None,
-        data_model: Optional[dict[str, Any]] = None,
-    ) -> list[dict[str, Any]]:
-        """Packages the tree into createSurface, updateComponents, and optional updateDataModel envelopes."""
-        target_id = surface_id or self.surface_id or "main"
-        create_env: dict[str, Any] = {"createSurface": {"surfaceId": target_id}}
-        if catalog_id:
-            create_env["createSurface"]["catalogId"] = catalog_id
-        messages: list[dict[str, Any]] = [create_env, self.to_update(target_id)]
-        if data_model:
-            for path, val in data_model.items():
-                norm_path = path if path.startswith("/") else f"/{path}"
-                messages.append({
-                    "updateDataModel": {
-                        "surfaceId": target_id,
-                        "path": norm_path,
-                        "value": val,
-                    }
-                })
-        return messages
