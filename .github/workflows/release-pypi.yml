@@ -29,6 +29,15 @@
 #     refused. That is why the release is dispatched from `main` and creates the
 #     tag itself, rather than being started by one.
 #
+# This workflow never pushes to `main`. The "Restrict Default Branch" ruleset
+# requires a pull request and lists no bypass actors, so a direct push is
+# refused, and being refused mid-run would strand artifacts in the Artifact
+# Registry. Only tags are pushed, which no ruleset covers. The changelog edit
+# that accompanies a release is raised as an ordinary pull request at the end.
+#
+# Because of that, tags point at a commit that is already on `main`, which is
+# what keeps `git describe --match` in python_ci.yml working.
+#
 # See docs/contributing/release.md for the operator-facing description.
 
 name: Release Python SDKs
@@ -118,12 +127,17 @@ jobs:
       # creates any. Reversing these two steps would bump twice.
       - name: Build the release plan
         id: plan
+        env:
+          PACKAGE: ${{ inputs.package }}
+          BUMP: ${{ inputs.bump }}
         run: |
           python3 .github/scripts/release_version.py plan \
-            --package '${{ inputs.package }}' \
-            --bump '${{ inputs.bump }}' \
+            --package "$PACKAGE" \
+            --bump "$BUMP" \
             --output release-plan.json
 
+      # Also rejects an empty `## Unreleased` section, which is what stops a
+      # release that would have nothing to say for itself.
       - name: Preflight checks
         run: |
           set -euo pipefail
@@ -139,7 +153,10 @@ jobs:
           jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
             while read -r name version; do
               url="https://pypi.org/pypi/${name}/${version}/json"
-              code=$(curl -sS -o /dev/null -w '%{http_code}' "$url")
+              # Retry rather than let one flaky lookup fail a release. A hard
+              # curl failure still aborts, so the guard cannot pass by accident.
+              code=$(curl -sS --retry 3 --retry-connrefused \
+                -o /dev/null -w '%{http_code}' "$url")
               if [ "$code" = "200" ]; then
                 echo "::error::${name} ${version} is already on PyPI."
                 exit 1
@@ -147,29 +164,23 @@ jobs:
               echo "${name} ${version} is not on PyPI yet (HTTP ${code})."
             done
 
-      - name: Cut the changelogs
-        run: |
-          set -euo pipefail
-          jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
-            while read -r name version; do
-              python3 .github/scripts/release_version.py cut-changelog \
-                --package "$name" --version "$version" --write
-            done
-
-      - name: Commit and tag locally
+      # Tags are created on the checked-out commit, which is already on `main`,
+      # and are not pushed yet. Two reasons for tagging an existing commit
+      # rather than a new changelog commit:
+      #
+      #  * The release cannot push to `main` (see the header), so a locally
+      #    created commit would never become reachable, and a tag pointing at an
+      #    unreachable commit breaks the `git describe` check in python_ci.yml.
+      #  * A failure before the upload succeeds must not leave a tag on the
+      #    remote, because the version would then be burned.
+      #
+      # hatch-vcs reads these tags during the build, so they have to exist
+      # before the build step.
+      - name: Tag locally
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Stage only the changelogs this release touched. A glob could pick
-          # up an unrelated CHANGELOG.md from another language's packages.
-          jq -r '.[].directory' release-plan.json | while read -r directory; do
-            git add "${directory}/CHANGELOG.md"
-          done
-          git commit -m "chore(release): $(jq -r '[.[] | "\(.pypi_name) \(.version)"] | join(", ")' release-plan.json)"
-          # Tags are created on the changelog commit but not pushed yet. A
-          # failure before the upload succeeds must not leave a tag behind on
-          # the remote, because the version would then be burned.
           jq -r '.[] | "\(.tag)\t\(.pypi_name) \(.version)"' release-plan.json |
             while IFS=$'\t' read -r tag message; do
               git tag -a "$tag" -m "$message"
@@ -212,6 +223,22 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
+      # Last cheap check before anything leaves the runner. The tags this run
+      # created point at the commit that was `main` at checkout; if `main` has
+      # advanced since, those tags would land on a commit that is no longer the
+      # tip and the release would describe a stale tree. Failing here costs
+      # nothing, whereas failing after the upload strands artifacts in the
+      # Artifact Registry.
+      - name: Confirm main has not moved
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "::error::main advanced since this run checked out" \
+              "$(git rev-parse --short HEAD). Re-run the workflow."
+            exit 1
+          fi
+
       # Staging is ordered core first, which is the order the plan emits, so a
       # new a2ui-core is in place before the a2ui-agent-sdk that requires it.
       - name: Stage in the Exit Gate Artifact Registry
@@ -225,12 +252,25 @@ jobs:
               "${directory}"/dist/*
           done
 
+      # always(), because a partial upload is exactly when the cleanup matters:
+      # with `package: both`, core can land and agent-sdk fail, and the default
+      # success() condition would skip the step and leave core behind.
       - name: Discard the staged artifacts (dry run)
-        if: inputs.dry_run
+        if: ${{ always() && inputs.dry_run && steps.plan.conclusion == 'success' }}
         run: |
           set -euo pipefail
           jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
             while read -r name version; do
+              # A version that never uploaded is the normal case on a partial
+              # failure, so a missing one is not an error here.
+              if ! gcloud artifacts versions describe "$version" \
+                --package="$name" \
+                --repository="${EXIT_GATE_AR_REPOSITORY}" \
+                --location="${EXIT_GATE_AR_LOCATION}" \
+                --project="${EXIT_GATE_PROJECT}" >/dev/null 2>&1; then
+                echo "${name} ${version} was never staged, nothing to remove."
+                continue
+              fi
               gcloud artifacts versions delete "$version" \
                 --package="$name" \
                 --repository="${EXIT_GATE_AR_REPOSITORY}" \
@@ -248,10 +288,16 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Past this point the artifacts are staged and the release is going
-      # ahead, so the commit and tags become permanent.
-      - name: Push the changelog commit and tags
+      # ahead, so the tags become permanent. Only tags are pushed: `main` is
+      # covered by a ruleset that requires a pull request, and the changelog
+      # edit goes through that route at the end of the job.
+      - name: Push the tags
         if: ${{ !inputs.dry_run }}
-        run: git push --follow-tags origin HEAD:main
+        run: |
+          set -euo pipefail
+          jq -r '.[].tag' release-plan.json | while read -r tag; do
+            git push origin "refs/tags/${tag}"
+          done
 
       - name: Write the publishing manifest
         if: ${{ !inputs.dry_run }}
@@ -329,3 +375,68 @@ jobs:
           python3 .github/scripts/confirm_pypi.py wait \
             --plan release-plan.json \
             --timeout-seconds 1200
+
+  # The changelog edit cannot be pushed to `main` (see the header), so it is
+  # raised as an ordinary pull request. It is a separate job because it is
+  # housekeeping: the packages are already published by this point, and a
+  # failure here must not stop `confirm` from linking the GitHub releases.
+  #
+  # Merge the pull request before the next release. Until it lands the entries
+  # stay under `## Unreleased`, and the next release repeats them in its notes.
+  changelog:
+    name: Propose the changelog update
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-plan
+
+      - name: Open the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: release/changelog-${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          jq -r '.[] | "\(.pypi_name)\t\(.version)"' release-plan.json |
+            while IFS=$'\t' read -r name version; do
+              python3 .github/scripts/release_version.py cut-changelog \
+                --package "$name" --version "$version" --write
+            done
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          # Only the changelogs: release-plan.json is downloaded into the
+          # workspace and must not end up in the commit.
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            git add "${directory}/CHANGELOG.md"
+          done
+
+          released=$(jq -r '[.[] | "\(.pypi_name) \(.version)"] | join(", ")' \
+            release-plan.json)
+          git commit -m "chore(release): changelog for ${released}"
+          git push origin "HEAD:refs/heads/${BRANCH}"
+
+          cat > pr-body.md <<EOF
+          Moves the \`## Unreleased\` entries under the released versions.
+          Raised automatically by [this release run](${RUN_URL}).
+
+          Please merge before the next release: until this lands the entries
+          stay under \`## Unreleased\`, and the next release repeats them in its
+          notes.
+          EOF
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(release): changelog for ${released}" \
+            --body-file pr-body.md

@@ -55,15 +55,35 @@ workflow. There is no version file to edit and no script to run locally.
 
 3. Check the dry run output, then run it again with `dry_run` disabled.
 
-The workflow works out the new version from the latest release tag, cuts the
-changelog, tags the release, builds, stages the artifacts in the OSS Exit Gate
-Artifact Registry, and uploads the manifest that triggers publishing. The Exit
-Gate emails `a2ui-core-working-group@google.com` when publishing starts and
-again when it finishes. The GitHub release is updated with a link to the
-published version once it appears on PyPI, either by the release run itself or
-by the hourly
+4. Review and merge the changelog pull request the workflow opens. Do this
+   before the next release: until it lands, the entries stay under
+   `## Unreleased` and the next release repeats them in its notes.
+
+The workflow works out the new version from the latest release tag, tags the
+release, builds, stages the artifacts in the OSS Exit Gate Artifact Registry,
+and uploads the manifest that triggers publishing. The Exit Gate emails
+`a2ui-core-working-group@google.com` when publishing starts and again when it
+finishes. The GitHub release is updated with a link to the published version
+once it appears on PyPI, either by the release run itself or by the hourly
 [Confirm PyPI publication](../../.github/workflows/release-verify-pypi.yml)
 workflow.
+
+#### The release only pushes tags
+
+`main` is covered by a ruleset that requires a pull request and allows no bypass
+actors, so the workflow cannot push to it. Being refused mid-run would leave
+artifacts staged in the Artifact Registry, so the workflow does not try: it
+pushes only tags, which no ruleset covers, and raises the changelog edit as a
+pull request afterwards.
+
+Tags therefore point at the commit that was the tip of `main` when the run
+started, not at the changelog commit. That is deliberate. The repository
+requires linear history, so a tag created on a branch commit would be left
+unreachable once the pull request is squashed, and the `git describe` check in
+[python_ci.yml](../../.github/workflows/python_ci.yml) would start failing.
+
+If `main` moves while a release is running, the run fails before anything is
+staged and asks you to try again.
 
 #### Versions come from git tags
 

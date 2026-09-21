@@ -237,6 +237,22 @@ class DiscoverPendingTest(unittest.TestCase):
         mock_run.return_value = mock.Mock(stdout="not valid json")
         self.assertEqual(cp.discover_pending(limit=50), [])
 
+    @mock.patch("subprocess.run")
+    def test_excludes_drafts(self, mock_run):
+        """A draft has no tag yet, so it can only crowd out real releases."""
+        mock_run.return_value = mock.Mock(stdout="[]")
+        cp.discover_pending()
+        self.assertIn("--exclude-drafts", mock_run.call_args.args[0])
+
+
+class UpdateReleaseTest(unittest.TestCase):
+
+    @mock.patch("subprocess.run")
+    def test_does_not_claim_the_latest_badge(self, mock_run):
+        """Two packages confirm in publication order, so --latest is arbitrary."""
+        cp.update_release(PLAN[0], published=True)
+        self.assertNotIn("--latest", mock_run.call_args.args[0])
+
 
 if __name__ == "__main__":
     unittest.main()

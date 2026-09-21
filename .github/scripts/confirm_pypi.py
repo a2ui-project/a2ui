@@ -158,10 +158,14 @@ def update_release(entry: dict, published: bool, run: bool = True) -> None:
     if not run:
         return
     notes_path = _write_notes(body)
-    command = ["gh", "release", "edit", entry["tag"], "--notes-file", notes_path]
-    if published:
-        command += ["--latest"]
-    subprocess.run(command, check=True)
+    # Notes only. Which release carries the repository's "Latest" badge is left
+    # alone: this repository publishes several independent packages, and
+    # marking one here would hand the badge to whichever package PyPI happened
+    # to publish last.
+    subprocess.run(
+        ["gh", "release", "edit", entry["tag"], "--notes-file", notes_path],
+        check=True,
+    )
 
 
 def parse_tag(tag: str) -> tuple[str, str] | None:
@@ -176,17 +180,22 @@ def parse_tag(tag: str) -> tuple[str, str] | None:
     return match["name"], match["version"]
 
 
-def discover_pending(limit: int = 50) -> list[dict]:
+def discover_pending(limit: int = 200) -> list[dict]:
     """Finds GitHub releases still waiting on PyPI.
 
     Used by the scheduled backstop, which has no release plan to work from
     because it did not run the release.
+
+    The listing is date-ordered across every package in the repository, not
+    just the Python ones, so the limit has to leave room for releases in other
+    languages to sit in front of a pending Python release.
     """
     result = subprocess.run(
         [
             "gh",
             "release",
             "list",
+            "--exclude-drafts",
             "--limit",
             str(limit),
             "--json",
@@ -276,7 +285,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     backfill.add_argument("--timeout-seconds", type=float, default=60.0)
     backfill.add_argument("--poll-seconds", type=float, default=30.0)
-    backfill.add_argument("--limit", type=int, default=50)
+    backfill.add_argument("--limit", type=int, default=200)
 
     args = parser.parse_args(argv)
 
