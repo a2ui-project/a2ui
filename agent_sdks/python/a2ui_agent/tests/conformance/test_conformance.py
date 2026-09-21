@@ -659,6 +659,19 @@ def resolve_pointer(payload, pointer):
     return current
 
 
+def delete_pointer(payload, pointer):
+    """Deletes a slash separated pointer from a dict or list structure."""
+    tokens = pointer.strip("/").split("/")
+    current = payload
+    for token in tokens[:-1]:
+        current = current[int(token)] if isinstance(current, list) else current[token]
+    last_token = tokens[-1]
+    if isinstance(current, list):
+        del current[int(last_token)]
+    else:
+        del current[last_token]
+
+
 def get_marked_conformance_cases(*filenames):
     """Loads cases from several suites, marking the ones this SDK cannot pass."""
     params = []
@@ -694,7 +707,7 @@ def test_compiler_conformance(name, test_case):
     if "expect_present" in test_case:
         for pointer in test_case["expect_present"]:
             assert resolve_pointer(compiled, pointer) not in (None, "")
-        return
+            delete_pointer(compiled, pointer)
 
     assert compiled == test_case["expect"]
 
