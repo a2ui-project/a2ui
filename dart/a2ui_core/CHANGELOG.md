@@ -1,5 +1,9 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
+
 ## 0.2.1
 
 - Widen `preact_signals` dependency constraint to `">=1.9.4 <8.0.0"` to support `preact_signals: ^7.0.0` and downstream modern signal-based ecosystems.

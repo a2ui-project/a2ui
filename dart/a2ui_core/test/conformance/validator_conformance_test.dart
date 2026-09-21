@@ -213,7 +213,6 @@ Matcher _categoryMatches(String? category) => switch (category) {
   'CatalogError' => isA<A2uiCatalogError>(),
   'IntegrityError' => isA<A2uiIntegrityError>(),
   'RecursionError' => isA<A2uiRecursionError>(),
-  'CompileError' => isA<A2uiCompileError>(),
   'DataError' => isA<A2uiDataError>(),
   'StateError' => isA<A2uiStateError>(),
   _ => isA<A2uiError>(),

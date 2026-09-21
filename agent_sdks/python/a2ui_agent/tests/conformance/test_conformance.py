@@ -31,8 +31,8 @@ from a2ui.core import (
     A2uiCatalogError,
     A2uiIntegrityError,
     A2uiRecursionError,
-    A2uiCompileError,
 )
+from a2ui.parser.errors import A2uiCompilationError
 
 import json
 import re
@@ -46,7 +46,7 @@ CATEGORY_TO_EXCEPTION = {
     "CatalogError": A2uiCatalogError,
     "IntegrityError": A2uiIntegrityError,
     "RecursionError": A2uiRecursionError,
-    "CompileError": A2uiCompileError,
+    "CompilationError": A2uiCompilationError,
 }
 
 

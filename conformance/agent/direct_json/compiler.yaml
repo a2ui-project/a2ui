@@ -32,9 +32,7 @@
 #
 # Two error categories carry the load. `ParseError` is for payload text the
 # format cannot read. `ValidationError` is for a payload that reads but names
-# something the catalog does not declare. No case uses `CompileError`, because
-# the compilation error type does not yet descend from the base error type and
-# so no harness can match that category.
+# something the catalog does not declare.
 #
 # A component carrying a property its catalog does not declare is invalid, but
 # the rule lives in the message envelope rather than in the catalog. Like the

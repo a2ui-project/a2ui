@@ -1302,7 +1302,7 @@
                 "CatalogError",
                 "IntegrityError",
                 "RecursionError",
-                "CompileError",
+                "CompilationError",
                 "DataError"
               ]
             },

@@ -71,7 +71,7 @@ class ConformanceTest {
           "CatalogError" -> "A2uiCatalogException"
           "IntegrityError" -> "A2uiIntegrityException"
           "RecursionError" -> "A2uiRecursionException"
-          "CompileError" -> "A2uiCompileException"
+          "CompilationError" -> "A2uiCompilationError"
           else -> "A2uiException"
         }
       assertEquals(

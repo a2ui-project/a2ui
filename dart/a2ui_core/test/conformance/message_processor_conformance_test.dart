@@ -198,7 +198,6 @@ Matcher _matchesError(Map<String, Object?> expectError) {
     'RecursionError' => isA<A2uiRecursionError>(),
     'StateError' => isA<A2uiStateError>(),
     'ParseError' => isA<A2uiParseError>(),
-    'CompileError' => isA<A2uiCompileError>(),
     _ => isA<A2uiError>(),
   };
   if (message != null) {
