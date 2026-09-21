@@ -13,6 +13,7 @@ Test suites are organized by functional domain:
 - `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
 - `core/data_model.yaml`: Contains test cases for the reactive data model, verifying JSON Pointer reads and writes, container creation, deletion, and observer notification.
 - `core/message_processor.yaml`: Contains test cases for the message processor's state machine. Written in the case vocabulary of the `v1_0` branch, whose suite of the same name is the primary one, so the two converge rather than conflict.
+- `core/node_resolution.yaml`: Contains node-tree, scoped-binding, notification, identity, action, and destruction scenarios. See [the case format](core/node_resolution.md).
 - `core/expressions.yaml`: Contains test cases for the client-side expression parser behind `formatString`, covering literals, data bindings, function calls, nested interpolation, escaped markers and parse errors.
 
 ### Agent (`agent/`)

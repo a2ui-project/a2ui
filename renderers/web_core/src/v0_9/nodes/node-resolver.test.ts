@@ -149,22 +149,6 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     surface.dispose();
   });
 
-  it('tracks root creation and removal on rootNode', () => {
-    const {surface, resolver} = setup();
-    assert.strictEqual(getValue(resolver.rootNode), undefined);
-
-    add(surface, 'root', 'Column', {children: []});
-    const root = getValue(resolver.rootNode);
-    assert.ok(isComponentNode(root));
-    assert.strictEqual(root.componentId, 'root');
-    assert.strictEqual(root.type, 'Column');
-
-    surface.componentsModel.removeComponent('root');
-    assert.strictEqual(getValue(resolver.rootNode), undefined);
-    assert.strictEqual(root.disposed, true);
-    resolver.dispose();
-  });
-
   it('exposes core node properties', () => {
     const {surface, resolver} = setup();
     add(surface, 'root', 'Card', {child: 'text-1'});
@@ -394,35 +378,6 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
-  it('renders placeholders progressively and emits the parent exactly once on upgrade', () => {
-    const {surface, resolver} = setup();
-    add(surface, 'root', 'Column', {children: ['late']});
-    const root = getValue(resolver.rootNode);
-    assert.ok(root);
-    const placeholder = child(root, 'children', 0);
-    assert.strictEqual(placeholder.type, PLACEHOLDER_TYPE);
-    assert.strictEqual(placeholder.state, 'pending');
-    assert.strictEqual(placeholder.componentId, 'late');
-
-    let destroyed = 0;
-    placeholder.onDestroyed.subscribe(() => {
-      destroyed++;
-    });
-    const emissions = countEmissions(root.props);
-
-    add(surface, 'late', 'Text', {text: 'Arrived'});
-    assert.strictEqual(emissions.count, 1);
-    const upgraded = child(root, 'children', 0);
-    assert.notStrictEqual(upgraded, placeholder);
-    assert.strictEqual(upgraded.type, 'Text');
-    assert.strictEqual(upgraded.state, 'resolved');
-    assert.strictEqual(bound(upgraded, 'text'), 'Arrived');
-    assert.strictEqual(placeholder.disposed, true);
-    assert.strictEqual(destroyed, 1);
-    emissions.dispose();
-    resolver.dispose();
-  });
-
   it('binds actions as closures that dispatch through the surface', async () => {
     const {surface, resolver} = setup();
     const actions: A2uiClientAction[] = [];
@@ -556,28 +511,6 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
-  it('re-spawns template children as the bound array grows and shrinks', () => {
-    const {surface, resolver} = setup();
-    surface.dataModel.set('/items', [{name: 'A'}]);
-    add(surface, 'root', 'Column', {children: {componentId: 'item_tpl', path: '/items'}});
-    add(surface, 'item_tpl', 'Text', {text: {path: 'name'}});
-    const root = getValue(resolver.rootNode);
-    assert.ok(root);
-    assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
-
-    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}, {name: 'C'}]);
-    const grown = props(root).children as ComponentNode[];
-    assert.strictEqual(grown.length, 3);
-    assert.strictEqual(bound(grown[2], 'text'), 'C');
-
-    surface.dataModel.set('/items', [{name: 'A'}]);
-    const shrunk = props(root).children as ComponentNode[];
-    assert.strictEqual(shrunk.length, 1);
-    assert.strictEqual(grown[1].disposed, true);
-    assert.strictEqual(grown[2].disposed, true);
-    resolver.dispose();
-  });
-
   it('serializes the resolved tree, rendering actions and placeholders specially', () => {
     const {surface, resolver} = setup();
     add(surface, 'root', 'Column', {children: ['card', 'btn', 'late']});
@@ -633,28 +566,6 @@ describe('NodeResolver defect coverage (fixes over the Python reference)', () =>
     resolver.dispose();
   });
 
-  it('resolves action context at dispatch time, not bind time (late resolution)', async () => {
-    const {surface, resolver} = setup();
-    const actions: A2uiClientAction[] = [];
-    surface.onAction.subscribe(action => {
-      actions.push(action);
-    });
-    surface.dataModel.set('/current_id', 'stale');
-    add(surface, 'root', 'Button', {
-      action: {event: {name: 'submit', context: {itemId: {path: '/current_id'}}}},
-    });
-    const root = getValue(resolver.rootNode);
-    assert.ok(root);
-
-    surface.dataModel.set('/current_id', 'fresh');
-    (props(root).action as () => void)();
-    await flush();
-
-    assert.strictEqual(actions.length, 1);
-    assert.deepStrictEqual(actions[0].context, {itemId: 'fresh'});
-    resolver.dispose();
-  });
-
   it('keeps a shared child alive for one parent when the other stops referencing it', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/label', 'shared text');
@@ -678,29 +589,6 @@ describe('NodeResolver defect coverage (fixes over the Python reference)', () =>
     assert.strictEqual(sharedViaB.disposed, false);
     surface.dataModel.set('/label', 'still updating');
     assert.strictEqual(bound(sharedViaB, 'text'), 'still updating');
-    resolver.dispose();
-  });
-
-  it('keeps surviving template nodes across array growth and shrink (key stability)', () => {
-    const {surface, resolver} = setup();
-    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
-    add(surface, 'root', 'Column', {children: {componentId: 'item_tpl', path: '/items'}});
-    add(surface, 'item_tpl', 'Text', {text: {path: 'name'}});
-    const root = getValue(resolver.rootNode);
-    assert.ok(root);
-    const before = [...(props(root).children as ComponentNode[])];
-
-    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}, {name: 'C'}]);
-    const grown = props(root).children as ComponentNode[];
-    assert.strictEqual(grown[0], before[0]);
-    assert.strictEqual(grown[1], before[1]);
-    assert.strictEqual(before[0].disposed, false);
-    assert.strictEqual(before[1].disposed, false);
-
-    surface.dataModel.set('/items', [{name: 'A'}]);
-    const shrunk = props(root).children as ComponentNode[];
-    assert.strictEqual(shrunk[0], before[0]);
-    assert.strictEqual(before[1].disposed, true);
     resolver.dispose();
   });
 
@@ -1113,26 +1001,6 @@ describe('NodeResolver resolved bindings (write path)', () => {
     binding.set('written');
     assert.strictEqual(surface.dataModel.get('/b'), 'written');
     assert.strictEqual(surface.dataModel.get('/a'), 'same');
-    resolver.dispose();
-  });
-
-  it("writes through a template item binding to that item's scoped path", () => {
-    const {surface, resolver} = setup();
-    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
-    add(surface, 'root', 'Column', {children: {componentId: 'item_tpl', path: '/items'}});
-    add(surface, 'item_tpl', 'Text', {text: {path: 'name'}});
-    const root = getValue(resolver.rootNode);
-    assert.ok(root);
-    const children = props(root).children as ComponentNode[];
-    const item1 = props(children[1]).text as ResolvedBinding<unknown>;
-    if (!isWritable(item1)) {
-      assert.fail('expected a writable binding');
-    }
-    item1.set('B2');
-
-    assert.strictEqual(surface.dataModel.get('/items/1/name'), 'B2');
-    assert.strictEqual(bound(children[1], 'text'), 'B2');
-    assert.strictEqual(bound(children[0], 'text'), 'A');
     resolver.dispose();
   });
 

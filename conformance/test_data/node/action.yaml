@@ -1,0 +1,11 @@
+catalog: ../specification/v0_9_1/catalogs/basic/catalog.json
+data: {name: Ada}
+components:
+  - id: root
+    component: Button
+    child: label
+    action:
+      event:
+        name: save
+        context: {name: {path: /name}}
+  - {id: label, component: Text, text: Save}

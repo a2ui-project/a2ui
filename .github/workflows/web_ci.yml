@@ -50,6 +50,7 @@ jobs:
           filters: |
             renderers:
               - 'renderers/**'
+              - 'conformance/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'

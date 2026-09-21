@@ -1117,26 +1117,6 @@ void main() {
       surface.dispose();
     });
 
-    test('tracks root creation and removal on rootNode', () {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      expect(resolver.rootNode.value, isNull);
-
-      add(surface, 'root', 'Column', {'children': <Object?>[]});
-      final ComponentNode? root = resolver.rootNode.value;
-      expect(root, isA<ComponentNode>());
-      expect(root!.componentId, 'root');
-      expect(root.type, 'Column');
-
-      surface.componentsModel.removeComponent('root');
-      expect(resolver.rootNode.value, isNull);
-      expect(root.disposed, isTrue);
-      resolver.dispose();
-    });
-
     test('resolves a root that existed before the resolver was constructed, '
         'and rebuilds it after deletion and re-send', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
@@ -1490,40 +1470,6 @@ void main() {
       expect(rootEmissions.count, 2);
     });
 
-    test('renders placeholders progressively and emits the parent exactly once '
-        'on upgrade', () {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      add(surface, 'root', 'Column', {
-        'children': ['late'],
-      });
-      final ComponentNode root = resolver.rootNode.value!;
-      final ComponentNode placeholder = child(root, 'children', 0);
-      expect(placeholder.type, placeholderType);
-      expect(placeholder.componentId, 'late');
-      expect(placeholder.state, NodeState.pending);
-
-      var destroyed = 0;
-      placeholder.onDestroyed.addListener((_) {
-        destroyed++;
-      });
-      final emissions = EmissionCounter(root.props);
-
-      add(surface, 'late', 'Text', {'text': 'Arrived'});
-      expect(emissions.count, 1);
-      final ComponentNode upgraded = child(root, 'children', 0);
-      expect(identical(upgraded, placeholder), isFalse);
-      expect(upgraded.type, 'Text');
-      expect(bound(upgraded, 'text'), 'Arrived');
-      expect(placeholder.disposed, isTrue);
-      expect(destroyed, 1);
-      emissions.dispose();
-      resolver.dispose();
-    });
-
     test(
       'binds actions as closures that dispatch through the surface',
       () async {
@@ -1703,55 +1649,6 @@ void main() {
       resolver.dispose();
     });
 
-    test('re-spawns template children as the bound array grows and shrinks, '
-        'keeping surviving nodes', () {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      surface.dataModel.set('/items', [
-        {'name': 'A'},
-        {'name': 'B'},
-      ]);
-      add(surface, 'root', 'Column', {
-        'children': {'componentId': 'item_tpl', 'path': '/items'},
-      });
-      add(surface, 'item_tpl', 'Text', {
-        'text': {'path': 'name'},
-      });
-      final ComponentNode root = resolver.rootNode.value!;
-      final before = List<ComponentNode>.of(
-        (props(root)['children'] as List).cast<ComponentNode>(),
-      );
-      expect(before, hasLength(2));
-
-      surface.dataModel.set('/items', [
-        {'name': 'A'},
-        {'name': 'B'},
-        {'name': 'C'},
-      ]);
-      final List<ComponentNode> grown = (props(root)['children'] as List)
-          .cast<ComponentNode>();
-      expect(grown, hasLength(3));
-      expect(identical(grown[0], before[0]), isTrue);
-      expect(identical(grown[1], before[1]), isTrue);
-      expect(before[0].disposed, isFalse);
-      expect(before[1].disposed, isFalse);
-      expect(bound(grown[2], 'text'), 'C');
-
-      surface.dataModel.set('/items', [
-        {'name': 'A'},
-      ]);
-      final List<ComponentNode> shrunk = (props(root)['children'] as List)
-          .cast<ComponentNode>();
-      expect(shrunk, hasLength(1));
-      expect(identical(shrunk[0], before[0]), isTrue);
-      expect(before[1].disposed, isTrue);
-      expect(grown[2].disposed, isTrue);
-      resolver.dispose();
-    });
-
     test('serializes the resolved tree, rendering actions and placeholders '
         'specially', () {
       final (
@@ -1789,37 +1686,6 @@ void main() {
   });
 
   group('NodeResolver actions and ownership', () {
-    test('resolves action context at dispatch time, not bind time '
-        '(late resolution)', () async {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
-      surface.dataModel.set('/current_id', 'stale');
-      add(surface, 'root', 'Button', {
-        'action': {
-          'event': {
-            'name': 'submit',
-            'context': {
-              'itemId': {'path': '/current_id'},
-            },
-          },
-        },
-      });
-      final ComponentNode root = resolver.rootNode.value!;
-
-      surface.dataModel.set('/current_id', 'fresh');
-      (props(root)['action'] as Function)();
-      await flush();
-
-      expect(actions, hasLength(1));
-      expect(actions[0].context, {'itemId': 'fresh'});
-      resolver.dispose();
-    });
-
     test('resolves dynamic values nested inside literal context structure '
         'at dispatch', () async {
       final (

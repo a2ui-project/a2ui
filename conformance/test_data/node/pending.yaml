@@ -1,0 +1,4 @@
+catalog: ../specification/v0_9_1/catalogs/basic/catalog.json
+data: {}
+components:
+  - {id: root, component: Card, child: greeting}

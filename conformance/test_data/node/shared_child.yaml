@@ -1,0 +1,7 @@
+catalog: ../specification/v0_9_1/catalogs/basic/catalog.json
+data: {greeting: Hello}
+components:
+  - {id: root, component: Column, children: [left, right]}
+  - {id: left, component: Card, child: shared}
+  - {id: right, component: Card, child: shared}
+  - {id: shared, component: Text, text: {path: /greeting}}

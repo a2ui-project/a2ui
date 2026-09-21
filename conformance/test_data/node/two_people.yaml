@@ -1,0 +1,11 @@
+catalog: ../specification/v0_9_1/catalogs/basic/catalog.json
+data:
+  people: [{name: Ada}, {name: Lin}]
+components:
+  - id: root
+    component: Column
+    children: {componentId: nameField, path: /people}
+  - id: nameField
+    component: TextField
+    label: Name
+    value: {path: name}
