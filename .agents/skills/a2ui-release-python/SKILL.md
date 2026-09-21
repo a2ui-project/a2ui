@@ -248,11 +248,12 @@ gh workflow run release-pypi.yml --repo a2ui-project/a2ui --ref main \
 Watch it as in Step 3. The run pushes the tags, stages the artifacts, uploads
 the manifest that triggers the Exit Gate, and creates the GitHub releases.
 
-Three jobs follow:
+Four jobs follow:
 
 | Job         | What it does                               | If it fails                                                                                                                                      |
 | :---------- | :----------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `release`   | Builds, tags, stages, triggers publishing  | Real failure. See Troubleshooting.                                                                                                               |
+| `build`     | Runs tests and builds distributions        | Test failure or malformed distribution. See Troubleshooting.                                                                                     |
+| `release`   | Stages, tags, and triggers publishing      | Real failure. See Troubleshooting.                                                                                                               |
 | `confirm`   | Polls PyPI, then links the GitHub releases | A timeout is not a failure. The hourly [Confirm PyPI publication](../../../.github/workflows/release-verify-pypi.yml) workflow finishes the job. |
 | `changelog` | Pushes the changelog branch                | Publishing already succeeded. Cut the changelog by hand and open the PR yourself.                                                                |
 

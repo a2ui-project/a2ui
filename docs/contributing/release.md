@@ -83,9 +83,6 @@ requires linear history, so a tag created on a branch commit would be left
 unreachable once the pull request is squashed, and the `git describe` check in
 [python_ci.yml](../../.github/workflows/python_ci.yml) would start failing.
 
-If `main` moves while a release is running, the run fails before anything is
-staged and asks you to try again.
-
 #### Why the changelog pull request is not opened for you
 
 The release prepares the changelog edit on a `release/changelog-*` branch and

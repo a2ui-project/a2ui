@@ -39,6 +39,12 @@
 # Because of that, tags point at a commit that is already on `main`, which is
 # what keeps `git describe --match` in python_ci.yml working.
 #
+# Security note: builds and tests run in an unprivileged `build` job with
+# default `contents: read` permissions. Third-party dependencies and build
+# backends never execute in the `release` job, which isolates `id-token: write`
+# and `contents: write` exclusively to trusted staging, tagging, and publishing
+# steps.
+#
 # See docs/contributing/release.md for the operator-facing description.
 
 name: Release Python SDKs
@@ -91,13 +97,12 @@ env:
   WIF_PROVIDER: projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github
 
 jobs:
-  release:
-    name: Build, stage and publish
+  build:
+    name: Build and verify distributions
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
-      contents: write
-      id-token: write
+      contents: read
     steps:
       - name: Require the main branch
         if: github.ref != 'refs/heads/main'
@@ -171,17 +176,8 @@ jobs:
             done
 
       # Tags are created on the checked-out commit, which is already on `main`,
-      # and are not pushed yet. Two reasons for tagging an existing commit
-      # rather than a new changelog commit:
-      #
-      #  * The release cannot push to `main` (see the header), so a locally
-      #    created commit would never become reachable, and a tag pointing at an
-      #    unreachable commit breaks the `git describe` check in python_ci.yml.
-      #  * A failure before the upload succeeds must not leave a tag on the
-      #    remote, because the version would then be burned.
-      #
-      # hatch-vcs reads these tags during the build, so they have to exist
-      # before the build step.
+      # and are not pushed yet. Because this job has only `contents: read`,
+      # these tags exist only on the local runner filesystem for hatch-vcs.
       - name: Tag locally
         run: |
           set -euo pipefail
@@ -222,6 +218,65 @@ jobs:
             uv run --isolated --with twine twine check "${directory}"/dist/*
           done
 
+      # Stage artifacts in a directory tree mirroring the repo root so downloading
+      # with path: . in downstream jobs drops the plan at ./release-plan.json and
+      # built packages into their respective dist/ directories.
+      - name: Stage built artifacts for hand-off
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts
+          cp release-plan.json .artifacts/
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            mkdir -p ".artifacts/${directory}/dist"
+            cp "${directory}"/dist/* ".artifacts/${directory}/dist/"
+          done
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-artifacts
+          path: .artifacts
+          retention-days: 7
+
+  release:
+    name: Stage and publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-python
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: .
+
+      # Verify that the downloaded artifacts match the plan before touching GCP.
+      - name: Verify the transferred artifacts
+        run: |
+          python3 .github/scripts/release_artifacts.py \
+            --plan release-plan.json --repo-root . verify
+
+      # Tags are created on the checked-out commit, which is already on `main`,
+      # so git push --atomic can push them once staging succeeds.
+      - name: Tag locally
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          jq -r '.[] | "\(.tag)\t\(.pypi_name) \(.version)"' release-plan.json |
+            while IFS=$'\t' read -r tag message; do
+              git tag -a "$tag" -m "$message"
+            done
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -247,7 +302,7 @@ jobs:
       # leaving core behind blocks subsequent release attempts because Artifact
       # Registry rejects uploading duplicate versions.
       - name: Discard the staged artifacts
-        if: ${{ always() && steps.plan.conclusion == 'success' && (inputs.dry_run || failure()) }}
+        if: ${{ always() && (inputs.dry_run || failure()) }}
         env:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
@@ -346,7 +401,7 @@ jobs:
 
       # The confirm job needs the plan, and job outputs are awkward for release
       # notes that contain newlines and backticks.
-      - name: Hand the plan to the confirm job
+      - name: Hand the plan to downstream jobs
         if: ${{ !inputs.dry_run }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
