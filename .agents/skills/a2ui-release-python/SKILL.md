@@ -32,13 +32,13 @@ Exit Gate authenticates by matching the OIDC claim
 `…/release-pypi.yml@refs/heads/main`, so a local upload has no credentials to
 use.
 
-| Run locally | Run by the workflow |
-| :-- | :-- |
-| `release_version.py notes` | `release_version.py plan` (authoritative) |
-| `release_version.py plan` (preview only) | `release_version.py check` |
-| `release_version.py check` (preview only) | `release_version.py cut-changelog` |
-| `gh workflow run`, `gh run view`, `gh pr list` | `release_artifacts.py`, `confirm_pypi.py` |
-| | `uv build`, `twine upload`, `git tag`, `git push` |
+| Run locally                                    | Run by the workflow                               |
+| :--------------------------------------------- | :------------------------------------------------ |
+| `release_version.py notes`                     | `release_version.py plan` (authoritative)         |
+| `release_version.py plan` (preview only)       | `release_version.py check`                        |
+| `release_version.py check` (preview only)      | `release_version.py cut-changelog`                |
+| `gh workflow run`, `gh run view`, `gh pr list` | `release_artifacts.py`, `confirm_pypi.py`         |
+|                                                | `uv build`, `twine upload`, `git tag`, `git push` |
 
 The local calls are limited to the read-only subcommands `notes`, `next`,
 `current`, `tag`, `plan` and `check`. They exist to answer two questions before
@@ -82,10 +82,10 @@ say so.
 Check the exit status, not just the output. The two failure shapes are
 different answers:
 
-| Result | Meaning | Do |
-| :-- | :-- | :-- |
-| exit 0, output | Entries pending | Release this package |
-| exit 0, no output | `## Unreleased` is empty | Skip this package |
+| Result                     | Meaning                                                           | Do                                   |
+| :------------------------- | :---------------------------------------------------------------- | :----------------------------------- |
+| exit 0, output             | Entries pending                                                   | Release this package                 |
+| exit 0, no output          | `## Unreleased` is empty                                          | Skip this package                    |
 | exit 1, `error:` on stderr | Changelog is malformed, usually a missing `## Unreleased` heading | Stop. Report it and do not dispatch. |
 
 > [!NOTE]
@@ -239,11 +239,11 @@ the manifest that triggers the Exit Gate, and creates the GitHub releases.
 
 Three jobs follow:
 
-| Job | What it does | If it fails |
-| :-- | :-- | :-- |
-| `release` | Builds, tags, stages, triggers publishing | Real failure. See Troubleshooting. |
-| `confirm` | Polls PyPI, then links the GitHub releases | A timeout is not a failure. The hourly [Confirm PyPI publication](../../../.github/workflows/release-verify-pypi.yml) workflow finishes the job. |
-| `changelog` | Opens the changelog pull request | Publishing already succeeded. Cut the changelog by hand and open the PR yourself. |
+| Job         | What it does                               | If it fails                                                                                                                                      |
+| :---------- | :----------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `release`   | Builds, tags, stages, triggers publishing  | Real failure. See Troubleshooting.                                                                                                               |
+| `confirm`   | Polls PyPI, then links the GitHub releases | A timeout is not a failure. The hourly [Confirm PyPI publication](../../../.github/workflows/release-verify-pypi.yml) workflow finishes the job. |
+| `changelog` | Opens the changelog pull request           | Publishing already succeeded. Cut the changelog by hand and open the PR yourself.                                                                |
 
 > [!IMPORTANT]
 > **The run stays active for several minutes after `release` goes green, and
