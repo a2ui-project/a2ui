@@ -414,8 +414,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     changelog_path = os.path.join(repo_root, package.changelog_path)
 
     if args.command == "notes":
+        # A missing heading is a malformed changelog, which is a different
+        # answer from "nothing to release" and has to be distinguishable from
+        # it. Callers read empty stdout as the latter, so this reports on
+        # stderr and exits non-zero rather than raising.
         with open(changelog_path, encoding="utf-8") as handle:
-            print(read_unreleased(handle.read()))
+            try:
+                print(read_unreleased(handle.read()))
+            except ValueError as error:
+                print(f"error: {package.changelog_path}: {error}", file=sys.stderr)
+                return 1
         return 0
 
     if args.command == "cut-changelog":

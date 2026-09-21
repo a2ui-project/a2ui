@@ -14,7 +14,9 @@
 
 """Tests for .github/scripts/release_version.py."""
 
+import contextlib
 import datetime
+import io
 import os
 import subprocess
 import sys
@@ -290,6 +292,43 @@ class PlanTest(unittest.TestCase):
         self.assertGreater(
             rv.parse_version(entry["version"]), rv.parse_version(released)
         )
+
+
+class NotesCommandTest(unittest.TestCase):
+    """Callers treat empty stdout as "nothing to release".
+
+    A malformed changelog is a different answer and has to be distinguishable,
+    so it goes to stderr with a non-zero exit rather than an empty stdout.
+    """
+
+    def _run(self, changelog: str) -> tuple[int, str, str]:
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, rv.CORE.changelog_path)
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(changelog)
+
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = rv.main(["notes", "--package", "a2ui-core", "--repo-root", root])
+            return code, out.getvalue(), err.getvalue()
+
+    def test_empty_section_succeeds_with_no_output(self):
+        code, out, _ = self._run("# Changelog\n\n## Unreleased\n\n## 0.1.1\n\n- Old.\n")
+        self.assertEqual(code, 0)
+        self.assertEqual(out.strip(), "")
+
+    def test_missing_heading_fails_without_a_traceback(self):
+        code, out, err = self._run("# Changelog\n\n## 0.1.1\n\n- Old.\n")
+        self.assertEqual(code, 1)
+        self.assertEqual(out.strip(), "")
+        self.assertIn("## Unreleased", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_populated_section_is_printed(self):
+        code, out, _ = self._run("# Changelog\n\n## Unreleased\n\n- Fixed a thing.\n")
+        self.assertEqual(code, 0)
+        self.assertEqual(out.strip(), "- Fixed a thing.")
 
 
 if __name__ == "__main__":
