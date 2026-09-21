@@ -87,11 +87,11 @@ Catalogs under test live in `args`, either as a path relative to `conformance/` 
 
 A case states allowlists literally. Keeping everything is said by applying no transformer, so an empty allowlist keeps nothing.
 
-Parser cases use the part union from the blueprint. `unwrap_response` returns raw parts, each carrying either `text` or `a2ui_raw` with an `is_final` flag; `parse_response` and `parse_chunk` return parts carrying either `text` or compiled `a2ui` messages. Text that precedes a payload is its own part, which is the difference from the legacy suites under `agent/legacy/`, where one item carried both.
+Parser cases use the part union from the blueprint. `unwrap` returns raw parts, each carrying either `text` or `a2ui_raw` with an `is_final` flag; `parse_response` and `parse_chunk` return parts carrying either `text` or compiled `a2ui` messages. Text that precedes a payload is its own part, which is the difference from the legacy suites under `agent/legacy/`, where one item carried both.
 
 A `create_processor` case can parse a response through the processor it just built, by way of a `then_parse` block holding an `input` and its own `expect` or `expect_error`. It sits beside `expect` rather than inside it because it is a call made on the processor, not a property read off it. Use it only for rules that need negotiation to have happened first; a rule about parsing as such belongs in the per-format `response_parser.yaml`.
 
-Where a format decides the exact spelling of its output, a case asserts an invariant rather than a string: `expect_round_trip` on `wrap_response` and `decompile_payload`, `expect_deterministic` on `generate_prompt_snippet`, and `expect_matches_single_shot` on `parse_chunk`, which says chunk boundaries change when parts arrive and nothing else. Prompt cases assert substrings through `expect_contains` and `expect_absent`, because the wording around a catalog belongs to the implementation.
+Where a format decides the exact spelling of its output, a case asserts an invariant rather than a string: `expect_round_trip` on `wrap` and `decompile`, `expect_deterministic` on `generate_prompt_snippet`, and `expect_matches_single_shot` on `parse_chunk`, which says chunk boundaries change when parts arrive and nothing else. Prompt cases assert substrings through `expect_contains` and `expect_absent`, because the wording around a catalog belongs to the implementation.
 
 Two error categories carry the load: `ParseError` for text that does not parse, and `ValidationError` for a payload that parses but names something the active catalogs do not declare. `CompileError` is deliberately unused, since `A2uiCompilationError` does not yet descend from the base error type and no harness can match it.
 

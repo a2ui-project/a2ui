@@ -104,10 +104,10 @@
           "provide_catalog",
           "resolve_catalogs",
           "generate_prompt_snippet",
-          "unwrap_response",
-          "wrap_response",
-          "compile_payload",
-          "decompile_payload",
+          "unwrap",
+          "wrap",
+          "compile",
+          "decompile",
           "parse_response",
           "parse_chunk",
           "create_format",
@@ -154,10 +154,10 @@
           {"$ref": "#/$defs/ProvideCatalogTest"},
           {"$ref": "#/$defs/ResolveCatalogsTest"},
           {"$ref": "#/$defs/GeneratePromptSnippetTest"},
-          {"$ref": "#/$defs/UnwrapResponseTest"},
-          {"$ref": "#/$defs/WrapResponseTest"},
-          {"$ref": "#/$defs/CompilePayloadTest"},
-          {"$ref": "#/$defs/DecompilePayloadTest"},
+          {"$ref": "#/$defs/UnwrapTest"},
+          {"$ref": "#/$defs/WrapTest"},
+          {"$ref": "#/$defs/CompileTest"},
+          {"$ref": "#/$defs/DecompileTest"},
           {"$ref": "#/$defs/ParseResponseTest"},
           {"$ref": "#/$defs/ParseChunkTest"},
           {"$ref": "#/$defs/CreateFormatTest"},
@@ -977,11 +977,11 @@
       },
       "required": ["action", "args"]
     },
-    "UnwrapResponseTest": {
+    "UnwrapTest": {
       "type": "object",
       "description": "Tokenizing a model response into ordered raw parts, before any payload is compiled.",
       "properties": {
-        "action": {"const": "unwrap_response"},
+        "action": {"const": "unwrap"},
         "args": {
           "type": "object",
           "properties": {"format": {"$ref": "#/$defs/InferenceFormatName"}},
@@ -998,11 +998,11 @@
       },
       "required": ["action", "args", "input"]
     },
-    "WrapResponseTest": {
+    "WrapTest": {
       "type": "object",
       "description": "Writing raw parts back out as a model would have emitted them, which is how examples and transcripts are produced.",
       "properties": {
-        "action": {"const": "wrap_response"},
+        "action": {"const": "wrap"},
         "args": {
           "type": "object",
           "properties": {"format": {"$ref": "#/$defs/InferenceFormatName"}},
@@ -1026,11 +1026,11 @@
       },
       "required": ["action", "args", "parts"]
     },
-    "CompilePayloadTest": {
+    "CompileTest": {
       "type": "object",
       "description": "Compiling one raw format block into A2UI messages.",
       "properties": {
-        "action": {"const": "compile_payload"},
+        "action": {"const": "compile"},
         "args": {
           "type": "object",
           "properties": {
@@ -1058,11 +1058,11 @@
       },
       "required": ["action", "args", "input"]
     },
-    "DecompilePayloadTest": {
+    "DecompileTest": {
       "type": "object",
       "description": "Writing A2UI messages back into a format's own notation.",
       "properties": {
-        "action": {"const": "decompile_payload"},
+        "action": {"const": "decompile"},
         "args": {
           "type": "object",
           "properties": {

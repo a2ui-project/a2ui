@@ -16,9 +16,9 @@
 # A2UI payload parts.
 #
 # The suite covers the four steps of the parser contract and the entry point
-# that runs them. `unwrap_response` tokenizes a response into raw parts.
-# `wrap_response` writes raw parts back out as a model would have emitted them.
-# `compile_payload` turns one raw block into A2UI messages, `decompile_payload`
+# that runs them. `unwrap` tokenizes a response into raw parts.
+# `wrap` writes raw parts back out as a model would have emitted them.
+# `compile` turns one raw block into A2UI messages, `decompile`
 # writes messages back into Express notation, and `parse_response` unwraps a
 # whole response and compiles each block it finds.
 #
@@ -106,7 +106,7 @@
 
 - name: test_unwrap_express_text_between_blocks
   description: Express blocks sit between a2ui tags and are ordered against the text the same way.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: |-
@@ -126,7 +126,7 @@
 
 - name: test_unwrap_express_block_with_no_surrounding_text
   description: A response that is only a block yields only a payload part.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: |-
@@ -138,7 +138,7 @@
 
 - name: test_unwrap_express_response_without_tags_is_one_text_part
   description: An Express response with no tags is conversational text, as it is for direct JSON.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: "I need the city name before I can draw the forecast."
@@ -147,7 +147,7 @@
 
 - name: test_unwrap_express_empty_response_has_no_parts
   description: An empty response yields no parts, not an empty text part.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: ""
@@ -155,7 +155,7 @@
 
 - name: test_unwrap_express_unterminated_block_is_not_final
   description: An Express block the model left open states that it is not closed.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: |-
@@ -170,7 +170,7 @@
 
 - name: test_unwrap_express_close_tag_inside_a_string_does_not_end_the_block
   description: A close tag inside an Express string literal is part of the payload.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: |-
@@ -182,7 +182,7 @@
 
 - name: test_unwrap_express_markdown_fence_inside_block_stripped
   description: A markdown fence the model carried over from the prompt examples is removed with the surrounding whitespace.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: |-
@@ -196,7 +196,7 @@
 
 - name: test_unwrap_express_attributes_on_open_tag_tolerated
   description: An open tag that carries attributes still opens a block.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: '<a2ui version="v1.0">root = Text("Hello")</a2ui>'
@@ -205,7 +205,7 @@
 
 - name: test_unwrap_express_whitespace_only_text_run_dropped
   description: The blank line between two blocks is not a text part.
-  action: unwrap_response
+  action: unwrap
   args:
     format: express
   input: |-
@@ -224,7 +224,7 @@
 
 - name: test_wrap_express_text_only_parts_are_the_text
   description: A part that carries no payload writes out as its text, with no a2ui tags added.
-  action: wrap_response
+  action: wrap
   args:
     format: express
   parts:
@@ -233,7 +233,7 @@
 
 - name: test_wrap_express_no_parts_is_an_empty_string
   description: An empty part list writes out as an empty string rather than a pair of empty tags.
-  action: wrap_response
+  action: wrap
   args:
     format: express
   parts: []
@@ -241,7 +241,7 @@
 
 - name: test_wrap_express_restores_tags_and_order
   description: Express parts are written back inside a2ui tags, in order.
-  action: wrap_response
+  action: wrap
   args:
     format: express
   parts:
@@ -257,7 +257,7 @@
 
 - name: test_compile_express_minimal_root
   description: A block that assigns root compiles to one createSurface carrying that component.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -274,7 +274,7 @@
 
 - name: test_compile_express_nesting_by_variable_reference
   description: A child named by variable becomes a component id in the parent and a component of its own.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -296,7 +296,7 @@
 
 - name: test_compile_express_inline_nesting
   description: A component written inline is hoisted out after its parent and takes an id built from the parent and the property it fills.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -316,7 +316,7 @@
 
 - name: test_compile_express_keyword_and_positional_arguments_mixed
   description: A keyword argument names its property and can follow a positional one.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -334,7 +334,7 @@
 
 - name: test_compile_express_placeholder_skips_an_optional_argument
   description: An underscore leaves the property it stands in for out of the compiled component.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
@@ -352,7 +352,7 @@
 
 - name: test_compile_express_raw_string_literal
   description: A raw string keeps its backslashes, because no escape is processed inside one.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -369,7 +369,7 @@
 
 - name: test_compile_express_escapes_in_a_standard_string
   description: A standard string processes its escapes, which is what tells it apart from a raw one.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -386,7 +386,7 @@
 
 - name: test_compile_express_array_of_children
   description: An array maps to the child list slot and holds the ids of the components it names.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -412,7 +412,7 @@
 
 - name: test_compile_express_template_children
   description: The _template helper fills the child list with the catalog's template shape, and the template component reads relative paths.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -437,7 +437,7 @@
 
 - name: test_compile_express_absolute_data_binding_path
   description: A path argument binds the property to the data model rather than setting a literal.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -455,7 +455,7 @@
 
 - name: test_compile_express_nested_function_call
   description: A catalog function called in a property slot compiles to that function call, which is how text is interpolated.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -475,7 +475,7 @@
 
 - name: test_compile_express_validation_expression
   description: A check expression compiles to a check rule whose condition calls the named function on the component's own value, with a trailing string as its message.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
@@ -501,7 +501,7 @@
 
 - name: test_compile_express_validation_expression_with_an_argument
   description: A check expression passes the component's own value first and the written arguments after it, so a trailing string is the message rather than the last declared argument.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
@@ -528,7 +528,7 @@
 
 - name: test_compile_express_event_action
   description: An Event compiles to the action shape the catalog declares.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -553,7 +553,7 @@
 
 - name: test_compile_express_event_action_with_context
   description: A map passed to an Event becomes the context beside the event name.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -580,7 +580,7 @@
 
 - name: test_compile_express_data_model_assignment
   description: A data path assignment beside a root fills the surface's initial data model.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -602,7 +602,7 @@
 
 - name: test_compile_express_data_model_only_block
   description: A block of nothing but data path assignments updates the data model rather than creating a surface.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -620,7 +620,7 @@
 
 - name: test_compile_express_surface_targeting
   description: A surface line names the surface the block is for, in place of the default id.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -639,7 +639,7 @@
 
 - name: test_compile_express_surface_targeting_names_a_catalog
   description: A second argument to surface picks which of the active catalogs the block is written against.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalogs:
@@ -660,7 +660,7 @@
 
 - name: test_compile_express_delete_surface
   description: A deleteSurface line compiles to the lifecycle message of that name.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -672,7 +672,7 @@
 
 - name: test_compile_express_empty_block_is_a_parse_error
   description: A block with no statements is a parse error rather than an empty message list.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -682,7 +682,7 @@
 
 - name: test_compile_express_syntax_error_is_a_parse_error
   description: A statement the grammar cannot read is a parse error.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -692,7 +692,7 @@
 
 - name: test_compile_express_unknown_component_is_a_validation_error
   description: A block that parses but names a component the catalog does not declare is a validation error.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -702,7 +702,7 @@
 
 - name: test_compile_express_undeclared_property_is_a_validation_error
   description: A keyword argument naming a property the component does not declare is a validation error.
-  action: compile_payload
+  action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -714,7 +714,7 @@
 
 - name: test_decompile_express_components
   description: A createSurface writes back out as the surface line and the component assignments it came from.
-  action: decompile_payload
+  action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -738,7 +738,7 @@
 
 - name: test_decompile_express_data_model
   description: An initial data model writes back out as the data path assignments that would produce it.
-  action: decompile_payload
+  action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -761,7 +761,7 @@
 
 - name: test_decompile_express_update_components
   description: An updateComponents writes back out as the component assignments it came from, and a block naming no root is an update to a surface that already exists rather than a create.
-  action: decompile_payload
+  action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -780,7 +780,7 @@
 
 - name: test_decompile_express_update_data_model
   description: A standalone data model update writes back out as the data path assignment that would produce it, with no component assignment beside it to make the block a create.
-  action: decompile_payload
+  action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -798,7 +798,7 @@
 
 - name: test_decompile_express_delete_surface
   description: A deleteSurface writes back out as the statement of that name, which is what lets a lifecycle turn be shown to a model as an example.
-  action: decompile_payload
+  action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"

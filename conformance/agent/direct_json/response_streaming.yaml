@@ -28,7 +28,7 @@
 #   of whitespace and minus any tail that could be the start of a sentinel tag.
 #   Both are held for the next chunk. Whitespace held this way is emitted with
 #   the text that follows it and dropped if the run ends instead, which is the
-#   same trimming `unwrap_response` applies.
+#   same trimming `unwrap` applies.
 # - A sentinel tag split across chunks never leaks into a text part.
 # - A payload is emitted once the block text so far can be read. A later chunk
 #   that changes the payload emits it again as it now stands, and a chunk that
