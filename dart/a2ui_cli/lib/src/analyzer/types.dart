@@ -58,6 +58,22 @@ class CheckRuleType extends TypeDescriptor {
   const CheckRuleType();
 }
 
+/// The shared accessibility attribute bag carried by every component.
+class AccessibilityType extends TypeDescriptor {
+  const AccessibilityType();
+}
+
+/// A nested object with a known property set, emitted as its own named model.
+///
+/// Catalogs describe things like a tab or a picker option as an inline object
+/// schema. Those deserve real classes rather than an untyped mapping, both so
+/// authors get completion and so any component slot nested inside them is
+/// typed as a child rather than opaque data.
+class ObjectModelType extends TypeDescriptor {
+  final String name;
+  const ObjectModelType(this.name);
+}
+
 class ListType extends TypeDescriptor {
   final TypeDescriptor elementType;
   const ListType(this.elementType);
@@ -121,12 +137,26 @@ class AnalysedFunctionApi {
   });
 }
 
+/// A named nested object model discovered inside a component or function schema.
+class AnalysedObjectModel {
+  final String name;
+  final String? description;
+  final Map<String, PropertyDescriptor> properties;
+
+  const AnalysedObjectModel({
+    required this.name,
+    this.description,
+    required this.properties,
+  });
+}
+
 class AnalysedCatalog {
   final String catalogId;
   final String specVersion;
   final Map<String, AnalysedComponentApi> components;
   final Map<String, AnalysedFunctionApi> functions;
   final Map<String, EnumType> enums;
+  final Map<String, AnalysedObjectModel> objectModels;
 
   const AnalysedCatalog({
     required this.catalogId,
@@ -134,5 +164,6 @@ class AnalysedCatalog {
     required this.components,
     required this.functions,
     required this.enums,
+    this.objectModels = const {},
   });
 }
