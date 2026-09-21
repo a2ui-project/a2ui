@@ -163,6 +163,17 @@ describe('PayloadValidator', () => {
         }),
       A2uiValidationError,
     );
+
+    // Non-object arguments to function fails validation
+    assert.throws(
+      () =>
+        validator.validateComponent({
+          id: 't1',
+          component: 'Text',
+          text: {call: 'upper', args: 'not_an_object'},
+        }),
+      A2uiValidationError,
+    );
   });
 
   it('validates recursive bare $defs references at arbitrary depth', () => {
@@ -299,6 +310,17 @@ describe('PayloadValidator', () => {
                 {type: 'number', multipleOf: 5},
               ],
             },
+            metaList: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  a: {type: 'number'},
+                  b: {type: 'number'},
+                },
+              },
+              uniqueItems: true,
+            },
           },
           required: ['iconName'],
           additionalProperties: false,
@@ -375,6 +397,35 @@ describe('PayloadValidator', () => {
       (err: unknown) =>
         err instanceof A2uiValidationError &&
         err.message.includes('Value matched more than one schema in oneOf'),
+    );
+
+    // uniqueItems: rejects semantically duplicate items even with different key ordering
+    assert.throws(
+      () =>
+        validator.validateComponent({
+          id: 'w7',
+          component: 'ConstrainedWidget',
+          iconName: 'home',
+          metaList: [
+            {a: 1, b: 2},
+            {b: 2, a: 1},
+          ],
+        }),
+      (err: unknown) =>
+        err instanceof A2uiValidationError && err.message.includes('Array items must be unique'),
+    );
+
+    // uniqueItems: distinct items pass
+    assert.doesNotThrow(() =>
+      validator.validateComponent({
+        id: 'w8',
+        component: 'ConstrainedWidget',
+        iconName: 'home',
+        metaList: [
+          {a: 1, b: 2},
+          {a: 1, b: 3},
+        ],
+      }),
     );
   });
 });

@@ -151,7 +151,9 @@ export class PayloadValidator {
       const argsDict =
         typeof rawArgs === 'object' && rawArgs !== null && !Array.isArray(rawArgs)
           ? (rawArgs as Record<string, unknown>)
-          : {};
+          : rawArgs !== undefined
+            ? (rawArgs as Record<string, unknown>)
+            : {};
       const callCatalogId =
         typeof record['catalogId'] === 'string' && record['catalogId'].length > 0
           ? record['catalogId']
@@ -176,11 +178,13 @@ export class PayloadValidator {
             rawName,
             `Function name '${rawName}' must be a valid UAX #31 identifier`,
           );
-          for (const argName of Object.keys(argsDict)) {
-            this.assertIdentifier(
-              argName,
-              `Function argument '${argName}' in function '${rawName}' must be a valid UAX #31 identifier`,
-            );
+          if (argsDict && typeof argsDict === 'object' && !Array.isArray(argsDict)) {
+            for (const argName of Object.keys(argsDict)) {
+              this.assertIdentifier(
+                argName,
+                `Function argument '${argName}' in function '${rawName}' must be a valid UAX #31 identifier`,
+              );
+            }
           }
         }
       } else {
@@ -223,7 +227,17 @@ export class PayloadValidator {
       return;
     }
 
-    if (!fn.schema) return;
+    if (!fn.schema) {
+      if (
+        args !== undefined &&
+        (typeof args !== 'object' || args === null || Array.isArray(args))
+      ) {
+        throw new A2uiValidationError(
+          `Validation failed for function '${name}': Expected object, received ${Array.isArray(args) ? 'array' : typeof args}`,
+        );
+      }
+      return;
+    }
 
     const result = fn.schema.safeParse(args ?? {});
     if (!result.success) {

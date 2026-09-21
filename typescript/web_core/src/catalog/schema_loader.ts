@@ -109,6 +109,25 @@ function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
 }
 
 /**
+ * Serializes a value to canonical JSON with deterministically sorted object keys
+ * so that semantically equivalent values produce identical strings regardless of
+ * object property insertion order.
+ */
+function canonicalJsonStringify(val: unknown): string {
+  if (val === null || typeof val !== 'object') {
+    return JSON.stringify(val);
+  }
+  if (Array.isArray(val)) {
+    return `[${val.map(canonicalJsonStringify).join(',')}]`;
+  }
+  const keys = Object.keys(val as Record<string, unknown>).sort();
+  const entries = keys.map(
+    k => `${JSON.stringify(k)}:${canonicalJsonStringify((val as Record<string, unknown>)[k])}`,
+  );
+  return `{${entries.join(',')}}`;
+}
+
+/**
  * Applies `not`, `default`, and `description` modifiers to a converted Zod schema.
  */
 function finalizePropertyZod(
@@ -116,6 +135,7 @@ function finalizePropertyZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   visitedPointers?: Set<string>,
+  defCache?: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny {
   let result = baseZod;
   if (propSchema.not && typeof propSchema.not === 'object') {
@@ -123,6 +143,7 @@ function finalizePropertyZod(
       propSchema.not as Record<string, unknown>,
       rootDoc,
       new Set(visitedPointers),
+      defCache,
     );
     result = result.refine(val => !notSchema.safeParse(val).success, {
       message: 'Value matched prohibited "not" schema',
@@ -141,6 +162,7 @@ function convertPropertyToZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
 ): z.ZodTypeAny {
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
@@ -171,12 +193,25 @@ function convertPropertyToZod(
         });
       }
       if (visitedPointers.has(ref)) {
-        // Recursive $ref cycle: defer evaluation to validation time via z.lazy
-        return z.lazy(() => convertPropertyToZod(localTarget, rootDoc, new Set([ref])));
+        // Recursive $ref cycle: defer evaluation to validation time via z.lazy,
+        // looking up the pre-compiled schema from defCache in O(1) time.
+        let cached = defCache.get(ref);
+        return z.lazy(() => {
+          if (!cached) {
+            cached =
+              defCache.get(ref) ??
+              convertPropertyToZod(localTarget, rootDoc, new Set([ref]), defCache);
+          }
+          return cached;
+        });
       }
-      const nextVisited = new Set(visitedPointers);
-      nextVisited.add(ref);
-      let zodType = convertPropertyToZod(localTarget, rootDoc, nextVisited);
+      let zodType = defCache.get(ref);
+      if (!zodType) {
+        const nextVisited = new Set(visitedPointers);
+        nextVisited.add(ref);
+        zodType = convertPropertyToZod(localTarget, rootDoc, nextVisited, defCache);
+        defCache.set(ref, zodType);
+      }
       if (typeof propSchema.description === 'string') {
         zodType = zodType.describe(propSchema.description);
       }
@@ -198,29 +233,34 @@ function convertPropertyToZod(
 
     if (branches.length > 0) {
       const zodBranches = branches.map(b =>
-        convertPropertyToZod(b, rootDoc, new Set(visitedPointers)),
+        convertPropertyToZod(b, rootDoc, new Set(visitedPointers), defCache),
       );
       let unionZod: z.ZodTypeAny;
       if (zodBranches.length === 1) {
         unionZod = zodBranches[0];
       } else {
-        unionZod = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
+        const baseUnion = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
         if (isOneOf) {
-          unionZod = unionZod.superRefine((val, ctx) => {
-            let matches = 0;
-            for (const b of zodBranches) {
-              if (b.safeParse(val).success) {
-                matches++;
-                if (matches > 1) {
-                  ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'Value matched more than one schema in oneOf',
-                  });
-                  return;
+          unionZod = z
+            .any()
+            .superRefine((val, ctx) => {
+              let matches = 0;
+              for (const b of zodBranches) {
+                if (b.safeParse(val).success) {
+                  matches++;
+                  if (matches > 1) {
+                    ctx.addIssue({
+                      code: z.ZodIssueCode.custom,
+                      message: 'Value matched more than one schema in oneOf',
+                    });
+                    return;
+                  }
                 }
               }
-            }
-          });
+            })
+            .pipe(baseUnion);
+        } else {
+          unionZod = baseUnion;
         }
       }
       if (propSchema.default !== undefined) {
@@ -239,13 +279,13 @@ function convertPropertyToZod(
   // Const literal
   if (propSchema.const !== undefined) {
     const constZod = z.literal(propSchema.const as string | number | boolean);
-    return finalizePropertyZod(constZod, propSchema, rootDoc, visitedPointers);
+    return finalizePropertyZod(constZod, propSchema, rootDoc, visitedPointers, defCache);
   }
 
   // Enums
   if (Array.isArray(propSchema.enum) && propSchema.enum.length > 0) {
     const enumZod = convertEnumToZod(propSchema.enum);
-    return finalizePropertyZod(enumZod, propSchema, rootDoc, visitedPointers);
+    return finalizePropertyZod(enumZod, propSchema, rootDoc, visitedPointers, defCache);
   }
 
   // Arrays
@@ -256,6 +296,7 @@ function convertPropertyToZod(
             propSchema.items as Record<string, unknown>,
             rootDoc,
             new Set(visitedPointers),
+            defCache,
           )
         : z.unknown();
     let arr: z.ZodTypeAny = z.array(itemSchema);
@@ -267,11 +308,11 @@ function convertPropertyToZod(
     }
     if (propSchema.uniqueItems === true) {
       arr = arr.refine(
-        (items: unknown[]) => new Set(items.map(i => JSON.stringify(i))).size === items.length,
+        (items: unknown[]) => new Set(items.map(canonicalJsonStringify)).size === items.length,
         {message: 'Array items must be unique'},
       );
     }
-    return finalizePropertyZod(arr, propSchema, rootDoc, visitedPointers);
+    return finalizePropertyZod(arr, propSchema, rootDoc, visitedPointers, defCache);
   }
 
   // Primitives
@@ -291,7 +332,7 @@ function convertPropertyToZod(
           // ignore regex compilation failure
         }
       }
-      return finalizePropertyZod(s, propSchema, rootDoc, visitedPointers);
+      return finalizePropertyZod(s, propSchema, rootDoc, visitedPointers, defCache);
     }
     case 'integer':
     case 'number': {
@@ -311,10 +352,10 @@ function convertPropertyToZod(
       if (typeof propSchema.multipleOf === 'number') {
         n = n.multipleOf(propSchema.multipleOf);
       }
-      return finalizePropertyZod(n, propSchema, rootDoc, visitedPointers);
+      return finalizePropertyZod(n, propSchema, rootDoc, visitedPointers, defCache);
     }
     case 'boolean': {
-      return finalizePropertyZod(z.boolean(), propSchema, rootDoc, visitedPointers);
+      return finalizePropertyZod(z.boolean(), propSchema, rootDoc, visitedPointers, defCache);
     }
     case 'object': {
       // An inline object that declares its properties is converted structurally
@@ -334,6 +375,7 @@ function convertPropertyToZod(
             false,
             rootDoc,
             visitedPointers,
+            defCache,
           ),
         );
         const forbidExtra =
@@ -342,10 +384,10 @@ function convertPropertyToZod(
       } else {
         obj = z.record(z.unknown());
       }
-      return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers);
+      return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
     default: {
-      return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers);
+      return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers, defCache);
     }
   }
 }
@@ -356,6 +398,7 @@ function convertPropertiesToShape(
   omitEnvelopeFields = false,
   rootDoc?: Record<string, unknown>,
   visitedPointers?: Set<string>,
+  defCache = new Map<string, z.ZodTypeAny>(),
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [propName, propSchema] of Object.entries(properties)) {
@@ -368,6 +411,7 @@ function convertPropertiesToShape(
         : {},
       rootDoc,
       visitedPointers ? new Set(visitedPointers) : new Set<string>(),
+      defCache,
     );
     shape[propName] = requiredSet.has(propName) ? zodField : zodField.optional();
   }
@@ -425,6 +469,7 @@ function convertComponentJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown>,
   omitEnvelopeFields = true,
+  defCache = new Map<string, z.ZodTypeAny>(),
 ): z.ZodObject<z.ZodRawShape> {
   const shape: Record<string, z.ZodTypeAny> = {};
   const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc);
@@ -444,6 +489,8 @@ function convertComponentJsonSchemaToZod(
       requiredSet,
       omitEnvelopeFields,
       rootDoc,
+      undefined,
+      defCache,
     );
     Object.assign(shape, propShape);
   }
@@ -461,6 +508,7 @@ function convertComponentJsonSchemaToZod(
 function convertFunctionArgsJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
+  defCache = new Map<string, z.ZodTypeAny>(),
 ): z.ZodObject<z.ZodRawShape> {
   const requiredSet = new Set<string>(
     Array.isArray(rawSchema.required)
@@ -472,6 +520,8 @@ function convertFunctionArgsJsonSchemaToZod(
     requiredSet,
     false,
     rootDoc,
+    undefined,
+    defCache,
   );
   const obj = z.object(shape);
   const allowExtra =
@@ -491,6 +541,7 @@ function parseFunctionDefinitions(
 ): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
+  const defCache = new Map<string, z.ZodTypeAny>();
 
   /** Validates a function's own name and its declared argument names. */
   const assertFunctionIdentifiers = (name: string, args: unknown): void => {
@@ -512,7 +563,11 @@ function parseFunctionDefinitions(
         }
         const paramSchema =
           fn.parameters && typeof fn.parameters === 'object'
-            ? convertFunctionArgsJsonSchemaToZod(fn.parameters as Record<string, unknown>, rootDoc)
+            ? convertFunctionArgsJsonSchemaToZod(
+                fn.parameters as Record<string, unknown>,
+                rootDoc,
+                defCache,
+              )
             : z.record(z.unknown());
         result.push({
           name: fn.name,
@@ -560,7 +615,11 @@ function parseFunctionDefinitions(
       }
       const paramSchema =
         argsSchema && typeof argsSchema === 'object'
-          ? convertFunctionArgsJsonSchemaToZod(argsSchema as Record<string, unknown>, rootDoc)
+          ? convertFunctionArgsJsonSchemaToZod(
+              argsSchema as Record<string, unknown>,
+              rootDoc,
+              defCache,
+            )
           : z.record(z.unknown());
       const returnType =
         (typeof d.returnType === 'string' ? d.returnType : undefined) ??
@@ -623,6 +682,7 @@ function parseCatalogComponents(
   permittedNames?: Set<string>,
 ): ComponentApi[] {
   const components: ComponentApi[] = [];
+  const defCache = new Map<string, z.ZodTypeAny>();
 
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     const rawComp = (rawCompSchema as Record<string, unknown>) || {};
@@ -641,7 +701,7 @@ function parseCatalogComponents(
     if (permittedNames && !permittedNames.has(name)) {
       continue;
     }
-    const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
+    const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema, true, defCache);
     components.push({
       name,
       schema: zodSchema,
