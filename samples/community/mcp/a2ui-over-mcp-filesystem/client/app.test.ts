@@ -107,23 +107,11 @@ if (typeof ShadowRoot !== 'undefined' && !(ShadowRoot.prototype as any).adoptedS
   (ShadowRoot.prototype as any).adoptedStyleSheets = [];
 }
 
-/** Initializes the app component, renders `<a2ui-surface>`, and flushes startup updates. */
+/** Mounts the app component so `<a2ui-surface>` renders and flushes startup updates. */
 async function bootstrap(app: A2uiFilesystemApp) {
-  const firstUpdatedDone = new Promise<void>(resolve => {
-    const orig = (app as any).firstUpdated.bind(app);
-    (app as any).firstUpdated = async () => {
-      await orig();
-      resolve();
-    };
-  });
   document.body.replaceChildren(app);
-  await firstUpdatedDone;
+  await Promise.resolve();
   await app.updateComplete;
-  const surfaceEl = app.shadowRoot?.querySelector('a2ui-surface') as {
-    updateComplete?: Promise<unknown>;
-  } | null;
-  await surfaceEl?.updateComplete;
-  // Flush pending microtasks from async MCP tool execution and data model updates.
   await new Promise(resolve => setTimeout(resolve, 0));
 }
 
