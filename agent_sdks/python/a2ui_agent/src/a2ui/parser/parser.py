@@ -57,7 +57,7 @@ class Parser(ABC):
                     # Re-raising it as something else would throw that away, so
                     # it travels out as it came, carrying the parts that were
                     # read before it.
-                    e.partial_results = parsed_so_far
+                    setattr(e, "partial_results", parsed_so_far)
                     raise
                 except Exception as e:
                     from a2ui.parser.errors import A2uiCompilationError
