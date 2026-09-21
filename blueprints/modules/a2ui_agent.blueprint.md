@@ -727,32 +727,13 @@ a2ui/builder/
 
 #### Authoring model
 
-A builder tree is nested; the wire format is flat. Every component references its children by ID and appears as a sibling in a single component list. The transformation between the two is the builder's only real behaviour, and it is attached to the child slot type rather than implemented as a separate traversal:
+A builder tree is nested; the wire format is flat. Every component references its children by ID and appears as a sibling in a single component list. The transformation between the two is the builder's only real behaviour, and it is attached to the child slot type rather than implemented as a separate traversal, so that the serialization library drives a single walk of the tree.
 
-- A field typed as a **child slot** serialises to the referenced component's allocated ID and, as a side effect, appends that child's subtree to the flat output.
-- Flattening runs as two passes over the same tree: a scan that reserves author-supplied IDs, then an emit pass that allocates the remainder and collects components in depth-first post-order, so no reference can point at a component that does not exist.
-- The same object appearing in two slots is one component referenced twice, not a duplicate.
-- An **external component reference** marks a slot boundary: it is referenced by its existing ID, never re-emitted and never namespaced.
+Authoring is strict and parsing is lenient on request: unknown properties are rejected at construction and enum properties are declared as the exact value set the catalog defines, while an explicit lenient context allows a parse to accept a value from a newer catalog revision without widening the declared type.
 
-Implementations must not hand-roll serialization per model. Field shape, aliases, defaults and null handling belong to the host language's serialization library; only child resolution is the builder's own.
+Catalog modules under `<version>/catalogs/` are generated from the catalog JSON schema by the A2UI CLI and are never edited by hand. Only the runtime in `core/` and `<version>/` is written directly.
 
-#### Strict authoring, lenient parsing
-
-Authoring validation is strict: unknown properties are rejected, so a misspelled attribute fails at construction rather than silently reaching a renderer. Enum properties are declared as the exact value set the catalog defines, so a static type checker rejects an invalid value at edit time.
-
-Parsing has the opposite requirement, because a peer may legitimately send a value from a newer catalog revision. Implementations therefore carry enum metadata that relaxes the value check only when an explicit lenient context is supplied, rather than widening the declared type for everyone.
-
-#### Generated catalog modules
-
-Catalog modules are generated from the catalog JSON schema by the A2UI CLI and are never edited by hand. A conforming generator must:
-
-- Emit one class per component, typed against the runtime's child-slot, action, binding and check-rule types.
-- Promote inline object schemas (a tab, a picker option) to named models, so a component slot nested inside one is still a child slot.
-- Preserve every branch of a `oneOf`. Narrowing a property to its most common branch rejects payloads the catalog permits.
-- Resolve name clashes across enums, item models and components rather than letting one shadow another.
-- Emit a class and a factory per catalog function, so a call site can be typed by the function it invokes.
-- Reserve no property for call correlation: correlating a call with its response is a message-level concern, not a property of an invocation inside a component.
-- Derive the generated module's name from the catalog's own identifier when the output target is a directory. A regenerated catalog then lands on the path already committed, so drift shows up as a diff rather than as a second module nobody imports.
+The builder API is an optional capability, and a binding is useful without one. Its requirements, the generator contract, and the reasoning behind each rule are specified in the [Typesafe Builder API feature blueprint](../features/typesafe_builder_api.blueprint.md). Implementations claim it by listing `typesafe_builder_api` under `implemented_features` in their codebase blueprint.
 
 ---
 
