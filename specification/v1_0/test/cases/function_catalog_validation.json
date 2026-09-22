@@ -17,10 +17,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       }
                     }
                   },
@@ -48,7 +48,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {}
                   },
                   "message": "Msg"
@@ -75,10 +75,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       }
                     },
                     "returnType": "string"
@@ -107,10 +107,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "regex",
+                    "@call": "regex",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "pattern": "^abc$"
                     }
@@ -139,10 +139,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "regex",
+                    "@call": "regex",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       }
                     }
                   },
@@ -170,10 +170,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "min": 5
                     }
@@ -202,10 +202,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "max": 10
                     }
@@ -234,10 +234,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       }
                     }
                   },
@@ -265,10 +265,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "numeric",
+                    "@call": "numeric",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "min": 0,
                       "max": 100
@@ -298,10 +298,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "email",
+                    "@call": "email",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       }
                     }
                   },
@@ -325,7 +325,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatString",
+                "@call": "formatString",
                 "args": {
                   "value": "Hello ${/name}"
                 }
@@ -347,7 +347,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatString",
+                "@call": "formatString",
                 "args": {
                   "value": "Hi"
                 },
@@ -370,7 +370,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatNumber",
+                "@call": "formatNumber",
                 "args": {
                   "value": 1234.567,
                   "decimals": 2,
@@ -394,7 +394,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatNumber",
+                "@call": "formatNumber",
                 "args": {
                   "value": 1234.567,
                   "decimals": "2"
@@ -417,7 +417,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatCurrency",
+                "@call": "formatCurrency",
                 "args": {
                   "value": 99.99,
                   "currency": "USD"
@@ -440,7 +440,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatCurrency",
+                "@call": "formatCurrency",
                 "args": {
                   "value": 99.99
                 }
@@ -462,7 +462,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatDate",
+                "@call": "formatDate",
                 "args": {
                   "value": "2023-01-01",
                   "format": "MMM d"
@@ -485,7 +485,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "pluralize",
+                "@call": "pluralize",
                 "args": {
                   "value": 5,
                   "one": "item",
@@ -509,7 +509,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "pluralize",
+                "@call": "pluralize",
                 "args": {
                   "value": 5,
                   "one": "item"
@@ -534,7 +534,7 @@
               "child": "txt1",
               "action": {
                 "functionCall": {
-                  "call": "openUrl",
+                  "@call": "openUrl",
                   "args": {
                     "url": "https://example.com"
                   }
@@ -564,7 +564,7 @@
               "child": "txt1",
               "action": {
                 "functionCall": {
-                  "call": "openUrl",
+                  "@call": "openUrl",
                   "args": "https://example.com"
                 }
               }
@@ -592,7 +592,7 @@
               "child": "txt1",
               "action": {
                 "functionCall": {
-                  "call": "openUrl",
+                  "@call": "openUrl",
                   "args": {
                     "url": "https://example.com"
                   },
@@ -625,10 +625,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "min": "5"
                     }
@@ -657,10 +657,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "max": -2
                     }
@@ -689,10 +689,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "numeric",
+                    "@call": "numeric",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "min": "10"
                     }
@@ -721,10 +721,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "numeric",
+                    "@call": "numeric",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "max": "20"
                     }
@@ -753,10 +753,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "regex",
+                    "@call": "regex",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "pattern": 123
                     }
@@ -785,10 +785,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "email",
+                    "@call": "email",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "extra": "foo"
                     }
@@ -813,7 +813,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatString",
+                "@call": "formatString",
                 "args": {
                   "value": 123
                 }
@@ -835,7 +835,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatNumber",
+                "@call": "formatNumber",
                 "args": {
                   "value": 123.456,
                   "decimals": true
@@ -858,7 +858,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatCurrency",
+                "@call": "formatCurrency",
                 "args": {
                   "value": 123.45,
                   "currency": 840
@@ -881,7 +881,7 @@
               "id": "txt1",
               "component": "Text",
               "text": {
-                "call": "formatDate",
+                "@call": "formatDate",
                 "args": {
                   "value": "2023-01-01",
                   "format": null
@@ -906,7 +906,7 @@
               "child": "txt1",
               "action": {
                 "functionCall": {
-                  "call": "openUrl",
+                  "@call": "openUrl",
                   "args": {
                     "url": "not a uri"
                   }
@@ -938,7 +938,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "and",
+                    "@call": "and",
                     "args": {
                       "values": [true, false]
                     }
@@ -967,7 +967,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "and",
+                    "@call": "and",
                     "args": {
                       "values": [true]
                     }
@@ -996,7 +996,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "or",
+                    "@call": "or",
                     "args": {
                       "values": [true, false]
                     }
@@ -1025,7 +1025,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "or",
+                    "@call": "or",
                     "args": {
                       "values": [true]
                     }
@@ -1054,7 +1054,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "not",
+                    "@call": "not",
                     "args": {
                       "value": true
                     }
@@ -1083,7 +1083,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "not",
+                    "@call": "not",
                     "args": {
                       "value": "true"
                     }
@@ -1112,7 +1112,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "not",
+                    "@call": "not",
                     "args": {
                       "value": true
                     },
@@ -1142,10 +1142,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "extra": 1
                     }
@@ -1174,10 +1174,10 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "regex",
+                    "@call": "regex",
                     "args": {
                       "value": {
-                        "path": "/val"
+                        "@path": "/val"
                       },
                       "pattern": "^abc$"
                     },
@@ -1207,7 +1207,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "and",
+                    "@call": "and",
                     "args": {
                       "values": [true, false]
                     },
@@ -1242,7 +1242,7 @@
               "component": "Slider",
               "max": 10,
               "value": {
-                "call": "@index",
+                "@call": "@index",
                 "args": {
                   "offset": 1
                 }
@@ -1265,7 +1265,7 @@
               "component": "Slider",
               "max": 10,
               "value": {
-                "call": "@index",
+                "@call": "@index",
                 "args": {
                   "offset": "1"
                 }
@@ -1288,7 +1288,7 @@
               "component": "Slider",
               "max": 10,
               "value": {
-                "call": "@index",
+                "@call": "@index",
                 "returnType": "string"
               }
             }
@@ -1309,7 +1309,7 @@
               "component": "Slider",
               "max": 10,
               "value": {
-                "call": "@index",
+                "@call": "@index",
                 "catalogId": "some-catalog",
                 "args": {
                   "offset": 1
