@@ -6,9 +6,13 @@ This package targets the A2UI protocol **v1.0** only, and currently supports the
 
 ## Temporary shims
 
-| Symbol             | Stands in for                            | Why                                                                       | Remove when                            |
-| :----------------- | :--------------------------------------- | :------------------------------------------------------------------------ | :------------------------------------- |
-| `A2uiCatalogError` | `@a2ui/web_core/errors#A2uiCatalogError` | Specified in `a2ui_core.blueprint.md` but not yet exported by `web_core`. | Exported from `@a2ui/web_core/errors`. |
+| Symbol                              | Stands in for                            | Why                                                                                                                          | Remove when                                   |
+| :---------------------------------- | :--------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------- |
+| `A2uiCatalogError`                  | `@a2ui/web_core/errors#A2uiCatalogError` | Specified in `a2ui_core.blueprint.md` but not yet exported by `web_core`.                                                    | Exported from `@a2ui/web_core/errors`.        |
+| `RemoveStrictValidationTransformer` | a `web_core` catalog schema modifier     | The conformance suite declares a `remove_strict_validation` modifier, but `web_core` exposes no common schema modifiers yet. | `web_core` exports an equivalent transformer. |
+
+Defined in `tests/conformance/fixtures.ts` rather than `src/`, so the shim audit covers both
+`src/` and `tests/`.
 
 ## Known limitations
 
