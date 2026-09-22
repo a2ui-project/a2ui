@@ -563,9 +563,7 @@ class ExpressCompiler:
                 is_action=(prop_name in ["action", "submitAction"]),
             )
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
-            if prop_schema and not _schema_allows_databinding(
-                prop_schema, self.helper
-            ):
+            if prop_schema and not _schema_allows_databinding(prop_schema, self.helper):
                 if _has_databinding(mapped_val):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
                 if isinstance(mapped_val, list) and _schema_expects_option_objects(

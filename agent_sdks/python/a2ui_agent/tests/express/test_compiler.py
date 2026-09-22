@@ -691,13 +691,7 @@ root = Text("Hello Surface")"""
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "protocolVersion": "1.0",
             "catalogId": "https://a2ui.org/test_tokens_catalog",
-            "metadata": {
-                "extensions": {
-                    "com_example_theme": {
-                        "colorMode": "dark"
-                    }
-                }
-            },
+            "metadata": {"extensions": {"com_example_theme": {"colorMode": "dark"}}},
             "components": {
                 "Badge": {
                     "type": "object",
@@ -769,7 +763,10 @@ root = Text("Hello Surface")"""
         self.assertIn("is not a valid enum choice", str(ctx.exception))
 
         # 3. Compile component with option objects resolved from $defs
-        dsl_options = 'root = OptionPicker([{"label": "One", "value": "1"}, {"label": "Two", "value": "2"}], selected="1")'
+        dsl_options = (
+            'root = OptionPicker([{"label": "One", "value": "1"}, {"label": "Two",'
+            ' "value": "2"}], selected="1")'
+        )
         envelopes_opt = compiler.compile(dsl_options)
         comp_opt = envelopes_opt[0]["createSurface"]["components"][0]
         self.assertEqual(comp_opt["component"], "OptionPicker")
@@ -778,6 +775,7 @@ root = Text("Hello Surface")"""
 
         # 4. Verify prompt generator includes resolved token enums
         from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
         fmt = ExpressFormat(catalog=catalog)
         prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
         self.assertIn("Badge(", prompt)

@@ -351,4 +351,3 @@ class CatalogSchemaHelper:
             return None
 
         return _crawl_ref(p_schema)
-
