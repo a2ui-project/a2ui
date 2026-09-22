@@ -31,24 +31,18 @@ from __future__ import annotations
 from typing import Any, Mapping, Optional, Sequence, TypeAlias, Union
 from pydantic import (
     AliasChoices,
-    BaseModel,
     ConfigDict,
     Field,
     field_validator,
     model_validator,
 )
 
+from ..core.base_model import BuilderBaseModel
 from ..core.child import Child
 
 
-class A2uiExpression(BaseModel):
+class A2uiExpression(BuilderBaseModel):
     """Base model for reactive expressions (bindings and function calls)."""
-
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
 
 
 def _absolute_pointer(path: str) -> str:
@@ -64,12 +58,7 @@ def _absolute_pointer(path: str) -> str:
 class DataBinding(A2uiExpression):
     """A two-way binding to a path in the client data model."""
 
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
+    model_config = ConfigDict(frozen=True)
 
     path: str
 
@@ -84,7 +73,7 @@ def bind(path: str) -> DataBinding:
     return DataBinding(path=path)
 
 
-class AccessibilityAttributes(BaseModel):
+class AccessibilityAttributes(BuilderBaseModel):
     """Attributes to enhance accessibility when using assistive technologies.
 
     Only ``label`` and ``description`` exist in v0.9.1. The ``live`` and
@@ -92,12 +81,6 @@ class AccessibilityAttributes(BaseModel):
     v0.9.1 omits ``additionalProperties: false`` here, so declaring them would
     validate cleanly while no v0.9 renderer read them.
     """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
 
     label: Optional[Union[str, DataBinding]] = None
     description: Optional[Union[str, DataBinding]] = None
@@ -112,30 +95,18 @@ class FunctionCall(A2uiExpression):
     from inside a component.
     """
 
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
-
     call: str
     args: dict[str, Any] = Field(default_factory=dict)
 
 
-class ActionEvent(BaseModel):
+class ActionEvent(BuilderBaseModel):
     """A named event dispatched to the server when an action fires."""
-
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
 
     name: str
     context: Optional[dict[str, Any]] = None
 
 
-class Action(BaseModel):
+class Action(BuilderBaseModel):
     """An interaction handler dispatching a server event or a client function.
 
     The spec models this as a ``oneOf``: an action carries an ``event`` or a
@@ -147,12 +118,6 @@ class Action(BaseModel):
     ``Action(event="save")`` would be invisible to a type checker, which then
     reports the ergonomic spelling as an error. Use :func:`event` instead.
     """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
 
     event: Optional[ActionEvent] = None
     function_call: Optional[FunctionCall] = Field(
@@ -177,7 +142,7 @@ def event(name: str, context: Optional[Mapping[str, Any]] = None) -> Action:
     )
 
 
-class CheckRule(BaseModel):
+class CheckRule(BuilderBaseModel):
     """A client-side validation check (condition + error message).
 
     ``condition`` is narrowed to a :class:`FunctionCall` even though the spec
@@ -186,17 +151,11 @@ class CheckRule(BaseModel):
     are the intended way to express one.
     """
 
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
-
     condition: FunctionCall
     message: str
 
 
-class DynamicChildList(BaseModel):
+class DynamicChildList(BuilderBaseModel):
     """Generates children by repeating one template component over a data model list.
 
     On the wire this is ``{"componentId": <id>, "path": <str>}``: the template is
@@ -204,12 +163,6 @@ class DynamicChildList(BaseModel):
     Authors nest the template here, and the :data:`Child` serializer resolves it
     to the ID it was allocated, so the reference cannot dangle.
     """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        arbitrary_types_allowed=False,
-        validate_by_name=True,
-    )
 
     path: str = Field(
         validation_alias=AliasChoices("path", "data_model_path", "dataModelPath"),

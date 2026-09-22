@@ -14,6 +14,7 @@
 
 """Core, protocol-agnostic runtime foundation for A2UI fluent builders."""
 
+from .base_model import BuilderBaseModel
 from .base_node import (
     ComponentBuilderNode,
     ComponentRef,
@@ -27,6 +28,7 @@ from .tree import ComponentTree
 __all__ = [
     "LENIENT_ENUM_CONTEXT",
     "OPEN_ENUM",
+    "BuilderBaseModel",
     "Child",
     "ComponentBuilderNode",
     "ComponentRef",

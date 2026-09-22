@@ -17,21 +17,15 @@
 from __future__ import annotations
 
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
+
+from .base_model import BuilderBaseModel
 
 
-class ComponentBuilderNode(BaseModel):
+class ComponentBuilderNode(BuilderBaseModel):
     """Base class for all generated A2UI component builders."""
 
     model_config = ConfigDict(
-        # Strict authoring validation: catches typos (e.g. lable="Save") at runtime and edit-time.
-        # Loose parsing will be handled by dedicated deserialization constructors in Phase 2 (#2571).
-        # TODO: change to extra="allow" if using for deserialization as well to preserve unknown fields for round-tripping
-        extra="forbid",
-        # Arbitrary types forbidden to enforce strict typing on builder inputs
-        arbitrary_types_allowed=False,
-        # Modern Pydantic 2.11+ replacement for populate_by_name
-        validate_by_name=True,
         # Validate whenever the datamodel is changed, not just created
         validate_assignment=True,
     )
