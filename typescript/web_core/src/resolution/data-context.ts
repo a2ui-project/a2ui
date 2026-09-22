@@ -751,7 +751,7 @@ export class DataContext {
         ? this.functionInvoker
         : this.resolveFunctionCatalog(catalogId).invoker);
     try {
-      return invoker(name, args, this, abortSignal);
+      return invoker(name, args, this, abortSignal) as Signal<V> | V;
     } catch (e: unknown) {
       this.dispatchExpressionError(e, name);
       return undefined as unknown as V;
