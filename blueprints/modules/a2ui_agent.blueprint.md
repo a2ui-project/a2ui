@@ -559,17 +559,25 @@ class CatalogConfig:
         cls,
         catalog_path: str,
         transformers: Optional[Sequence[CatalogTransformer]] = None,
+        protocol_version: Optional[ProtocolVersion] = None,
+        catalog_id: Optional[str] = None,
     ) -> "CatalogConfig":
         """Factory method loading a Catalog from disk into a CatalogConfig.
 
         Args:
             catalog_path: Path to the catalog JSON file.
             transformers: Optional list of catalog transformers.
+            protocol_version: Optional expected protocol version for validation.
+            catalog_id: Optional expected catalog ID for validation.
 
         Returns:
             A CatalogConfig instance.
         """
-        catalog = FileSystemCatalogProvider(catalog_path).load()
+        catalog = FileSystemCatalogProvider(
+            catalog_path,
+            protocol_version=protocol_version,
+            catalog_id=catalog_id,
+        ).load()
         return cls(catalog=catalog, transformers=transformers)
 ```
 
