@@ -20,4 +20,4 @@ export * from './functions/system_functions.js';
 export * from './functions/validation_functions_api.js';
 export * from './functions/validation_functions.js';
 export * from '../rpc/index.js';
-export * from '../validating/integrity-checker.js';
+export * from '../validation/index.js';

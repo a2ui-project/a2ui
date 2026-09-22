@@ -15,8 +15,8 @@
  */
 
 import {ReactiveController} from 'lit';
-import {GenericBinder, ResolveA2uiProps} from '../rendering/generic-binder.js';
-import {ComponentApi, InferredComponentApiSchemaType} from './types.js';
+import {GenericBinder, ResolveA2uiProps} from '../../resolution/generic-binder.js';
+import {ComponentApi, InferredComponentApiSchemaType} from '../../catalog/types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 
 /**

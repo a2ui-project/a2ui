@@ -15,7 +15,7 @@
  */
 
 import {z} from 'zod';
-import {childRefKindOf, type ChildRefKind} from '../schema/common-types.js';
+import {childRefKindOf, type ChildRefKind} from '../types/common-types.js';
 
 /**
  * Classification reads the child-reference marker `ComponentIdSchema` and

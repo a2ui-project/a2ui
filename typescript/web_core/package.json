@@ -38,13 +38,21 @@
       "types": "./dist/src/processing/index.d.ts",
       "default": "./dist/src/processing/index.js"
     },
+    "./resolution": {
+      "types": "./dist/src/resolution/index.d.ts",
+      "default": "./dist/src/resolution/index.js"
+    },
     "./rendering": {
-      "types": "./dist/src/rendering/index.d.ts",
-      "default": "./dist/src/rendering/index.js"
+      "types": "./dist/src/resolution/index.d.ts",
+      "default": "./dist/src/resolution/index.js"
+    },
+    "./validation": {
+      "types": "./dist/src/validation/index.d.ts",
+      "default": "./dist/src/validation/index.js"
     },
     "./validating": {
-      "types": "./dist/src/validating/integrity-checker.d.ts",
-      "default": "./dist/src/validating/integrity-checker.js"
+      "types": "./dist/src/validation/integrity-checker.d.ts",
+      "default": "./dist/src/validation/integrity-checker.js"
     },
     "./reactivity": {
       "types": "./dist/src/reactivity/index.d.ts",

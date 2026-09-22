@@ -25,7 +25,7 @@ import {ExpressionParser} from '../expressions/expression_parser.js';
 import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
 import {A2uiExpressionError} from '../errors.js';
-import {DataContext} from '../rendering/data-context.js';
+import {DataContext} from '../resolution/data-context.js';
 
 /**
  * Default BCP 47 locale used when a catalog is built without an explicit one.

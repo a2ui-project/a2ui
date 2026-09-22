@@ -31,7 +31,7 @@ import {
 } from './basic_functions.js';
 import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
 import {DataModel} from '../../../state/data-model.js';
-import {DataContext} from '../../../rendering/data-context.js';
+import {DataContext} from '../../../resolution/data-context.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../../errors.js';
 import {Catalog, ComponentApi} from '../../../catalog/types.js';
 

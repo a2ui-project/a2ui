@@ -38,8 +38,8 @@ import {
 } from '../../dist/src/v1_0/basic_catalog/index.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../dist/src/errors.js';
-import {NodeResolver} from '../../dist/src/v0_9/nodes/node-resolver.js';
-import {ResolvedBinding} from '../../dist/src/v0_9/nodes/resolved-binding.js';
+import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
+import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
 import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
 
 // Dedicated basic catalog component definitions per specification version

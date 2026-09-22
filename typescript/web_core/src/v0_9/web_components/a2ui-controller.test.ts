@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after, afterEach} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
 
 import type {
   MessageProcessor,
@@ -24,8 +24,8 @@ import type {
   Catalog,
   WebComponentImplementation,
   SurfaceModel,
-} from '../v0_9/index.js';
-import type {TextApi as TextApiType} from '../v0_9/basic_catalog/index.js';
+} from '../index.js';
+import type {TextApi as TextApiType} from '../basic_catalog/index.js';
 import type {A2uiLitElement as A2uiLitElementType} from './a2ui-lit-element.js';
 import type {A2uiController as A2uiControllerType} from './a2ui-controller.js';
 
@@ -82,10 +82,10 @@ describe('A2uiController', () => {
     // to prevent LitElement from evaluating in an empty Node context and crashing.
     const {A2uiLitElement} = await import('./a2ui-lit-element.js');
     A2uiController = (await import('./a2ui-controller.js')).A2uiController;
-    const webCore = await import('../v0_9/index.js');
+    const webCore = await import('../index.js');
     MessageProcessorClass = webCore.MessageProcessor;
     ComponentContextClass = webCore.ComponentContext;
-    const webCoreBasic = await import('../v0_9/basic_catalog/index.js');
+    const webCoreBasic = await import('../basic_catalog/index.js');
     basicCatalog = webCoreBasic.basicCatalog;
     TextApi = webCoreBasic.TextApi;
 

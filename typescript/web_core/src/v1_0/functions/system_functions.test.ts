@@ -18,7 +18,7 @@ import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 
 import {IndexApi, IndexImplementation, SYSTEM_FUNCTIONS} from './system_functions.js';
-import {DataContext} from '../../rendering/data-context.js';
+import {DataContext} from '../../resolution/data-context.js';
 import {A2uiValidationError} from '../../errors.js';
 
 /** Builds a context that reports the given data path and no iteration index. */

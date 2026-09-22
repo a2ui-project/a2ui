@@ -19,7 +19,7 @@ import * as assert from 'node:assert';
 import {z} from 'zod';
 import {RpcHandler, RpcError, RpcErrorCode} from './rpc-handler.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
-import {DataContext} from '../rendering/data-context.js';
+import {DataContext} from '../resolution/data-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {signal} from '../reactivity/signals.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';

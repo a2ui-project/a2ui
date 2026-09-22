@@ -23,25 +23,12 @@
 
 export * from '../catalog/function_invoker.js';
 export * from '../catalog/types.js';
-export * from '../catalog/a2ui-controller.js';
-export * from '../catalog/a2ui-lit-element.js';
-export * from '../catalog/render-a2ui-node.js';
+export * from './web_components/a2ui-controller.js';
+export * from './web_components/a2ui-lit-element.js';
+export * from './web_components/render-a2ui-node.js';
 export * from '../common/events.js';
 export * from '../processing/message-processor.js';
-export * from '../rendering/component-context.js';
-export * from '../rendering/data-context.js';
-export * from '../rendering/generic-binder.js';
-// MutableComponentNode is deliberately not re-exported.
-export {
-  isComponentNode,
-  PLACEHOLDER_TYPE,
-  type ComponentNode,
-  type NodeProps,
-  type NodeState,
-} from './nodes/component-node.js';
-export * from './nodes/node-resolver.js';
-export * from './nodes/ref-fields.js';
-export * from './nodes/resolved-binding.js';
+export * from '../resolution/index.js';
 export * from './schema/index.js';
 export * from './standard_defs.js';
 export * from '../state/component-model.js';
@@ -51,8 +38,7 @@ export * from '../state/surface-group-model.js';
 export * from '../state/surface-model.js';
 export * from '../errors.js';
 export * from './basic_catalog/index.js';
-export type {ResolvedChildRef} from '../rendering/generic-binder.js';
-export * from '../validating/integrity-checker.js';
+export * from '../validation/integrity-checker.js';
 export {
   /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
   injectBasicCatalogStyles,

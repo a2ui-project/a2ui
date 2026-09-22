@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {EventEmitter, EventSource} from '../../common/events.js';
-import type {ComponentApi} from '../../catalog/types.js';
-import {Signal, signal, peekValue, setValue} from '../../reactivity/signals.js';
+import {EventEmitter, EventSource} from '../common/events.js';
+import type {ComponentApi} from '../catalog/types.js';
+import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 
 /** The component type name used for pending and cyclic placeholder nodes. */

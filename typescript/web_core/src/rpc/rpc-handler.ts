@@ -15,7 +15,7 @@
  */
 
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
-import {DataContext} from '../rendering/data-context.js';
+import {DataContext} from '../resolution/data-context.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
 import {

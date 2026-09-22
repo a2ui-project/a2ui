@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import {SurfaceModel} from '../../state/surface-model.js';
-import {ComponentModel} from '../../state/component-model.js';
-import {Catalog, ComponentApi, FunctionImplementation} from '../../catalog/types.js';
-import {ComponentContext} from '../../rendering/component-context.js';
-import {DataContext} from '../../rendering/data-context.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {ComponentModel} from '../state/component-model.js';
+import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
+import {ComponentContext} from './component-context.js';
+import {DataContext} from './data-context.js';
 import {
   BehaviorNode,
   GenericBinder,
   getSafeChildList,
   scrapeSchemaBehavior,
-} from '../../rendering/generic-binder.js';
+} from './generic-binder.js';
 import {
   ComponentNode,
   isComponentNode,
@@ -34,9 +34,9 @@ import {
 } from './component-node.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
 import {ResolvedBinding, WritableBinding, sameBinding} from './resolved-binding.js';
-import {Signal, signal, setValue, peekValue} from '../../reactivity/signals.js';
-import {Subscription} from '../../common/events.js';
-import {A2uiStateError} from '../../errors.js';
+import {Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
+import {Subscription} from '../common/events.js';
+import {A2uiStateError} from '../errors.js';
 
 const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';

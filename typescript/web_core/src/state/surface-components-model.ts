@@ -28,7 +28,7 @@ import {
   getComponentReferences,
   MAX_GLOBAL_DEPTH,
   ValidationConfig,
-} from '../validating/integrity-checker.js';
+} from '../validation/integrity-checker.js';
 
 /**
  * Collection model of components on a surface supporting topology validation and cycle detection.

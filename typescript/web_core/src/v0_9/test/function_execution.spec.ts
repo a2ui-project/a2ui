@@ -17,7 +17,7 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
 import {DataModel} from '../../state/data-model.js';
-import {DataContext} from '../../rendering/data-context.js';
+import {DataContext} from '../../resolution/data-context.js';
 
 import {signal, setValue} from '../../reactivity/signals.js';
 

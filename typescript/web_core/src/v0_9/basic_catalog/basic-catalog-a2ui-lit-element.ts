@@ -15,7 +15,11 @@
  */
 
 import {ComponentApi} from '../../catalog/types.js';
-import {A2uiLitElement, ResolvedChildList, A2uiChildRef} from '../../catalog/a2ui-lit-element.js';
+import {
+  A2uiLitElement,
+  ResolvedChildList,
+  A2uiChildRef,
+} from '../web_components/a2ui-lit-element.js';
 import {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
 import {isValidCssColor} from './theme.js';
 

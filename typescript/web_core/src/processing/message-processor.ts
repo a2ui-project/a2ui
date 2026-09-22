@@ -59,14 +59,14 @@ import {
   RpcError,
   RpcErrorCode,
 } from '../rpc/index.js';
-import {DataContext} from '../rendering/data-context.js';
+import {DataContext} from '../resolution/data-context.js';
 import {
   getComponentReferences,
   RELAXED_VALIDATION,
   STRICT_VALIDATION,
   validateRecursionAndPaths,
   ValidationConfig,
-} from '../validating/integrity-checker.js';
+} from '../validation/integrity-checker.js';
 
 /**
  * Union of individual message types supported by the MessageProcessor across protocol versions.

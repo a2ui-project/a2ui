@@ -16,7 +16,7 @@
 
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
-import {DataContext} from '../rendering/data-context.js';
+import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {loadCatalogFromSchema} from './schema_loader.js';

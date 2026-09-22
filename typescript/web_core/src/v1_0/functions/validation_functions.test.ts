@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
-import {DataContext} from '../../rendering/data-context.js';
+import {DataContext} from '../../resolution/data-context.js';
 import {
   RequiredV1Point0Implementation,
   RegexV1Point0Implementation,

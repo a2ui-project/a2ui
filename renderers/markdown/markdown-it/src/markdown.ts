@@ -16,7 +16,13 @@
 
 import {rawMarkdownRenderer} from './raw-markdown.js';
 import {sanitize} from './sanitizer.js';
-import type {MarkdownRendererOptions} from '@a2ui/web_core';
+import type {
+  MarkdownRenderer,
+  MarkdownRendererOptions,
+  MarkdownRendererTagClassMap,
+} from '@a2ui/web_core';
+
+export type {MarkdownRenderer, MarkdownRendererOptions, MarkdownRendererTagClassMap};
 
 /**
  * A Markdown to HTML renderer using markdown-it and dompurify.

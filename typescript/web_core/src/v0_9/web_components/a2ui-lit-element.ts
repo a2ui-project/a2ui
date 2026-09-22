@@ -16,9 +16,9 @@
 
 import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
-import {ComponentContext} from '../rendering/component-context.js';
-import {Catalog, ComponentApi, WebComponentImplementation} from './types.js';
-import {type ComponentId} from '../types/common-types.js';
+import {ComponentContext} from '../../resolution/component-context.js';
+import {Catalog, ComponentApi, WebComponentImplementation} from '../../catalog/types.js';
+import {type ComponentId} from '../../types/common-types.js';
 import {renderA2uiNode} from './render-a2ui-node.js';
 import {A2uiController} from './a2ui-controller.js';
 

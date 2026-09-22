@@ -23,7 +23,7 @@ import path from 'node:path';
 import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
 import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
 import {DataModel} from '../../../state/data-model.js';
-import {DataContext} from '../../../rendering/data-context.js';
+import {DataContext} from '../../../resolution/data-context.js';
 import {A2uiExpressionError} from '../../../errors.js';
 import {Catalog, ComponentApi} from '../../../catalog/types.js';
 

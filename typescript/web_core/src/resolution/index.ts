@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,20 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * Headless resolution abstractions, context management, property binders, and view node graph.
+ */
 
-import {createContext} from '@lit/context';
-
-import type {MarkdownRenderer} from '../../../common/markdown.js';
-
+export * from './component-context.js';
+export * from './data-context.js';
+export * from './generic-binder.js';
+export {
+  PLACEHOLDER_TYPE,
+  isComponentNode,
+  type ComponentNode,
+  type NodeProps,
+  type NodeState,
+} from './component-node.js';
+export * from './node-resolver.js';
+export * from './ref-fields.js';
+export * from './resolved-binding.js';
 export type {
   MarkdownRenderer,
   MarkdownRendererOptions,
   MarkdownRendererTagClassMap,
-} from '../../../common/markdown.js';
-
-/**
- * The markdown renderer context.
- *
- * This is used by the Text widget to render markdown content.
- */
-export const markdown = createContext<MarkdownRenderer | undefined>(Symbol.for('A2UIMarkdown'));
+} from '../common/markdown.js';

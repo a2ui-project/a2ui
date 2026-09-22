@@ -16,14 +16,14 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after} from 'node:test';
-import {setupTestDom, teardownTestDom} from '../test/dom-setup.js';
+import {setupTestDom, teardownTestDom} from '../../test/dom-setup.js';
 import {nothing} from 'lit';
 import {z} from 'zod';
 
-import {ComponentContext} from '../rendering/component-context.js';
-import {MessageProcessor} from '../processing/message-processor.js';
+import {ComponentContext} from '../../resolution/component-context.js';
+import {MessageProcessor} from '../../processing/message-processor.js';
 import {renderA2uiNode} from './render-a2ui-node.js';
-import {Catalog, type WebComponentImplementation} from './types.js';
+import {Catalog, type WebComponentImplementation} from '../../catalog/types.js';
 
 describe('renderA2uiNode', () => {
   before(setupTestDom);

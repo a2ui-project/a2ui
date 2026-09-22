@@ -20,7 +20,7 @@ import {SurfaceModel} from './surface-model.js';
 import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {ComponentModel} from './component-model.js';
-import {ComponentContext} from '../rendering/component-context.js';
+import {ComponentContext} from '../resolution/component-context.js';
 
 describe('SurfaceModel', () => {
   let surface: SurfaceModel<ComponentApi>;

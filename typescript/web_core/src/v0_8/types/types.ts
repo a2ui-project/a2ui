@@ -558,4 +558,4 @@ export type {
   MarkdownRenderer,
   MarkdownRendererOptions,
   MarkdownRendererTagClassMap,
-} from '../../rendering/markdown.js';
+} from '../../common/markdown.js';

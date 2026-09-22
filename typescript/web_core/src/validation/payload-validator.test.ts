@@ -19,7 +19,7 @@ import * as assert from 'node:assert';
 import {z} from 'zod';
 import {Catalog} from '../catalog/types.js';
 import {PayloadValidator} from './payload-validator.js';
-import {STRICT_VALIDATION} from '../validating/integrity-checker.js';
+import {STRICT_VALIDATION} from './integrity-checker.js';
 import {A2uiValidationError} from '../errors.js';
 
 describe('PayloadValidator', () => {

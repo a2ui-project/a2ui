@@ -29,22 +29,22 @@ import {
   ComponentApi,
   FunctionApi,
   createFunctionImplementation,
-} from '../../catalog/types.js';
-import {ComponentModel} from '../../state/component-model.js';
-import {SurfaceModel} from '../../state/surface-model.js';
-import {A2uiClientAction} from '../schema/client-to-server.js';
+} from '../catalog/types.js';
+import {ComponentModel} from '../state/component-model.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
 import {
   ActionSchema,
   ChildListSchema,
   ComponentIdSchema,
   DynamicStringSchema,
-} from '../schema/common-types.js';
-import {effect, getValue, peekValue, Signal} from '../../reactivity/signals.js';
+} from '../v0_9/schema/common-types.js';
+import {effect, getValue, peekValue, Signal} from '../reactivity/signals.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
 import {ResolvedBinding, isWritable} from './resolved-binding.js';
-import * as v0_9 from '../index.js';
-import {MAX_DYNAMIC_CHILD_LIST_SIZE} from '../../rendering/generic-binder.js';
+import * as v0_9 from '../v0_9/index.js';
+import {MAX_DYNAMIC_CHILD_LIST_SIZE} from './generic-binder.js';
 
 const TextApi = {
   name: 'Text',

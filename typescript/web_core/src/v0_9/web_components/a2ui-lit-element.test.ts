@@ -16,13 +16,13 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
 
-import {ComponentContext} from '../rendering/component-context.js';
-import {MessageProcessor} from '../processing/message-processor.js';
+import {ComponentContext} from '../../resolution/component-context.js';
+import {MessageProcessor} from '../../processing/message-processor.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
-import {basicCatalog} from '../v0_9/basic_catalog/catalog.js';
-import {TextApi} from '../v0_9/basic_catalog/components/basic_components.js';
+import {basicCatalog} from '../basic_catalog/catalog.js';
+import {TextApi} from '../basic_catalog/components/basic_components.js';
 
 /**
  * These tests ensure that:

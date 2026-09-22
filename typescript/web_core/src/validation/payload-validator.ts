@@ -20,7 +20,7 @@ import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
-import type {ValidationConfig} from '../validating/integrity-checker.js';
+import type {ValidationConfig} from './integrity-checker.js';
 
 /**
  * Envelope keys that are addressed by the processor rather than described by a
