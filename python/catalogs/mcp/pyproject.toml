@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [project]
-name = "a2ui-mcp-catalog"
+name = "a2ui-catalog-mcp"
 version = "0.1.0"
 description = "A2UI MCP Catalog"
 readme = "README.md"
