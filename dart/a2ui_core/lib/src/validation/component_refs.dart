@@ -110,7 +110,9 @@ void _collectFrom(
       if (_selfDescribingProperties.contains(name)) continue;
       final Object? resolved = _resolve(property.value, node, document);
       if (_marks(resolved, _componentIdPointer, node, document) ||
-          (name == 'child' && resolved is Map && resolved['type'] == 'string')) {
+          (name == 'child' &&
+              resolved is Map &&
+              resolved['type'] == 'string')) {
         single.add(name);
         continue;
       }
