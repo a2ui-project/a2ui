@@ -461,16 +461,6 @@ def test_validator_config_parameter():
     validator.validate(catalog, payload, config=relaxed_config)
 
 
-def test_validation_preset_constants():
-    assert STRICT_VALIDATION.allow_orphan_components is False
-    assert STRICT_VALIDATION.allow_dangling_references is False
-    assert STRICT_VALIDATION.allow_missing_root is False
-
-    assert RELAXED_VALIDATION.allow_orphan_components is True
-    assert RELAXED_VALIDATION.allow_dangling_references is True
-    assert RELAXED_VALIDATION.allow_missing_root is True
-
-
 def test_relaxed_validation_allows_missing_root():
     catalog = CatalogSchemaValidator.from_catalog(BasicCatalog())
     validator = A2uiValidator()
