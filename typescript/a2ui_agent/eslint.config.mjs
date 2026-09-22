@@ -35,4 +35,13 @@ export default [
       ],
     },
   },
+  {
+    files: ['tests/**/*.ts', 'vitest.config.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: 'tsconfig.check.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
 ];
