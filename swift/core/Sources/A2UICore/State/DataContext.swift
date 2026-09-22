@@ -100,7 +100,11 @@ public final class DataContext {
         var resolvedArgs: [String: JSONValue] = [:]
         if let argsObj = dict["args"]?.dictionaryValue {
           for (argKey, argVal) in argsObj {
-            resolvedArgs[argKey] = resolveDynamicValue(argVal)
+            if let arr = argVal.arrayValue {
+              resolvedArgs[argKey] = .array(arr.map { resolveDynamicValue($0) })
+            } else {
+              resolvedArgs[argKey] = resolveDynamicValue(argVal)
+            }
           }
         }
 

@@ -40,7 +40,7 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
   func handle(action: ResolvedAction, from surfaceID: String) {
     let desc: String
     switch action.identity {
-    case .event(let name, _):
+    case .event(let name, _, _):
       desc = "event=\(name)"
     case .function(let call, _):
       desc = "function=\(call)"

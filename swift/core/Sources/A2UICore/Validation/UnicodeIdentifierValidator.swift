@@ -16,15 +16,19 @@ import Foundation
 
 /// Validates Unicode identifiers according to Unicode Standard Annex #31 (UAX #31).
 public enum UnicodeIdentifierValidator {
-  /// Returns whether a string is a valid UAX #31 identifier (allowing an optional leading '@').
+  /// Returns whether a string is a valid UAX #31 identifier (`[\p{L}\p{Nl}_][\p{XID_Continue}]*`).
   public static func isValidIdentifier(_ string: String) -> Bool {
-    guard !string.isEmpty else { return false }
-    let raw = string.hasPrefix("@") ? String(string.dropFirst()) : string
-    guard let firstScalar = raw.unicodeScalars.first else { return false }
+    guard let firstScalar = string.unicodeScalars.first else { return false }
     guard firstScalar.properties.isXIDStart || firstScalar == "_" else { return false }
-    for scalar in raw.unicodeScalars.dropFirst() {
-      guard scalar.properties.isXIDContinue else { return false }
+    for scalar in string.unicodeScalars.dropFirst() {
+      guard scalar.properties.isXIDContinue || scalar == "_" else { return false }
     }
     return true
+  }
+
+  /// Returns whether a string is a valid A2UI function identifier (`"@index"` or a UAX #31
+  /// identifier).
+  public static func isValidFunctionIdentifier(_ string: String) -> Bool {
+    string == "@index" || isValidIdentifier(string)
   }
 }

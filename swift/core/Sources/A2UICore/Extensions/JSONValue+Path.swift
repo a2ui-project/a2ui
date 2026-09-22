@@ -154,6 +154,9 @@ extension JSONValue {
     newValue: JSONValue?
   ) -> JSONValue? {
     guard let key = components.first else { return newValue }
+    if key == "__proto__" || key == "constructor" || key == "prototype" {
+      return node
+    }
     let isLastComponent = components.count == 1
     let remainingComponents = components.dropFirst()
 
@@ -177,37 +180,41 @@ extension JSONValue {
 
     case .some(.array(var array)):
       if let index = Int(key), index >= 0 {
-        if index <= array.count {
-          if isLastComponent {
-            if let newValue {
-              if index == array.count {
-                array.append(newValue)
-              } else {
-                array[index] = newValue
-              }
-            } else if index < array.count {
-              // Setting an array index to nil preserves the array
-              // length (sparse array), matching the blueprint's
-              // JSON Pointer Implementation Rules.
-              array[index] = .null
+        if isLastComponent {
+          if let newValue {
+            while array.count < index {
+              array.append(.null)
             }
-          } else {
-            let nextNode = index < array.count ? array[index] : nil
-            let updated = update(
-              node: nextNode,
-              components: remainingComponents,
-              newValue: newValue
-            )
-            if let updated {
-              if index == array.count {
-                array.append(updated)
-              } else {
-                array[index] = updated
-              }
-            } else if index < array.count {
-              // Sparse array: preserve length, set to null.
-              array[index] = .null
+            if index == array.count {
+              array.append(newValue)
+            } else {
+              array[index] = newValue
             }
+          } else if index < array.count {
+            // Setting an array index to nil preserves the array
+            // length (sparse array), matching the blueprint's
+            // JSON Pointer Implementation Rules.
+            array[index] = .null
+          }
+        } else {
+          let nextNode = index < array.count ? array[index] : nil
+          let updated = update(
+            node: nextNode,
+            components: remainingComponents,
+            newValue: newValue
+          )
+          if let updated {
+            while array.count < index {
+              array.append(.null)
+            }
+            if index == array.count {
+              array.append(updated)
+            } else {
+              array[index] = updated
+            }
+          } else if index < array.count {
+            // Sparse array: preserve length, set to null.
+            array[index] = .null
           }
         }
         return .array(array)
@@ -227,12 +234,20 @@ extension JSONValue {
         // web_core's isNumeric() auto-vivification rule.
         var array: [JSONValue] = []
         if isLastComponent {
-          if let newValue { array.append(newValue) }
+          if let newValue {
+            while array.count < index {
+              array.append(.null)
+            }
+            array.append(newValue)
+          }
         } else if let updated = update(
           node: nil,
           components: remainingComponents,
           newValue: newValue
         ) {
+          while array.count < index {
+            array.append(.null)
+          }
           array.append(updated)
         }
         return .array(array)

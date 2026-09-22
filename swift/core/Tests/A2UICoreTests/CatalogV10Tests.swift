@@ -22,11 +22,14 @@ struct CatalogV10Tests {
   @Test func unicodeIdentifierValidator() {
     #expect(UnicodeIdentifierValidator.isValidIdentifier("validName"))
     #expect(UnicodeIdentifierValidator.isValidIdentifier("_privateName"))
-    #expect(UnicodeIdentifierValidator.isValidIdentifier("@index"))
+    #expect(UnicodeIdentifierValidator.isValidFunctionIdentifier("@index"))
     #expect(UnicodeIdentifierValidator.isValidIdentifier("camelCase123"))
     #expect(UnicodeIdentifierValidator.isValidIdentifier("résumé"))
 
     #expect(!UnicodeIdentifierValidator.isValidIdentifier(""))
+    #expect(!UnicodeIdentifierValidator.isValidIdentifier("@index"))
+    #expect(!UnicodeIdentifierValidator.isValidIdentifier("@customName"))
+    #expect(!UnicodeIdentifierValidator.isValidFunctionIdentifier("@customName"))
     #expect(!UnicodeIdentifierValidator.isValidIdentifier("123invalid"))
     #expect(!UnicodeIdentifierValidator.isValidIdentifier("invalid-with-dash"))
     #expect(!UnicodeIdentifierValidator.isValidIdentifier("invalid with spaces"))

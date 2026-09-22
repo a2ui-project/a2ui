@@ -51,7 +51,7 @@ public enum BasicCatalog: Sendable {
       """
   )
 
-  private static func migrateSchemaToV10(_ schema: Schema) -> Schema {
+  private static func migrateSchemaToV10(name: String, _ schema: Schema) -> Schema {
     guard let jsonString = try? schema.jsonValue.serialized() else {
       return schema
     }
@@ -59,9 +59,73 @@ public enum BasicCatalog: Sendable {
       of: A2UICommonSchema.baseURI,
       with: A2UICommonSchema.v10BaseURI
     )
+    guard var rootObj = (try? JSONValue.parse(v10JSONString))?.objectValue else {
+      return schema
+    }
+
+    if var props = rootObj["properties"]?.objectValue {
+      props["catalogId"] = .object(["type": .string("string")])
+      props["metadata"] = .object(["type": .string("object")])
+
+      for childKey in ["child", "trigger", "content"] {
+        if var childProp = props[childKey]?.objectValue {
+          childProp["$ref"] = .string(A2UICommonSchema.v10URI(for: "Child"))
+          props[childKey] = .object(childProp)
+        }
+      }
+
+      switch name {
+      case "Video":
+        props["posterUrl"] = .object([
+          "$ref": .string(A2UICommonSchema.v10URI(for: "DynamicString"))
+        ])
+      case "Slider":
+        props["steps"] = .object(["type": .string("number")])
+      case "Text":
+        props["variant"] = .object([
+          "type": .string("string"),
+          "enum": .array([.string("caption"), .string("body")]),
+        ])
+      case "Icon":
+        if var nameProp = props["name"]?.objectValue,
+          var oneOf = nameProp["oneOf"]?.arrayValue,
+          oneOf.count >= 2,
+          var customObj = oneOf[1].objectValue,
+          var customProps = customObj["properties"]?.objectValue
+        {
+          customProps["svgPath"] = .object([
+            "$ref": .string(A2UICommonSchema.v10URI(for: "DynamicString"))
+          ])
+          customObj["properties"] = .object(customProps)
+          oneOf[1] = .object(customObj)
+          nameProp["oneOf"] = .array(oneOf)
+          props["name"] = .object(nameProp)
+        }
+      case "Tabs":
+        if var tabsProp = props["tabs"]?.objectValue,
+          var itemsObj = tabsProp["items"]?.objectValue,
+          var itemProps = itemsObj["properties"]?.objectValue,
+          var childObj = itemProps["child"]?.objectValue
+        {
+          childObj["$ref"] = .string(A2UICommonSchema.v10URI(for: "Child"))
+          itemProps["child"] = .object(childObj)
+          itemsObj["properties"] = .object(itemProps)
+          tabsProp["items"] = .object(itemsObj)
+          props["tabs"] = .object(tabsProp)
+        }
+      default:
+        break
+      }
+
+      rootObj["properties"] = .object(props)
+    }
+
+    rootObj["unevaluatedProperties"] = .boolean(false)
+
     guard
+      let serialized = try? JSONValue.object(rootObj).serialized(),
       let v10Schema = try? Schema(
-        instance: v10JSONString,
+        instance: serialized,
         remoteSchemas: A2UICommonSchema.allSchemas
       )
     else {
@@ -75,7 +139,7 @@ public enum BasicCatalog: Sendable {
     BasicCatalogComponents.allComponents.map { comp in
       AnyComponentAPI(
         name: comp.name,
-        schema: migrateSchemaToV10(comp.schema),
+        schema: migrateSchemaToV10(name: comp.name, comp.schema),
         allowedParents: comp.allowedParents,
         allowedChildren: comp.allowedChildren,
         metadata: comp.metadata
@@ -87,14 +151,15 @@ public enum BasicCatalog: Sendable {
     id: String,
     protocolVersion: A2UIProtocolVersion? = nil,
     components: [AnyComponentAPI] = BasicCatalogComponents.allComponents,
-    functions: [any FunctionImplementation] = BasicFunctions.allFunctions
+    functions: [any FunctionImplementation] = BasicFunctions.allFunctions,
+    themeSchema: Schema? = BasicCatalog.themeSchema
   ) -> AnyCatalog {
     Catalog(
       id: id,
       protocolVersion: protocolVersion?.rawValue,
       components: components,
       functions: functions,
-      themeSchema: BasicCatalog.themeSchema
+      themeSchema: themeSchema
     )
   }
 
@@ -112,7 +177,8 @@ public enum BasicCatalog: Sendable {
     id: v10CatalogURI,
     protocolVersion: .v10,
     components: v10Components,
-    functions: BasicFunctions.v10Functions
+    functions: BasicFunctions.v10Functions,
+    themeSchema: nil
   )
 
   /// All supported standard Basic Catalog instances.

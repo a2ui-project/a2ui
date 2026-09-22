@@ -635,30 +635,35 @@ public enum A2UICommonSchema {
           \"unevaluatedProperties\": false
         },
         \"FunctionCall\": {
-          \"type\": \"object\",
-          \"description\": \"Invokes a named function, combining common function \
-    properties with the catalog function definition.\",
-          \"properties\": {
-            \"call\": {
-              \"type\": \"string\",
-              \"description\": \"The name of the function to call.\"
+          \"oneOf\": [
+            {
+              \"$ref\": \"#/$defs/IndexSystemFunction\"
             },
-            \"catalogId\": {
-              \"type\": \"string\",
-              \"description\": \"The catalog ID for this function, overriding any \
-    surface-level default catalogId.\"
-            },
-            \"args\": {
+            {
               \"type\": \"object\",
-              \"description\": \"Arguments passed to the function.\"
-            },
-            \"returnType\": {
-              \"type\": \"string\",
-              \"description\": \"The expected return type of the function call.\"
+              \"description\": \"Invokes a named function, combining common function \
+    properties with the catalog function definition.\",
+              \"properties\": {
+                \"call\": {
+                  \"type\": \"string\",
+                  \"pattern\": \"^[\\\\p{L}\\\\p{Nl}_][\\\\p{L}\\\\p{Nl}\\\\p{Nd}\\\\p{Mn}\\\\p{Mc}\\\\p{Pc}_]*$\",
+                  \"description\": \"The name of the function to call.\"
+                },
+                \"catalogId\": {
+                  \"type\": \"string\",
+                  \"description\": \"The catalog ID for this function, overriding any \
+    surface-level default catalogId.\"
+                },
+                \"args\": {
+                  \"type\": \"object\",
+                  \"description\": \"Arguments passed to the function.\"
+                }
+              },
+              \"required\": [
+                \"call\"
+              ],
+              \"unevaluatedProperties\": false
             }
-          },
-          \"required\": [
-            \"call\"
           ]
         },
         \"CheckRule\": {

@@ -243,7 +243,7 @@ public final class NodeResolver: Sendable {
       case "CheckRule", "Checkable": return .checks
       case "Action": return .action
       case "ChildList": return .childList
-      case "ComponentId": return .componentID
+      case "Child", "ComponentId": return .componentID
       default: break
       }
     }
@@ -298,7 +298,10 @@ public final class NodeResolver: Sendable {
     }
     if let ref = schemaJSON["$ref"]?.stringValue {
       let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
-      if let def = A2UICommonSchema.document["$defs"]?.objectValue?[typeName] {
+      let def =
+        A2UICommonSchema.v10Document["$defs"]?.objectValue?[typeName]
+        ?? A2UICommonSchema.document["$defs"]?.objectValue?[typeName]
+      if let def {
         let defProps = extractPropertiesSchema(from: def)
         for (k, v) in defProps {
           result[k] = v
@@ -382,7 +385,7 @@ public final class NodeResolver: Sendable {
       )
     case .componentID:
       guard let childID = value.stringValue else { return nil }
-      let childInstanceID = (index != nil) ? "\(childID)_\(index!)" : childID
+      let childInstanceID = index.map { "\(childID)_\($0)" } ?? childID
       return resolveNode(
         definitionID: childID,
         instanceID: childInstanceID,
@@ -755,9 +758,14 @@ public final class NodeResolver: Sendable {
       let name = eventObj["name"]?.stringValue
     {
       let contextDict = eventObj["context"]?.dictionaryValue
+      let userMessageVal = eventObj["userMessage"]
+      let initialUserMessage = userMessageVal.flatMap {
+        self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
+      }
       let unresolvedIdentity = ResolvedAction.Identity.event(
         name: name,
-        context: contextDict
+        context: contextDict,
+        userMessage: initialUserMessage
       )
 
       return ResolvedAction(
@@ -785,9 +793,13 @@ public final class NodeResolver: Sendable {
                 val, basePath: basePath, index: index)
             }
           }
+          let resolvedUserMessage = userMessageVal.flatMap {
+            self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
+          }
 
           let triggerAction = ResolvedAction(
-            identity: .event(name: name, context: resolvedContext),
+            identity: .event(
+              name: name, context: resolvedContext, userMessage: resolvedUserMessage),
             trigger: {}
           )
 

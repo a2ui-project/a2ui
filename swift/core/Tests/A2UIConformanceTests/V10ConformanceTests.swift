@@ -59,12 +59,14 @@ struct V10ConformanceTests {
           )
 
           if let expectedCode = expectedError.code {
-            if let valError = error as? A2UIValidationError {
-              #expect(
-                valError.details.contains(where: { $0.code == expectedCode }),
-                "[\(testCase.name)] Expected error code '\(expectedCode)', got \(valError.details)"
-              )
-            }
+            let valError = try #require(
+              error as? A2UIValidationError,
+              "[\(testCase.name)] Expected A2UIValidationError, got \(error)"
+            )
+            #expect(
+              valError.details.contains(where: { $0.code == expectedCode }),
+              "[\(testCase.name)] Expected error code '\(expectedCode)', got \(valError.details)"
+            )
           }
         } else {
           do {

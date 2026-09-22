@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import OrderedCollections
 import OrderedJSON
 
 /// Coordinates bidirectional Remote Procedure Calls (RPC) between the agent and renderer.
@@ -22,7 +23,12 @@ import OrderedJSON
 @MainActor
 public final class RPCHandler {
 
-  private var pendingCalls: [String: CheckedContinuation<JSONValue, any Error>] = [:]
+  private struct PendingCall {
+    let continuation: CheckedContinuation<JSONValue, any Error>
+    let timeoutTask: Task<Void, Never>?
+  }
+
+  private var pendingCalls: [String: PendingCall] = [:]
 
   public init() {}
 
@@ -44,39 +50,59 @@ public final class RPCHandler {
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
     let callName = message.callFunction.call
-    let catalogID = message.callFunction.catalogID ?? defaultCatalogID
+    let targetCatalogID = message.callFunction.catalogID ?? defaultCatalogID
 
-    if let explicitCatalogID = message.callFunction.catalogID {
-      guard catalogs[explicitCatalogID] != nil else {
-        let errorPayload = FunctionErrorPayload(
-          code: .invalidFunctionCall,
-          message: "Catalog not found: \(explicitCatalogID)"
-        )
+    func lookupCatalog(_ id: String) -> AnyCatalog? {
+      if let exact = catalogs[id] { return exact }
+      if let v10Match = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(id)/catalog.json") && $0.isAtLeastV10
+      }) {
+        return v10Match
+      }
+      return catalogs.values.first {
+        $0.id.hasSuffix("/\(id)/catalog.json")
+      }
+    }
+
+    let resolvedCatalog: AnyCatalog?
+    if let targetCatalogID {
+      guard let found = lookupCatalog(targetCatalogID) else {
         return RendererFunctionResponseMessage(
           functionCallID: message.functionCallID,
-          error: errorPayload
+          error: FunctionErrorPayload(
+            code: .invalidFunctionCall,
+            message: "Catalog not found: \(targetCatalogID)"
+          )
         )
       }
+      resolvedCatalog = found
+    } else if catalogs.count == 1 {
+      resolvedCatalog = catalogs.values.first
+    } else {
+      resolvedCatalog = lookupCatalog("basic")
     }
 
-    func findFunction() -> (any FunctionImplementation)? {
-      if let catalogID, let catalog = catalogs[catalogID], let fn = catalog.functions[callName] {
-        return fn
-      }
-      if let defaultCatalogID, let catalog = catalogs[defaultCatalogID],
-        let fn = catalog.functions[callName]
-      {
-        return fn
-      }
-      for catalog in catalogs.values {
-        if let fn = catalog.functions[callName] {
-          return fn
-        }
-      }
-      return nil
+    guard let catalog = resolvedCatalog else {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: "Could not resolve catalog for function: \(callName)"
+        )
+      )
     }
 
-    guard let function = findFunction() else {
+    if catalog.protocolVersion != nil && !catalog.isAtLeastV10 {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: "Catalog '\(catalog.id)' does not support v1.0+ RPC execution."
+        )
+      )
+    }
+
+    guard let function = catalog.functions[callName] else {
       let errorPayload = FunctionErrorPayload(
         code: .invalidFunctionCall,
         message: "Function not found: \(callName)"
@@ -112,17 +138,40 @@ public final class RPCHandler {
       )
     }
 
-    let args = message.callFunction.args ?? [:]
+    let rawArgs = message.callFunction.args ?? [:]
     let effectiveContext =
       dataContext
       ?? DataContext(
         dataModel: DataModel(),
         path: "",
-        functionHandler: DummyContextFunctionHandler(catalogs: catalogs)
+        functionHandler: DummyContextFunctionHandler(catalogs: catalogs, defaultCatalog: catalog)
       )
 
+    var resolvedArgs: [String: JSONValue] = [:]
+    for (key, val) in rawArgs {
+      if let arr = val.arrayValue {
+        resolvedArgs[key] = .array(arr.map { effectiveContext.resolveDynamicValue($0) })
+      } else {
+        resolvedArgs[key] = effectiveContext.resolveDynamicValue(val)
+      }
+    }
+
+    let argsValidation = function.api.schema.validate(
+      .object(OrderedDictionary(uniqueKeysWithValues: resolvedArgs))
+    )
+    if !argsValidation.isValid {
+      let errorPayload = FunctionErrorPayload(
+        code: .invalidFunctionCall,
+        message: "Invalid arguments for function '\(callName)'."
+      )
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: errorPayload
+      )
+    }
+
     do {
-      let result = try function.evaluate(arguments: args, context: effectiveContext)
+      let result = try function.evaluate(arguments: resolvedArgs, context: effectiveContext)
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
         value: result
@@ -176,17 +225,43 @@ public final class RPCHandler {
     )
     let outbound = RendererToAgentMessage.callAgentFunction(message)
 
-    return try await withCheckedThrowingContinuation { continuation in
-      self.pendingCalls[callID] = continuation
-      sendOutbound(outbound)
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        if self.pendingCalls[callID] != nil {
+          continuation.resume(
+            throwing: FunctionError.remoteError(
+              code: FunctionErrorPayload.Code.invalidFunctionCall.rawValue,
+              message: "Duplicate functionCallId: \(callID)"
+            )
+          )
+          return
+        }
 
-      if timeoutSeconds > 0 {
-        Task { @MainActor [weak self] in
-          try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-          guard let self else { return }
-          if let pending = self.pendingCalls.removeValue(forKey: callID) {
-            pending.resume(throwing: FunctionError.timeout(callID: callID))
+        let timeoutTask: Task<Void, Never>?
+        if timeoutSeconds > 0 {
+          timeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            if let pending = self.pendingCalls.removeValue(forKey: callID) {
+              pending.continuation.resume(throwing: FunctionError.timeout(callID: callID))
+            }
           }
+        } else {
+          timeoutTask = nil
+        }
+
+        self.pendingCalls[callID] = PendingCall(
+          continuation: continuation,
+          timeoutTask: timeoutTask
+        )
+        sendOutbound(outbound)
+      }
+    } onCancel: {
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        if let pending = self.pendingCalls.removeValue(forKey: callID) {
+          pending.timeoutTask?.cancel()
+          pending.continuation.resume(throwing: CancellationError())
         }
       }
     }
@@ -198,25 +273,27 @@ public final class RPCHandler {
   ///
   /// - Parameter response: The agent function response message.
   public func handleAgentResponse(_ response: AgentFunctionResponseMessage) {
-    guard let continuation = pendingCalls.removeValue(forKey: response.functionCallID) else {
+    guard let pending = pendingCalls.removeValue(forKey: response.functionCallID) else {
       return
     }
+    pending.timeoutTask?.cancel()
 
     if let error = response.error {
-      continuation.resume(
+      pending.continuation.resume(
         throwing: FunctionError.remoteError(code: error.code, message: error.message)
       )
     } else if let value = response.value {
-      continuation.resume(returning: value)
+      pending.continuation.resume(returning: value)
     } else {
-      continuation.resume(returning: .null)
+      pending.continuation.resume(returning: .null)
     }
   }
 
   /// Cancels all active pending calls, throwing a cancellation error.
   public func cancelAllPendingCalls() {
-    for (_, continuation) in pendingCalls {
-      continuation.resume(throwing: CancellationError())
+    for (_, pending) in pendingCalls {
+      pending.timeoutTask?.cancel()
+      pending.continuation.resume(throwing: CancellationError())
     }
     pendingCalls.removeAll()
   }
@@ -224,20 +301,17 @@ public final class RPCHandler {
 
 private final class DummyContextFunctionHandler: FunctionHandler {
   private let catalogs: [String: AnyCatalog]
+  private let defaultCatalog: AnyCatalog
 
-  init(catalogs: [String: AnyCatalog]) {
+  init(catalogs: [String: AnyCatalog], defaultCatalog: AnyCatalog) {
     self.catalogs = catalogs
+    self.defaultCatalog = defaultCatalog
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
-    if let catalogID, let cat = catalogs[catalogID], let fn = cat.functions[name] {
-      return fn
+    if let catalogID {
+      return catalogs[catalogID]?.functions[name]
     }
-    for cat in catalogs.values {
-      if let fn = cat.functions[name] {
-        return fn
-      }
-    }
-    return nil
+    return defaultCatalog.functions[name]
   }
 }
