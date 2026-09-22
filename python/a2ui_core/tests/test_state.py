@@ -26,7 +26,7 @@ from a2ui.core.state import (
     SurfaceGroupModel,
 )
 from a2ui.core.state.data_model import MAX_ARRAY_INDEX
-from a2ui.core.exceptions import A2uiDataError
+from a2ui.core.exceptions import A2uiDataError, A2uiValidationError
 from a2ui.core.basic_catalog import BasicCatalog
 
 dummy_catalog = BasicCatalog()
@@ -226,8 +226,12 @@ def test_component_model():
 
 def test_component_model_validate():
     comp = ComponentModel("c1", "Text", dummy_catalog, {"text": "Hello"})
-    errors = comp.validate()
-    assert errors == []
+    assert comp.validate() is None
+
+    invalid_comp = ComponentModel("c2", "Text", dummy_catalog, {})
+    with pytest.raises(A2uiValidationError) as exc_info:
+        invalid_comp.validate()
+    assert exc_info.value.details
 
 
 def test_validate_components_update_atomic():

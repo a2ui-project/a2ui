@@ -90,8 +90,13 @@ class PayloadValidator(Generic[TComponent, TFunction]):
     def validate_component(
         self,
         comp: dict[str, Any],
-    ) -> list[A2uiErrorDetail]:
-        """Validates a single component dictionary payload against the catalog schema."""
+    ) -> None:
+        """Validates a single component dictionary payload against the catalog schema.
+
+        Raises:
+            A2uiValidationError: If the component fails validation against catalog schemas.
+            A2uiCatalogError: If no schema is defined for the component type in the catalog.
+        """
         active_config = self.config
         allow_unknown = active_config.allow_unknown_elements if active_config else False
 
@@ -104,7 +109,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                     message="Component must be an object",
                 )
             )
-            return errors
+            raise A2uiValidationError("Component must be an object", details=errors)
 
         comp_id = comp.get("id")
         comp_type = comp.get("component") or comp.get("type")
@@ -155,7 +160,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         message=f"Unrecognized component type '{comp_type}'",
                     )
                 )
-            return errors
+            if errors:
+                summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+                raise A2uiValidationError(summary, details=errors)
+            return
 
         model_cls = (
             getattr(target_comp, "schema", None)
@@ -184,7 +192,9 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             )
 
         self._validate_nested_functions(comp_id or "unknown", comp, "", errors)
-        return errors
+        if errors:
+            summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+            raise A2uiValidationError(summary, details=errors)
 
     def _validate_model_component(
         self,

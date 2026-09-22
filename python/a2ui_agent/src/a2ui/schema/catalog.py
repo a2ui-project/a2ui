@@ -27,7 +27,7 @@ from typing import Any, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
-from a2ui.core.exceptions import A2uiErrorDetail
+from a2ui.core.exceptions import A2uiErrorDetail, A2uiValidationError
 from a2ui.core.validation.payload_validator import PayloadValidator, STRICT_VALIDATION
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
@@ -264,7 +264,10 @@ class A2uiCatalog:
         validator = self.validator
         errors: list[A2uiErrorDetail] = []
         for comp in _iter_payload_components(payload):
-            errors.extend(validator.validate_component(comp))
+            try:
+                validator.validate_component(comp)
+            except A2uiValidationError as e:
+                errors.extend(e.details)
         return errors
 
     def validate(self, messages: Any) -> None:

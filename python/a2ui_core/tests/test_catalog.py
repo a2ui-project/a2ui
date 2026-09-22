@@ -39,9 +39,10 @@ class _TestValidatorHelper:
         comps = comp_or_list if isinstance(comp_or_list, list) else [comp_or_list]
         all_errors = []
         for c in comps:
-            errors = self.validator.validate_component(c)
-            if errors:
-                all_errors.extend(errors)
+            try:
+                self.validator.validate_component(c)
+            except A2uiValidationError as e:
+                all_errors.extend(e.details)
         if all_errors:
             summary = "\n".join(f"{e.path}: {e.message}" for e in all_errors)
             raise A2uiValidationError(summary, details=all_errors)
@@ -765,17 +766,17 @@ def test_payload_validator_bare_refs_self_contained():
     validator = PayloadValidator(catalog=cat)
 
     # Valid payload
-    errors = validator.validate_component(
+    validator.validate_component(
         {"id": "b1", "component": "StatusBadge", "status": "active"}
     )
-    assert errors == []
 
     # Invalid payload (violates enum in StatusEnum)
-    errors = validator.validate_component(
-        {"id": "b2", "component": "StatusBadge", "status": "unknown"}
-    )
-    assert len(errors) == 1
-    assert errors[0].code == "type_mismatch"
+    with pytest.raises(A2uiValidationError) as exc_info:
+        validator.validate_component(
+            {"id": "b2", "component": "StatusBadge", "status": "unknown"}
+        )
+    assert len(exc_info.value.details) == 1
+    assert exc_info.value.details[0].code == "type_mismatch"
 
 
 def test_payload_validator_recursive_bare_refs():
@@ -823,8 +824,7 @@ def test_payload_validator_recursive_bare_refs():
             }],
         },
     }
-    errors = validator.validate_component(valid_tree)
-    assert errors == []
+    validator.validate_component(valid_tree)
 
     # Invalid recursive tree
     invalid_tree = {
@@ -835,9 +835,10 @@ def test_payload_validator_recursive_bare_refs():
             "children": [{"children": []}],  # missing 'label'
         },
     }
-    errors = validator.validate_component(invalid_tree)
-    assert len(errors) == 1
-    assert errors[0].code == "missing_field"
+    with pytest.raises(A2uiValidationError) as exc_info:
+        validator.validate_component(invalid_tree)
+    assert len(exc_info.value.details) == 1
+    assert exc_info.value.details[0].code == "missing_field"
 
 
 def test_payload_validator_unresolvable_bare_ref_error():
@@ -860,11 +861,12 @@ def test_payload_validator_unresolvable_bare_ref_error():
     cat = Catalog.from_json(catalog_json)
     validator = PayloadValidator(catalog=cat)
 
-    errors = validator.validate_component(
-        {"id": "c1", "component": "BrokenComp", "field": "val"}
-    )
-    assert len(errors) == 1
-    assert errors[0].code == "invalid_reference"
+    with pytest.raises(A2uiValidationError) as exc_info:
+        validator.validate_component(
+            {"id": "c1", "component": "BrokenComp", "field": "val"}
+        )
+    assert len(exc_info.value.details) == 1
+    assert exc_info.value.details[0].code == "invalid_reference"
 
 
 def test_collect_defs_refs_nested_subpath():
@@ -914,27 +916,36 @@ def test_payload_validator_skips_nested_function_from_another_catalog():
 
     # A call naming another catalog is left to resolution-time validation, even
     # when the function is unknown here and the arguments are wrong.
-    assert not validator.validate_component(
-        component(
-            "c1",
-            {"call": "multiply", "catalogId": "math-cat", "args": {"nope": True}},
+    assert (
+        validator.validate_component(
+            component(
+                "c1",
+                {"call": "multiply", "catalogId": "math-cat", "args": {"nope": True}},
+            )
         )
+        is None
     )
 
     # A call naming this catalog explicitly is still validated.
-    assert not validator.validate_component(
-        component(
-            "c2", {"call": "add", "catalogId": "app-cat", "args": {"a": 1, "b": 2}}
+    assert (
+        validator.validate_component(
+            component(
+                "c2",
+                {"call": "add", "catalogId": "app-cat", "args": {"a": 1, "b": 2}},
+            )
         )
+        is None
     )
-    assert validator.validate_component(
-        component("c3", {"call": "add", "catalogId": "app-cat", "args": {"a": 1}})
-    )
+    with pytest.raises(A2uiValidationError):
+        validator.validate_component(
+            component("c3", {"call": "add", "catalogId": "app-cat", "args": {"a": 1}})
+        )
 
     # A call naming no catalog is validated against this catalog.
-    assert validator.validate_component(
-        component("c4", {"call": "unknownFunction", "args": {}})
-    )
+    with pytest.raises(A2uiValidationError):
+        validator.validate_component(
+            component("c4", {"call": "unknownFunction", "args": {}})
+        )
 
 
 def test_payload_validator_collects_errors_past_a_foreign_catalog_call():
@@ -954,11 +965,14 @@ def test_payload_validator_collects_errors_past_a_foreign_catalog_call():
     )
     validator = PayloadValidator(catalog=app_cat)
 
-    errors = validator.validate_component({
-        "id": "c1",
-        "component": "CustomComp",
-        "first": {"call": "add", "catalogId": "math-cat", "args": {"a": 1}},
-        "second": {"call": "unknownFunction", "args": {}},
-    })
+    with pytest.raises(A2uiValidationError) as exc_info:
+        validator.validate_component({
+            "id": "c1",
+            "component": "CustomComp",
+            "first": {"call": "add", "catalogId": "math-cat", "args": {"a": 1}},
+            "second": {"call": "unknownFunction", "args": {}},
+        })
 
-    assert [e.code for e in errors] == ["unrecognized_function"]
+    assert [detail.code for detail in exc_info.value.details] == [
+        "unrecognized_function"
+    ]

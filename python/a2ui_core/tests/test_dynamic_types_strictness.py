@@ -27,6 +27,7 @@ as evidence the strict types are doing work they are not.
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
+from a2ui.core.exceptions import A2uiValidationError
 
 from a2ui.core.schema.common_types import (
     DataBinding,
@@ -236,9 +237,10 @@ def test_v09_basic_catalog_payload_validator_return_type():
             "returnType": "string",
         },
     }
-    assert not validator.validate_component(valid_component)
+    # Valid component passes without raising
+    validator.validate_component(valid_component)
 
-    # Omitted returnType on DynamicString property
+    # Omitted returnType on DynamicString property passes without raising
     omitted_component = {
         "id": "txt1",
         "component": "Text",
@@ -247,7 +249,7 @@ def test_v09_basic_catalog_payload_validator_return_type():
             "args": {"value": "hello"},
         },
     }
-    assert not validator.validate_component(omitted_component)
+    validator.validate_component(omitted_component)
 
     # Mismatched returnType on DynamicString property is rejected
     mismatched_component = {
@@ -259,7 +261,8 @@ def test_v09_basic_catalog_payload_validator_return_type():
             "returnType": "number",
         },
     }
-    assert validator.validate_component(mismatched_component)
+    with pytest.raises(A2uiValidationError):
+        validator.validate_component(mismatched_component)
 
     # catalogId on v0.9 FunctionCall is rejected
     catalog_id_component = {
@@ -271,4 +274,5 @@ def test_v09_basic_catalog_payload_validator_return_type():
             "catalogId": "basic",
         },
     }
-    assert validator.validate_component(catalog_id_component)
+    with pytest.raises(A2uiValidationError):
+        validator.validate_component(catalog_id_component)

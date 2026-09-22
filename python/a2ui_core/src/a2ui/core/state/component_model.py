@@ -23,7 +23,7 @@ from ..catalog.reference_map import (
     COMPONENT_ID_KEY,
     CHILD_KEY,
 )
-from ..exceptions import A2uiErrorDetail
+from ..exceptions import A2uiErrorDetail, A2uiValidationError
 from ..schema.common_types import (
     ComponentReference,
     SingleReference,
@@ -158,15 +158,19 @@ class ComponentModel:
         tree.update(self._properties)
         return tree
 
-    def validate(self, config: Any | None = None) -> list[A2uiErrorDetail]:
-        """Validates this component instance against its bound catalog using PayloadValidator."""
+    def validate(self, config: Any | None = None) -> None:
+        """Validates this component instance against its bound catalog using PayloadValidator.
+
+        Raises:
+            A2uiValidationError: If component schema or identifier validation fails.
+        """
         from ..validation.payload_validator import PayloadValidator
 
         comp_dict = {"id": self.id, "component": self.type, **self.properties}
         if not isinstance(self.catalog, Catalog):
-            return []
+            return
         validator = PayloadValidator(self.catalog, config=config)
-        return validator.validate_component(comp_dict)
+        validator.validate_component(comp_dict)
 
     def get_child_references(
         self, known_component_ids: set[str] | None = None

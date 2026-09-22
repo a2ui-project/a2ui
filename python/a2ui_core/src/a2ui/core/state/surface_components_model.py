@@ -88,12 +88,15 @@ class SurfaceComponentsModel:
         all_errors: list[A2uiErrorDetail] = []
         comp_summaries: list[str] = []
         for comp_model in new_components:
-            errors = comp_model.validate(config=config)
-            if errors:
-                all_errors.extend(errors)
+            try:
+                comp_model.validate(config=config)
+            except A2uiValidationError as e:
+                all_errors.extend(e.details)
                 comp_type = comp_model.type
                 comp_str = f"'{comp_type}'" if comp_type else f"id '{comp_model.id}'"
-                comp_summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+                comp_summary = "\n".join(
+                    f"{detail.path}: {detail.message}" for detail in e.details
+                )
                 comp_summaries.append(f"{comp_str}: {comp_summary}")
 
         if all_errors:

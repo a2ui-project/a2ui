@@ -1100,9 +1100,10 @@ class DirectJsonStreamParser:
                 for cid in available_reachable:
                     comp_m = comp_models.get(cid)
                     if comp_m:
-                        errs = comp_m.validate(config=STRICT_VALIDATION)
-                        if errs:
-                            all_errors.extend(errs)
+                        try:
+                            comp_m.validate(config=STRICT_VALIDATION)
+                        except A2uiValidationError as e:
+                            all_errors.extend(e.details)
                 if all_errors:
                     raise A2uiValidationError(
                         f"Validation failed: {[e.message for e in all_errors]}",

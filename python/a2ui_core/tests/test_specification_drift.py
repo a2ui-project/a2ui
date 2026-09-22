@@ -335,8 +335,7 @@ def test_published_catalog_validates_action_payload(
                 }
             },
         }
-        errors = validator.validate_component(btn_component)
-        assert not errors, f"Validation failed on {version} {catalog_path}: {errors}"
+        validator.validate_component(btn_component)
 
 
 @pytest.mark.parametrize("version", _versions_with_basic_catalog())
