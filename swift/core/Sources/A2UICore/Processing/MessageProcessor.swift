@@ -417,18 +417,19 @@ public final class MessageProcessor: ObservableObject {
       actionHandler: actionHandler,
       sendDataModel: msg.shouldSendDataModel
     )
-    surfaceGroupModel.addSurface(vm)
-
-    if let components = msg.components {
-      try validateComponentsBatch(components, on: vm)
-      applyComponentsBatch(components, to: vm)
-    }
 
     if let dataModel = msg.dataModel {
       for (key, value) in dataModel {
         vm.dataModel.set("/\(key)", value: value)
       }
     }
+
+    if let components = msg.components {
+      try validateComponentsBatch(components, on: vm)
+      applyComponentsBatch(components, to: vm)
+    }
+
+    surfaceGroupModel.addSurface(vm)
   }
 
   private func processCallRendererFunction(_ msg: CallRendererFunctionMessage) throws {
@@ -668,8 +669,13 @@ public final class MessageProcessor: ObservableObject {
         }
         allComponentsMap[existing.id] = dict
       }
+      var batchIDs: Set<String> = []
       for comp in components {
         if let id = comp["id"]?.stringValue {
+          if batchIDs.contains(id) {
+            throw A2UIIntegrityError("Duplicate component ID: \(id)")
+          }
+          batchIDs.insert(id)
           allComponentsMap[id] = comp
         }
       }
@@ -705,7 +711,7 @@ public final class MessageProcessor: ObservableObject {
       }
 
       let existing = surface.componentsModel.get(id)
-      if let existing, existing.type != type {
+      if let existing, existing.type != type || existing.catalogID != componentCatalogID {
         surface.componentsModel.removeComponent(id)
       }
       surface.componentsModel.addComponent(

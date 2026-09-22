@@ -37,7 +37,7 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    _ = try container.decode(A2UIProtocolVersion.self, forKey: .version)
+    let version = try container.decode(A2UIProtocolVersion.self, forKey: .version)
 
     let actionKeys = container.allKeys.filter { $0 != .version }
     guard actionKeys.count == 1, let actionKey = actionKeys.first else {
@@ -61,9 +61,23 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
     case .deleteSurface:
       self = .deleteSurface(try container.decode(DeleteSurfaceMessage.self, forKey: .deleteSurface))
     case .callRendererFunction:
+      guard version == .v10 else {
+        throw DecodingError.dataCorruptedError(
+          forKey: .callRendererFunction,
+          in: container,
+          debugDescription: "'callRendererFunction' requires protocol version v1.0"
+        )
+      }
       self = .callRendererFunction(
         try container.decode(CallRendererFunctionMessage.self, forKey: .callRendererFunction))
     case .agentFunctionResponse:
+      guard version == .v10 else {
+        throw DecodingError.dataCorruptedError(
+          forKey: .agentFunctionResponse,
+          in: container,
+          debugDescription: "'agentFunctionResponse' requires protocol version v1.0"
+        )
+      }
       self = .agentFunctionResponse(
         try container.decode(AgentFunctionResponseMessage.self, forKey: .agentFunctionResponse))
     case .version:

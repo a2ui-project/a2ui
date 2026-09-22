@@ -268,6 +268,15 @@ public final class A2UIValidator: Sendable {
 
       if let componentsValue = payload["components"] {
         if let componentsArray = componentsValue.arrayValue {
+          if componentsArray.isEmpty {
+            details.append(
+              A2UIErrorDetail(
+                path: "messages.\(index).createSurface.components",
+                code: "invalid_value",
+                message: "Components array must contain at least 1 item"
+              )
+            )
+          }
           for (componentIndex, componentValue) in componentsArray.enumerated() {
             if let componentDictionary = componentValue.objectValue {
               validateRequiredString(
@@ -312,6 +321,15 @@ public final class A2UIValidator: Sendable {
       )
       if let componentsValue = payload["components"] {
         if let componentsArray = componentsValue.arrayValue {
+          if componentsArray.isEmpty {
+            details.append(
+              A2UIErrorDetail(
+                path: "messages.\(index).updateComponents.components",
+                code: "invalid_value",
+                message: "Components array must contain at least 1 item"
+              )
+            )
+          }
           for (componentIndex, componentValue) in componentsArray.enumerated() {
             if let componentDictionary = componentValue.objectValue {
               validateRequiredString(
@@ -362,6 +380,18 @@ public final class A2UIValidator: Sendable {
         path: "messages.\(index).updateDataModel.surfaceId",
         details: &details
       )
+      let version =
+        message["version"]?.stringValue.flatMap { A2UIProtocolVersion(rawValue: $0) }
+        ?? config.protocolVersion
+      if version == .v10 && payload["value"] == nil {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index).updateDataModel.value",
+            code: "missing_field",
+            message: "Missing required property 'value'"
+          )
+        )
+      }
 
     case "deleteSurface":
       validateRequiredString(
@@ -568,36 +598,71 @@ public final class A2UIValidator: Sendable {
 
     for component in components {
       guard let type = component["component"]?.stringValue else { continue }
-      let targetCatalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
-      let catalog =
-        targetCatalogID.flatMap { findCatalog($0) }
-        ?? catalogs["basic"]
-        ?? (catalogs.count == 1
-          ? catalogs.values.first
-          : catalogs[catalogs.keys.sorted().first ?? ""])
-      guard let catalog else { continue }
+      guard UnicodeIdentifierValidator.isValidIdentifier(type) else {
+        throw A2UIValidationError(
+          "Invalid component identifier: '\(type)'",
+          details: [
+            A2UIErrorDetail(
+              path: "/\(type)",
+              code: "invalid_identifier",
+              message: "Invalid component identifier: '\(type)'"
+            )
+          ]
+        )
+      }
 
-      if let componentAPI = catalog.components[type] {
-        let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: component))
-        let validationResult = componentAPI.schema.validate(instance)
-        if !validationResult.isValid {
-          var leafMessages: [String] = []
-          if let schemaErrors = validationResult.errors {
-            for schemaError in schemaErrors {
-              leafMessages.append(contentsOf: extractLeafMessages(from: schemaError))
-            }
-          }
-          let errorMessage =
-            leafMessages.isEmpty
-            ? (validationResult.errors?.first?.message ?? "Component validation failed")
-            : leafMessages.joined(separator: "; ")
-          let path =
-            validationResult.errors?.first?.instanceLocation.jsonPointerString ?? "/\(type)"
-          throw A2UIValidationError(
-            errorMessage,
-            details: [A2UIErrorDetail(path: path, code: "invalid_value", message: errorMessage)]
-          )
+      let targetCatalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
+      let catalog: AnyCatalog
+      if let targetCatalogID {
+        if let found = findCatalog(targetCatalogID) {
+          catalog = found
+        } else if catalogs.count == 1, let sole = catalogs.values.first {
+          catalog = sole
+        } else {
+          throw A2UICatalogError("Unknown catalog '\(targetCatalogID)'")
         }
+      } else if catalogs.count == 1, let sole = catalogs.values.first {
+        catalog = sole
+      } else if let basic = findCatalog("basic") {
+        catalog = basic
+      } else {
+        throw A2UICatalogError("Could not resolve catalog for component '\(type)'")
+      }
+
+      guard
+        let componentAPI = catalog.components[type] ?? findCatalog("basic")?.components[type]
+      else {
+        throw A2UIValidationError(
+          "Unknown component type '\(type)' in catalog '\(catalog.id)'",
+          details: [
+            A2UIErrorDetail(
+              path: "/\(type)",
+              code: "unknown_component",
+              message: "Unknown component type '\(type)' in catalog '\(catalog.id)'"
+            )
+          ]
+        )
+      }
+
+      let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: component))
+      let validationResult = componentAPI.schema.validate(instance)
+      if !validationResult.isValid {
+        var leafMessages: [String] = []
+        if let schemaErrors = validationResult.errors {
+          for schemaError in schemaErrors {
+            leafMessages.append(contentsOf: extractLeafMessages(from: schemaError))
+          }
+        }
+        let errorMessage =
+          leafMessages.isEmpty
+          ? (validationResult.errors?.first?.message ?? "Component validation failed")
+          : leafMessages.joined(separator: "; ")
+        let path =
+          validationResult.errors?.first?.instanceLocation.jsonPointerString ?? "/\(type)"
+        throw A2UIValidationError(
+          errorMessage,
+          details: [A2UIErrorDetail(path: path, code: "invalid_value", message: errorMessage)]
+        )
       }
     }
   }
@@ -643,6 +708,21 @@ public final class A2UIValidator: Sendable {
             ]
           )
         }
+      }
+
+      if let callName = dictionary["call"]?.stringValue,
+        !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
+      {
+        throw A2UIValidationError(
+          "Invalid function identifier: '\(callName)'",
+          details: [
+            A2UIErrorDetail(
+              path: callName,
+              code: "invalid_identifier",
+              message: "Invalid function identifier: '\(callName)'"
+            )
+          ]
+        )
       }
 
       let isFunctionCall = dictionary["call"] != nil || dictionary["function"] != nil

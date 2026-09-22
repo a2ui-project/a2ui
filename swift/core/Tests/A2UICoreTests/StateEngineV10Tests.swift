@@ -292,6 +292,147 @@ struct StateEngineV10Tests {
       )
     }
   }
+
+  @Test func modalV10SchemaReferenceExtractionAndChildResolution() throws {
+    let modalSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Modal" },
+            "trigger": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child"
+            },
+            "content": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child"
+            }
+          },
+          "required": ["component", "trigger", "content"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let textSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Text" },
+            "text": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+
+    let catalog = Catalog(
+      id: "v10_modal_cat",
+      protocolVersion: "v1.0",
+      components: [
+        AnyComponentAPI(name: "Modal", schema: modalSchema),
+        AnyComponentAPI(name: "Text", schema: textSchema),
+      ],
+      functions: [any FunctionImplementation]()
+    ).eraseToAnyCatalog()
+
+    let validModalTree: [[String: JSONValue]] = [
+      ["id": "root", "component": "Modal", "trigger": "openBtn", "content": "bodyText"],
+      ["id": "openBtn", "component": "Text", "text": "Open"],
+      ["id": "bodyText", "component": "Text", "text": "Details"],
+    ]
+
+    try GraphTopologyValidator.validate(
+      components: validModalTree,
+      rootID: "root",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id
+    )
+
+    let componentsModel = SurfaceComponentsModel()
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Modal",
+        catalogID: catalog.id,
+        properties: ["trigger": "openBtn", "content": "bodyText"]
+      )
+    )
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "openBtn",
+        type: "Text",
+        catalogID: catalog.id,
+        properties: ["text": "Open"]
+      )
+    )
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "bodyText",
+        type: "Text",
+        catalogID: catalog.id,
+        properties: ["text": "Details"]
+      )
+    )
+
+    let resolver = NodeResolver(
+      surfaceID: "surf1",
+      catalogs: [catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+    let rootNode = try #require(resolver.resolveTree())
+    #expect((rootNode.properties["trigger"] as? Node)?.id == "openBtn")
+    #expect((rootNode.properties["content"] as? Node)?.id == "bodyText")
+  }
+
+  @Test func duplicateComponentIDsInBatchRejectedByMessageProcessor() throws {
+    let dummySchema = try Schema(
+      rawSchema: .object(["type": .string("object")]),
+      context: Context(dialect: .draft2020_12)
+    )
+    let catalog = Catalog(
+      id: "test_cat",
+      protocolVersion: "v1.0",
+      components: [AnyComponentAPI(name: "Text", schema: dummySchema)],
+      functions: [any FunctionImplementation]()
+    ).eraseToAnyCatalog()
+
+    let processor = MessageProcessor(catalogs: [catalog])
+    let createMsg = AgentToRendererMessage.createSurface(
+      CreateSurfaceMessage(
+        surfaceID: "s1",
+        catalogID: "test_cat",
+        components: [
+          ["id": "root", "component": "Text"],
+          ["id": "root", "component": "Text"],
+        ]
+      )
+    )
+
+    processor.process(message: createMsg)
+    #expect(processor.surface(id: "s1") == nil)
+  }
+
+  @Test func prototypePollutionKeysIgnoredAndEmptyArrayPadding() {
+    let model = DataModel()
+    model.set("/__proto__/polluted", value: .boolean(true))
+    model.set("/constructor/polluted", value: .boolean(true))
+    model.set("/prototype/polluted", value: .boolean(true))
+    #expect(model.get("/__proto__/polluted") == nil)
+    #expect(model.get("/constructor/polluted") == nil)
+    #expect(model.get("/prototype/polluted") == nil)
+
+    model.set("/items/3", value: .string("fourth"))
+    let items = model.get("/items")?.arrayValue
+    #expect(items?.count == 4)
+    #expect(items?[0] == .null)
+    #expect(items?[1] == .null)
+    #expect(items?[2] == .null)
+    #expect(items?[3] == .string("fourth"))
+  }
 }
 
 private final class DummyFunctionHandler: FunctionHandler {
