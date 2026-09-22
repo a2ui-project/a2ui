@@ -12,15 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The A2UI agent SDK: capability negotiation, prompting and response parsing
-/// for agents that generate A2UI.
-///
-/// Implements protocol v0.9 and the Express inference format only.
-library;
+import 'package:a2ui_core/a2ui_core.dart';
 
-export 'src/inference_format.dart';
-export 'src/inference_formats/express/format.dart';
-export 'src/parser/response_part.dart';
-export 'src/processor/catalog_config.dart';
-export 'src/processor/generator.dart';
-export 'src/processor/processor.dart';
+/// A slice of a parsed LLM response: [TextPart] or [A2uiPart].
+sealed class ResponsePart {
+  const ResponsePart();
+}
+
+/// Conversational text from an LLM response, for display to the user.
+final class TextPart extends ResponsePart {
+  final String text;
+
+  const TextPart(this.text);
+}
+
+/// A2UI messages compiled from one payload block of an LLM response, ready to
+/// deliver to a renderer.
+final class A2uiPart extends ResponsePart {
+  final List<AgentToRendererMessage> a2ui;
+
+  const A2uiPart(this.a2ui);
+}

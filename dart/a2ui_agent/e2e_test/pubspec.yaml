@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: a2ui_monorepo
-publish_to: none
-license: BSD-3-Clause
+name: a2ui_agent_e2e_test
+publish_to: "none"
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.35.7 <4.0.0"
 
-workspace:
-  - samples/client/flutter/restaurant_finder/app
-  - samples/client/flutter/restaurant_finder/e2e_test
-  - dart/a2ui_agent
-  - dart/a2ui_agent/e2e_test
-  - dart/a2ui_core
+resolution: workspace
 
-flutter:
-  uses-material-design: true
+dependencies:
+  a2ui_agent:
+    path: ..
+  a2ui_core:
+    path: ../../a2ui_core
+  dartantic_ai: ^3.1.0
+
 dev_dependencies:
-  lints: ^6.1.0
+  test: ^1.26.2

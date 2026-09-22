@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The A2UI agent SDK: capability negotiation, prompting and response parsing
-/// for agents that generate A2UI.
+/// Selects the notation the LLM writes A2UI payloads in.
 ///
-/// Implements protocol v0.9 and the Express inference format only.
-library;
-
-export 'src/inference_format.dart';
-export 'src/inference_formats/express/format.dart';
-export 'src/parser/response_part.dart';
-export 'src/processor/catalog_config.dart';
-export 'src/processor/generator.dart';
-export 'src/processor/processor.dart';
+/// Only `ExpressFormatFactory` is supported; an `A2uiRequestProcessor` rejects
+/// any other.
+abstract class InferenceFormatFactory {
+  const InferenceFormatFactory();
+}
