@@ -18,7 +18,7 @@ import OrderedJSON
 public struct ResolvedAction: Sendable {
   /// Defines the identity of the action for structural equality.
   public enum Identity: Equatable, Sendable {
-    case event(name: String, context: [String: JSONValue]?)
+    case event(name: String, context: [String: JSONValue]?, userMessage: String? = nil)
     case function(call: String, args: [String: JSONValue]?)
   }
 
