@@ -16,7 +16,7 @@
     "types": ["node"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
 
@@ -31,6 +31,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["v0_9/src/**/*.ts", "v0_9/*.json"],
+  "include": ["src/**/*.ts", "src/catalog.json"],
   "exclude": ["node_modules", "dist"]
 }

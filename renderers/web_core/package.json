@@ -82,7 +82,7 @@
         "../../specification/v0_9/json/*.json",
         "../../specification/v0_9/catalogs/**/*.json",
         "../../specification/v1_0/json/*.json",
-        "../../specification/v1_0/catalogs/**/*.json",
+        "../../catalogs/basic/**/*.json",
         "scripts/copy-spec.js"
       ],
       "output": [

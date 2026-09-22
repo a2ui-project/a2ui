@@ -61,13 +61,6 @@ RELAXED_VALIDATION = ValidationConfig(
 )
 
 
-# Define the presets as global constants
-STRICT_VALIDATION = ValidationConfig()
-RELAXED_VALIDATION = ValidationConfig(
-    allow_orphan_components=True, allow_dangling_references=True
-)
-
-
 def _clean_loc_part(x: str) -> str:
     """Extracts base message class names from Pydantic validator wrapper strings."""
     if x.startswith("function-after[") or x.startswith("function-before["):

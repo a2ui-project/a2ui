@@ -235,7 +235,7 @@ Derives a clean, LLM-friendly catalog name from a catalog ID, URL, or file path:
 2. Normalizes path separators (`\` -> `/`).
 3. Strips `.json` extension and splits path by `/`.
 4. Extracts terminal component. If the terminal component starts with `"v"` (version segment like `v0_9`) and has a preceding segment, uses the preceding segment.
-5. Converts string to lowercase and returns the result (e.g. `"catalogs/v1_0/basic/catalog.json"` -> `"basic"`).
+5. Converts string to lowercase and returns the result (e.g. `"catalogs/basic/v1/catalog.json"` -> `"basic"`).
 
 #### **`resolve_catalogs_list(catalogs, format) -> List<Catalog>`**
 

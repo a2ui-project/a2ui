@@ -1,27 +1,27 @@
 {
-  "name": "@a2ui/mcp-catalog",
+  "name": "@a2ui/catalog-mcp",
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/v0_9/src/index.js",
-  "types": "./dist/v0_9/src/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/v0_9/src/index.d.ts",
-      "default": "./dist/v0_9/src/index.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
-    "./v0_9": {
-      "types": "./dist/v0_9/src/index.d.ts",
-      "default": "./dist/v0_9/src/index.js"
-    },
-    "./v0_9/mcp_catalog.json": "./v0_9/mcp_catalog.json"
+    "./catalog.json": "./dist/catalog.json"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -b --pretty",
-    "clean": "rm -rf dist",
+    "copy-catalog": "node scripts/copy-catalog.js",
+    "build": "yarn copy-catalog && tsc -b --pretty",
+    "clean": "rm -rf dist src/catalog.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --import tsx --test 'v0_9/src/**/*.test.ts'",
+    "test": "yarn copy-catalog && node --import tsx --test 'src/**/*.test.ts'",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

@@ -48,6 +48,22 @@ def _version_to_dir_name(version: str) -> str:
     return "v" + version.replace(".", "_")
 
 
+# Catalogs that moved from `specification/<version>/catalogs/` to the top-level
+# `catalogs/` directory. Dataset entries (including the encrypted ones) may still
+# use the old location, so both spellings resolve to the same file.
+_MOVED_CATALOG_PREFIXES = {
+    "specification/v1_0/catalogs/basic/": "catalogs/basic/v1/",
+}
+
+
+def _resolve_catalog_path(catalog_path: str) -> str:
+    """Maps legacy catalog locations to their current repository path."""
+    for old_prefix, new_prefix in _MOVED_CATALOG_PREFIXES.items():
+        if catalog_path.startswith(old_prefix):
+            return new_prefix + catalog_path[len(old_prefix) :]
+    return catalog_path
+
+
 def _parse_tool_calls(
     raw_tool_calls: list[dict[str, Any]] | None,
 ) -> list[ToolCall] | None:
@@ -194,6 +210,7 @@ def load_a2ui_dataset(
                 catalog_path = catalog_path.replace(
                     "{version}", _version_to_dir_name(version)
                 )
+            catalog_path = _resolve_catalog_path(catalog_path)
 
             default_role = (
                 DEFAULT_ROLE_DESCRIPTION

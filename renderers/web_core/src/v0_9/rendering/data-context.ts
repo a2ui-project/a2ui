@@ -173,6 +173,12 @@ export function validateFunctionArgs(
 }
 
 /**
+ * The maximum allowed recursion depth for evaluating nested dynamic values or function calls.
+ * Prevents call stack exhaustion on deeply nested expression payloads.
+ */
+export const MAX_DYNAMIC_VALUE_DEPTH = 1_000;
+
+/**
  * A contextual view of the main DataModel, serving as the unified interface for resolving
  * DynamicValues (literals, data paths, function calls) within a specific scope.
  *
@@ -237,9 +243,18 @@ export class DataContext {
    * this result will not automatically update. Use `subscribeDynamicValue` for reactive updates.
    *
    * @param value The DynamicValue object from the A2UI JSON payload.
+   * @param depth The current recursion depth when evaluating nested arguments or expressions.
    * @returns The synchronously resolved value.
    */
-  resolveDynamicValue<V>(value: DynamicValue): V {
+  resolveDynamicValue<V>(value: DynamicValue, depth = 0): V {
+    if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
+      const err = new A2uiExpressionError(
+        `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
+      );
+      this.dispatchExpressionError(err, 'DynamicValue');
+      return undefined as any;
+    }
+
     // 1. Primitive literals (null, string, number, boolean)
     if (value === null || typeof value !== 'object') {
       return value as V;
@@ -251,7 +266,7 @@ export class DataContext {
       if (!DataContext.containsDynamicValue(value)) {
         return value as V;
       }
-      return value.map(item => this.resolveDynamicValue(item)) as V;
+      return value.map(item => this.resolveDynamicValue(item, depth + 1)) as V;
     }
 
     // 2. Path Check: { path: "..." }
@@ -272,7 +287,7 @@ export class DataContext {
       const args: Record<string, any> = {};
 
       for (const [key, argVal] of Object.entries(call.args || {})) {
-        args[key] = this.resolveDynamicValue(argVal);
+        args[key] = this.resolveDynamicValue(argVal, depth + 1);
       }
 
       const abortController = new AbortController();
@@ -340,7 +355,20 @@ export class DataContext {
    * @param value The DynamicValue to evaluate and observe.
    * @returns A Preact Signal containing the reactive result of the evaluation.
    */
-  resolveSignal<V>(value: DynamicValue): Signal<V> {
+  resolveSignal<V>(value: DynamicValue, depth = 0): Signal<V> {
+    if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
+      const err = new A2uiExpressionError(
+        `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
+      );
+      this.dispatchExpressionError(
+        err,
+        typeof value === 'object' && value && 'call' in value
+          ? (value as FunctionCall).call
+          : 'DynamicValue',
+      );
+      return signal(undefined as unknown as V);
+    }
+
     // 1. Primitive literals
     if (typeof value !== 'object' || value === null) {
       return signal(value as V);
@@ -352,7 +380,7 @@ export class DataContext {
       if (!DataContext.containsDynamicValue(value)) {
         return signal(value as V);
       }
-      const itemSignals = value.map(item => this.resolveSignal(item));
+      const itemSignals = value.map(item => this.resolveSignal(item, depth + 1));
       const resultSig = computed(() => itemSignals.map(s => getValue(s))) as Signal<V>;
       resultSig.unsubscribe = () => {
         for (const s of itemSignals) {
@@ -380,7 +408,7 @@ export class DataContext {
       const argSignals: Record<string, Signal<any>> = {};
 
       for (const [key, argVal] of Object.entries(call.args || {})) {
-        argSignals[key] = this.resolveSignal(argVal);
+        argSignals[key] = this.resolveSignal(argVal, depth + 1);
       }
 
       if (Object.keys(argSignals).length === 0) {
