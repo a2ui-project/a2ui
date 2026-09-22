@@ -26,6 +26,7 @@ A2UI Express is a compact, model-optimized declarative domain-specific language 
 ### **2. Catalog-Agnostic Prompt & Signature Generation**
 
 To ensure language-agnostic extensibility and schema-driven stability:
+
 - Express prompt generators (`ExpressPromptGenerator`) MUST decompose prompt building into:
   - `generate_base_rules() -> String`: Emits the base Express syntax specification, sentinel tags (`<a2ui>`), data path binding rules, and template syntax. Must be completely catalog-agnostic.
   - `generate_catalog_instructions(include_schema, catalog) -> String`: Compiles component definitions and function signatures dynamically from the target `A2uiCatalog` JSON schema into positional constructor signatures (e.g. `Text(text, variant?, color?)`).
@@ -91,7 +92,7 @@ class ExpressCompiler {
 ```typescript
 class ExpressParser implements Parser {
   constructor(catalog: A2uiCatalog, surfaceId?: string, version?: string);
-  hasFormatContent(content: string, options?: { complete?: boolean }): boolean;
+  hasFormatContent(content: string, options?: {complete?: boolean}): boolean;
   unwrap(content: string): Array<ResponsePart>;
   compile(dsl: string): Array<A2uiMessage>;
   decompile(messages: Array<A2uiMessage> | A2uiMessage): string;

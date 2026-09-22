@@ -11,12 +11,16 @@ While the A2UI client runtime always consumes standard JSON wire protocol messag
 A2UI supports two primary inference formats:
 
 ### 1. Direct JSON
+
 In Direct JSON format, the model generates standard A2UI JSON envelopes directly, typically using structured output mode or standard JSON prompting.
+
 - **Best for**: Models with native JSON schema enforcement, or when debugging raw wire messages.
 - **Trade-off**: Higher token overhead due to repetitive structural keys, quotes, and JSON envelope boilerplate.
 
 ### 2. A2UI Express
+
 **A2UI Express** is an official, compact declarative domain-specific language (DSL) designed specifically for LLM UI generation.
+
 - **Best for**: Production agents, on-device models (such as Gemma 4), and high-throughput applications where latency and token costs matter.
 - **Key advantage**: **55% to 70% reduction in output tokens** compared to raw JSON, with ~2.5x faster generation latency and line-by-line streaming compilation.
 

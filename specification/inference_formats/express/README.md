@@ -9,6 +9,7 @@ It acts as an intermediate, highly compressed notation designed for both on-devi
 ## Rationale & Motivation
 
 Standard A2UI wire messages are formatted as verbose JSON envelopes. While JSON is optimal for cross-platform client rendering and schema validation, LLMs produce significant overhead when generating raw JSON:
+
 - **Excessive Token Consumption**: Repetitive structural keys, quotes, braces, brackets, and envelope wrappers inflate output token counts.
 - **Higher Latency**: LLM generation latency scales directly with the number of output tokens emitted.
 - **Context Window Pressure**: Small on-device models have constrained memory and context limits, making verbose JSON prompts and completions expensive.
@@ -22,11 +23,11 @@ Standard A2UI wire messages are formatted as verbose JSON envelopes. While JSON 
 
 Across standard component benchmarks and catalog examples:
 
-| Metric | Direct JSON | A2UI Express | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Output Token Count** | 850 – 1,400 tokens | 280 – 480 tokens | **55% – 70% reduction** |
-| **Generation Latency** | 1.8s – 3.2s | 0.6s – 1.2s | **~2.5x faster** |
-| **Prompt Overhead** | Full JSON Schema | Positional Signatures | **~60% smaller prompt contract** |
+| Metric                  | Direct JSON          | A2UI Express             | Improvement                      |
+| :---------------------- | :------------------- | :----------------------- | :------------------------------- |
+| **Output Token Count**  | 850 – 1,400 tokens   | 280 – 480 tokens         | **55% – 70% reduction**          |
+| **Generation Latency**  | 1.8s – 3.2s          | 0.6s – 1.2s              | **~2.5x faster**                 |
+| **Prompt Overhead**     | Full JSON Schema     | Positional Signatures    | **~60% smaller prompt contract** |
 | **Streaming Viability** | Chunked JSON parsing | Line-oriented statements | Immediate incremental evaluation |
 
 ---
@@ -134,27 +135,32 @@ dsl_output = parser.decompile(messages)
 Standalone developer scripts are available under `scripts/`:
 
 ### Compile DSL to JSON
+
 ```bash
 uv run scripts/run_compiler.py path/to/sample.a2ui --surface-id "main"
 ```
 
 ### Decompile JSON to DSL
+
 ```bash
 uv run scripts/run_decompiler.py path/to/example.json
 ```
 
 ### Generate Prompt Signatures
+
 ```bash
 uv run scripts/run_prompt_generator.py --catalog ../../v1_0/catalogs/basic/catalog.json
 ```
 
 ### Run Model Inference & Validation
+
 ```bash
 export GEMINI_API_KEY="your-api-key"
 uv run scripts/run_inference.py ../../v1_0/catalogs/basic/examples/01_flight-status.json --model gemini-3.1-flash-lite
 ```
 
 ### Recreate Documentation Examples
+
 ```bash
 uv run scripts/recreate_dsl_examples.py
 ```
