@@ -34,41 +34,24 @@ CONFORMANCE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SCHEMA_PATH = os.path.join(CONFORMANCE_DIR, "conformance_schema.json")
 SCHEMA = load_json_file(SCHEMA_PATH)
 
-INFERENCE_FORMAT_SCHEMA_PATH = os.path.join(
-    CONFORMANCE_DIR, "agent", "inference_formats", "inference_format_schema.json"
-)
-INFERENCE_FORMAT_SCHEMA = load_json_file(INFERENCE_FORMAT_SCHEMA_PATH)
 
-
-def get_yaml_test_params():
-    params = []
-    inf_dir = os.path.join(CONFORMANCE_DIR, "agent", "inference_formats")
-    inf_pattern = os.path.join(inf_dir, "**", "*.yaml")
-    inf_files = set(glob.glob(inf_pattern, recursive=True))
-
+def get_yaml_files():
+    files = []
     for domain in ["core", "agent", "extensions"]:
         pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
-        for f in glob.glob(pattern, recursive=True):
-            if f not in inf_files:
-                params.append((f, SCHEMA))
-
-    for f in sorted(inf_files):
-        params.append((f, INFERENCE_FORMAT_SCHEMA))
-
-    return sorted(params, key=lambda x: x[0])
+        files.extend(glob.glob(pattern, recursive=True))
+    return sorted(files)
 
 
 @pytest.mark.parametrize(
-    "yaml_path,schema",
-    get_yaml_test_params(),
-    ids=lambda item: os.path.basename(item[0])
-    if isinstance(item, tuple)
-    else str(item),
+    "yaml_path",
+    get_yaml_files(),
+    ids=lambda item: os.path.basename(item) if isinstance(item, str) else str(item),
 )
-def test_validate_conformance_yaml(yaml_path, schema):
+def test_validate_conformance_yaml(yaml_path):
     yaml_data = load_yaml_file(yaml_path)
     basename = os.path.basename(yaml_path)
     try:
-        jsonschema.validate(instance=yaml_data, schema=schema)
+        jsonschema.validate(instance=yaml_data, schema=SCHEMA)
     except jsonschema.ValidationError as e:
         pytest.fail(f"{basename} failed schema validation: {e.message}")
