@@ -91,7 +91,18 @@ export class RpcHandler {
   private readonly pendingAgentCalls = new Map<string, PendingAgentCall>();
   private isDisposed = false;
 
+  /**
+   * Initializes a new `RpcHandler` instance with configuration options.
+   *
+   * @param options Configuration options including catalogs, outbound listener, and timeout.
+   */
   constructor(options: RpcHandlerOptions);
+  /**
+   * Initializes a new `RpcHandler` instance with catalogs and an optional outbound listener.
+   *
+   * @param catalogs Catalogs available for function resolution.
+   * @param outboundListener Optional callback receiving outbound renderer messages.
+   */
   constructor(catalogs: Catalog<any>[], outboundListener?: OutboundMessageListener);
   constructor(
     optionsOrCatalogs: RpcHandlerOptions | Catalog<any>[],
@@ -110,7 +121,7 @@ export class RpcHandler {
   }
 
   /**
-   * Indicates whether this RpcHandler instance has been disposed.
+   * Whether this RPC handler has been disposed.
    */
   get disposed(): boolean {
     return this.isDisposed;
@@ -119,9 +130,10 @@ export class RpcHandler {
   /**
    * Executes a remote renderer function requested by the server agent.
    *
-   * @param message The inbound callRendererFunction message.
-   * @param context The current DataContext for function execution.
+   * @param message Inbound callRendererFunction message.
+   * @param context DataContext for function execution.
    * @param isUserActivated Whether execution occurs in an active user gesture context.
+   * @returns A promise resolving to the renderer function response message.
    */
   async handleCallRendererFunction(
     message: CallRendererFunctionMessage,
@@ -186,9 +198,9 @@ export class RpcHandler {
   }
 
   /**
-   * Resolves a pending outbound callAgentFunction request upon receiving agentFunctionResponse.
+   * Processes an inbound agent function response to resolve or reject the matching pending outbound call.
    *
-   * @param message The inbound agentFunctionResponse message.
+   * @param message Inbound agent function response message.
    */
   handleAgentFunctionResponse(message: AgentFunctionResponseMessage): void {
     if (!message || !message.agentFunctionResponse) return;
@@ -209,10 +221,12 @@ export class RpcHandler {
   /**
    * Invokes a remote function on the server agent using an options bag.
    *
-   * @param surfaceId The ID of the surface requesting execution.
-   * @param call The function call details.
+   * @template T Expected return value type of the agent function.
+   * @param surfaceId Identifier of the surface requesting execution.
+   * @param call Function call details.
    * @param options Optional invocation options (custom functionCallId, timeoutMs).
    * @returns A promise resolving to the agent function return value.
+   * @throws {A2uiRpcError} If the handler is disposed, no listener is configured, the call is invalid or duplicate, or invocation times out or fails.
    */
   callAgentFunction<T = unknown>(
     surfaceId: string,
@@ -267,7 +281,7 @@ export class RpcHandler {
   }
 
   /**
-   * Disposes the RpcHandler and rejects all pending agent function calls.
+   * Disposes the RPC handler and cancels all pending agent function calls with a `CANCELLED` error.
    */
   dispose(): void {
     if (this.isDisposed) return;
@@ -284,6 +298,11 @@ export class RpcHandler {
     this.pendingAgentCalls.clear();
   }
 
+  /**
+   * Sends an outbound renderer response message to the outbound listener.
+   *
+   * @param response Renderer function response message to transmit.
+   */
   private async emitOutboundResponse(response: RendererFunctionResponseMessage): Promise<void> {
     if (this.outboundListener) {
       try {
@@ -297,6 +316,12 @@ export class RpcHandler {
     }
   }
 
+  /**
+   * Validates an inbound renderer function call message.
+   *
+   * @param message Inbound message to validate.
+   * @returns An error response if validation fails; otherwise `null`.
+   */
   private validateInboundMessage(
     message: CallRendererFunctionMessage,
   ): RendererFunctionResponseMessage | null {
@@ -328,6 +353,15 @@ export class RpcHandler {
     return null;
   }
 
+  /**
+   * Resolves the catalog and function implementation for the requested call.
+   *
+   * @param catalogId Optional catalog identifier specified in the call.
+   * @param call Function name to resolve.
+   * @param context Optional data context providing a default surface catalog.
+   * @param expectedVersion Optional protocol version to check compatibility against.
+   * @returns The resolved function implementation and catalog, or an error descriptor.
+   */
   private resolveFunctionImplementation(
     catalogId: string | undefined,
     call: string,
@@ -363,6 +397,14 @@ export class RpcHandler {
     return {funcImpl, catalog};
   }
 
+  /**
+   * Verifies caller boundary permissions and user activation requirements for a function.
+   *
+   * @param funcImpl Function implementation to inspect.
+   * @param call Function name being invoked.
+   * @param isUserActivated Whether execution occurs within an active user gesture context.
+   * @returns An error message if permissions are not satisfied; otherwise `null`.
+   */
   private checkExecutionPermissions(
     funcImpl: FunctionImplementation,
     call: string,
@@ -379,6 +421,15 @@ export class RpcHandler {
     return null;
   }
 
+  /**
+   * Validates and parses function arguments against the catalog function schema.
+   *
+   * @param catalog Catalog declaring the function.
+   * @param _funcImpl Function implementation.
+   * @param args Raw argument dictionary.
+   * @param call Function name being invoked.
+   * @returns Parsed arguments on success, or an error descriptor on validation failure.
+   */
   private parseArguments(
     catalog: Catalog<any>,
     _funcImpl: FunctionImplementation,
@@ -397,6 +448,18 @@ export class RpcHandler {
     }
   }
 
+  /**
+   * Executes a catalog function implementation, catching unhandled exceptions and formatting the response.
+   *
+   * Unwraps reactive signals and maps any thrown errors to an `EXECUTION_ERROR` response.
+   *
+   * @param funcImpl Function implementation to execute.
+   * @param args Validated function arguments.
+   * @param context Data context for function evaluation.
+   * @param functionCallId Identifier of the function call.
+   * @param version Protocol version for the response message.
+   * @returns A promise resolving to the renderer function response message.
+   */
   private async executeFunctionSafely(
     funcImpl: FunctionImplementation,
     args: Record<string, unknown>,
@@ -431,6 +494,11 @@ export class RpcHandler {
     }
   }
 
+  /**
+   * Generates a unique function call identifier.
+   *
+   * @returns A unique call identifier string.
+   */
   private generateFunctionCallId(): string {
     if (typeof globalThis.crypto?.randomUUID === 'function') {
       return globalThis.crypto.randomUUID();
@@ -439,6 +507,14 @@ export class RpcHandler {
     return `call-${Date.now()}-${randSuffix}`;
   }
 
+  /**
+   * Dispatches an outbound agent function call and registers a pending promise with timeout handling.
+   *
+   * @template T Expected return value type.
+   * @param surfaceId Identifier of the surface initiating the call.
+   * @param callInfo Normalized agent call parameters.
+   * @returns A promise resolving to the agent function return value.
+   */
   private dispatchAgentCall<T = unknown>(
     surfaceId: string,
     callInfo: NormalizedAgentCall,
@@ -478,6 +554,16 @@ export class RpcHandler {
     });
   }
 
+  /**
+   * Creates a timeout timer for a pending agent function call.
+   *
+   * @param functionCallId Identifier of the pending function call.
+   * @param callName Name of the function being called.
+   * @param timeoutMs Duration in milliseconds before timeout expiry.
+   * @param cleanup Teardown callback to invoke when the timer fires.
+   * @param reject Rejection callback to reject the pending promise with a `TIMEOUT` error.
+   * @returns The timer handle, or `undefined` if timeout is disabled.
+   */
   private createTimeoutTimer(
     functionCallId: string,
     callName: string,
@@ -500,6 +586,16 @@ export class RpcHandler {
     }, timeoutMs);
   }
 
+  /**
+   * Transmits an outbound callAgentFunction message to the registered outbound listener.
+   *
+   * @param surfaceId Identifier of the surface initiating the call.
+   * @param functionCallId Identifier of the function call.
+   * @param call Function call specification.
+   * @param version Optional protocol version string.
+   * @param cleanup Teardown callback invoked on failure.
+   * @param reject Rejection callback invoked if transmission throws or rejects.
+   */
   private sendOutboundMessage(
     surfaceId: string,
     functionCallId: string,
@@ -531,10 +627,25 @@ export class RpcHandler {
     }
   }
 
+  /**
+   * Extracts a human-readable message string from an unknown error value.
+   *
+   * @param err Unknown error caught in a try/catch block.
+   * @returns Formatted error message string.
+   */
   private extractErrorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
   }
 
+  /**
+   * Constructs a renderer function error response message.
+   *
+   * @param functionCallId Identifier of the function call that failed.
+   * @param code RPC error code or string category.
+   * @param message Human-readable error description.
+   * @param version Protocol version string.
+   * @returns Formatted renderer function response message containing the error.
+   */
   private createResponseError(
     functionCallId: string,
     code: RpcErrorCode | string,
