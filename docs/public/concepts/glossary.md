@@ -4,7 +4,7 @@
 
 The A2UI protocol defines a conversation between an **agent** and a **renderer**:
 
-1. The **renderer** sends its **UI capabilities** as an A2UI catalog, with **instructions** on how to use them.
+1. The **renderer** sends its **UI capabilities** as a set of A2UI catalogs, with **instructions** on how to use them.
 2. The **agent** then repeats a loop:
     - Sends **UI** to render and **functions** to call, based on the catalog it received
     - Receives **user input** from the renderer
@@ -42,7 +42,7 @@ sequenceDiagram
 The A2UI team provides two SDKs for a number of languages and frameworks:
 
 - **Agent SDK**: sets up the agent side of the interaction with the renderer and the model.
-- **Renderer SDK**: sets up the renderer side of the interaction with the agent and handles incoming messages.
+- **Framework adapter SDK (aka renderer SDK)**: sets up the renderer side of the interaction with the agent and handles incoming messages.
 
 **Terms in this glossary:**
 
@@ -152,18 +152,18 @@ In a component definition, a reference to a data element, resolved either by a p
 
 See the [example in the basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json#L23).
 
-### Client function
+### Renderer function
 
 A function that the renderer provides for the agent to invoke when needed.
 
-A client function is not the same as an LLM tool:
+A renderer function is not the same as an LLM tool:
 
-| Feature      | Client function                                                       | LLM tool invocation                                                  |
+| Feature      | Renderer function                                                       | LLM tool invocation                                                  |
 | ------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | Executor     | A2UI renderer                                                         | LLM requests the invocation without concern about execution details. |
 | Timing       | After the agent to renderer message is sent.                          | Before the agent to renderer message is sent.                        |
 | Purpose      | UI logic: validation, visibility toggles, formatting.                 | Reasoning, data fetching, backend actions.                           |
-| Definition   | Registered in client side function registry and advertised in catalog | Defined in ToolDefinition, passed to the LLM.                        |
+| Definition   | Registered in renderer function registry and advertised in catalog | Defined in ToolDefinition, passed to the LLM.                        |
 | State access | Access to DataContext and input values.                               | Access to external APIs, databases, and services, but not to the UI. |
 
 See the [example in common types](../../../specification/v0_9_1/json/common_types.json#L200).
