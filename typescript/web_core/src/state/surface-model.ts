@@ -61,9 +61,13 @@ export interface A2uiErrorPayload {
  * physically exist in the active DataModel).
  */
 export interface A2uiWarningPayload {
+  /** Machine-readable warning code (e.g. `'MISSING_DATA_BINDING'`). */
   code: 'MISSING_DATA_BINDING' | (string & {});
+  /** Absolute JSON pointer path associated with the warning, if applicable. */
   path?: string;
+  /** Human-readable explanation of the warning condition. */
   message: string;
+  /** Identifier of the surface where the warning occurred, if bound. */
   surfaceId?: string;
   [key: string]: unknown;
 }
@@ -139,6 +143,7 @@ export class SurfaceModel<
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
     dataModel?: DataModel,
+    /** Identifier of the root component on this surface (defaults to `'root'`). */
     readonly rootId: string = 'root',
   ) {
     const catalogs = new Map(availableCatalogs);
@@ -236,6 +241,7 @@ export class SurfaceModel<
    * Dispatches a non-fatal warning from this surface to registered listeners.
    *
    * @param warning The warning payload to dispatch.
+   * @returns Promise that resolves once listeners have handled the warning.
    */
   async dispatchWarning(warning: A2uiWarningPayload): Promise<void> {
     await this._onWarning.emit({

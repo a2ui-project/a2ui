@@ -176,6 +176,16 @@ export function validateFunctionArgs(
   }
 }
 
+/**
+ * Resolves the 0-based iteration index from a context or its ancestor chain.
+ *
+ * Checks for an explicit index first, then checks whether the trailing
+ * segment of the data path is numeric, walking the parent context chain until a
+ * match is found.
+ *
+ * @param startCtx Initial context or context-like object to inspect.
+ * @returns The resolved 0-based iteration index, or `undefined` if outside an iteration scope.
+ */
 export function resolveContextIndex(startCtx: unknown): number | undefined {
   let ctx = startCtx as
     | {
@@ -190,10 +200,7 @@ export function resolveContextIndex(startCtx: unknown): number | undefined {
     if (ctx.explicitIndex !== undefined && Number.isFinite(ctx.explicitIndex)) {
       return ctx.explicitIndex;
     }
-    if (
-      !(ctx instanceof DataContext) &&
-      typeof ctx.getIndex === 'function'
-    ) {
+    if (!(ctx instanceof DataContext) && typeof ctx.getIndex === 'function') {
       const idx = ctx.getIndex();
       if (idx !== undefined && Number.isFinite(idx)) {
         return idx;
@@ -268,6 +275,8 @@ export class DataContext {
    *
    * Mirrors `DataContext.index` in Python: checks an explicit `explicitIndex` first,
    * then checks strictly the trailing segment of `ctx.path`, walking `ctx.parent`.
+   *
+   * @returns The 0-based iteration index, or `undefined` if outside an iteration scope.
    */
   getIndex(): number | undefined {
     return resolveContextIndex(this);
@@ -289,10 +298,22 @@ export class DataContext {
     this.dataModel.set(absolutePath, value);
   }
 
+  /**
+   * Checks whether an object represents a data binding.
+   *
+   * @param val Candidate object to inspect.
+   * @returns Whether the object has a string `path` and is not a component reference.
+   */
   private static isDataBindingObject(val: Record<string, unknown>): boolean {
     return 'path' in val && typeof val.path === 'string' && !('componentId' in val);
   }
 
+  /**
+   * Checks whether an object represents a function call.
+   *
+   * @param val Candidate object to inspect.
+   * @returns Whether the object has a string `call` property.
+   */
   private static isFunctionCallObject(val: Record<string, unknown>): boolean {
     return 'call' in val && typeof val.call === 'string';
   }
@@ -300,6 +321,9 @@ export class DataContext {
   /**
    * Checks whether a value contains any dynamic parts (path bindings or
    * function calls) at any nesting depth that require resolution.
+   *
+   * @param value The value or data structure to inspect.
+   * @returns Whether the value contains any dynamic path bindings or function calls.
    */
   private static containsDynamicValue(value: unknown): boolean {
     if (value === null || typeof value !== 'object') {
@@ -315,6 +339,11 @@ export class DataContext {
     return Object.values(rec).some(v => DataContext.containsDynamicValue(v));
   }
 
+  /**
+   * Emits a warning if a data binding path does not exist in the data model.
+   *
+   * @param absolutePath Absolute JSON pointer path to check.
+   */
   private emitMissingDataBindingWarning(absolutePath: string): void {
     if (
       typeof this.dataModel?.hasPath === 'function' &&
@@ -377,6 +406,13 @@ export class DataContext {
     return this.resolvePlainObjectValue<V>(rec, depth);
   }
 
+  /**
+   * Resolves a function call by validating arguments and invoking the function.
+   *
+   * @param call Function call definition to execute.
+   * @param depth Current recursion depth for nested expression tracking.
+   * @returns The resolved function return value.
+   */
   private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0): V {
     let targetCatalog: Catalog<any>;
     try {
@@ -409,6 +445,13 @@ export class DataContext {
     return (isSignal(result) ? peekValue(result) : result) as V;
   }
 
+  /**
+   * Recursively resolves dynamic values nested inside a plain object.
+   *
+   * @param rec Plain object dictionary to resolve.
+   * @param depth Current recursion depth for nested expression tracking.
+   * @returns A copy of the object with all nested dynamic values resolved.
+   */
   private resolvePlainObjectValue<V>(rec: Record<string, unknown>, depth = 0): V {
     if (!DataContext.containsDynamicValue(rec)) {
       return rec as unknown as V;

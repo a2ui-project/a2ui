@@ -334,7 +334,7 @@ export class DataModel {
    * a path that is absent from the object or array hierarchy (`false`).
    *
    * @param path Absolute JSON pointer path to check.
-   * @returns True if every segment along `path` exists in the hierarchy.
+   * @returns Whether every segment along `path` exists in the hierarchy.
    */
   hasPath(path: string): boolean {
     if (path === null || path === undefined) {
