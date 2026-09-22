@@ -114,7 +114,7 @@ export class MyProfileElement extends A2uiLitElement<typeof MyProfileApi> {
   protected readonly api = MyProfileApi;
 
   render() {
-    const props = this.controller?.props;
+    const props = this.controller.props;
     if (!props) return nothing;
 
     return html`

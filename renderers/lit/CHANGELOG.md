@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9) `A2uiLitElement`, re-exported from `@a2ui/web_core/v0_9`, now skips the update cycle in `shouldUpdate()` while the element is unbound, instead of returning early from `update()`. Custom components that override `shouldUpdate()` must call `super.shouldUpdate()`. The controller is guaranteed in `render()` and `updated()`, so `this.controller?.` guards in component code are no longer needed. [#2652](https://github.com/a2ui-project/a2ui/pull/2652)
+
 ## 0.11.0
 
 - **BREAKING CHANGE**: (v0_9) Move universal basic catalog component implementations (`A2uiText`, `A2uiButton`, `A2uiCard`, etc.) to `@a2ui/web_core/v0_9/basic_catalog`. To upgrade to this version of `@a2ui/lit`, apps should also update to the latest version of `@a2ui/web_core`. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)

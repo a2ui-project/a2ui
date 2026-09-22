@@ -248,4 +248,29 @@ describe('A2uiLitElement', () => {
 
     document.body.removeChild(el);
   });
+
+  it('should render once a context is attached after an unbound update', async () => {
+    class TestLateBoundElement extends A2uiLitElement<typeof TextApi> {
+      protected override readonly api = TextApi;
+      override render() {
+        return this.controller.props.text;
+      }
+    }
+    customElements.define('test-late-bound-element', TestLateBoundElement);
+
+    const el = document.createElement('test-late-bound-element') as TestLateBoundElement;
+    document.body.appendChild(el);
+
+    // A full update cycle runs while the element is unbound, as it would during standalone
+    // custom element usage or static hydration.
+    await asyncUpdate(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'root');
+    });
+
+    assert.match(el.shadowRoot!.textContent ?? '', /Root/);
+
+    document.body.removeChild(el);
+  });
 });

@@ -60,6 +60,11 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
 
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
+   *
+   * Bound when `context` is first set. Because `shouldUpdate()` skips the cycle while the element
+   * is unbound, this is guaranteed to be present in `render()`, `updated()`, and any code they
+   * reach. It is NOT guaranteed at the top of a `willUpdate()` override, which runs before the
+   * base class creates it — call `super.willUpdate()` first.
    */
   public get controller(): A2uiController<Api> {
     return this._controller!;
@@ -258,10 +263,20 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
     }
   }
 
-  protected override update(changedProperties: PropertyValues) {
-    if (!this._controller) {
-      return;
+  /**
+   * Gates the update cycle on the element being bound to a controller.
+   *
+   * `willUpdate()` creates the controller from `context` and has not run yet on the cycle that
+   * binds it, so `context` stands in for the controller that is about to exist. Skipping here
+   * rather than inside `update()` lets Lit close the cycle: `updated()` is not reached without a
+   * controller, and later updates are still scheduled once the element is bound.
+   *
+   * @param changedProperties Map of changed properties with their previous values.
+   */
+  protected override shouldUpdate(changedProperties: PropertyValues) {
+    if (!this.context) {
+      return false;
     }
-    super.update(changedProperties);
+    return super.shouldUpdate(changedProperties);
   }
 }
