@@ -228,7 +228,37 @@ class DirectJsonFormat(InferenceFormat):
                 inline_components = inline_catalog_schema.get(
                     CATALOG_COMPONENTS_KEY, {}
                 )
+                if merged_schema.get(CATALOG_COMPONENTS_KEY) is None:
+                    merged_schema[CATALOG_COMPONENTS_KEY] = {}
                 merged_schema[CATALOG_COMPONENTS_KEY].update(inline_components)
+                inline_functions = inline_catalog_schema.get("functions", {})
+                if inline_functions:
+                    if merged_schema.get("functions") is None:
+                        merged_schema["functions"] = {}
+                    merged_schema["functions"].update(inline_functions)
+
+            if "$defs" in merged_schema and "anyComponent" in merged_schema["$defs"]:
+                components = merged_schema.get(CATALOG_COMPONENTS_KEY) or {}
+                if components:
+                    any_comp = merged_schema["$defs"]["anyComponent"]
+                    if isinstance(any_comp, dict):
+                        any_comp["oneOf"] = [
+                            {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{name}"}
+                            for name in sorted(components.keys())
+                        ]
+                        any_comp.setdefault(
+                            "discriminator", {"propertyName": "component"}
+                        )
+
+            if "$defs" in merged_schema and "anyFunction" in merged_schema["$defs"]:
+                functions = merged_schema.get("functions") or {}
+                if functions:
+                    any_func = merged_schema["$defs"]["anyFunction"]
+                    if isinstance(any_func, dict):
+                        any_func["oneOf"] = [
+                            {"$ref": f"#/functions/{name}"}
+                            for name in sorted(functions.keys())
+                        ]
 
             return A2uiCatalog(
                 version=self._version,
