@@ -507,10 +507,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   /**
-   * Processes a single canonical internal operation.
+   * Resolves the DataContext for an inbound RPC callRendererFunction operation.
    *
-   * @param op The internal operation to execute.
-   * @param context Contextual execution options.
+   * @param op Operation containing optional catalog and function call identifiers.
+   * @returns A DataContext attached to an existing matching surface or a fallback surface.
    */
   private resolveRpcDataContext(op: {catalogId?: string; functionCallId?: string}): DataContext {
     const targetCatalog =
@@ -545,6 +545,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     );
   }
 
+  /**
+   * Processes a single canonical internal operation.
+   *
+   * @param op The internal operation to execute.
+   * @param context Contextual execution options.
+   */
   processOperation(op: InternalOperation, context?: ExecutionContext): void {
     if (op.type === 'callRendererFunction') {
       const dataContext = this.resolveRpcDataContext(op);
