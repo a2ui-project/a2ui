@@ -271,7 +271,9 @@ Widening the annotation to `Literal[...] | str` would serve parsing by giving up
 
 ### Decoupled component trees
 
-A `ComponentTree` is independent of any specific surface ID or transport connection. A subtree can be defined in isolation, passed to sub-agents, returned from MCP tools, or embedded inside macros before binding it to a target surface.
+A subtree is authored without reference to any surface or transport. It can be built in isolation, handed to a sub-agent, returned from an MCP tool, or composed into a larger tree, and only acquires a surface when an envelope helper packages it. Nothing in the builder assumes a particular caller: an MCP server emitting a fixed layout and a macro runtime expanding a parameterised one use the same API.
+
+A `ComponentTree` pairs a primary root with the subtrees that stand alone. Authoring rarely needs it, since a node is already a tree; it earns its place on the parsing side, where a payload does not always reduce to a single root. Its `surface_id` records where a parsed payload came from and is not consulted when authoring.
 
 It deliberately knows nothing about envelopes. Message shape and the protocol version are version-specific, so packaging lives in the versioned `envelopes` module and returns typed message models rather than bare dictionaries.
 

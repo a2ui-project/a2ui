@@ -2,6 +2,7 @@
 feature_name: typesafe_builder_api
 module_blueprints:
   - a2ui_agent
+  - a2ui_core
 dependencies: []
 date_added: 2026-09-22
 ---
@@ -20,7 +21,65 @@ arrive at a renderer as a payload that validates structurally and then does
 nothing.
 
 This feature is optional. A language binding is useful without one, and a
-binding that has no static type system gains little from it.
+binding that has no static type system gains little from it. When implemented,
+it spans both `a2ui_agent` (for agent-side authoring, tool responses, and macros)
+and `a2ui_core` (for tree representation, message serialization, and round-trip
+deserialization back into typed node graphs).
+
+## **Consumers**
+
+The builder is a standalone capability that depends on nothing above it. Any
+code holding a catalog's generated models can produce A2UI with it. Two
+consumers are worth naming, because they pull in different directions and the
+API has to serve both.
+
+### A fixed layout, with no model in the loop
+
+A tool server answering a request it fully understands does not need inference
+at all. It constructs the tree and returns the messages:
+
+```python
+from a2ui.builder.v0_9 import create_surface
+from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text
+
+def order_status(order_id: str, state: str) -> list:
+    return create_surface(
+        "order_status",
+        Card(child=Column(children=[
+            Text(text=f"Order {order_id}", variant="h3"),
+            Text(text=state),
+        ])),
+    )
+```
+
+There is no prompt, no parsing and no model. The value is that `variant="h3"`
+is checked against the catalog when it is written, and the flat wire form is
+produced without the caller assembling component IDs by hand.
+
+### A parameterised fragment, expanded by a caller
+
+A macro runtime layers parameter binding and expansion on top of the same
+models. It is a consumer of the builder, not a peer:
+
+```mermaid
+flowchart LR
+    Catalog["Catalog schema"] --> Gen["Code generator"]
+    Gen --> Builder["Builder models"]
+    Builder --> MCP["Tool server<br/>(fixed layout)"]
+    Builder --> Macros["Macro runtime<br/>(parameterised)"]
+    Builder --> Agent["Agent code<br/>(direct)"]
+```
+
+Two properties matter more to this consumer than to direct authoring, and both
+are stated generally because they are not macro-specific: a subtree can be
+anchored at a caller-supplied root ID, which namespaces everything beneath it so
+repeated expansions cannot collide (R3.13), and a reference to something already
+on the surface stays a boundary that is never renamed or re-emitted (R3.12). A
+tool server returning the same fragment twice on one surface needs exactly the
+same guarantees.
+
+Nothing in the builder may name a specific consumer. A type whose contract can
+only be stated in terms of macros is a type in the wrong package.
 
 ## **Requirements**
 
@@ -141,6 +200,15 @@ require the wire format or the authoring API to change.
     reference, per R3.12, rather than an error or a dangling ID.
 25. For any tree the builder can produce, parsing its flattened output must
     yield a tree that flattens to the same output.
+26. An unrecognized component name must parse into a fallback node that
+    preserves its properties, rather than raising. A catalog the parser has not
+    seen must not make a payload unreadable.
+27. A payload whose components do not all reduce to one root must still parse.
+    An unrecognized container may hold children the parser can type but cannot
+    attach; those must be retained as typed subtrees alongside the primary root,
+    not dropped and not degraded to untyped maps. This is what a tree container
+    is for, and it is the reason a binding needs one at all: a single node can
+    only ever be one root.
 
 ## **Detailed Description of Changes**
 

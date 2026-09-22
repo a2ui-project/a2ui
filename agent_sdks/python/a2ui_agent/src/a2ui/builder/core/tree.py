@@ -24,12 +24,25 @@ from .flattener import flatten_component_tree
 
 
 class ComponentTree:
-    """An in-memory hierarchy of components rooted at a single ComponentBuilderNode.
+    """A component hierarchy: one primary root, plus any subtrees that stand alone.
 
-    A tree is deliberately transport-agnostic: it knows its own shape but not how
-    a given protocol version packages it. Envelope construction lives in the
-    versioned ``envelopes`` module so the message schema and the protocol version
-    stay in one place.
+    A single :class:`ComponentBuilderNode` is already a tree, so for authoring
+    this container adds nothing over the node itself. It exists for the parsing
+    direction, where a payload does not always reduce to one root: an
+    unrecognized container component holds children the parser can still type,
+    but cannot attach to anything. Those become unlinked subtrees, retained
+    alongside the primary root rather than dropped or degraded to plain dicts.
+
+    Round-trip parsing is specified but not yet implemented, so the unlinked
+    collection is not present yet; see R8 of the typesafe builder API feature
+    blueprint. The container is the place it will live.
+
+    A tree is transport-agnostic: it knows its own shape but not how a given
+    protocol version packages it. Envelope construction lives in the versioned
+    ``envelopes`` module so the message schema and the protocol version stay in
+    one place. ``surface_id`` records the surface a parsed payload came from, so
+    a read-modify-write cycle can emit back to it; it is not consulted when
+    authoring, where the envelope helpers take the surface explicitly.
     """
 
     def __init__(

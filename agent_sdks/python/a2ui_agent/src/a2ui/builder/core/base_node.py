@@ -51,12 +51,13 @@ class ComponentBuilderNode(BaseModel):
 
 
 class ExternalComponentBuilderNode(ComponentBuilderNode):
-    """Represents a component defined outside the current macro (slot reference).
+    """References a component that already exists on the target surface.
 
-    External components are referenced strictly by ID. They are never assigned
-    namespaced IDs during macro expansion, preserving outer component addresses,
-    and they are never emitted as components because they already exist on the
-    surface. Both behaviours live in the child slot serializer.
+    External components are addressed strictly by ID. They are never given a
+    namespaced ID when a subtree is stitched into a caller's surface, so the
+    address the caller knows stays valid, and they are never emitted as
+    components because the surface already holds them. Both behaviours live in
+    the child slot serializer.
     """
 
     def __init__(self, id: str, **kwargs: Any):

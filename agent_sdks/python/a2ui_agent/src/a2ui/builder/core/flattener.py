@@ -34,10 +34,10 @@ def flatten_component_tree(
     function is only responsible for the two things that are genuinely not
     field-level concerns:
 
-    1. Anchoring the returned root to ``root_id`` so a macro stitches into the
-       caller's surface.
+    1. Anchoring the returned root to ``root_id`` so an independently authored
+       subtree stitches into the caller's surface at a known address.
     2. Namespacing every sub-component as ``f"{root_id}__{local_id}"`` so two
-       expansions of the same macro cannot collide.
+       expansions of the same subtree cannot collide.
 
     Slot boundaries (:class:`ExternalComponentBuilderNode`) are referenced by
     their original ID and never namespaced or re-emitted.
