@@ -16,4 +16,15 @@
 
 import preset from '../../eslint.preset.mjs';
 
-export default [...preset];
+export default [
+  ...preset,
+  {
+    files: ['tests/**/*.ts', 'vitest.config.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: 'tsconfig.check.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+];
