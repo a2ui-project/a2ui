@@ -1,0 +1,311 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Catalog resolution: the negotiation between the catalogs an agent registered
+# and the capabilities a renderer sent, which decides what is active for a
+# session.
+#
+# A case lists the registrations the agent made, the capabilities object as it
+# arrives on the wire, and whether the agent accepts inline catalogs. The result
+# is `active_catalog_ids`, compared without regard to order, because nothing in
+# the protocol gives the sequence a meaning. Per catalog assertions are matched
+# to it by id. Name lists in those assertions are exhaustive.
+#
+# Capabilities are keyed by protocol version, so a v1.0 renderer sends its under
+# `v1.0`. Inside the key are the required `supportedCatalogIds` and the optional
+# `inlineCatalogs`.
+#
+# The rules the cases encode:
+#
+# * Every catalog the renderer names and the agent holds becomes active, not
+#   only the first match. This is a change from the older single catalog
+#   selection.
+# * An id the renderer names and the agent does not hold is ignored.
+# * A request that carries no capabilities object activates every registered
+#   catalog, since the renderer stated no preference.
+# * A capabilities object whose `supportedCatalogIds` is present and empty, with
+#   no inline catalogs, is a `CatalogError`, as is a renderer that names only
+#   catalogs the agent does not hold. Both leave the session with nothing to
+#   render.
+# * Each inline catalog becomes an active catalog of its own rather than being
+#   merged into a registered one.
+# * An inline catalog whose id matches a registered one is left undefined. A
+#   renderer that names a catalog and then redefines it inline is sending
+#   contradictory capabilities, so the suite does not pin a behaviour rather
+#   than force every SDK to agree on how to handle a client bug.
+# * Inline catalogs carry no agent transformers, since transformers belong to a
+#   registered CatalogConfig rather than to a catalog document.
+# * An inline catalog an agent does not accept is dropped without an error, the
+#   same as an id the agent does not hold.
+# * Resolved catalogs are the transformed ones, so a pruning transformer on a
+#   registration is visible in the result.
+#
+# Every case here is written against v1.0. A case states no version of its own:
+# the version it runs under is the one its catalog document declares, or the one
+# `args` hands the implementation.
+
+# --- Which catalogs become active ---
+
+- name: test_named_catalog_becomes_active
+  description: The renderer names one of the two registered catalogs and only that one is active.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+
+- name: test_every_named_catalog_becomes_active
+  description: A renderer that names both registered catalogs gets both, rather than the first match alone.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified", "conformance/custom"]
+  expect:
+    active_catalog_ids: ["conformance/simplified", "conformance/custom"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text", "Button", "Card", "Column"]
+      - catalog_id: "conformance/custom"
+        components: ["Chart", "Gauge"]
+
+- name: test_unknown_catalog_id_is_ignored
+  description: An id the agent does not hold is passed over, and the ids it does hold still resolve.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["renderer/only", "conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+
+- name: test_no_catalog_in_common_is_an_error
+  description: A renderer that names nothing the agent holds leaves the session with no catalog, which fails.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["renderer/only"]
+  expect_error:
+    category: CatalogError
+
+# --- Capabilities that state no preference ---
+
+- name: test_absent_capabilities_activate_every_catalog
+  description: A request with no capabilities object activates every registered catalog.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect:
+    active_catalog_ids: ["conformance/custom", "conformance/simplified"]
+
+- name: test_empty_supported_catalog_ids_is_an_error
+  description: A renderer that supports no catalog and declares none inline has nothing to render with.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: []
+  expect_error:
+    category: CatalogError
+
+# --- Inline catalogs ---
+
+- name: test_inline_catalog_is_accepted
+  description: An agent that accepts inline catalogs gains one active catalog per inline document.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect:
+    active_catalog_ids: ["conformance/simplified", "renderer/inline"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text", "Button", "Card", "Column"]
+      - catalog_id: "renderer/inline"
+        components: ["Marquee"]
+
+- name: test_inline_catalog_is_rejected
+  description: An agent that does not accept inline catalogs drops them and resolves the named ids alone.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+
+- name: test_inline_catalog_alone_is_enough
+  description: A renderer that names no registered id is fine when it declares a catalog inline and the agent accepts it.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: []
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect:
+    active_catalog_ids: ["renderer/inline"]
+    catalogs:
+      - catalog_id: "renderer/inline"
+        components: ["Marquee"]
+
+- name: test_several_inline_catalogs
+  description: Several inline catalogs each become active.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "renderer/inline_one"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+          - catalogId: "renderer/inline_two"
+            protocolVersion: "1.0"
+            components:
+              Ticker:
+                type: object
+                properties:
+                  component: {const: "Ticker"}
+                  symbol: {type: string}
+                required: ["component", "symbol"]
+  expect:
+    active_catalog_ids: ["conformance/simplified", "renderer/inline_one", "renderer/inline_two"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text", "Button", "Card", "Column"]
+      - catalog_id: "renderer/inline_one"
+        components: ["Marquee"]
+      - catalog_id: "renderer/inline_two"
+        components: ["Ticker"]
+
+# --- Transformers ---
+
+- name: test_resolved_catalog_is_the_transformed_one
+  description: A registration's transformers have already run on the catalog resolution returns.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text", "Card"]
+          - function_pruning: ["required"]
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text", "Card"]
+        functions: ["required"]
+
+- name: test_inline_catalogs_are_not_transformed
+  description: Transformers on a registration leave an inline catalog alone, since it belongs to the renderer.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text"]
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+              Ticker:
+                type: object
+                properties:
+                  component: {const: "Ticker"}
+                  symbol: {type: string}
+                required: ["component", "symbol"]
+  expect:
+    active_catalog_ids: ["conformance/simplified", "renderer/inline"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text"]
+      - catalog_id: "renderer/inline"
+        components: ["Marquee", "Ticker"]

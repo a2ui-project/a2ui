@@ -141,6 +141,18 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['has_parts', 'web_core has no inference-format parser'],
   ['generate_prompt', 'web_core has no prompt generator'],
   ['load_catalog', 'these cases exercise A2uiSchemaManager, which is agent-side only'],
+  ['provide_catalog', 'catalog providers are implemented in the agent SDK'],
+  ['resolve_catalogs', 'catalog resolution is implemented in the agent SDK'],
+  ['transform_catalog', 'catalog transformers are implemented in the agent SDK'],
+  ['generate_prompt_snippet', 'prompt snippet generation is implemented in the agent SDK'],
+  ['unwrap', 'inference format unwrapping is implemented in the agent SDK'],
+  ['wrap', 'inference format wrapping is implemented in the agent SDK'],
+  ['compile', 'inference format compilation is implemented in the agent SDK'],
+  ['decompile', 'inference format decompilation is implemented in the agent SDK'],
+  ['parse_response', 'inference format response parsing is implemented in the agent SDK'],
+  ['parse_chunk', 'inference format streaming is implemented in the agent SDK'],
+  ['create_format', 'inference format factories are implemented in the agent SDK'],
+  ['create_processor', 'agent request processors are implemented in the agent SDK'],
 ]);
 
 function findYamlFiles(dir) {

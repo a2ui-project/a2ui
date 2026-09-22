@@ -1,5 +1,5 @@
 ---
-codebase_path: renderers/flutter
+codebase_path: dart/a2ui_flutter
 associated_module: a2ui_framework_adapter
 module_blueprint_commit: null
 implemented_features: []

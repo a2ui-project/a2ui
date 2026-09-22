@@ -1,0 +1,162 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Catalog providers: how an agent turns a catalog document into a catalog it
+# can hold, and the checks it makes on the way.
+#
+# A case names a provider and the document it reads, and states what the loaded
+# catalog declares or which error the load raises. The `components` and
+# `functions` lists are exhaustive, so a case that names one component is also
+# saying the document declared no others. The file system provider reads a path
+# relative to `conformance/`.
+#
+# A provider can be constructed with a catalog id and a protocol version. Each
+# is both a default and an assertion: when the document states the same field,
+# the two must agree or the load fails, and when the document states nothing,
+# the provider's value is used. A catalog whose id or version came from its
+# provider is no different from one that carried its own.
+#
+# Neither field has a fallback default. A load fails when nothing names the
+# catalog, because nothing could then address it in `supportedCatalogIds` or
+# `createSurface`, and it fails when nothing states a version, because a
+# document read under the wrong version mis-validates every payload written
+# against it.
+#
+# The two cases about a value nobody stated each supply the other value, so
+# neither can pass for the wrong reason.
+#
+# Every failure here is a `CatalogError`, whether it comes from a file that is
+# not there, a document that is not JSON, a declaration that conflicts with the
+# document, or an id or version that nobody stated.
+#
+# Versions are written two ways in this suite, matching the two places they are
+# written in the SDKs. `args.protocol_version` and `expect.protocol_version` use
+# the protocol version enum spelling, `v1.0` and `v0.9`, because that is what a
+# provider is constructed with and what a catalog reports. Catalog documents
+# spell the bare number, `1.0`, because that is what the schema allows.
+#
+# Every case here is written against v1.0. A case states no version of its own:
+# the version it runs under is the one its catalog document declares, or the one
+# `args` hands the implementation.
+
+# --- Loading a document ---
+
+- name: test_file_system_provider_loads_catalog
+  description: The file system provider reads a document from a path and returns what it declares.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect:
+    catalog_id: "conformance/simplified"
+    protocol_version: "v1.0"
+    components: ["Text", "Button", "Card", "Column"]
+    functions: ["required", "formatString", "openUrl"]
+
+- name: test_file_system_provider_missing_file
+  description: A path that names no file fails rather than yielding an empty catalog.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/catalog_not_here.json"
+  expect_error:
+    category: CatalogError
+
+- name: test_file_system_provider_malformed_json
+  description: A document that is not valid JSON fails at load rather than at first use.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/catalog_malformed.json"
+  expect_error:
+    category: CatalogError
+
+# --- Catalog identity ---
+
+- name: test_provider_supplies_what_the_document_omits
+  description: A document that states neither a catalogId nor a protocolVersion takes both from the provider it was read by, and is then a catalog like any other.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/catalog_without_id.json"
+    catalog_id: "conformance/provided"
+    protocol_version: "v1.0"
+  expect:
+    catalog_id: "conformance/provided"
+    protocol_version: "v1.0"
+    components: ["Text"]
+
+- name: test_provider_id_agrees_with_document
+  description: A provider id that repeats what the document states loads without complaint.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/simplified_catalog_v1_0.json"
+    catalog_id: "conformance/simplified"
+  expect:
+    catalog_id: "conformance/simplified"
+    components: ["Text", "Button", "Card", "Column"]
+
+- name: test_provider_id_conflicts_with_document
+  description: A provider id that disagrees with the document fails, since one of the two is wrong.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/simplified_catalog_v1_0.json"
+    catalog_id: "conformance/custom"
+  expect_error:
+    category: CatalogError
+
+- name: test_no_id_anywhere_is_an_error
+  description: A document with no id read by a provider with no id fails, because nothing can name the catalog. The provider states a version, so the missing id is the only thing wrong.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/catalog_without_id.json"
+    protocol_version: "v1.0"
+  expect_error:
+    category: CatalogError
+
+# --- Protocol version ---
+
+- name: test_provider_version_agrees_with_document
+  description: A provider version that repeats what the document states loads without complaint.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/simplified_catalog_v1_0.json"
+    protocol_version: "v1.0"
+  expect:
+    catalog_id: "conformance/simplified"
+    protocol_version: "v1.0"
+
+- name: test_provider_version_conflicts_with_document
+  description: A provider that declares v0.9 for a document that states 1.0 fails.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/simplified_catalog_v1_0.json"
+    protocol_version: "v0.9"
+  expect_error:
+    category: CatalogError
+
+- name: test_no_version_anywhere_is_an_error
+  description: A document with no protocolVersion read by a provider with no version fails, because the version decides which protocol the document is written against and reading it under the wrong one mis-validates every payload. The provider states an id, so the missing version is the only thing wrong.
+  action: provide_catalog
+  args:
+    provider: file_system
+    path: "test_data/catalogs/catalog_without_id.json"
+    catalog_id: "conformance/provided"
+  expect_error:
+    category: CatalogError

@@ -90,9 +90,9 @@ class PayloadValidator(Generic[TComponent, TFunction]):
     def validate(
         self, payload: dict[str, Any] | list[dict[str, Any]]
     ) -> list[A2uiErrorDetail]:
-        """Validates component dictionary or list of components against catalog schemas."""
+        """Validates component dictionary, list of components, or message envelopes against catalog schemas."""
         errors: list[A2uiErrorDetail] = []
-        components = (
+        items = (
             payload["components"]
             if isinstance(payload, dict)
             and "components" in payload
@@ -103,9 +103,32 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             if isinstance(payload, dict)
             else []
         )
-        for comp in components:
-            if isinstance(comp, dict):
-                errors.extend(self.validate_component(comp))
+        envelope_keys = (
+            "updateComponents",
+            "createSurface",
+            "updateDataModel",
+            "deleteSurface",
+            "callRendererFunction",
+            "surfaceUpdate",
+            "dataModelUpdate",
+            "beginRendering",
+        )
+        for item in items:
+            if isinstance(item, dict):
+                if any(k in item for k in envelope_keys):
+                    for env_key in (
+                        "updateComponents",
+                        "createSurface",
+                        "surfaceUpdate",
+                    ):
+                        if env_key in item and isinstance(item[env_key], dict):
+                            envelope_comps = item[env_key].get("components")
+                            if isinstance(envelope_comps, list):
+                                for comp in envelope_comps:
+                                    if isinstance(comp, dict):
+                                        errors.extend(self.validate_component(comp))
+                else:
+                    errors.extend(self.validate_component(item))
         return errors
 
     def validate_component(

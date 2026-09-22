@@ -33,6 +33,8 @@
       "@modelcontextprotocol/sdk/types.js": [
         "../../../node_modules/@modelcontextprotocol/sdk/dist/esm/types.d.ts"
       ],
+      "jmespath": ["../../../node_modules/@types/jmespath", "../../../node_modules/jmespath"],
+      "re2js": ["../../../node_modules/re2js"],
       "zod": ["../../../node_modules/zod"]
     }
   },

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/forms_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Forms Catalog (v1.0)",
+  "description": "An input catalog for the cases the simplified catalog cannot express: a component with enough optional properties to skip one in the middle, and a component that takes validation checks. Common types come from the protocol's common_types.json.",
+  "catalogId": "conformance/forms",
+  "components": {
+    "TextField": {
+      "type": "object",
+      "description": "A single line text input.",
+      "properties": {
+        "component": { "const": "TextField" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "value": { "$ref": "common_types.json#/$defs/DataBinding" },
+        "placeholder": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "common_types.json#/$defs/CheckRule" }
+        }
+      },
+      "required": ["component", "label"]
+    }
+  },
+  "functions": {
+    "required": {
+      "type": "object",
+      "description": "Checks that the value is not null, undefined or empty.",
+      "returnType": "validationResult",
+      "properties": {
+        "call": { "const": "required" },
+        "args": {
+          "type": "object",
+          "properties": { "value": {} },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["call", "args"]
+    },
+    "regex": {
+      "type": "object",
+      "description": "Checks the value against a regular expression.",
+      "returnType": "validationResult",
+      "properties": {
+        "call": { "const": "regex" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {},
+            "pattern": { "type": "string" }
+          },
+          "required": ["value", "pattern"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["call", "args"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{ "$ref": "#/components/TextField" }],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": {
+      "oneOf": [
+        { "$ref": "#/functions/required" },
+        { "$ref": "#/functions/regex" }
+      ],
+      "discriminator": { "propertyName": "call" }
+    }
+  }
+}
