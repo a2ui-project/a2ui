@@ -43,6 +43,7 @@ from a2ui.builder.v0_9 import (
 from a2ui.builder.v0_9.catalogs.basic import (
     OpenUrl,
     Regex,
+    Required,
     Button,
     Card,
     Column,
@@ -387,6 +388,50 @@ def test_checks_serialize_on_checkable_components():
             "message": "ZIP code must be 5 digits",
         }
     ]
+
+
+def test_check_condition_accepts_any_dynamic_boolean():
+    """Verifies CheckRule.condition is not narrowed to a FunctionCall.
+
+    The spec and the core models both type this as a DynamicBoolean. A catalog
+    validation function is the usual spelling, but a literal and a binding are
+    legitimate, so all three are accepted and reach the wire unchanged.
+    """
+    dump = lambda r: r.model_dump(by_alias=True, exclude_none=True)
+
+    assert dump(CheckRule(condition=True, message="m"))["condition"] is True
+    assert dump(CheckRule(condition=DataBinding(path="/agreed"), message="m"))[
+        "condition"
+    ] == {"path": "/agreed"}
+    assert dump(CheckRule(condition=Required(value="x"), message="m"))["condition"] == {
+        "call": "required",
+        "args": {"value": "x"},
+    }
+
+
+def test_reused_core_models_stay_identical_to_core():
+    """Pins which models the builder takes from a2ui_core rather than restating.
+
+    Reuse is only safe while it stays visible. If core's ActionEvent gains a
+    field or DataBinding's shape moves, that has to break a test here rather
+    than silently change what every builder payload puts on the wire.
+    """
+    from a2ui.core.schema.common_types import ActionEvent as CoreActionEvent
+    from a2ui.core.schema.common_types import DataBinding as CoreDataBinding
+
+    # ActionEvent is core's outright, not a copy that happens to match.
+    assert ActionEvent is CoreActionEvent
+
+    # DataBinding subclasses core's, so core accepts one the builder made.
+    binding = DataBinding(path="/user/name")
+    assert isinstance(binding, CoreDataBinding)
+    assert set(DataBinding.model_fields) == set(CoreDataBinding.model_fields)
+
+    # Subclassing exists to add authoring behaviour core has no reason to carry:
+    # relative paths are made absolute, and a binding is shareable and hashable.
+    assert DataBinding(path="user/name").path == "/user/name"
+    assert CoreDataBinding(path="user/name").path == "user/name"
+    assert hash(binding) is not None
 
 
 def test_bare_model_dump_keeps_children_nested():

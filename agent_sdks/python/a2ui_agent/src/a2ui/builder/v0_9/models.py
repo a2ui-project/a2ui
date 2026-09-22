@@ -14,12 +14,16 @@
 
 """Protocol v0.9 data models, bindings, actions, and type aliases for A2UI builders.
 
-These are builder-owned models rather than re-exports of ``a2ui.core.schema``.
-The core models describe the wire as a client parses it; these describe the wire
-as an author writes it, which is a different job: authoring wants nested children,
-narrow enums, shorthand constructors and no defaulted fields appearing on the wire
-that the author never asked for. Keeping them separate keeps either side free to
-change without the other's consent.
+A model here is reused from ``a2ui.core.schema.common_types`` when the authoring
+form and the parsed form are genuinely the same thing, and defined locally when
+they are not. ``ActionEvent`` is core's outright; ``DataBinding`` subclasses
+core's to add path normalization and immutability without changing its fields.
+
+The rest stay local because authoring is a different job from parsing. It wants
+nested children rather than IDs, narrow enums, and no defaulted field reaching
+the wire that the author never wrote. ``FunctionCall`` is the clearest case:
+core defaults ``return_type`` to ``"boolean"``, so reusing it would stamp a
+``returnType`` onto every call site.
 
 No model here defines a custom serializer. Field shape, aliases, defaults and null
 handling are Pydantic's; the only behaviour the builder adds is child resolution,
@@ -40,9 +44,8 @@ from pydantic import (
 from ..core.base_model import BuilderBaseModel
 from ..core.child import Child
 
-
-class A2uiExpression(BuilderBaseModel):
-    """Base model for reactive expressions (bindings and function calls)."""
+from a2ui.core.schema.common_types import ActionEvent as ActionEvent
+from a2ui.core.schema.common_types import DataBinding as CoreDataBinding
 
 
 def _absolute_pointer(path: str) -> str:
@@ -55,12 +58,16 @@ def _absolute_pointer(path: str) -> str:
     return path if path.startswith("/") else f"/{path}"
 
 
-class DataBinding(A2uiExpression):
-    """A two-way binding to a path in the client data model."""
+class DataBinding(CoreDataBinding):
+    """A two-way binding to a path in the client data model.
+
+    The field set comes from :mod:`a2ui.core.schema.common_types`, so a binding
+    built here is one the core models accept. Authoring adds two things core has
+    no reason to: paths are normalized to absolute form, and the model is frozen
+    so a binding can be shared between components and used as a dict key.
+    """
 
     model_config = ConfigDict(frozen=True)
-
-    path: str
 
     @field_validator("path")
     @classmethod
@@ -81,8 +88,13 @@ class AccessibilityAttributes(BuilderBaseModel):
     description: Optional[Union[str, DataBinding]] = None
 
 
-class FunctionCall(A2uiExpression):
+class FunctionCall(BuilderBaseModel):
     """Invocation of a client-side catalog function.
+
+    Unlike :class:`DataBinding` and :class:`ActionEvent`, this is not core's
+    model. Core defaults ``return_type`` to ``"boolean"``, which is not ``None``
+    and so survives ``exclude_none``: every call would carry a ``returnType`` the
+    author never wrote. Reuse becomes possible if that default becomes ``None``.
 
     Note there is no call identifier here. Correlating a call with its response
     is a v1.0 agent-function concern, carried as ``functionCallId`` on the
@@ -94,11 +106,16 @@ class FunctionCall(A2uiExpression):
     args: dict[str, Any] = Field(default_factory=dict)
 
 
-class ActionEvent(BuilderBaseModel):
-    """A named event dispatched to the server when an action fires."""
-
-    name: str
-    context: Optional[dict[str, Any]] = None
+# Canonical Protocol Type Aliases
+#
+# Spelled as explicit unions rather than over a shared expression base class:
+# ``DataBinding`` is core's model and ``FunctionCall`` is the builder's, so they
+# have no common ancestor to name. This is also how core spells them.
+DynamicString = Union[str, DataBinding, FunctionCall]
+DynamicNumber = Union[int, float, DataBinding, FunctionCall]
+DynamicBoolean = Union[bool, DataBinding, FunctionCall]
+DynamicStringList = Union[Sequence[str], DataBinding, FunctionCall]
+DynamicValue = Union[Any, DataBinding, FunctionCall]
 
 
 class Action(BuilderBaseModel):
@@ -134,13 +151,13 @@ class Action(BuilderBaseModel):
 class CheckRule(BuilderBaseModel):
     """A client-side validation check (condition + error message).
 
-    ``condition`` is narrowed to a :class:`FunctionCall` even though the spec
-    allows any ``DynamicBoolean``. A bare literal or data binding as a check
-    condition is almost always a mistake, and the catalog's validation functions
-    are the intended way to express one.
+    ``condition`` is any ``DynamicBoolean``, which is what the spec and the core
+    models allow. A catalog validation function is the usual way to write one,
+    but binding straight to a boolean in the data model is legitimate, so the
+    type does not rule it out.
     """
 
-    condition: FunctionCall
+    condition: DynamicBoolean
     message: str
 
 
@@ -166,12 +183,5 @@ class DynamicChildList(BuilderBaseModel):
     def _normalize_path(cls, v: str) -> str:
         return _absolute_pointer(v)
 
-
-# Canonical Protocol Type Aliases
-DynamicString = Union[str, A2uiExpression]
-DynamicNumber = Union[int, float, A2uiExpression]
-DynamicBoolean = Union[bool, A2uiExpression]
-DynamicStringList = Union[Sequence[str], A2uiExpression]
-DynamicValue = Union[Any, A2uiExpression]
 
 ChildList: TypeAlias = Union[Sequence[Child], DynamicChildList]

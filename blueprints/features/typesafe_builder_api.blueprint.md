@@ -286,6 +286,32 @@ a protocol version. Putting envelope construction on the tree binds every tree
 to one version and means supporting a second version changes the authoring API.
 Keeping envelopes in a versioned module leaves the tree alone.
 
+### Which models are shared with the core SDK
+
+The core SDK already models the protocol's common types, so a builder that
+restates them invites the two to drift. It cannot reuse all of them, though,
+because core models the wire as a client parses it and the builder models it as
+an author writes it.
+
+The test is whether reuse changes what reaches the wire:
+
+- **Reuse outright** where the authoring form and the parsed form are the same
+  thing. A named event carrying a name and a context is the same object to both
+  sides.
+- **Extend the core model** where the fields agree but authoring needs added
+  behaviour. A data binding is core's field set plus the path normalization R5
+  requires and immutability so one binding can be shared. Extending keeps the
+  core type assignable, so the two cannot diverge structurally.
+- **Define locally** where core carries a field authoring must not emit.
+  A core model that defaults a field to a non-null value will serialize it, so
+  every call site would carry a property the author never wrote. The same
+  applies where core's type is wider than the version being targeted: a v1.0
+  model reused in a v0.9 builder emits attributes that version does not define.
+
+Whatever is reused must be pinned by a test asserting it still matches core.
+Reuse is only safe while it is visible; without that test an upstream field
+change reaches every payload the builder produces with no local diff to review.
+
 ### Why generated and hand-written code are separated
 
 The runtime is small, changes rarely and encodes the decisions above. The

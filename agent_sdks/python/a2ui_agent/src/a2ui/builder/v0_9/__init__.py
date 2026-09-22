@@ -30,7 +30,6 @@ from .envelopes import (
     update_components,
 )
 from .models import (
-    A2uiExpression,
     AccessibilityAttributes,
     Action,
     ActionEvent,
@@ -49,7 +48,6 @@ from .models import (
 __all__ = [
     "LENIENT_ENUM_CONTEXT",
     "OPEN_ENUM",
-    "A2uiExpression",
     "AccessibilityAttributes",
     "Action",
     "ActionEvent",
