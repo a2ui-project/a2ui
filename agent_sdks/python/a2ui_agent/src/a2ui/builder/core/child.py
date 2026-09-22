@@ -32,7 +32,7 @@ from typing import Annotated, Any, Optional
 
 from pydantic import PlainSerializer, SerializationInfo
 
-from .base_node import ComponentBuilderNode, ExternalComponentBuilderNode
+from .base_node import ComponentBuilderNode, ComponentRef
 from .id_allocator import IdAllocator
 
 # Namespaced so a caller-supplied serialization context cannot collide with ours.
@@ -97,7 +97,7 @@ def emit_component(node: ComponentBuilderNode, context: FlattenContext) -> str:
     Children are emitted before their parent, so the flat list is in depth-first
     post-order and every reference points at a component already in the list.
     """
-    if isinstance(node, ExternalComponentBuilderNode):
+    if isinstance(node, ComponentRef):
         # Slot boundary: the component already exists on the surface and keeps its
         # address. It is referenced, never redefined or namespaced.
         return node.id or ""

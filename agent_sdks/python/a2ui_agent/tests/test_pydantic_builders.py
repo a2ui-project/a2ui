@@ -243,7 +243,7 @@ def test_function_call_action_uses_wire_key():
 
 
 def test_direct_node_serialization():
-    """Verifies that node.to_components() serializes subtrees directly."""
+    """Verifies that node.flatten() serializes subtrees directly."""
     layout = Card(
         child=Column(
             children=[
@@ -253,7 +253,7 @@ def test_direct_node_serialization():
         )
     )
 
-    comps = layout.to_components()
+    comps = layout.flatten()
     assert len(comps) == 5
     comp_types = [c["component"] for c in comps]
     assert "Card" in comp_types
@@ -261,7 +261,7 @@ def test_direct_node_serialization():
     assert "Text" in comp_types
     assert "Button" in comp_types
 
-    prefixed_comps = layout.to_components(prefix="macro_test")
+    prefixed_comps = layout.flatten(prefix="macro_test")
     assert any("macro_test" in c["id"] for c in prefixed_comps)
 
 
@@ -404,7 +404,7 @@ def test_component_tree_methods():
     card = Card(child=Text(text="Tree Test"))
     tree = ComponentTree(root=card, surface_id="s1")
     assert tree.surface_id == "s1"
-    assert len(tree.to_components()) == 2
+    assert len(tree.flatten()) == 2
     assert tree.to_json() is not None
 
 

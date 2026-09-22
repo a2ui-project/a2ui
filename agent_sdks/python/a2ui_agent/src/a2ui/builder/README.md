@@ -33,7 +33,7 @@ tree = Card(
 
 ### Flattening and ID assignment
 
-Calling `flatten_component_tree(tree)` or `tree.to_components()` converts the nested tree into a flat list of component dictionaries:
+Calling `flatten_component_tree(tree)` or `tree.flatten()` converts the nested tree into a flat list of component dictionaries:
 
 1. Assigns deterministic IDs to components without an explicit `id` (for example, `panel__text_1`), reserving author-supplied IDs first so allocation cannot collide with one.
 2. Replaces nested child objects with their allocated ID strings.
@@ -42,7 +42,7 @@ Calling `flatten_component_tree(tree)` or `tree.to_components()` converts the ne
 The traversal itself is Pydantic's. Child resolution is attached to the `Child` slot type as a serializer rather than performed by a separate reflective walk over the object graph, so aliases, defaults, `exclude_none` and nested models behave exactly as they do everywhere else in Pydantic. The builder only supplies the ID allocator and the flat output list.
 
 ```python
-components = tree.to_components()
+components = tree.flatten()
 ```
 
 

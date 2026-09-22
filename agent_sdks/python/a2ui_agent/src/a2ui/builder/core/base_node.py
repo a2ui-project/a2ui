@@ -43,26 +43,27 @@ class ComponentBuilderNode(BaseModel):
     def component_name(self) -> str:
         return self.component
 
-    def to_components(self, prefix: Optional[str] = None) -> list[dict[str, Any]]:
+    def flatten(self, prefix: Optional[str] = None) -> list[dict[str, Any]]:
         """Flattens this component subtree into A2UI wire-format dictionaries."""
         from .flattener import flatten_component_tree
 
         return flatten_component_tree(self, root_id=prefix)
 
 
-class ExternalComponentBuilderNode(ComponentBuilderNode):
+class ComponentRef(ComponentBuilderNode):
     """References a component that already exists on the target surface.
 
-    External components are addressed strictly by ID. They are never given a
+    Referenced components are addressed strictly by ID. They are never given a
     namespaced ID when a subtree is stitched into a caller's surface, so the
     address the caller knows stays valid, and they are never emitted as
     components because the surface already holds them. Both behaviours live in
     the child slot serializer.
+
+    ``component`` is left at its empty default. A reference is not a component
+    and never reaches the wire as one, so naming a component type here would
+    describe something that does not exist in any catalog.
     """
 
     def __init__(self, id: str, **kwargs: Any):
-        super().__init__(id=id, component="ExternalComponent", **kwargs)
+        super().__init__(id=id, **kwargs)
 
-
-# Ergonomic alias for referencing external/existing components
-ComponentRef = ExternalComponentBuilderNode

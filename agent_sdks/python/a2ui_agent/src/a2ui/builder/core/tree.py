@@ -53,11 +53,11 @@ class ComponentTree:
         self.root = root
         self.surface_id = surface_id
 
-    def to_components(self) -> list[dict[str, Any]]:
+    def flatten(self) -> list[dict[str, Any]]:
         """Serializes the primary tree into flat component dicts."""
         return flatten_component_tree(self.root, root_id=self.root.id or "root")
 
     def to_json(self, indent: Optional[int] = None) -> str:
         """Serializes the component list into a JSON string."""
-        return json.dumps(self.to_components(), indent=indent)
+        return json.dumps(self.flatten(), indent=indent)
 

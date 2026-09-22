@@ -713,7 +713,7 @@ It is organised as a hand-written runtime plus generated catalog modules:
 ```
 a2ui/builder/
 ├── core/                      # Version-independent authoring runtime
-│   ├── base_node              # ComponentBuilderNode, ExternalComponentBuilderNode
+│   ├── base_node              # ComponentBuilderNode, ComponentRef
 │   ├── child                  # Child slot annotation, FlattenContext, serializer
 │   ├── id_allocator           # Deterministic component ID allocation
 │   ├── open_enum              # OPEN_ENUM metadata and lenient parsing context

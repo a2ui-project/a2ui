@@ -17,7 +17,6 @@
 from .base_node import (
     ComponentBuilderNode,
     ComponentRef,
-    ExternalComponentBuilderNode,
 )
 from .child import Child
 from .flattener import flatten_component_tree
@@ -32,7 +31,6 @@ __all__ = [
     "ComponentBuilderNode",
     "ComponentRef",
     "ComponentTree",
-    "ExternalComponentBuilderNode",
     "IdAllocator",
     "flatten_component_tree",
 ]

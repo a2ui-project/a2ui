@@ -21,7 +21,6 @@ from ..core import (
     ComponentBuilderNode,
     ComponentRef,
     ComponentTree,
-    ExternalComponentBuilderNode,
     IdAllocator,
     flatten_component_tree,
 )
@@ -68,7 +67,6 @@ __all__ = [
     "DynamicString",
     "DynamicStringList",
     "DynamicValue",
-    "ExternalComponentBuilderNode",
     "FunctionCall",
     "IdAllocator",
     "bind",

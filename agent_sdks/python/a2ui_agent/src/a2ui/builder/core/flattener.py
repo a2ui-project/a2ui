@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Union
 
-from .base_node import ComponentBuilderNode, ExternalComponentBuilderNode
+from .base_node import ComponentBuilderNode, ComponentRef
 from .child import FlattenContext, dump_component, emit_component
 from .id_allocator import IdAllocator
 
@@ -39,7 +39,7 @@ def flatten_component_tree(
     2. Namespacing every sub-component as ``f"{root_id}__{local_id}"`` so two
        expansions of the same subtree cannot collide.
 
-    Slot boundaries (:class:`ExternalComponentBuilderNode`) are referenced by
+    Slot boundaries (:class:`ComponentRef`) are referenced by
     their original ID and never namespaced or re-emitted.
     """
     if isinstance(root, Sequence) and not isinstance(
@@ -52,7 +52,7 @@ def flatten_component_tree(
             components.extend(flatten_component_tree(item, root_id=item_root_id))
         return components
 
-    if isinstance(root, ExternalComponentBuilderNode):
+    if isinstance(root, ComponentRef):
         # Already on the surface; there is nothing to emit.
         return []
 
