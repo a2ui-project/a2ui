@@ -18,7 +18,7 @@ import {z} from 'zod';
 
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';
-import {resolveContextIndex} from '../../rendering/data-context.js';
+import {resolveContextIndex} from '../../resolution/data-context.js';
 
 /**
  * System function definition for computing iteration indices in array contexts.

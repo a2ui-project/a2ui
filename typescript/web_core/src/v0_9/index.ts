@@ -37,6 +37,7 @@ export * from '../state/surface-components-model.js';
 export * from '../state/surface-group-model.js';
 export * from '../state/surface-model.js';
 export * from '../errors.js';
+export type {ResolvedChildRef} from '../resolution/index.js';
 export * from './basic_catalog/index.js';
 export * from '../validation/integrity-checker.js';
 export {
