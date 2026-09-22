@@ -44,7 +44,7 @@ sequenceDiagram
 There are two SDKs, provided by the A2UI team for some programming languages and frameworks:
 
 - **Agent SDK**: helps to setup interaction with renderer and model on agent side.
-- **Renderer SDK**: helps to setup interaction with agent and to handle the recieved messageson renderer side.
+- **Renderer SDK**: helps to setup interaction with agent and to handle the received messages on renderer side.
 
 **Terms in this glossary:**
 
