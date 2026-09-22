@@ -198,7 +198,9 @@ export class RpcHandler {
 
     this.pendingAgentCalls.delete(functionCallId);
     if (error) {
-      pending.reject(new A2uiRpcError(error.code, error.message, functionCallId));
+      const errCode = error.code ?? RpcErrorCode.UNKNOWN_ERROR;
+      const errMsg = error.message ?? 'Agent function execution failed';
+      pending.reject(new A2uiRpcError(errCode, errMsg, functionCallId, error));
     } else {
       pending.resolve(value);
     }

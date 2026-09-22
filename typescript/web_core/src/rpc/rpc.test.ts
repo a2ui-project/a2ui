@@ -437,7 +437,8 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const handler = new RpcHandler([mockCatalog], () => {});
     await assert.rejects(
       handler.callAgentFunction('surface-1', undefined as any),
-      (err: A2uiRpcError) => err.code === RpcErrorCode.INVALID_FUNCTION_CALL,
+      (err: A2uiRpcError) =>
+        err instanceof A2uiRpcError && err.code === RpcErrorCode.INVALID_FUNCTION_CALL,
     );
   });
 
@@ -486,15 +487,41 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     });
   });
 
+  it('defaults error.code and error.message when agentFunctionResponse contains partial error', async () => {
+    const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
+    const promise = handler.callAgentFunction(
+      's1',
+      {call: 'remoteFunc'},
+      {functionCallId: 'err-call-partial'},
+    );
+    handler.handleAgentFunctionResponse({
+      version: 'v1.0',
+      agentFunctionResponse: {
+        functionCallId: 'err-call-partial',
+        error: {} as any,
+      },
+    });
+    await assert.rejects(promise, (err: A2uiRpcError) => {
+      assert.ok(err instanceof A2uiRpcError);
+      assert.strictEqual(err.code, RpcErrorCode.UNKNOWN_ERROR);
+      assert.match(err.message, /\[UNKNOWN_ERROR\] Agent function execution failed/);
+      return true;
+    });
+  });
+
   it('rejects duplicate pending functionCallId with DUPLICATE error code', async () => {
     const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
     const promise1 = handler.callAgentFunction('s1', {call: 'func1'}, {functionCallId: 'dup-1'});
     await assert.rejects(
       handler.callAgentFunction('s1', {call: 'func2'}, {functionCallId: 'dup-1'}),
-      (err: A2uiRpcError) => err.code === RpcErrorCode.DUPLICATE,
+      (err: A2uiRpcError) =>
+        err instanceof A2uiRpcError && err.code === RpcErrorCode.DUPLICATE,
     );
     handler.dispose();
-    await assert.rejects(promise1, (err: A2uiRpcError) => err.code === RpcErrorCode.CANCELLED);
+    await assert.rejects(
+      promise1,
+      (err: A2uiRpcError) => err instanceof A2uiRpcError && err.code === RpcErrorCode.CANCELLED,
+    );
   });
 
   it('invokes callAgentFunction using modern options bag overload', async () => {

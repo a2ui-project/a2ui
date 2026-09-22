@@ -208,9 +208,10 @@ export class A2uiRpcError extends A2uiError {
     code: RpcErrorCode | string,
     message: string,
     public readonly functionCallId?: string,
-    public readonly details?: any,
+    public readonly details?: unknown,
   ) {
-    super(`[${code}] ${message}`, code);
+    const resolvedCode = code || RpcErrorCode.UNKNOWN_ERROR;
+    super(`[${resolvedCode}] ${message}`, resolvedCode);
     this.name = 'A2uiRpcError';
   }
 }
