@@ -98,12 +98,6 @@ class RpcErrorCode(str, enum.Enum):
     DUPLICATE = "DUPLICATE"
 
 
-class A2uiCompileError(A2uiError):
-    """Exception raised when compiling or translating alternative UI formats/DSLs."""
-
-    pass
-
-
 class A2uiRpcError(A2uiError):
     """Exception raised when an RPC function execution fails."""
 

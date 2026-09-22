@@ -141,6 +141,18 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['has_parts', 'web_core has no inference-format parser'],
   ['generate_prompt', 'web_core has no prompt generator'],
   ['load_catalog', 'these cases exercise A2uiSchemaManager, which is agent-side only'],
+  ['compile', 'web_core has no inference-format compiler'],
+  ['decompile', 'web_core has no inference-format decompiler'],
+  ['generate_prompt_snippet', 'web_core has no prompt generator'],
+  ['unwrap', 'web_core has no inference-format parser'],
+  ['wrap', 'web_core has no inference-format wrapper'],
+  ['parse_response', 'web_core has no inference-format parser'],
+  ['parse_chunk', 'web_core has no streaming inference parser'],
+  ['create_format', 'inference format factories are agent-side only'],
+  ['create_processor', 'request processors are agent-side only'],
+  ['transform_catalog', 'catalog transformers are agent-side only'],
+  ['provide_catalog', 'catalog providers are agent-side only'],
+  ['resolve_catalogs', 'catalog resolution is agent-side only'],
 ]);
 
 function findYamlFiles(dir) {

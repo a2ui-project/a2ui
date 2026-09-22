@@ -92,20 +92,31 @@ class PayloadValidator(Generic[TComponent, TFunction]):
     ) -> list[A2uiErrorDetail]:
         """Validates component dictionary or list of components against catalog schemas."""
         errors: list[A2uiErrorDetail] = []
-        components = (
-            payload["components"]
-            if isinstance(payload, dict)
-            and "components" in payload
-            and isinstance(payload["components"], list)
-            else payload
-            if isinstance(payload, list)
-            else [payload]
-            if isinstance(payload, dict)
-            else []
-        )
+        components: list[dict[str, Any]] = []
+
+        def _extract(item: Any) -> None:
+            if isinstance(item, dict):
+                if "updateComponents" in item and isinstance(
+                    item["updateComponents"], dict
+                ):
+                    comps = item["updateComponents"].get("components", [])
+                    if isinstance(comps, list):
+                        components.extend(c for c in comps if isinstance(c, dict))
+                elif "components" in item and isinstance(item["components"], list):
+                    components.extend(
+                        c for c in item["components"] if isinstance(c, dict)
+                    )
+                elif "component" in item or "type" in item:
+                    components.append(item)
+
+        if isinstance(payload, list):
+            for elem in payload:
+                _extract(elem)
+        else:
+            _extract(payload)
+
         for comp in components:
-            if isinstance(comp, dict):
-                errors.extend(self.validate_component(comp))
+            errors.extend(self.validate_component(comp))
         return errors
 
     def validate_component(

@@ -1,0 +1,5 @@
+{
+  "catalogId": "conformance/malformed",
+  "components": {
+    "Text": { "type": "object", },
+  }

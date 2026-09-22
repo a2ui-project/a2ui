@@ -39,6 +39,6 @@ describe('Example: Workout Summary', () => {
 
   it('should render icon', async () => {
     expect(fixture.nativeElement.querySelector('.a2ui-icon')).toBeTruthy();
-    expect(textContent).toContain('directions_run');
+    expect(textContent).toContain('favorite');
   });
 });

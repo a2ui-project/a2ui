@@ -18,6 +18,7 @@ import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
 import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
+import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 
 // --- Schema Scraping ---
 
@@ -443,8 +444,9 @@ export class GenericBinder<T> {
    *   evaluated at invocation time rather than immediately flattened.
    * @returns Evaluated data structure with dynamic expressions resolved.
    */
-  private resolveDeepSync(val: unknown, isActionRoot = true): unknown {
+  private resolveDeepSync(val: unknown, isActionRoot = true, depth = 0): unknown {
     if (typeof val !== 'object' || val === null) return val;
+    if (depth > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
 
     if (isActionRoot) {
       const obj = val as Record<string, unknown>;
@@ -458,7 +460,7 @@ export class GenericBinder<T> {
           functionCall: {
             ...fc,
             args: fc.args
-              ? (this.resolveDeepSync(fc.args, false) as Record<string, unknown>)
+              ? (this.resolveDeepSync(fc.args, false, depth + 1) as Record<string, unknown>)
               : undefined,
           },
         };
@@ -468,13 +470,13 @@ export class GenericBinder<T> {
         const resolvedEvent: Record<string, unknown> = {
           ...ev,
           context: ev.context
-            ? (this.resolveDeepSync(ev.context, false) as Record<string, unknown>)
+            ? (this.resolveDeepSync(ev.context, false, depth + 1) as Record<string, unknown>)
             : undefined,
         };
         // `userMessage` is a DynamicString; the agent expects it already
         // resolved to a plain string.
         if (ev['userMessage'] !== undefined) {
-          resolvedEvent['userMessage'] = this.resolveDeepSync(ev['userMessage'], false);
+          resolvedEvent['userMessage'] = this.resolveDeepSync(ev['userMessage'], false, depth + 1);
         }
         return {event: resolvedEvent};
       }
@@ -482,7 +484,7 @@ export class GenericBinder<T> {
         return {
           ...obj,
           args: obj.args
-            ? (this.resolveDeepSync(obj.args, false) as Record<string, unknown>)
+            ? (this.resolveDeepSync(obj.args, false, depth + 1) as Record<string, unknown>)
             : undefined,
         };
       }
@@ -490,19 +492,19 @@ export class GenericBinder<T> {
         return {
           ...obj,
           context: obj.context
-            ? (this.resolveDeepSync(obj.context, false) as Record<string, unknown>)
+            ? (this.resolveDeepSync(obj.context, false, depth + 1) as Record<string, unknown>)
             : undefined,
         };
       }
     }
 
     if ('path' in val || 'call' in val) {
-      return this.context.dataContext.resolveDynamicValue(val);
+      return this.context.dataContext.resolveDynamicValue(val, depth);
     }
-    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, false));
+    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, false, depth + 1));
     const res: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val)) {
-      res[k] = this.resolveDeepSync(v, false);
+      res[k] = this.resolveDeepSync(v, false, depth + 1);
     }
     return res;
   }

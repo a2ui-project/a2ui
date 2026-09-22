@@ -1,7 +1,48 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
+
+## 0.2.1
+
+- Widen `preact_signals` dependency constraint to `">=1.9.4 <8.0.0"` to support `preact_signals: ^7.0.0` and downstream modern signal-based ecosystems.
+
 ## 0.2.0
 
+- **Breaking:** `MessageProcessor.processMessages` takes an
+  `AgentToRendererMessagePayload` rather than a `List<AgentToRendererMessage>`,
+  and `AgentToRendererMessage.parseAll` returns one. The processor is where
+  untrusted wire data enters the SDK, so the accepted set is every shape an
+  agent or a transport realistically sends — a batch of parsed messages, a lone
+  message through `AgentToRendererMessagePayload.of`, or raw decoded JSON
+  through `AgentToRendererMessagePayload.fromJson`, which takes a lone
+  envelope, a list of envelopes or the `{messages: [...]}` wrapper. Naming that
+  set lets a signature reference it rather than restate it, and keeps trivial
+  normalization out of every transport. A payload holds its messages
+  unmodifiably, so the list a caller passed cannot change under a processor
+  part-way through applying it.
+- Added `RendererToAgentMessage`, with `ActionMessage` and `ErrorMessage`, and
+  the symmetric `RendererToAgentMessagePayload`. The renderer-to-agent
+  direction had bodies but no envelope: `A2uiClientAction` and
+  `A2uiClientError` matched `client_to_server.json`'s `action` and `error`
+  objects, leaving every transport to build the `{version, action}` envelope
+  and the batch around it. Each message wraps the body a surface's event source
+  already emits rather than a second representation of it, and
+  `A2uiClientAction.fromJson` and `A2uiClientError.fromJson` parse the bodies
+  an agent receives. A malformed `timestamp` is reported as
+  `A2uiValidationError` rather than escaping as the platform's
+  `FormatException`.
+- `A2uiClientError` carries `path`, the JSON pointer the `VALIDATION_FAILED`
+  variant of `client_to_server.json` requires. No other field names the field
+  that failed, so without it a validation failure lost its location on the way
+  through `toJson` and `A2uiClientError.fromJson`. The variant requires it, so
+  `fromJson` rejects a `VALIDATION_FAILED` body that names no `path`, and the
+  constructor asserts the same.
+- The `{messages: [...]}` wrapper is handled by each payload's `fromJson` and
+  `toJson` rather than by a wrapper class per direction: it carries nothing but
+  the list, so a type holding one field would be a second name for it.
+  `toJsonList` emits the bare list the `*_list.json` schemas describe.
 - **Breaking:** `MessageProcessor.processMessages` validates messages as it
   processes them, and is the single entry point for validation as well as for
   processing. A message that does not match its catalog now throws instead of
@@ -30,9 +71,8 @@
 - **Breaking:** `A2uiMessage` is renamed `AgentToRendererMessage`, the name the
   `a2ui_core` blueprint gives the type a payload parses into and
   `MessageProcessor.processMessages` accepts. It says which direction the
-  message travels, which the old name left open: the renderer-to-agent
-  direction is reported through `A2uiClientAction` and `A2uiClientError`, which
-  are not messages of this type.
+  message travels, which the old name left open, and leaves the other direction
+  its own name: `RendererToAgentMessage`.
 - **Breaking:** Envelope parsing moved to `AgentToRendererMessage.parseAll`, from
   `PayloadValidator.parseMessages`. Parsing needs no catalog, so it belongs to
   the message model rather than to a validator.

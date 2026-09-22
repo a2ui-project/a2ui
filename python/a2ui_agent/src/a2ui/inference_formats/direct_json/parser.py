@@ -72,13 +72,15 @@ def unwrap_response(content: str) -> list[ResponsePart]:
 class DirectJsonParser(Parser):
     """Concrete parser implementation for standard A2UI JSON schema responses (Direct JSON Format)."""
 
-    def __init__(self, catalog: A2uiCatalog):
+    def __init__(self, catalog: A2uiCatalog, validator: Any = None):
         """Initializes the DirectJsonParser.
 
         Args:
             catalog: The A2uiCatalog mapping schema identifiers.
+            validator: Optional validator for payload verification.
         """
         self._catalog = catalog
+        self._validator = validator
         self._stream_parser: Any | None = None
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
@@ -111,7 +113,18 @@ class DirectJsonParser(Parser):
             A list of compiled A2UI message dictionaries.
         """
         json_data = parse_and_fix(format_content)
-        # TODO: Leverage MessageProcessor to validate the json data.
+        if self._validator:
+            if hasattr(self._validator, "validate"):
+                from a2ui.core.exceptions import A2uiValidationError
+
+                errs = self._validator.validate(json_data)
+                if isinstance(errs, list) and errs:
+                    raise A2uiValidationError(
+                        f"Validation failed with {len(errs)} error(s)",
+                        details=errs,
+                    )
+            elif callable(self._validator):
+                self._validator(json_data)
         return json_data
 
     @property
