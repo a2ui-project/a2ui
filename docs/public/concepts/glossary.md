@@ -186,7 +186,7 @@ See the [detailed guide on actions](actions.md).
 
 In model-to-agent messages, enclosing delimiter tags (such as `<a2ui-json>`, `<a2ui>`) used to bound A2UI payload code blocks within LLM text output.
 
-Because both conversational text and structured UI blocks can be sent within the same model-to-agent turn, A2UI Tags serve as explicit syntactic boundaries isolating  UI blocks from conversational text.
+Because both conversational text and structured UI blocks can be sent within the same model-to-agent turn, A2UI Tags serve as explicit syntactic boundaries isolating UI blocks from conversational text.
 
 ### Inference format
 
