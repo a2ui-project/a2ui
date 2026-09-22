@@ -310,6 +310,7 @@ def validate_catalogs_identifiers():
 
         def check_schema_properties(obj):
             if isinstance(obj, dict):
+                # 1. Validate property names
                 if "properties" in obj and isinstance(obj["properties"], dict):
                     for prop_name, prop_def in obj["properties"].items():
                         if not prop_name.isidentifier():
@@ -317,8 +318,26 @@ def validate_catalogs_identifiers():
                                 f"Invalid argument/property name: '{prop_name}'"
                             )
                         check_schema_properties(prop_def)
+                # 2. Validate extension identifiers (UAX #31), but do NOT recurse
+                # into values
+                if "metadata" in obj and isinstance(obj["metadata"], dict):
+                    extensions = obj["metadata"].get("extensions")
+                    if isinstance(extensions, dict):
+                        for ext_name in extensions:
+                            if not ext_name.isidentifier():
+                                errors.append(
+                                    f"Invalid extension identifier: '{ext_name}'"
+                                )
+                # 3. Recurse into schema children, skipping non-schema annotations
                 for k, v in obj.items():
-                    if k != "properties":
+                    if k not in (
+                        "properties",
+                        "metadata",
+                        "examples",
+                        "description",
+                        "const",
+                        "default",
+                    ):
                         if isinstance(v, (dict, list)):
                             check_schema_properties(v)
             elif isinstance(obj, list):
