@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Add SemVer parsing and comparison utilities (`SemVer`, `compare_semver`, `is_at_least_version`, `normalize_version_string`, `parse_semver`, `to_canonical_version`, `to_semver`) in `a2ui.core.common.semver`.
+- Add `A2uiProtocolVersion` and `ProtocolVersion` enum in `a2ui.core.schema`.
+- Remove `A2uiCompileError` from `a2ui_core` exception hierarchy.
 - `DataModel` now runs the shared `conformance/core/data_model.yaml` suite,
   alongside the Dart client and `web_core`. It was the only implementation of
   the data model measured solely by its own tests.

@@ -16,6 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
+import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {
   Action,
   ChildList,
@@ -201,6 +202,25 @@ export type ResolveA2uiProps<T> = (T extends object
   };
 
 /**
+ * The maximum number of children materialized by dynamic ChildList templates.
+ * Prevents unbounded resource consumption (CWE-400) when bound to massive arrays.
+ */
+export const MAX_DYNAMIC_CHILD_LIST_SIZE = 10_000;
+
+/**
+ * Safely bounds array length for dynamic child lists to prevent unbounded memory allocation.
+ * Returns an array of at most MAX_DYNAMIC_CHILD_LIST_SIZE items.
+ */
+export function getSafeChildList<T = unknown>(value: unknown): T[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return (
+    value.length > MAX_DYNAMIC_CHILD_LIST_SIZE ? value.slice(0, MAX_DYNAMIC_CHILD_LIST_SIZE) : value
+  ) as T[];
+}
+
+/**
  * The Generic Binder is a framework-agnostic engine that transforms raw A2UI JSON payload
  * configurations into a single, cohesive reactive stream of strongly-typed `ResolvedProps`.
  *
@@ -290,14 +310,15 @@ export class GenericBinder<T> {
       return cached.closure;
     }
     const closure = () => {
-      const resolveDeepSync = (val: any): any => {
+      const resolveDeepSync = (val: any, d = 0): any => {
         if (typeof val !== 'object' || val === null) return val;
         if ('path' in val || 'call' in val) {
-          return this.context.dataContext.resolveDynamicValue(val);
+          return this.context.dataContext.resolveDynamicValue(val, d);
         }
-        if (Array.isArray(val)) return val.map(resolveDeepSync);
+        if (d > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
+        if (Array.isArray(val)) return val.map(item => resolveDeepSync(item, d + 1));
         const res: any = {};
-        for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
+        for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v, d + 1);
         return res;
       };
       this.context.dispatchAction(resolveDeepSync(value));
@@ -318,7 +339,7 @@ export class GenericBinder<T> {
         const bound = this.context.dataContext.subscribeDynamicValue(
           {path: templatePath},
           newVal => {
-            const arr = Array.isArray(newVal) ? newVal : [];
+            const arr = getSafeChildList(newVal);
             const listContext = this.context.dataContext.nested(templatePath);
             const resolvedChildren: ResolvedChildRef[] = arr.map((_, i) => ({
               id: templateComponentId,
@@ -335,7 +356,7 @@ export class GenericBinder<T> {
           bound.unsubscribe();
         }
 
-        const currentArr = Array.isArray(bound.value) ? bound.value : [];
+        const currentArr = getSafeChildList(bound.value);
         const listContext = this.context.dataContext.nested(templatePath);
         return currentArr.map((_, i) => ({
           id: templateComponentId,

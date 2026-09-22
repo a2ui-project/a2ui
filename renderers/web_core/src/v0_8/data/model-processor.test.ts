@@ -815,4 +815,99 @@ describe('A2uiMessageProcessor', () => {
     const action = root.properties.action;
     assert.strictEqual(action.context[0].key, 'comments');
   });
+
+  it('does not resolve Object.prototype inherited properties on ordinary objects', () => {
+    processor.processMessages([{beginRendering: {surfaceId: 's_proto', root: 'root'}}]);
+    const surface = processor.getSurfaces().get('s_proto')!;
+    surface.dataModel.set('user', {
+      name: 'Alice',
+      profile: {bio: 'Developer'},
+    });
+    surface.components.set('root', {
+      id: 'root',
+      component: {Row: {children: {explicitList: []}}} as any,
+    });
+    (processor as any).rebuildComponentTree(surface);
+    const root = surface.componentTree!;
+
+    // Valid own properties resolve normally
+    assert.strictEqual(processor.getData(root, '/user/name', 's_proto'), 'Alice');
+    assert.strictEqual(processor.getData(root, '/user/profile/bio', 's_proto'), 'Developer');
+
+    // Inherited Object.prototype properties must resolve to null, not functions or prototype objects
+    assert.strictEqual(processor.getData(root, '/user/toString', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/valueOf', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/constructor', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/__proto__', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/hasOwnProperty', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/isPrototypeOf', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/propertyIsEnumerable', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/toLocaleString', 's_proto'), null);
+
+    // Deep prototype chain traversal must also fail and return null
+    assert.strictEqual(processor.getData(root, '/user/__proto__/toString', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/constructor/prototype', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/profile/toString', 's_proto'), null);
+    assert.strictEqual(processor.getData(root, '/user/profile/__proto__', 's_proto'), null);
+  });
+
+  it('allows reading own properties that match prototype property names on objects', () => {
+    processor.processMessages([{beginRendering: {surfaceId: 's_own_proto', root: 'root'}}]);
+    const surface = processor.getSurfaces().get('s_own_proto')!;
+    surface.dataModel.set('custom', {
+      toString: 'custom-to-string',
+      constructor: 'custom-constructor',
+      valueOf: 12345,
+    });
+    surface.components.set('root', {
+      id: 'root',
+      component: {Row: {children: {explicitList: []}}} as any,
+    });
+    (processor as any).rebuildComponentTree(surface);
+    const root = surface.componentTree!;
+
+    assert.strictEqual(
+      processor.getData(root, '/custom/toString', 's_own_proto'),
+      'custom-to-string',
+    );
+    assert.strictEqual(
+      processor.getData(root, '/custom/constructor', 's_own_proto'),
+      'custom-constructor',
+    );
+    assert.strictEqual(processor.getData(root, '/custom/valueOf', 's_own_proto'), 12345);
+  });
+
+  it('does not resolve prototype properties on objects in arrays or parsed JSON', () => {
+    processor.processMessages([
+      {beginRendering: {surfaceId: 's_json', root: 'root'}},
+      {
+        dataModelUpdate: {
+          surfaceId: 's_json',
+          path: '/',
+          contents: [
+            {
+              key: 'items',
+              valueString: JSON.stringify([
+                {id: 1, label: 'one'},
+                {id: 2, label: 'two'},
+              ]),
+            },
+          ],
+        },
+      },
+    ]);
+    const surface = processor.getSurfaces().get('s_json')!;
+    surface.components.set('root', {
+      id: 'root',
+      component: {Row: {children: {explicitList: []}}} as any,
+    });
+    (processor as any).rebuildComponentTree(surface);
+    const root = surface.componentTree!;
+
+    assert.strictEqual(processor.getData(root, '/items/0/label', 's_json'), 'one');
+    assert.strictEqual(processor.getData(root, '/items/0/toString', 's_json'), null);
+    assert.strictEqual(processor.getData(root, '/items/0/__proto__', 's_json'), null);
+    assert.strictEqual(processor.getData(root, '/items/0/constructor', 's_json'), null);
+    assert.strictEqual(processor.getData(root, '/items/1/valueOf', 's_json'), null);
+  });
 });

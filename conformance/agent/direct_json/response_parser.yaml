@@ -1,0 +1,264 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Direct JSON response parsing: turning what a model emitted into ordered text
+# and raw payload blocks, and writing those parts back out.
+#
+# `unwrap` tokenizes a response into raw parts. `wrap` writes
+# raw parts back out as a model would have emitted them. `parse_response`
+# unwraps a whole response and compiles each block it finds, so it is the entry
+# point an agent actually calls.
+#
+# Compiling a block into messages is `agent/direct_json/compiler.yaml`, and
+# writing messages back out as JSON is `agent/direct_json/decompiler.yaml`. The
+# blueprint's `Parser` declares all five calls as one interface, so the suites
+# are split by call rather than by interface: a case in this file is about where
+# a payload begins and ends, and a case in those two about what it means.
+#
+# A direct JSON payload sits between `<a2ui-json>` tags.
+#
+# A part carries either text or a payload, never both. Text that precedes a
+# payload is its own list item, which is the union the parser returns.
+#
+# This suite fixes several things the blueprint leaves open. They are decisions
+# rather than readings of the spec, so they are stated here rather than left
+# for a reader to infer from the cases:
+#
+# - A response with no sentinel tags unwraps to a single text part, and is not
+#   an error. The legacy suite in `legacy/parser.yaml` raises `ParseError` for
+#   the same input. The other reading is reached through `parse_response` with
+#   `wrapped: false`, which hands the whole body to the compiler.
+# - An empty response unwraps to no parts at all.
+# - A text run is trimmed of leading and trailing whitespace, and a run left
+#   empty by that is dropped. The whitespace between two blocks is not a part.
+#
+# The `parse_response` cases compile as well as unwrap, so a compilation failure
+# surfaces through them. `ParseError` is for payload text the format cannot
+# read and `ValidationError` for a payload that reads but names something the
+# catalog does not declare; `compiler.yaml` states the rule in full.
+#
+# The Express counterpart of this suite is `agent/express/response_parser.yaml`.
+# The two are deliberately parallel: a rule that holds for both formats has a
+# case in each, written against that format's own notation.
+#
+# The catalogs under test live in `args`, and every case here is written against
+# v1.0. A case states no version of its own: the version it runs under is the
+# one its catalog document declares.
+
+# --- Unwrapping a response ---
+
+- name: test_unwrap_text_before_between_and_after_blocks
+  description: Parts come back in the order the model emitted them.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Here is the first surface.
+    <a2ui-json>[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>
+    And here is the second.
+    <a2ui-json>[{"version": "v1.0", "deleteSurface": {"surfaceId": "s2"}}]</a2ui-json>
+    That is everything.
+  expect:
+    - text: "Here is the first surface."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+    - text: "And here is the second."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s2"}}]'
+    - text: "That is everything."
+
+- name: test_unwrap_block_with_no_surrounding_text
+  description: A response that is only a block yields only a payload part.
+  action: unwrap
+  args:
+    format: direct_json
+  input: '<a2ui-json>[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>'
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_response_without_tags_is_one_text_part
+  description: A response that carries no tags is conversational text rather than an error.
+  action: unwrap
+  args:
+    format: direct_json
+  input: "No interface this turn, just an answer."
+  expect:
+    - text: "No interface this turn, just an answer."
+
+- name: test_unwrap_empty_response_has_no_parts
+  description: An empty response yields no parts, not an empty text part.
+  action: unwrap
+  args:
+    format: direct_json
+  input: ""
+  expect: []
+
+- name: test_unwrap_unterminated_block_is_not_final
+  description: A block the model left open comes back as a payload part that states it is not closed.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Here it comes.
+    <a2ui-json>[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}
+  expect:
+    - text: "Here it comes."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}'
+      is_final: false
+
+- name: test_unwrap_close_tag_inside_a_string_does_not_end_the_block
+  description: A close tag that appears inside a payload string is payload text rather than the end of the block.
+  action: unwrap
+  args:
+    format: direct_json
+  input: '<a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "</a2ui-json>"}]}}]</a2ui-json>'
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "</a2ui-json>"}]}}]'
+
+- name: test_unwrap_markdown_fence_inside_block_stripped
+  description: A markdown fence the model wrapped around the payload is removed with the surrounding whitespace.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    <a2ui-json>
+    ```json
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    ```
+    </a2ui-json>
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_attributes_on_open_tag_tolerated
+  description: An open tag that carries attributes still opens a block.
+  action: unwrap
+  args:
+    format: direct_json
+  input: '<a2ui-json version="v1.0">[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>'
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_whitespace_only_text_run_dropped
+  description: The blank line between two blocks is not a text part.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    <a2ui-json>[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>
+
+    <a2ui-json>[{"version": "v1.0", "deleteSurface": {"surfaceId": "s2"}}]</a2ui-json>
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s2"}}]'
+
+# --- Writing parts back out ---
+
+- name: test_wrap_text_only_parts_are_the_text
+  description: Parts that carry no payload write out as their text, with no tags added.
+  action: wrap
+  args:
+    format: direct_json
+  parts:
+    - text: "No interface this turn, just an answer."
+  expect_output: "No interface this turn, just an answer."
+
+- name: test_wrap_no_parts_is_an_empty_string
+  description: An empty part list writes out as an empty string.
+  action: wrap
+  args:
+    format: direct_json
+  parts: []
+  expect_output: ""
+
+- name: test_wrap_restores_tags_around_a_raw_part
+  description: A raw part is written back inside the sentinel tags it was taken from.
+  action: wrap
+  args:
+    format: direct_json
+  parts:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+  expect_contains:
+    - "<a2ui-json>"
+    - '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+    - "</a2ui-json>"
+  expect_round_trip: true
+
+- name: test_wrap_keeps_text_and_blocks_in_order
+  description: Text and payload parts are written out in the order they are given, and unwrapping returns them.
+  action: wrap
+  args:
+    format: direct_json
+  parts:
+    - text: "Here is the surface."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+    - text: "Tell me if you want it changed."
+  expect_round_trip: true
+
+# --- Parsing a whole response ---
+
+- name: test_parse_response_keeps_text_and_payloads_in_order
+  description: A response with text around a block yields the text, the compiled payload and the closing text, in that order.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Here is the surface.
+    <a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>
+    Tell me if you want it changed.
+  expect:
+    - text: "Here is the surface."
+    - a2ui:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello"
+    - text: "Tell me if you want it changed."
+
+- name: test_parse_response_without_tags_is_one_text_part
+  description: A response with no block is a single text part, and the compiler is never called.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "No interface this turn, just an answer."
+  expect:
+    - text: "No interface this turn, just an answer."
+
+- name: test_parse_response_unwrapped_compiles_the_whole_body
+  description: A response the case declares unwrapped is handed to the compiler whole, with no tags to look for.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    wrapped: false
+  input: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+  expect:
+    - a2ui:
+        - version: "v1.0"
+          deleteSurface:
+            surfaceId: "s1"
+
+- name: test_parse_response_compile_failure_surfaces
+  description: A block whose payload cannot be read fails the whole parse rather than becoming a text part.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Here is the surface.
+    <a2ui-json>here is your surface</a2ui-json>
+  expect_error:
+    category: "ParseError"

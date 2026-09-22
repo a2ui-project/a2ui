@@ -1,0 +1,22 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "s1",
+      "catalogId": "conformance/custom"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "s1",
+      "components": [
+        {
+          "id": "root",
+          "component": "Chart",
+          "values": [1, 2, 3]
+        }
+      ]
+    }
+  }
+]

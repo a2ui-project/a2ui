@@ -1,0 +1,203 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Direct JSON prompt snippets: the system prompt text the direct JSON format
+# renders for the catalogs that are active in a session.
+#
+# A case names the catalogs the agent registered along with the transformers
+# applied to them, and optionally the prompt examples. It then states substrings
+# the snippet carries and substrings it does not. The wording around a catalog
+# is an implementation's own, so a case never states a whole text. What it
+# states is the material the model has to be told: the component and function
+# names it may use, the catalog ids when more than one catalog is active, the
+# sentinel tag it writes payloads inside, and the payload of any example.
+#
+# A prompt example is named by a path to a JSON file under
+# `test_data/examples/`, holding the messages of one turn, the same way a
+# catalog is named by a path. Nothing about the example is free text, so a case
+# asserts the rendered payload rather than a label. The cases assert content
+# unique to the example, such as its surface id, rather than envelope names the
+# snippet would carry anyway.
+#
+# The catalogs a case names are the pristine documents, and the snippet is
+# written from the transformed ones. A transformer is therefore visible in the
+# snippet: a component a transformer removed is a component the model is never
+# told about, which is what `expect_absent` checks.
+#
+# One name has to be handled carefully. The simplified catalog declares a
+# function called `required`, and `required` is also a JSON Schema keyword that
+# appears throughout any embedded catalog document. No case asserts anything
+# about `required` in either direction. Its absence could never be observed,
+# and its presence would be satisfied by any snippet that embeds the catalog
+# document, whether or not the function was ever named. The cases assert
+# `formatString` and `openUrl` instead, and the function pruning case prunes to
+# `formatString` and checks that `openUrl` is gone.
+#
+# Direct JSON payloads sit inside `<a2ui-json>` tags.
+#
+# Two settled decisions are worth stating outright. Active catalogs are the
+# transformed catalogs, so the snippet and the payloads the session will accept
+# describe the same components. Generating a snippet with no active catalogs is
+# a `CatalogError`, because there is nothing the model could be told to write.
+#
+# The Express counterpart of this suite is `agent/express/prompt_generator.yaml`.
+# The two are deliberately parallel: a rule that holds for both formats has a
+# case in each, written against that format's own output, rather than one shared
+# case that a harness has to gate.
+#
+# Every case here is written against v1.0. A case states no version of its own:
+# the version it runs under is the one its catalog document declares, or the one
+# `args` hands the implementation.
+
+# --- What the catalog contributes ---
+
+- name: test_snippet_names_every_component_of_the_catalog
+  description: The snippet names each component of the active catalog, since a name the model is not given is a name it cannot use.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["Text", "Button", "Card", "Column"]
+
+- name: test_snippet_names_every_function_of_the_catalog
+  description: The snippet names each function of the active catalog alongside its components. `required` is left out of the assertion because it is also a JSON Schema keyword, so asserting it would pass for any snippet that embeds the catalog document.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["formatString", "openUrl"]
+
+- name: test_snippet_omits_a_pruned_component
+  description: A component a transformer removed never reaches the model.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text", "Card"]
+  expect_contains: ["Text", "Card"]
+  expect_absent: ["Button", "Column"]
+
+- name: test_snippet_omits_a_pruned_function
+  description: A function a transformer removed never reaches the model either.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - function_pruning: ["formatString"]
+  expect_contains: ["formatString"]
+  expect_absent: ["openUrl"]
+
+- name: test_snippet_names_both_catalogs_and_their_ids
+  description: With two catalogs active the snippet names both sets of components and both catalog ids, so the model can say which catalog a component came from.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  expect_contains:
+    - "conformance/simplified"
+    - "conformance/custom"
+    - "Text"
+    - "Column"
+    - "Chart"
+    - "Gauge"
+    - "openUrl"
+    - "percent"
+
+# --- Examples ---
+
+- name: test_snippet_renders_supplied_examples
+  description: An example reaches the snippet as the payload the model is meant to imitate, which is the whole reason for supplying one.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+  expect_contains: ["Hello", "s1"]
+
+- name: test_snippet_without_examples_carries_no_example
+  description: The same catalog without examples carries none of the example payload. Only content unique to the example is asserted absent, since the envelope names the snippet describes anyway would be absent for the wrong reason.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["Text"]
+  expect_absent: ["Hello", "s1"]
+
+# --- Format specifics ---
+
+- name: test_direct_json_snippet_names_its_sentinel_tag
+  description: A direct JSON snippet tells the model to write payloads inside the a2ui-json tags.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["<a2ui-json>", "</a2ui-json>"]
+
+- name: test_snippet_describes_only_the_allowed_envelopes
+  description: An allowlist of payload envelopes decides which of them the snippet describes.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    allowed_messages: ["createSurface", "updateComponents"]
+  expect_contains: ["createSurface", "updateComponents"]
+  expect_absent: ["deleteSurface"]
+
+- name: test_snippet_describes_every_envelope_without_an_allowlist
+  description: Without an allowlist the snippet describes the envelopes of its protocol version, so leaving the allowlist out is how an agent asks for all of them.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["createSurface", "updateComponents", "updateDataModel", "deleteSurface"]
+
+# --- Determinism ---
+
+- name: test_direct_json_snippet_is_deterministic
+  description: Two calls with the same catalogs and examples return the same string, so a prompt can be cached and compared across turns.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+  expect_contains: ["Text", "Chart"]
+  expect_deterministic: true
+
+# --- Errors ---
+
+- name: test_no_active_catalogs_is_an_error
+  description: Generating a snippet with no active catalogs fails, because there is no component the model could be told to write.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs: []
+  expect_error:
+    category: CatalogError

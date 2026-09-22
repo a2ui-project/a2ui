@@ -69,12 +69,6 @@ class A2uiRecursionError(A2uiError):
     pass
 
 
-class A2uiCompileError(A2uiError):
-    """Exception raised when compiling or translating alternative UI formats/DSLs."""
-
-    pass
-
-
 class A2uiDataError(A2uiError):
     """Exception raised when a JSON Pointer write cannot be applied.
 

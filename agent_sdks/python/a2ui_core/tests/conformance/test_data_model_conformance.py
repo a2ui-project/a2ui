@@ -29,7 +29,6 @@ import yaml
 
 from a2ui.core.exceptions import (
     A2uiCatalogError,
-    A2uiCompileError,
     A2uiDataError,
     A2uiError,
     A2uiIntegrityError,
@@ -51,7 +50,6 @@ _ERROR_CATEGORIES = {
     "IntegrityError": A2uiIntegrityError,
     "RecursionError": A2uiRecursionError,
     "ParseError": A2uiParseError,
-    "CompileError": A2uiCompileError,
 }
 
 
