@@ -158,6 +158,114 @@ function finalizePropertyZod(
   return result;
 }
 
+function convertRefToZod(
+  ref: string,
+  propSchema: Record<string, unknown>,
+  rootDoc: Record<string, unknown> | undefined,
+  visitedPointers: Set<string>,
+  defCache: Map<string, z.ZodTypeAny>,
+): z.ZodTypeAny | undefined {
+  const resolvedProtocol = resolveProtocolRef(ref);
+  if (resolvedProtocol) {
+    const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
+    const desc =
+      typeof propSchema.description === 'string'
+        ? `REF:common_types.json#/$defs/${defName}|${propSchema.description}`
+        : resolvedProtocol.description;
+    return desc ? resolvedProtocol.describe(desc) : resolvedProtocol;
+  }
+
+  if (rootDoc && ref.startsWith('#/')) {
+    const localTarget = resolveJsonPointer(rootDoc, ref);
+    if (!localTarget) {
+      return z.unknown().superRefine((_val, ctx) => {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Unresolvable schema reference: '${ref}'`,
+        });
+      });
+    }
+    if (visitedPointers.has(ref)) {
+      let cached = defCache.get(ref);
+      return z.lazy(() => {
+        if (!cached) {
+          cached =
+            defCache.get(ref) ??
+            convertPropertyToZod(localTarget, rootDoc, new Set([ref]), defCache);
+          defCache.set(ref, cached);
+        }
+        return cached;
+      });
+    }
+    let zodType = defCache.get(ref);
+    if (!zodType) {
+      const nextVisited = new Set(visitedPointers);
+      nextVisited.add(ref);
+      zodType = convertPropertyToZod(localTarget, rootDoc, nextVisited, defCache);
+      defCache.set(ref, zodType);
+    }
+    if (typeof propSchema.description === 'string') {
+      zodType = zodType.describe(propSchema.description);
+    }
+    return zodType;
+  }
+  return undefined;
+}
+
+function convertUnionToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc: Record<string, unknown> | undefined,
+  visitedPointers: Set<string>,
+  defCache: Map<string, z.ZodTypeAny>,
+): z.ZodTypeAny | undefined {
+  const isOneOf = Array.isArray(propSchema.oneOf);
+  const rawBranches = (propSchema.oneOf || propSchema.anyOf) as unknown[];
+  const branches = rawBranches.filter(
+    (b): b is Record<string, unknown> => typeof b === 'object' && b !== null,
+  );
+  if (branches.length === 0) return undefined;
+
+  const enumBranch = branches.find(b => Array.isArray(b.enum));
+  const hasBinding = branches.some(
+    b => typeof b.$ref === 'string' && b.$ref.includes('DataBinding'),
+  );
+  const zodBranches = branches.map(b =>
+    convertPropertyToZod(b, rootDoc, new Set(visitedPointers), defCache),
+  );
+
+  let unionZod: z.ZodTypeAny;
+  if (zodBranches.length === 1) {
+    unionZod = zodBranches[0];
+  } else {
+    const baseUnion = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
+    unionZod = isOneOf
+      ? z
+          .any()
+          .superRefine((val, ctx) => {
+            let matches = 0;
+            for (const b of zodBranches) {
+              if (b.safeParse(val).success && ++matches > 1) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: 'Value matched more than one schema in oneOf',
+                });
+                return;
+              }
+            }
+          })
+          .pipe(baseUnion)
+      : baseUnion;
+  }
+
+  if (propSchema.default !== undefined) {
+    unionZod = unionZod.default(propSchema.default);
+  }
+  const desc =
+    (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
+    (enumBranch && hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
+  return desc ? unionZod.describe(desc) : unionZod;
+}
+
 function convertPropertyToZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
@@ -169,111 +277,20 @@ function convertPropertyToZod(
   }
 
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
-    const ref = propSchema.$ref;
-    // Protocol canonical types
-    const resolvedProtocol = resolveProtocolRef(ref);
-    if (resolvedProtocol) {
-      const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
-      const desc =
-        typeof propSchema.description === 'string'
-          ? `REF:common_types.json#/$defs/${defName}|${propSchema.description}`
-          : resolvedProtocol.description;
-      return desc ? resolvedProtocol.describe(desc) : resolvedProtocol;
-    }
-
-    // Document-local $defs reference
-    if (rootDoc && ref.startsWith('#/')) {
-      const localTarget = resolveJsonPointer(rootDoc, ref);
-      if (!localTarget) {
-        return z.unknown().superRefine((_val, ctx) => {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Unresolvable schema reference: '${ref}'`,
-          });
-        });
-      }
-      if (visitedPointers.has(ref)) {
-        // Recursive $ref cycle: defer evaluation to validation time via z.lazy,
-        // looking up the pre-compiled schema from defCache in O(1) time.
-        let cached = defCache.get(ref);
-        return z.lazy(() => {
-          if (!cached) {
-            cached =
-              defCache.get(ref) ??
-              convertPropertyToZod(localTarget, rootDoc, new Set([ref]), defCache);
-          }
-          return cached;
-        });
-      }
-      let zodType = defCache.get(ref);
-      if (!zodType) {
-        const nextVisited = new Set(visitedPointers);
-        nextVisited.add(ref);
-        zodType = convertPropertyToZod(localTarget, rootDoc, nextVisited, defCache);
-        defCache.set(ref, zodType);
-      }
-      if (typeof propSchema.description === 'string') {
-        zodType = zodType.describe(propSchema.description);
-      }
-      return zodType;
-    }
+    const resolvedRef = convertRefToZod(
+      propSchema.$ref,
+      propSchema,
+      rootDoc,
+      visitedPointers,
+      defCache,
+    );
+    if (resolvedRef) return resolvedRef;
   }
 
   // oneOf / anyOf inspection
   if (Array.isArray(propSchema.oneOf) || Array.isArray(propSchema.anyOf)) {
-    const isOneOf = Array.isArray(propSchema.oneOf);
-    const rawBranches = (propSchema.oneOf || propSchema.anyOf) as unknown[];
-    const branches = rawBranches.filter(
-      (b): b is Record<string, unknown> => typeof b === 'object' && b !== null,
-    );
-    const enumBranch = branches.find(b => Array.isArray(b.enum));
-    const hasBinding = branches.some(
-      b => typeof b.$ref === 'string' && b.$ref.includes('DataBinding'),
-    );
-
-    if (branches.length > 0) {
-      const zodBranches = branches.map(b =>
-        convertPropertyToZod(b, rootDoc, new Set(visitedPointers), defCache),
-      );
-      let unionZod: z.ZodTypeAny;
-      if (zodBranches.length === 1) {
-        unionZod = zodBranches[0];
-      } else {
-        const baseUnion = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
-        if (isOneOf) {
-          unionZod = z
-            .any()
-            .superRefine((val, ctx) => {
-              let matches = 0;
-              for (const b of zodBranches) {
-                if (b.safeParse(val).success) {
-                  matches++;
-                  if (matches > 1) {
-                    ctx.addIssue({
-                      code: z.ZodIssueCode.custom,
-                      message: 'Value matched more than one schema in oneOf',
-                    });
-                    return;
-                  }
-                }
-              }
-            })
-            .pipe(baseUnion);
-        } else {
-          unionZod = baseUnion;
-        }
-      }
-      if (propSchema.default !== undefined) {
-        unionZod = unionZod.default(propSchema.default);
-      }
-      const desc =
-        (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
-        (enumBranch && hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
-      if (desc) {
-        unionZod = unionZod.describe(desc);
-      }
-      return unionZod;
-    }
+    const resolvedUnion = convertUnionToZod(propSchema, rootDoc, visitedPointers, defCache);
+    if (resolvedUnion) return resolvedUnion;
   }
 
   // Const literal

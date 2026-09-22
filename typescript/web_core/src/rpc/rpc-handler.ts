@@ -399,16 +399,15 @@ export class RpcHandler {
 
   private parseArguments(
     catalog: Catalog<any>,
-    funcImpl: FunctionImplementation,
+    _funcImpl: FunctionImplementation,
     args: Record<string, unknown> | undefined,
     call: string,
   ): {args: Record<string, unknown>} | {error: string} {
     try {
-      new PayloadValidator(catalog, {allowUnknownElements: false}).validateFunction(call, args);
-      if (!funcImpl.schema) {
-        return {args: args ?? {}};
-      }
-      const parsed = funcImpl.schema.parse(args ?? {}) as Record<string, unknown>;
+      const parsed = new PayloadValidator(catalog, {allowUnknownElements: false}).validateFunction(
+        call,
+        args,
+      );
       return {args: parsed};
     } catch (err: unknown) {
       const errMsg = this.extractErrorMessage(err);

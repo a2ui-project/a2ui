@@ -19,6 +19,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
+import {IndexApi} from '../v1_0/functions/system_functions.js';
 import type {ValidationConfig} from '../validating/integrity-checker.js';
 
 /**
@@ -132,6 +133,18 @@ export class PayloadValidator {
    * Recursively walks a component's property values and validates any nested
    * function call objects (`{call, args}`) against their target catalog.
    */
+  private assertFunctionIdentifiers(name: string, args: unknown): void {
+    this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`);
+    if (args && typeof args === 'object' && !Array.isArray(args)) {
+      for (const argName of Object.keys(args)) {
+        this.assertIdentifier(
+          argName,
+          `Function argument '${argName}' in function '${name}' must be a valid UAX #31 identifier`,
+        );
+      }
+    }
+  }
+
   private validateNestedFunctions(val: unknown): void {
     if (Array.isArray(val)) {
       for (const item of val) {
@@ -148,12 +161,7 @@ export class PayloadValidator {
     const rawName = record['call'] ?? record['function'];
     if (typeof rawName === 'string' && rawName.length > 0) {
       const rawArgs = record['args'];
-      const argsDict =
-        typeof rawArgs === 'object' && rawArgs !== null && !Array.isArray(rawArgs)
-          ? (rawArgs as Record<string, unknown>)
-          : rawArgs !== undefined
-            ? (rawArgs as Record<string, unknown>)
-            : {};
+      const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;
       const callCatalogId =
         typeof record['catalogId'] === 'string' && record['catalogId'].length > 0
           ? record['catalogId']
@@ -174,18 +182,7 @@ export class PayloadValidator {
         } else {
           // Single-catalog validator without surface context: still enforce
           // UAX #31 identifier syntax on the function name and argument keys.
-          this.assertIdentifier(
-            rawName,
-            `Function name '${rawName}' must be a valid UAX #31 identifier`,
-          );
-          if (argsDict && typeof argsDict === 'object' && !Array.isArray(argsDict)) {
-            for (const argName of Object.keys(argsDict)) {
-              this.assertIdentifier(
-                argName,
-                `Function argument '${argName}' in function '${rawName}' must be a valid UAX #31 identifier`,
-              );
-            }
-          }
+          this.assertFunctionIdentifiers(rawName, argsDict);
         }
       } else {
         this.validateFunction(rawName, argsDict);
@@ -204,27 +201,21 @@ export class PayloadValidator {
    *
    * @param name Name of the function being called.
    * @param args Arguments supplied by the payload.
+   * @returns The parsed arguments object (including any schema defaults).
    * @throws {A2uiValidationError} If the function name, an argument name, or an
    *   argument value fails validation.
    */
-  validateFunction(name: string, args?: Record<string, unknown>): void {
-    this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`);
+  validateFunction(name: string, args?: Record<string, unknown>): Record<string, unknown> {
+    this.assertFunctionIdentifiers(name, args);
 
-    if (args && typeof args === 'object' && !Array.isArray(args)) {
-      for (const argName of Object.keys(args)) {
-        this.assertIdentifier(
-          argName,
-          `Function argument '${argName}' in function '${name}' must be a valid UAX #31 identifier`,
-        );
-      }
-    }
-
-    const fn = this.catalog.functions.get(name);
+    const fn =
+      this.catalog.functions.get(name) ??
+      (this.enforceIdentifiers && name === '@index' ? IndexApi : undefined);
     if (!fn) {
       if (!this.allowUnknown) {
         throw new A2uiValidationError(`Unrecognized function '${name}'`);
       }
-      return;
+      return (args ?? {}) as Record<string, unknown>;
     }
 
     if (!fn.schema) {
@@ -236,7 +227,7 @@ export class PayloadValidator {
           `Validation failed for function '${name}': Expected object, received ${Array.isArray(args) ? 'array' : typeof args}`,
         );
       }
-      return;
+      return (args ?? {}) as Record<string, unknown>;
     }
 
     const result = fn.schema.safeParse(args ?? {});
@@ -247,6 +238,7 @@ export class PayloadValidator {
         result.error.issues,
       );
     }
+    return result.data as Record<string, unknown>;
   }
 
   /**

@@ -428,4 +428,41 @@ describe('PayloadValidator', () => {
       }),
     );
   });
+
+  it('validates @index system function calls in v1.0 catalogs without explicit @index registration', () => {
+    const cat = Catalog.fromSchema({
+      catalogId: 'https://a2ui.org/catalogs/custom_v10',
+      protocolVersion: '1.0',
+      components: {
+        RowItem: {
+          type: 'object',
+          properties: {
+            id: {type: 'string'},
+            component: {const: 'RowItem'},
+            indexVal: {$ref: 'common_types.json#/$defs/DynamicNumber'},
+          },
+          required: ['id', 'component', 'indexVal'],
+        },
+      },
+    });
+    const validator = new PayloadValidator(cat, STRICT_VALIDATION);
+
+    assert.doesNotThrow(() =>
+      validator.validateComponent({
+        id: 'item1',
+        component: 'RowItem',
+        indexVal: {call: '@index', args: {offset: 0}},
+      }),
+    );
+
+    assert.throws(
+      () =>
+        validator.validateComponent({
+          id: 'item2',
+          component: 'RowItem',
+          indexVal: {call: '@index', args: {offset: 'not-a-number'}},
+        }),
+      A2uiValidationError,
+    );
+  });
 });

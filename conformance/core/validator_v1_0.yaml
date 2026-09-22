@@ -398,7 +398,7 @@
       expectError:
         category: "ValidationError"
 
-- name: test_v10_uax31_in123invalid_identifier_error
+- name: test_v10_uax31_invalid_identifier_error
   description: Tests that component IDs violating UAX#31 identifier syntax fail validation in v1.0.
   action: validate
   protocolVersion: "v1.0"
