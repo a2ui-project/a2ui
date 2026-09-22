@@ -18,20 +18,30 @@ In order to produce responses for renderer, agent sends requests to an `A2UI mod
 - another agent (in more complex orchestrations)
 - deterministic engine (normally, for testing purposes)
 
-
-
 ```mermaid
 sequenceDiagram
-    participant Renderer as A2UI Renderer
-    participant Agent as A2UI Agent
+    participant Renderer as Renderer
+    participant Agent as Agent
+    participant Model as Model
 
     Renderer->>Agent: Catalog & instructions
 
     loop Agentic flow
-        Agent->>Renderer: Data + UI Updates. Function calls.
         Renderer->>Agent: User input
+        Agent->>Model: Context + User input
+        Model->>Agent: Response
+        Agent->>Agent: Parse response        
+        Agent->>Renderer: Data + UI Updates. Function calls.        
     end
 ```
+
+**Terms:**
+
+Terms in this glossary are split into a few categories:
+
+- **Protocol terms**: terms related to interaction between renderer and agent.
+- **Agent terms**: terms related to agent argitecture and its interaction with models.
+- **Generative UI terms**: - general concepts related to generative ui.
 
 ## A2UI protocol terms
 
