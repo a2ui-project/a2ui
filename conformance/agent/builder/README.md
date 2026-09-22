@@ -42,19 +42,23 @@ that claim belongs in the fixture rather than in runner logic.
    multi-child (`children`) container slots.
 3. **`03_automatic_id_allocation`**: Deterministic ID allocation and the macro
    namespacing applied when a `root_id` anchor is supplied.
-4. **`04_data_bindings`**: Data model references with leading-slash normalization.
+4. **`04_data_bindings`**: Data model references preserving both the relative and
+   the absolute path form.
 5. **`05_accessibility_attributes`**: Accessibility attributes, including a
    dynamically bound value.
 6. **`06_actions_and_function_calls`**: Both `Action` branches: a server event
    with a typed context map, and a client `functionCall`.
 7. **`07_dynamic_child_list`**: Collection-bound children, where the template is
-   an ordinary sibling component referenced by `componentId`.
+   an ordinary sibling component referenced by `componentId` and its bindings
+   stay relative to the item scope.
 8. **`08_component_references`**: External slot references preserved verbatim,
    never re-allocated or re-emitted.
 9. **`09_surface_lifecycle_envelopes`**: A full lifecycle of `createSurface`,
    `updateComponents` and `updateDataModel`.
 10. **`10_validation_rules`**: Client-side `CheckRule` checks on a checkable
     component.
+11. **`11_nested_collection_templates`**: Two-level templates, where the inner
+    list is addressed relative to the outer item scope.
 
 ## Regenerating the goldens
 

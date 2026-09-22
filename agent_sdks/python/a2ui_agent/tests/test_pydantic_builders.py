@@ -47,6 +47,7 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,
+    List,
     Text,
     Image,
     Icon,
@@ -351,9 +352,38 @@ def test_dynamic_child_list_emits_a_component_id_reference():
             ),
         )
     )
-    assert comps[-1]["children"] == {"path": "/posts", "componentId": "feed__tpl"}
+    assert comps[-1]["children"] == {"path": "posts", "componentId": "feed__tpl"}
     # The reference resolves: the template really is in the emitted list.
     assert "feed__tpl" in {c["id"] for c in comps}
+
+
+def test_template_scopes_keep_relative_and_absolute_paths_distinct():
+    """Verifies the spec's own mixed-scope example survives a build.
+
+    From "Path resolution & scope" in ``specification/v0_9_1/docs/a2ui_protocol.md``:
+    inside a template iterating ``/employees``, the relative ``name`` resolves to
+    ``/employees/N/name`` while the absolute ``/company`` stays global. Collapsing
+    the two spellings would silently repoint every item-scoped binding at the
+    document root, where it resolves to nothing.
+    """
+    comps = flatten_component_tree(
+        List(
+            id="employee_list",
+            children=DynamicChildList(
+                path="/employees",
+                template=Column(
+                    id="card",
+                    children=[
+                        Text(id="name_text", text=DataBinding(path="name")),
+                        Text(id="company_text", text=DataBinding(path="/company")),
+                    ],
+                ),
+            ),
+        )
+    )
+    by_id = {c["id"]: c for c in comps}
+    assert by_id["employee_list__name_text"]["text"] == {"path": "name"}
+    assert by_id["employee_list__company_text"]["text"] == {"path": "/company"}
 
 
 def test_serialization_aliases_are_honoured():
@@ -419,19 +449,15 @@ def test_reused_core_models_stay_identical_to_core():
     from a2ui.core.schema.common_types import ActionEvent as CoreActionEvent
     from a2ui.core.schema.common_types import DataBinding as CoreDataBinding
 
-    # ActionEvent is core's outright, not a copy that happens to match.
+    # Both are core's classes outright, not copies that happen to match.
     assert ActionEvent is CoreActionEvent
+    assert DataBinding is CoreDataBinding
 
-    # DataBinding subclasses core's, so core accepts one the builder made.
-    binding = DataBinding(path="/user/name")
-    assert isinstance(binding, CoreDataBinding)
-    assert set(DataBinding.model_fields) == set(CoreDataBinding.model_fields)
-
-    # Subclassing exists to add authoring behaviour core has no reason to carry:
-    # relative paths are made absolute, and a binding is shareable and hashable.
-    assert DataBinding(path="user/name").path == "/user/name"
-    assert CoreDataBinding(path="user/name").path == "user/name"
-    assert hash(binding) is not None
+    # Paths reach the wire exactly as written. The leading slash distinguishes
+    # an absolute path from one resolved against a template's item scope, so
+    # rewriting either form would change what the client resolves.
+    assert DataBinding(path="user/name").path == "user/name"
+    assert DataBinding(path="/user/name").path == "/user/name"
 
 
 def test_bare_model_dump_keeps_children_nested():

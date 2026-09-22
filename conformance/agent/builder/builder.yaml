@@ -110,7 +110,7 @@ tests:
             text: "Second Item"
 
   - id: "04_data_bindings"
-    description: "Dynamic data bindings with path normalization"
+    description: "Data bindings preserve relative and absolute paths exactly as written"
     golden: "04_data_bindings.json"
     surface_id: "conformance"
     validation:
@@ -122,11 +122,15 @@ tests:
         component: "Column"
         id: "profile_col"
         children:
+          # Relative: no leading slash, so it resolves against the enclosing
+          # scope. At root scope that is the data model root.
           - component: "Text"
             id: "user_greeting"
             text:
               $bind: "user/displayName"
             variant: "h3"
+          # Absolute: always resolves from the data model root, whatever scope
+          # the component is rendered in.
           - component: "Text"
             id: "user_balance"
             text:
@@ -194,7 +198,7 @@ tests:
                   url: "https://a2ui.org/docs"
 
   - id: "07_dynamic_child_list"
-    description: "Collection-bound dynamic child templates referenced by component ID"
+    description: "Collection templates keep item-relative bindings inside the child scope"
     golden: "07_dynamic_child_list.json"
     surface_id: "conformance"
     validation:
@@ -204,7 +208,8 @@ tests:
       id: "feed_container"
       children:
         $dynamicChildList:
-          path: "feed/posts"
+          # Absolute: the list itself is addressed from the data model root.
+          path: "/feed/posts"
           template:
             component: "Card"
             id: "post_card"
@@ -212,6 +217,9 @@ tests:
               component: "Text"
               id: "post_title"
               text:
+                # Relative: resolves against the item scope the template
+                # creates, i.e. /feed/posts/N/title. Rewriting this to
+                # "/title" would resolve at the document root instead.
                 $bind: "title"
 
   - id: "08_component_references"
@@ -273,3 +281,33 @@ tests:
                   $bind: "/user/zip"
                 pattern: "^[0-9]{5}$"
             message: "ZIP code must be 5 digits"
+
+  - id: "11_nested_collection_templates"
+    description: "Two-level templates address the inner list relative to the outer item scope"
+    golden: "11_nested_collection_templates.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Column"
+      id: "org_chart"
+      children:
+        $dynamicChildList:
+          # Absolute: the outer list is addressed from the data model root.
+          path: "/departments"
+          template:
+            component: "Column"
+            id: "department_block"
+            children:
+              $dynamicChildList:
+                # Relative: each department's own employee list, resolving to
+                # /departments/N/employees. There is no absolute spelling for
+                # this, which is why the path must survive verbatim.
+                path: "employees"
+                template:
+                  component: "Text"
+                  id: "employee_name"
+                  # Relative again, now against the inner item scope:
+                  # /departments/N/employees/M/name
+                  text:
+                    $bind: "name"

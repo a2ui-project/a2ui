@@ -146,14 +146,19 @@ each extension is a place for the wire format to drift from the schema. Three
 wire-format defects were found in the reference implementation at review time,
 all of them inside hand-written serialization code.
 
-### R5. Names and paths are normalized declaratively
+### R5. Names are mapped declaratively and paths are preserved
 
 16. Authoring names must be idiomatic to the host language while the emitted
     names come from the schema. The mapping must be declared on the field, not
     applied by a serialization step.
-17. Data model paths must be normalized to their absolute form at construction.
-    A path written in the relative-looking form is a path a client cannot
-    resolve, and the author will not see the difference until render time.
+17. Data model paths must reach the wire exactly as the author wrote them. The
+    leading `/` is semantically load-bearing: an absolute path resolves from the
+    root of the data model, while a path without one is *relative* and resolves
+    against the collection scope a template creates. Normalizing to absolute
+    makes item-scoped bindings — the entire purpose of templates — impossible to
+    express, and makes a nested template unable to address its own list at all.
+    See "Path resolution & scope" in `specification/v0_9_1/docs/a2ui_protocol.md`,
+    which defines relative paths as a deliberate extension to RFC 6901.
 
 ### R6. Envelope construction is versioned and separate
 
@@ -297,11 +302,13 @@ The test is whether reuse changes what reaches the wire:
 
 - **Reuse outright** where the authoring form and the parsed form are the same
   thing. A named event carrying a name and a context is the same object to both
-  sides.
-- **Extend the core model** where the fields agree but authoring needs added
-  behaviour. A data binding is core's field set plus the path normalization R5
-  requires and immutability so one binding can be shared. Extending keeps the
-  core type assignable, so the two cannot diverge structurally.
+  sides, and so is a data binding: it is one field holding a path that must
+  reach the wire exactly as written, which is as true for an author as it is
+  for a parser.
+- **Extend the core model** where the fields agree but authoring genuinely needs
+  added behaviour. Extending keeps the core type assignable, so the two cannot
+  diverge structurally. No model currently needs this tier; it is recorded
+  because it is the correct answer when the alternative is a parallel copy.
 - **Define locally** where core carries a field authoring must not emit.
   A core model that defaults a field to a non-null value will serialize it, so
   every call site would carry a property the author never wrote. The same
@@ -349,9 +356,11 @@ payload cannot be recorded.
 
 A conforming implementation must pass the declared cases, which cover primitive
 components and strict enums, nested single and multi-child containers,
-deterministic ID allocation with a root anchor, data bindings and path
-normalization, accessibility attributes, both action branches, collection-bound
-children, external references, the full surface lifecycle, and check rules.
+deterministic ID allocation with a root anchor, data bindings that preserve both
+the absolute and the relative path form, accessibility attributes, both action
+branches, collection-bound children, nested collection templates that address an
+inner list relative to the outer item scope, external references, the full
+surface lifecycle, and check rules.
 
 Beyond the shared suite, an implementation should verify locally that
 constructing a component with an unknown property fails, that an invalid enum

@@ -16,8 +16,7 @@
 
 A model here is reused from ``a2ui.core.schema.common_types`` when the authoring
 form and the parsed form are genuinely the same thing, and defined locally when
-they are not. ``ActionEvent`` is core's outright; ``DataBinding`` subclasses
-core's to add path normalization and immutability without changing its fields.
+they are not. ``ActionEvent`` and ``DataBinding`` are core's outright.
 
 The rest stay local because authoring is a different job from parsing. It wants
 nested children rather than IDs, narrow enums, and no defaulted field reaching
@@ -25,9 +24,19 @@ the wire that the author never wrote. ``FunctionCall`` is the clearest case:
 core defaults ``return_type`` to ``"boolean"``, so reusing it would stamp a
 ``returnType`` onto every call site.
 
-No model here defines a custom serializer. Field shape, aliases, defaults and null
-handling are Pydantic's; the only behaviour the builder adds is child resolution,
-which lives on the :data:`~a2ui.builder.core.child.Child` type.
+No model here defines a custom serializer, and none rewrites a value the author
+supplied. Field shape, aliases, defaults and null handling are Pydantic's; the
+only behaviour the builder adds is child resolution, which lives on the
+:data:`~a2ui.builder.core.child.Child` type.
+
+.. note::
+   Data model paths are preserved exactly as written. A leading ``/`` is
+   semantically load-bearing: absolute paths resolve from the root of the data
+   model, while a path without one is *relative* and resolves against the
+   enclosing collection scope created by a :class:`DynamicChildList` template.
+   Normalizing to absolute would make item-scoped bindings — the entire point
+   of templates — impossible to express. See "Path resolution & scope" in
+   ``specification/v0_9_1/docs/a2ui_protocol.md``.
 """
 
 from __future__ import annotations
@@ -35,9 +44,7 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence, TypeAlias, Union
 from pydantic import (
     AliasChoices,
-    ConfigDict,
     Field,
-    field_validator,
     model_validator,
 )
 
@@ -45,34 +52,7 @@ from ..core.base_model import BuilderBaseModel
 from ..core.child import Child
 
 from a2ui.core.schema.common_types import ActionEvent as ActionEvent
-from a2ui.core.schema.common_types import DataBinding as CoreDataBinding
-
-
-def _absolute_pointer(path: str) -> str:
-    """Normalizes a data model path to the absolute form the wire requires.
-
-    Every path in A2UI is rooted at the data model. Authors habitually write the
-    relative-looking ``"user/name"``, which a client would fail to resolve, so
-    the leading slash is supplied here rather than left to each caller.
-    """
-    return path if path.startswith("/") else f"/{path}"
-
-
-class DataBinding(CoreDataBinding):
-    """A two-way binding to a path in the client data model.
-
-    The field set comes from :mod:`a2ui.core.schema.common_types`, so a binding
-    built here is one the core models accept. Authoring adds two things core has
-    no reason to: paths are normalized to absolute form, and the model is frozen
-    so a binding can be shared between components and used as a dict key.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    @field_validator("path")
-    @classmethod
-    def _normalize_path(cls, v: str) -> str:
-        return _absolute_pointer(v)
+from a2ui.core.schema.common_types import DataBinding as DataBinding
 
 
 class AccessibilityAttributes(BuilderBaseModel):
@@ -168,6 +148,12 @@ class DynamicChildList(BuilderBaseModel):
     an ordinary sibling component, referenced by ID exactly like any other child.
     Authors nest the template here, and the :data:`Child` serializer resolves it
     to the ID it was allocated, so the reference cannot dangle.
+
+    ``path`` is kept exactly as written. It is usually absolute, but a template
+    nested inside another template must address its list relative to the
+    enclosing item scope — iterating ``employees`` within a loop over
+    ``/departments`` — so rewriting it to absolute would make two-level
+    collections impossible to express.
     """
 
     path: str = Field(
@@ -177,11 +163,6 @@ class DynamicChildList(BuilderBaseModel):
         serialization_alias="componentId",
         validation_alias=AliasChoices("template", "componentId"),
     )
-
-    @field_validator("path")
-    @classmethod
-    def _normalize_path(cls, v: str) -> str:
-        return _absolute_pointer(v)
 
 
 ChildList: TypeAlias = Union[Sequence[Child], DynamicChildList]

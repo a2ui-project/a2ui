@@ -8,7 +8,7 @@
           "component": "Text",
           "id": "feed_container__post_title",
           "text": {
-            "path": "/title"
+            "path": "title"
           },
           "variant": "body"
         },

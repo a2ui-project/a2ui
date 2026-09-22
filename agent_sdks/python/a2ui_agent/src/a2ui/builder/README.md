@@ -69,13 +69,18 @@ update = update_components("surface_main", root=tree)
 
 ### Data bindings
 
-`DataBinding` constructs dynamic references to client data model paths. Its `path` field is normalised to the absolute form the wire requires, so a leading slash is optional:
+`DataBinding` constructs dynamic references to client data model paths. The path is emitted exactly as written, because the leading slash is meaningful:
+
+- **Absolute** (`/user/status`) resolves from the root of the data model, wherever the component is rendered.
+- **Relative** (`status`) resolves against the enclosing scope. A `DynamicChildList` template creates one scope per item, so a relative path addresses the current item.
 
 ```python
 from a2ui.builder.v0_9 import DataBinding
 
 status_text = Text(text=DataBinding(path="/user/status"), variant="caption")
 ```
+
+> Because both forms are preserved, a template's children can bind to their own item with `DataBinding(path="title")` while still reaching global state with `DataBinding(path="/account/plan")`.
 
 When serialized, this emits the standard binding object:
 
