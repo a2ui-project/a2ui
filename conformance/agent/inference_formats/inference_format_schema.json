@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/conformance/inference_formats/inference_format_schema.json",
+  "$id": "https://a2ui.org/conformance/agent/inference_formats/inference_format_schema.json",
   "title": "A2UI Inference Format Conformance Test Suite Schema",
   "type": "array",
   "items": {

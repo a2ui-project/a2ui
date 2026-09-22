@@ -54,18 +54,18 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 - `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
 - `extensions/adk/adk_extensions.yaml`: Contains test cases for ADK extensions and RPC handling.
 
-### Inference Formats (`inference_formats/`)
+### Inference Formats (`agent/inference_formats/`)
 
-- `inference_formats/inference_format_schema.json`: JSON Schema defining the structure of inference format conformance test suites (supporting `compile`, `decompile`, `round_trip`, and `generate_prompt` actions).
-- `inference_formats/round_trip.yaml`: Format-independent round-trip tests verifying semantic fidelity across compilation and decompilation.
-- `inference_formats/express/compile.yaml`: Express-specific compilation tests (components, checks, format strings, actions, functions, templates, surface directives, version targets v0.9/v0.9.1/v1.0, and syntax errors).
-- `inference_formats/express/decompile.yaml`: Express-specific decompilation tests (messages, functions, actions, expressions, checks, directives, and string escaping).
-- `inference_formats/express/prompt_generation.yaml`: Express-specific prompt generation tests (rules, component signatures, pruning, custom rules, and examples transformation).
-- `inference_formats/express/specification_examples.yaml`: Golden compilation tests mapping human-authored Express examples (`specification/proposals/express/examples/*.a2ui`) to their JSON counterparts (`specification/v1_0/catalogs/basic/examples/*.json`).
+- `agent/inference_formats/inference_format_schema.json`: JSON Schema defining the structure of inference format conformance test suites (supporting `compile`, `decompile`, `round_trip`, and `generate_prompt` actions).
+- `agent/inference_formats/round_trip.yaml`: Format-independent round-trip tests verifying semantic fidelity across compilation and decompilation.
+- `agent/inference_formats/express/compile.yaml`: Express-specific compilation tests (components, checks, format strings, actions, functions, templates, surface directives, version targets v0.9/v0.9.1/v1.0, and syntax errors).
+- `agent/inference_formats/express/decompile.yaml`: Express-specific decompilation tests (messages, functions, actions, expressions, checks, directives, and string escaping).
+- `agent/inference_formats/express/prompt_generation.yaml`: Express-specific prompt generation tests (rules, component signatures, pruning, custom rules, and examples transformation).
+- `agent/inference_formats/express/specification_examples.yaml`: Golden compilation tests mapping human-authored Express examples (`specification/proposals/express/examples/*.a2ui`) to their JSON counterparts (`specification/v1_0/catalogs/basic/examples/*.json`).
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 
-`conformance_schema.json` at the root is the JSON schema that validates the structure of general YAML test files, and `inference_formats/inference_format_schema.json` validates inference format test suites.
+`conformance_schema.json` at the root is the JSON schema that validates the structure of general YAML test files, and `agent/inference_formats/inference_format_schema.json` validates inference format test suites.
 
 ## Usage in SDKs
 

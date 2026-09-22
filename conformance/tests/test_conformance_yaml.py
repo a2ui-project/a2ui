@@ -35,20 +35,26 @@ SCHEMA_PATH = os.path.join(CONFORMANCE_DIR, "conformance_schema.json")
 SCHEMA = load_json_file(SCHEMA_PATH)
 
 INFERENCE_FORMAT_SCHEMA_PATH = os.path.join(
-    CONFORMANCE_DIR, "inference_formats", "inference_format_schema.json"
+    CONFORMANCE_DIR, "agent", "inference_formats", "inference_format_schema.json"
 )
 INFERENCE_FORMAT_SCHEMA = load_json_file(INFERENCE_FORMAT_SCHEMA_PATH)
 
 
 def get_yaml_test_params():
     params = []
+    inf_dir = os.path.join(CONFORMANCE_DIR, "agent", "inference_formats")
+    inf_pattern = os.path.join(inf_dir, "**", "*.yaml")
+    inf_files = set(glob.glob(inf_pattern, recursive=True))
+
     for domain in ["core", "agent", "extensions"]:
         pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
         for f in glob.glob(pattern, recursive=True):
-            params.append((f, SCHEMA))
-    inf_pattern = os.path.join(CONFORMANCE_DIR, "inference_formats", "**", "*.yaml")
-    for f in glob.glob(inf_pattern, recursive=True):
+            if f not in inf_files:
+                params.append((f, SCHEMA))
+
+    for f in sorted(inf_files):
         params.append((f, INFERENCE_FORMAT_SCHEMA))
+
     return sorted(params, key=lambda x: x[0])
 
 

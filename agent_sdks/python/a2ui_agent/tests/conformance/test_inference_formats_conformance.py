@@ -49,7 +49,7 @@ REPO_ROOT = os.path.abspath(
     )
 )
 CONFORMANCE_DIR = os.path.join(REPO_ROOT, "conformance")
-INFERENCE_FORMATS_DIR = os.path.join(CONFORMANCE_DIR, "inference_formats")
+INFERENCE_FORMATS_DIR = os.path.join(CONFORMANCE_DIR, "agent", "inference_formats")
 
 CATEGORY_TO_EXCEPTION = {
     "ParseError": A2uiParseError,
