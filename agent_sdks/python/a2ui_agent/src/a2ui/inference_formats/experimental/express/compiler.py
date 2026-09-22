@@ -72,11 +72,14 @@ def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
     current[keys[-1]] = val
 
 
-def _schema_allows_databinding(schema: Any) -> bool:
+def _schema_allows_databinding(
+    schema: Any, helper: Optional[CatalogSchemaHelper] = None
+) -> bool:
     """Recursively checks if a property's schema allows a dynamic DataBinding ref.
 
     Args:
         schema: The JSON schema dict for the target property.
+        helper: Optional CatalogSchemaHelper for resolving local $defs.
 
     Returns:
         True if the schema permits dynamic databinding; False otherwise.
@@ -87,16 +90,20 @@ def _schema_allows_databinding(schema: Any) -> bool:
         ref = schema["$ref"]
         if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
             return True
+        if helper and isinstance(ref, str) and ref.startswith("#/$defs/"):
+            resolved = helper.resolve_ref(schema)
+            if resolved != schema:
+                return _schema_allows_databinding(resolved, helper)
     if "properties" in schema and "path" in schema["properties"]:
         if "componentId" not in schema["properties"]:
             return True
     if "items" in schema:
-        if _schema_allows_databinding(schema["items"]):
+        if _schema_allows_databinding(schema["items"], helper):
             return True
     for key in ["allOf", "oneOf", "anyOf"]:
         if key in schema and isinstance(schema[key], list):
             for sub in schema[key]:
-                if _schema_allows_databinding(sub):
+                if _schema_allows_databinding(sub, helper):
                     return True
     return False
 
@@ -121,16 +128,28 @@ def _has_databinding(v: Any) -> bool:
     return False
 
 
-def _schema_expects_option_objects(schema: Any) -> bool:
+def _schema_expects_option_objects(
+    schema: Any, helper: Optional[CatalogSchemaHelper] = None
+) -> bool:
     """Checks if a property's schema expects a list of objects with label/value properties."""
     if not isinstance(schema, dict):
         return False
+    if "$ref" in schema and helper:
+        ref = schema["$ref"]
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            resolved = helper.resolve_ref(schema)
+            if resolved != schema:
+                return _schema_expects_option_objects(resolved, helper)
     if "items" in schema:
         items_schema = schema["items"]
+        if helper:
+            items_schema = helper.resolve_ref(items_schema)
 
         def has_label_value(sub: Any) -> bool:
             if not isinstance(sub, dict):
                 return False
+            if helper and "$ref" in sub:
+                sub = helper.resolve_ref(sub)
             if (
                 "properties" in sub
                 and "label" in sub["properties"]
@@ -146,7 +165,7 @@ def _schema_expects_option_objects(schema: Any) -> bool:
         return has_label_value(items_schema)
     for key in ["allOf", "oneOf", "anyOf"]:
         if key in schema and isinstance(schema[key], list):
-            if any(_schema_expects_option_objects(sub) for sub in schema[key]):
+            if any(_schema_expects_option_objects(sub, helper) for sub in schema[key]):
                 return True
     return False
 
@@ -544,11 +563,13 @@ class ExpressCompiler:
                 is_action=(prop_name in ["action", "submitAction"]),
             )
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
-            if prop_schema and not _schema_allows_databinding(prop_schema):
+            if prop_schema and not _schema_allows_databinding(
+                prop_schema, self.helper
+            ):
                 if _has_databinding(mapped_val):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
                 if isinstance(mapped_val, list) and _schema_expects_option_objects(
-                    prop_schema
+                    prop_schema, self.helper
                 ):
                     mapped_val = [
                         {"label": opt, "value": opt} if isinstance(opt, str) else opt

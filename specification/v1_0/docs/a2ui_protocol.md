@@ -558,12 +558,13 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - **External References inside `$defs`:** Any definition referenced externally (e.g., from the envelope schema `agent_to_renderer.json` or `common_types.json`) MUST reside inside the `"$defs"` object at the catalog root. This strictly includes:
      - `anyComponent`: Referenced as `catalog.json#/$defs/anyComponent`.
      - `anyFunction`: Referenced as `catalog.json#/$defs/anyFunction`.
-2. **No Custom `$defs` or Helpers:**
-   - To prevent unconstrained branching, custom definitions or shared helper schemas inside a catalog are strictly prohibited under `"$defs"`.
-   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent` and `anyFunction`.
-   - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
+2. **Catalog-Scoped Leaf `$defs`:**
+   - Catalogs MAY define reusable leaf type definitions under `"$defs"` (such as design tokens, value unions, or reusable payload structures like `SelectOption`).
+   - Custom `$defs` MUST be leaf types only and MUST NOT define component schemas (schemas with a `"component"` discriminator property). Component definitions MUST reside directly under `"components"`.
+   - External references inside `"$defs"` (`anyComponent` and `anyFunction`) remain required for envelope composition.
 3. **Restricted `$ref` Targets:**
-   - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
+   - Component properties MAY reference catalog-scoped leaf types via `#/$defs/<TypeName>` (e.g., `"#/$defs/ColorToken"`, `"#/$defs/weight"`).
+   - Component schemas inside `anyComponent` and function schemas inside `anyFunction` reference top-level components and functions (e.g., `#/components/Text`, `#/functions/required`).
    - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `ChildList`
@@ -592,8 +593,10 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      }
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
-5. **Standard Component Structure:**
+5. **Standard Component Structure & Scoped Combinators:**
    - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Components MUST remain flat: declared as a single `type: "object"` with direct `properties`. Structural combinators (`oneOf`, `anyOf`, or non-trait `allOf`) MUST NOT be used at the component root.
+   - Combinators (`oneOf`, `anyOf`) are scoped exclusively to leaf property types (such as design token definitions or value unions in `$defs` or property schemas).
    - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
@@ -612,6 +615,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `description`
      - `catalogId`
      - `instructions`
+     - `metadata` (optional; supports `metadata.extensions` for catalog-wide extension metadata)
      - `components`
      - `functions`
      - `$defs`
@@ -635,6 +639,15 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
+  // Optional catalog-level metadata extensions
+  "metadata": {
+    "extensions": {
+      "org_example_theme": {
+        "primaryColor": "md.sys.color.primary",
+      },
+    },
+  },
+
   // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
@@ -648,6 +661,11 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         "text": {
           "$ref": "common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
+        },
+        // Leaf property referencing a catalog-scoped design token $def
+        "color": {
+          "$ref": "#/$defs/ColorToken",
+          "description": "Text color token.",
         },
         // Deprecated property.
         "rawContent": {
@@ -690,8 +708,8 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // $defs is restricted strictly to anyComponent and anyFunction.
-  // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
+  // $defs contains external references (anyComponent, anyFunction) and optional leaf definitions.
+  // Custom component definitions inside $defs are strictly prohibited.
   "$defs": {
     "anyComponent": {
       "oneOf": [
@@ -709,6 +727,21 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         {
           // Local refs restricted to top-level functions map.
           "$ref": "#/functions/required",
+        },
+      ],
+    },
+    // Catalog-scoped leaf definition (design token)
+    "ColorToken": {
+      "type": "string",
+      "description": "Design token or hex color string.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^md\\.sys\\.color\\.[a-z0-9-]+$",
+        },
+        {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
         },
       ],
     },
@@ -1530,8 +1563,9 @@ In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects 
 
 #### Wire Containers
 
-A2UI defines optional `metadata.extensions` containers across four scopes:
+A2UI defines optional `metadata.extensions` containers across five scopes:
 
+- **Catalog Scope** (`metadata.extensions` in [`catalog_definition.json`]): Attach catalog-wide styling tokens, design system metadata, or configuration directly at the catalog root.
 - **Surface Scope** (`CreateSurfaceMessage.createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
 - **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
 - **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.

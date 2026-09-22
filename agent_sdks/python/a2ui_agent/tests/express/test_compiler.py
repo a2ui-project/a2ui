@@ -685,6 +685,115 @@ root = Text("Hello Surface")"""
             envelopes[0]["createSurface"]["catalogId"], "custom-catalog-uri"
         )
 
+    def test_compilation_with_leaf_defs_and_design_tokens(self):
+        """Verifies leaf $defs, design tokens, and option objects are resolved in compiler, prompt generator, and decompiler."""
+        catalog_dict = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": "https://a2ui.org/test_tokens_catalog",
+            "metadata": {
+                "extensions": {
+                    "com_example_theme": {
+                        "colorMode": "dark"
+                    }
+                }
+            },
+            "components": {
+                "Badge": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Badge"},
+                        "label": {"type": "string"},
+                        "color": {"$ref": "#/$defs/ColorToken"},
+                        "size": {"$ref": "#/$defs/SizeToken"},
+                    },
+                    "required": ["component", "label"],
+                },
+                "OptionPicker": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "OptionPicker"},
+                        "options": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/SelectOption"},
+                        },
+                        "selected": {"type": "string"},
+                    },
+                    "required": ["component", "options"],
+                },
+            },
+            "functions": {},
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [
+                        {"$ref": "#/components/Badge"},
+                        {"$ref": "#/components/OptionPicker"},
+                    ],
+                    "discriminator": {"propertyName": "component"},
+                },
+                "anyFunction": {"oneOf": []},
+                "ColorToken": {
+                    "type": "string",
+                    "enum": ["primary", "secondary", "tertiary"],
+                },
+                "SizeToken": {
+                    "type": "string",
+                    "enum": ["small", "medium", "large"],
+                },
+                "SelectOption": {
+                    "type": "object",
+                    "properties": {
+                        "label": {"type": "string"},
+                        "value": {"type": "string"},
+                    },
+                    "required": ["label", "value"],
+                },
+            },
+        }
+        catalog = Catalog.from_json(catalog_dict, spec_version="1.0")
+        compiler = ExpressCompiler(catalog)
+
+        # 1. Compile component with design tokens
+        dsl = 'root = Badge("Verified", color="primary", size="small")'
+        envelopes = compiler.compile(dsl)
+        self.assertEqual(len(envelopes), 1)
+        comp = envelopes[0]["createSurface"]["components"][0]
+        self.assertEqual(comp["component"], "Badge")
+        self.assertEqual(comp["label"], "Verified")
+        self.assertEqual(comp["color"], "primary")
+        self.assertEqual(comp["size"], "small")
+
+        # 2. Compile with invalid token/enum value should raise ValueError
+        with self.assertRaises(ValueError) as ctx:
+            compiler.compile('root = Badge("Test", color="invalid_token")')
+        self.assertIn("is not a valid enum choice", str(ctx.exception))
+
+        # 3. Compile component with option objects resolved from $defs
+        dsl_options = 'root = OptionPicker([{"label": "One", "value": "1"}, {"label": "Two", "value": "2"}], selected="1")'
+        envelopes_opt = compiler.compile(dsl_options)
+        comp_opt = envelopes_opt[0]["createSurface"]["components"][0]
+        self.assertEqual(comp_opt["component"], "OptionPicker")
+        self.assertEqual(len(comp_opt["options"]), 2)
+        self.assertEqual(comp_opt["options"][0], {"label": "One", "value": "1"})
+
+        # 4. Verify prompt generator includes resolved token enums
+        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+        fmt = ExpressFormat(catalog=catalog)
+        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
+        self.assertIn("Badge(", prompt)
+        self.assertIn("primary", prompt)
+        self.assertIn("secondary", prompt)
+        self.assertIn("OptionPicker(", prompt)
+
+        # 5. Verify decompiler roundtrip
+        decompiler = ExpressParser(catalog)
+        decompiled = decompiler.decompile(envelopes[0])
+        self.assertEqual(
+            decompiled.strip(), 'root = Badge("Verified", "primary", "small")'
+        )
+        recompiled = compiler.compile(decompiled)
+        self.assertEqual(recompiled[0]["createSurface"]["components"][0], comp)
+
 
 if __name__ == "__main__":
     unittest.main()

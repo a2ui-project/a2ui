@@ -15,7 +15,7 @@
     },
     "$defs": {
       "type": "object",
-      "description": "Standardized schema definitions referenced from outside the catalog file.",
+      "description": "Standardized schema definitions referenced from outside the catalog file, and custom leaf definitions.",
       "properties": {
         "anyComponent": {
           "title": "A2UI Any Component Schema",
@@ -29,7 +29,9 @@
         }
       },
       "required": ["anyComponent", "anyFunction"],
-      "additionalProperties": false
+      "additionalProperties": {
+        "$ref": "#/$defs/LeafDefinition"
+      }
     },
     "title": {
       "type": "string",
@@ -42,6 +44,16 @@
     "catalogId": {
       "type": "string",
       "description": "Unique identifier for this catalog."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional catalog-level metadata.",
+      "properties": {
+        "extensions": {
+          "$ref": "common_types.json#/$defs/Extensions"
+        }
+      },
+      "additionalProperties": false
     },
     "instructions": {
       "type": "string",
@@ -160,6 +172,25 @@
       ],
       "unevaluatedProperties": false
     },
+    "LeafDefinition": {
+      "type": "object",
+      "description": "Describes a reusable leaf data type (e.g. design token, value union, or payload structure). Must not define a component schema.",
+      "allOf": [
+        {
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
+        },
+        {
+          "not": {
+            "properties": {
+              "properties": {
+                "required": ["component"]
+              }
+            },
+            "required": ["properties"]
+          }
+        }
+      ]
+    },
     "ComponentDefinition": {
       "type": "object",
       "description": "Describes a component's validation schema and composition constraints.",
@@ -196,6 +227,9 @@
               },
               "additionalProperties": false
             }
+          },
+          "not": {
+            "anyOf": [{"required": ["anyOf"]}, {"required": ["oneOf"]}]
           }
         }
       ]
