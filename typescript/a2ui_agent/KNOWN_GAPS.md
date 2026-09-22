@@ -64,6 +64,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** None; `Catalog.fromSchema` works and is actively used instead.
 - **Done looks like:** The export is properly wired in `web_core`, or the dead code is removed.
 
+### Component payloads are structurally unchecked (Sharp edge)
+
+- **What it is:** `AnyComponentSchema` is declared `z.ZodType<any>` and built with `.passthrough()` (`web_core/src/v1_0/schema/helpers.ts:95`). Validation therefore stops at the message envelope: `createSurface` and `updateComponents` are `.strict()` and reject unknown keys, but anything inside the `components` array is accepted as-is.
+- **Why it exists:** The recursive component tree is catalog-dependent, so a single static schema cannot know which props a given `component` permits.
+- **What it risks:** A misspelled or invented component prop passes both the TypeScript compiler and `MessageProcessor.processMessages` without complaint, and only fails at the renderer — or renders silently wrong. Typing example payloads as `AgentToRendererMessage[]` buys envelope-level safety only; do not read a passing typecheck as proof that component props are correct.
+- **Done looks like:** Component payloads are validated against the negotiated catalog's per-component Zod schemas, rather than a permissive `any` passthrough.
+
 ## 3. Specification & Blueprints
 
 ### Truncation signal lost at compile boundary (Sharp edge)
@@ -109,3 +116,19 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** A bug in the upstream Python implementation. Our TypeScript `hasA2uiParts` correctly parses the block and requires a closed tag.
 - **What it risks:** The Python reference implementation is failing a conformance contract that we pass.
 - **Done looks like:** Python's `parser.py` is patched to match the conformance suite.
+
+## 5. Node Sample (`samples/agent/node/restaurant_finder`)
+
+### Only the first streamed message reaches the client (Sharp edge)
+
+- **What it is:** `@a2a-js/sdk` terminates the SSE stream on the first `message` event it sees (`dist/server/index.js:290` — `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample publishes one `message` per healed chunk, so with a live model only the first is delivered; the rest, and the terminal `completed`/`failed` status, are published to the bus but never reach the wire.
+- **Why it exists:** The A2A event contract treats a `Message` as a terminal response. Progressive output is expected to travel as non-final `status-update` events carrying a `status.message`, not as repeated top-level `message` events.
+- **What it risks:** Stub mode emits exactly one message, so the sample looks correct in the only mode that runs without an API key. The defect appears only against a real model, which is the harder case to notice. It also means the post-hoc validation failure is invisible to the client.
+- **Done looks like:** Progressive chunks are published as non-final `TaskStatusUpdateEvent`s with the payload in `status.message`, reserving a terminal event for the end of the turn.
+
+### `@google/adk` cannot be used in this monorepo
+
+- **What it is:** `@google/adk@2.1.0` requires `zod ^4.2.1`. The root `resolutions` block pins `zod` to `^3.25.76`, so ADK fails at import time with `z.object(...).loose is not a function`. The sample uses `@google/genai` directly instead, losing the structural parallel with the Python ADK sample.
+- **Why it exists:** `web_core` is built on Zod 3 APIs, and the v1.0 catalog that `@a2ui/agent` consumes is a tree of Zod 3 `ZodObject`s that web_core converts to JSON Schema for the prompt. The Zod major is load-bearing for the agent-side path, so the pin cannot simply be relaxed.
+- **What it risks:** Any future JavaScript sample or downstream consumer wanting ADK hits the same wall. Working around it means either carrying two Zod majors and guaranteeing they never meet, or migrating `web_core` to Zod 4.
+- **Done looks like:** `web_core` is migrated to Zod 4 and the root pin is lifted, at which point ADK becomes usable and the Node sample can mirror the Python one.
