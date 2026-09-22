@@ -62,13 +62,18 @@ export {CatalogConfig} from './processor/catalog_config.js';
 
 export {resolveCatalogs} from './utils/catalog_resolver.js';
 
-// TODO(Phase 2): Direct JSON format
-// export {DirectJsonFormat, DirectJsonFormatFactory} from './inference_formats/direct_json/format.js';
-// export {DirectJsonParser} from './inference_formats/direct_json/parser.js';
-// export {DirectJsonStreamProcessor} from './inference_formats/direct_json/streaming.js';
-// export {DirectJsonPromptGenerator} from './inference_formats/direct_json/prompt_generator.js';
-// export {DirectJsonDecompiler} from './inference_formats/direct_json/decompiler.js';
+// Direct JSON inference format
+export {DirectJsonFormat, DirectJsonFormatFactory} from './inference_formats/direct_json/format.js';
+export {DirectJsonParser} from './inference_formats/direct_json/parser.js';
+export type {
+  DirectJsonStreamProcessorFactory,
+  DirectJsonStreamProcessorOptions,
+  DirectJsonStreamProcessor,
+} from './inference_formats/direct_json/streaming_types.js';
+export {DirectJsonStreamProcessorImpl} from './inference_formats/direct_json/streaming.js';
+export {DirectJsonPromptGenerator} from './inference_formats/direct_json/prompt_generator.js';
+export {DirectJsonDecompiler} from './inference_formats/direct_json/decompiler.js';
 
-// TODO(Phase 3): Facades
-// export {A2uiGenerator} from './processor/generator.js';
-// export {A2uiRequestProcessor} from './processor/processor.js';
+// Facades
+export {A2uiGenerator} from './processor/generator.js';
+export {A2uiRequestProcessor} from './processor/processor.js';
