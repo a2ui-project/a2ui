@@ -29,6 +29,7 @@ import {
 } from '../../src/index.js';
 import {V10RendererCapabilities} from '../../src/internal/web_core.js';
 import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.js';
+import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
 
 import {parseAndFix} from '../../src/parser/payload_fixer.js';
 
@@ -61,7 +62,9 @@ function adaptParts(parts: ResponsePart[]): Record<string, unknown>[] {
     if (part.type === 'text') {
       pendingText += part.text;
     } else if (part.type === 'a2ui') {
-      result.push({text: pendingText, a2ui: part.a2ui});
+      const adapted: any = {a2ui: part.a2ui};
+      if (pendingText) adapted.text = pendingText;
+      result.push(adapted);
       pendingText = '';
     }
   }
@@ -108,7 +111,7 @@ describe('Conformance Harness', () => {
           const expectedParts = expected as Record<string, unknown>[];
           expect(adapted.length).toBe(expectedParts.length);
           for (let i = 0; i < adapted.length; i++) {
-            expect((adapted[i].text as string).trim()).toBe(
+            expect(((adapted[i].text as string) || '').trim()).toBe(
               ((expectedParts[i].text as string) || '').trim(),
             );
             expect(adapted[i].a2ui).toEqual(expectedParts[i].a2ui);
@@ -207,7 +210,25 @@ describe('Conformance Harness', () => {
           }
         }
       } else if (action === 'process_chunk') {
-        throw new Error('Should not be executed');
+        const catalogConfig = testCase.catalog
+          ? await createCatalogConfig(testCase.catalog as Record<string, unknown>)
+          : undefined;
+        const catalog = catalogConfig?.catalog || basicCatalog();
+        const processor = new DirectJsonStreamProcessorImpl(catalog, {
+          progressiveKeys: ['text', 'literalString'],
+        });
+
+        for (const step of testCase.steps as any[]) {
+          if (step.expectError) {
+            assertThrows(() => processor.processChunk(step.input), step.expectError);
+          } else if (step.expect) {
+            const result = processor.processChunk(step.input);
+            const adapted = adaptParts(result);
+            expect(adapted).toEqual(step.expect);
+          } else {
+            processor.processChunk(step.input);
+          }
+        }
       } else if (action === 'generate_prompt' || action === 'skill') {
         throw new Error('Should not be executed');
       }
@@ -215,8 +236,6 @@ describe('Conformance Harness', () => {
 
     if (!verdict.runnable) {
       test.skip(`${testName} (${verdict.reason})`, testFn);
-    } else if (action === 'process_chunk') {
-      test.skip(`${testName} (pending Phase 2B)`, testFn);
     } else {
       test(testName, testFn);
     }
