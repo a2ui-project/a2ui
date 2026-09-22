@@ -207,6 +207,6 @@ compiler = ExpressCompiler(catalog=catalog, surface_id="main", version="v1.0")
 wire_messages = compiler.compile(llm_output_text)
 ```
 
-See [Inference Formats](../concepts/inference-formats.md) and the [Express Technical Specification](https://github.com/a2ui-project/a2ui/blob/main/specification/inference_formats/express/a2ui_express.md) for details.
+See [Inference Formats](../concepts/inference-formats.md) and the [Express Technical Specification](../../../specification/inference_formats/express/a2ui_express.md) for details.
 
 TODO: Continue this guide with examples of how to parse, validate, and send the output to the client renderer without the A2A extension.

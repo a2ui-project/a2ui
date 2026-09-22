@@ -88,7 +88,7 @@ wire_messages = compiler.compile(llm_output_text)
 
 ## Further Reading
 
-- [A2UI Express Technical Specification](https://github.com/a2ui-project/a2ui/blob/main/specification/inference_formats/express/a2ui_express.md)
-- [Express ANTLR Grammar (Express.g4)](https://github.com/a2ui-project/a2ui/blob/main/specification/inference_formats/express/Express.g4)
-- [Express Developer Guide & Benchmarks](https://github.com/a2ui-project/a2ui/blob/main/specification/inference_formats/express/README.md)
+- [A2UI Express Technical Specification](../../../specification/inference_formats/express/a2ui_express.md)
+- [Express ANTLR Grammar (Express.g4)](../../../specification/inference_formats/express/Express.g4)
+- [Express Developer Guide & Benchmarks](../../../specification/inference_formats/express/README.md)
 - [Agent Development Guide](../guides/agent-development.md)

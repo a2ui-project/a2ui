@@ -167,4 +167,4 @@ uv run scripts/recreate_dsl_examples.py
 - [ANTLR Grammar (Express.g4)](Express.g4)
 - [DSL Examples & Prompt Contract](express_dsl_examples.md)
 - [Surface Design Patterns](create_surface_design.md)
-- [Feature Blueprint](../../blueprints/features/express_inference_format.blueprint.md)
+- [Feature Blueprint](../../../blueprints/features/express_inference_format.blueprint.md)
