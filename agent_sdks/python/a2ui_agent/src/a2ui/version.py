@@ -12,13 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# File-based dynamic versioning
-# - The next release version
-# - Version format: major.minor.patch
-# - Update the version in this file before releasing
-#
-# TODO:
-#   Switch to VCS-based versioning which derives version
-#   from Git tags automatically with the hatch-vcs plugin
-#   when we start using Git tags.
-__version__ = "0.6.0"
+"""Version of the ``a2ui-agent-sdk`` package.
+
+The version is no longer stored here. It is derived from the
+``python/a2ui-agent-sdk/v*`` git tags at build time by hatch-vcs and baked into
+the distribution metadata, which this module reads back. To release a new
+version, see ``docs/contributing/release.md``; do not hand-edit a version
+string.
+
+``UNKNOWN_VERSION`` is returned when the package is not installed, which happens
+when importing straight from a source checkout.
+"""
+
+from importlib.metadata import PackageNotFoundError, version
+
+UNKNOWN_VERSION = "0.0.0+unknown"
+
+try:
+    __version__ = version("a2ui-agent-sdk")
+except PackageNotFoundError:
+    __version__ = UNKNOWN_VERSION
+
+__all__ = ["__version__", "UNKNOWN_VERSION"]

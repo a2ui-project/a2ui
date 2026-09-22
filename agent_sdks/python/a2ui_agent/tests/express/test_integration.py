@@ -33,8 +33,13 @@ SPEC_DIR = os.path.abspath(
         os.path.dirname(__file__), "..", "..", "..", "..", "..", "specification", "v1_0"
     )
 )
-CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
-EXAMPLES_DIR = os.path.join(SPEC_DIR, "catalogs", "basic", "examples")
+CATALOGS_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__), "..", "..", "..", "..", "..", "catalogs", "basic"
+    )
+)
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
+EXAMPLES_DIR = os.path.join(CATALOGS_DIR, "v1", "examples")
 
 
 class TestExpressIntegration(unittest.TestCase):
