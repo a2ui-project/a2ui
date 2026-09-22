@@ -1154,6 +1154,43 @@ describe('MessageProcessor', () => {
         },
       );
     });
+
+    it('resolves callRendererFunction against a secondary catalog in availableCatalogs', async () => {
+      const fnCatalog = new Catalog(
+        'cat-fn',
+        '1.0',
+        [],
+        [
+          {
+            name: 'computeGreeting',
+            returnType: 'string',
+            allowedCallers: 'rendererOrAgent',
+            schema: z.object({user: z.string()}),
+            execute: args => `Hi ${args.user}`,
+          },
+        ],
+      );
+      const processor = new MessageProcessor([basicCat, fnCatalog]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      const responses = await processor.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-1',
+          callFunction: {
+            call: 'computeGreeting',
+            catalogId: 'cat-fn',
+            args: {user: 'Alice'},
+          },
+        },
+      });
+
+      assert.strictEqual(responses.length, 1);
+      assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Hi Alice');
+    });
   });
 
   describe('MessageProcessor Full Pipeline & Validation Integration', () => {

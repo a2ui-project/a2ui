@@ -512,21 +512,42 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param op The internal operation to execute.
    * @param context Contextual execution options.
    */
+  private resolveRpcDataContext(op: {catalogId?: string; functionCallId?: string}): DataContext {
+    const targetCatalog =
+      (op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined) ??
+      this.catalogs[0];
+    const surface =
+      (op.catalogId
+        ? Array.from(this.model.surfacesMap.values()).find(
+            s => s.defaultCatalog?.id === op.catalogId || s.availableCatalogs?.has(op.catalogId!),
+          )
+        : undefined) ?? this.model.surfacesMap.values().next().value;
+    if (surface) {
+      return new DataContext(surface, '/');
+    }
+    const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
+    const availableCatalogs = new Map<string, Catalog<T>>();
+    for (const cat of this.catalogs) {
+      if (
+        targetCatalog?.protocolVersion &&
+        cat.protocolVersion &&
+        isCatalogVersionCompatible(targetCatalog.protocolVersion, cat.protocolVersion)
+      ) {
+        availableCatalogs.set(cat.id, cat);
+      }
+    }
+    if (targetCatalog) {
+      availableCatalogs.set(targetCatalog.id, targetCatalog);
+    }
+    return new DataContext(
+      new SurfaceModel(fallbackSurfaceId, targetCatalog, availableCatalogs),
+      '/',
+    );
+  }
+
   processOperation(op: InternalOperation, context?: ExecutionContext): void {
     if (op.type === 'callRendererFunction') {
-      const targetCatalog =
-        (op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined) ??
-        this.catalogs[0];
-      const surface =
-        (op.catalogId
-          ? Array.from(this.model.surfacesMap.values()).find(
-              s => s.defaultCatalog?.id === op.catalogId,
-            )
-          : undefined) ?? this.model.surfacesMap.values().next().value;
-      const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
-      const dataContext = surface
-        ? new DataContext(surface, '/')
-        : new DataContext(new SurfaceModel(fallbackSurfaceId, targetCatalog), '/');
+      const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
         version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
@@ -553,19 +574,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage | null> {
     if (op.type === 'callRendererFunction') {
-      const targetCatalog =
-        (op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined) ??
-        this.catalogs[0];
-      const surface =
-        (op.catalogId
-          ? Array.from(this.model.surfacesMap.values()).find(
-              s => s.defaultCatalog?.id === op.catalogId,
-            )
-          : undefined) ?? this.model.surfacesMap.values().next().value;
-      const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
-      const dataContext = surface
-        ? new DataContext(surface, '/')
-        : new DataContext(new SurfaceModel(fallbackSurfaceId, targetCatalog), '/');
+      const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
         version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',

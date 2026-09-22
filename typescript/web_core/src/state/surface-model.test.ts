@@ -76,8 +76,9 @@ describe('SurfaceModel', () => {
     assert.strictEqual(surface.catalog, catalog);
   });
 
-  it('defaults availableCatalogs to empty when none are supplied', () => {
-    assert.strictEqual(surface.availableCatalogs.size, 0);
+  it('seeds defaultCatalog into availableCatalogs when none are supplied', () => {
+    assert.strictEqual(surface.availableCatalogs.size, 1);
+    assert.strictEqual(surface.availableCatalogs.get(catalog.id), catalog);
   });
 
   it('exposes the catalogs it was constructed with', () => {
@@ -171,5 +172,10 @@ describe('SurfaceModel', () => {
     await surface.dispatchAction({event: {}}, 'c1');
     await surface.dispatchAction({event: {name: 123}}, 'c1');
     assert.strictEqual(actions.length, 0);
+  });
+
+  it('automatically seeds defaultCatalog into availableCatalogs when omitted', () => {
+    const standaloneSurface = new SurfaceModel('s-standalone', catalog);
+    assert.strictEqual(standaloneSurface.availableCatalogs.get(catalog.id), catalog);
   });
 });

@@ -27,7 +27,7 @@ export interface ComponentChildRefs {
   readonly listRefs: ReadonlySet<string>;
   /**
    * For list properties whose items are structured objects, the item sub-keys
-   * that hold a single child reference.
+   * that hold a single child reference or a child list reference.
    *
    * Keys are property names that also appear in {@link listRefs}. A property is
    * absent when its items are plain references rather than objects, or when the

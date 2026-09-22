@@ -92,14 +92,21 @@ export class SurfaceModel<
    * @param dataModel Optional custom DataModel instance. If provided, the SurfaceModel assumes
    *   full ownership of its lifecycle and will dispose it when dispose() is called.
    */
+  readonly availableCatalogs: ReadonlyMap<string, Catalog<T, F>>;
+
   constructor(
     readonly id: string,
     readonly defaultCatalog: Catalog<T, F>,
-    readonly availableCatalogs: ReadonlyMap<string, Catalog<T, F>> = new Map(),
+    availableCatalogs: ReadonlyMap<string, Catalog<T, F>> = new Map(),
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
     dataModel?: DataModel,
   ) {
+    const catalogs = new Map(availableCatalogs);
+    if (defaultCatalog?.id && !catalogs.has(defaultCatalog.id)) {
+      catalogs.set(defaultCatalog.id, defaultCatalog);
+    }
+    this.availableCatalogs = catalogs;
     this.dataModel = dataModel ?? new DataModel({});
     this.componentsModel = new SurfaceComponentsModel(defaultCatalog);
   }

@@ -290,6 +290,7 @@ export class DataContext {
         args,
         abortController.signal,
         call.catalogId,
+        targetCatalog.invoker,
       );
 
       if (result === undefined) {
@@ -418,6 +419,7 @@ export class DataContext {
           {},
           abortController.signal,
           call.catalogId,
+          targetCatalog.invoker,
         );
         const sig = isSignal(result) ? result : signal(result as V);
         sig.unsubscribe = () => abortController.abort();
@@ -453,6 +455,7 @@ export class DataContext {
             args,
             abortController.signal,
             call.catalogId,
+            targetCatalog.invoker,
           );
 
           if (isSignal(res)) {
@@ -540,11 +543,13 @@ export class DataContext {
     args: Record<string, unknown>,
     abortSignal?: AbortSignal,
     catalogId?: string,
+    resolvedInvoker?: FunctionInvoker,
   ): Signal<V> | V {
     const invoker =
-      catalogId === undefined
+      resolvedInvoker ??
+      (catalogId === undefined
         ? this.functionInvoker
-        : this.resolveFunctionCatalog(catalogId).invoker;
+        : this.resolveFunctionCatalog(catalogId).invoker);
     try {
       return invoker(name, args, this, abortSignal);
     } catch (e: unknown) {
