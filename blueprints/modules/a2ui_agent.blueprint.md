@@ -30,8 +30,8 @@ graph TD
     Facade["High-Level Application Facade<br/>(A2uiGenerator / A2uiRequestProcessor)"]
     Transformers["Catalog Transformers<br/>(Component / Function Allowlist Rules)"]
     Formats["Inference Formats<br/>(DirectJson / Express / More to be added)"]
-    Parsers["Parser Engine<br/>(Unwrap, Compile, parse_response, parse_chunk)"]
-    CoreModels["Core Data Models & Validation<br/>(a2ui_core Catalog & A2uiValidator)"]
+    Parsers["Parser Engine<br/>(wrap, unwrap, compile, decompile, parse_response, parse_chunk)"]
+    CoreModels["Core Data Models & Validation<br/>(a2ui_core Catalog, MessageProcessor & PayloadValidator)"]
 
     Facade --> Transformers
     Facade --> Formats
@@ -46,10 +46,10 @@ graph TD
    - **Catalog Transformers**: Standalone rule sets (`CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`) for filtering component definitions and function signatures from pristine catalogs.
    - **Inference Formats**: Strategy facades (`InferenceFormat`, `InferenceFormatFactory`) pairing format-specific prompt generators (`PromptGenerator`) and parsers (`Parser`). Supported strategies include `DirectJsonFormat` and `ExpressFormat`.
    - **Prompt Generators**: Format builders consuming transformed catalogs and prompt examples to generate system instruction snippets.
-   - **Parsers**: Response extraction engines performing tag unwrapping (`unwrap`), streaming chunk processing (`parse_chunk`), syntax compilation (`compile`) and decompilation (`decompile`).
-   - **Validation Layer**: Leverages core `A2uiValidator` capabilities directly from `a2ui_core`, natively supporting protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`).
+   - **Parsers**: Response extraction engines performing tag detection (`has_format_content`), tag unwrapping (`unwrap`) and wrapping (`wrap`), syntax compilation (`compile`) and decompilation (`decompile`). A format whose notation can be read incrementally also implements streaming chunk processing (`parse_chunk`).
+   - **Validation Layer**: Reaches `a2ui_core` validation through `MessageProcessor`, which holds every active catalog, resolves each item to the catalog it belongs to, and delegates the item to that catalog's `PayloadValidator`. Protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`) is handled by the core version adapters.
 2. **Encapsulated Application Processor**:
-   - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
+   - `CatalogConfig`: Configuration dataclass pairing a resolved `Catalog` with the custom transformers to apply to it. A `CatalogProvider` (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`) is how a catalog document becomes that `Catalog`, but the config holds the result rather than the provider.
    - `A2uiGenerator`: Agent-level lifecycle manager holding supported `CatalogConfig`s, generating pre-negotiated `A2uiRequestProcessor` instances per renderer capability signature.
    - `A2uiRequestProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, turn-scoped parser creation, and response validation.
 
@@ -60,7 +60,7 @@ graph TD
 All SDK implementations of `a2ui_agent` must maintain a standardized directory layout similar to the Python SDK under `python/a2ui_agent/`.
 
 ```
-a2ui/agent/
+a2ui_agent/
 ├── processor/                 # High-level application facade package
 │   ├── catalog_config         # CatalogConfig structure for catalog registration
 │   ├── processor              # A2uiRequestProcessor facade implementation
@@ -71,8 +71,7 @@ a2ui/agent/
 │   ├── direct_json/           # Self-contained Direct JSON format package
 │   │   ├── format             # DirectJsonFormat, DirectJsonFormatFactory
 │   │   ├── prompt_generator   # DirectJsonPromptGenerator
-│   │   ├── parser             # DirectJsonParser class
-│   │   └── streaming          # DirectJsonStreamProcessor class
+│   │   └── parser             # DirectJsonParser class, including parse_chunk streaming
 │   └── express/               # Self-contained Express DSL format package
 │       ├── format             # ExpressFormat, ExpressFormatFactory
 │       ├── compiler           # ExpressCompiler class
@@ -126,7 +125,7 @@ Prunes catalog component definitions to an allowlist of allowed components.
 class ComponentPruningTransformer(CatalogTransformer):
     """Prunes catalog component definitions to an allowlist of allowed components."""
 
-    def __init__(self, allowed_components: List[str]):
+    def __init__(self, allowed_components: Sequence[str]):
         self.allowed_components = set(allowed_components)
 
     def transform(
@@ -144,7 +143,7 @@ Prunes catalog function definitions to an allowlist of allowed renderer-side val
 class FunctionPruningTransformer(CatalogTransformer):
     """Prunes catalog function definitions to an allowlist of allowed functions."""
 
-    def __init__(self, allowed_functions: List[str]):
+    def __init__(self, allowed_functions: Sequence[str]):
         self.allowed_functions = set(allowed_functions)
 
     def transform(
@@ -168,15 +167,17 @@ class PromptGenerator(ABC):
 
     Attributes:
         catalogs: List of active Catalog instances to include in the system instructions.
-        examples: Optional mapping of prompt example turns. The dictionary key is a description
-            of the example turn, and the value is a list of AgentToRendererMessage objects
-            representing the expected A2UI payload for that turn.
+        examples: Optional ordered list of prompt example turns. Each item is the list of
+            AgentToRendererMessage objects making up one example turn, rendered into the
+            snippet in the order given. An example carries no label of its own: what the
+            model learns from it is the payload, so a description would be the prompt
+            author's prose rather than part of the contract.
     """
 
     def __init__(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
     ):
         self.catalogs = catalogs
         self.examples = examples
@@ -233,7 +234,7 @@ class A2uiPart:
     Attributes:
         a2ui: List of validated AgentToRendererMessage objects to deliver to client renderers.
     """
-    a2ui: List[AgentToRendererMessage]
+    a2ui: list[AgentToRendererMessage]
 
 ResponsePart = Union[TextPart, A2uiPart]
 ```
@@ -251,11 +252,30 @@ class Parser(ABC):
     """
 
     @abstractmethod
-    def wrap(self, blocks: List[RawResponsePart]) -> str:
-        """Converts a list of RawResponseParts to a string, adding enclosing tags or markers around each raw A2UI section and concatenating conversational text parts."""
+    def has_format_content(self, content: str, complete: bool = False) -> bool:
+        """Reports whether the content carries a block written in this format.
+
+        A caller uses this to decide whether a response is this format's business at all,
+        without paying for a parse. It reads the sentinel tags only and never compiles.
+
+        Args:
+            content: Raw string response emitted by the LLM, possibly partial.
+            complete: Whether to require a closed block. False matches an opening tag on
+                its own, which is what a streaming caller needs to know it has started
+                receiving a payload.
+
+        Returns:
+            True when the content carries a block belonging to this format.
+        """
         pass
 
-    def unwrap(self, content: str) -> List[RawResponsePart]:
+    @abstractmethod
+    def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
+        """Converts a sequence of RawResponseParts to a string, adding enclosing tags or markers around each raw A2UI section and concatenating conversational text parts."""
+        pass
+
+    @abstractmethod
+    def unwrap(self, content: str) -> list[RawResponsePart]:
         """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
 
         Args:
@@ -268,7 +288,7 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def compile(self, format_content: str) -> List[AgentToRendererMessage]:
+    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Compiles a raw format content string into a list of validated A2UI message structures.
 
         Args:
@@ -280,7 +300,7 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def decompile(self, a2ui_payload: List[AgentToRendererMessage]) -> str:
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles structured A2UI payload messages into this format's raw notation.
 
         Args:
@@ -291,7 +311,7 @@ class Parser(ABC):
         """
         pass
 
-    def parse_response(self, content: str, wrapped: bool = True) -> List[ResponsePart]:
+    def parse_response(self, content: str, wrapped: bool = True) -> list[ResponsePart]:
         """Generic non-streaming response parsing. Unwraps raw LLM text and compiles valid A2UI payloads,
         preserving the exact chronological order of conversational text and A2UI payload blocks.
 
@@ -304,7 +324,7 @@ class Parser(ABC):
         """
         if wrapped:
             parts = self.unwrap(content)
-            result: List[ResponsePart] = []
+            result: list[ResponsePart] = []
             for raw_part in parts:
                 if isinstance(raw_part.part, TextPart):
                     result.append(raw_part.part)
@@ -314,9 +334,24 @@ class Parser(ABC):
             return result
         return [A2uiPart(a2ui=self.compile(content))]
 
-    @abstractmethod
-    def parse_chunk(self, chunk: str, wrapped: bool = True) -> List[ResponsePart]:
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this parser can read a response incrementally through parse_chunk.
+
+        A format can only stream if a partial block already means something. Direct JSON
+        can, because an unfinished object can be healed and re-read as it grows. Express
+        cannot: its notation resolves references across the whole block, so a block is
+        read once it is closed and not before. A parser that returns False here buffers
+        the response and is parsed whole through parse_response.
+        """
+        return False
+
+    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
         """Processes streaming response chunks incrementally.
+
+        Implemented only by parsers whose supports_streaming is True. The default refuses,
+        so that a caller handed a non-streaming parser fails at the call rather than
+        silently receiving nothing.
 
         Args:
             chunk: Incremental text chunk received from the LLM stream.
@@ -324,25 +359,46 @@ class Parser(ABC):
 
         Returns:
             List of newly parsed ResponsePart objects (incremental delta) extracted since the last chunk.
+
+        Raises:
+            NotImplementedError: If this format does not support streaming.
         """
-        pass
+        raise NotImplementedError
 ```
 
 ---
 
 ### D. Validation Layer
 
-Validation is handled directly by `a2ui.core.validating.A2uiValidator` from the `a2ui_core` package. The Agent SDK does not maintain a redundant validator wrapper. `A2uiValidator` natively supports:
+Validation belongs to the `a2ui_core` package, and the Agent SDK does not maintain a
+redundant validator wrapper. Core splits the work across two objects, and an agent
+reaches validation through the first of them:
 
-- Version branching across all protocol versions (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`).
-- Deep structural checks (component uniqueness, root reachability, cyclic reference prevention, recursion depth caps).
-- Data binding JSON Pointer syntax validation.
+- **`MessageProcessor` (`a2ui.core.processing`)** is the entry point. It holds every
+  active catalog, resolves each component and function call to the catalog it belongs to
+  (the item's own `catalogId`, else the surface default, else the sole catalog), and hands
+  the item to that catalog's validator. It also owns the checks that need more than one
+  item: surface lifecycle, component uniqueness, root reachability, cycles, recursion
+  depth caps, and data binding JSON Pointer syntax. A surface whose components come from
+  several catalogs can only be checked here, which is why this and not the validator is
+  what an agent calls.
+- **`PayloadValidator` (`a2ui.core.validation`)** is scoped to exactly one catalog and
+  checks exactly one item against it, through `validate_component`, `validate_function`
+  and `validate_theme`. It cannot see a whole payload and cannot know which catalog an
+  item belongs to, so it never decides routing.
+
+Wire envelope structure is checked before either of them, by the core version adapter for
+the protocol version the message declares. That is also where version branching across
+`v0_8`, `v0_9`, `v0_9_1` and `v1_0` lives, so neither object above is version-aware.
+
+See [`a2ui_core.blueprint.md`](a2ui_core.blueprint.md) for the full validation contract
+and its implementation matrix.
 
 #### Surface state during validation
 
-`A2uiValidator` checks one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be checked and is accepted.
+A stateless check sees one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be resolved and is accepted.
 
-An agent that runs `a2ui.core.processing.MessageProcessor` over its own outbound messages holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
+An agent that keeps one `MessageProcessor` across a session and runs its own outbound messages through it holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
 
 ---
 
@@ -357,14 +413,14 @@ class InferenceFormatFactory(ABC):
     @abstractmethod
     def create_format(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
     ) -> "InferenceFormat":
         """Constructs an InferenceFormat instance bound to the provided active catalogs.
 
         Args:
             catalogs: List of active Catalog instances.
-            examples: Optional mapping of few-shot example turns.
+            examples: Optional list of few-shot example turns, each a list of messages.
 
         Returns:
             An InferenceFormat strategy instance.
@@ -391,6 +447,23 @@ class InferenceFormat(ABC):
 ### F. High-Level Application Facade (`a2ui.processor`)
 
 #### Catalog Providers
+
+A provider can be constructed with a catalog id and a protocol version. Each is both a
+default and an assertion: when the document states the same field, the two must agree or
+the load fails; when the document states nothing, the provider's value is used, and the
+resulting catalog is no different from one that carried its own.
+
+Neither field has a fallback default. A load fails when nothing names the catalog, since
+nothing could then address it in `supportedCatalogIds` or `createSurface`, and it fails
+when nothing states a version, since a document read under the wrong version
+mis-validates every payload written against it. This is what the notes below about
+`catalog_id` being undefined in v0.8 and `protocol_version` being undefined before v1.0
+imply: a provider value would otherwise be useless for exactly the documents that need it
+most.
+
+Every failure a provider raises is a catalog error, whether it comes from a file that is
+not there, a document that is not JSON, a declaration conflicting with the document, or
+an id or version nobody stated.
 
 ```python
 class CatalogProvider(ABC):
@@ -434,7 +507,7 @@ class InMemoryCatalogProvider(CatalogProvider):
 
     def __init__(
         self,
-        catalog: Dict[str, Any],
+        catalog: Mapping[str, Any],
         protocol_version: Optional[ProtocolVersion] = None,  # protocol_version is not defined before v1.0
         catalog_id: Optional[str] = None,        # catalog_id is not defined in v0.8
     ):
@@ -470,7 +543,7 @@ class CatalogConfig:
         transformers: Optional list of CatalogTransformer rules to apply sequentially.
     """
     catalog: Catalog[TComponent, TFunction]
-    transformers: Optional[List[CatalogTransformer]] = None
+    transformers: Optional[Sequence[CatalogTransformer]] = None
 
     @property
     def transformed_catalog(self) -> Catalog[TComponent, TFunction]:
@@ -485,18 +558,26 @@ class CatalogConfig:
     def from_path(
         cls,
         catalog_path: str,
-        transformers: Optional[List[CatalogTransformer]] = None,
+        transformers: Optional[Sequence[CatalogTransformer]] = None,
+        protocol_version: Optional[ProtocolVersion] = None,
+        catalog_id: Optional[str] = None,
     ) -> "CatalogConfig":
         """Factory method loading a Catalog from disk into a CatalogConfig.
 
         Args:
             catalog_path: Path to the catalog JSON file.
             transformers: Optional list of catalog transformers.
+            protocol_version: Optional expected protocol version for validation.
+            catalog_id: Optional expected catalog ID for validation.
 
         Returns:
             A CatalogConfig instance.
         """
-        catalog = FileSystemCatalogProvider(catalog_path).load()
+        catalog = FileSystemCatalogProvider(
+            catalog_path,
+            protocol_version=protocol_version,
+            catalog_id=catalog_id,
+        ).load()
         return cls(catalog=catalog, transformers=transformers)
 ```
 
@@ -508,34 +589,34 @@ class A2uiGenerator:
 
     Attributes:
         catalogs: Master list of CatalogConfig objects supported by the agent.
-        examples: Optional mapping of few-shot example turns shared across sessions.
+        examples: Optional list of few-shot example turns shared across sessions.
         factory: Default InferenceFormatFactory used when instantiating processors.
     """
 
     def __init__(
         self,
-        catalogs: List[CatalogConfig],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
+        catalogs: Sequence[CatalogConfig],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
     ):
         """Initializes A2uiGenerator with supported catalog configurations and format factory.
 
         Args:
             catalogs: List of supported CatalogConfig configurations.
-            examples: Optional dictionary of prompt examples.
+            examples: Optional list of prompt example turns.
             inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
         """
         pass
 
     def create_processor(
         self,
-        renderer_capabilities: Any,
+        renderer_capabilities: A2uiRendererCapabilities,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
     ) -> A2uiRequestProcessor:
         """Creates an A2uiRequestProcessor bound to the specified renderer capabilities.
 
         Args:
-            renderer_capabilities: A2uiRendererCapabilities object sent by the client renderer.
+            renderer_capabilities: Capabilities sent by the client renderer. Must not be None.
             inference_format_factory: Optional override format factory for this processor.
 
         Returns:
@@ -552,27 +633,27 @@ class A2uiRequestProcessor:
 
     def __init__(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         format_factory: Optional[InferenceFormatFactory] = None,
     ):
         """Initializes A2uiRequestProcessor, resolving active catalogs and instantiating validator and format strategy.
 
         Args:
             catalogs: List of active Catalog instances.
-            examples: Optional dictionary of prompt examples.
+            examples: Optional list of prompt example turns.
             format_factory: Format factory for instantiating format strategies.
         """
         pass
 
     @property
-    def active_catalogs(self) -> List[Catalog[TComponent, TFunction]]:
+    def active_catalogs(self) -> list[Catalog[TComponent, TFunction]]:
         """Returns the list of active negotiated Catalog instances for this processor."""
         pass
 
     @property
-    def examples(self) -> Optional[Dict[str, List[AgentToRendererMessage]]]:
-        """Returns the prompt example mapping."""
+    def examples(self) -> Optional[list[list[AgentToRendererMessage]]]:
+        """Returns the ordered list of prompt example turns."""
         pass
 
     @property
@@ -580,7 +661,7 @@ class A2uiRequestProcessor:
         """Format-specific system prompt instruction snippet."""
         pass
 
-    def parse_response(self, content: str) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> list[ResponsePart]:
         """Parses and validates the LLM response into ResponseParts."""
         pass
 ```
@@ -591,15 +672,29 @@ class A2uiRequestProcessor:
 
 #### `resolve_catalogs` (`a2ui.utils.catalog_resolver`)
 
-Negotiates renderer capabilities against a registered sequence of catalogs (`List[CatalogConfig]`) to select matching active schemas for a session.
+Negotiates renderer capabilities against a registered sequence of catalogs (`Sequence[CatalogConfig]`) to select matching active schemas for a session.
+
+`A2uiRendererCapabilities` comes from `a2ui_core` and is a multi-version union, the same way `AgentToRendererMessage` is: it covers each supported protocol version's capabilities shape, including the v0.9 `A2uiClientCapabilities`. An agent that supports more than one protocol version accepts any member of that union here and must not assume the v1.0 shape.
 
 ```python
 def resolve_catalogs(
-    catalogs: List[CatalogConfig],
+    catalogs: Sequence[CatalogConfig],
     renderer_capabilities: A2uiRendererCapabilities,
     accepts_inline_catalogs: bool = False,
-) -> List[Catalog[TComponent, TFunction]]:
-    """Matches renderer capabilities against registered catalogs and returns active transformed Catalog objects."""
+) -> list[Catalog[TComponent, TFunction]]:
+    """Matches renderer capabilities against registered catalogs and returns active transformed Catalog objects.
+
+    Resolution follows these rules:
+
+    - A present but empty `supportedCatalogIds` with no inline catalogs raises a catalog
+      error, because the renderer has said it can render nothing.
+    - Active catalogs come back in the renderer's preference order rather than the
+      agent's registration order, so the renderer's first choice is the first catalog
+      the model reads about.
+
+    The catalogs returned are the transformed ones, so a pruning transformer is visible
+    both in the prompt snippet and in what the processor will later accept.
+    """
     pass
 ```
 
@@ -617,14 +712,14 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
 
     def create_format(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
     ) -> InferenceFormat:
         """Constructs a DirectJsonFormat instance bound to the provided active catalogs.
 
         Args:
             catalogs: List of active Catalog instances.
-            examples: Optional dictionary of prompt examples.
+            examples: Optional list of prompt example turns.
 
         Returns:
             DirectJsonFormat strategy instance.
@@ -636,15 +731,15 @@ class DirectJsonFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
-        allowed_messages: Optional[List[str]] = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
+        allowed_messages: Optional[Sequence[str]] = None,
     ):
         """Initializes DirectJsonFormat with active catalogs, examples, and allowed message types.
 
         Args:
             catalogs: Active Catalog instances.
-            examples: Optional prompt example mapping.
+            examples: Optional list of prompt example turns.
             allowed_messages: Optional list of allowed payload envelope names.
         """
         self._prompt_generator = DirectJsonPromptGenerator(
@@ -666,15 +761,15 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
     def __init__(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
-        examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
-        allowed_messages: Optional[List[str]] = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
+        allowed_messages: Optional[Sequence[str]] = None,
     ):
         """Initializes DirectJsonPromptGenerator.
 
         Args:
             catalogs: Active Catalog instances.
-            examples: Optional prompt example mapping.
+            examples: Optional list of prompt example turns.
             allowed_messages: Optional list of allowed payload envelope names.
         """
         super().__init__(catalogs, examples)
@@ -693,7 +788,7 @@ class DirectJsonParser(Parser):
 
     def __init__(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
         custom_progressive_keys: Optional[frozenset[str]] = None,
     ):
         """Initializes DirectJsonParser.
@@ -706,11 +801,16 @@ class DirectJsonParser(Parser):
         self.custom_progressive_keys = custom_progressive_keys
 
     @property
+    def supports_streaming(self) -> bool:
+        """Direct JSON reads incrementally, so this parser implements parse_chunk."""
+        return True
+
+    @property
     def progressive_keys(self) -> frozenset[str]:
         """Returns the set of string property keys safe to auto-close/heal when fragmented in streaming mode."""
         pass
 
-    def compile(self, format_content: str) -> List[AgentToRendererMessage]:
+    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Parses and fixes JSON payload content string into AgentToRendererMessage objects.
 
         Args:
@@ -721,7 +821,7 @@ class DirectJsonParser(Parser):
         """
         pass
 
-    def decompile(self, a2ui_payload: List[AgentToRendererMessage]) -> str:
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles AgentToRendererMessage list into standard formatted A2UI JSON string.
 
         Args:
@@ -732,7 +832,7 @@ class DirectJsonParser(Parser):
         """
         pass
 
-    def parse_chunk(self, chunk: str, wrapped: bool = True) -> List[ResponsePart]:
+    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
         """Processes streaming response chunks, auto-healing progressive_keys in real time.
 
         Args:
@@ -749,15 +849,17 @@ class DirectJsonParser(Parser):
 
 ### B. EXPRESS Format (`a2ui.inference_formats.express`)
 
-Compact functional DSL format designed to reduce output token consumption. For formal grammar and syntax specification, see [Express Specification](../../specification/proposals/express/a2ui_express.md) and [Express Grammar](../../specification/inference_formats/express/Express.g4).
+Compact functional DSL format designed to reduce output token consumption, enclosed in `<a2ui>` sentinel tags. For formal grammar and syntax specification, see [Express Specification](../../specification/proposals/express/a2ui_express.md) and [Express Grammar](../../specification/inference_formats/express/Express.g4).
 
-The Express format package under `a2ui/agent/inference_formats/express/` contains:
+The Express format package under `a2ui/inference_formats/express/` contains:
 
 - `format`: `ExpressFormatFactory` (subclassing `InferenceFormatFactory`) and `ExpressFormat` (subclassing `InferenceFormat`).
 - `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
-- `compiler`: `ExpressCompiler`, lexing and parsing `<a2ui-express>` DSL expressions into standard `AgentToRendererMessage` list structures.
+- `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures.
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
-- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`, and handling streaming response chunks.
+- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
+
+Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `parse_chunk`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
 
 ---
 
@@ -768,8 +870,8 @@ The Express format package under `a2ui/agent/inference_formats/express/` contain
 ```python
 # 1. Agent Startup: Initialize long-lived A2uiGenerator with agent catalogs.
 #    Note: Prompt examples passed here are validated internally during processor creation
-#    (create_processor) against active negotiated catalogs, raising ValueError if any
-#    example uses components or structures not supported by the active catalog.
+#    (create_processor) against active negotiated catalogs, raising A2uiValidationError if
+#    any example uses components or structures not supported by the active catalog.
 generator = A2uiGenerator(
     catalogs=[
         CatalogConfig(BasicCatalog("v1.0")),
@@ -795,5 +897,21 @@ response_parts = processor.parse_response(llm_output_text)
 ## 6. Conformance Test Plan
 
 To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.), the project maintains a language-agnostic conformance suite.
+
+The suites covering this document live under `conformance/agent/`:
+
+| Suite                                 | Covers                                                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `<format>/compiler.yaml`              | `Parser.compile`: what a block of that format means                                             |
+| `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
+| `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
+| `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
+| `direct_json/response_streaming.yaml` | `Parser.parse_chunk`, for the one format that streams                                           |
+| `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
+| `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
+
+There is no `express/response_streaming.yaml`, because Express does not stream. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `agent_sdks/python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
+
+Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 
 For complete setup instructions, test harness requirements, suite descriptions, and schema definitions, see [Conformance README](../../conformance/README.md).

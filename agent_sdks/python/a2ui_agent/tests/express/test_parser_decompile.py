@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests focusing on the A2UI Express Decompiler."""
+"""Unit tests focusing on the A2UI Express Decompiler.
+
+Decompilation behaviour the protocol fixes for every language lives in
+`conformance/agent/express/decompiler.yaml`, which this SDK runs from
+`tests/conformance/test_conformance.py`. What stays here is what conformance
+does not reach: the positional argument spellings a catalog's
+`positionalIndex` produces, an unknown function call, `has_format_content`, and
+behaviour the suites rule against and mark `xfail`.
+"""
 
 import json
 import os
@@ -25,12 +33,12 @@ from a2ui.schema.constants import VERSION_1_0
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
 
-SPEC_DIR = os.path.abspath(
+CATALOGS_DIR = os.path.abspath(
     os.path.join(
-        os.path.dirname(__file__), "..", "..", "..", "..", "..", "specification", "v1_0"
+        os.path.dirname(__file__), "..", "..", "..", "..", "..", "catalogs", "basic"
     )
 )
-CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 
 
 class TestExpressParser(unittest.TestCase):
@@ -266,12 +274,6 @@ class TestExpressParser(unittest.TestCase):
         # Case E: Non-ref static type
         static_type = {"type": "string"}
         self.assertFalse(_is_component_reference_property(static_type))
-
-    def test_decompile_delete_surface(self):
-        decompiler = ExpressParser(self.catalog)
-        envelope = {"version": "v1.0", "deleteSurface": {"surfaceId": "surf_1"}}
-        decompiled = decompiler.decompile(envelope)
-        self.assertEqual(decompiled, 'deleteSurface("surf_1")')
 
     def test_decompile_update_data_model(self):
         decompiler = ExpressParser(self.catalog)

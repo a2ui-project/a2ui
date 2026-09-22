@@ -1,0 +1,970 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Express compilation: turning one raw Express block into A2UI messages.
+#
+# `compile` takes the content of one block, without its sentinel tags, and
+# returns the messages an agent sends. This is where the notation is given
+# meaning, so most of what a reader needs to know about Express is stated here.
+#
+# The inverse, writing messages back into Express, is
+# `agent/express/decompiler.yaml`. Finding the blocks in a response and putting
+# them back is `agent/express/response_parser.yaml`. The blueprint's `Parser`
+# declares `compile`, `decompile`, `wrap`, `unwrap` and `parse_response` as one
+# interface; the suites are split by call because each has rules of its own and
+# the Express compilation rules alone run to a page.
+#
+# Two error categories carry the load. `ParseError` is for payload text the
+# format cannot read. `ValidationError` is for a payload that reads but names
+# something the catalog does not declare.
+#
+# A component carrying a property its catalog does not declare is invalid, but
+# the rule lives in the message envelope rather than in the catalog. Like the
+# published catalogs, the fixtures here leave their component schemas open, and
+# `agent_to_renderer.json` closes each component with `unevaluatedProperties`
+# once it has added the envelope's own `id`. An implementation that validates a
+# component against the bare catalog schema will miss this; it has to validate
+# the message it is about to emit.
+#
+# Express compilation is younger than the direct JSON path, and the cases below
+# fix these rules for it:
+#
+# - A variable name becomes the id of the component it holds.
+# - A component written inline is hoisted out and takes the id
+#   `<parent id>_<property>`, or `<parent id>_<property>_<index>` inside an
+#   array. It is emitted after its parent.
+# - An argument that is omitted, or skipped with `_`, is left out of the
+#   compiled component. The Express specification's worked example writes
+#   `null` for a skipped argument, which the catalogs here reject, since their
+#   optional properties are enums that do not admit it.
+# - A block with no `surface(...)` line compiles against the surface id
+#   `default_surface`.
+# - A case compiles one block with no session behind it, so a block that
+#   declares `root` creates its surface rather than updating one.
+# - `Event(name)` compiles to whatever shape the catalog declares for an
+#   action. In the fixtures here that is `{"event": {"name": name}}`, and a map
+#   passed as a second argument becomes `context` beside the name.
+# - `_template(path, component)` compiles to the child list template shape the
+#   protocol defines, which is `{"componentId": ..., "path": ...}`.
+# - A `?check` passes the component's own bound value as the checked value, and
+#   a trailing string literal becomes the rule's message.
+# - Only a variable holding a component becomes a component. A variable holding
+#   a map, an `Event` or a check is substituted wherever it is named, and emits
+#   nothing of its own. Without this rule the two would be indistinguishable,
+#   since both are written `name = value`.
+# - A check written without parentheses supplies no message. `CheckRule.message`
+#   is optional, but a renderer with no message has nothing to show a user, so
+#   an implementation fills one in; its wording is not fixed here. That is what
+#   `expect_present` is for.
+# - A standalone function call compiles to `callRendererFunction`, with the
+#   call id `call_<n>` counting from 1 within the block and the surface's
+#   catalog id on the call. The Express proposal shows this message with
+#   `functionCallId` and `callFunction` at the top level instead, which
+#   `agent_to_renderer.json` rejects; the schema is the authority, so the
+#   proposal is wrong and these cases follow the schema.
+#
+# Three things the cases below rely on are the grammar's rather than this
+# suite's, and are stated here only because a reader of the cases would
+# otherwise take them for invention. `specification/inference_formats/express/
+# Express.g4` skips `#`, `//` and `/* */` comments, skips semicolons, and skips
+# newlines like any other whitespace, so a statement may span lines and several
+# may share one. Trailing commas are admitted in arrays, maps and argument
+# lists. `PATH` is `'$' [a-zA-Z0-9_/]*`, so a bare `$` is a path of zero
+# characters: the whole bound value, which inside a template child is the
+# current item.
+#
+# Positional arguments follow the property order of the catalog document, so
+# against `simplified_catalog_v1_0.json` the signatures are
+# `Text(text, variant)`, `Button(child, action)`, `Card(child)` and
+# `Column(children)`. A few cases need a property that fixture does not
+# declare, such as a list of checks or a slot that admits a function call;
+# those inline a small catalog in `args.catalog` rather than stretch the
+# fixture.
+#
+# The direct JSON counterpart of this suite is
+# `agent/direct_json/compiler.yaml`. The two are deliberately parallel: a rule
+# that holds for both formats has a case in each, written against that format's
+# own notation.
+#
+# The catalogs under test live in `args`, and every case here is written against
+# v1.0. A case states no version of its own: the version it runs under is the
+# one its catalog document declares.
+
+- name: test_compile_express_minimal_root
+  description: A block that assigns root compiles to one createSurface carrying that component.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("Hello")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_nesting_by_variable_reference
+  description: A child named by variable becomes a component id in the parent and a component of its own.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Card(body)
+    body = Text("Hello")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_inline_nesting
+  description: A component written inline is hoisted out after its parent and takes an id built from the parent and the property it fills.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Card(Text("Hello"))'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "root_child"
+          - id: "root_child"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_keyword_and_positional_arguments_mixed
+  description: A keyword argument names its property and can follow a positional one.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("Hello", variant="caption")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            variant: "caption"
+
+- name: test_compile_express_placeholder_skips_an_optional_argument
+  description: An underscore leaves the property it stands in for out of the compiled component.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email", _, "you@example.com")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Email"
+            placeholder: "you@example.com"
+
+- name: test_compile_express_raw_string_literal
+  description: A raw string keeps its backslashes, because no escape is processed inside one.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text(r"C:\temp\notes")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: 'C:\temp\notes'
+
+- name: test_compile_express_escapes_in_a_standard_string
+  description: A standard string processes its escapes, which is what tells it apart from a raw one.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("Line 1\nLine 2")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Line 1\nLine 2"
+
+- name: test_compile_express_array_of_children
+  description: An array maps to the child list slot and holds the ids of the components it names.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column([greeting, farewell])
+    greeting = Text("Hello")
+    farewell = Text("Goodbye")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["greeting", "farewell"]
+          - id: "greeting"
+            component: "Text"
+            text: "Hello"
+          - id: "farewell"
+            component: "Text"
+            text: "Goodbye"
+
+- name: test_compile_express_template_children
+  description: The _template helper fills the child list with the catalog's template shape, and the template component reads relative paths.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text($label)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              path: "label"
+
+- name: test_compile_express_absolute_data_binding_path
+  description: A path argument binds the property to the data model rather than setting a literal.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "root = Text($/user/name)"
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              path: "/user/name"
+
+- name: test_compile_express_nested_function_call
+  description: A catalog function called in a property slot compiles to that function call, which is how text is interpolated.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text(formatString("Hello, ${/user/name}"))'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              call: "formatString"
+              args:
+                value: "Hello, ${/user/name}"
+
+- name: test_compile_express_validation_expression
+  description: A check expression compiles to a check rule whose condition calls the named function on the component's own value, with a trailing string as its message.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email", $/email, _, [?required("Email is required")])'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Email"
+            value:
+              path: "/email"
+            checks:
+              - condition:
+                  call: "required"
+                  args:
+                    value:
+                      path: "/email"
+                message: "Email is required"
+
+- name: test_compile_express_validation_expression_with_an_argument
+  description: A check expression passes the component's own value first and the written arguments after it, so a trailing string is the message rather than the last declared argument.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Zip", $/zip, _, [?regex(r"^[0-9]{5}$", "Must be five digits")])'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Zip"
+            value:
+              path: "/zip"
+            checks:
+              - condition:
+                  call: "regex"
+                  args:
+                    value:
+                      path: "/zip"
+                    pattern: "^[0-9]{5}$"
+                message: "Must be five digits"
+
+- name: test_compile_express_event_action
+  description: An Event compiles to the action shape the catalog declares.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("submit"))
+    label = Text("Submit")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "submit"
+          - id: "label"
+            component: "Text"
+            text: "Submit"
+
+- name: test_compile_express_event_action_with_context
+  description: A map passed to an Event becomes the context beside the event name.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("submit", {itemId: "42"}))
+    label = Text("Submit")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "submit"
+                context:
+                  itemId: "42"
+          - id: "label"
+            component: "Text"
+            text: "Submit"
+
+- name: test_compile_express_data_model_assignment
+  description: A data path assignment beside a root fills the surface's initial data model.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/title = "Hello"
+    root = Text($/title)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              path: "/title"
+        dataModel:
+          title: "Hello"
+
+- name: test_compile_express_data_model_only_block
+  description: A block of nothing but data path assignments updates the data model rather than creating a surface.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/icon = "check"
+    $/title = "Enable notifications"
+  expect:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "default_surface"
+        path: "/"
+        value:
+          icon: "check"
+          title: "Enable notifications"
+
+- name: test_compile_express_surface_targeting
+  description: A surface line names the surface the block is for, in place of the default id.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("dashboard")
+    root = Text("Hello")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "dashboard"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_surface_targeting_names_a_catalog
+  description: A second argument to surface picks which of the active catalogs the block is written against.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |-
+    surface("dashboard", "conformance/custom")
+    root = Gauge(0.5)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "dashboard"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Gauge"
+            value: 0.5
+
+- name: test_compile_express_delete_surface
+  description: A deleteSurface line compiles to the lifecycle message of that name.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'deleteSurface("dashboard")'
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "dashboard"
+
+- name: test_compile_express_delete_surface_with_a_keyword_argument
+  description: The lifecycle commands take keyword arguments like any other call, since the grammar admits a named argument anywhere a positional one is admitted.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'deleteSurface(surfaceId="dashboard")'
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "dashboard"
+
+- name: test_compile_express_two_surfaces_in_one_block
+  description: A second surface line starts a second surface rather than retargeting the first, so one block can open two. Each surface has its own root, which is why the same variable name appears twice without collision.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("first")
+    root = Text("One")
+    surface("second")
+    root = Text("Two")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "first"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "One"
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "second"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Two"
+
+- name: test_compile_express_standalone_function_call
+  description: A call written as a statement of its own asks the renderer to run a function, and compiles to callRendererFunction with the surface's catalog on the call. The Express proposal shows this message with functionCallId and callFunction at the top level, which the v1.0 envelope rejects.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'openUrl("https://example.com")'
+  expect:
+    - version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "conformance/simplified"
+          call: "openUrl"
+          args:
+            url: "https://example.com"
+
+- name: test_compile_express_function_call_action
+  description: A function call in an action slot is the local branch of Action, which is how a control does something in the renderer rather than send the agent an event.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, openUrl("https://example.com"))
+    label = Text("Open the docs")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              functionCall:
+                call: "openUrl"
+                args:
+                  url: "https://example.com"
+          - id: "label"
+            component: "Text"
+            text: "Open the docs"
+
+- name: test_compile_express_map_variable_is_inlined_where_it_is_used
+  description: A variable holding a map is substituted where it is named and emits no component of its own, which is what tells it apart from a variable holding a component. A compiler that treated every assignment as a component would emit a component named ctx.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    ctx = {itemId: "42"}
+    root = Button(label, Event("submit", ctx))
+    label = Text("Submit")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "submit"
+                context:
+                  itemId: "42"
+          - id: "label"
+            component: "Text"
+            text: "Submit"
+
+- name: test_compile_express_event_variable_is_inlined_at_each_use
+  description: An Event held in a variable is substituted at every use, so two controls can share one action without either of them referring to a component that does not exist.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    submit = Event("submit")
+    root = Column([save, send])
+    save = Button(saveLabel, submit)
+    send = Button(sendLabel, submit)
+    saveLabel = Text("Save")
+    sendLabel = Text("Send")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["save", "send"]
+          - id: "save"
+            component: "Button"
+            child: "saveLabel"
+            action:
+              event:
+                name: "submit"
+          - id: "send"
+            component: "Button"
+            child: "sendLabel"
+            action:
+              event:
+                name: "submit"
+          - id: "saveLabel"
+            component: "Text"
+            text: "Save"
+          - id: "sendLabel"
+            component: "Text"
+            text: "Send"
+
+- name: test_compile_express_trailing_optional_arguments_may_be_omitted
+  description: An argument list may simply stop once the required properties are filled, without an underscore for each property left behind.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Email"
+
+- name: test_compile_express_string_containing_an_equals_sign
+  description: An equals sign inside a string is content rather than an assignment or a keyword argument, which a compiler splitting the line on the character before tokenizing would get wrong.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("width=100")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "width=100"
+
+- name: test_compile_express_comments_are_ignored
+  description: The grammar skips all three comment forms, so a model that annotates what it is building compiles to the same messages as one that does not.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    # The greeting the user asked for.
+    root = Text("Hello")  // the only component
+    /* Nothing follows, but a block
+       comment spanning lines still ends the block cleanly. */
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_semicolons_and_trailing_commas
+  description: Semicolons are skipped like whitespace, so several statements may share a line, and a trailing comma closes an array without adding an element to it.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Column([first, second,]); first = Text("One"); second = Text("Two")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["first", "second"]
+          - id: "first"
+            component: "Text"
+            text: "One"
+          - id: "second"
+            component: "Text"
+            text: "Two"
+
+- name: test_compile_express_statement_spans_several_lines
+  description: A newline is whitespace rather than a statement terminator, so an argument list may be broken across lines. A model emitting a long component list will wrap it, and a line-based compiler would see each fragment as a statement of its own.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Card(
+      body
+    )
+    body = Text("Hello")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_bare_path_is_the_whole_bound_value
+  description: A path of no characters is the value the component is bound to rather than a missing path, which inside a template child is the item being rendered. This is the only way to template over a list of plain strings.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/names, nameRow))
+    nameRow = Text($)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "nameRow"
+              path: "/names"
+          - id: "nameRow"
+            component: "Text"
+            text:
+              path: ""
+
+- name: test_compile_express_several_checks_in_one_list
+  description: A check list holds more than one rule, each compiled against the component's own bound value. The single-rule cases above would also pass an implementation that kept only the first.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Zip", $/zip, _, [?required("Zip is required"), ?regex(r"^[0-9]{5}$", "Must be five digits")])'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Zip"
+            value:
+              path: "/zip"
+            checks:
+              - condition:
+                  call: "required"
+                  args:
+                    value:
+                      path: "/zip"
+                message: "Zip is required"
+              - condition:
+                  call: "regex"
+                  args:
+                    value:
+                      path: "/zip"
+                    pattern: "^[0-9]{5}$"
+                message: "Must be five digits"
+
+- name: test_compile_express_check_without_a_message_still_carries_one
+  description: A check may be written bare, without parentheses. The protocol leaves CheckRule.message optional, but a renderer given no message has nothing to show, so the format supplies one; what it says is the implementation's business and is not compared.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email", $/email, _, [?required])'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Email"
+            value:
+              path: "/email"
+            checks:
+              - condition:
+                  call: "required"
+                  args:
+                    value:
+                      path: "/email"
+  expect_present:
+    - "/0/createSurface/components/0/checks/0/message"
+
+- name: test_compile_express_empty_block_is_a_parse_error
+  description: A block with no statements is a parse error rather than an empty message list.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: ""
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_syntax_error_is_a_parse_error
+  description: A statement the grammar cannot read is a parse error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("Hello"'
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_unknown_component_is_a_validation_error
+  description: A block that parses but names a component the catalog does not declare is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "root = Sparkline([1, 2, 3])"
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_undeclared_property_is_a_validation_error
+  description: A keyword argument naming a property the component does not declare is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("Hello", tooltip="Greeting")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_missing_required_property_is_a_validation_error
+  description: A component left without a property its catalog requires is a validation error. Nothing in the notation marks an argument list as short, so an implementation that only checked the arguments it was given would emit the invalid component instead.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label)
+    label = Text("Save")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_value_outside_an_enum_is_a_validation_error
+  description: A value the property's enum does not list is a validation error rather than a string passed through, which is the case that tells whether an implementation validates against the property schema or only against the property name.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("Hello", variant="headline")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_binding_a_static_property_is_a_validation_error
+  description: A path given to a property typed as a plain string is a validation error, because a renderer reading that property will not resolve it. Only a property typed DynamicString admits a binding.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: "root = Chart([1, 2], $/caption)"
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_unknown_function_is_a_validation_error
+  description: A call the catalog does not declare is a validation error, on the same footing as a component it does not declare. A compiler that fell back to emitting the call verbatim would hand the renderer something it cannot run.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text(titleCase("hello"))'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_empty_argument_is_a_parse_error
+  description: A comma with no expression before it is a parse error. The grammar admits a trailing comma only after an argument, so the two cannot be confused.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: "root = TextField(,)"
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_unexpected_character_is_a_parse_error
+  description: A character no lexer rule admits is a parse error, and is reported as one rather than escaping as an internal failure from the tokenizer.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = @Text("Hello")'
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_template_without_a_component_is_a_parse_error
+  description: The template helper takes a path and a component, and a call missing the second is a parse error. It reads as a well-formed call, so an implementation checking only the grammar would accept it and emit a child list with no component to render.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "root = Column(_template($/items))"
+  expect_error:
+    category: "ParseError"

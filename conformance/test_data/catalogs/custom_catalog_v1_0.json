@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/custom_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Custom Catalog (v1.0)",
+  "description": "A second catalog used by the multi catalog and capability negotiation cases. Its component and function names do not overlap with the basic catalog, so a case can tell the two apart by name alone.",
+  "catalogId": "conformance/custom",
+  "components": {
+    "Chart": {
+      "type": "object",
+      "description": "Plots a series of numbers.",
+      "properties": {
+        "component": { "const": "Chart" },
+        "values": { "type": "array", "items": { "type": "number" } },
+        "caption": { "type": "string" }
+      },
+      "required": ["component", "values"]
+    },
+    "Gauge": {
+      "type": "object",
+      "description": "Shows a single value on a scale.",
+      "properties": {
+        "component": { "const": "Gauge" },
+        "value": { "type": "number" }
+      },
+      "required": ["component", "value"]
+    }
+  },
+  "functions": {
+    "percent": {
+      "type": "object",
+      "description": "Renders a ratio as a percentage string.",
+      "returnType": "string",
+      "properties": {
+        "call": { "const": "percent" },
+        "args": {
+          "type": "object",
+          "properties": { "value": { "type": "number" } },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{ "$ref": "#/components/Chart" }, { "$ref": "#/components/Gauge" }]
+    },
+    "anyFunction": {
+      "oneOf": [{ "$ref": "#/functions/percent" }]
+    }
+  }
+}

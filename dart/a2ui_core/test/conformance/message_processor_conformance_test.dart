@@ -93,9 +93,11 @@ void _process(
   List<Map<String, Object?>> messages,
 ) {
   for (final envelope in messages) {
-    processor.processMessages([
-      AgentToRendererMessage.fromJson(Map<String, dynamic>.from(envelope)),
-    ]);
+    processor.processMessages(
+      AgentToRendererMessagePayload([
+        AgentToRendererMessage.fromJson(Map<String, dynamic>.from(envelope)),
+      ]),
+    );
   }
 }
 
@@ -196,7 +198,6 @@ Matcher _matchesError(Map<String, Object?> expectError) {
     'RecursionError' => isA<A2uiRecursionError>(),
     'StateError' => isA<A2uiStateError>(),
     'ParseError' => isA<A2uiParseError>(),
-    'CompileError' => isA<A2uiCompileError>(),
     _ => isA<A2uiError>(),
   };
   if (message != null) {

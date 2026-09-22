@@ -15,46 +15,37 @@
  */
 
 /**
- * Structural guards and deep resolution helpers for A2UI dynamic values.
+ * Type guards and recursive resolution utilities for A2UI dynamic values.
  *
- * `DataContext.resolveDynamicValue` resolves a single `DynamicValue`: a literal,
- * a data binding, or a function call. Catalog functions that accept free-form
- * payloads additionally need to walk literal containers (records and arrays)
- * and resolve any bindings nested inside them, which is what this module adds.
- *
- * The helpers here are deliberately free of catalog-specific logic so the file
- * can move to `renderers/web_core/src/v0_9/rendering/` unchanged.
+ * While `DataContext.resolveDynamicValue` resolves a single top-level `DynamicValue`,
+ * these helpers recursively traverse nested objects and arrays to resolve embedded
+ * data bindings and function calls.
  */
 
 import type {DataBinding, DataContext, FunctionCall} from '@a2ui/web_core/v0_9';
 
-/**
- * The two object-shaped members of `DynamicValue`: everything else in the union
- * (string, number, boolean, array) is a literal.
- */
+/** Union of dynamic expression types (`DataBinding` or `FunctionCall`) that require runtime evaluation. */
 export type DynamicExpression = DataBinding | FunctionCall;
 
-/** Narrows to a non-null, non-array object. */
+/** Maximum recursion depth when resolving nested dynamic values to prevent infinite loops. */
+const MAX_RESOLUTION_DEPTH = 100;
+
+/** Checks whether a value is a non-null, non-array object. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
- * Reports whether `value` is a data binding: `{path: string}`.
+ * Checks whether `value` is a `DataBinding` (`{path: string}`).
  *
- * `common_types.json#/$defs/DataBinding` sets `additionalProperties: false`, so
- * an object carrying a `path` alongside other keys is a literal, not a binding.
+ * Objects with additional properties alongside `path` are treated as literal objects.
  */
 export function isDataBinding(value: unknown): value is DataBinding {
   return isRecord(value) && typeof value['path'] === 'string' && Object.keys(value).length === 1;
 }
 
 /**
- * Reports whether `value` is a function call: `{call: string, args?, returnType?}`.
- *
- * `common_types.json#/$defs/FunctionCall` requires only `call`, so the string
- * type of `call` is the discriminator. `args` and `returnType` are validated
- * when present to keep malformed payloads from being invoked as functions.
+ * Checks whether `value` is a `FunctionCall` (`{call: string, args?, returnType?}`).
  */
 export function isFunctionCall(value: unknown): value is FunctionCall {
   if (!isRecord(value) || typeof value['call'] !== 'string') {
@@ -68,53 +59,83 @@ export function isFunctionCall(value: unknown): value is FunctionCall {
   );
 }
 
-/** Reports whether `value` is a data binding or a function call. */
+/** Checks whether `value` is a `DataBinding` or a `FunctionCall`. */
 export function isDynamicExpression(value: unknown): value is DynamicExpression {
   return isDataBinding(value) || isFunctionCall(value);
 }
 
 /**
- * Resolves every dynamic expression nested anywhere inside `value`.
+ * Recursively resolves all dynamic expressions (`DataBinding` and `FunctionCall`)
+ * nested within `value`.
  *
- * Literal records and arrays are rebuilt entry by entry so bindings inside them
- * are resolved while the surrounding literal structure is preserved. Values
- * that are not dynamic expressions are returned as-is.
+ * Traverses arrays and plain objects while preserving their structure, and
+ * repeatedly resolves chained expressions until a concrete value is reached or
+ * `MAX_RESOLUTION_DEPTH` is hit. Pending Promises from async functions are
+ * passed through as-is.
  *
- * Like `DataContext.resolveDynamicValue`, this evaluates once and creates no
- * reactive subscriptions.
+ * @param value The value or container to resolve.
+ * @param context The data context used for evaluation.
+ * @param depth Internal recursion depth counter.
  */
-export function resolveDynamicValueDeep<T = unknown>(value: unknown, context: DataContext): T {
+export function resolveDynamicValueDeep<T = unknown>(
+  value: unknown,
+  context: DataContext,
+  depth = 0,
+): T {
+  if (depth >= MAX_RESOLUTION_DEPTH) {
+    return value as T;
+  }
   if (!isRecord(value) && !Array.isArray(value)) {
     return value as T;
   }
+  if (typeof (value as {then?: unknown}).then === 'function') {
+    return value as T;
+  }
   if (Array.isArray(value)) {
-    return value.map(item => resolveDynamicValueDeep(item, context)) as unknown as T;
+    return value.map(item => resolveDynamicValueDeep(item, context, depth + 1)) as unknown as T;
   }
   if (isDataBinding(value)) {
-    return context.resolveDynamicValue(value);
+    const resolved = context.resolveDynamicValue(value);
+    // Stop if the binding could not be resolved to avoid an infinite loop.
+    if (resolved === value) {
+      return resolved as unknown as T;
+    }
+    return resolveDynamicValueDeep(resolved, context, depth + 1);
   }
   if (isFunctionCall(value)) {
-    // `args` is optional in the spec but required by the resolver.
-    return context.resolveDynamicValue({...value, args: value.args ?? {}});
+    // Supply default values for optional `args` and `returnType` fields before resolving.
+    const dynamicCall =
+      value.args !== undefined && value.returnType !== undefined
+        ? value
+        : {
+            call: value.call,
+            args: value.args ?? {},
+            returnType: value.returnType ?? 'any',
+          };
+    const resolved = context.resolveDynamicValue(dynamicCall);
+    if (resolved === value || resolved === dynamicCall) {
+      return resolved as unknown as T;
+    }
+    return resolveDynamicValueDeep(resolved, context, depth + 1);
   }
-  return resolveDynamicRecord(value, context) as T;
+  return resolveDynamicRecord(value, context, depth) as T;
 }
 
 /**
- * Resolves each entry of a record of dynamic values, such as `FunctionCall.args`
- * or a catalog function's arguments object.
+ * Resolves each property value in a key-value record (such as function arguments).
  *
- * The record itself is data, not a dynamic value, so entries are resolved
- * individually. This keeps a record whose keys happen to be named `path` or
- * `call` from being mistaken for a single binding or function call.
+ * Resolves entries individually rather than evaluating the record itself as a
+ * dynamic expression, so records containing `path` or `call` keys are preserved
+ * as plain objects.
  */
 export function resolveDynamicRecord(
   record: Record<string, unknown>,
   context: DataContext,
+  depth = 0,
 ): Record<string, unknown> {
   const resolved: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) {
-    resolved[key] = resolveDynamicValueDeep(value, context);
+    resolved[key] = resolveDynamicValueDeep(value, context, depth + 1);
   }
   return resolved;
 }

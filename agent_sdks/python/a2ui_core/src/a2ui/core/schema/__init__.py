@@ -54,3 +54,11 @@ from .client_to_server import (
     A2uiClientMessageList as A2uiClientMessageList,
     A2uiClientMessageListWrapper as A2uiClientMessageListWrapper,
 )
+from enum import Enum
+
+
+class ProtocolVersion(str, Enum):
+    V0_8 = "v0.8"
+    V0_9 = "v0.9"
+    V0_9_1 = "v0.9.1"
+    V1_0 = "v1.0"

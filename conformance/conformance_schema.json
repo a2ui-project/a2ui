@@ -21,7 +21,7 @@
           "version": {
             "type": "string",
             "enum": ["0.8", "0.9", "1.0"],
-            "description": "Protocol version."
+            "description": "Protocol version. Cases that behave differently across versions state it here so a harness can gate on it."
           },
           "s2c_schema": {
             "description": "Path to simplified schema file or inlined schema object. Defaults to null if not passed.",
@@ -99,7 +99,19 @@
           "from_format",
           "core_syntax",
           "from_catalog",
-          "skill_set"
+          "skill_set",
+          "transform_catalog",
+          "provide_catalog",
+          "resolve_catalogs",
+          "generate_prompt_snippet",
+          "unwrap",
+          "wrap",
+          "compile",
+          "decompile",
+          "parse_response",
+          "parse_chunk",
+          "create_format",
+          "create_processor"
         ]
       }
     },
@@ -137,7 +149,19 @@
           {"$ref": "#/$defs/FromFormatTest"},
           {"$ref": "#/$defs/CoreSyntaxTest"},
           {"$ref": "#/$defs/FromCatalogTest"},
-          {"$ref": "#/$defs/SkillSetTest"}
+          {"$ref": "#/$defs/SkillSetTest"},
+          {"$ref": "#/$defs/TransformCatalogTest"},
+          {"$ref": "#/$defs/ProvideCatalogTest"},
+          {"$ref": "#/$defs/ResolveCatalogsTest"},
+          {"$ref": "#/$defs/GeneratePromptSnippetTest"},
+          {"$ref": "#/$defs/UnwrapTest"},
+          {"$ref": "#/$defs/WrapTest"},
+          {"$ref": "#/$defs/CompileTest"},
+          {"$ref": "#/$defs/DecompileTest"},
+          {"$ref": "#/$defs/ParseResponseTest"},
+          {"$ref": "#/$defs/ParseChunkTest"},
+          {"$ref": "#/$defs/CreateFormatTest"},
+          {"$ref": "#/$defs/CreateProcessorTest"}
         ]
       }
     ]
@@ -718,6 +742,549 @@
       },
       "required": ["action", "args", "expected_skills"]
     },
+    "AgentCatalogRef": {
+      "description": "A catalog document, either a path relative to `conformance/` or the document inlined in the case.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Path to a catalog document, relative to `conformance/`."
+        },
+        {"type": "object", "description": "An inlined catalog document."}
+      ]
+    },
+    "CatalogTransformerSpec": {
+      "type": "object",
+      "description": "One transformer, in the order it is applied. A case states the allowlist directly. Keeping everything is said by leaving the transformer out, so an empty allowlist keeps nothing.",
+      "properties": {
+        "component_pruning": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The component names a ComponentPruningTransformer keeps."
+        },
+        "function_pruning": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The function names a FunctionPruningTransformer keeps."
+        }
+      },
+      "oneOf": [{"required": ["component_pruning"]}, {"required": ["function_pruning"]}],
+      "additionalProperties": false
+    },
+    "CatalogRegistration": {
+      "type": "object",
+      "description": "A catalog as the agent registers it, which is a CatalogConfig: the pristine document plus the transformers applied before it reaches a prompt or a validator.",
+      "properties": {
+        "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+        "transformers": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/CatalogTransformerSpec"}
+        }
+      },
+      "required": ["catalog"],
+      "additionalProperties": false
+    },
+    "InferenceFormatName": {
+      "type": "string",
+      "enum": ["direct_json", "express"],
+      "description": "The inference format strategy the case exercises."
+    },
+    "CatalogExpectation": {
+      "type": "object",
+      "description": "Assertions about one catalog. Each is optional, so a case states only what it means to check. The name lists are exhaustive: the catalog declares those names and no others.",
+      "properties": {
+        "catalog_id": {"type": "string"},
+        "protocol_version": {
+          "type": "string",
+          "description": "The protocol version the catalog reports, written as the enum spells it, such as `v1.0`."
+        },
+        "components": {"type": "array", "items": {"type": "string"}},
+        "functions": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "RawResponsePart": {
+      "type": "object",
+      "description": "One token of an unwrapped response: conversational text or an uncompiled A2UI block, never both.",
+      "properties": {
+        "text": {"type": "string", "description": "Conversational text, as a TextPart."},
+        "a2ui_raw": {
+          "type": "string",
+          "description": "The uncompiled format content between the sentinel tags, as a RawA2uiPart."
+        },
+        "is_final": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the part is closed. A block the model left unterminated states false."
+        }
+      },
+      "oneOf": [{"required": ["text"]}, {"required": ["a2ui_raw"]}],
+      "additionalProperties": false
+    },
+    "ResponsePart": {
+      "type": "object",
+      "description": "One part of a parsed response: conversational text or compiled A2UI messages, never both. This is the union the blueprint parser returns, so text that precedes a payload is its own part rather than a field on the payload's part.",
+      "properties": {
+        "text": {"type": "string"},
+        "a2ui": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Compiled AgentToRendererMessage objects."
+        }
+      },
+      "oneOf": [{"required": ["text"]}, {"required": ["a2ui"]}],
+      "additionalProperties": false
+    },
+    "TransformCatalogTest": {
+      "type": "object",
+      "description": "Applying catalog transformers to a pristine catalog.",
+      "properties": {
+        "action": {"const": "transform_catalog"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "transformers": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/CatalogTransformerSpec"}
+            }
+          },
+          "required": ["catalog"],
+          "additionalProperties": false
+        },
+        "expect": {"$ref": "#/$defs/CatalogExpectation"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "ProvideCatalogTest": {
+      "type": "object",
+      "description": "Loading a catalog document through a catalog provider, including the identity and version checks the provider performs.",
+      "properties": {
+        "action": {"const": "provide_catalog"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": ["file_system"],
+              "description": "Which provider loads the document. Only the file system provider is covered: an in memory provider is handed a document that a case would have to inline, which tests the harness that inlined it more than the provider."
+            },
+            "path": {
+              "type": "string",
+              "description": "Path relative to `conformance/`, for the file system provider."
+            },
+            "catalog_id": {
+              "type": "string",
+              "description": "The id the provider is constructed with. It is checked against the document only when the document states one, and supplies the id when the document does not."
+            },
+            "protocol_version": {
+              "type": "string",
+              "description": "The protocol version the provider is constructed with, checked against the document only when the document states one."
+            }
+          },
+          "required": ["provider"],
+          "additionalProperties": false
+        },
+        "expect": {"$ref": "#/$defs/CatalogExpectation"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "ResolveCatalogsTest": {
+      "type": "object",
+      "description": "Negotiating renderer capabilities against the catalogs an agent registered, and returning the transformed catalogs that are active for the session.",
+      "properties": {
+        "action": {"const": "resolve_catalogs"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/CatalogRegistration"},
+              "description": "The catalogs the agent registered, in registration order."
+            },
+            "renderer_capabilities": {
+              "type": "object",
+              "description": "The capabilities object as it arrives on the wire, keyed by protocol version. A case for a request that carries no capabilities at all leaves this out."
+            },
+            "accepts_inline_catalogs": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether the agent accepts catalogs the renderer declares inline."
+            }
+          },
+          "required": ["catalogs"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "active_catalog_ids": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The ids of the active catalogs, compared without regard to order. Nothing in the protocol gives the sequence a meaning, so a harness compares these as a set."
+            },
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/CatalogExpectation"},
+              "description": "Assertions about each active catalog, matched to `active_catalog_ids` by `catalog_id` rather than by position."
+            }
+          },
+          "additionalProperties": false
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "GeneratePromptSnippetTest": {
+      "type": "object",
+      "description": "Rendering the system prompt snippet for a format and a set of active catalogs. Assertions are substrings rather than whole texts, because the wording around the catalog is an implementation's own.",
+      "properties": {
+        "action": {"const": "generate_prompt_snippet"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/CatalogRegistration"}
+            },
+            "examples": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Prompt examples, each a path relative to `conformance/` to a JSON file holding the AgentToRendererMessage list for one turn."
+            },
+            "allowed_messages": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The payload envelope names the format may describe, such as `createSurface`. Leaving it out means every envelope of the protocol version is available."
+            }
+          },
+          "required": ["format", "catalogs"],
+          "additionalProperties": false
+        },
+        "expect_contains": {"type": "array", "items": {"type": "string"}},
+        "expect_absent": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the snippet must not carry, which is how a case checks that a pruned component never reaches the model."
+        },
+        "expect_deterministic": {
+          "type": "boolean",
+          "description": "Generating twice from the same inputs returns the same string."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "UnwrapTest": {
+      "type": "object",
+      "description": "Tokenizing a model response into ordered raw parts, before any payload is compiled.",
+      "properties": {
+        "action": {"const": "unwrap"},
+        "args": {
+          "type": "object",
+          "properties": {"format": {"$ref": "#/$defs/InferenceFormatName"}},
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "input": {"type": "string", "description": "The raw text the model emitted."},
+        "expect": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/RawResponsePart"},
+          "description": "The parts in the order the model emitted them."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args", "input"]
+    },
+    "WrapTest": {
+      "type": "object",
+      "description": "Writing raw parts back out as a model would have emitted them, which is how examples and transcripts are produced.",
+      "properties": {
+        "action": {"const": "wrap"},
+        "args": {
+          "type": "object",
+          "properties": {"format": {"$ref": "#/$defs/InferenceFormatName"}},
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "parts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/RawResponsePart"}
+        },
+        "expect_output": {
+          "type": "string",
+          "description": "The exact string, for cases where the spelling is fixed by the format."
+        },
+        "expect_contains": {"type": "array", "items": {"type": "string"}},
+        "expect_round_trip": {
+          "type": "boolean",
+          "description": "Unwrapping the output returns the parts the case supplied."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args", "parts"]
+    },
+    "CompileTest": {
+      "type": "object",
+      "description": "Compiling one raw format block into A2UI messages.",
+      "properties": {
+        "action": {"const": "compile"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"},
+              "description": "For cases where the compiler needs more than one active catalog."
+            }
+          },
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "input": {
+          "type": "string",
+          "description": "The raw block content, without the sentinel tags."
+        },
+        "expect": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "The compiled AgentToRendererMessage objects."
+        },
+        "expect_present": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "JSON Pointers into the compiled messages that must hold a non-empty value whose spelling is not fixed by the protocol. A harness removes each of these from what the implementation produced, asserting on the way that it was there and not empty, and then compares what is left against `expect`. The `expect` block therefore omits them. This is for a value the format has to supply but the protocol does not dictate, such as the message on a check that was written without one."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args", "input"]
+    },
+    "DecompileTest": {
+      "type": "object",
+      "description": "Writing A2UI messages back into a format's own notation.",
+      "properties": {
+        "action": {"const": "decompile"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"}
+          },
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "messages": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "The AgentToRendererMessage objects to write out."
+        },
+        "expect_output": {"type": "string"},
+        "expect_contains": {"type": "array", "items": {"type": "string"}},
+        "expect_round_trip": {
+          "type": "boolean",
+          "description": "Compiling the output returns the messages the case supplied."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args", "messages"]
+    },
+    "ParseResponseTest": {
+      "type": "object",
+      "description": "Parsing a whole model response into the text and payload parts an agent hands on, in the order the model emitted them.",
+      "properties": {
+        "action": {"const": "parse_response"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"}
+            },
+            "wrapped": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether the response is expected to carry sentinel tags. A case with false hands the whole body to the compiler."
+            }
+          },
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "input": {"type": "string"},
+        "expect": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ResponsePart"}
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args", "input"]
+    },
+    "ParseChunkTest": {
+      "type": "object",
+      "description": "Feeding a response to a parser one chunk at a time. Each step states the parts that chunk yields, so a case fixes both what is emitted and when.",
+      "properties": {
+        "action": {"const": "parse_chunk"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"}
+            },
+            "progressive_keys": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Overrides the parser's default set of string keys that may be closed early while a value is still arriving."
+            },
+            "wrapped": {"type": "boolean", "default": true}
+          },
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": {"type": "string", "description": "The chunk handed to the parser."},
+              "expect": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/ResponsePart"},
+                "description": "The parts this chunk yields, which is the delta since the previous chunk and is empty when the parser is still buffering."
+              },
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
+            },
+            "required": ["input"],
+            "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}]
+          }
+        },
+        "expect_matches_single_shot": {
+          "type": "boolean",
+          "description": "Concatenating the chunks and parsing them in one call yields the same parts as the steps do together, so chunk boundaries change timing and nothing else."
+        }
+      },
+      "required": ["action", "args", "steps"]
+    },
+    "CreateFormatTest": {
+      "type": "object",
+      "description": "Building an inference format from its factory and checking what the format hands back.",
+      "properties": {
+        "action": {"const": "create_format"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/CatalogRegistration"}
+            },
+            "examples": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Prompt examples, each a path relative to `conformance/` to a JSON file holding the AgentToRendererMessage list for one turn."
+            },
+            "probe_chunks": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "A stream fed to one parser and then to a second parser built by the same format, which is how a case checks that the two share no buffer."
+            }
+          },
+          "required": ["format", "catalogs"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "prompt_snippet_contains": {"type": "array", "items": {"type": "string"}},
+            "prompt_snippet_absent": {"type": "array", "items": {"type": "string"}},
+            "parsers_are_distinct": {
+              "type": "boolean",
+              "description": "Two calls to create a parser return two parsers rather than one shared instance."
+            },
+            "parser_state_isolated": {
+              "type": "boolean",
+              "description": "A parser built after another has consumed `probe_chunks` produces the same parts from those chunks as the first one did."
+            }
+          },
+          "additionalProperties": false
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "CreateProcessorTest": {
+      "type": "object",
+      "description": "Taking an agent's registered catalogs and a renderer's capabilities through to a request processor, and using that processor for a turn.",
+      "properties": {
+        "action": {"const": "create_processor"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/CatalogRegistration"},
+              "description": "The catalogs the generator holds for the life of the agent."
+            },
+            "examples": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Prompt examples held by the generator and checked against the active catalogs when a processor is created. Each is a path relative to `conformance/` to a JSON file holding the AgentToRendererMessage list for one turn."
+            },
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "format_override": {
+              "$ref": "#/$defs/InferenceFormatName",
+              "description": "A format passed when the processor is created, overriding the generator's own."
+            },
+            "renderer_capabilities": {"type": "object"},
+            "accepts_inline_catalogs": {"type": "boolean", "default": false}
+          },
+          "required": ["catalogs"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "active_catalog_ids": {"type": "array", "items": {"type": "string"}},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/CatalogExpectation"},
+              "description": "Assertions about each active catalog, aligned by position with `active_catalog_ids`, for cases that check what the processor holds rather than what its prompt says."
+            },
+            "prompt_snippet_contains": {"type": "array", "items": {"type": "string"}},
+            "prompt_snippet_absent": {"type": "array", "items": {"type": "string"}},
+            "generator_catalogs_unchanged": {
+              "type": "boolean",
+              "description": "The generator's own catalogs are the same after the processor was created as before, so one renderer's negotiation cannot affect the next."
+            }
+          },
+          "additionalProperties": false
+        },
+        "then_parse": {
+          "type": "object",
+          "description": "A response parsed through the processor the case just created, for rules that only hold once negotiation has narrowed the catalogs. This sits beside `expect` rather than inside it because it is a call made on the processor, not a property read off it.",
+          "properties": {
+            "input": {"type": "string"},
+            "wrapped": {"type": "boolean", "default": true},
+            "expect": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/ResponsePart"}
+            },
+            "expect_error": {"$ref": "#/$defs/ExpectError"}
+          },
+          "required": ["input"],
+          "additionalProperties": false
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
     "ExpectError": {
       "oneOf": [
         {
@@ -735,7 +1302,7 @@
                 "CatalogError",
                 "IntegrityError",
                 "RecursionError",
-                "CompileError",
+                "CompilationError",
                 "DataError"
               ]
             },

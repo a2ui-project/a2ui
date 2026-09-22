@@ -37,6 +37,7 @@ a2ui-core = { workspace = true }
 [build-system]
 requires = [
   "hatchling",
+  "hatch-vcs",
   "jsonschema",
   "pyink>=24.10.0",
   "antlr4-tools>=0.2.1",
@@ -44,8 +45,26 @@ requires = [
 ]
 build-backend = "hatchling.build"
 
+# Version is derived from the `python/a2ui-agent-sdk/v*` git tags. See the
+# equivalent block in a2ui_core/pyproject.toml for why `fallback-version` is the
+# last released version rather than 0.0.0.
 [tool.hatch.version]
-path = "src/a2ui/version.py"
+source = "vcs"
+fallback-version = "0.6.0"
+
+[tool.hatch.version.raw-options]
+root = "../../.."
+tag_regex = '^python/a2ui-agent-sdk/v(?P<version>.+)$'
+local_scheme = "no-local-version"
+git_describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "python/a2ui-agent-sdk/v*",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a2ui"]

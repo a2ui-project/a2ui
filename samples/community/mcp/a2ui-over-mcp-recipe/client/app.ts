@@ -21,7 +21,7 @@ import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {Catalog, DataContext, DataModel, MessageProcessor} from '@a2ui/web_core/v0_9';
-import {createCallMcpToolImplementation} from '@a2ui/mcp-catalog';
+import {createMcpCatalogFunctions} from '@a2ui/mcp-catalog';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
@@ -57,14 +57,11 @@ export class A2uiRecipeApp extends LitElement {
   @state() private accessor connectionStatus: ConnectionStatus = 'disconnected';
   @state() private accessor statusMessage = 'Ready';
 
-  /** The MCP client serving each tool, recorded during `tools/list`. */
+  /** Map of tool names to their connected MCP client instances. */
   readonly clientsByTool = new Map<string, Client>();
 
   /**
-   * The host's entire contribution to tool execution.
-   *
-   * A2UI payloads address tools by name only, so routing lives here; the MCP
-   * catalog does everything else with the client this returns.
+   * Resolves the MCP client responsible for executing a given tool name.
    */
   getMcpClientForTool = (toolName: string): Client => {
     const client = this.clientsByTool.get(toolName);
@@ -82,8 +79,7 @@ export class A2uiRecipeApp extends LitElement {
   constructor() {
     super();
 
-    // `MessageProcessor` reads its catalog array lazily rather than copying it,
-    // so the processor can be built before the catalog whose function needs it.
+    // Initialize MessageProcessor before creating catalog functions that reference it.
     const catalogs: Catalog<any>[] = [];
     this.processor = new MessageProcessor<any>(catalogs);
     this.catalog = new Catalog<any>(
@@ -91,7 +87,7 @@ export class A2uiRecipeApp extends LitElement {
       Array.from(basicCatalog.components.values()),
       [
         ...Array.from(basicCatalog.functions.values()),
-        createCallMcpToolImplementation(this.getMcpClientForTool, this.processor),
+        ...createMcpCatalogFunctions(this.getMcpClientForTool, this.processor),
       ],
     );
     catalogs.push(this.catalog);
@@ -150,9 +146,7 @@ export class A2uiRecipeApp extends LitElement {
       this.connectionStatus = 'connected';
       this.statusMessage = `Loading UI from tool '${RECIPE_FORM_TOOL}'...`;
 
-      // Surfaces invoke `callMcpTool` through their own `DataContext`. No
-      // surface exists yet, so the entrypoint tool runs against a scratch
-      // context; its arguments are literals, so nothing binds to it.
+      // Invoke the entrypoint tool using a temporary DataContext before any surface exists.
       const context = new DataContext(
         {dataModel: new DataModel({}), catalog: this.catalog} as any,
         '/',

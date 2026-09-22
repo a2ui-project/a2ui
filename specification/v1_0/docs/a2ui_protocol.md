@@ -1551,7 +1551,7 @@ Renderers and client SDKs expose surface and component metadata using uniform ac
 [`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`agent_to_renderer.json`]: ../json/agent_to_renderer.json
 [`catalog_definition.json`]: ../json/catalog_definition.json
-[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
+[`catalogs/basic/catalog.json`]: ../../../catalogs/basic/v1/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
 [`renderer_data_model.json`]: ../json/renderer_data_model.json

@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests focusing on the A2UI Express Compiler and Prompt Generator."""
+"""Unit tests focusing on the A2UI Express Compiler and Prompt Generator.
+
+Compilation behaviour the protocol fixes for every language lives in
+`conformance/agent/express/compiler.yaml`, which this SDK runs from
+`tests/conformance/test_conformance.py`. What stays here is what conformance
+deliberately leaves to an implementation: exact error types and their
+attributes, the wording of a synthesised check message, thread safety, catalog
+polymorphism, and behaviour the suites rule against and mark `xfail`, which
+these tests are the only executing coverage of until it is fixed.
+"""
 
 import json
 import os
@@ -33,12 +42,12 @@ from a2ui.inference_formats.experimental.express.errors import (
     ExpressUndefinedRootError,
 )
 
-SPEC_DIR = os.path.abspath(
+CATALOGS_DIR = os.path.abspath(
     os.path.join(
-        os.path.dirname(__file__), "..", "..", "..", "..", "..", "specification", "v1_0"
+        os.path.dirname(__file__), "..", "..", "..", "..", "..", "catalogs", "basic"
     )
 )
-CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 
 
 class TestExpressCompiler(unittest.TestCase):
@@ -104,38 +113,6 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             }],
         )
 
-    def test_format_string_and_actions(self):
-        """Validates compilation of string interpolation and interactive actions."""
-        compiler = ExpressCompiler(self.catalog)
-        dsl = """root = Column([welcome, saveButton])
-welcome = Text(formatString("Welcome, ${/user/name}!"))
-saveButton = Button(saveLabel, "primary", Event("submitDeal", {rep: $/form/rep}))
-saveLabel = Text("Save")"""
-
-        envelope = compiler.compile(dsl)[0]
-        components = envelope["createSurface"]["components"]
-
-        welcome_comp = next(c for c in components if c["id"] == "welcome")
-        self.assertEqual(
-            welcome_comp["text"],
-            {
-                "call": "formatString",
-                "args": {"value": "Welcome, ${/user/name}!"},
-            },
-        )
-
-        button_comp = next(c for c in components if c["id"] == "saveButton")
-        self.assertEqual(button_comp["variant"], "primary")
-        self.assertEqual(
-            button_comp["action"],
-            {
-                "event": {
-                    "name": "submitDeal",
-                    "context": {"rep": {"path": "/form/rep"}},
-                }
-            },
-        )
-
     def test_standalone_function_call(self):
         """Validates compilation of standalone function calls into CallFunctionMessages."""
         compiler = ExpressCompiler(self.catalog)
@@ -147,22 +124,6 @@ saveLabel = Text("Save")"""
         self.assertEqual(envelope["callFunction"]["call"], "openUrl")
         self.assertEqual(
             envelope["callFunction"]["args"], {"url": "https://example.com"}
-        )
-
-    def test_map_variable_inlining(self):
-        """Validates compiling variable assignments holding map literals and inlining them."""
-        compiler = ExpressCompiler(self.catalog)
-        dsl = """root = Tabs([tab1])
-tab1 = {title: "Overview", child: contentCol}
-contentCol = Column([])"""
-
-        envelope = compiler.compile(dsl)[0]
-        components = envelope["createSurface"]["components"]
-
-        tabs_comp = next(c for c in components if c["id"] == "root")
-        self.assertEqual(tabs_comp["component"], "Tabs")
-        self.assertEqual(
-            tabs_comp["tabs"], [{"title": "Overview", "child": "contentCol"}]
         )
 
     def test_event_and_list_variable_inlining(self):
@@ -186,29 +147,6 @@ closeAction = Event("close")"""
 
         btn2 = next(c for c in components if c["id"] == "btn2")
         self.assertEqual(btn2["action"], {"event": {"name": "close", "context": {}}})
-
-    def test_skipped_and_omitted_arguments(self):
-        """Validates skipped (_) and trailing omitted positional arguments compile correctly."""
-        compiler = ExpressCompiler(self.catalog)
-        dsl = """root = Column([btn1, btn2])
-btn1 = Button(btn1_label, _, Event("click"))
-btn1_label = Text("Click")
-btn2 = Button(btn2_label)
-btn2_label = Text("Submit")"""
-
-        envelope = compiler.compile(dsl)[0]
-        components = envelope["createSurface"]["components"]
-
-        btn1_comp = next(c for c in components if c["id"] == "btn1")
-        self.assertNotIn("variant", btn1_comp)
-        self.assertEqual(
-            btn1_comp["action"], {"event": {"name": "click", "context": {}}}
-        )
-
-        btn2_comp = next(c for c in components if c["id"] == "btn2")
-        self.assertEqual(btn2_comp["child"], "btn2_label")
-        self.assertNotIn("variant", btn2_comp)
-        self.assertNotIn("action", btn2_comp)
 
     def test_delete_surface_and_template_and_rootless_data(self):
         """Validates standalone deleteSurface, _template helper, and rootless updateDataModel."""
@@ -485,44 +423,6 @@ btnLabel = Text("Click Thread 2")
         validator = A2uiValidator(catalog, experiments={"version_1_0"})
         self.assertEqual(validator.version, "1.0")
 
-    def test_semicolons_and_trailing_commas_and_line_continuation(self):
-        """Verifies that optional semicolons, trailing commas, and line continuations compile correctly."""
-        compiler = ExpressCompiler(self.catalog)
-
-        # 1. Test optional semicolons at the end of statements
-        semicolon_dsl = """
-    root = Column([btn1]);
-    btn1 = Button("Click Me");
-    """
-        envelope = compiler.compile(semicolon_dsl)[0]
-        self.assertEqual(len(envelope["createSurface"]["components"]), 2)
-
-        # 2. Test trailing commas in lists, maps, component calls, and checks
-        trailing_comma_dsl = """
-    root = Column([btn1, btn2,],);
-    btn1 = Button("Label", "primary", myAction,);
-    btn2 = TextField("Input", $/val, "placeholder", _, ?numeric(1, 10,),);
-    myAction = Event("click", {a: 1, b: 2,},);
-    """
-        envelope2 = compiler.compile(trailing_comma_dsl)[0]
-        components = envelope2["createSurface"]["components"]
-        self.assertEqual(len(components), 3)
-
-        # 3. Test line continuation where newlines are completely insignificant
-        continuation_dsl = """
-    root
-      =
-      Column
-      (
-        [
-          btn1
-        ]
-      )
-    btn1 = Text("Hello World")
-    """
-        envelope3 = compiler.compile(continuation_dsl)[0]
-        self.assertEqual(len(envelope3["createSurface"]["components"]), 2)
-
     def test_strict_enum_validation(self):
         """Verifies that the compiler raises a ValueError when an invalid enum option is passed."""
         compiler = ExpressCompiler(self.catalog)
@@ -784,29 +684,6 @@ root = Text("Hello Surface")"""
         self.assertEqual(
             envelopes[0]["createSurface"]["catalogId"], "custom-catalog-uri"
         )
-
-    def test_compilation_delete_surface_kwargs(self):
-        """Validates deleteSurface directive with keyword argument surfaceId."""
-        compiler = ExpressCompiler(self.catalog)
-        dsl = 'deleteSurface(surfaceId="custom-surface-456")'
-        envelopes = compiler.compile(dsl)
-        self.assertEqual(len(envelopes), 1)
-        self.assertEqual(
-            envelopes[0]["deleteSurface"]["surfaceId"], "custom-surface-456"
-        )
-
-    def test_compilation_multi_surface(self):
-        """Validates sequential multi-surface scopes in a single DSL block."""
-        compiler = ExpressCompiler(self.catalog)
-        dsl = """surface("header-surface")
-root = Text("Header")
-
-surface("body-surface")
-root = Text("Body")"""
-        envelopes = compiler.compile(dsl)
-        self.assertEqual(len(envelopes), 2)
-        self.assertEqual(envelopes[0]["createSurface"]["surfaceId"], "header-surface")
-        self.assertEqual(envelopes[1]["createSurface"]["surfaceId"], "body-surface")
 
 
 if __name__ == "__main__":

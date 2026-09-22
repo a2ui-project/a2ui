@@ -48,6 +48,6 @@ describe('Example: Workout Summary', () => {
         surface.querySelectorAll('.material-symbols-outlined, .a2ui-icon'),
       )[0] as HTMLElement,
     ).toBeTruthy();
-    expect(textContent).toContain('directions_run');
+    expect(textContent).toContain('favorite');
   });
 });

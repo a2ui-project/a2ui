@@ -1,0 +1,297 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Express decompilation: writing A2UI messages back into Express notation.
+#
+# `decompile` is the inverse of `compile`. It exists so a prompt example can be
+# authored as messages and shown to a model in the notation the model is being
+# asked to produce. Every case below recompiles its own output and expects the
+# messages it started from, so a format that cannot round-trip an envelope fails
+# here rather than quietly teaching a model a spelling its own compiler rejects.
+#
+# What the notation means is fixed by `agent/express/compiler.yaml`, and the
+# round trip in every case below is checked against it. Two rules belong to this
+# direction alone, because compiling accepts either form and only one of them
+# survives the return journey:
+#
+# - A map key that is not an identifier is written quoted, which the grammar's
+#   `map_entry` admits and an unquoted key would not survive.
+# - A data model of nested maps writes out as one assignment per leaf path,
+#   because that is the only form the compiler reassembles into the same
+#   structure.
+#
+# A case asserts fragments through `expect_contains` rather than the whole
+# output, since the exact spelling is the implementation's as long as it
+# recompiles. Where the spelling does matter, the case names the fragment that
+# tells the two apart: an escaped quote, or backslashes left undoubled by a raw
+# string. A round trip alone would pass either way, and a model shown the wrong
+# one learns to emit it.
+#
+# The direct JSON counterpart of this suite is
+# `agent/direct_json/decompiler.yaml`. The two are deliberately parallel: a rule
+# that holds for both formats has a case in each, written against that format's
+# own notation.
+#
+# The catalogs under test live in `args`, and every case here is written against
+# v1.0. A case states no version of its own: the version it runs under is the
+# one its catalog document declares.
+
+- name: test_decompile_express_components
+  description: A createSurface writes back out as the surface line and the component assignments it came from.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - 'surface("s1")'
+    - "root = Card(body)"
+    - 'body = Text("Hello")'
+  expect_round_trip: true
+
+- name: test_decompile_express_data_model
+  description: An initial data model writes back out as the data path assignments that would produce it.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              path: "/title"
+        dataModel:
+          title: "Hello"
+  expect_contains:
+    - '$/title = "Hello"'
+    - "root = Text($/title)"
+  expect_round_trip: true
+
+- name: test_decompile_express_update_components
+  description: An updateComponents writes back out as the component assignments it came from, and a block naming no root is an update to a surface that already exists rather than a create.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "greeting"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - 'surface("s1")'
+    - 'greeting = Text("Hello")'
+  expect_round_trip: true
+
+- name: test_decompile_express_update_data_model
+  description: A standalone data model update writes back out as the data path assignment that would produce it, with no component assignment beside it to make the block a create.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/"
+        value:
+          title: "Hello"
+  expect_contains:
+    - 'surface("s1")'
+    - '$/title = "Hello"'
+  expect_round_trip: true
+
+- name: test_decompile_express_delete_surface
+  description: A deleteSurface writes back out as the statement of that name, which is what lets a lifecycle turn be shown to a model as an example.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "s1"
+  expect_contains:
+    - 'deleteSurface("s1")'
+  expect_round_trip: true
+
+- name: test_decompile_express_escapes_a_quote_in_a_string
+  description: A double quote inside a value is escaped, since an unescaped one would close the string and leave the rest of the line as syntax. The cases above all use values that need no escaping, so none of them would catch a decompiler that wrote values out verbatim.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: 'He said "hello".'
+  expect_contains:
+    - '\"hello\"'
+  expect_round_trip: true
+
+- name: test_decompile_express_backslashes_are_not_doubled
+  description: A value carrying backslashes is written as a raw string, so the backslashes appear once rather than doubled. Escaping them would round-trip too, but a model shown the doubled form learns to emit it, and test_compile_express_raw_string_literal in compiler.yaml reads the raw form.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: 'C:\temp\notes'
+  expect_contains:
+    - 'C:\temp\notes'
+  expect_round_trip: true
+
+- name: test_decompile_express_function_call_action
+  description: The local branch of an action writes back out as the call itself, which is what distinguishes it from the Event form an agent-side event uses.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              functionCall:
+                call: "openUrl"
+                args:
+                  url: "https://example.com"
+          - id: "label"
+            component: "Text"
+            text: "Open the docs"
+  expect_contains:
+    - 'openUrl("https://example.com")'
+  expect_round_trip: true
+
+- name: test_decompile_express_renderer_function_call
+  description: A renderer function call writes back out as the standalone call that produced it, with the call id and the catalog left implicit because recompiling regenerates both.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "conformance/simplified"
+          call: "openUrl"
+          args:
+            url: "https://example.com"
+  expect_contains:
+    - 'openUrl("https://example.com")'
+  expect_round_trip: true
+
+- name: test_decompile_express_quotes_a_map_key_that_is_not_an_identifier
+  description: A context key that is not a bare identifier is written quoted, which the grammar's map entry admits. Written unquoted it would not parse back, so this is the case that keeps the round trip honest for keys carrying a hyphen.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "submit"
+                context:
+                  item-id: "42"
+          - id: "label"
+            component: "Text"
+            text: "Submit"
+  expect_contains:
+    - '"item-id": "42"'
+  expect_round_trip: true
+
+- name: test_decompile_express_nested_data_model_is_one_assignment_per_leaf
+  description: A data model of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/"
+        value:
+          user:
+            name: "Ada"
+            city: "London"
+  expect_contains:
+    - '$/user/name = "Ada"'
+    - '$/user/city = "London"'
+  expect_round_trip: true
+
+- name: test_decompile_express_list_of_numbers
+  description: A property holding plain numbers writes out as an array of them, with no quoting and no component references. Every other decompile case writes a list of child ids, which a decompiler could produce by treating array entries as names.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [1, 2, 3]
+            caption: "Rainfall"
+  expect_contains:
+    - 'root = Chart([1, 2, 3], "Rainfall")'
+  expect_round_trip: true
