@@ -46,9 +46,14 @@ describe('@index system function', () => {
     assert.strictEqual(IndexImplementation.execute({}, contextWithIndex(4)), 4);
   });
 
-  it('falls back to the trailing numeric segment of the data path', () => {
+  it('falls back to the trailing numeric segment of the data path or parent context', () => {
     assert.strictEqual(IndexImplementation.execute({}, contextAtPath('/items/2')), 2);
-    assert.strictEqual(IndexImplementation.execute({}, contextAtPath('/items/2/name')), 2);
+    const parentCtx = contextAtPath('/items/2');
+    const nestedChildCtx = {
+      path: '/items/2/name',
+      parent: parentCtx,
+    } as unknown as DataContext;
+    assert.strictEqual(IndexImplementation.execute({}, nestedChildCtx), 2);
   });
 
   it('applies a numeric offset', () => {
@@ -63,7 +68,12 @@ describe('@index system function', () => {
   it('rejects evaluation outside a collection template', () => {
     // A default of 0 would render a payload error as a plausible first row,
     // so the absence of an iteration scope has to be reported.
-    for (const ctx of [contextAtPath('/'), contextAtPath('/items/name'), contextAtPath('')]) {
+    for (const ctx of [
+      contextAtPath('/'),
+      contextAtPath('/items/name'),
+      contextAtPath('/items/2/name'),
+      contextAtPath(''),
+    ]) {
       assert.throws(
         () => IndexImplementation.execute({}, ctx),
         (err: unknown) =>

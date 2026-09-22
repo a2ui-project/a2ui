@@ -93,6 +93,7 @@ export class V0Point8Adapter extends BaseVersionAdapter {
             ? (cs.dataModel as Record<string, unknown>)
             : undefined,
         version: typeof msgObj.version === 'string' ? msgObj.version : this.version,
+        rootId: typeof cs?.root === 'string' && cs.root ? cs.root : undefined,
       });
     }
     if ('surfaceUpdate' in msgObj) {

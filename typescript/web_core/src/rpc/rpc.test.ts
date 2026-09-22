@@ -248,13 +248,18 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.deepStrictEqual(result, {items: [1, 2, 3]});
   });
 
-  it('evaluates @index function returning loop index from nested DataContext path with offset', () => {
+  it('evaluates @index function returning loop index from nested DataContext parent chain and rejects non-trailing root numeric segments', () => {
     const surface = new SurfaceModel('s1', mockCatalog);
-    const context = new DataContext(surface, '/items/3/user/address');
+    const itemContext = new DataContext(surface, '/items/3');
+    const context = itemContext.nested('user/address');
     const indexValue = IndexImplementation.execute({offset: 1}, context);
     assert.strictEqual(indexValue, 4);
 
-    // Alphanumeric segment starting with digit should be ignored
+    // Without a parent template scope, a non-trailing numeric segment is not an index
+    const unparentedContext = new DataContext(surface, '/items/3/user/address');
+    assert.throws(() => IndexImplementation.execute({offset: 0}, unparentedContext));
+
+    // Alphanumeric segment starting with digit should be ignored; trailing numeric segment used
     const context2 = new DataContext(surface, '/order_99/items/2');
     const indexValue2 = IndexImplementation.execute({offset: 0}, context2);
     assert.strictEqual(indexValue2, 2);

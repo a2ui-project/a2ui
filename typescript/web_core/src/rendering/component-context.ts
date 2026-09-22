@@ -47,11 +47,15 @@ export class ComponentContext {
    * @param surface The surface model the component belongs to.
    * @param componentId The ID of the component.
    * @param dataModelBasePath The base path for data model access (default: '/').
+   * @param parentDataContext Optional parent DataContext in the component tree.
+   * @param index Optional explicit collection iteration index.
    */
   constructor(
     surface: SurfaceModel<ComponentApi>,
     componentId: string,
     dataModelBasePath: string = '/',
+    parentDataContext?: DataContext,
+    index?: number,
   ) {
     const model = surface.componentsModel.get(componentId);
     if (!model) {
@@ -61,7 +65,7 @@ export class ComponentContext {
     this.surfaceComponents = surface.componentsModel;
     this.theme = surface.theme;
 
-    this.dataContext = new DataContext(surface, dataModelBasePath);
+    this.dataContext = new DataContext(surface, dataModelBasePath, index, parentDataContext);
     this._actionDispatcher = action => surface.dispatchAction(action, this.componentModel.id);
   }
 

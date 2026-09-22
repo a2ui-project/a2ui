@@ -328,6 +328,22 @@ export class DataModel {
   }
 
   /**
+   * Checks whether a JSON pointer path physically exists in the data model.
+   *
+   * Differentiates between a path holding an explicit `null` value (`true`) and
+   * a path that is absent from the object or array hierarchy (`false`).
+   *
+   * @param path Absolute JSON pointer path to check.
+   * @returns True if every segment along `path` exists in the hierarchy.
+   */
+  hasPath(path: string): boolean {
+    if (path === null || path === undefined) {
+      return false;
+    }
+    return this.get(path) !== undefined;
+  }
+
+  /**
    * Subscribes to changes at the specified data path.
    *
    * This is a backwards-compatible layer using Preact Signals internally. It

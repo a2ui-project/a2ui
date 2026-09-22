@@ -40,7 +40,6 @@ import {A2uiStateError} from '../../errors.js';
 
 const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';
-const ROOT_EDGE_KEY = '>root>root@/';
 
 const EMPTY_REF_FIELDS: RefFields = new Map();
 
@@ -87,6 +86,7 @@ export class NodeResolver<
 
   private readonly surface: SurfaceModel<C, F>;
   private readonly catalog: Catalog<C, F>;
+  private readonly rootId: string;
   private readonly records = new Map<MutableComponentNode, NodeRecord>();
   private readonly nodesByEdge = new Map<string, MutableComponentNode>();
   private readonly nodesByComponentId = new Map<string, Set<MutableComponentNode>>();
@@ -113,6 +113,7 @@ export class NodeResolver<
     }
     this.surface = surface;
     this.catalog = catalog;
+    this.rootId = surface.rootId ?? ROOT_COMPONENT_ID;
     this.rootNode = signal<ComponentNode<C> | undefined>(undefined);
 
     this.modelSubs.push(
@@ -122,7 +123,7 @@ export class NodeResolver<
       surface.componentsModel.onDeleted.subscribe(id => this.onComponentDeleted(id)),
     );
 
-    if (surface.componentsModel.get(ROOT_COMPONENT_ID)) {
+    if (surface.componentsModel.get(this.rootId)) {
       this.buildRoot();
     }
   }
@@ -196,7 +197,8 @@ export class NodeResolver<
     if (this.rootRecord) {
       return;
     }
-    const node = this.createNode(ROOT_COMPONENT_ID, ROOT_DATA_PATH, ROOT_EDGE_KEY, undefined);
+    const rootEdgeKey = `>${escapeIdPart(this.rootId)}>${escapeIdPart(this.rootId)}@/`;
+    const node = this.createNode(this.rootId, ROOT_DATA_PATH, rootEdgeKey, undefined);
     this.rootRecord = this.records.get(node);
     // Sound: every impl a node carries came from this resolver's Catalog<C>.
     setValue(this.rootNode, node as ComponentNode<C>);
@@ -206,11 +208,11 @@ export class NodeResolver<
     if (this._disposed) {
       return;
     }
-    if (component.id === ROOT_COMPONENT_ID) {
+    if (component.id === this.rootId) {
       // Events deliver late; reconcile against the model's current root, not
       // the event payload. A stale creation must not rebuild a tree already
       // bound to the current model, nor create one the model no longer has.
-      const current = this.surface.componentsModel.get(ROOT_COMPONENT_ID);
+      const current = this.surface.componentsModel.get(this.rootId);
       if (this.rootRecord && this.rootRecord.componentModel !== current) {
         this.disposeNode(this.rootRecord.node);
         this.rootRecord = undefined;
@@ -336,7 +338,8 @@ export class NodeResolver<
     }
 
     this.clearDispatched(componentId, dataPath);
-    const context = new ComponentContext(this.surface, componentId, dataPath);
+    const parentDataContext = parent ? this.records.get(parent)?.context?.dataContext : undefined;
+    const context = new ComponentContext(this.surface, componentId, dataPath, parentDataContext);
     const binder = new GenericBinder<NodeProps>(context, api.schema);
     const record = this.registerNode(
       new MutableComponentNode(

@@ -176,6 +176,47 @@ export function validateFunctionArgs(
   }
 }
 
+export function resolveContextIndex(startCtx: unknown): number | undefined {
+  let ctx = startCtx as
+    | {
+        explicitIndex?: number;
+        getIndex?: () => number | undefined;
+        index?: number;
+        path?: string;
+        parent?: unknown;
+      }
+    | undefined;
+  while (ctx) {
+    if (ctx.explicitIndex !== undefined && Number.isFinite(ctx.explicitIndex)) {
+      return ctx.explicitIndex;
+    }
+    if (
+      !(ctx instanceof DataContext) &&
+      typeof ctx.getIndex === 'function'
+    ) {
+      const idx = ctx.getIndex();
+      if (idx !== undefined && Number.isFinite(idx)) {
+        return idx;
+      }
+    }
+    if (
+      !(ctx instanceof DataContext) &&
+      typeof ctx.index === 'number' &&
+      Number.isFinite(ctx.index)
+    ) {
+      return ctx.index;
+    }
+    if (typeof ctx.path === 'string') {
+      const parts = ctx.path.split('/').filter(Boolean);
+      if (parts.length > 0 && /^\d+$/.test(parts[parts.length - 1])) {
+        return parseInt(parts[parts.length - 1], 10);
+      }
+    }
+    ctx = ctx.parent as typeof ctx;
+  }
+  return undefined;
+}
+
 /**
  * The maximum allowed recursion depth for evaluating nested dynamic values or function calls.
  * Prevents call stack exhaustion on deeply nested expression payloads.
@@ -193,19 +234,48 @@ export class DataContext {
   readonly dataModel: DataModel;
   /** Callback for executing function calls defined in the A2UI component tree. */
   readonly functionInvoker: FunctionInvoker;
+  /** Parent DataContext in the hierarchy, if this context was created via `.nested()`. */
+  readonly parent?: DataContext;
+  /** Explicit collection iteration index supplied to this context, if any. */
+  readonly explicitIndex?: number;
+  private readonly warnedPaths: Set<string>;
 
   /**
    * Initializes a new DataContext instance.
    *
    * @param surface The surface model this context belongs to.
    * @param path The absolute path in the DataModel that this context is scoped to.
+   * @param index Optional explicit collection iteration index.
+   * @param parent Optional parent DataContext in the scope chain.
    */
   constructor(
     readonly surface: SurfaceModel<any>,
     readonly path: string,
+    index?: number,
+    parent?: DataContext,
   ) {
     this.dataModel = surface.dataModel;
     this.functionInvoker = surface.defaultCatalog.invoker;
+    this.explicitIndex = index;
+    this.parent = parent;
+    this.warnedPaths = parent ? parent.warnedPaths : new Set<string>();
+  }
+
+  /**
+   * Returns the 0-based iteration index if this context (or an ancestor context)
+   * is scoped to a collection template item, or `undefined` when outside any
+   * collection template scope.
+   *
+   * Mirrors `DataContext.index` in Python: checks an explicit `explicitIndex` first,
+   * then checks strictly the trailing segment of `ctx.path`, walking `ctx.parent`.
+   */
+  getIndex(): number | undefined {
+    return resolveContextIndex(this);
+  }
+
+  /** Active iteration index if inside a collection template scope, or `undefined`. */
+  get index(): number | undefined {
+    return this.getIndex();
   }
 
   /**
@@ -219,9 +289,17 @@ export class DataContext {
     this.dataModel.set(absolutePath, value);
   }
 
+  private static isDataBindingObject(val: Record<string, unknown>): boolean {
+    return 'path' in val && typeof val.path === 'string' && !('componentId' in val);
+  }
+
+  private static isFunctionCallObject(val: Record<string, unknown>): boolean {
+    return 'call' in val && typeof val.call === 'string';
+  }
+
   /**
-   * Checks whether a value (typically an array element) contains any dynamic parts
-   * (path bindings or function calls) that require resolution.
+   * Checks whether a value contains any dynamic parts (path bindings or
+   * function calls) at any nesting depth that require resolution.
    */
   private static containsDynamicValue(value: unknown): boolean {
     if (value === null || typeof value !== 'object') {
@@ -230,7 +308,26 @@ export class DataContext {
     if (Array.isArray(value)) {
       return value.some(item => DataContext.containsDynamicValue(item));
     }
-    return 'path' in value || 'call' in value;
+    const rec = value as Record<string, unknown>;
+    if (DataContext.isDataBindingObject(rec) || DataContext.isFunctionCallObject(rec)) {
+      return true;
+    }
+    return Object.values(rec).some(v => DataContext.containsDynamicValue(v));
+  }
+
+  private emitMissingDataBindingWarning(absolutePath: string): void {
+    if (
+      typeof this.dataModel?.hasPath === 'function' &&
+      !this.dataModel.hasPath(absolutePath) &&
+      !this.warnedPaths.has(absolutePath)
+    ) {
+      this.warnedPaths.add(absolutePath);
+      void this.surface?.dispatchWarning?.({
+        code: 'MISSING_DATA_BINDING',
+        path: absolutePath,
+        message: `Preflight DataBinding Warning: The bound JSON Pointer '${absolutePath}' does not physically exist in the active DataModel. Evaluating to None.`,
+      });
+    }
   }
 
   /**
@@ -251,63 +348,76 @@ export class DataContext {
       return undefined as any;
     }
 
-    // 1. Primitive literals (null, string, number, boolean)
     if (value === null || typeof value !== 'object') {
       return value as V;
     }
 
-    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
     if (Array.isArray(value)) {
-      // Fast path: fully static arrays need no per-element resolution.
       if (!DataContext.containsDynamicValue(value)) {
         return value as V;
       }
       return value.map(item => this.resolveDynamicValue(item, depth + 1)) as V;
     }
 
-    // 2. Path Check: { path: "..." }
-    if ('path' in value) {
+    const rec = value as Record<string, unknown>;
+
+    if (DataContext.isDataBindingObject(rec)) {
       const absolutePath = this.resolvePath((value as DataBinding).path);
-      return this.dataModel.get(absolutePath);
+      const val = this.dataModel.get(absolutePath);
+      if (val === undefined) {
+        this.emitMissingDataBindingWarning(absolutePath);
+      }
+      return val as V;
     }
 
-    // 3. Function Call: { call: "...", args: ... }
-    if ('call' in value) {
-      const call = value as FunctionCall;
-      let targetCatalog: Catalog<any>;
-      try {
-        // Resolve before validating: the arguments must be checked against the
-        // catalog that will actually run the call, not the surface default.
-        targetCatalog = this.resolveFunctionCatalog(call.catalogId);
-        validateFunctionArgs(call.call, call.args, targetCatalog);
-      } catch (e: unknown) {
-        this.dispatchExpressionError(e, call.call);
-        return undefined as V;
-      }
-      const args: Record<string, unknown> = {};
-
-      for (const [key, argVal] of Object.entries(call.args ?? {})) {
-        args[key] = this.resolveDynamicValue(argVal, depth + 1);
-      }
-
-      const abortController = new AbortController();
-
-      const result = this.evaluateFunctionReactive<V>(
-        call.call,
-        args,
-        abortController.signal,
-        call.catalogId,
-        targetCatalog.invoker,
-      );
-
-      if (result === undefined) {
-        return undefined as unknown as V;
-      }
-
-      return (isSignal(result) ? peekValue(result) : result) as V;
+    if (DataContext.isFunctionCallObject(rec)) {
+      return this.resolveFunctionCallValue<V>(value as FunctionCall, depth);
     }
 
-    return value as V;
+    return this.resolvePlainObjectValue<V>(rec, depth);
+  }
+
+  private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0): V {
+    let targetCatalog: Catalog<any>;
+    try {
+      // Resolve before validating: the arguments must be checked against the
+      // catalog that will actually run the call, not the surface default.
+      targetCatalog = this.resolveFunctionCatalog(call.catalogId);
+      validateFunctionArgs(call.call, call.args, targetCatalog);
+    } catch (e: unknown) {
+      this.dispatchExpressionError(e, call.call);
+      return undefined as V;
+    }
+    const args: Record<string, unknown> = {};
+    for (const [key, argVal] of Object.entries(call.args ?? {})) {
+      args[key] = this.resolveDynamicValue(argVal, depth + 1);
+    }
+
+    const abortController = new AbortController();
+    const result = this.evaluateFunctionReactive<V>(
+      call.call,
+      args,
+      abortController.signal,
+      call.catalogId,
+      targetCatalog.invoker,
+    );
+
+    if (result === undefined) {
+      return undefined as unknown as V;
+    }
+
+    return (isSignal(result) ? peekValue(result) : result) as V;
+  }
+
+  private resolvePlainObjectValue<V>(rec: Record<string, unknown>, depth = 0): V {
+    if (!DataContext.containsDynamicValue(rec)) {
+      return rec as unknown as V;
+    }
+    const resolved: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rec)) {
+      resolved[k] = this.resolveDynamicValue(v, depth + 1);
+    }
+    return resolved as unknown as V;
   }
 
   /**
@@ -397,14 +507,17 @@ export class DataContext {
       return resultSig;
     }
 
+    const rec = value as Record<string, unknown>;
+
     // 2. Path Check
-    if ('path' in value) {
+    if (DataContext.isDataBindingObject(rec)) {
       const absolutePath = this.resolvePath((value as DataBinding).path);
+      this.emitMissingDataBindingWarning(absolutePath);
       return this.dataModel.getSignal<V>(absolutePath) as Signal<V>;
     }
 
     // 3. Function Call
-    if ('call' in value) {
+    if (DataContext.isFunctionCallObject(rec)) {
       const call = value as FunctionCall;
       let targetCatalog: Catalog<any>;
       try {
@@ -494,7 +607,26 @@ export class DataContext {
       return resultSig as unknown as Signal<V>;
     }
 
-    return signal(value as unknown as V);
+    if (!DataContext.containsDynamicValue(rec)) {
+      return signal(value as unknown as V);
+    }
+
+    const entrySignals = Object.entries(rec).map(([k, v]) => [k, this.resolveSignal(v)] as const);
+    const objSig = computed(() => {
+      const resolved: Record<string, unknown> = {};
+      for (const [k, s] of entrySignals) {
+        resolved[k] = getValue(s);
+      }
+      return resolved as unknown as V;
+    }) as Signal<V>;
+    const prevUnsubscribe = objSig.unsubscribe?.bind(objSig);
+    objSig.unsubscribe = () => {
+      prevUnsubscribe?.();
+      for (const [, s] of entrySignals) {
+        s.unsubscribe?.();
+      }
+    };
+    return objSig;
   }
 
   /**
@@ -621,11 +753,12 @@ export class DataContext {
    * Creates a child DataContext scoped to a deeper relative path.
    *
    * @param relativePath The path relative to the current context's path.
+   * @param index Optional explicit iteration index for this nested scope.
    * @returns A new DataContext instance pointing to the resolved absolute path.
    */
-  nested(relativePath: string): DataContext {
+  nested(relativePath: string, index?: number): DataContext {
     const newPath = this.resolvePath(relativePath);
-    return new DataContext(this.surface, newPath);
+    return new DataContext(this.surface, newPath, index, this);
   }
 
   private resolvePath(path: string): string {

@@ -48,6 +48,8 @@ export interface InternalCreateSurfaceOp {
   readonly dataModel?: Record<string, unknown>;
   /** Protocol version of the originating message envelope or adapter. */
   readonly version?: string;
+  /** Root component ID for the surface (defaults to `'root'`). */
+  readonly rootId?: string;
 }
 
 /**

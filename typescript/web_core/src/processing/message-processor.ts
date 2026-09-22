@@ -658,6 +658,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       availableCatalogs,
       validatedTheme,
       sendDataModel ?? false,
+      undefined,
+      op.rootId ?? 'root',
     );
     this.model.addSurface(surface);
 
@@ -988,6 +990,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
 
-    candidateModel.validateTopology(this.validationConfig);
+    candidateModel.validateTopology({
+      ...this.validationConfig,
+      rootId: this.validationConfig.rootId ?? surface.rootId,
+    });
   }
 }

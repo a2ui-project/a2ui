@@ -18,6 +18,7 @@ import {z} from 'zod';
 
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';
+import {resolveContextIndex} from '../../rendering/data-context.js';
 
 /**
  * System function definition for computing iteration indices in array contexts.
@@ -44,19 +45,7 @@ export const IndexApi = {
  */
 export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
   const offset = typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : 0;
-
-  let index: number | undefined;
-  if (typeof (context as any)?.getIndex === 'function') {
-    index = (context as any).getIndex();
-  } else if (context?.path) {
-    const parts = context.path.split('/').filter(Boolean);
-    for (let i = parts.length - 1; i >= 0; i--) {
-      if (/^\d+$/.test(parts[i])) {
-        index = parseInt(parts[i], 10);
-        break;
-      }
-    }
-  }
+  const index = resolveContextIndex(context);
 
   if (index === undefined || !Number.isFinite(index)) {
     throw new A2uiValidationError(

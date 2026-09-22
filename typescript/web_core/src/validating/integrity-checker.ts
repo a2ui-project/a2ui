@@ -80,7 +80,11 @@ function* extractPointers(
     }
   } else if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>;
-    if ('componentId' in obj && typeof obj.componentId === 'string' && 'path' in obj) {
+    if (
+      'componentId' in obj &&
+      typeof obj.componentId === 'string' &&
+      ('path' in obj || 'dataBinding' in obj)
+    ) {
       yield [obj.componentId, `${currentPath}.componentId`];
     } else if (nestedKeys?.size) {
       // The catalog declared exactly which sub-keys carry a child, so sibling

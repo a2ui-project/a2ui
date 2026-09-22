@@ -19,6 +19,7 @@ import {describe, it, beforeEach} from 'node:test';
 import {signal, computed, peekValue, getValue, setValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
+import {SurfaceModel} from '../state/surface-model.js';
 import {
   DataContext,
   MAX_DYNAMIC_VALUE_DEPTH,
@@ -260,7 +261,7 @@ describe('DataContext', () => {
     assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
   });
 
-  it('does not resolve arbitrary objects recursively', () => {
+  it('resolves arbitrary plain objects and arrays recursively', () => {
     const obj = {
       foo: 'bar',
       nested: {path: 'name'},
@@ -268,19 +269,21 @@ describe('DataContext', () => {
     };
 
     const resolved = context.resolveDynamicValue(obj as any);
-    assert.deepStrictEqual(resolved, obj);
+    assert.deepStrictEqual(resolved, {
+      foo: 'bar',
+      nested: 'Alice',
+      list: ['Wonderland', 'literal'],
+    });
   });
 
-  it('subscribes to literal objects as signals without resolution', () => {
+  it('subscribes to plain objects reactively when nested dynamic values change', () => {
     const obj = {foo: 'bar', nested: {path: 'name'}};
     const sig = context.resolveSignal(obj as any);
 
-    // It should be a literal signal containing the object
-    assert.deepStrictEqual(peekValue(sig), obj);
+    assert.deepStrictEqual(peekValue(sig), {foo: 'bar', nested: 'Alice'});
 
-    // Updating the path should NOT affect it
     context.set('name', 'Bob');
-    assert.deepStrictEqual(peekValue(sig), obj);
+    assert.deepStrictEqual(peekValue(sig), {foo: 'bar', nested: 'Bob'});
   });
 
   it('subscribes to function calls with no args', () => {
@@ -353,13 +356,13 @@ describe('DataContext', () => {
   });
 
   describe('resolveAction', () => {
-    it('resolves event actions non-recursively', () => {
+    it('resolves event actions and nested context objects recursively', () => {
       const action = {
         event: {
           name: 'save',
           context: {
             id: {path: 'name'},
-            metadata: {nested: {path: 'something'}},
+            metadata: {nested: {path: 'address/city'}},
           },
         },
       };
@@ -371,7 +374,7 @@ describe('DataContext', () => {
           name: 'save',
           context: {
             id: 'Alice',
-            metadata: {nested: {path: 'something'}}, // Literal, NOT resolved
+            metadata: {nested: 'Wonderland'},
           },
         },
       });
@@ -953,6 +956,94 @@ describe('DataContext', () => {
       assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
       assert.match(dispatchedError.message, /Catalog not found: cat-missing/);
       sub.unsubscribe();
+    });
+  });
+
+  describe('Phase 3 resolution parity (deep object recursion, hasPath, onWarning, index scope)', () => {
+    it('recursively resolves dynamic bindings inside nested plain objects both synchronously and reactively', () => {
+      const cat = new Catalog('cat', '1.0', []);
+      const surface = new SurfaceModel('s1', cat);
+      surface.dataModel.set('/user', {name: 'Alice', role: 'Admin'});
+
+      const ctx = new DataContext(surface, '/');
+      const nestedInput = {
+        profile: {
+          displayName: {path: '/user/name'},
+          meta: {
+            roleLabel: {path: '/user/role'},
+            staticFlag: true,
+          },
+        },
+      };
+
+      const resolved = ctx.resolveDynamicValue<any>(nestedInput);
+      assert.deepStrictEqual(resolved, {
+        profile: {
+          displayName: 'Alice',
+          meta: {
+            roleLabel: 'Admin',
+            staticFlag: true,
+          },
+        },
+      });
+
+      const updates: any[] = [];
+      const sub = ctx.subscribeDynamicValue<any>(nestedInput, val => updates.push(val));
+      assert.strictEqual(sub.value.profile.displayName, 'Alice');
+
+      surface.dataModel.set('/user/name', 'Bob');
+      assert.strictEqual(updates.length, 1);
+      assert.strictEqual(updates[0].profile.displayName, 'Bob');
+      sub.unsubscribe();
+    });
+
+    it('emits MISSING_DATA_BINDING on surface.onWarning for absent paths but not for explicit null paths', () => {
+      const cat = new Catalog('cat', '1.0', []);
+      const surface = new SurfaceModel('s1', cat);
+      surface.dataModel.set('/', {explicitNull: null});
+
+      assert.strictEqual(surface.dataModel.hasPath('/explicitNull'), true);
+      assert.strictEqual(surface.dataModel.hasPath('/missingKey'), false);
+
+      const warnings: Array<{code: string; path?: string; message: string}> = [];
+      surface.onWarning.subscribe(w => {
+        warnings.push(w);
+      });
+
+      const ctx = new DataContext(surface, '/');
+      assert.strictEqual(ctx.resolveDynamicValue({path: '/explicitNull'}), null);
+      assert.strictEqual(warnings.length, 0);
+
+      assert.strictEqual(ctx.resolveDynamicValue({path: '/missingKey'}), undefined);
+      assert.strictEqual(warnings.length, 1);
+      assert.strictEqual(warnings[0].code, 'MISSING_DATA_BINDING');
+      assert.strictEqual(warnings[0].path, '/missingKey');
+      assert.match(warnings[0].message, /Preflight DataBinding Warning/);
+
+      // Repeated resolution on the same context or a nested child context deduplicates the warning for that path
+      assert.strictEqual(ctx.resolveDynamicValue({path: '/missingKey'}), undefined);
+      assert.strictEqual(warnings.length, 1);
+
+      const childCtx = ctx.nested('/sub');
+      assert.strictEqual(childCtx.resolveDynamicValue({path: '/missingKey'}), undefined);
+      assert.strictEqual(warnings.length, 1);
+    });
+
+    it('resolves getIndex() from explicit index or trailing numeric segment across parent chain', () => {
+      const cat = new Catalog('cat', '1.0', []);
+      const surface = new SurfaceModel('s1', cat);
+
+      const rootCtx = new DataContext(surface, '/items/7/details');
+      assert.strictEqual(rootCtx.getIndex(), undefined);
+
+      const loopItemCtx = new DataContext(surface, '/items/7');
+      assert.strictEqual(loopItemCtx.getIndex(), 7);
+
+      const childCtx = loopItemCtx.nested('details/address');
+      assert.strictEqual(childCtx.getIndex(), 7);
+
+      const explicitOverrideCtx = loopItemCtx.nested('sub', 42);
+      assert.strictEqual(explicitOverrideCtx.getIndex(), 42);
     });
   });
 });

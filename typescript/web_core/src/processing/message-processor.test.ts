@@ -2149,5 +2149,42 @@ describe('MessageProcessor', () => {
         },
       );
     });
+
+    it('extracts v0.8 beginRendering.root into surface.rootId and validates topology against it', () => {
+      const cat = new Catalog('v08-cat', '0.8', [
+        {name: 'Text', schema: z.object({text: z.string()})},
+      ]);
+      const proc = new MessageProcessor([cat], undefined, {
+        version: 'v0.8',
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      proc.processMessages([
+        {
+          beginRendering: {
+            surfaceId: 's_v08',
+            root: 'custom_entry',
+          },
+        } as any,
+        {
+          surfaceUpdate: {
+            surfaceId: 's_v08',
+            components: [
+              {
+                id: 'custom_entry',
+                component: {
+                  Text: {text: 'Hello v0.8'},
+                },
+              },
+            ],
+          },
+        } as any,
+      ]);
+
+      const surface = proc.getSurface('s_v08');
+      assert.ok(surface);
+      assert.strictEqual(surface.rootId, 'custom_entry');
+      assert.strictEqual(surface.componentsModel.has('custom_entry'), true);
+    });
   });
 });

@@ -197,8 +197,10 @@ function checkJsonSchemaRef(
   if (
     schema.type === 'object' &&
     schema.properties &&
-    'componentId' in schema.properties &&
-    'path' in schema.properties
+    (('componentId' in schema.properties &&
+      ('path' in schema.properties || 'dataBinding' in schema.properties)) ||
+      'explicitList' in schema.properties ||
+      'template' in schema.properties)
   ) {
     return {isChild: false, isChildList: true};
   }
@@ -212,7 +214,11 @@ function isTemplateShape(unwrappedOpt: any): boolean {
     typeof unwrappedOpt._def.shape === 'function'
   ) {
     const shape = unwrappedOpt._def.shape();
-    return Boolean(shape.componentId && shape.path);
+    return Boolean(
+      (shape.componentId && (shape.path || shape.dataBinding)) ||
+      shape.explicitList ||
+      shape.template,
+    );
   }
   return false;
 }
@@ -379,7 +385,11 @@ export function analyzeChildRefSchema(
 
   if (typeName === 'ZodObject' && typeof current._def.shape === 'function') {
     const shape = current._def.shape();
-    if (shape.componentId && shape.path) {
+    if (
+      (shape.componentId && (shape.path || shape.dataBinding)) ||
+      shape.explicitList ||
+      shape.template
+    ) {
       return {isChild: false, isChildList: true};
     }
   }
