@@ -63,11 +63,22 @@ struct A2UICommonSchemaTests {
 
   @Test func testAllSchemasMapsBaseURIToDocument() {
     let schemas = A2UICommonSchema.allSchemas
-    #expect(schemas.count == 3)
-    #expect(schemas[A2UICommonSchema.baseURI] != nil)
+    #expect(schemas.count == 8)
     #expect(schemas[A2UICommonSchema.baseURI] == A2UICommonSchema.document)
-    #expect(schemas[A2UICommonSchema.v10BaseURI] != nil)
     #expect(schemas[A2UICommonSchema.v10BaseURI] == A2UICommonSchema.v10Document)
+    #expect(schemas["common_types.json"] == A2UICommonSchema.v10Document)
+    #expect(
+      schemas["https://swift-json-schema.invalid/common_types.json"]
+        == A2UICommonSchema.v10Document
+    )
+    #expect(
+      schemas[A2UICommonSchema.v10CatalogDefinitionURI]
+        == A2UICommonSchema.v10CatalogDefinitionDocument
+    )
+    #expect(
+      schemas["catalog_definition.json"]
+        == A2UICommonSchema.v10CatalogDefinitionDocument
+    )
   }
 
   // MARK: - Schema Registry
