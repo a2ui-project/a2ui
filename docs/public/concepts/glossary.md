@@ -1,6 +1,6 @@
 # Glossary
 
-**A2UI protocol:**
+**A2UI protocol, between renderer and agent:**
 
 The A2UI protocol enables conversation between **agent** and **renderer**:
 
@@ -17,6 +17,10 @@ In order to produce responses for renderer, agent sends requests to an `A2UI mod
 - remote or local LLM (in most cases)
 - another agent (in more complex orchestrations)
 - deterministic engine (normally, for testing purposes)
+
+
+
+**Interaction overview:**
 
 ```mermaid
 sequenceDiagram
@@ -35,21 +39,26 @@ sequenceDiagram
     end
 ```
 
-**Terms:**
+**A2UI SDKs:**
+
+There are two SDKs, provided by the A2UI team for some programming languages and frameworks:
+
+- **Agent SDK**: helps to setup interaction with renderer and model on agent side.
+- **Renderer SDK**: helps to setup interaction with agent and to handle the recieved messageson renderer side.
+
+**Terms in this glossary:**
 
 Terms in this glossary are split into a few categories:
 
-- **Protocol terms**: terms related to interaction between renderer and agent.
-- **Agent terms**: terms related to agent argitecture and its interaction with models.
-- **Generative UI terms**: - general concepts related to generative ui.
+- **A2UI protocol terms**: terms related to interaction between renderer and agent.
+- **Agent terms**: terms related to agent argitecture and used in Agent SDK.
+- **Generative UI terms**: general concepts related to generative ui.
 
 ## A2UI protocol terms
 
 Terms, required by A2UI protocol.
 
 ### A2UI agent and A2UI renderer
-
-
 
 While the protocol is designed for **AI-empowered agents**, it can work with deterministic agents as well. For example, an agent may return a pre-canned A2UI UI.
 
@@ -118,99 +127,6 @@ The objects are named differently in earlier versions of the protocol: v0.9 and 
 An area of UI, constructed by A2UI agent and managed by the A2UI renderer,
 which consists of a number of components. Surfaces cannot nest.
 
-### A2UI Model 
-
-In order to produce responses for renderer, agent sends requests to an `A2UI model`. An `A2UI model` can be:
-
-- remote or local LLM (in most cases)
-- another agent (in more complex orchestrations)
-- deterministic engine (normally, for testing purposes)
-
-### A2UI Tag
-
-Enclosing delimiter tags (such as `<a2ui-json>`, `<a2ui>`) used to bound A2UI payload code blocks within LLM text output.
-
-Because LLMs stream conversational plain text and UI payloads within the same turn, A2UI Tags serve as explicit syntactic boundaries isolating structured UI blocks from conversational text.
-
-### Phases of model response parsing
-
-Tag Unwrapping
-
-The initial phase of response parsing (`unwrap`) where a parser scans LLM text responses for opening and closing **A2UI Tags**, isolating non-UI conversational text (e.g., _"Here is your summary:"_) from enclosed raw UI code blocks.
-
-### Compilation
-
-The second phase of response parsing (`compile`) where raw model-generated UI code string blocks extracted during unwrapping (such as standard JSON, Express DSL syntax, or Elemental HTML tags) are parsed, decompiled, and transformed into standardized A2UI protocol payload dictionaries (`createSurface`, `updateDataModel`).
-
-### Agent architecture
-
-There are options for A2UI agent:
-
-- **Same-process or server-side**:
-
-    Agent and renderer may reside in one process of a client side application. Example: desktop Flutter application.
-
-    Or, renderer may reside on the box that displays UI, and agent may reside on another box (server).
-
-- **Orchestrator agent**:
-
-    The central orchestrator manages interactions between a user and several specialized sub-agents. The orchestrator can be in the same process or on the server.
-
-- **Pulling / pushing**:
-
-    An agent can wait for messages/requests from the renderer, or push messages/requests to it.
-
-- **Stateful / stateless**:
-
-    Agents can preserve state or be stateless.
-
-- **Mixed with other protocols**:
-
-    A2UI can be used in combination with other protocols. For example, an agent may be an MCP and/or A2A server.
-
-- **Something else**:
-
-    In addition to the above options, there is possibility for any custom variation.
-
-### Renderer stack
-
-Functionality of A2UI renderer consists of layers that can be developed separately and reused:
-
-- **Core Library**:
-
-    Set of primitives, needed to describe catalog and to interact with the agent.
-
-    For example, see the [JavaScript web core library](../../../renderers/web_core/README.md).
-
-- **Catalog Schema**:
-
-    Definition of catalog in the form of JSON.
-
-    For example, see the [basic catalog schema](../../../specification/v0_9_1/catalogs/basic/catalog.json).
-
-- **Framework adapter**:<a id="fw-adapter"></a>
-
-    Code that implements the execution of the agent’s instructions in a concrete framework. For example:
-    - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
-    - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
-
-    See the [Angular adapter](../../../renderers/angular/README.md).
-
-- **Catalog Implementation**:
-
-    Implementation of the catalog schema for a framework.
-
-    For example:
-    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/v0_9/catalog/basic)
-
-```mermaid
-flowchart TD;
-cimpl("Catalog<br>Implementation")-->cschema("Catalog<br>Schema");
-cschema-->core("Core<br>Library");
-cimpl-->fadapter("Framework<br>Adapter");
-fadapter-->core;
-```
-
 ### A2UI message
 
 A message between agent and renderer.
@@ -263,6 +179,106 @@ A container for an interaction triggered by the user in the UI. Actions come in 
 - **Function**: Executed locally on the renderer (e.g., opening a URL).
 
 See the [detailed guide on actions](actions.md).
+
+## A2UI agent terms
+
+### A2UI Tag
+
+In model-to-agent messages, enclosing delimiter tags (such as `<a2ui-json>`, `<a2ui>`) used to bound A2UI payload code blocks within LLM text output.
+
+Because both conversational text and structured UI blocks can be sent within the same model-to-agent turn, A2UI Tags serve as explicit syntactic boundaries isolating  UI blocks from conversational text.
+
+### Inference format
+
+In model-to-agent messages, structured UI blocks can be in different formats, such as JSON, Express DSL syntax, or Elemental HTML tags.
+
+### Phases of parsing of model-to-agent responses
+
+**Tag Unwrapping:**
+
+The initial phase of response parsing (`unwrap`) where a parser scans LLM text responses for opening and closing **A2UI Tags**, isolating non-UI conversational text (e.g., _"Here is your summary:"_) from enclosed raw UI code blocks.
+
+**Compilation:**
+
+The second phase of response parsing (`compile`) where raw model-generated UI code string blocks extracted during unwrapping (such as standard JSON, Express DSL syntax, or Elemental HTML tags) are parsed, decompiled, and transformed into standardized A2UI protocol payload dictionaries (`createSurface`, `updateDataModel`).
+
+### Agent architecture
+
+There are options for A2UI agent:
+
+- **Same-process or server-side**:
+
+    Agent and renderer may reside in one process of a client side application. Example: desktop Flutter application.
+
+    Or, renderer may reside on the box that displays UI, and agent may reside on another box (server).
+
+- **Orchestrator agent**:
+
+    The central orchestrator manages interactions between a user and several specialized sub-agents. The orchestrator can be in the same process or on the server.
+
+- **Pulling / pushing**:
+
+    An agent can wait for messages/requests from the renderer, or push messages/requests to it.
+
+- **Stateful / stateless**:
+
+    Agents can preserve state or be stateless.
+
+- **Mixed with other protocols**:
+
+    A2UI can be used in combination with other protocols. For example, an agent may be an MCP and/or A2A server.
+
+- **Something else**:
+
+    In addition to the above options, there is possibility for any custom variation.
+
+### Recommended code organization
+
+Functionality of A2UI agent and renderer consists of layers that can be developed separately and reused:
+
+- **Core Library**:
+
+    Set of primitives, needed to describe catalog and to interact with the agent.
+
+    For example, see the [JavaScript web core library](../../../renderers/web_core/README.md).
+
+- **Catalog Schema**:
+
+    Definition of catalog in the form of JSON.
+
+    For example, see the [basic catalog schema](../../../specification/v0_9_1/catalogs/basic/catalog.json).
+
+- **Agent SDK**:
+
+    Code that implements the agent’s interaction with model and renderer.
+
+- **Framework adapter (or renderer SDK)**:<a id="fw-adapter"></a>
+
+    Code that implements the execution of the agent’s instructions in a concrete framework. For example:
+    - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
+    - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
+
+    See the [Angular adapter](../../../renderers/angular/README.md).
+
+- **Catalog Implementation**:
+
+    Implementation of the catalog schema for a framework.
+
+    For example:
+    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/v0_9/catalog/basic)
+
+```mermaid
+flowchart TD;
+cimpl-->fadapter("Framework<br>Adapter");
+cimpl("Catalog<br>Implementation")-->cschema("Catalog<br>Schema");
+cschema-->core("Core<br>Library");
+agentsdk("Agent SDK")-->cschema;
+agentsdk-->core;
+fadapter-->core;
+renderer-->fadapter;
+renderer("Renderer")-->cimpl;
+agent("Agent")-->agentsdk;
+```
 
 ## Generative UI terms
 
