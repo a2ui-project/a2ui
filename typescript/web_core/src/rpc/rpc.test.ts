@@ -17,7 +17,8 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {z} from 'zod';
-import {RpcHandler, RpcError, RpcErrorCode} from './rpc-handler.js';
+import {RpcHandler, A2uiRpcError, RpcErrorCode} from './rpc-handler.js';
+import {A2uiError} from '../errors.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -310,7 +311,8 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     handler.dispose();
     assert.strictEqual(handler.disposed, true);
     await assert.rejects(promise, (err: any) => {
-      assert.ok(err instanceof RpcError);
+      assert.ok(err instanceof A2uiRpcError);
+      assert.ok(err instanceof A2uiError);
       assert.strictEqual(err.code, RpcErrorCode.CANCELLED);
       return true;
     });
@@ -340,7 +342,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.DISPOSED);
 
     await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
-      assert.ok(err instanceof RpcError);
+      assert.ok(err instanceof A2uiRpcError);
       assert.strictEqual(err.code, RpcErrorCode.DISPOSED);
       return true;
     });
@@ -349,7 +351,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   it('fails fast when calling callAgentFunction without outboundListener', async () => {
     const handler = new RpcHandler({catalogs: [mockCatalog]});
     await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
-      assert.ok(err instanceof RpcError);
+      assert.ok(err instanceof A2uiRpcError);
       assert.strictEqual(err.code, RpcErrorCode.NO_LISTENER);
       return true;
     });
@@ -366,7 +368,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {functionCallId: 'pending-timeout', timeoutMs: 10},
     );
     await assert.rejects(promise, (err: any) => {
-      assert.ok(err instanceof RpcError);
+      assert.ok(err instanceof A2uiRpcError);
       assert.strictEqual(err.code, RpcErrorCode.TIMEOUT);
       return true;
     });
@@ -435,7 +437,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const handler = new RpcHandler([mockCatalog], () => {});
     await assert.rejects(
       handler.callAgentFunction('surface-1', undefined as any),
-      (err: RpcError) => err.code === RpcErrorCode.INVALID_FUNCTION_CALL,
+      (err: A2uiRpcError) => err.code === RpcErrorCode.INVALID_FUNCTION_CALL,
     );
   });
 
@@ -476,8 +478,8 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         error: {code: 'SERVER_FAULT', message: 'Internal server failure'},
       },
     });
-    await assert.rejects(promise, (err: RpcError) => {
-      assert.ok(err instanceof RpcError);
+    await assert.rejects(promise, (err: A2uiRpcError) => {
+      assert.ok(err instanceof A2uiRpcError);
       assert.strictEqual(err.code, 'SERVER_FAULT');
       assert.strictEqual(err.functionCallId, 'err-call-1');
       return true;
@@ -489,10 +491,10 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const promise1 = handler.callAgentFunction('s1', {call: 'func1'}, {functionCallId: 'dup-1'});
     await assert.rejects(
       handler.callAgentFunction('s1', {call: 'func2'}, {functionCallId: 'dup-1'}),
-      (err: RpcError) => err.code === RpcErrorCode.DUPLICATE,
+      (err: A2uiRpcError) => err.code === RpcErrorCode.DUPLICATE,
     );
     handler.dispose();
-    await assert.rejects(promise1, (err: RpcError) => err.code === RpcErrorCode.CANCELLED);
+    await assert.rejects(promise1, (err: A2uiRpcError) => err.code === RpcErrorCode.CANCELLED);
   });
 
   it('invokes callAgentFunction using modern options bag overload', async () => {

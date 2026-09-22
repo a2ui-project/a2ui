@@ -56,7 +56,7 @@ import {
   RpcHandler,
   CallOptions,
   OutboundMessageListener,
-  RpcError,
+  A2uiRpcError,
   RpcErrorCode,
 } from '../rpc/index.js';
 import {DataContext} from '../resolution/data-context.js';
@@ -94,7 +94,7 @@ export type {
   OutboundMessageListener,
   CallOptions,
 };
-export {STRICT_VALIDATION, RELAXED_VALIDATION, RpcError, RpcErrorCode};
+export {STRICT_VALIDATION, RELAXED_VALIDATION, A2uiRpcError, RpcErrorCode};
 
 /**
  * Contextual execution options for message processing.

@@ -176,3 +176,41 @@ export class A2uiRecursionError extends A2uiValidationError {
     this.name = 'A2uiRecursionError';
   }
 }
+
+/**
+ * Standard error codes for A2UI RPC failures.
+ */
+export enum RpcErrorCode {
+  INVALID_FUNCTION_CALL = 'INVALID_FUNCTION_CALL',
+  EXECUTION_ERROR = 'EXECUTION_ERROR',
+  UNKNOWN_FUNCTION = 'UNKNOWN_FUNCTION',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+  TIMEOUT = 'TIMEOUT',
+  CANCELLED = 'CANCELLED',
+  DISPOSED = 'DISPOSED',
+  DUPLICATE = 'DUPLICATE',
+  NO_LISTENER = 'NO_LISTENER',
+}
+
+/**
+ * Error thrown when an A2UI RPC operation fails, times out, or is cancelled.
+ */
+export class A2uiRpcError extends A2uiError {
+  /**
+   * Initializes a new `A2uiRpcError` instance.
+   *
+   * @param code RPC error code category.
+   * @param message Human-readable error description.
+   * @param functionCallId Optional identifier of the failed function call.
+   * @param details Optional structured error details.
+   */
+  constructor(
+    code: RpcErrorCode | string,
+    message: string,
+    public readonly functionCallId?: string,
+    public readonly details?: any,
+  ) {
+    super(`[${code}] ${message}`, code);
+    this.name = 'A2uiRpcError';
+  }
+}

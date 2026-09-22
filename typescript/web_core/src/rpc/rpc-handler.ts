@@ -28,34 +28,9 @@ import {
 } from '../v1_0/schema/renderer-to-agent.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
+import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 
-/**
- * Standard error codes for A2UI RPC failures.
- */
-export enum RpcErrorCode {
-  INVALID_FUNCTION_CALL = 'INVALID_FUNCTION_CALL',
-  EXECUTION_ERROR = 'EXECUTION_ERROR',
-  TIMEOUT = 'TIMEOUT',
-  CANCELLED = 'CANCELLED',
-  DISPOSED = 'DISPOSED',
-  DUPLICATE = 'DUPLICATE',
-  NO_LISTENER = 'NO_LISTENER',
-}
-
-/**
- * Custom error class for A2UI RPC operation failures.
- */
-export class RpcError extends Error {
-  constructor(
-    public readonly code: RpcErrorCode | string,
-    message: string,
-    public readonly functionCallId?: string,
-  ) {
-    super(`[${code}] ${message}`);
-    this.name = 'RpcError';
-    Object.setPrototypeOf(this, RpcError.prototype);
-  }
-}
+export {A2uiRpcError, RpcErrorCode};
 
 /**
  * Callback function type receiving outbound renderer messages intended for the agent.
@@ -223,7 +198,7 @@ export class RpcHandler {
 
     this.pendingAgentCalls.delete(functionCallId);
     if (error) {
-      pending.reject(new RpcError(error.code, error.message, functionCallId));
+      pending.reject(new A2uiRpcError(error.code, error.message, functionCallId));
     } else {
       pending.resolve(value);
     }
@@ -243,11 +218,13 @@ export class RpcHandler {
     options?: CallOptions,
   ): Promise<T> {
     if (this.isDisposed) {
-      return Promise.reject(new RpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'));
+      return Promise.reject(
+        new A2uiRpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'),
+      );
     }
     if (!this.outboundListener) {
       return Promise.reject(
-        new RpcError(
+        new A2uiRpcError(
           RpcErrorCode.NO_LISTENER,
           'Cannot call agent function without outboundListener configured.',
         ),
@@ -256,7 +233,10 @@ export class RpcHandler {
 
     if (!call || !call.call) {
       return Promise.reject(
-        new RpcError(RpcErrorCode.INVALID_FUNCTION_CALL, 'Missing or invalid function call name.'),
+        new A2uiRpcError(
+          RpcErrorCode.INVALID_FUNCTION_CALL,
+          'Missing or invalid function call name.',
+        ),
       );
     }
 
@@ -266,7 +246,7 @@ export class RpcHandler {
 
     if (this.pendingAgentCalls.has(functionCallId)) {
       return Promise.reject(
-        new RpcError(
+        new A2uiRpcError(
           RpcErrorCode.DUPLICATE,
           `A call with functionCallId '${functionCallId}' is already pending.`,
           functionCallId,
@@ -292,7 +272,7 @@ export class RpcHandler {
     this.isDisposed = true;
     for (const [id, pending] of this.pendingAgentCalls.entries()) {
       pending.reject(
-        new RpcError(
+        new A2uiRpcError(
           RpcErrorCode.CANCELLED,
           `RpcHandler disposed while call '${id}' was pending.`,
           id,
@@ -508,7 +488,7 @@ export class RpcHandler {
       if (this.pendingAgentCalls.delete(functionCallId)) {
         cleanup();
         reject(
-          new RpcError(
+          new A2uiRpcError(
             RpcErrorCode.TIMEOUT,
             `Agent function call '${callName}' timed out after ${timeoutMs}ms.`,
             functionCallId,
