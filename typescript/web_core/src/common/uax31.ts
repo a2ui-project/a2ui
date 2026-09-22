@@ -32,7 +32,7 @@ import {A2uiCatalogError} from '../errors.js';
 const UAX31_IDENTIFIER = /^[\p{XID_Start}_][\p{XID_Continue}]*$/u;
 
 /**
- * Reports whether a name is a valid A2UI identifier.
+ * Checks whether a name is a valid A2UI identifier.
  *
  * A single leading `@` is permitted and ignored, accommodating the reserved
  * system-function prefix such as `@index`. Only one is allowed, so `@@index` is
@@ -42,7 +42,7 @@ const UAX31_IDENTIFIER = /^[\p{XID_Start}_][\p{XID_Continue}]*$/u;
  * `python/a2ui_core/src/a2ui/core/catalog/catalog.py`.
  *
  * @param name Identifier to test.
- * @returns True when `name` satisfies UAX #31 after stripping one optional
+ * @returns Whether `name` satisfies UAX #31 after stripping one optional
  *   leading `@`.
  */
 export function isValidUax31Identifier(name: string): boolean {
@@ -52,10 +52,12 @@ export function isValidUax31Identifier(name: string): boolean {
 }
 
 /**
- * Throws when an identifier does not satisfy UAX #31.
+ * Asserts that an identifier satisfies UAX #31.
+ *
+ * Throws an {@link A2uiCatalogError} when the identifier is invalid.
  *
  * @param name Identifier to check.
- * @param context Description of what the identifier names, used in the error.
+ * @param context Description of what the identifier names, used in the error message.
  * @throws {A2uiCatalogError} If `name` is not a valid UAX #31 identifier.
  */
 export function assertUax31Identifier(name: string, context: string): void {

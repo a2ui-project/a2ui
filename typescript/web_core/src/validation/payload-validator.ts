@@ -46,7 +46,7 @@ const COMPONENT_ENVELOPE_KEYS = ['id', 'component', 'catalogId', 'catalogID'] as
  * later, matching the version gate Python applies.
  */
 export class PayloadValidator {
-  /** True when this catalog's protocol version mandates UAX #31 identifiers. */
+  /** Whether this catalog's protocol version mandates UAX #31 identifiers. */
   private readonly enforceIdentifiers: boolean;
 
   /**
@@ -130,8 +130,11 @@ export class PayloadValidator {
   }
 
   /**
-   * Recursively walks a component's property values and validates any nested
-   * function call objects (`{call, args}`) against their target catalog.
+   * Asserts that a function name and all its argument keys satisfy UAX #31 identifier syntax.
+   *
+   * @param name Function name to check.
+   * @param args Function arguments object whose keys are checked.
+   * @throws {A2uiValidationError} If the function name or any argument key is not a valid UAX #31 identifier.
    */
   private assertFunctionIdentifiers(name: string, args: unknown): void {
     this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`);
@@ -145,6 +148,13 @@ export class PayloadValidator {
     }
   }
 
+  /**
+   * Recursively walks a component's property values and validates any nested
+   * function call objects against their target catalog.
+   *
+   * @param val Property value or subtree to inspect.
+   * @throws {A2uiValidationError} If any nested function call fails schema or identifier validation.
+   */
   private validateNestedFunctions(val: unknown): void {
     if (Array.isArray(val)) {
       for (const item of val) {
@@ -266,10 +276,11 @@ export class PayloadValidator {
   }
 
   /**
-   * Throws when identifier enforcement is active and the name does not qualify.
+   * Asserts that an identifier is valid if identifier enforcement is enabled.
    *
    * @param name Identifier to check.
-   * @param message Error text to raise.
+   * @param message Error message to use when validation fails.
+   * @throws {A2uiValidationError} If identifier enforcement is active and `name` is invalid.
    */
   private assertIdentifier(name: string, message: string): void {
     if (!this.enforceIdentifiers) return;
@@ -280,11 +291,10 @@ export class PayloadValidator {
 }
 
 /**
- * Returns a component payload's properties, without the envelope keys the
- * processor consumes itself.
+ * Strips processor envelope keys from a component payload, returning only component properties.
  *
  * @param comp Raw component payload.
- * @returns A new object holding only schema-described properties.
+ * @returns New object holding only schema-described properties.
  */
 function stripEnvelopeKeys(comp: Record<string, unknown>): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
