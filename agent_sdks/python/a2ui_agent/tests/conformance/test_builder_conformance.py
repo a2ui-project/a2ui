@@ -22,8 +22,9 @@ the golden itself being wrong. Both wire-format bugs fixed in this change were
 frozen into goldens generated from implementation output, so a suite that only
 diffed against them agreed with the bugs.
 
-Cases are declared in the language-agnostic ``conformance/builder/builder.yaml``,
-so another SDK can run the same inputs against the same goldens.
+Cases are declared in the language-agnostic
+``conformance/agent/builder/builder.yaml``, so another SDK can run the same
+inputs against the same goldens.
 """
 
 from __future__ import annotations

@@ -58,7 +58,7 @@ from a2ui.schema.constants import (
 from a2ui.schema.utils import load_from_bundled_resource
 
 CONFORMANCE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../../../../conformance/builder")
+    os.path.join(os.path.dirname(__file__), "../../../../../conformance/agent/builder")
 )
 GOLDEN_DIR = os.path.join(CONFORMANCE_DIR, "golden")
 SUITE_PATH = os.path.join(CONFORMANCE_DIR, "builder.yaml")

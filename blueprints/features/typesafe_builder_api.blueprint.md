@@ -300,7 +300,7 @@ in full, makes staleness visible as a diff.
 ## **Links**
 
 - Module blueprint section: [`a2ui_agent.blueprint.md`](../modules/a2ui_agent.blueprint.md), section 3H.
-- Cross-language conformance suite: [`conformance/builder/`](../../conformance/builder/).
+- Cross-language conformance suite: [`conformance/agent/builder/`](../../conformance/agent/builder/).
 - Protocol definition of the flat component model and message envelopes:
   [`specification/v0_9_1/docs/a2ui_protocol.md`](../../specification/v0_9_1/docs/a2ui_protocol.md).
 - Catalog schema the generator consumes:
@@ -308,10 +308,10 @@ in full, makes staleness visible as a diff.
 
 ## **Test Cases & Conformance**
 
-The cross-language suite in `conformance/builder/` is the conformance surface
-for this feature. `builder.yaml` declares each case as a builder AST plus the
-golden output it must produce, so a binding in any language can be held to the
-same cases without restating them.
+The cross-language suite in `conformance/agent/builder/` is the conformance
+surface for this feature. `builder.yaml` declares each case as a builder AST
+plus the golden output it must produce, so a binding in any language can be
+held to the same cases without restating them.
 
 Every case is checked twice: builder output must equal the golden, and the
 golden must pass the A2UI validator. One assertion alone is not enough. A golden
