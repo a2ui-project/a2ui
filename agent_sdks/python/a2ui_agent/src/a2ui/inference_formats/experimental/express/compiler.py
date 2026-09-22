@@ -375,12 +375,24 @@ class ExpressCompiler:
                 first_call, raw_syms, ctx, is_action=False
             )
 
+            call_func_obj = {
+                "call": compiled_val.get("call"),
+                "args": compiled_val.get("args", {}),
+            }
+            scope_cat_id = (
+                call_scope.catalog_id if call_scope and call_scope.catalog_id else (
+                    catalog_id
+                    or self.helper.catalog.get("catalogId", "https://a2ui.org/catalog.json")
+                )
+            )
+            if scope_cat_id:
+                call_func_obj = {"catalogId": scope_cat_id, **call_func_obj}
+
             return [{
                 "version": target_version,
-                "functionCallId": f"call_{ctx.inline_counter}",
-                SurfaceOperation.CALL_FUNC: {
-                    "call": compiled_val.get("call"),
-                    "args": compiled_val.get("args", {}),
+                "callRendererFunction": {
+                    "functionCallId": f"call_{ctx.inline_counter}",
+                    "callFunction": call_func_obj,
                 },
             }]
 
@@ -423,9 +435,8 @@ class ExpressCompiler:
                 )
                 if comp_dict:
                     compiled_components.append(comp_dict)
-
-            compiled_components.extend(ctx.extra_components)
-            ctx.extra_components = []
+                    compiled_components.extend(ctx.extra_components)
+                    ctx.extra_components = []
 
             if is_at_least_version(target_version, ProtocolVersion.V1_0):
                 envelope = {
@@ -542,6 +553,8 @@ class ExpressCompiler:
                 raw_symbols,
                 ctx,
                 is_action=(prop_name in ["action", "submitAction"]),
+                parent_id=var_name,
+                parent_prop=prop_name,
             )
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
@@ -642,7 +655,14 @@ class ExpressCompiler:
         return {k: v for k, v in comp_dict.items() if v is not None}
 
     def _compile_value(
-        self, val: Any, raw_symbols: dict, ctx: _CompileContext, is_action: bool = False
+        self,
+        val: Any,
+        raw_symbols: dict,
+        ctx: _CompileContext,
+        is_action: bool = False,
+        parent_id: Optional[str] = None,
+        parent_prop: Optional[str] = None,
+        list_index: Optional[int] = None,
     ) -> Any:
         """Compiles an individual AST node value into valid A2UI equivalents.
 
@@ -651,6 +671,9 @@ class ExpressCompiler:
             raw_symbols: The parsed global variable symbol table.
             ctx: The active compiler execution context.
             is_action: Whether this value lies inside a component Action field.
+            parent_id: The parent component ID if compiling a component property.
+            parent_prop: The parent component property name.
+            list_index: The index within an array property if applicable.
 
         Returns:
             The semantically correct A2UI JSON structure.
@@ -721,13 +744,25 @@ class ExpressCompiler:
 
                 # Is it an inline component constructor?
                 if fn_name in self.helper.components:
-                    ctx.inline_counter += 1
-                    inline_id = f"_inline_{ctx.inline_counter}"
+                    if parent_id and parent_prop:
+                        if list_index is not None:
+                            inline_id = f"{parent_id}_{parent_prop}_{list_index}"
+                        else:
+                            inline_id = f"{parent_id}_{parent_prop}"
+                    else:
+                        ctx.inline_counter += 1
+                        inline_id = f"_inline_{ctx.inline_counter}"
+
+                    prev_extras = ctx.extra_components
+                    ctx.extra_components = []
                     compiled_inline = self._compile_ast_node(
                         inline_id, val, raw_symbols, ctx
                     )
+                    child_extras = ctx.extra_components
+                    ctx.extra_components = prev_extras
                     if compiled_inline:
                         ctx.extra_components.append(compiled_inline)
+                        ctx.extra_components.extend(child_extras)
                     return inline_id
 
                 # Is it a reserved Template signature?
@@ -769,12 +804,10 @@ class ExpressCompiler:
                         for item in raw_context:
                             if isinstance(item, dict):
                                 compiled_context.update(item)
-                    return {
-                        "event": {
-                            "name": compiled_event_name,
-                            "context": compiled_context,
-                        }
-                    }
+                    event_dict = {"name": compiled_event_name}
+                    if compiled_context:
+                        event_dict["context"] = compiled_context
+                    return {"event": event_dict}
 
                 # Is it a regular catalog function?
                 if fn_name in self.helper.functions:
@@ -829,8 +862,16 @@ class ExpressCompiler:
         if isinstance(val, list):
             # If this is a list of elements, compile each element
             compiled_list = []
-            for item in val:
-                comp_item = self._compile_value(item, raw_symbols, ctx, is_action)
+            for idx, item in enumerate(val):
+                comp_item = self._compile_value(
+                    item,
+                    raw_symbols,
+                    ctx,
+                    is_action,
+                    parent_id=parent_id,
+                    parent_prop=parent_prop,
+                    list_index=idx,
+                )
                 compiled_list.append(comp_item)
             return compiled_list
 
