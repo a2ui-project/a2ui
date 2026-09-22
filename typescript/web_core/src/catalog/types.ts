@@ -309,9 +309,9 @@ export class Catalog<
    * @param protocolVersion Protocol specification version this catalog targets.
    * @param components Component definitions to register.
    * @param functions Function definitions to register.
-   * @param themeSchema Schema for this catalog's theme parameters.
-   * @param instructions System instructions or usage guidelines.
-   * @throws {A2uiCatalogError} When `protocolVersion` is empty.
+   * @param themeSchema Optional schema for this catalog's theme parameters.
+   * @param instructions Optional system instructions or usage guidelines.
+   * @throws {A2uiCatalogError} If `protocolVersion` is empty or not provided.
    */
   constructor(
     id: string,
@@ -380,6 +380,8 @@ export class Catalog<
    * @param protocolVersion Protocol version to use when the schema does not
    *   declare one. Catalog schemas published before v1.0 omit the field.
    * @returns A new Catalog populated with component and function schemas.
+   * @throws {A2uiCatalogError} If no protocol version is declared or supplied.
+   * @throws {Error} If the catalog ID is missing or not a string.
    */
   static fromSchema(
     catalogSchema: Record<string, any>,

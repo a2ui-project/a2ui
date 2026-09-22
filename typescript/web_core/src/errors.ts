@@ -127,13 +127,16 @@ export class A2uiStateError extends A2uiError {
 
 /**
  * Error thrown during catalog management, loading, or resolution.
+ *
+ * Raised when a catalog declares no protocol version, fails schema validation,
+ * or when a function call or component references an unresolvable catalog ID.
  */
 export class A2uiCatalogError extends A2uiError {
   /**
    * Initializes a new `A2uiCatalogError` instance.
    *
-   * @param message Error description.
-   * @param code Error category code. Defaults to 'CATALOG_ERROR'.
+   * @param message Human-readable error description.
+   * @param code Machine-readable error category code. Defaults to `'CATALOG_ERROR'`.
    */
   constructor(message: string, code: string = 'CATALOG_ERROR') {
     super(message, code);

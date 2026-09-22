@@ -26,13 +26,14 @@ export interface ComponentChildRefs {
   /** Property names holding child list references or dynamic templates. */
   readonly listRefs: ReadonlySet<string>;
   /**
-   * For list properties whose items are structured objects, the item sub-keys
-   * that hold a single child reference or a child list reference.
+   * Mapping of list property names to item sub-keys that hold child references.
    *
-   * Keys are property names that also appear in {@link listRefs}. A property is
-   * absent when its items are plain references rather than objects, or when the
-   * schema declared no child-bearing sub-key. Consumers treat an absent entry as
-   * "inspect every sub-key", which is what callers did before this map existed.
+   * Used for list properties whose items are structured objects rather than
+   * plain string component IDs. Keys are property names that also appear in
+   * {@link listRefs}. A property is absent when its items are plain references
+   * rather than objects, or when the schema declared no child-bearing sub-key.
+   * Consumers treat an absent entry as "inspect every sub-key", preserving
+   * fallback behavior.
    */
   readonly nestedRefs?: Readonly<Record<string, ReadonlySet<string>>>;
 }
