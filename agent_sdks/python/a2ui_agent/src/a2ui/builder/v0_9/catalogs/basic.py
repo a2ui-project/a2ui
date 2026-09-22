@@ -35,10 +35,10 @@ from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     ActionEvent,
+    BuilderBaseModel,
     CheckRule,
     Child,
     ChildList,
-    BuilderBaseModel,
     ComponentBuilderNode,
     ComponentRef,
     ComponentTree,
@@ -47,9 +47,7 @@ from a2ui.builder.v0_9 import (
     FunctionCall,
     IdAllocator,
     OPEN_ENUM,
-    bind,
     create_surface,
-    event,
     flatten_component_tree,
     update_components,
 )
@@ -355,11 +353,6 @@ class Required(FunctionCall):
         super().__init__(call="required", args={"value": value}, **kwargs)
 
 
-def required(*, value: Any) -> Required:
-    r"""Checks that the value is not null, undefined, or empty."""
-    return Required(value=value)
-
-
 class Regex(FunctionCall):
     r"""Checks that the value matches a regular expression string."""
 
@@ -375,11 +368,6 @@ class Regex(FunctionCall):
             args={"value": value, "pattern": pattern},
             **kwargs,
         )
-
-
-def regex(*, value: str | DataBinding | FunctionCall, pattern: str) -> Regex:
-    r"""Checks that the value matches a regular expression string."""
-    return Regex(value=value, pattern=pattern)
 
 
 class Length(FunctionCall):
@@ -401,16 +389,6 @@ class Length(FunctionCall):
         super().__init__(call="length", args=args, **kwargs)
 
 
-def length(
-    *,
-    value: str | DataBinding | FunctionCall,
-    min: Optional[float] = None,
-    max: Optional[float] = None,
-) -> Length:
-    r"""Checks string length constraints."""
-    return Length(value=value, min=min, max=max)
-
-
 class Numeric(FunctionCall):
     r"""Checks numeric range constraints."""
 
@@ -430,16 +408,6 @@ class Numeric(FunctionCall):
         super().__init__(call="numeric", args=args, **kwargs)
 
 
-def numeric(
-    *,
-    value: float | DataBinding | FunctionCall,
-    min: Optional[float] = None,
-    max: Optional[float] = None,
-) -> Numeric:
-    r"""Checks numeric range constraints."""
-    return Numeric(value=value, min=min, max=max)
-
-
 class Email(FunctionCall):
     r"""Checks that the value is a valid email address."""
 
@@ -447,21 +415,11 @@ class Email(FunctionCall):
         super().__init__(call="email", args={"value": value}, **kwargs)
 
 
-def email(*, value: str | DataBinding | FunctionCall) -> Email:
-    r"""Checks that the value is a valid email address."""
-    return Email(value=value)
-
-
 class FormatString(FunctionCall):
     """Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and client-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\\${`."""
 
     def __init__(self, *, value: str | DataBinding | FunctionCall, **kwargs: Any):
         super().__init__(call="formatString", args={"value": value}, **kwargs)
-
-
-def format_string(*, value: str | DataBinding | FunctionCall) -> FormatString:
-    """Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and client-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\\${`."""
-    return FormatString(value=value)
 
 
 class FormatNumber(FunctionCall):
@@ -481,16 +439,6 @@ class FormatNumber(FunctionCall):
         if grouping is not None:
             args["grouping"] = grouping
         super().__init__(call="formatNumber", args=args, **kwargs)
-
-
-def format_number(
-    *,
-    value: float | DataBinding | FunctionCall,
-    decimals: Optional[float | DataBinding | FunctionCall] = None,
-    grouping: Optional[bool | DataBinding | FunctionCall] = None,
-) -> FormatNumber:
-    r"""Formats a number with the specified grouping and decimal precision."""
-    return FormatNumber(value=value, decimals=decimals, grouping=grouping)
 
 
 class FormatCurrency(FunctionCall):
@@ -513,22 +461,6 @@ class FormatCurrency(FunctionCall):
         super().__init__(call="formatCurrency", args=args, **kwargs)
 
 
-def format_currency(
-    *,
-    value: float | DataBinding | FunctionCall,
-    currency: str | DataBinding | FunctionCall,
-    decimals: Optional[float | DataBinding | FunctionCall] = None,
-    grouping: Optional[bool | DataBinding | FunctionCall] = None,
-) -> FormatCurrency:
-    r"""Formats a number as a currency string."""
-    return FormatCurrency(
-        value=value,
-        currency=currency,
-        decimals=decimals,
-        grouping=grouping,
-    )
-
-
 class FormatDate(FunctionCall):
     r"""Formats a timestamp into a string using a pattern."""
 
@@ -544,15 +476,6 @@ class FormatDate(FunctionCall):
             args={"value": value, "format": format},
             **kwargs,
         )
-
-
-def format_date(
-    *,
-    value: Any | DataBinding | FunctionCall,
-    format: str | DataBinding | FunctionCall,
-) -> FormatDate:
-    r"""Formats a timestamp into a string using a pattern."""
-    return FormatDate(value=value, format=format)
 
 
 class Pluralize(FunctionCall):
@@ -584,38 +507,11 @@ class Pluralize(FunctionCall):
         super().__init__(call="pluralize", args=args, **kwargs)
 
 
-def pluralize(
-    *,
-    value: float | DataBinding | FunctionCall,
-    zero: Optional[str | DataBinding | FunctionCall] = None,
-    one: Optional[str | DataBinding | FunctionCall] = None,
-    two: Optional[str | DataBinding | FunctionCall] = None,
-    few: Optional[str | DataBinding | FunctionCall] = None,
-    many: Optional[str | DataBinding | FunctionCall] = None,
-    other: str | DataBinding | FunctionCall,
-) -> Pluralize:
-    r"""Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'."""
-    return Pluralize(
-        value=value,
-        zero=zero,
-        one=one,
-        two=two,
-        few=few,
-        many=many,
-        other=other,
-    )
-
-
 class OpenUrl(FunctionCall):
     r"""Opens the specified URL in a browser or handler. This function has no return value."""
 
     def __init__(self, *, url: str, **kwargs: Any):
         super().__init__(call="openUrl", args={"url": url}, **kwargs)
-
-
-def open_url(*, url: str) -> OpenUrl:
-    r"""Opens the specified URL in a browser or handler. This function has no return value."""
-    return OpenUrl(url=url)
 
 
 class And(FunctionCall):
@@ -630,11 +526,6 @@ class And(FunctionCall):
         super().__init__(call="and", args={"values": values}, **kwargs)
 
 
-def and_(*, values: Sequence[bool | DataBinding | FunctionCall]) -> And:
-    r"""Performs a logical AND operation on a list of boolean values."""
-    return And(values=values)
-
-
 class Or(FunctionCall):
     r"""Performs a logical OR operation on a list of boolean values."""
 
@@ -647,21 +538,11 @@ class Or(FunctionCall):
         super().__init__(call="or", args={"values": values}, **kwargs)
 
 
-def or_(*, values: Sequence[bool | DataBinding | FunctionCall]) -> Or:
-    r"""Performs a logical OR operation on a list of boolean values."""
-    return Or(values=values)
-
-
 class Not(FunctionCall):
     r"""Performs a logical NOT operation on a boolean value."""
 
     def __init__(self, *, value: bool | DataBinding | FunctionCall, **kwargs: Any):
         super().__init__(call="not", args={"value": value}, **kwargs)
-
-
-def not_(*, value: bool | DataBinding | FunctionCall) -> Not:
-    r"""Performs a logical NOT operation on a boolean value."""
-    return Not(value=value)
 
 
 # =============================================================================
@@ -717,27 +598,13 @@ __all__ = [
     "And",
     "Or",
     "Not",
-    "required",
-    "regex",
-    "length",
-    "numeric",
-    "email",
-    "format_string",
-    "format_number",
-    "format_currency",
-    "format_date",
-    "pluralize",
-    "open_url",
-    "and_",
-    "or_",
-    "not_",
     "AccessibilityAttributes",
     "Action",
     "ActionEvent",
+    "BuilderBaseModel",
     "CheckRule",
     "Child",
     "ChildList",
-    "BuilderBaseModel",
     "ComponentBuilderNode",
     "ComponentRef",
     "ComponentTree",
@@ -745,9 +612,7 @@ __all__ = [
     "DynamicChildList",
     "FunctionCall",
     "IdAllocator",
-    "bind",
     "create_surface",
-    "event",
     "flatten_component_tree",
     "update_components",
 ]

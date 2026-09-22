@@ -44,8 +44,6 @@ from .models import (
     DynamicStringList,
     DynamicValue,
     FunctionCall,
-    bind,
-    event,
 )
 
 __all__ = [
@@ -71,9 +69,7 @@ __all__ = [
     "DynamicValue",
     "FunctionCall",
     "IdAllocator",
-    "bind",
     "create_surface",
-    "event",
     "flatten_component_tree",
     "update_components",
 ]

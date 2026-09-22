@@ -15,7 +15,7 @@ The builder API allows developers and agents to author interfaces as nested Pyth
 Components are instantiated as Python objects. Containers accept child components through designated slot parameters:
 
 ```python
-from a2ui.builder.v0_9 import event
+from a2ui.builder.v0_9 import Action, ActionEvent
 from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text, Button
 
 tree = Card(
@@ -24,7 +24,7 @@ tree = Card(
             Text(text="Account Overview", variant="h2"),
             Button(
                 child=Text(text="View Details"),
-                action=event("view_details", {"accountId": "123"}),
+                action=Action(event=ActionEvent(name="view_details", context={"accountId": "123"})),
             ),
         ]
     )
@@ -69,12 +69,12 @@ update = update_components("surface_main", root=tree)
 
 ### Data bindings
 
-The `bind` helper constructs dynamic references to client data model paths:
+`DataBinding` constructs dynamic references to client data model paths. Its `path` field is normalised to the absolute form the wire requires, so a leading slash is optional:
 
 ```python
-from a2ui.builder.v0_9 import bind
+from a2ui.builder.v0_9 import DataBinding
 
-status_text = Text(text=bind("/user/status"), variant="caption")
+status_text = Text(text=DataBinding(path="/user/status"), variant="caption")
 ```
 
 When serialized, this emits the standard binding object:
@@ -125,9 +125,9 @@ Key characteristics:
 - Properties: primitive properties accept static values, `DataBinding` instances, or `FunctionCall` objects.
 - Fields use Python `snake_case` names with a `serialization_alias` where the wire name differs, so `validation_regexp` emits as `validationRegexp`.
 
-### Function builder helpers
+### Function builder classes
 
-Catalogs define client-evaluated functions (such as formatters, validators, and logical operators). The code generator emits a class and a matching helper function, both returning a `FunctionCall`:
+Catalogs define client-evaluated functions (such as formatters, validators, and logical operators). The code generator emits one class per function, each a `FunctionCall` subclass with typed arguments:
 
 ```python
 from typing import Any
@@ -138,23 +138,18 @@ class OpenUrl(FunctionCall):
 
     def __init__(self, *, url: str, **kwargs: Any):
         super().__init__(call="openUrl", args={"url": url}, **kwargs)
-
-
-def open_url(*, url: str) -> OpenUrl:
-    r"""Invokes catalog function openUrl."""
-    return OpenUrl(url=url)
 ```
 
 An `Action` carries exactly one of a server event or a client function call, matching the spec's `oneOf`. Supplying both, or neither, raises a `ValidationError` at construction:
 
 ```python
-from a2ui.builder.v0_9 import Action, event
+from a2ui.builder.v0_9 import Action, ActionEvent
 
 # Server event, with an optional context map.
-action = event("open_site", {"target": "docs"})
+action = Action(event=ActionEvent(name="open_site", context={"target": "docs"}))
 
 # Client function call.
-action = Action(function_call=open_url(url="https://a2ui.org"))
+action = Action(function_call=OpenUrl(url="https://a2ui.org"))
 ```
 
 
@@ -166,7 +161,7 @@ You can subclass generated components to create domain-specific building blocks 
 
 ```python
 from typing import Any
-from a2ui.builder.v0_9 import event
+from a2ui.builder.v0_9 import Action, ActionEvent
 from a2ui.builder.v0_9.catalogs.basic import Button, Text
 
 class PrimaryActionButton(Button):
@@ -178,7 +173,7 @@ class PrimaryActionButton(Button):
     def create(cls, label: str, event_name: str, **context: Any) -> "PrimaryActionButton":
         return cls(
             child=Text(text=label),
-            action=event(event_name, context),
+            action=Action(event=ActionEvent(name=event_name, context=context)),
             variant="primary",
         )
 ```
@@ -226,7 +221,7 @@ The generator makes a few naming decisions worth knowing, because they determine
 
 - **Enums** are named `<Component><Property>`, except where a single type is shared across components (`Row.justify` and `Column.justify` both yield `FlexJustify`). The same value set reached from two places produces one type, regardless of the order the catalog lists it in.
 - **Item models** come from inline object schemas. An array property whose singular matches its parent is suffixed (`Tabs.tabs` gives `TabItem`); anything else is qualified by its parent (`ChoicePicker.options` gives `ChoicePickerOption`). A component slot nested inside one of these is annotated `Child` and resolves exactly like a direct slot.
-- **Function classes** are the Pascal-case form of the catalog function name (`formatString` gives `FormatString`), paired with a snake_case factory (`format_string`). Python keywords take a trailing underscore, so the `not` function is `not_`.
+- **Function classes** are the Pascal-case form of the catalog function name (`formatString` gives `FormatString`, `not` gives `Not`). A function is reached only through its class; the generator emits no lowercase alias beside it. Parameter names that collide with a Python keyword take a trailing underscore.
 - **Name clashes** are resolved rather than allowed to shadow. `Icon.name` is a `oneOf` of an icon enum and a custom SVG object, both of which want the name `IconName`; the object becomes `IconNameSvgPath` after the property that distinguishes it.
 
 Every branch of a `oneOf` is preserved. Narrowing a property to its most common branch would quietly reject payloads the catalog permits, so `Icon.name` is typed `IconName | IconNameSvgPath | DataBinding | FunctionCall` rather than just the enum.

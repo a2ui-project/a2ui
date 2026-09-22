@@ -272,6 +272,12 @@ type-checked and arrives in whatever shape a model emitted. Coercion for that
 input belongs in the component that receives model output, in one place, not in
 the constructors that application code calls.
 
+R1.4 constrains how a shorthand may be introduced; it does not require that any
+exist. The reference implementation has since removed the ones it had, so that
+every value is constructed through the type that models it. Whether to restore
+them is an open question rather than a settled one, tracked in
+[#2744](https://github.com/a2ui-project/a2ui/issues/2744).
+
 ### Why envelopes are separate from the tree
 
 A tree is a shape. How that shape is packaged into messages, what the messages

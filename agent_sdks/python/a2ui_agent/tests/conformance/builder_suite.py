@@ -40,10 +40,10 @@ from a2ui.builder.v0_9 import (
     Action,
     ActionEvent,
     CheckRule,
+    DataBinding,
     ComponentRef,
     DynamicChildList,
     FunctionCall,
-    bind,
     create_surface,
     update_components,
 )
@@ -154,7 +154,7 @@ def build_ast(value: Any) -> Any:
         return value
 
     if "$bind" in value:
-        return bind(value["$bind"])
+        return DataBinding(path=value["$bind"])
     if "$componentRef" in value:
         return ComponentRef(id=value["$componentRef"])
     if "$dynamicChildList" in value:

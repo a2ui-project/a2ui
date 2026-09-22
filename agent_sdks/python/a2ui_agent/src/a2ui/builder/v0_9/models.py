@@ -28,7 +28,7 @@ which lives on the :data:`~a2ui.builder.core.child.Child` type.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Sequence, TypeAlias, Union
+from typing import Any, Optional, Sequence, TypeAlias, Union
 from pydantic import (
     AliasChoices,
     ConfigDict,
@@ -66,11 +66,6 @@ class DataBinding(A2uiExpression):
     @classmethod
     def _normalize_path(cls, v: str) -> str:
         return _absolute_pointer(v)
-
-
-def bind(path: str) -> DataBinding:
-    """Ergonomic helper to construct a DataBinding."""
-    return DataBinding(path=path)
 
 
 class AccessibilityAttributes(BuilderBaseModel):
@@ -116,7 +111,8 @@ class Action(BuilderBaseModel):
 
     There is no string shorthand for ``event``. A before-validator accepting
     ``Action(event="save")`` would be invisible to a type checker, which then
-    reports the ergonomic spelling as an error. Use :func:`event` instead.
+    reports the ergonomic spelling as an error. Construct the branch instead:
+    ``Action(event=ActionEvent(name="save"))``.
     """
 
     event: Optional[ActionEvent] = None
@@ -133,13 +129,6 @@ class Action(BuilderBaseModel):
                 "Action requires exactly one of 'event' or 'function_call'."
             )
         return self
-
-
-def event(name: str, context: Optional[Mapping[str, Any]] = None) -> Action:
-    """Ergonomic helper to construct a server-event Action."""
-    return Action(
-        event=ActionEvent(name=name, context=dict(context) if context else None)
-    )
 
 
 class CheckRule(BuilderBaseModel):

@@ -33,15 +33,16 @@ from a2ui.builder.v0_9 import (
     ComponentBuilderNode,
     ComponentRef,
     ComponentTree,
+    DataBinding,
     DynamicChildList,
     FunctionCall,
-    bind,
     create_surface,
-    event,
     flatten_component_tree,
     update_components,
 )
 from a2ui.builder.v0_9.catalogs.basic import (
+    OpenUrl,
+    Regex,
     Button,
     Card,
     Column,
@@ -49,8 +50,6 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Image,
     Icon,
     TextField,
-    open_url,
-    regex,
 )
 
 
@@ -67,10 +66,10 @@ def test_pydantic_inheritance():
     assert text.component == "Text"
     assert text.component_name == "Text"
 
-    action = event("click")
+    action = Action(event=ActionEvent(name="click"))
     assert isinstance(action, BaseModel)
 
-    binding = bind("/user/name")
+    binding = DataBinding(path="/user/name")
     assert isinstance(binding, BaseModel)
     assert binding.path == "/user/name"
 
@@ -95,7 +94,7 @@ def test_missing_required_parameters_rejected():
     assert "missing" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info:
-        Button(action=event("click"))  # missing required 'child'
+        Button(action=Action(event=ActionEvent(name="click")))  # missing required 'child'
     assert "child" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info:
@@ -115,7 +114,7 @@ def test_arbitrary_objects_rejected():
     with pytest.raises(ValidationError):
         Button(
             child=CustomArbitraryObject(),  # type: ignore
-            action=event("click"),
+            action=Action(event=ActionEvent(name="click")),
         )
 
 
@@ -143,7 +142,7 @@ def test_strict_enums_reject_unknown_variants():
     assert Text(text="Standard Heading", variant="h1").variant == "h1"
     assert (
         Button(
-            child=Text(text="Click"), action=event("click"), variant="primary"
+            child=Text(text="Click"), action=Action(event=ActionEvent(name="click")), variant="primary"
         ).variant
         == "primary"
     )
@@ -156,7 +155,7 @@ def test_strict_enums_reject_unknown_variants():
     with pytest.raises(ValidationError) as exc_info:
         Button(
             child=Text(text="Click"),
-            action=event("click"),
+            action=Action(event=ActionEvent(name="click")),
             variant="brand-gradient",
         )
     assert "variant" in str(exc_info.value)
@@ -205,18 +204,25 @@ def test_action_requires_exactly_one_branch():
     with pytest.raises(ValidationError):
         Action(
             event=ActionEvent(name="save"),
-            function_call=open_url(url="https://example.com"),
+            function_call=OpenUrl(url="https://example.com"),
         )
 
 
-def test_event_helper_and_context_serialization():
-    """Verifies the event helper and that bindings inside a context map serialize."""
-    assert event("simple_event").model_dump(by_alias=True, exclude_none=True) == {
-        "event": {"name": "simple_event"}
-    }
+def test_action_event_and_context_serialization():
+    """Verifies event actions and that bindings inside a context map serialize."""
+    assert Action(event=ActionEvent(name="simple_event")).model_dump(
+        by_alias=True, exclude_none=True
+    ) == {"event": {"name": "simple_event"}}
 
-    with_context = event(
-        "server_action", {"server": "db1", "port": 5432, "user": bind("/session/uid")}
+    with_context = Action(
+        event=ActionEvent(
+            name="server_action",
+            context={
+                "server": "db1",
+                "port": 5432,
+                "user": DataBinding(path="/session/uid"),
+            },
+        )
     )
     assert with_context.model_dump(by_alias=True, exclude_none=True) == {
         "event": {
@@ -232,7 +238,7 @@ def test_event_helper_and_context_serialization():
 
 def test_function_call_action_uses_wire_key():
     """Verifies the client-function branch emits 'functionCall', the key the spec requires."""
-    action = Action(function_call=open_url(url="https://a2ui.org"))
+    action = Action(function_call=OpenUrl(url="https://a2ui.org"))
     assert action.model_dump(by_alias=True, exclude_none=True) == {
         "functionCall": {"call": "openUrl", "args": {"url": "https://a2ui.org"}}
     }
@@ -249,7 +255,7 @@ def test_direct_node_serialization():
         child=Column(
             children=[
                 Text(text="Title", variant="h2"),
-                Button(child=Text(text="Submit"), action=event("submit")),
+                Button(child=Text(text="Submit"), action=Action(event=ActionEvent(name="submit"))),
             ]
         )
     )
@@ -366,7 +372,7 @@ def test_checks_serialize_on_checkable_components():
             label="ZIP",
             checks=[
                 CheckRule(
-                    condition=regex(value=bind("/user/zip"), pattern="^[0-9]{5}$"),
+                    condition=Regex(value=DataBinding(path="/user/zip"), pattern="^[0-9]{5}$"),
                     message="ZIP code must be 5 digits",
                 )
             ],
@@ -478,7 +484,7 @@ def test_tab_item_and_choice_option_models():
                 child=Button(
                     id="tab2_btn",
                     child=Text(text="Click"),
-                    action=event("click"),
+                    action=Action(event=ActionEvent(name="click")),
                 ),
             ),
         ],
@@ -505,18 +511,16 @@ def test_tab_item_and_choice_option_models():
 
 
 def test_typed_function_call_classes():
-    """Verifies typed FunctionCall classes and their factory helpers agree."""
-    fn_obj = open_url(url="https://example.com")
+    """Verifies typed FunctionCall classes carry their call name and args."""
+    fn_obj = OpenUrl(url="https://example.com")
     assert isinstance(fn_obj, FunctionCall)
+    assert isinstance(fn_obj, OpenUrl)
     assert fn_obj.call == "openUrl"
     assert fn_obj.args == {"url": "https://example.com"}
-
-    from a2ui.builder.v0_9.catalogs.basic import OpenUrl
-
-    assert isinstance(fn_obj, OpenUrl)
-    assert fn_obj.model_dump(by_alias=True, exclude_none=True) == OpenUrl(
-        url="https://example.com"
-    ).model_dump(by_alias=True, exclude_none=True)
+    assert fn_obj.model_dump(by_alias=True, exclude_none=True) == {
+        "call": "openUrl",
+        "args": {"url": "https://example.com"},
+    }
 
 
 # =============================================================================
@@ -538,15 +542,15 @@ def test_static_typechecker_compiler_rejections():
 
     cases = [
         (
-            'b = Button(child=Text(text="Hi"), action=event("click"), variant="invalid_variant")',
+            'b = Button(child=Text(text="Hi"), action=Action(event=ActionEvent(name="click")), variant="invalid_variant")',
             'Argument "variant" to "Button" has incompatible type',
         ),
         (
-            'b = Button(child=Text(text="Hi"), action=event("click"), lable="Save")',
+            'b = Button(child=Text(text="Hi"), action=Action(event=ActionEvent(name="click")), lable="Save")',
             'Unexpected keyword argument "lable" for "Button"',
         ),
         (
-            'b = Button(child="not_a_component", action=event("click"))',
+            'b = Button(child="not_a_component", action=Action(event=ActionEvent(name="click")))',
             'Argument "child" to "Button" has incompatible type',
         ),
     ]
