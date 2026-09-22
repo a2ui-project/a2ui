@@ -113,6 +113,7 @@ class DirectJsonParser(Parser):
             A list of compiled A2UI message dictionaries.
         """
         json_data = parse_and_fix(format_content)
+        # TODO: Leverage MessageProcessor to validate the json data.
         if self._validator:
             if hasattr(self._validator, "validate"):
                 from a2ui.core.exceptions import A2uiValidationError
