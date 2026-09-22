@@ -146,9 +146,6 @@ tests:
         $accessibility:
           label: "Submit Application"
           description: "Transmits all form entries to the review server"
-          live: "assertive"
-          hidden:
-            $bind: "/form/isSubmitting"
       child:
         component: "Text"
         id: "btn_label"

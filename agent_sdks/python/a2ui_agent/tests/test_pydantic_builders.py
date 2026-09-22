@@ -26,6 +26,7 @@ from pydantic import BaseModel, ValidationError
 
 from a2ui.builder.v0_9 import (
     LENIENT_ENUM_CONTEXT,
+    AccessibilityAttributes,
     Action,
     ActionEvent,
     CheckRule,
@@ -554,3 +555,31 @@ def test_static_typechecker_compiler_rejections():
         report, _, exit_status = mypy.api.run(["-c", preamble + code])
         assert exit_status != 0, code
         assert expected in report, f"{code}\n{report}"
+
+
+def test_accessibility_attributes_match_the_v0_9_1_schema():
+    """Pins the v0.9 model's field set to the v0.9.1 schema.
+
+    The schema omits ``additionalProperties: false`` on this definition, so a
+    field that only exists in a later version validates cleanly while no v0.9
+    renderer reads it. ``live`` and ``hidden`` reached the builder that way.
+    An equality assertion is what makes the drift fail rather than pass.
+    """
+    import json
+    import pathlib
+
+    repo_root = next(
+        p
+        for p in pathlib.Path(__file__).resolve().parents
+        if (p / "specification").is_dir()
+    )
+    schema_path = repo_root / "specification/v0_9_1/json/common_types.json"
+    schema = json.loads(schema_path.read_text())
+
+    expected = set(schema["$defs"]["AccessibilityAttributes"]["properties"])
+    actual = set(AccessibilityAttributes.model_fields)
+
+    assert actual == expected, (
+        f"builder has {sorted(actual - expected)} not in the v0.9.1 schema; "
+        f"schema has {sorted(expected - actual)} not on the builder model"
+    )

@@ -85,7 +85,13 @@ def bind(path: str) -> DataBinding:
 
 
 class AccessibilityAttributes(BaseModel):
-    """Attributes to enhance accessibility when using assistive technologies."""
+    """Attributes to enhance accessibility when using assistive technologies.
+
+    Only ``label`` and ``description`` exist in v0.9.1. The ``live`` and
+    ``hidden`` attributes are v1.0 additions and belong on the v1.0 model:
+    v0.9.1 omits ``additionalProperties: false`` here, so declaring them would
+    validate cleanly while no v0.9 renderer read them.
+    """
 
     model_config = ConfigDict(
         extra="forbid",
@@ -95,8 +101,6 @@ class AccessibilityAttributes(BaseModel):
 
     label: Optional[Union[str, DataBinding]] = None
     description: Optional[Union[str, DataBinding]] = None
-    live: Optional[str] = None
-    hidden: Optional[Union[bool, DataBinding]] = None
 
 
 class FunctionCall(A2uiExpression):
