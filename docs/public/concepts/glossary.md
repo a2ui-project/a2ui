@@ -158,13 +158,13 @@ A function that the renderer provides for the agent to invoke when needed.
 
 A renderer function is not the same as an LLM tool:
 
-| Feature      | Renderer function                                                       | LLM tool invocation                                                  |
-| ------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Executor     | A2UI renderer                                                         | LLM requests the invocation without concern about execution details. |
-| Timing       | After the agent to renderer message is sent.                          | Before the agent to renderer message is sent.                        |
-| Purpose      | UI logic: validation, visibility toggles, formatting.                 | Reasoning, data fetching, backend actions.                           |
+| Feature      | Renderer function                                                  | LLM tool invocation                                                  |
+| ------------ | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Executor     | A2UI renderer                                                      | LLM requests the invocation without concern about execution details. |
+| Timing       | After the agent to renderer message is sent.                       | Before the agent to renderer message is sent.                        |
+| Purpose      | UI logic: validation, visibility toggles, formatting.              | Reasoning, data fetching, backend actions.                           |
 | Definition   | Registered in renderer function registry and advertised in catalog | Defined in ToolDefinition, passed to the LLM.                        |
-| State access | Access to DataContext and input values.                               | Access to external APIs, databases, and services, but not to the UI. |
+| State access | Access to DataContext and input values.                            | Access to external APIs, databases, and services, but not to the UI. |
 
 See the [example in common types](../../../specification/v0_9_1/json/common_types.json#L200).
 
