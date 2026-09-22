@@ -380,9 +380,12 @@ export function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
   if (
     typeof message === 'object' &&
     message !== null &&
-    (!('version' in message) || (message as Record<string, unknown>).version == null)
+    (!('version' in message) || (message as unknown as Record<string, unknown>).version == null)
   ) {
-    return {...(message as Record<string, unknown>), version: 'v0.9'} as A2uiMessage;
+    return {
+      ...(message as unknown as Record<string, unknown>),
+      version: 'v0.9',
+    } as A2uiMessage;
   }
   return message;
 }
