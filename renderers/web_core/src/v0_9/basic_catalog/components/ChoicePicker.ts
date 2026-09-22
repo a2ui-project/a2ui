@@ -134,7 +134,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
   protected readonly api = ChoicePickerApi;
 
   override render() {
-    const props = this.controller?.props;
+    const props = this.controller.props;
     if (!props) return nothing;
 
     const rawVal = props.value;

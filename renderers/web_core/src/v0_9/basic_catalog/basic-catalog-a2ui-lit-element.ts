@@ -57,7 +57,7 @@ export abstract class BasicCatalogA2uiLitElement<
   override willUpdate(changedProperties: Map<string, any>) {
     super.willUpdate(changedProperties);
 
-    const props = this.controller?.props as any;
+    const props = this.controller.props as any;
     if (props && props.weight !== undefined) {
       this.style.flex = String(props.weight);
     } else {
