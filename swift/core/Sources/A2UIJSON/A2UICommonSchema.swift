@@ -1154,7 +1154,13 @@ public enum A2UICommonSchema {
     [
       baseURI: document,
       v10BaseURI: v10Document,
+      "common_types.json": v10Document,
+      "https://swift-json-schema.invalid/common_types.json": v10Document,
+      "https://a2ui.org/specification/v1_0/catalogs/basic/common_types.json": v10Document,
       v10CatalogDefinitionURI: v10CatalogDefinitionDocument,
+      "catalog_definition.json": v10CatalogDefinitionDocument,
+      "https://swift-json-schema.invalid/catalog_definition.json":
+        v10CatalogDefinitionDocument,
     ]
   }
 }

@@ -36,7 +36,7 @@ struct A2UIJSONTests {
     #expect(A2UICommonSchema.document != .object([:]))
     #expect(A2UICommonSchema.v10Document != .object([:]))
     #expect(A2UICommonSchema.v10CatalogDefinitionDocument != .object([:]))
-    #expect(A2UICommonSchema.allSchemas.count == 3)
+    #expect(A2UICommonSchema.allSchemas.count == 8)
   }
 
   @Test func testRegistryContextResolvesV10Refs() throws {
@@ -53,5 +53,16 @@ struct A2UIJSONTests {
     let value: JSONValue = ["path": "/test"]
     let result = schema.validate(value)
     #expect(result.isValid)
+
+    let relativeSchema: JSONValue = try .parse(
+      """
+      { "$ref": "common_types.json#/$defs/DataBinding" }
+      """
+    )
+    let resolvedRelativeSchema = try Schema(
+      rawSchema: relativeSchema,
+      context: context
+    )
+    #expect(resolvedRelativeSchema.validate(value).isValid)
   }
 }
