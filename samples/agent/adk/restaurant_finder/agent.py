@@ -325,7 +325,7 @@ class RestaurantAgent:
                             "--- RestaurantAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        selected_catalog.validator.validate(parsed_json_data)
+                        selected_catalog.validate_components(parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

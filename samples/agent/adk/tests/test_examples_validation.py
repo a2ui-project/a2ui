@@ -104,7 +104,7 @@ def test_sample_examples_validation(config):
                     content = json.load(f)
                     try:
                         if do_validate:
-                            catalog.validator.validate(content)
+                            catalog.validate_components(content)
                     except Exception as e:
                         pytest.fail(
                             f"Validation failed for {full_path} in sample"

@@ -665,7 +665,7 @@ def make_parser(args):
     if format_name == "direct_json":
         from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 
-        return DirectJsonParser(catalog=catalog, validator=catalog.validator)
+        return DirectJsonParser(catalog=catalog, validator=catalog.validate_components)
 
     raise ValueError(f"Unknown inference format: {format_name}")
 

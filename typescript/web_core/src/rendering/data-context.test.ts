@@ -27,7 +27,7 @@ import {
 } from './data-context.js';
 import {Catalog} from '../catalog/types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/common-types.js';
-import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {A2uiExpressionError} from '../errors.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -916,47 +916,43 @@ describe('DataContext', () => {
       assert.strictEqual(ctx.resolveDynamicValue({call: 'greet', args: {}}), 'from-primary');
     });
 
-    it('throws A2uiCatalogError when the named catalog is not available', () => {
+    it('reports an unavailable named catalog through the surface error channel', () => {
       const primary = makeCatalog('cat-primary', 'from-primary');
-      const ctx = new DataContext(makeSurface(primary, [primary]), '/');
+      const surface = makeSurface(primary, [primary]);
+      let dispatchedError: any = null;
+      surface.dispatchError = (err: any) => {
+        dispatchedError = err;
+      };
+      const ctx = new DataContext(surface, '/');
 
-      assert.throws(
-        () => ctx.resolveDynamicValue({call: 'greet', args: {}, catalogId: 'cat-missing'} as any),
-        (err: unknown) => {
-          assert.ok(err instanceof A2uiCatalogError);
-          assert.match((err as Error).message, /Catalog not found: cat-missing/);
-          return true;
-        },
+      assert.strictEqual(
+        ctx.resolveDynamicValue({call: 'greet', args: {}, catalogId: 'cat-missing'} as any),
+        undefined,
       );
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.match(dispatchedError.message, /Catalog not found: cat-missing/);
     });
 
-    it('falls back to surface.catalog when defaultCatalog is undefined on legacy mock surfaces', () => {
-      const primary = makeCatalog('cat-legacy', 'from-legacy');
-      const legacySurface = {
-        dataModel: new DataModel({}),
-        catalog: primary,
-      } as any;
-      const ctx = new DataContext(legacySurface, '/');
+    it('reports an unavailable named catalog on the reactive path as well', () => {
+      const primary = makeCatalog('cat-primary', 'from-primary');
+      const surface = makeSurface(primary, [primary]);
+      let dispatchedError: any = null;
+      surface.dispatchError = (err: any) => {
+        dispatchedError = err;
+      };
+      const ctx = new DataContext(surface, '/');
 
-      assert.strictEqual(ctx.resolveDynamicValue({call: 'greet', args: {}}), 'from-legacy');
-    });
-
-    it('handles legacy mock surfaces lacking availableCatalogs map when naming an unknown catalog', () => {
-      const primary = makeCatalog('cat-legacy', 'from-legacy');
-      const legacySurface = {
-        dataModel: new DataModel({}),
-        catalog: primary,
-      } as any;
-      const ctx = new DataContext(legacySurface, '/');
-
-      assert.throws(
-        () => ctx.resolveDynamicValue({call: 'greet', args: {}, catalogId: 'cat-missing'} as any),
-        (err: unknown) => {
-          assert.ok(err instanceof A2uiCatalogError);
-          assert.match((err as Error).message, /Catalog not found: cat-missing/);
-          return true;
-        },
+      const sub = ctx.subscribeDynamicValue(
+        {call: 'greet', args: {}, catalogId: 'cat-missing'} as any,
+        () => {},
       );
+
+      assert.strictEqual(sub.value, undefined);
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.match(dispatchedError.message, /Catalog not found: cat-missing/);
+      sub.unsubscribe();
     });
   });
 });

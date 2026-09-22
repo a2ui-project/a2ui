@@ -502,7 +502,7 @@ class ContactAgent:
                                 "--- ContactAgent.stream: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validator.validate(parsed_json_data)
+                            selected_catalog.validate_components(parsed_json_data)
 
                             logger.info(
                                 "--- ContactAgent.stream: UI JSON successfully parsed"

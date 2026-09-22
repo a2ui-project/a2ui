@@ -378,9 +378,9 @@ export class Catalog<
    *
    * @param catalogSchema Raw catalog schema or client capabilities payload object.
    * @param protocolVersion Protocol version to use when the schema does not
-   *   declare one. Catalog schemas published before v1.0 omit the field.
+   *   declare one. Catalog schemas published before v1.0 omit the field, in
+   *   which case `DEFAULT_PROTOCOL_VERSION` applies.
    * @returns A new Catalog populated with component and function schemas.
-   * @throws {A2uiCatalogError} If no protocol version is declared or supplied.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
   static fromSchema(

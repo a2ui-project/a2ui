@@ -77,7 +77,9 @@ class DirectJsonParser(Parser):
 
         Args:
             catalog: The A2uiCatalog mapping schema identifiers.
-            validator: Optional validator for payload verification.
+            validator: Optional callable invoked with the parsed payload. It may
+                return a list of `A2uiErrorDetail`, which `compile` raises as an
+                `A2uiValidationError`, or raise on its own.
         """
         self._catalog = catalog
         self._validator = validator
@@ -115,17 +117,14 @@ class DirectJsonParser(Parser):
         json_data = parse_and_fix(format_content)
         # TODO: Leverage MessageProcessor to validate the json data.
         if self._validator:
-            if hasattr(self._validator, "validate"):
-                from a2ui.core.exceptions import A2uiValidationError
+            from a2ui.core.exceptions import A2uiValidationError
 
-                errs = self._validator.validate(json_data)
-                if isinstance(errs, list) and errs:
-                    raise A2uiValidationError(
-                        f"Validation failed with {len(errs)} error(s)",
-                        details=errs,
-                    )
-            elif callable(self._validator):
-                self._validator(json_data)
+            errs = self._validator(json_data)
+            if isinstance(errs, list) and errs:
+                raise A2uiValidationError(
+                    f"Validation failed with {len(errs)} error(s)",
+                    details=errs,
+                )
         return json_data
 
     @property

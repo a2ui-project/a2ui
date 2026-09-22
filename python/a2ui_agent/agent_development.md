@@ -165,7 +165,7 @@ response_parts = parse_response(full_text)
 for part in response_parts:
   if part.a2ui_json:
     # Validate against schema
-    selected_catalog.validator.validate(part.a2ui_json)
+    selected_catalog.validate_components(part.a2ui_json)
 ```
 
 **2. Stream the A2UI Payload**

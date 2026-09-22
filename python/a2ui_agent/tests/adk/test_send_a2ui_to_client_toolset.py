@@ -190,7 +190,7 @@ async def test_send_tool_run_async_valid():
     tool_context_mock.actions = MagicMock(skip_summarization=False)
 
     valid_a2ui = [{"type": "Text", "text": "Hello"}]
-    catalog_mock.validator.validate.return_value = None
+    catalog_mock.validate_components.return_value = []
     args = {
         SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
             json.dumps(valid_a2ui)
@@ -204,7 +204,7 @@ async def test_send_tool_run_async_valid():
         )
     }
     assert tool_context_mock.actions.skip_summarization
-    catalog_mock.validator.validate.assert_called_once_with(valid_a2ui)
+    catalog_mock.validate_components.assert_called_once_with(valid_a2ui)
 
 
 @pytest.mark.asyncio
@@ -216,7 +216,7 @@ async def test_send_tool_run_async_valid_list():
     tool_context_mock.actions = MagicMock(skip_summarization=False)
 
     valid_a2ui = [{"type": "Text", "text": "Hello"}]
-    catalog_mock.validator.validate.return_value = None
+    catalog_mock.validate_components.return_value = []
     args = {
         SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
             json.dumps(valid_a2ui)
@@ -230,7 +230,7 @@ async def test_send_tool_run_async_valid_list():
         )
     }
     assert tool_context_mock.actions.skip_summarization
-    catalog_mock.validator.validate.assert_called_once_with(valid_a2ui)
+    catalog_mock.validate_components.assert_called_once_with(valid_a2ui)
 
 
 @pytest.mark.asyncio
@@ -262,7 +262,7 @@ async def test_send_tool_run_async_invalid_json():
 @pytest.mark.asyncio
 async def test_send_tool_run_async_schema_validation_fail():
     catalog_mock = MagicMock(spec=A2uiCatalog)
-    catalog_mock.validator.validate.side_effect = Exception(
+    catalog_mock.validate_components.side_effect = Exception(
         "'text' is a required property"
     )
     tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(catalog_mock, "examples")

@@ -409,7 +409,7 @@ def verify():
                 }
             },
         ]
-        catalog.validator.validate(a2ui_message)
+        catalog.validate_components(a2ui_message)
         print('Validation successful')
     except Exception as e:
         print(f'Failed to load {VERSION_0_8}: {e}')
@@ -655,7 +655,7 @@ def verify():
             },
             {'version': 'v0.9', 'deleteSurface': {'surfaceId': 'contact_form_1'}},
         ]
-        catalog.validator.validate(a2ui_message)
+        catalog.validate_components(a2ui_message)
         print('Validation successful')
     except Exception as e:
         print(f'Failed to load {VERSION_0_9}: {e}')

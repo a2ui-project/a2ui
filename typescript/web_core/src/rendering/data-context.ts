@@ -205,7 +205,7 @@ export class DataContext {
     readonly path: string,
   ) {
     this.dataModel = surface.dataModel;
-    this.functionInvoker = (surface.defaultCatalog ?? surface.catalog).invoker;
+    this.functionInvoker = surface.defaultCatalog.invoker;
   }
 
   /**
@@ -274,10 +274,11 @@ export class DataContext {
     // 3. Function Call: { call: "...", args: ... }
     if ('call' in value) {
       const call = value as FunctionCall;
-      // Resolve before validating: the arguments must be checked against the
-      // catalog that will actually run the call, not the surface default.
-      const targetCatalog = this.resolveFunctionCatalog(call.catalogId);
+      let targetCatalog: Catalog<any>;
       try {
+        // Resolve before validating: the arguments must be checked against the
+        // catalog that will actually run the call, not the surface default.
+        targetCatalog = this.resolveFunctionCatalog(call.catalogId);
         validateFunctionArgs(call.call, call.args, targetCatalog);
       } catch (e: unknown) {
         this.dispatchExpressionError(e, call.call);
@@ -405,8 +406,11 @@ export class DataContext {
     // 3. Function Call
     if ('call' in value) {
       const call = value as FunctionCall;
-      const targetCatalog = this.resolveFunctionCatalog(call.catalogId);
+      let targetCatalog: Catalog<any>;
       try {
+        // Resolve before validating: the arguments must be checked against the
+        // catalog that will actually run the call, not the surface default.
+        targetCatalog = this.resolveFunctionCatalog(call.catalogId);
         validateFunctionArgs(call.call, call.args, targetCatalog);
       } catch (e: unknown) {
         this.dispatchExpressionError(e, call.call);
@@ -535,7 +539,7 @@ export class DataContext {
    */
   private resolveFunctionCatalog(catalogId?: string): Catalog<any> {
     if (catalogId === undefined) {
-      return this.surface.defaultCatalog ?? this.surface.catalog;
+      return this.surface.defaultCatalog;
     }
     const target = this.surface.availableCatalogs?.get(catalogId);
     if (!target) {

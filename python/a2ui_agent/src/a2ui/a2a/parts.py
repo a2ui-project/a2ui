@@ -160,7 +160,7 @@ def parse_response_to_parts(
             if part.a2ui_json:
                 json_data = part.a2ui_json
                 if validator is not None:
-                    validator.validate(json_data)
+                    validator(json_data)
 
                 if isinstance(json_data, list):
                     for message in json_data:

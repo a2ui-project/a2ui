@@ -327,6 +327,7 @@ describe('callMcpTool', () => {
     it('throws A2uiExpressionError when resolver returns null or undefined', async () => {
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [createCallMcpToolImplementation(() => undefined, processor)],
       );

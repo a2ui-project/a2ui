@@ -62,7 +62,6 @@ class SurfaceComponentsModel:
         new_components: list[ComponentModel],
         root_id: str = "root",
         config: ValidationConfig | None = None,
-        available_catalogs: dict[str, Any] | None = None,
     ) -> None:
         """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state."""
         if config is None:
@@ -89,9 +88,7 @@ class SurfaceComponentsModel:
         all_errors: list[A2uiErrorDetail] = []
         comp_summaries: list[str] = []
         for comp_model in new_components:
-            errors = comp_model.validate(
-                config=config, available_catalogs=available_catalogs
-            )
+            errors = comp_model.validate(config=config)
             if errors:
                 all_errors.extend(errors)
                 comp_type = comp_model.type

@@ -304,7 +304,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
                 a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
                 a2ui_json_payload = parse_and_fix(a2ui_json)
-                a2ui_catalog.validator.validate(a2ui_json_payload)
+                a2ui_catalog.validate_components(a2ui_json_payload)
 
                 logger.info(
                     f"Validated call to tool {self.TOOL_NAME} with"

@@ -148,7 +148,7 @@ export class A2uiRecipeApp extends LitElement {
 
       // Invoke the entrypoint tool using a temporary DataContext before any surface exists.
       const context = new DataContext(
-        {dataModel: new DataModel({}), catalog: this.catalog} as any,
+        {dataModel: new DataModel({}), defaultCatalog: this.catalog} as any,
         '/',
       );
       await this.catalog.invoker('callMcpTool', {name: RECIPE_FORM_TOOL, arguments: {}}, context);

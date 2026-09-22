@@ -30,7 +30,14 @@ import {
 } from '../types/common-types.js';
 import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {A2uiCatalogError} from '../errors.js';
+
+/**
+ * Protocol version assumed for a catalog schema that does not declare one.
+ *
+ * Catalog schemas only began carrying `protocolVersion` at v1.0, so a schema
+ * that omits it predates that field.
+ */
+export const DEFAULT_PROTOCOL_VERSION = '0.9';
 
 const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicString: DynamicStringSchema,
@@ -610,11 +617,11 @@ function parseThemeSchema(
  *
  * @param catalogSchema Raw catalog schema or capabilities definition object.
  * @param protocolVersion Protocol version to use when the schema does not declare
- *   one. Catalog schemas published before v1.0 omit `protocolVersion`, so the
- *   caller must supply it.
+ *   one. Catalog schemas published before v1.0 omit `protocolVersion`; when
+ *   neither the caller nor the schema supplies it, `DEFAULT_PROTOCOL_VERSION`
+ *   applies.
  * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
  * @throws {Error} If the catalog ID is missing or not a string.
- * @throws {A2uiCatalogError} If no protocol version is declared or supplied.
  */
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, unknown>,
@@ -630,12 +637,10 @@ export function loadCatalogFromSchema(
   const anyComp = defs?.anyComponent as Record<string, unknown> | undefined;
   const permittedNames = extractPermittedNames(anyComp?.oneOf, '#/components/');
 
-  const resolvedVersion = protocolVersion ?? (catalogSchema.protocolVersion as string | undefined);
-  if (!resolvedVersion) {
-    throw new A2uiCatalogError(
-      `Catalog '${catalogId}' declares no protocolVersion, and none was supplied.`,
-    );
-  }
+  const resolvedVersion =
+    protocolVersion ??
+    (catalogSchema.protocolVersion as string | undefined) ??
+    DEFAULT_PROTOCOL_VERSION;
   const isAtLeastV10 = isAtLeastVersion(resolvedVersion, '1.0');
 
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};

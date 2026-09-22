@@ -880,9 +880,8 @@ def test_collect_defs_refs_nested_subpath():
     assert refs == {"TemplateChildList", "SimpleDef", "NestedDef"}
 
 
-def test_payload_validator_nested_function_with_catalog_id():
-    """Verifies PayloadValidator resolves nested functions via available_catalogs."""
-    from a2ui.core.validation.payload_validator import ValidationConfig
+def test_payload_validator_skips_nested_function_from_another_catalog():
+    """Verifies PayloadValidator only checks calls targeting its own catalog."""
     from a2ui.core.catalog import FunctionImplementation
 
     comp_api = ComponentApi(
@@ -892,13 +891,7 @@ def test_payload_validator_nested_function_with_catalog_id():
             "properties": {"val": {"type": "object"}},
         },
     )
-    app_cat = Catalog(
-        catalog_id="app-cat",
-        protocol_version="v1.0",
-        components=[comp_api],
-        functions=[],
-    )
-    math_fn = FunctionImplementation(
+    add_fn = FunctionImplementation(
         name="add",
         return_type="number",
         schema={
@@ -908,38 +901,64 @@ def test_payload_validator_nested_function_with_catalog_id():
         },
         execute=lambda args, *_: args["a"] + args["b"],
     )
-    math_cat = Catalog(
-        catalog_id="math-cat",
+    app_cat = Catalog(
+        catalog_id="app-cat",
         protocol_version="v1.0",
-        components=[],
-        functions=[math_fn],
+        components=[comp_api],
+        functions=[add_fn],
+    )
+    validator = PayloadValidator(catalog=app_cat)
+
+    def component(comp_id: str, call: dict) -> dict:
+        return {"id": comp_id, "component": "CustomComp", "val": call}
+
+    # A call naming another catalog is left to resolution-time validation, even
+    # when the function is unknown here and the arguments are wrong.
+    assert not validator.validate_component(
+        component(
+            "c1",
+            {"call": "multiply", "catalogId": "math-cat", "args": {"nope": True}},
+        )
     )
 
-    valid_comp = {
+    # A call naming this catalog explicitly is still validated.
+    assert not validator.validate_component(
+        component(
+            "c2", {"call": "add", "catalogId": "app-cat", "args": {"a": 1, "b": 2}}
+        )
+    )
+    assert validator.validate_component(
+        component("c3", {"call": "add", "catalogId": "app-cat", "args": {"a": 1}})
+    )
+
+    # A call naming no catalog is validated against this catalog.
+    assert validator.validate_component(
+        component("c4", {"call": "unknownFunction", "args": {}})
+    )
+
+
+def test_payload_validator_collects_errors_past_a_foreign_catalog_call():
+    """Verifies the nested walk continues after skipping a foreign-catalog call."""
+    comp_api = ComponentApi(
+        name="CustomComp",
+        schema={
+            "type": "object",
+            "properties": {"first": {"type": "object"}, "second": {"type": "object"}},
+        },
+    )
+    app_cat = Catalog(
+        catalog_id="app-cat",
+        protocol_version="v1.0",
+        components=[comp_api],
+        functions=[],
+    )
+    validator = PayloadValidator(catalog=app_cat)
+
+    errors = validator.validate_component({
         "id": "c1",
         "component": "CustomComp",
-        "val": {
-            "call": "add",
-            "catalogId": "math-cat",
-            "args": {"a": 1, "b": 2},
-        },
-    }
-    validator = PayloadValidator(
-        catalog=app_cat,
-        available_catalogs={"app-cat": app_cat, "math-cat": math_cat},
-    )
-    errors = validator.validate_component(valid_comp)
-    assert not errors
+        "first": {"call": "add", "catalogId": "math-cat", "args": {"a": 1}},
+        "second": {"call": "unknownFunction", "args": {}},
+    })
 
-    missing_cat_comp = {
-        "id": "c2",
-        "component": "CustomComp",
-        "val": {
-            "call": "add",
-            "catalogId": "unknown-cat",
-            "args": {"a": 1, "b": 2},
-        },
-    }
-    errors = validator.validate_component(missing_cat_comp)
-    assert len(errors) == 1
-    assert errors[0].code == "catalog_error"
+    assert [e.code for e in errors] == ["unrecognized_function"]

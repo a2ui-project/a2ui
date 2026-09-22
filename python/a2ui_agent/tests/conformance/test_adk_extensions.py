@@ -45,7 +45,7 @@ def test_adk_extensions_conformance(name, test_case):
         tool_args = {"a2ui_json": a2ui_json_str} if a2ui_json_str else args
 
         catalog_mock = MagicMock(spec=A2uiCatalog)
-        catalog_mock.validator.validate.return_value = None
+        catalog_mock.validate_components.return_value = []
 
         tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
             catalog_mock, "examples"

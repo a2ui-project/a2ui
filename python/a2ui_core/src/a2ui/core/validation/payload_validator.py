@@ -83,62 +83,9 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         self,
         catalog: Catalog[TComponent, TFunction],
         config: ValidationConfig | None = None,
-        available_catalogs: (
-            dict[str, Catalog[TComponent, TFunction]]
-            | list[Catalog[TComponent, TFunction]]
-            | None
-        ) = None,
     ) -> None:
         self.catalog: Catalog[TComponent, TFunction] = catalog
         self.config = config
-        self.available_catalogs: dict[str, Any] = {}
-        if available_catalogs is not None:
-            if isinstance(available_catalogs, dict):
-                self.available_catalogs = dict(available_catalogs)
-            else:
-                self.available_catalogs = {
-                    getattr(c, "catalog_id", ""): c
-                    for c in available_catalogs
-                    if hasattr(c, "catalog_id")
-                }
-        if (
-            hasattr(catalog, "catalog_id")
-            and catalog.catalog_id
-            and catalog.catalog_id not in self.available_catalogs
-        ):
-            self.available_catalogs[catalog.catalog_id] = catalog
-
-    def validate(
-        self, payload: dict[str, Any] | list[dict[str, Any]]
-    ) -> list[A2uiErrorDetail]:
-        """Validates component dictionary or list of components against catalog schemas."""
-        errors: list[A2uiErrorDetail] = []
-        components: list[dict[str, Any]] = []
-
-        def _extract(item: Any) -> None:
-            if isinstance(item, dict):
-                if "updateComponents" in item and isinstance(
-                    item["updateComponents"], dict
-                ):
-                    comps = item["updateComponents"].get("components", [])
-                    if isinstance(comps, list):
-                        components.extend(c for c in comps if isinstance(c, dict))
-                elif "components" in item and isinstance(item["components"], list):
-                    components.extend(
-                        c for c in item["components"] if isinstance(c, dict)
-                    )
-                elif "component" in item or "type" in item:
-                    components.append(item)
-
-        if isinstance(payload, list):
-            for elem in payload:
-                _extract(elem)
-        else:
-            _extract(payload)
-
-        for comp in components:
-            errors.extend(self.validate_component(comp))
-        return errors
 
     def validate_component(
         self,
@@ -344,35 +291,23 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         path: str,
         errors: list[A2uiErrorDetail],
     ) -> None:
-        """Recursively validates nested function calls within component properties."""
+        """Recursively validates nested function calls declared by this catalog.
+
+        A call that names a different `catalogId` is skipped here: this validator
+        is scoped to a single catalog, and the call is checked at resolution time
+        against the catalog that actually runs it.
+        """
         if isinstance(val, dict):
             fn_name = val.get("call") or val.get("function")
-            if fn_name and isinstance(fn_name, str):
+            cat_id = val.get("catalogId")
+            targets_this_catalog = not cat_id or cat_id == getattr(
+                self.catalog, "catalog_id", None
+            )
+            if fn_name and isinstance(fn_name, str) and targets_this_catalog:
                 fn_args = val.get("args")
                 args_dict = fn_args if isinstance(fn_args, dict) else {}
-                cat_id = val.get("catalogId")
-                target_validator = self
-                if cat_id:
-                    if self.available_catalogs and cat_id in self.available_catalogs:
-                        target_cat = self.available_catalogs[cat_id]
-                        target_validator = PayloadValidator(
-                            target_cat,
-                            config=self.config,
-                            available_catalogs=self.available_catalogs,
-                        )
-                    else:
-                        errors.append(
-                            A2uiErrorDetail(
-                                path=f"components.{comp_id}.{path}"
-                                if path
-                                else f"components.{comp_id}",
-                                code="catalog_error",
-                                message=f"Catalog not found: {cat_id}",
-                            )
-                        )
-                        return
                 try:
-                    target_validator.validate_function(fn_name, args_dict)
+                    self.validate_function(fn_name, args_dict)
                 except A2uiValidationError as e:
                     if e.details:
                         errors.extend(e.details)

@@ -20,13 +20,14 @@ import glob
 import json
 import logging
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import cached_property
 from typing import Any, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
+from a2ui.core.exceptions import A2uiErrorDetail
 from a2ui.core.validation.payload_validator import PayloadValidator, STRICT_VALIDATION
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
@@ -39,6 +40,33 @@ from .constants import (
     VERSION_0_8,
     ENCODING,
 )
+
+
+def _iter_payload_components(payload: Any) -> Iterator[dict[str, Any]]:
+    """Yields every component dictionary reachable in an A2UI payload.
+
+    Understands a bare component, an `updateComponents` envelope, a bare
+    `components` list holder, and a list of any of those.
+
+    Args:
+      payload: A component dict, a message envelope, or a list of either.
+
+    Yields:
+      Each component dictionary found, in payload order.
+    """
+    items = payload if isinstance(payload, list) else [payload]
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        update = item.get("updateComponents")
+        if isinstance(update, dict):
+            comps = update.get("components", [])
+            if isinstance(comps, list):
+                yield from (c for c in comps if isinstance(c, dict))
+        elif isinstance(item.get("components"), list):
+            yield from (c for c in item["components"] if isinstance(c, dict))
+        elif "component" in item or "type" in item:
+            yield item
 
 
 @dataclass
@@ -220,6 +248,24 @@ class A2uiCatalog:
     @property
     def validator(self) -> PayloadValidator[Any, Any]:
         return PayloadValidator(self.core_catalog, config=STRICT_VALIDATION)
+
+    def validate_components(self, payload: Any) -> list[A2uiErrorDetail]:
+        """Validates every component reachable in an A2UI payload against this catalog.
+
+        Accepts a single component, a single message envelope, or a list of
+        either, and collects the schema errors for each component found.
+
+        Args:
+          payload: A component dict, a message envelope, or a list of either.
+
+        Returns:
+          The accumulated validation errors, empty when the payload is valid.
+        """
+        validator = self.validator
+        errors: list[A2uiErrorDetail] = []
+        for comp in _iter_payload_components(payload):
+            errors.extend(validator.validate_component(comp))
+        return errors
 
     def validate(self, messages: Any) -> None:
         """Validates payload messages using MessageProcessor."""

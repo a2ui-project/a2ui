@@ -72,12 +72,12 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
     recipe_a2ui_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_a2ui.json").read_text()
     )
-    selected_catalog.validator.validate(recipe_a2ui_json)
+    selected_catalog.validate_components(recipe_a2ui_json)
 
     recipe_form_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_form.json").read_text()
     )
-    selected_catalog.validator.validate(recipe_form_json)
+    selected_catalog.validate_components(recipe_form_json)
 
     app = Server("a2ui-mcp-recipe-demo")
 
