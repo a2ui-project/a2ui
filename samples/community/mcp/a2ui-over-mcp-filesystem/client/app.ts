@@ -17,16 +17,16 @@
 /**
  * Client application for the A2UI-over-MCP filesystem browser sample.
  *
- * Connects to a filesystem MCP server, loads the static A2UI payload
- * (`a2ui_filesystem.json`), and executes the initial `/startup` action.
- * All tool calls and data transformations are defined declaratively in the payload.
+ * Connects to a filesystem MCP server and loads the static A2UI payload
+ * (`a2ui_filesystem.json`). All tool calls and data transformations are
+ * defined declaratively in the payload.
  */
 
 import {Context, basicCatalog} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {createMcpCatalogFunctions} from '@a2ui/mcp-catalog';
-import {Catalog, DataContext, MessageProcessor, type A2uiMessage} from '@a2ui/web_core/v0_9';
+import {Catalog, MessageProcessor, type A2uiMessage, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {provide} from '@lit/context';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -34,9 +34,6 @@ import {LitElement, css, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 
 import surfaceMessages from '../a2ui_filesystem.json';
-
-/** Surface ID defined in `a2ui_filesystem.json`. */
-export const SURFACE_ID = 'fs-browser';
 
 /** Catalog ID combining basic A2UI components with MCP catalog functions. */
 export const CATALOG_ID =
@@ -54,14 +51,13 @@ export class A2uiFilesystemApp extends LitElement {
 
   readonly processor: MessageProcessor<any>;
 
-  /** Connected MCP client instance. */
-  private mcpClient?: Client;
-
+  @state() accessor surface: SurfaceModel<any> | undefined;
   @state() private accessor error = '';
+
+  private mcpClient?: Client;
 
   constructor() {
     super();
-    // Initialize MessageProcessor with the catalog list before populating functions that reference it.
     const catalogs: Array<Catalog<any>> = [];
     this.processor = new MessageProcessor<any>(catalogs);
     catalogs.push(
@@ -72,19 +68,15 @@ export class A2uiFilesystemApp extends LitElement {
     );
 
     this.processor.onSurfaceCreated(surface => {
-      this.requestUpdate();
+      this.surface = surface;
       surface.onError.subscribe(event => {
         this.error = event.message ?? String(event.code);
       });
     });
   }
 
-  /** Returns the active filesystem browser surface. */
-  get surface() {
-    return this.processor.model.getSurface(SURFACE_ID);
-  }
-
-  protected async firstUpdated() {
+  override async connectedCallback() {
+    super.connectedCallback();
     try {
       this.mcpClient = new Client(
         {name: 'a2ui-filesystem-browser', version: '1.0.0'},
@@ -93,18 +85,7 @@ export class A2uiFilesystemApp extends LitElement {
       await this.mcpClient.connect(
         new StreamableHTTPClientTransport(new URL(MCP_ENDPOINT, window.location.origin)),
       );
-
-      this.processor.processMessages(surfaceMessages as unknown as A2uiMessage[]);
-
-      // Execute startup actions defined in the payload data model to populate the initial view.
-      const surface = this.surface;
-      const startup = surface?.dataModel.get('/startup');
-      if (surface && Array.isArray(startup)) {
-        const context = new DataContext(surface, '/');
-        for (const action of startup) {
-          await context.resolveDynamicValue(action);
-        }
-      }
+      this.processor.processMessages(structuredClone(surfaceMessages) as unknown as A2uiMessage[]);
     } catch (error: unknown) {
       this.error = error instanceof Error ? error.message : String(error);
     }

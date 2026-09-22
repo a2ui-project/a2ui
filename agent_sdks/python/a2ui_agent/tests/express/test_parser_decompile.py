@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests focusing on the A2UI Express Decompiler."""
+"""Unit tests focusing on the A2UI Express Decompiler.
+
+Decompilation behaviour the protocol fixes for every language lives in
+`conformance/agent/express/decompiler.yaml`, which this SDK runs from
+`tests/conformance/test_conformance.py`. What stays here is what conformance
+does not reach: the positional argument spellings a catalog's
+`positionalIndex` produces, an unknown function call, `has_format_content`, and
+behaviour the suites rule against and mark `xfail`.
+"""
 
 import json
 import os
@@ -180,6 +188,148 @@ class TestExpressParser(unittest.TestCase):
         # Case E: Non-ref static type
         static_type = {"type": "string"}
         self.assertFalse(_is_component_reference_property(static_type))
+
+    def test_decompile_update_data_model(self):
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "v1.0",
+            "updateDataModel": {"value": {"foo": "bar", "num": 123}},
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('$/foo = "bar"', decompiled)
+        self.assertIn("$/num = 123", decompiled)
+
+    def test_decompile_call_function_positional_args(self):
+        custom_catalog = A2uiCatalog(
+            version=VERSION_1_0,
+            name="custom_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/custom_catalog",
+                "components": {},
+                "functions": {
+                    "myCustomFunc": {
+                        "properties": {
+                            "args": {
+                                "properties": {
+                                    "arg1": {"type": "string", "positionalIndex": 0},
+                                    "arg2": {"type": "string", "positionalIndex": 1},
+                                    "arg3": {"type": "string", "positionalIndex": 2},
+                                }
+                            }
+                        }
+                    }
+                },
+            },
+        )
+        decompiler = ExpressParser(custom_catalog)
+
+        # 1. Trailing optionals missing should be popped (popping trailing "_")
+        envelope_1 = {
+            "version": "v1.0",
+            "callFunction": {"call": "myCustomFunc", "args": {"arg1": "hello"}},
+        }
+        self.assertEqual(decompiler.decompile(envelope_1), 'myCustomFunc("hello")')
+
+        # 2. Middle optional missing should keep "_"
+        envelope_2 = {
+            "version": "v1.0",
+            "callFunction": {
+                "call": "myCustomFunc",
+                "args": {"arg1": "hello", "arg3": "world"},
+            },
+        }
+        self.assertEqual(
+            decompiler.decompile(envelope_2),
+            'myCustomFunc("hello", _, "world")',
+        )
+
+        # 3. List of args should decompile directly
+        envelope_3 = {
+            "version": "v1.0",
+            "callFunction": {
+                "call": "myCustomFunc",
+                "args": ["hello", "middle", "world"],
+            },
+        }
+        self.assertEqual(
+            decompiler.decompile(envelope_3),
+            'myCustomFunc("hello", "middle", "world")',
+        )
+
+    def test_decompile_unknown_function_call(self):
+        """Test decompilation of unknown function calls with list or dict arguments."""
+        decompiler = ExpressParser(self.catalog)
+        envelope_list = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "t1",
+                    "component": "Text",
+                    "text": {"call": "unknownFunc", "args": ["val1", "val2"]},
+                }],
+            },
+        }
+        dsl_list = decompiler.decompile(envelope_list)
+        self.assertIn("unknownFunc", dsl_list)
+
+        envelope_dict = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "components": [{
+                    "id": "t2",
+                    "component": "Text",
+                    "text": {"call": "unknownFunc", "args": {"param1": "val1"}},
+                }],
+            },
+        }
+        dsl_dict = decompiler.decompile(envelope_dict)
+        self.assertIn("unknownFunc", dsl_dict)
+
+    def test_decompile_surface_directive(self):
+        """Test decompiling createSurface envelope with custom surfaceId emits surface() directive."""
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "custom-surface-456",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('surface("custom-surface-456")', decompiled)
+
+        # Test with custom catalogId
+        envelope_custom = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "custom-surface-456",
+                "catalogId": "https://custom-catalog.json",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        }
+        decompiled_custom = decompiler.decompile(envelope_custom)
+        self.assertIn(
+            'surface("custom-surface-456", catalogId="https://custom-catalog.json")',
+            decompiled_custom,
+        )
+
+    def test_decompile_update_components(self):
+        """Test decompiling updateComponents envelope emits surface() directive."""
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "update-surf-789",
+                "components": [{"id": "root", "component": "Text", "text": "Updated"}],
+            },
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('surface("update-surf-789")', decompiled)
 
     def test_has_format_content_and_unwrap_tags(self):
         """Test has_format_content checks and unwrap tag tokenization."""

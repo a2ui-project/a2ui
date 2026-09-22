@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests focusing on the A2UI Express Compiler and Prompt Generator."""
+"""Unit tests focusing on the A2UI Express Compiler and Prompt Generator.
+
+Compilation behaviour the protocol fixes for every language lives in
+`conformance/agent/express/compiler.yaml`, which this SDK runs from
+`tests/conformance/test_conformance.py`. What stays here is what conformance
+deliberately leaves to an implementation: exact error types and their
+attributes, the wording of a synthesised check message, thread safety, catalog
+polymorphism, and behaviour the suites rule against and mark `xfail`, which
+these tests are the only executing coverage of until it is fixed.
+"""
 
 import json
 import os
@@ -62,6 +71,138 @@ class TestExpressCompiler(unittest.TestCase):
         self.assertIn("Column(", prompt)
         self.assertIn("required(", prompt)
         self.assertIn("regex(", prompt)
+
+    def test_compilation_basic(self):
+        """Validates parsing and compiling basic components and validations."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """root = Column([repField, valueField])
+repField = TextField("Representative", $/form/rep, "Enter name")
+valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"""
+
+        envelope = compiler.compile(dsl, surface_id="test_surf")[0]
+        self.assertEqual(envelope["version"], "v1.0")
+        self.assertEqual(envelope["createSurface"]["surfaceId"], "test_surf")
+
+        components = envelope["createSurface"]["components"]
+        self.assertEqual(len(components), 3)
+
+        root_comp = next(c for c in components if c["id"] == "root")
+        self.assertEqual(root_comp["component"], "Column")
+        self.assertEqual(root_comp["children"], ["repField", "valueField"])
+
+        rep_comp = next(c for c in components if c["id"] == "repField")
+        self.assertEqual(rep_comp["component"], "TextField")
+        self.assertEqual(rep_comp["label"], "Representative")
+        self.assertEqual(rep_comp["value"], {"path": "/form/rep"})
+        self.assertEqual(rep_comp["placeholder"], "Enter name")
+
+        val_comp = next(c for c in components if c["id"] == "valueField")
+        self.assertEqual(val_comp["component"], "TextField")
+        self.assertEqual(val_comp["label"], "Deal Value")
+        self.assertEqual(val_comp["value"], {"path": "/form/value"})
+        self.assertEqual(val_comp["placeholder"], "0.00")
+        self.assertEqual(val_comp["variant"], "number")
+        self.assertEqual(
+            val_comp["checks"],
+            [{
+                "condition": {
+                    "call": "required",
+                    "args": {"value": {"path": "/form/value"}},
+                },
+                "message": "Required check failed",
+            }],
+        )
+
+    def test_standalone_function_call(self):
+        """Validates compilation of standalone function calls into CallFunctionMessages."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """openUrl("https://example.com")"""
+        envelope = compiler.compile(dsl)[0]
+
+        self.assertEqual(envelope["version"], "v1.0")
+        self.assertIn("callFunction", envelope)
+        self.assertEqual(envelope["callFunction"]["call"], "openUrl")
+        self.assertEqual(
+            envelope["callFunction"]["args"], {"url": "https://example.com"}
+        )
+
+    def test_event_and_list_variable_inlining(self):
+        """Validates that Event helper assignments and custom list arrays assigned to variables inline correctly."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """root = Column([btn1, btn2])
+btn1 = Button(btn1Label, "primary", myAction)
+btn1Label = Text("Save")
+btn2 = Button(btn2Label, "borderless", closeAction)
+btn2Label = Text("Cancel")
+myAction = Event("submit", {val: "42"})
+closeAction = Event("close")"""
+
+        envelope = compiler.compile(dsl)[0]
+        components = envelope["createSurface"]["components"]
+
+        btn1 = next(c for c in components if c["id"] == "btn1")
+        self.assertEqual(
+            btn1["action"], {"event": {"name": "submit", "context": {"val": "42"}}}
+        )
+
+        btn2 = next(c for c in components if c["id"] == "btn2")
+        self.assertEqual(btn2["action"], {"event": {"name": "close", "context": {}}})
+
+    def test_delete_surface_and_template_and_rootless_data(self):
+        """Validates standalone deleteSurface, _template helper, and rootless updateDataModel."""
+        compiler = ExpressCompiler(self.catalog)
+
+        # 1. Test deleteSurface
+        delete_dsl = 'deleteSurface("my-surface-123")'
+        del_envelope = compiler.compile(delete_dsl)[0]
+        self.assertEqual(
+            del_envelope,
+            {"version": "v1.0", "deleteSurface": {"surfaceId": "my-surface-123"}},
+        )
+
+        # 2. Test rootless updateDataModel
+        data_dsl = """$/form/firstName = "Alice"
+$/form/lastName = "Smith"
+$/age = 25"""
+        data_envelope = compiler.compile(data_dsl, surface_id="data-surf")[0]
+        self.assertEqual(
+            data_envelope,
+            {
+                "version": "v1.0",
+                "updateDataModel": {
+                    "surfaceId": "data-surf",
+                    "path": "/",
+                    "value": {
+                        "form": {"firstName": "Alice", "lastName": "Smith"},
+                        "age": 25,
+                    },
+                },
+            },
+        )
+
+        # 3. Test _template helper list
+        list_dsl = """root = Card(breedList)
+breedList = List(_template($/breeds, breedTemplate))
+breedTemplate = Image($url)
+$/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
+        list_envelope = compiler.compile(list_dsl)[0]
+        components = list_envelope["createSurface"]["components"]
+
+        list_comp = next(c for c in components if c["id"] == "breedList")
+        self.assertEqual(
+            list_comp["children"], {"path": "/breeds", "componentId": "breedTemplate"}
+        )
+
+        template_comp = next(c for c in components if c["id"] == "breedTemplate")
+        self.assertEqual(template_comp["url"], {"path": "url"})
+
+        # 4. Test map literal parsing and nested array of maps
+        map_dsl = """$/form/data = [{"id": 1, "meta": {"name": "Alice"}}]"""
+        map_envelope = compiler.compile(map_dsl)[0]
+        self.assertEqual(
+            map_envelope["updateDataModel"]["value"]["form"]["data"],
+            [{"id": 1, "meta": {"name": "Alice"}}],
+        )
 
     def test_compiler_robustness_and_edge_cases(self):
         """Verifies tokenizer errors, string parsing with '=' chars, and boolean schemas."""
@@ -258,6 +399,45 @@ btnLabel = Text("Click Thread 2")
         validator = A2uiValidator(catalog, experiments={"version_1_0"})
         self.assertEqual(validator.version, "1.0")
 
+    def test_strict_enum_validation(self):
+        """Verifies that the compiler raises a ValueError when an invalid enum option is passed."""
+        compiler = ExpressCompiler(self.catalog)
+        invalid_dsl = 'root = Button("Click", "invalid_variant")'
+        with self.assertRaises(ValueError) as context:
+            compiler.compile(invalid_dsl)
+        self.assertIn(
+            "is not a valid enum choice for property 'variant'", str(context.exception)
+        )
+
+    def test_nested_databinding_validation(self):
+        """Verifies that the compiler recursively blocks nested data bindings on static properties."""
+        compiler = ExpressCompiler(self.catalog)
+
+        # 1. Direct databinding (should fail)
+        invalid_dsl1 = 'root = Button("Click", $/some/path)'
+        with self.assertRaises(ValueError) as context:
+            compiler.compile(invalid_dsl1)
+        self.assertIn("does not support dynamic data bindings", str(context.exception))
+
+        # 2. Nested inside list (should fail)
+        invalid_dsl2 = 'root = Button("Click", [$/some/path])'
+        with self.assertRaises(ValueError) as context:
+            compiler.compile(invalid_dsl2)
+        self.assertIn("does not support dynamic data bindings", str(context.exception))
+
+        # 3. Deeply nested inside dict inside list (should fail)
+        invalid_dsl3 = 'root = Button("Click", [{label: "Click", value: $/some/path}])'
+        with self.assertRaises(ValueError) as context:
+            compiler.compile(invalid_dsl3)
+        self.assertIn("does not support dynamic data bindings", str(context.exception))
+
+        # 4. Valid Event action containing databinding (should succeed)
+        valid_dsl = (
+            'root = Button("Click", "primary", Event("click", {rep: $/some/path}))'
+        )
+        envelope = compiler.compile(valid_dsl)[0]
+        self.assertEqual(len(envelope["createSurface"]["components"]), 1)
+
     def test_polymorphic_catalog_initialization(self):
         """Verifies compiler, decompiler, prompt generator, and parser with polymorphic catalogs."""
         # 1. Load raw dict
@@ -402,6 +582,41 @@ root = Text("Hello")"""
         with self.assertRaises(ExpressUndefinedRootError) as ctx:
             compiler.compile('some_var = Text("Hello")')
         self.assertEqual(ctx.exception.root_target, "root")
+
+    def test_compiler_extended_check_and_enum_coverage(self):
+        """Tests additional check expressions and invalid enum choice validation."""
+        compiler = ExpressCompiler(self.catalog)
+
+        # Check expression with explicit integer parameter and custom error message
+        dsl = (
+            'root = TextField("Username", value=$user, checks=[?isLength(5, 20,'
+            ' "Username must be between 5 and 20 chars")])'
+        )
+        envelope = compiler.compile(dsl)[0]
+        components = envelope["createSurface"]["components"]
+        comp = components[0]
+        self.assertEqual(len(comp["checks"]), 1)
+        check = comp["checks"][0]
+        self.assertEqual(check["message"], "Username must be between 5 and 20 chars")
+
+        # Invalid enum choice validation
+        with self.assertRaises(ValueError) as ctx:
+            compiler.compile('root = Text("Hello", variant="invalid_variant_enum")')
+        self.assertIn("is not a valid enum choice", str(ctx.exception))
+
+    def test_compilation_surface_directive(self):
+        """Validates surface("id") directive sets surfaceId in compiled output."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """surface(surfaceId="custom-surface-123", catalogId="custom-catalog-uri")
+root = Text("Hello Surface")"""
+        envelopes = compiler.compile(dsl)
+        self.assertEqual(len(envelopes), 1)
+        self.assertEqual(
+            envelopes[0]["createSurface"]["surfaceId"], "custom-surface-123"
+        )
+        self.assertEqual(
+            envelopes[0]["createSurface"]["catalogId"], "custom-catalog-uri"
+        )
 
 
 if __name__ == "__main__":

@@ -44,12 +44,14 @@ import '../validation/validator.dart';
 /// surface mix catalogs, which v1.0 allows through the `catalogId` a component
 /// or function call may carry to override the surface-level default.
 ///
-/// [processMessages] is the entry point for both sides. It applies a payload
-/// to the surface state, checking each message against the surface it joins as
-/// it goes, so graph checks resolve references against what the surface
-/// already holds. An agent checks its own output the same way, over a
-/// processor it keeps for the session: the state it builds up is what makes an
-/// incremental update checkable rather than waved through.
+/// [processMessages] is the entry point for both sides. It takes an
+/// [AgentToRendererMessagePayload] — a batch of parsed messages, a lone
+/// message, or raw decoded JSON — and applies it to the surface state,
+/// checking each message against the surface it joins as it goes, so graph
+/// checks resolve references against what the surface already holds. An agent
+/// checks its own output the same way, over a processor it keeps for the
+/// session: the state it builds up is what makes an incremental update
+/// checkable rather than waved through.
 ///
 /// Validation is phased rather than a single pass: envelopes are checked as
 /// the payload is parsed, a surface's theme when the surface is created, each
@@ -143,7 +145,7 @@ class MessageProcessor<T extends ComponentApi> {
     );
   }
 
-  /// Processes a list of messages, applying each to the surface it names.
+  /// Processes a payload, applying each message to the surface it names.
   ///
   /// Checks run in two passes, because they answer at different times.
   ///
@@ -167,18 +169,18 @@ class MessageProcessor<T extends ComponentApi> {
   /// payloads relaxes the same checks through [validationConfig].
   ///
   /// A caller holding a raw payload parses it first, with
-  /// `AgentToRendererMessage.parseAll(payload, protocolVersion: ...)`. That is
-  /// a separate step because envelope parsing needs no catalog and no surface:
-  /// it is what lets a payload be read before each message is matched to the
-  /// surface, and so the catalog, it belongs to.
+  /// `AgentToRendererMessagePayload.fromJson(payload, protocolVersion: ...)`.
+  /// That is a separate step because envelope parsing needs no catalog and no
+  /// surface: it is what lets a payload be read before each message is matched
+  /// to the surface, and so the catalog, it belongs to.
   ///
   /// Throws [A2uiIntegrityError] for a missing root, a duplicate id or a
   /// reference to no component, [A2uiRecursionError] for a cycle or an
   /// over-deep chain, and [A2uiValidationError] for a component that does not
   /// match its catalog.
-  void processMessages(List<AgentToRendererMessage> messages) {
+  void processMessages(AgentToRendererMessagePayload payload) {
     final created = <String>{};
-    for (final message in messages) {
+    for (final AgentToRendererMessage message in payload.messages) {
       _processMessage(message);
       if (message is CreateSurfaceMessage) created.add(message.surfaceId);
       if (message is DeleteSurfaceMessage) created.remove(message.surfaceId);

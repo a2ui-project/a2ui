@@ -34,8 +34,8 @@ from a2ui.core import (
     A2uiCatalogError,
     A2uiIntegrityError,
     A2uiRecursionError,
-    A2uiCompileError,
 )
+from a2ui.parser.errors import A2uiCompilationError
 from a2ui.inference_formats.experimental.express.errors import ExpressCompilerError
 
 REPO_ROOT = os.path.abspath(
@@ -57,7 +57,18 @@ CATEGORY_TO_EXCEPTION = {
     "CatalogError": A2uiCatalogError,
     "IntegrityError": A2uiIntegrityError,
     "RecursionError": A2uiRecursionError,
-    "CompileError": (A2uiCompileError, ExpressCompilerError, SyntaxError, ValueError),
+    "CompilationError": (
+        A2uiCompilationError,
+        ExpressCompilerError,
+        SyntaxError,
+        ValueError,
+    ),
+    "CompileError": (
+        A2uiCompilationError,
+        ExpressCompilerError,
+        SyntaxError,
+        ValueError,
+    ),
 }
 
 

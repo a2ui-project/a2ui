@@ -100,8 +100,20 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
   }),
 }));
 
-/** Initializes the app component and runs its startup lifecycle. */
-const bootstrap = (app: A2uiFilesystemApp) => (app as any).firstUpdated();
+if (!(document as any).adoptedStyleSheets) {
+  (document as any).adoptedStyleSheets = [];
+}
+if (typeof ShadowRoot !== 'undefined' && !(ShadowRoot.prototype as any).adoptedStyleSheets) {
+  (ShadowRoot.prototype as any).adoptedStyleSheets = [];
+}
+
+/** Mounts the app component so `<a2ui-surface>` renders and flushes startup updates. */
+async function bootstrap(app: A2uiFilesystemApp) {
+  document.body.replaceChildren(app);
+  await Promise.resolve();
+  await app.updateComplete;
+  await new Promise(resolve => setTimeout(resolve, 0));
+}
 
 /** Returns the parameters of all `tools/call` requests recorded by the mock client. */
 const toolCalls = () => mockClient.request.mock.calls.map(call => call[0].params);
