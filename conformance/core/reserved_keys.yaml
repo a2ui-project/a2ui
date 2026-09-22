@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@
 
 - name: test_reserved_at_call_index
   description: >-
-    Valid v1.0 FunctionCall invoking the @index system context function.
+    Valid v1.0 FunctionCall invoking the @index system context function within a List template.
   catalog:
     version: "1.0"
   action: validate
@@ -62,6 +62,11 @@
         surfaceId: s1
         components:
           - id: root
+            component: List
+            children:
+              componentId: itemTemplate
+              path: "/items"
+          - id: itemTemplate
             component: Text
             text:
               "@call": "@index"

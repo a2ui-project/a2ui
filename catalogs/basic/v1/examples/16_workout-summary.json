@@ -35,7 +35,7 @@
             "id": "workout_icon",
             "component": "Icon",
             "name": {
-              "path": "/icon"
+              "@path": "/icon"
             }
           },
           {
@@ -63,7 +63,7 @@
             "id": "duration_value",
             "component": "Text",
             "text": {
-              "path": "/duration"
+              "@path": "/duration"
             }
           },
           {
@@ -82,10 +82,10 @@
             "id": "calories_value",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "/calories"
+                  "@path": "/calories"
                 }
               }
             }
@@ -106,7 +106,7 @@
             "id": "distance_value",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "${/distance} km"
               }
@@ -122,10 +122,10 @@
             "id": "date",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "EEEE, MMM d 'at' h:mm a"
               }

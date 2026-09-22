@@ -40,7 +40,7 @@
             "id": "playlist_name",
             "component": "Text",
             "text": {
-              "path": "/playlistName"
+              "@path": "/playlistName"
             }
           },
           {
@@ -65,10 +65,10 @@
             "id": "track_num",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "number"
+                  "@path": "number"
                 }
               }
             },
@@ -78,7 +78,7 @@
             "id": "track_art",
             "component": "Image",
             "url": {
-              "path": "art"
+              "@path": "art"
             },
             "fit": "cover"
           },
@@ -91,7 +91,7 @@
             "id": "track_title",
             "component": "Text",
             "text": {
-              "path": "title"
+              "@path": "title"
             },
             "variant": "body"
           },
@@ -99,7 +99,7 @@
             "id": "track_artist",
             "component": "Text",
             "text": {
-              "path": "artist"
+              "@path": "artist"
             },
             "variant": "caption"
           },
@@ -107,7 +107,7 @@
             "id": "track_duration",
             "component": "Text",
             "text": {
-              "path": "duration"
+              "@path": "duration"
             },
             "variant": "caption"
           }

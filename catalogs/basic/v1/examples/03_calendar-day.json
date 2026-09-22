@@ -40,10 +40,10 @@
             "id": "day_name",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "EEEE"
               }
@@ -54,10 +54,10 @@
             "id": "day_number",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "d"
               }
@@ -80,7 +80,7 @@
             "id": "event_title",
             "component": "Text",
             "text": {
-              "path": "title"
+              "@path": "title"
             },
             "variant": "body"
           },
@@ -88,7 +88,7 @@
             "id": "event_time",
             "component": "Text",
             "text": {
-              "path": "time"
+              "@path": "time"
             },
             "variant": "caption"
           },

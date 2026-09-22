@@ -105,7 +105,7 @@
             "id": "log_template",
             "component": "Text",
             "text": {
-              "path": "message"
+              "@path": "message"
             },
             "variant": "caption"
           }

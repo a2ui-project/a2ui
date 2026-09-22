@@ -65,21 +65,21 @@
             "id": "rc_title",
             "component": "Text",
             "text": {
-              "path": "title"
+              "@path": "title"
             }
           },
           {
             "id": "rc_subtitle",
             "component": "Text",
             "text": {
-              "path": "subtitle"
+              "@path": "subtitle"
             }
           },
           {
             "id": "rc_address",
             "component": "Text",
             "text": {
-              "path": "address"
+              "@path": "address"
             }
           }
         ]
@@ -116,7 +116,7 @@
                 "name": "book_now",
                 "context": {
                   "restaurantName": {
-                    "path": "title"
+                    "@path": "title"
                   }
                 }
               }

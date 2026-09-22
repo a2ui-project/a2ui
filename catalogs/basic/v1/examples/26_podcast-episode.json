@@ -30,7 +30,7 @@
             "id": "artwork",
             "component": "Image",
             "url": {
-              "path": "/artwork"
+              "@path": "/artwork"
             },
             "fit": "cover"
           },
@@ -43,7 +43,7 @@
             "id": "show_name",
             "component": "Text",
             "text": {
-              "path": "/showName"
+              "@path": "/showName"
             },
             "variant": "caption"
           },
@@ -51,7 +51,7 @@
             "id": "episode_title",
             "component": "Text",
             "text": {
-              "path": "/episodeTitle"
+              "@path": "/episodeTitle"
             }
           },
           {
@@ -63,7 +63,7 @@
             "id": "duration",
             "component": "Text",
             "text": {
-              "path": "/duration"
+              "@path": "/duration"
             },
             "variant": "caption"
           },
@@ -71,10 +71,10 @@
             "id": "date",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "MMM d, yyyy"
               }
@@ -85,7 +85,7 @@
             "id": "description",
             "component": "Text",
             "text": {
-              "path": "/description"
+              "@path": "/description"
             },
             "variant": "body"
           },
@@ -93,10 +93,10 @@
             "id": "audio_player",
             "component": "AudioPlayer",
             "url": {
-              "path": "/audioUrl"
+              "@path": "/audioUrl"
             },
             "description": {
-              "path": "/episodeTitle"
+              "@path": "/episodeTitle"
             }
           }
         ]

@@ -38,7 +38,7 @@
             "component": "TextField",
             "label": "First Name",
             "value": {
-              "path": "/firstName"
+              "@path": "/firstName"
             },
             "weight": 1
           },
@@ -47,7 +47,7 @@
             "component": "TextField",
             "label": "Last Name",
             "value": {
-              "path": "/lastName"
+              "@path": "/lastName"
             },
             "weight": 1
           },

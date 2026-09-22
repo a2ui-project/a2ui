@@ -30,7 +30,7 @@
             "id": "album_art",
             "component": "Image",
             "url": {
-              "path": "/albumArt"
+              "@path": "/albumArt"
             },
             "fit": "cover"
           },
@@ -44,14 +44,14 @@
             "id": "song_title",
             "component": "Text",
             "text": {
-              "path": "/title"
+              "@path": "/title"
             }
           },
           {
             "id": "artist",
             "component": "Text",
             "text": {
-              "path": "/artist"
+              "@path": "/artist"
             },
             "variant": "caption"
           },
@@ -59,7 +59,7 @@
             "id": "progress",
             "component": "Slider",
             "value": {
-              "path": "/progress"
+              "@path": "/progress"
             },
             "max": 1
           },
@@ -73,7 +73,7 @@
             "id": "current_time",
             "component": "Text",
             "text": {
-              "path": "/currentTime"
+              "@path": "/currentTime"
             },
             "variant": "caption"
           },
@@ -81,7 +81,7 @@
             "id": "total_time",
             "component": "Text",
             "text": {
-              "path": "/totalTime"
+              "@path": "/totalTime"
             },
             "variant": "caption"
           },
@@ -111,7 +111,7 @@
             "id": "play_btn_icon",
             "component": "Icon",
             "name": {
-              "path": "/playIcon"
+              "@path": "/playIcon"
             }
           },
           {

@@ -41,7 +41,7 @@
             "id": "from_value",
             "component": "Text",
             "text": {
-              "path": "/from"
+              "@path": "/from"
             },
             "variant": "body"
           },
@@ -61,7 +61,7 @@
             "id": "to_value",
             "component": "Text",
             "text": {
-              "path": "/to"
+              "@path": "/to"
             },
             "variant": "body"
           },
@@ -81,7 +81,7 @@
             "id": "subject_value",
             "component": "Text",
             "text": {
-              "path": "/subject"
+              "@path": "/subject"
             },
             "variant": "body"
           },
@@ -98,7 +98,7 @@
             "id": "greeting",
             "component": "Text",
             "text": {
-              "path": "/greeting"
+              "@path": "/greeting"
             },
             "variant": "body"
           },
@@ -106,7 +106,7 @@
             "id": "body_text",
             "component": "Text",
             "text": {
-              "path": "/body"
+              "@path": "/body"
             },
             "variant": "body"
           },
@@ -114,7 +114,7 @@
             "id": "closing",
             "component": "Text",
             "text": {
-              "path": "/closing"
+              "@path": "/closing"
             },
             "variant": "body"
           },
@@ -122,7 +122,7 @@
             "id": "signature",
             "component": "Text",
             "text": {
-              "path": "/signature"
+              "@path": "/signature"
             },
             "variant": "body"
           },
