@@ -16,13 +16,14 @@
 
 A model here is reused from ``a2ui.core.schema.common_types`` when the authoring
 form and the parsed form are genuinely the same thing, and defined locally when
-they are not. ``ActionEvent`` and ``DataBinding`` are core's outright.
+they are not. ``ActionEvent``, ``DataBinding``, ``FunctionCall`` and
+``CheckRule`` are core's outright.
 
 The rest stay local because authoring is a different job from parsing. It wants
 nested children rather than IDs, narrow enums, and no defaulted field reaching
-the wire that the author never wrote. ``FunctionCall`` is the clearest case:
-core defaults ``return_type`` to ``"boolean"``, so reusing it would stamp a
-``returnType`` onto every call site.
+the wire that the author never wrote. ``Action`` is the clearest case: core
+models it as a union of two single-key wrappers, which is the right shape for
+parsing but a poor one to write by hand.
 
 No model here defines a custom serializer, and none rewrites a value the author
 supplied. Field shape, aliases, defaults and null handling are Pydantic's; the
@@ -52,7 +53,9 @@ from ..core.base_model import BuilderBaseModel
 from ..core.child import Child
 
 from a2ui.core.schema.common_types import ActionEvent as ActionEvent
+from a2ui.core.schema.common_types import CheckRule as CheckRule
 from a2ui.core.schema.common_types import DataBinding as DataBinding
+from a2ui.core.schema.common_types import FunctionCall as FunctionCall
 
 
 class AccessibilityAttributes(BuilderBaseModel):
@@ -62,35 +65,21 @@ class AccessibilityAttributes(BuilderBaseModel):
     ``hidden`` attributes are v1.0 additions and belong on the v1.0 model:
     v0.9.1 omits ``additionalProperties: false`` here, so declaring them would
     validate cleanly while no v0.9 renderer read them.
+
+    Core's model is not reused because it carries those two v1.0 fields on a
+    v0.9-pinned class. That is fixed on core's ``v1_0`` branch, which splits the
+    schema into versioned packages; reuse becomes possible once it lands.
     """
 
     label: Optional[Union[str, DataBinding]] = None
     description: Optional[Union[str, DataBinding]] = None
 
 
-class FunctionCall(BuilderBaseModel):
-    """Invocation of a client-side catalog function.
-
-    Unlike :class:`DataBinding` and :class:`ActionEvent`, this is not core's
-    model. Core defaults ``return_type`` to ``"boolean"``, which is not ``None``
-    and so survives ``exclude_none``: every call would carry a ``returnType`` the
-    author never wrote. Reuse becomes possible if that default becomes ``None``.
-
-    Note there is no call identifier here. Correlating a call with its response
-    is a v1.0 agent-function concern, carried as ``functionCallId`` on the
-    call and response messages, not a property of a catalog function invoked
-    from inside a component.
-    """
-
-    call: str
-    args: dict[str, Any] = Field(default_factory=dict)
-
-
 # Canonical Protocol Type Aliases
 #
 # Spelled as explicit unions rather than over a shared expression base class:
-# ``DataBinding`` is core's model and ``FunctionCall`` is the builder's, so they
-# have no common ancestor to name. This is also how core spells them.
+# the members are independent core models with no common ancestor to name. This
+# is also how core spells them.
 DynamicString = Union[str, DataBinding, FunctionCall]
 DynamicNumber = Union[int, float, DataBinding, FunctionCall]
 DynamicBoolean = Union[bool, DataBinding, FunctionCall]
@@ -126,19 +115,6 @@ class Action(BuilderBaseModel):
                 "Action requires exactly one of 'event' or 'function_call'."
             )
         return self
-
-
-class CheckRule(BuilderBaseModel):
-    """A client-side validation check (condition + error message).
-
-    ``condition`` is any ``DynamicBoolean``, which is what the spec and the core
-    models allow. A catalog validation function is the usual way to write one,
-    but binding straight to a boolean in the data model is legitimate, so the
-    type does not rule it out.
-    """
-
-    condition: DynamicBoolean
-    message: str
 
 
 class DynamicChildList(BuilderBaseModel):

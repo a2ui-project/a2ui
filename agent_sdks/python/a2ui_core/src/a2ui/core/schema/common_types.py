@@ -76,9 +76,12 @@ class FunctionCall(StrictBaseModel):
     return_type: Optional[
         Literal["string", "number", "boolean", "array", "object", "any", "void"]
     ] = Field(
+        None,
         alias="returnType",
-        description="The expected return type of the function call.",
-        default="boolean",
+        description=(
+            "The expected return type of the function call. Defaults to 'boolean' when"
+            " absent."
+        ),
     )
 
 

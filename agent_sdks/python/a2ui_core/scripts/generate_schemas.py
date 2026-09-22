@@ -177,14 +177,31 @@ def compile_properties_to_pydantic(
             pattern_val = prop_desc["pattern"]
             field_opts.append(f'pattern="{pattern_val}"')
 
+        # A JSON Schema ``default`` is an annotation: it tells a *consumer* what
+        # to assume when the field is absent. It does not instruct a *producer*
+        # to write the value out. Compiling it into a Pydantic field default
+        # inverts that, so every serialized payload carries a value the author
+        # never wrote. We record it in the description and leave the field None.
+        #
+        # ``const`` is genuinely different. It is a fixed value that must always
+        # be present, so it does become a real default.
         has_default = False
-        if "default" in prop_desc:
-            has_default = True
-            default_val = prop_desc["default"]
-            if isinstance(default_val, str):
-                field_opts.append(f'default="{default_val}"')
-            else:
-                field_opts.append(f"default={default_val}")
+        if "default" in prop_desc and "const" not in prop_desc:
+            raw_default = prop_desc["default"]
+            # Single-quoted so the value nests safely inside the double-quoted
+            # description literal the generator emits.
+            documented_default = (
+                f"'{raw_default}'"
+                if isinstance(raw_default, str)
+                else json.dumps(raw_default)
+            )
+            field_opts = [o for o in field_opts if not o.startswith("description=")]
+            annotated = (
+                f"{description} Defaults to {documented_default} when absent."
+                if description
+                else f"Defaults to {documented_default} when absent."
+            )
+            field_opts.insert(0, f'description="{annotated}"')
         elif "const" in prop_desc:
             has_default = True
             default_val = prop_desc["const"]

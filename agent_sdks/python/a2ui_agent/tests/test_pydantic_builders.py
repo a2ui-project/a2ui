@@ -96,7 +96,9 @@ def test_missing_required_parameters_rejected():
     assert "missing" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info:
-        Button(action=Action(event=ActionEvent(name="click")))  # missing required 'child'
+        Button(
+            action=Action(event=ActionEvent(name="click"))
+        )  # missing required 'child'
     assert "child" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info:
@@ -144,7 +146,9 @@ def test_strict_enums_reject_unknown_variants():
     assert Text(text="Standard Heading", variant="h1").variant == "h1"
     assert (
         Button(
-            child=Text(text="Click"), action=Action(event=ActionEvent(name="click")), variant="primary"
+            child=Text(text="Click"),
+            action=Action(event=ActionEvent(name="click")),
+            variant="primary",
         ).variant
         == "primary"
     )
@@ -257,7 +261,10 @@ def test_direct_node_serialization():
         child=Column(
             children=[
                 Text(text="Title", variant="h2"),
-                Button(child=Text(text="Submit"), action=Action(event=ActionEvent(name="submit"))),
+                Button(
+                    child=Text(text="Submit"),
+                    action=Action(event=ActionEvent(name="submit")),
+                ),
             ]
         )
     )
@@ -335,9 +342,7 @@ def test_component_ref_is_referenced_not_redefined():
 def test_shared_child_is_emitted_once_and_referenced_twice():
     """Verifies that the same node object in two slots is one component, not two."""
     shared = Text(id="shared", text="Reused")
-    comps = flatten_component_tree(
-        Column(id="wrapper", children=[shared, shared])
-    )
+    comps = flatten_component_tree(Column(id="wrapper", children=[shared, shared]))
     assert [c["id"] for c in comps] == ["wrapper__shared", "wrapper"]
     assert comps[1]["children"] == ["wrapper__shared", "wrapper__shared"]
 
@@ -403,21 +408,21 @@ def test_checks_serialize_on_checkable_components():
             label="ZIP",
             checks=[
                 CheckRule(
-                    condition=Regex(value=DataBinding(path="/user/zip"), pattern="^[0-9]{5}$"),
+                    condition=Regex(
+                        value=DataBinding(path="/user/zip"), pattern="^[0-9]{5}$"
+                    ),
                     message="ZIP code must be 5 digits",
                 )
             ],
         )
     )[0]
-    assert comp["checks"] == [
-        {
-            "condition": {
-                "call": "regex",
-                "args": {"value": {"path": "/user/zip"}, "pattern": "^[0-9]{5}$"},
-            },
-            "message": "ZIP code must be 5 digits",
-        }
-    ]
+    assert comp["checks"] == [{
+        "condition": {
+            "call": "regex",
+            "args": {"value": {"path": "/user/zip"}, "pattern": "^[0-9]{5}$"},
+        },
+        "message": "ZIP code must be 5 digits",
+    }]
 
 
 def test_check_condition_accepts_any_dynamic_boolean():
@@ -447,17 +452,52 @@ def test_reused_core_models_stay_identical_to_core():
     than silently change what every builder payload puts on the wire.
     """
     from a2ui.core.schema.common_types import ActionEvent as CoreActionEvent
+    from a2ui.core.schema.common_types import CheckRule as CoreCheckRule
     from a2ui.core.schema.common_types import DataBinding as CoreDataBinding
+    from a2ui.core.schema.common_types import FunctionCall as CoreFunctionCall
 
-    # Both are core's classes outright, not copies that happen to match.
+    # All four are core's classes outright, not copies that happen to match.
     assert ActionEvent is CoreActionEvent
+    assert CheckRule is CoreCheckRule
     assert DataBinding is CoreDataBinding
+    assert FunctionCall is CoreFunctionCall
 
     # Paths reach the wire exactly as written. The leading slash distinguishes
     # an absolute path from one resolved against a template's item scope, so
     # rewriting either form would change what the client resolves.
     assert DataBinding(path="user/name").path == "user/name"
     assert DataBinding(path="/user/name").path == "/user/name"
+
+    # The spec documents returnType's default as "boolean", but a JSON Schema
+    # default describes what a reader assumes when the key is absent -- it does
+    # not license a writer to emit it. Materializing it is what previously
+    # forced the builder to keep its own FunctionCall, so pin the absence.
+    call = FunctionCall(call="validateEmail")
+    assert call.return_type is None
+    assert call.model_dump(by_alias=True, exclude_none=True) == {
+        "call": "validateEmail"
+    }
+
+    # An explicit returnType still survives, so the field is dropped for being
+    # unwritten rather than unsupported.
+    typed = FunctionCall(call="itemCount", returnType="number")
+    assert typed.model_dump(by_alias=True, exclude_none=True) == {
+        "call": "itemCount",
+        "returnType": "number",
+    }
+
+    # CheckRule was only ever blocked transitively, through the FunctionCall in
+    # its condition union. Both condition forms the spec allows still validate.
+    assert (
+        CheckRule(condition=FunctionCall(call="isValid"), message="Invalid.").message
+        == "Invalid."
+    )
+    assert (
+        CheckRule(
+            condition=DataBinding(path="/form/agreed"), message="Required."
+        ).message
+        == "Required."
+    )
 
 
 def test_bare_model_dump_keeps_children_nested():
@@ -512,9 +552,7 @@ def test_top_level_envelope_helpers():
 
 def test_envelope_helpers_accept_a_list_of_roots():
     """Verifies a forest packages as cleanly as a single tree."""
-    msgs = update_components(
-        "s", root=[Text(id="a", text="A"), Text(id="b", text="B")]
-    )
+    msgs = update_components("s", root=[Text(id="a", text="A"), Text(id="b", text="B")])
     components = msgs[0].update_components.components
     assert [c["id"] for c in components] == ["a", "b"]
 
@@ -613,15 +651,25 @@ def test_static_typechecker_compiler_rejections():
 
     cases = [
         (
-            'b = Button(child=Text(text="Hi"), action=Action(event=ActionEvent(name="click")), variant="invalid_variant")',
+            (
+                'b = Button(child=Text(text="Hi"),'
+                ' action=Action(event=ActionEvent(name="click")),'
+                ' variant="invalid_variant")'
+            ),
             'Argument "variant" to "Button" has incompatible type',
         ),
         (
-            'b = Button(child=Text(text="Hi"), action=Action(event=ActionEvent(name="click")), lable="Save")',
+            (
+                'b = Button(child=Text(text="Hi"),'
+                ' action=Action(event=ActionEvent(name="click")), lable="Save")'
+            ),
             'Unexpected keyword argument "lable" for "Button"',
         ),
         (
-            'b = Button(child="not_a_component", action=Action(event=ActionEvent(name="click")))',
+            (
+                'b = Button(child="not_a_component",'
+                ' action=Action(event=ActionEvent(name="click")))'
+            ),
             'Argument "child" to "Button" has incompatible type',
         ),
     ]
