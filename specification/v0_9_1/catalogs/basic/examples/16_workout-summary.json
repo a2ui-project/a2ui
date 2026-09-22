@@ -147,7 +147,7 @@
       "updateDataModel": {
         "surfaceId": "gallery-workout-summary",
         "value": {
-          "icon": "directions_run",
+          "icon": "favorite",
           "workoutType": "Morning Run",
           "duration": "32:15",
           "calories": 385,

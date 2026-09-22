@@ -1392,20 +1392,24 @@
 </span><span id="__span-8-6"><a href="#__codelineno-8-6" id="__codelineno-8-6" name="__codelineno-8-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <h4 id="executing-client-side-functions-rpc">Executing client-side functions (RPC)<a class="headerlink" href="#executing-client-side-functions-rpc" title="Permanent link">¶</a></h4>
-<p>When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a standard <code>callFunction</code> RPC message with an auto-generated <code>functionCallId</code>:</p>
+<p>When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a <code>callRendererFunction</code> message with an auto-generated <code>functionCallId</code>:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>openUrl("https://example.com")
 </span></code></pre></div>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="p">{</span>
 </span><span id="__span-10-2"><a href="#__codelineno-10-2" id="__codelineno-10-2" name="__codelineno-10-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
-</span><span id="__span-10-3"><a href="#__codelineno-10-3" id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="w">  </span><span class="nt">"functionCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"call_1"</span><span class="p">,</span>
-</span><span id="__span-10-4"><a href="#__codelineno-10-4" id="__codelineno-10-4" name="__codelineno-10-4"></a><span class="w">  </span><span class="nt">"callFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-10-5"><a href="#__codelineno-10-5" id="__codelineno-10-5" name="__codelineno-10-5"></a><span class="w">    </span><span class="nt">"call"</span><span class="p">:</span><span class="w"> </span><span class="s2">"openUrl"</span><span class="p">,</span>
-</span><span id="__span-10-6"><a href="#__codelineno-10-6" id="__codelineno-10-6" name="__codelineno-10-6"></a><span class="w">    </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-10-7"><a href="#__codelineno-10-7" id="__codelineno-10-7" name="__codelineno-10-7"></a><span class="w">      </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://example.com"</span>
-</span><span id="__span-10-8"><a href="#__codelineno-10-8" id="__codelineno-10-8" name="__codelineno-10-8"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-10-9"><a href="#__codelineno-10-9" id="__codelineno-10-9" name="__codelineno-10-9"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-10-10"><a href="#__codelineno-10-10" id="__codelineno-10-10" name="__codelineno-10-10"></a><span class="p">}</span>
+</span><span id="__span-10-3"><a href="#__codelineno-10-3" id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="w">  </span><span class="nt">"callRendererFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-4"><a href="#__codelineno-10-4" id="__codelineno-10-4" name="__codelineno-10-4"></a><span class="w">    </span><span class="nt">"functionCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"call_1"</span><span class="p">,</span>
+</span><span id="__span-10-5"><a href="#__codelineno-10-5" id="__codelineno-10-5" name="__codelineno-10-5"></a><span class="w">    </span><span class="nt">"callFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-6"><a href="#__codelineno-10-6" id="__codelineno-10-6" name="__codelineno-10-6"></a><span class="w">      </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://a2ui.org/catalog.json"</span><span class="p">,</span>
+</span><span id="__span-10-7"><a href="#__codelineno-10-7" id="__codelineno-10-7" name="__codelineno-10-7"></a><span class="w">      </span><span class="nt">"call"</span><span class="p">:</span><span class="w"> </span><span class="s2">"openUrl"</span><span class="p">,</span>
+</span><span id="__span-10-8"><a href="#__codelineno-10-8" id="__codelineno-10-8" name="__codelineno-10-8"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-9"><a href="#__codelineno-10-9" id="__codelineno-10-9" name="__codelineno-10-9"></a><span class="w">        </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://example.com"</span>
+</span><span id="__span-10-10"><a href="#__codelineno-10-10" id="__codelineno-10-10" name="__codelineno-10-10"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-10-11"><a href="#__codelineno-10-11" id="__codelineno-10-11" name="__codelineno-10-11"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-10-12"><a href="#__codelineno-10-12" id="__codelineno-10-12" name="__codelineno-10-12"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-10-13"><a href="#__codelineno-10-13" id="__codelineno-10-13" name="__codelineno-10-13"></a><span class="p">}</span>
 </span></code></pre></div>
+<p>The <code>functionCallId</code> and the <code>callFunction</code> both sit inside <code>callRendererFunction</code>, and <code>catalogId</code> is required on the call. See <code>CallRendererFunctionMessage</code> in <code>specification/v1_0/json/agent_to_renderer.json</code> for the normative definition.</p>
 <h2 id="compilation-pipeline">Compilation pipeline<a class="headerlink" href="#compilation-pipeline" title="Permanent link">¶</a></h2>
 <p>The compilation runs as part of the inference pipeline. It takes the plain text stream of A2UI Express, processes it, and emits a standard A2UI v1.0 JSON payload to send to the client.</p>
 <pre class="mermaid"><code>flowchart TD
