@@ -21,6 +21,7 @@ import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonPromptGenerator} from './prompt_generator.js';
+import {DirectJsonStreamProcessorImpl} from './streaming.js';
 import {
   DirectJsonStreamProcessorFactory,
   DirectJsonStreamProcessorOptions,
@@ -45,7 +46,10 @@ export class DirectJsonFormat implements InferenceFormat {
     const baseCatalog = this.catalogs[0];
     const streamProcessor = this.streamProcessorFactory
       ? this.streamProcessorFactory.createStreamProcessor(baseCatalog, this.streamOptions)
-      : undefined;
+      : new DirectJsonStreamProcessorImpl(
+          baseCatalog,
+          this.streamOptions || {progressiveKeys: ['text', 'literalString']},
+        );
 
     return new DirectJsonParser(baseCatalog, streamProcessor);
   }
