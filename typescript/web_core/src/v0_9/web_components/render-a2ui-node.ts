@@ -14,20 +14,23 @@
  * limitations under the License.
  */
 
+/**
+ * Dynamic Lit template renderer for A2UI component nodes.
+ */
+
 import {nothing} from 'lit';
 import {html, unsafeStatic} from 'lit/static-html.js';
 import {ComponentContext} from '../../resolution/component-context.js';
 import {Catalog, WebComponentImplementation} from '../../catalog/types.js';
 
 /**
- * Pure function that acts as a generic container for A2UI components.
+ * Renders a Lit component implementation corresponding to the component type in the context.
  *
- * It dynamically resolves and renders the specific Lit component implementation
- * based on the component type provided in the context, returning a TemplateResult directly
- * to avoid duplicate DOM node wrapping.
+ * Dynamically resolves the component's custom element tag name from the catalog and instantiates
+ * it with the provided context, returning a `TemplateResult` directly to avoid wrapper DOM nodes.
  *
- * @param context The component context defining the data model and type to render.
- * @param catalog The catalog of component implementations.
+ * @param context Component context defining the data model and type to render.
+ * @param catalog Catalog containing component implementations.
  * @returns A Lit TemplateResult representing the resolved component, or `nothing` if the component is invalid or unresolvable.
  */
 export function renderA2uiNode(

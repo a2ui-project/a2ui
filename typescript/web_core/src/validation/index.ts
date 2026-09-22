@@ -14,5 +14,11 @@
  * limitations under the License.
  */
 
+/**
+ * Validation utilities for A2UI payloads, messages, and component graphs.
+ *
+ * Re-exports payload structural validation and component reference integrity checks.
+ */
+
 export * from './integrity-checker.js';
 export * from './payload-validator.js';

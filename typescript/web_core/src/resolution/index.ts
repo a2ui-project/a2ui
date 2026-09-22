@@ -15,23 +15,35 @@
  */
 /**
  * Headless resolution abstractions, context management, property binders, and view node graph.
+ *
+ * Provides reactive node resolution, component and data context hierarchies,
+ * schema behavior analysis, child reference extraction, dynamic binding wrappers,
+ * and markdown rendering type definitions.
  */
 
 export * from './component-context.js';
 export * from './data-context.js';
 export * from './generic-binder.js';
 export {
+  /** The component type name used for pending and cyclic placeholder nodes. */
   PLACEHOLDER_TYPE,
+  /** Narrows an unknown value to a ComponentNode. */
   isComponentNode,
+  /** Resolved component instance in the rendered node tree. */
   type ComponentNode,
+  /** Resolved component node properties, keyed by property name. */
   type NodeProps,
+  /** Resolution state of a component node in the rendered tree. */
   type NodeState,
 } from './component-node.js';
 export * from './node-resolver.js';
 export * from './ref-fields.js';
 export * from './resolved-binding.js';
 export type {
+  /** Asynchronous markdown rendering function. */
   MarkdownRenderer,
+  /** Configuration options for markdown rendering and styling. */
   MarkdownRendererOptions,
+  /** Mapping of HTML tag names to class lists applied during markdown rendering. */
   MarkdownRendererTagClassMap,
 } from '../common/markdown.js';
