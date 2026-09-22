@@ -12,14 +12,16 @@ yarn workspace @a2ui/agent-restaurant-node run build
 
 ### Without an API key
 
-Set `STUB_LLM=true` to replace the model call with a canned A2UI response. The stub is
-deliberately delivered in four mid-token chunks, so the streaming healer in
-`DirectJsonStreamProcessorImpl` is exercised on the same code path the real model uses. This is
-the quickest way to confirm the server, the A2A wiring and the A2UI stream all work.
+With no `GEMINI_API_KEY` set, the agent automatically serves a canned A2UI response instead of
+calling the model. No extra flag is needed:
 
 ```bash
-STUB_LLM=true yarn workspace @a2ui/agent-restaurant-node run start
+yarn workspace @a2ui/agent-restaurant-node run start
 ```
+
+The stub is deliberately delivered in four mid-token chunks, so the streaming healer in
+`DirectJsonStreamProcessorImpl` is exercised on the same code path the real model uses. This is
+the quickest way to confirm the server, the A2A wiring and the A2UI stream all work.
 
 ### With a real model
 
@@ -28,8 +30,22 @@ cp .env.example .env    # then add your GEMINI_API_KEY
 GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
-The agent falls back to the stub if `GEMINI_API_KEY` is unset, so a missing key produces canned
-output rather than an error.
+### Forcing the stub while a key is present
+
+`STUB_LLM=true` overrides a configured key, which is useful for deterministic runs without
+spending quota:
+
+```bash
+STUB_LLM=true GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start
+```
+
+The selection logic is `STUB_LLM === 'true' || !GEMINI_API_KEY`, so the flag is redundant when
+no key is set and only meaningful as an override.
+
+> [!WARNING]
+> The fallback is silent. An unset, empty or misspelled `GEMINI_API_KEY` produces canned output
+> rather than an error, so check the server log for `Using stub LLM response...` if you are
+> unsure which path ran.
 
 Override the port with `PORT`. Once running:
 
@@ -39,19 +55,134 @@ Override the port with `PORT`. Once running:
 
 ### Driving a turn
 
-Send `message/stream` to the JSON-RPC endpoint and read the SSE response. A turn produces:
+Send `message/stream` to the JSON-RPC endpoint and read the SSE response:
+
+```bash
+curl -N -X POST http://localhost:10002/a2a/json-rpc \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "message/stream",
+    "params": {
+      "message": {
+        "kind": "message",
+        "messageId": "m1",
+        "role": "user",
+        "parts": [{"kind": "text", "text": "find me sushi in Soho"}]
+      }
+    }
+  }'
+```
+
+A turn produces:
 
 ```
 task  ->  status-update(working)  ->  message(data)
 ```
 
-The `message` event carries a `data` part holding an array of A2UI v1.0 messages. Passing the
-same `contextId` on a later request continues the conversation; history is keyed by `contextId`.
+The `message` event carries a `data` part holding an array of A2UI v1.0 messages. Note the
+`contextId` on those events — you need it to continue the conversation.
 
-> Note: `@a2a-js/sdk` closes the event stream as soon as the first `message` event is emitted,
-> so the terminal `completed`/`failed` status-update this agent publishes is not delivered to
-> the client. Post-hoc A2UI validation failures surface in the server log rather than the
-> stream.
+> [!NOTE]
+> `@a2a-js/sdk` closes the event stream as soon as the first `message` event is emitted, so the
+> terminal `completed`/`failed` status-update this agent publishes is not delivered to the
+> client. Post-hoc A2UI validation failures surface in the server log rather than the stream.
+> With a real model this also means only the first streamed chunk reaches the client. See
+> `KNOWN_GAPS.md`.
+
+### A multi-step conversation
+
+The Python sample walks a user from a restaurant list, through a booking form, to a
+confirmation. The same flow works here: the renderer reports a user interaction as an A2UI
+action, and the agent translates it into a query for the next turn.
+
+Reuse the `contextId` from step 1 in every later request — history is keyed by it.
+
+**Step 2 — the user picks a restaurant.** A renderer would send this when a `Button` with an
+`action.event` named `book_restaurant` is pressed:
+
+```bash
+curl -N -X POST http://localhost:10002/a2a/json-rpc \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "message/stream",
+    "params": {
+      "message": {
+        "kind": "message",
+        "messageId": "m2",
+        "role": "user",
+        "contextId": "PASTE_CONTEXT_ID_FROM_STEP_1",
+        "parts": [{
+          "kind": "data",
+          "data": {
+            "version": "v1.0",
+            "action": {
+              "name": "book_restaurant",
+              "surfaceId": "restaurants",
+              "sourceComponentId": "book-btn-1",
+              "timestamp": "2026-01-01T19:00:00Z",
+              "context": {
+                "restaurantName": "Sushi Tetsu",
+                "address": "12 Jerusalem Passage"
+              }
+            }
+          }
+        }]
+      }
+    }
+  }'
+```
+
+**Step 3 — the user submits the booking form.** Same shape, with the form values in `context`:
+
+```bash
+curl -N -X POST http://localhost:10002/a2a/json-rpc \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "message/stream",
+    "params": {
+      "message": {
+        "kind": "message",
+        "messageId": "m3",
+        "role": "user",
+        "contextId": "PASTE_CONTEXT_ID_FROM_STEP_1",
+        "parts": [{
+          "kind": "data",
+          "data": {
+            "version": "v1.0",
+            "action": {
+              "name": "submit_booking",
+              "surfaceId": "booking",
+              "sourceComponentId": "submit-btn",
+              "timestamp": "2026-01-01T19:05:00Z",
+              "context": {
+                "restaurantName": "Sushi Tetsu",
+                "partySize": 2,
+                "reservationTime": "19:30"
+              }
+            }
+          }
+        }]
+      }
+    }
+  }'
+```
+
+`name`, `surfaceId`, `sourceComponentId`, `timestamp` and `context` are all required by
+`ActionMessageSchema`; `userMessage` and `metadata` are optional. Unlike the Python sample,
+which special-cases `book_restaurant` and `submit_booking` by name, this agent translates any
+action generically into `User submitted an action: <name> with data: <json>`.
+
+> [!IMPORTANT]
+> In stub mode all three steps return the **same** canned payload, because the stub ignores the
+> query entirely. The steps still prove the A2A wiring, action parsing and per-turn processor
+> recycling, but you need a real `GEMINI_API_KEY` to see the conversation actually progress from
+> a list to a booking form to a confirmation.
 
 ## No visual client yet
 
