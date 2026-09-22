@@ -1,0 +1,16 @@
+$/email = ""
+$/password = ""
+root = Card(main_column)
+main_column = Column([header, email_field, password_field, login_btn, divider, signup_text])
+header = Column([title, subtitle], _, "center")
+title = Text("## Welcome back")
+subtitle = Text("Sign in to your account", "caption")
+email_field = TextField("Email", $/email, [?required("Email is required"), ?email("Please enter a valid email address")])
+password_field = TextField("Password", $/password, _, "obscured", [?required("Password is required"), ?length(8, "Password must be at least 8 characters long")])
+login_btn_text = Text("Sign in")
+login_btn = Button(login_btn_text, _, Event("login", {email: $/email}), ?and([email($/email), length($/password, 8)], "Please fix errors before signing in"))
+divider = Divider()
+signup_text = Row([no_account, signup_link], "center")
+no_account = Text("Don't have an account?", "caption")
+signup_link_text = Text("Sign up")
+signup_link = Button(signup_link_text, _, Event("signup"))

@@ -24,10 +24,10 @@ from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.experimental.express.schema_helper import (
+from a2ui.inference_formats.express.schema_helper import (
     CatalogSchemaHelper,
 )
-from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
+from a2ui.inference_formats.express.constants import SurfaceOperation
 from .expression_parser import ElementalExpressionParser
 
 TAG_PREFIX = "ui-"

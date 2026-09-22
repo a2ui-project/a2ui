@@ -183,4 +183,30 @@ jsonschema.validate(
 
 By validating the output against `A2UI_SCHEMA`, you ensure that your client never receives malformed UI instructions.
 
+## Optimizing Output Tokens with A2UI Express
+
+For production agents and on-device models, generating raw JSON can consume significant token budgets. You can use **[A2UI Express](../concepts/inference-formats.md)** via `ExpressFormat`:
+
+```python
+from a2ui.inference_formats.express import ExpressFormat, ExpressCompiler
+from a2ui.basic_catalog import BasicCatalog
+
+# Initialize with Express format for 55-70% fewer output tokens
+catalog = BasicCatalog.get_catalog(version="v1.0")
+express_format = ExpressFormat(catalog=catalog, surface_id="main", version="v1.0")
+
+# Generate prompt instructions with compact positional component signatures
+system_prompt = express_format.prompt_generator.generate(
+    role_description="You are a helpful assistant.",
+    include_schema=True,
+    include_examples=True,
+)
+
+# Parse and compile Express DSL response into standard A2UI messages
+compiler = ExpressCompiler(catalog=catalog, surface_id="main", version="v1.0")
+wire_messages = compiler.compile(llm_output_text)
+```
+
+See [Inference Formats](../concepts/inference-formats.md) and the [Express Technical Specification](https://github.com/a2ui-project/a2ui/blob/main/specification/inference_formats/express/a2ui_express.md) for details.
+
 TODO: Continue this guide with examples of how to parse, validate, and send the output to the client renderer without the A2A extension.

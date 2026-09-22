@@ -60,7 +60,7 @@
 #
 # Sentinel tags are the format's own: `<a2ui-json>` for direct JSON and
 # `<a2ui>` for Express, per the Express specification under
-# `specification/proposals/express/`.
+# `specification/inference_formats/express/`.
 #
 # Prompt assertions are substrings, never whole texts, because the wording
 # around a catalog is an implementation's own. The version a case runs under is

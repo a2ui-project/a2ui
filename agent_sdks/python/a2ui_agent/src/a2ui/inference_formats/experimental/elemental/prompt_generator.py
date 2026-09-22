@@ -22,7 +22,7 @@ import json
 import re
 from typing import Any, Optional, TYPE_CHECKING, Union
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.experimental.express.schema_helper import (
+from a2ui.inference_formats.express.schema_helper import (
     CatalogSchemaHelper,
 )
 from a2ui.prompt import PromptGenerator

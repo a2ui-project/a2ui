@@ -52,6 +52,7 @@ nav:
       - Catalogs: concepts/catalogs.md
       - Transports: concepts/transports.md
       - Actions: concepts/actions.md
+      - Inference Formats: concepts/inference-formats.md
   - Guides:
       - Client Setup: guides/client-setup.md
       - Agent Development: guides/agent-development.md

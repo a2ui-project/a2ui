@@ -20,7 +20,7 @@ import tempfile
 import unittest
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_1_0
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
+from a2ui.inference_formats.express.format import ExpressFormat
 
 
 class TestExpressPromptGenerator(unittest.TestCase):
@@ -215,7 +215,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("Map with keys:", sigs)
 
     def test_express_schema_helper_methods(self):
-        from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
+        from a2ui.inference_formats.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
 
         cat = A2uiCatalog(
             version=VERSION_1_0,

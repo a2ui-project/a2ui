@@ -27,7 +27,7 @@
 # begins and ends, and a case in those two about what the payload means.
 #
 # An Express payload sits between `<a2ui>` tags, per the Express specification
-# under `specification/proposals/express/`.
+# under `specification/inference_formats/express/`.
 #
 # A part carries either text or a payload, never both. Text that precedes a
 # payload is its own list item, which is the union the parser returns.

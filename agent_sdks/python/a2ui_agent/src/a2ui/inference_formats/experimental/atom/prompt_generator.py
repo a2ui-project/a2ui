@@ -118,7 +118,7 @@ class AtomPromptGenerator(PromptGenerator):
         try:
             from a2ui.schema.schema_helper import CatalogSchemaHelper
         except ImportError:
-            from a2ui.inference_formats.experimental.express.schema_helper import (
+            from a2ui.inference_formats.express.schema_helper import (
                 CatalogSchemaHelper,
             )
 
@@ -143,7 +143,7 @@ class AtomPromptGenerator(PromptGenerator):
             try:
                 from a2ui.schema.schema_helper import CatalogSchemaHelper
             except ImportError:
-                from a2ui.inference_formats.experimental.express.schema_helper import (
+                from a2ui.inference_formats.express.schema_helper import (
                     CatalogSchemaHelper,
                 )
             helper = CatalogSchemaHelper(catalog)

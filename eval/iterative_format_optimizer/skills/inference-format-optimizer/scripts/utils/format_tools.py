@@ -76,7 +76,7 @@ def test_compile_snippet(format_name: str, snippet: str) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         res = json.loads(snippet) if isinstance(snippet, str) else snippet
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express.parser import ExpressParser
+        from a2ui.inference_formats.express.parser import ExpressParser
 
         parser = ExpressParser(catalog=cat)
         res = parser.compile(snippet)
@@ -127,7 +127,7 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(payload, indent=2)
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express.parser import ExpressParser
+        from a2ui.inference_formats.express.parser import ExpressParser
 
         parser = ExpressParser(catalog=cat)
         return parser.decompile(payload)
@@ -166,7 +166,7 @@ def test_parse_ast(format_name: str, snippet: str) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(json.loads(snippet), indent=2)
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express.parser import ExpressParser
+        from a2ui.inference_formats.express.parser import ExpressParser
 
         parser = ExpressParser(catalog=cat)
         parts = parser.unwrap(snippet)

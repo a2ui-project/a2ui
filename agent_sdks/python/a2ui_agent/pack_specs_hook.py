@@ -93,7 +93,7 @@ class PackSpecsBuildHook(BuildHookInterface):
 
         # Automatically regenerate ANTLR parser from Express.g4 in specification/
         express_dir = os.path.join(
-            project_root, "src", "a2ui", "inference_formats", "experimental", "express"
+            project_root, "src", "a2ui", "inference_formats", "express"
         )
         g4_path = os.path.join(
             repo_root, "specification", "inference_formats", "express", "Express.g4"

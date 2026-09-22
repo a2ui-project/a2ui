@@ -21,9 +21,9 @@ from a2ui.core.catalog import Catalog
 from a2ui.inference_formats.experimental.atom.compiler import AtomCompiler
 from a2ui.inference_formats.experimental.atom.format import AtomFormat
 from a2ui.inference_formats.experimental.atom.prompt_generator import ATOM_RULES
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.express.prompt_generator import EXPRESS_RULES
+from a2ui.inference_formats.express.compiler import ExpressCompiler
+from a2ui.inference_formats.express.format import ExpressFormat
+from a2ui.inference_formats.express.prompt_generator import EXPRESS_RULES
 
 
 def _extract_a2ui_examples(rules_text: str) -> list[str]:

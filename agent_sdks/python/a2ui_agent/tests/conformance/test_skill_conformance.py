@@ -18,7 +18,7 @@ import os
 import unittest
 import yaml
 
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
 from a2ui.skill import Skill, SkillGenerator, SkillSet
 

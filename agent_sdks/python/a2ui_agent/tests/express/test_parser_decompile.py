@@ -30,8 +30,8 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_1_0
 
 
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
+from a2ui.inference_formats.express.compiler import ExpressCompiler
+from a2ui.inference_formats.express.parser import ExpressParser
 
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -227,7 +227,7 @@ class TestExpressParser(unittest.TestCase):
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
-        from a2ui.inference_formats.experimental.express.decompiler import (
+        from a2ui.inference_formats.express.decompiler import (
             _is_component_reference_property,
         )
 

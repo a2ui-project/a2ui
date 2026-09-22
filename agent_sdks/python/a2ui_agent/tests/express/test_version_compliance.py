@@ -16,7 +16,7 @@ import json
 import os
 import unittest
 from a2ui.core.catalog import Catalog
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.express.compiler import ExpressCompiler
 
 
 class TestVersionCompliance(unittest.TestCase):

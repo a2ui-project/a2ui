@@ -22,9 +22,9 @@ from typing import Any
 
 
 from a2ui.core.catalog import Catalog
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
-from a2ui.inference_formats.experimental.express.schema_helper import (
+from a2ui.inference_formats.express.compiler import ExpressCompiler
+from a2ui.inference_formats.express.parser import ExpressParser
+from a2ui.inference_formats.express.schema_helper import (
     CatalogSchemaHelper,
 )
 

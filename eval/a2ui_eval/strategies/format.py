@@ -57,7 +57,7 @@ def _get_strategy(
     catalog = direct_json_format.get_selected_catalog()
     formatted_version = f"v{version}" if not version.startswith("v") else version
     if format_name == "express":
-        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+        from a2ui.inference_formats.express.format import ExpressFormat
 
         return ExpressFormat(
             catalog=catalog, surface_id=surface_id, version=formatted_version

@@ -849,7 +849,7 @@ class DirectJsonParser(Parser):
 
 ### B. EXPRESS Format (`a2ui.inference_formats.express`)
 
-Compact functional DSL format designed to reduce output token consumption, enclosed in `<a2ui>` sentinel tags. For formal grammar and syntax specification, see [Express Specification](../../specification/proposals/express/a2ui_express.md) and [Express Grammar](../../specification/inference_formats/express/Express.g4).
+Compact functional DSL format designed to reduce output token consumption, enclosed in `<a2ui>` sentinel tags. For formal grammar, syntax specification, and architecture blueprint, see [Express Specification](../../specification/inference_formats/express/a2ui_express.md), [Express Grammar](../../specification/inference_formats/express/Express.g4), and [Express Feature Blueprint](../features/express_inference_format.blueprint.md).
 
 The Express format package under `a2ui/inference_formats/express/` contains:
 

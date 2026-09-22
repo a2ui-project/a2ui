@@ -53,7 +53,7 @@
 # `formatString` and checks that `openUrl` is gone.
 #
 # Express payloads sit inside `<a2ui>` tags, per the Express specification under
-# `specification/proposals/express/`.
+# `specification/inference_formats/express/`.
 #
 # Two settled decisions are worth stating outright. Active catalogs are the
 # transformed catalogs, so the snippet and the payloads the session will accept
