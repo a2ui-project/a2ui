@@ -1,0 +1,213 @@
+{
+  "schema": "catalog_definition.json",
+  "tests": [
+    {
+      "description": "Valid catalog with leaf $defs (design tokens, value unions, payload structures) and metadata.extensions",
+      "valid": true,
+      "data": {
+        "catalogId": "https://example.com/design_system_catalog.json",
+        "title": "Design System Catalog",
+        "description": "Catalog demonstrating leaf $defs and metadata extensions.",
+        "metadata": {
+          "extensions": {
+            "google_material": {
+              "version": "3.0",
+              "theme": "baseline"
+            }
+          }
+        },
+        "$defs": {
+          "anyComponent": {
+            "oneOf": [{"$ref": "#/components/Button"}, {"$ref": "#/components/Select"}],
+            "discriminator": {"propertyName": "component"}
+          },
+          "anyFunction": {
+            "oneOf": [{"$ref": "#/functions/required"}]
+          },
+          "ColorToken": {
+            "type": "string",
+            "enum": ["primary", "secondary", "surface", "error"]
+          },
+          "ColorValue": {
+            "oneOf": [
+              {"$ref": "#/$defs/ColorToken"},
+              {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}
+            ]
+          },
+          "SelectOption": {
+            "type": "object",
+            "properties": {
+              "label": {"type": "string"},
+              "value": {"type": "string"}
+            },
+            "required": ["label", "value"],
+            "additionalProperties": false
+          },
+          "Weight": {
+            "type": "number",
+            "description": "Relative flex weight."
+          }
+        },
+        "components": {
+          "Button": {
+            "type": "object",
+            "properties": {
+              "component": {"const": "Button"},
+              "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+              "color": {"$ref": "#/$defs/ColorValue"},
+              "weight": {"$ref": "#/$defs/Weight"},
+              "size": {
+                "oneOf": [
+                  {"type": "string", "enum": ["small", "medium", "large"]},
+                  {"type": "number"}
+                ]
+              },
+              "themeVariant": {
+                "anyOf": [{"$ref": "#/$defs/ColorToken"}, {"type": "string"}]
+              }
+            },
+            "required": ["component", "label"]
+          },
+          "Select": {
+            "type": "object",
+            "properties": {
+              "component": {"const": "Select"},
+              "options": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/SelectOption"}
+              }
+            },
+            "required": ["component", "options"]
+          }
+        },
+        "functions": {
+          "required": {
+            "type": "object",
+            "returnType": "validationResult",
+            "properties": {
+              "call": {"const": "required"}
+            },
+            "required": ["call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid catalog defining a component schema inside $defs",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "$defs": {
+          "anyComponent": {
+            "oneOf": [{"$ref": "#/components/Button"}],
+            "discriminator": {"propertyName": "component"}
+          },
+          "anyFunction": {
+            "oneOf": [{"$ref": "#/functions/required"}]
+          },
+          "BadComponentDef": {
+            "type": "object",
+            "properties": {
+              "component": {"const": "BadComponentDef"},
+              "text": {"type": "string"}
+            },
+            "required": ["component", "text"]
+          }
+        },
+        "components": {
+          "Button": {
+            "type": "object",
+            "properties": {
+              "component": {"const": "Button"}
+            },
+            "required": ["component"]
+          }
+        },
+        "functions": {
+          "required": {
+            "type": "object",
+            "returnType": "validationResult",
+            "properties": {
+              "call": {"const": "required"}
+            },
+            "required": ["call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid catalog with component using oneOf at root",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "components": {
+          "Card": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "component": {"const": "Card"}
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid catalog with component using anyOf at root",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "components": {
+          "Card": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "component": {"const": "Card"}
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid catalog with unknown root-level key",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "customRootKey": "invalid",
+        "components": {
+          "Card": {
+            "type": "object",
+            "properties": {
+              "component": {"const": "Card"}
+            },
+            "required": ["component"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid catalog with unrecognized keys under metadata",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "metadata": {
+          "arbitraryField": 123
+        },
+        "components": {
+          "Card": {
+            "type": "object",
+            "properties": {
+              "component": {"const": "Card"}
+            },
+            "required": ["component"]
+          }
+        }
+      }
+    }
+  ]
+}

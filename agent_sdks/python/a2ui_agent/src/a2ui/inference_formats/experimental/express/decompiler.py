@@ -18,7 +18,7 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
-from typing import Any, Union
+from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
@@ -42,7 +42,9 @@ def _flatten_data_model(data_dict: dict) -> list[tuple[str, Any]]:
     return results
 
 
-def _is_component_reference_property(prop_schema: Any) -> bool:
+def _is_component_reference_property(
+    prop_schema: Any, helper: Optional[CatalogSchemaHelper] = None
+) -> bool:
     """Checks if a property schema defines a component reference (ComponentId or list of ComponentId)."""
     if not isinstance(prop_schema, dict):
         return False
@@ -50,6 +52,10 @@ def _is_component_reference_property(prop_schema: Any) -> bool:
         ref = prop_schema["$ref"]
         if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
             return True
+        if helper and isinstance(ref, str) and ref.startswith("#/$defs/"):
+            resolved = helper.resolve_ref(prop_schema)
+            if resolved != prop_schema:
+                return _is_component_reference_property(resolved, helper)
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (
             prop_schema.get("oneOf", [])
@@ -57,10 +63,10 @@ def _is_component_reference_property(prop_schema: Any) -> bool:
             + prop_schema.get("allOf", [])
         )
         for sub in subs:
-            if _is_component_reference_property(sub):
+            if _is_component_reference_property(sub, helper):
                 return True
     if prop_schema.get("type") == "array" and "items" in prop_schema:
-        return _is_component_reference_property(prop_schema["items"])
+        return _is_component_reference_property(prop_schema["items"], helper)
     return False
 
 
@@ -311,7 +317,9 @@ class _ExpressDecompiler:
                 if prop_name in c:
                     val = c[prop_name]
                     p_schema = self.helper.get_property_schema(comp_name, prop_name)
-                    is_prop_ref = _is_component_reference_property(p_schema)
+                    is_prop_ref = _is_component_reference_property(
+                        p_schema, self.helper
+                    )
                     val_str = self._decompile_value(val, comp_ids, is_prop_ref)
                     if use_keyword_args:
                         args_reprs.append(f"{prop_name}={val_str}")

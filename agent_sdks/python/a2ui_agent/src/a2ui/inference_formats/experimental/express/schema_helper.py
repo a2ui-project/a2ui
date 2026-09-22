@@ -18,6 +18,7 @@ Provides dynamic schema crawling to identify component properties, logical funct
 signatures, and requirements directly from standard catalog JSON schemas.
 """
 
+import copy
 from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
@@ -61,6 +62,31 @@ class CatalogSchemaHelper:
         }
         self._load_mappings()
 
+    def resolve_ref(self, schema: Any, visited: Optional[set[str]] = None) -> Any:
+        """Resolves a local #/$defs/ reference in the catalog."""
+        if not isinstance(schema, dict) or "$ref" not in schema:
+            return schema
+        ref = schema["$ref"]
+        if not isinstance(ref, str) or not ref.startswith("#/$defs/"):
+            return schema
+        visited = visited or set()
+        if ref in visited:
+            return schema
+        visited.add(ref)
+
+        def_key = ref[len("#/$defs/") :]
+        defs = self.catalog.get("$defs", {})
+        if isinstance(defs, dict) and def_key in defs:
+            target = defs[def_key]
+            merged = copy.deepcopy(target) if isinstance(target, dict) else target
+            if isinstance(merged, dict):
+                for k, v in schema.items():
+                    if k != "$ref":
+                        merged[k] = v
+                return self.resolve_ref(merged, visited)
+            return merged
+        return schema
+
     def _load_mappings(self) -> None:
         """Crawls the component and function schemas to build internal mappings."""
         self.component_properties = {}
@@ -93,6 +119,12 @@ class CatalogSchemaHelper:
                             if isinstance(s, dict):
                                 if "enum" in s:
                                     return s["enum"]
+                                if "$ref" in s:
+                                    resolved = self.resolve_ref(s)
+                                    if resolved != s:
+                                        res = _find_enum(resolved)
+                                        if res:
+                                            return res
                                 for k in ("oneOf", "anyOf", "allOf"):
                                     if k in s and isinstance(s[k], list):
                                         for sub_s in s[k]:
@@ -262,7 +294,7 @@ class CatalogSchemaHelper:
         return schema.get("description")
 
     def get_property_schema(
-        self, component_name: str, property_name: str
+        self, component_name: str, property_name: str, resolve_defs: bool = True
     ) -> Optional[dict]:
         """Crawls all sub-schemas of a component to retrieve a property's schema definition."""
         schema = self.components.get(component_name)
@@ -279,14 +311,19 @@ class CatalogSchemaHelper:
                 and "properties" in sub
                 and property_name in sub["properties"]
             ):
-                return sub["properties"][property_name]
+                prop_schema = sub["properties"][property_name]
+                if resolve_defs:
+                    return self.resolve_ref(prop_schema)
+                return prop_schema
         return None
 
     def get_property_type(
         self, component_name: str, property_name: str
     ) -> Optional[str]:
         """Resolves the semantic type (ChildList, Child, Action) of a component property from schema $ref."""
-        p_schema = self.get_property_schema(component_name, property_name)
+        p_schema = self.get_property_schema(
+            component_name, property_name, resolve_defs=False
+        )
         if not p_schema:
             return None
 
@@ -300,6 +337,11 @@ class CatalogSchemaHelper:
                         return "Child"
                     if "Action" in ref:
                         return "Action"
+                    resolved = self.resolve_ref(s)
+                    if resolved != s:
+                        res = _crawl_ref(resolved)
+                        if res:
+                            return res
                 for k in ("oneOf", "anyOf", "allOf"):
                     if k in s and isinstance(s[k], list):
                         for sub_s in s[k]:
