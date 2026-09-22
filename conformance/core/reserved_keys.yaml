@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Conformance cases for reserved protocol keys (@path, @call, @index),
-# strict rejection of unknown single-@ keys (^@[^@]), and prefix doubling
+# strict rejection of unknown single-@ keys (^@([^@]|$)), and prefix doubling
 # unescaping (@@path -> @path).
 
 - name: test_reserved_at_path_valid
@@ -111,7 +111,7 @@
 
 - name: test_disallowed_unknown_single_at_key
   description: >-
-    Dynamic objects containing unknown single-@ keys (^@[^@]) are disallowed to preserve
+    Dynamic objects containing unknown single-@ keys (^@([^@]|$)) are disallowed to preserve
     backward compatibility for future directives.
   catalog:
     version: "1.0"
@@ -126,5 +126,24 @@
             metadata:
               "@if": true
               then: "active"
+  expect_error:
+    category: "ValidationError"
+
+- name: test_disallowed_bare_at_key
+  description: >-
+    A key consisting of a single @ with no following character is also reserved and
+    disallowed. It must be escaped as "@@" to appear as literal data.
+  catalog:
+    version: "1.0"
+  action: validate
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: s1
+        components:
+          - id: root
+            component: CustomCard
+            metadata:
+              "@": "reserved"
   expect_error:
     category: "ValidationError"

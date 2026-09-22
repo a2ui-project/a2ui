@@ -1179,7 +1179,7 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 > - **`@call`**: Represents a catalog or system function invocation (e.g. `{"@call": "formatString", "args": {...}}`).
 > - **`@index`**: Represents the universal system context function returning the 0-based iteration index during list template rendering (`{"@call": "@index"}`). Custom catalogs MUST NOT define functions prefixed with `@`.
 >
-> **Single-`@` Directive Rule**: Any key in a dynamic object matching `^@[^@]` (a single leading `@` followed by a non-`@` character) that is not a recognized protocol directive is disallowed and rejected by renderers and validators. This reserves the single-`@` namespace for future protocol extensions without breaking backward compatibility.
+> **Single-`@` Directive Rule**: Any key in a dynamic object matching `^@([^@]|$)` (a leading `@` that is not doubled, including a key consisting of `@` alone) that is not a recognized protocol directive is disallowed and rejected by renderers and validators. This reserves the single-`@` namespace for future protocol extensions without breaking backward compatibility.
 >
 > **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with `"path"` and `"call"` keys are literal objects and are never intercepted as dynamic bindings.
 
