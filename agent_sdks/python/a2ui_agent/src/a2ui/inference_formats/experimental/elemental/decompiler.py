@@ -24,8 +24,8 @@ from typing import Any, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
+from a2ui.inference_formats.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.express.constants import SurfaceOperation
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 
 TAG_PREFIX = "ui-"

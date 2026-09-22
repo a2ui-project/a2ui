@@ -637,7 +637,7 @@ def make_parser(args):
     format_name = args["format"]
 
     if format_name == "express":
-        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+        from a2ui.inference_formats.express.format import ExpressFormat
 
         return ExpressFormat(
             catalog=catalog, surface_id=CONFORMANCE_SURFACE_ID, version="v1.0"

@@ -1,0 +1,17 @@
+$/cardNumber = "•••• •••• •••• 4242"
+$/cardType = "VISA"
+$/expiryDate = "09/27"
+$/holderName = "SARAH JOHNSON"
+root = Card(main_column)
+main_column = Column([card_type_row, card_number, card_details])
+card_type_row = Row([card_icon, card_type], "spaceBetween", "center")
+card_icon = Icon("payment")
+card_type = Text($/cardType)
+card_number = Text($/cardNumber)
+card_details = Row([holder_col, expiry_col], "spaceBetween")
+holder_col = Column([holder_label, holder_name])
+holder_label = Text("CARD HOLDER", "caption")
+holder_name = Text($/holderName, "body")
+expiry_col = Column([expiry_label, expiry_date], _, "end")
+expiry_label = Text("EXPIRES", "caption")
+expiry_date = Text($/expiryDate, "body")

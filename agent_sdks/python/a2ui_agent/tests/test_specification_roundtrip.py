@@ -21,7 +21,7 @@ import pytest
 
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
+from a2ui.inference_formats.express.format import ExpressFormat
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 from a2ui.inference_formats.experimental.atom.format import AtomFormat
 

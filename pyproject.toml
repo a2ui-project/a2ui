@@ -121,6 +121,7 @@ exclude = [
     "^eval/",
     # TODO(#1614): Typecheck all packages here.
     "^agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/",
+    "^agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/express/",
     "^agent_sdks/python/a2ui_agent/pack_specs_hook\\.py$",
     "^samples/",
     "^tools/",

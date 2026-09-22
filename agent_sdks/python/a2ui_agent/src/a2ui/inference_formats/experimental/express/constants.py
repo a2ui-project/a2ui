@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.apache.org/licenses/LICENSE-2.0
+#      https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Deprecated module: use a2ui.inference_formats.express.constants instead."""
 
-class SurfaceOperation:
-    """Standard A2UI v1.0 surface operation envelope keys."""
+import warnings
+from a2ui.inference_formats.express.constants import *  # noqa: F403
 
-    CREATE = "createSurface"
-    UPDATE_COMPONENTS = "updateComponents"
-    DELETE = "deleteSurface"
-    UPDATE_DATA = "updateDataModel"
-    CALL_FUNC = "callFunction"
-    SURFACE = "surface"
+warnings.warn(
+    "Importing from 'a2ui.inference_formats.experimental.express.constants' is"
+    " deprecated. Use 'a2ui.inference_formats.express.constants' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)

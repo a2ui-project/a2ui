@@ -22,7 +22,7 @@ import unittest
 import tempfile
 from unittest.mock import patch, MagicMock
 
-# Add express proposals directory to sys.path to import run_* scripts
+# Add express inference_formats directory to sys.path to import run_* scripts
 EXPRESS_DIR = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
@@ -32,7 +32,7 @@ EXPRESS_DIR = os.path.abspath(
         "..",
         "..",
         "specification",
-        "proposals",
+        "inference_formats",
         "express",
         "scripts",
     )

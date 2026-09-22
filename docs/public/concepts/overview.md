@@ -26,6 +26,10 @@ A2UI's **adjacency list model** for representing component hierarchies. Learn wh
 
 How components connect to application state using JSON Pointer paths. Covers reactive components, dynamic lists, input bindings, and the separation of structure from state that makes A2UI powerful.
 
+### [Inference Formats](inference-formats.md)
+
+How LLMs generate A2UI interfaces. Learn about Direct JSON and **A2UI Express**—a model-optimized declarative format that reduces LLM token consumption by 55% to 70% while compiling down to standard A2UI wire messages.
+
 ## Message Types
 
 === "v0.9 (Stable)"

@@ -29,11 +29,11 @@ import unittest
 
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
-from a2ui.inference_formats.experimental.express.errors import (
+from a2ui.inference_formats.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.express.compiler import ExpressCompiler
+from a2ui.inference_formats.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats.express.parser import ExpressParser
+from a2ui.inference_formats.express.errors import (
     ExpressUnknownPropertyError,
     ExpressDuplicatePropertyError,
     ExpressInvalidParamError,
@@ -63,7 +63,7 @@ class TestExpressCompiler(unittest.TestCase):
 
     def test_prompt_generator(self):
         """Verifies prompt signature compiler loads catalog components correctly."""
-        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+        from a2ui.inference_formats.express.format import ExpressFormat
 
         fmt = ExpressFormat(catalog=self.catalog)
         prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
@@ -230,7 +230,7 @@ $/breeds = [{"url": "https://example.com/poodle.jpg"}]"""
 
         self.helper.get_property_schema = mock_get_property_schema
         try:
-            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+            from a2ui.inference_formats.express.format import ExpressFormat
 
             fmt = ExpressFormat(catalog=self.catalog)
             fmt.prompt_generator.helper = self.helper
@@ -501,7 +501,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             self.assertIn("repField = TextField(", decompiled_dsl)
 
             # Prompt Generator
-            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+            from a2ui.inference_formats.express.format import ExpressFormat
 
             fmt = ExpressFormat(catalog=cat_input)
             prompt = fmt.prompt_generator.generate(
@@ -535,7 +535,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
     def test_express_extended_coverage(self):
         """Test _set_nested_path, set!/data statements, deleteSurface, callFunction, and schema helper get_property_type."""
-        from a2ui.inference_formats.experimental.express.compiler import _set_nested_path
+        from a2ui.inference_formats.express.compiler import _set_nested_path
 
         # 1. _set_nested_path with $ and relative paths
         d = {}

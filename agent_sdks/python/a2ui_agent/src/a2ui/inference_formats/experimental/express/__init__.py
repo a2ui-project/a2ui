@@ -12,16 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Express parser, compiler, and generator package.
+"""A2UI Express package (deprecated location).
 
-Provides high-performance conversion utilities to compile A2UI Express DSL syntax
-into standard A2UI v1.0 wire JSON messages and vice-versa.
+This module is deprecated. Please import from `a2ui.inference_formats.express` instead.
 """
 
-from .compiler import ExpressCompiler
-from .constants import SurfaceOperation
-from .format import ExpressFormat
-from .parser import ExpressParser
+import warnings
+from a2ui.inference_formats.express import (
+    ExpressCompiler,
+    SurfaceOperation,
+    ExpressFormat,
+    ExpressParser,
+)
+
+warnings.warn(
+    "Importing from 'a2ui.inference_formats.experimental.express' is deprecated. "
+    "Use 'a2ui.inference_formats.express' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 __all__ = [
     "ExpressCompiler",

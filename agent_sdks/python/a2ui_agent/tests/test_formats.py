@@ -18,7 +18,7 @@ from a2ui.schema.constants import VERSION_0_9
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from google.genai import types as genai_types
-from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
+from a2ui.inference_formats.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
     ElementalFormat,
     ElementalParser,
