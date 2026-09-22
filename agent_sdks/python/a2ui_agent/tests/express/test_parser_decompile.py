@@ -43,9 +43,6 @@ class TestExpressParser(unittest.TestCase):
             catalog_dict = json.load(f)
         self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
 
-    # Decompilation tests for RPC actions, functional expressions, and custom checks
-    # have been converted to conformance tests in conformance/inference_formats/express/decompile.yaml.
-
     def test_string_quoting_and_escaping(self):
         """Verifies parsing, compilation, and decompilation of various string quoting forms."""
         compiler = ExpressCompiler(self.catalog)

@@ -100,11 +100,20 @@ def load_json_file(path: str) -> Any:
 
 def normalize_value(val: Any) -> Any:
     if isinstance(val, dict):
-        if "event" in val and isinstance(val["event"], dict):
-            evt = val["event"]
-            if "context" in evt and not evt["context"]:
-                val["event"] = {k: v for k, v in evt.items() if k != "context"}
-        return {k: normalize_value(v) for k, v in val.items() if k != "returnType"}
+        normalized = {}
+        for k, v in val.items():
+            if k == "returnType":
+                continue
+            if k == "event" and isinstance(v, dict):
+                if "context" in v and not v["context"]:
+                    normalized[k] = {
+                        ek: normalize_value(ev)
+                        for ek, ev in v.items()
+                        if ek != "context"
+                    }
+                    continue
+            normalized[k] = normalize_value(v)
+        return normalized
     if isinstance(val, list):
         return [normalize_value(item) for item in val]
     return val
@@ -265,7 +274,7 @@ def get_conformance_test_cases(pattern_rel: str) -> List[tuple[str, Dict[str, An
 # Collect test cases for each category
 compile_cases = get_conformance_test_cases(
     "express/compile.yaml"
-) + get_conformance_test_cases("express/examples.yaml")
+) + get_conformance_test_cases("express/specification_examples.yaml")
 decompile_cases = get_conformance_test_cases("express/decompile.yaml")
 round_trip_cases = get_conformance_test_cases("round_trip.yaml")
 prompt_cases = get_conformance_test_cases("express/prompt_generation.yaml")

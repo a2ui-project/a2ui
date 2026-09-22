@@ -48,9 +48,6 @@ class TestExpressIntegration(unittest.TestCase):
         self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
         self.helper = CatalogSchemaHelper(self.catalog)
 
-    # Redundant golden examples, round-trip, and data model tests have been converted
-    # to language-agnostic conformance tests in conformance/inference_formats/.
-
     def test_parser_robustness_and_event_variable_resolution(self):
         """Regression tests for parser fallbacks, empty text parts, and event variable resolution."""
         compiler = ExpressCompiler(self.catalog)

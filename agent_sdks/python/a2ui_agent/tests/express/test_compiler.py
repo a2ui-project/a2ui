@@ -63,10 +63,6 @@ class TestExpressCompiler(unittest.TestCase):
         self.assertIn("required(", prompt)
         self.assertIn("regex(", prompt)
 
-    # Basic, formatting, action, standalone function, map/event inlining, skipped args,
-    # and deleteSurface/dataModel compilation tests have been converted to conformance tests
-    # in conformance/inference_formats/express/compile.yaml.
-
     def test_compiler_robustness_and_edge_cases(self):
         """Verifies tokenizer errors, string parsing with '=' chars, and boolean schemas."""
         compiler = ExpressCompiler(self.catalog)

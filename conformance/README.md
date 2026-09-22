@@ -33,7 +33,7 @@ Test suites are organized by functional domain:
 - `inference_formats/express/compile.yaml`: Express-specific compilation tests (components, checks, format strings, actions, functions, templates, surface directives, version targets v0.9/v0.9.1/v1.0, and syntax errors).
 - `inference_formats/express/decompile.yaml`: Express-specific decompilation tests (messages, functions, actions, expressions, checks, directives, and string escaping).
 - `inference_formats/express/prompt_generation.yaml`: Express-specific prompt generation tests (rules, component signatures, pruning, custom rules, and examples transformation).
-- `inference_formats/express/examples.yaml`: Golden compilation tests mapping human-authored Express examples (`specification/proposals/express/examples/*.a2ui`) to their JSON counterparts (`specification/v1_0/catalogs/basic/examples/*.json`).
+- `inference_formats/express/specification_examples.yaml`: Golden compilation tests mapping human-authored Express examples (`specification/proposals/express/examples/*.a2ui`) to their JSON counterparts (`specification/v1_0/catalogs/basic/examples/*.json`).
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 
