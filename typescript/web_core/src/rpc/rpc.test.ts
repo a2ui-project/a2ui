@@ -514,8 +514,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const promise1 = handler.callAgentFunction('s1', {call: 'func1'}, {functionCallId: 'dup-1'});
     await assert.rejects(
       handler.callAgentFunction('s1', {call: 'func2'}, {functionCallId: 'dup-1'}),
-      (err: A2uiRpcError) =>
-        err instanceof A2uiRpcError && err.code === RpcErrorCode.DUPLICATE,
+      (err: A2uiRpcError) => err instanceof A2uiRpcError && err.code === RpcErrorCode.DUPLICATE,
     );
     handler.dispose();
     await assert.rejects(
