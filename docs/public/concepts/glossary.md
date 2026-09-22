@@ -1,18 +1,24 @@
 # Glossary
 
-## A2UI protocol terms
-
-Terms, required by A2UI protocol.
-
-### A2UI agent and A2UI renderer
+**A2UI protocol:**
 
 The A2UI protocol enables conversation between **agent** and **renderer**:
 
 1. **Renderer** provides **UI capabilities** in the form of A2UI catalog and **instructions** on how to use it.
 2. **Agent** iterates on the loop:
-    - Provides **UI** and **functions** to call, taking into account the received catalog
+    - Provides **UI** to render and **functions** to call, based on the received catalog
     - Receives **user input**, communicated by renderer
     - Updates **data** to show in UI
+
+**Agent and model:**
+
+In order to produce responses for renderer, agent sends requests to an `A2UI model`. An `A2UI model` can be:
+
+- remote or local LLM (in most cases)
+- another agent (in more complex orchestrations)
+- deterministic engine (normally, for testing purposes)
+
+
 
 ```mermaid
 sequenceDiagram
@@ -26,6 +32,14 @@ sequenceDiagram
         Renderer->>Agent: User input
     end
 ```
+
+## A2UI protocol terms
+
+Terms, required by A2UI protocol.
+
+### A2UI agent and A2UI renderer
+
+
 
 While the protocol is designed for **AI-empowered agents**, it can work with deterministic agents as well. For example, an agent may return a pre-canned A2UI UI.
 
@@ -69,9 +83,9 @@ A rule set that programmatically filters, adapts, or mutates a pristine **Catalo
 
 While a catalog provides a complete specification of all UI components and functions supported by a renderer, agent implementations frequently need to prune or restrict the catalog for specific use cases:
 
-- **Context Window Token Optimization**: A catalog can define dozens of components and logic functions. Injecting all component JSON schemas into an LLM's system prompt consumes significant context window tokens, increases prompt latency, and inflates LLM inference costs. Pruning transformers restrict system prompt instructions to only the subset of components relevant to that agent's domain task.
+- **Context Window Token Optimization**: A catalog can define dozens of components and logic functions. Injecting all component JSON schemas into a model's system prompt consumes significant context window tokens, increases prompt latency, and inflates model inference costs. Pruning transformers restrict system prompt instructions to only the subset of components relevant to that agent's domain task.
 - **Task-Specific Capability Guardrails**: Specific agent workflows or security roles may require restricting interactive features (e.g. allowing display cards and text, but disabling form inputs or administrative components in guest mode).
-- **Model Signature Reduction**: Pruning function rules and validation checks to produce compact prompt instruction blocks for smaller or micro LLMs.
+- **Model Signature Reduction**: Pruning function rules and validation checks to produce compact prompt instruction blocks for smaller or micro models.
 
 #### Example catalog transformers
 
@@ -94,13 +108,23 @@ The objects are named differently in earlier versions of the protocol: v0.9 and 
 An area of UI, constructed by A2UI agent and managed by the A2UI renderer,
 which consists of a number of components. Surfaces cannot nest.
 
+### A2UI Model 
+
+In order to produce responses for renderer, agent sends requests to an `A2UI model`. An `A2UI model` can be:
+
+- remote or local LLM (in most cases)
+- another agent (in more complex orchestrations)
+- deterministic engine (normally, for testing purposes)
+
 ### A2UI Tag
 
 Enclosing delimiter tags (such as `<a2ui-json>`, `<a2ui>`) used to bound A2UI payload code blocks within LLM text output.
 
 Because LLMs stream conversational plain text and UI payloads within the same turn, A2UI Tags serve as explicit syntactic boundaries isolating structured UI blocks from conversational text.
 
-### Tag Unwrapping
+### Phases of model response parsing
+
+Tag Unwrapping
 
 The initial phase of response parsing (`unwrap`) where a parser scans LLM text responses for opening and closing **A2UI Tags**, isolating non-UI conversational text (e.g., _"Here is your summary:"_) from enclosed raw UI code blocks.
 
