@@ -46,25 +46,41 @@ components = tree.flatten()
 ```
 
 
-### Message envelopes
+### Packaging into message envelopes
 
-Helper functions package component trees into standard A2UI envelopes:
-
-- `create_surface`: Generates both `createSurface` and initial `updateComponents` envelopes.
-- `update_components`: Generates an `updateComponents` envelope for existing surfaces.
+Flattened component trees are packaged into standard A2UI server-to-client messages using models from `a2ui.core.schema.server_to_client`:
 
 ```python
-from a2ui.builder.v0_9 import create_surface, update_components
-
-# Initial surface creation
-messages = create_surface(
-    "surface_main",
-    root=tree,
-    catalog_id="org.a2ui.basic",
+from a2ui.core.schema.server_to_client import (
+    CreateSurface,
+    CreateSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
 )
 
-# Updating an existing surface
-update = update_components("surface_main", root=tree)
+# 1. Initial surface creation
+messages = [
+    CreateSurfaceMessage(
+        create_surface=CreateSurface(
+            surface_id="surface_main",
+            catalog_id="https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        )
+    ),
+    UpdateComponentsMessage(
+        update_components=UpdateComponents(
+            surface_id="surface_main",
+            components=tree.flatten(),
+        )
+    ),
+]
+
+# 2. Updating an existing surface
+update_message = UpdateComponentsMessage(
+    update_components=UpdateComponents(
+        surface_id="surface_main",
+        components=tree.flatten(),
+    )
+)
 ```
 
 ### Data bindings

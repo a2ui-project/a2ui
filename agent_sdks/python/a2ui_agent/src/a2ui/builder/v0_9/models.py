@@ -25,6 +25,10 @@ from typing import Any, Optional, Sequence, TypeAlias, Union
 from pydantic import (
     AliasChoices,
     Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
     model_validator,
 )
 
@@ -41,11 +45,19 @@ from a2ui.core.schema.common_types import FunctionCall as FunctionCall
 
 
 # Canonical Protocol Type Aliases
-DynamicString = Union[str, DataBinding, FunctionCall]
-DynamicNumber = Union[int, float, DataBinding, FunctionCall]
-DynamicBoolean = Union[bool, DataBinding, FunctionCall]
-DynamicStringList = Union[Sequence[str], DataBinding, FunctionCall]
-DynamicValue = Union[Any, DataBinding, FunctionCall]
+DynamicString = Union[StrictStr, DataBinding, FunctionCall]
+DynamicNumber = Union[StrictInt, StrictFloat, DataBinding, FunctionCall]
+DynamicBoolean = Union[StrictBool, DataBinding, FunctionCall]
+DynamicStringList = Union[Sequence[StrictStr], DataBinding, FunctionCall]
+DynamicValue = Union[
+    StrictStr,
+    StrictInt,
+    StrictFloat,
+    StrictBool,
+    Sequence[Any],
+    DataBinding,
+    FunctionCall,
+]
 
 
 class Action(BuilderBaseModel):

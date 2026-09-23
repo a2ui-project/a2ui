@@ -33,10 +33,17 @@ from a2ui.builder.v0_9 import (
     ComponentRef,
     DynamicChildList,
     FunctionCall,
-    create_surface,
-    update_components,
+    flatten_component_tree,
 )
 from a2ui.builder.v0_9.catalogs import basic
+from a2ui.core.schema.server_to_client import (
+    CreateSurface,
+    CreateSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
+    UpdateDataModel,
+    UpdateDataModelMessage,
+)
 from a2ui.core.validating.validator import ValidationConfig
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
@@ -202,16 +209,42 @@ def _build_action(spec: dict[str, Any]) -> Action:
 def run_case(case: Case) -> list[dict[str, Any]]:
     """Builds a case's AST and packages it into wire-format message envelopes."""
     root = build_ast(case.input)
+    components = flatten_component_tree(root, root_id=case.root_id)
     if case.catalog_id:
-        messages = create_surface(
-            case.surface_id,
-            root=root,
-            catalog_id=case.catalog_id,
-            data_model=case.data_model,
-            root_id=case.root_id,
-        )
+        messages: list[Any] = [
+            CreateSurfaceMessage(
+                create_surface=CreateSurface(
+                    surface_id=case.surface_id,
+                    catalog_id=case.catalog_id,
+                )
+            ),
+            UpdateComponentsMessage(
+                update_components=UpdateComponents(
+                    surface_id=case.surface_id,
+                    components=components,
+                )
+            ),
+        ]
+        if case.data_model:
+            for path, val in case.data_model.items():
+                messages.append(
+                    UpdateDataModelMessage(
+                        update_data_model=UpdateDataModel(
+                            surface_id=case.surface_id,
+                            path=path,
+                            value=val,
+                        )
+                    )
+                )
     else:
-        messages = update_components(case.surface_id, root=root, root_id=case.root_id)
+        messages = [
+            UpdateComponentsMessage(
+                update_components=UpdateComponents(
+                    surface_id=case.surface_id,
+                    components=components,
+                )
+            )
+        ]
     return [m.model_dump(by_alias=True, exclude_none=True) for m in messages]
 
 

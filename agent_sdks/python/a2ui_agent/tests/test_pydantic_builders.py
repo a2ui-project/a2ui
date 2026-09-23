@@ -26,6 +26,7 @@ from pydantic import BaseModel, ValidationError
 
 from a2ui.builder.v0_9 import (
     LENIENT_ENUM_CONTEXT,
+    OPEN_ENUM_CONTEXT,
     AccessibilityAttributes,
     Action,
     ActionEvent,
@@ -34,11 +35,18 @@ from a2ui.builder.v0_9 import (
     ComponentRef,
     ComponentTree,
     DataBinding,
+    DynamicBoolean,
     DynamicChildList,
+    DynamicNumber,
+    DynamicString,
     FunctionCall,
-    create_surface,
     flatten_component_tree,
-    update_components,
+)
+from a2ui.core.schema.server_to_client import (
+    CreateSurface,
+    CreateSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
 )
 from a2ui.builder.v0_9.catalogs.basic import (
     OpenUrl,
@@ -550,46 +558,77 @@ def test_component_tree_methods():
     assert tree.to_json() is not None
 
 
-def test_top_level_envelope_helpers():
-    """Verifies create_surface and update_components emit typed, versioned messages."""
+def test_message_envelope_packaging_with_flattened_tree():
+    """Verifies packaging flattened builder trees directly into core message envelopes."""
     root_col = Column(children=[Text(text="Status")])
+    components = root_col.flatten()
 
-    create_msgs = create_surface(
-        "my-surface", root=root_col, catalog_id="org.a2ui.basic"
+    create_msg = CreateSurfaceMessage(
+        create_surface=CreateSurface(
+            surface_id="my-surface",
+            catalog_id="org.a2ui.basic",
+        )
     )
-    assert len(create_msgs) == 2
-    assert create_msgs[0].create_surface.surface_id == "my-surface"
-    assert create_msgs[0].create_surface.catalog_id == "org.a2ui.basic"
-    assert create_msgs[1].update_components.surface_id == "my-surface"
-
-    dumped = [m.model_dump(by_alias=True, exclude_none=True) for m in create_msgs]
-    assert "createSurface" in dumped[0]
-    assert "updateComponents" in dumped[1]
-    assert all("version" in m for m in dumped)
-
-    update_msgs = update_components("my-surface", root=root_col)
-    assert len(update_msgs) == 1
-    assert update_msgs[0].update_components.surface_id == "my-surface"
-
-
-def test_envelope_helpers_accept_a_list_of_roots():
-    """Verifies envelope helpers accept a sequence of root components."""
-    msgs = update_components("s", root=[Text(id="a", text="A"), Text(id="b", text="B")])
-    components = msgs[0].update_components.components
-    assert [c["id"] for c in components] == ["a", "b"]
-
-
-def test_data_model_paths_are_normalized():
-    """Verifies updateDataModel paths gain a leading slash."""
-    msgs = create_surface(
-        "s",
-        root=Card(child=Text(text="x")),
-        catalog_id="basic",
-        data_model={"user/name": "Alice"},
+    update_msg = UpdateComponentsMessage(
+        update_components=UpdateComponents(
+            surface_id="my-surface",
+            components=components,
+        )
     )
-    dumped = msgs[2].model_dump(by_alias=True, exclude_none=True)
-    assert dumped["updateDataModel"]["path"] == "/user/name"
-    assert dumped["updateDataModel"]["value"] == "Alice"
+
+    create_dump = create_msg.model_dump(by_alias=True, exclude_none=True)
+    update_dump = update_msg.model_dump(by_alias=True, exclude_none=True)
+
+    assert create_dump["createSurface"]["surfaceId"] == "my-surface"
+    assert create_dump["createSurface"]["catalogId"] == "org.a2ui.basic"
+    assert update_dump["updateComponents"]["surfaceId"] == "my-surface"
+    assert len(update_dump["updateComponents"]["components"]) == 2
+    assert create_dump["version"] in ("v0.9", "v0.9.1")
+    assert update_dump["version"] in ("v0.9", "v0.9.1")
+
+
+def test_dynamic_types_reject_coerced_primitives():
+    """Verifies Dynamic* types enforce strict primitives without implicit coercion."""
+
+    class DummyModel(BaseModel):
+        s: DynamicString
+        n: DynamicNumber
+        b: DynamicBoolean
+
+    # Valid strictly typed literals
+    valid = DummyModel(s="valid_str", n=42, b=True)
+    assert valid.s == "valid_str"
+    assert valid.n == 42
+    assert valid.b is True
+
+    valid_float = DummyModel(s="valid_str", n=3.14, b=False)
+    assert valid_float.n == 3.14
+
+    # String passed to DynamicNumber must be rejected (no string-to-number coercion)
+    with pytest.raises(ValidationError):
+        DummyModel(s="ok", n="100", b=True)  # type: ignore[arg-type]
+
+    # String passed to DynamicBoolean must be rejected (no string-to-bool coercion)
+    with pytest.raises(ValidationError):
+        DummyModel(s="ok", n=1, b="true")  # type: ignore[arg-type]
+
+    # Integer passed to DynamicBoolean must be rejected (no int-to-bool coercion)
+    with pytest.raises(ValidationError):
+        DummyModel(s="ok", n=1, b=1)  # type: ignore[arg-type]
+
+
+def test_open_enum_context_naming():
+    """Verifies OPEN_ENUM_CONTEXT accepts unknown enum values."""
+    # Authoring rejects invalid variant
+    with pytest.raises(ValidationError):
+        Text(text="Hi", variant="future_variant")  # type: ignore[arg-type]
+
+    # OPEN_ENUM_CONTEXT allows future variant during parsing
+    parsed = Text.model_validate(
+        {"component": "Text", "text": "Hi", "variant": "future_variant"},
+        context=OPEN_ENUM_CONTEXT,
+    )
+    assert parsed.variant == "future_variant"
 
 
 # =============================================================================

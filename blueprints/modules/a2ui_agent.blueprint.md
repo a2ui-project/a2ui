@@ -721,7 +721,6 @@ a2ui/builder/
 │   └── tree                   # ComponentTree aggregate
 └── <version>/                 # One package per protocol version (e.g. v0_9)
     ├── models                 # DataBinding, FunctionCall, Action, CheckRule, ChildList
-    ├── envelopes              # create_surface, update_components, typed messages
     └── catalogs/              # GENERATED: one module per catalog
 ```
 

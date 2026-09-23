@@ -25,10 +25,14 @@ from pydantic import (
     WrapValidator,
 )
 
-LENIENT_ENUMS_KEY = "a2ui.lenient_enums"
+OPEN_ENUM_KEY = "a2ui.open_enums"
+LENIENT_ENUMS_KEY = OPEN_ENUM_KEY
 
-LENIENT_ENUM_CONTEXT: Mapping[str, Any] = {LENIENT_ENUMS_KEY: True}
-"""Pass as ``model_validate(..., context=LENIENT_ENUM_CONTEXT)`` to accept unknown enum values."""
+OPEN_ENUM_CONTEXT: Mapping[str, Any] = {OPEN_ENUM_KEY: True}
+"""Pass as ``model_validate(..., context=OPEN_ENUM_CONTEXT)`` to accept unknown enum values."""
+
+LENIENT_ENUM_CONTEXT = OPEN_ENUM_CONTEXT
+"""Deprecated alias for ``OPEN_ENUM_CONTEXT``."""
 
 
 def _validate_open_enum(
@@ -40,11 +44,13 @@ def _validate_open_enum(
         return handler(value)
     except ValidationError:
         context = info.context
-        lenient = isinstance(context, Mapping) and context.get(LENIENT_ENUMS_KEY)
-        if lenient and isinstance(value, str):
+        open_enums = isinstance(context, Mapping) and (
+            context.get(OPEN_ENUM_KEY) or context.get("a2ui.lenient_enums")
+        )
+        if open_enums and isinstance(value, str):
             return value
         raise
 
 
 OPEN_ENUM = WrapValidator(_validate_open_enum)
-"""``Annotated`` validator metadata preserving static ``Literal`` checking while allowing lenient runtime parsing."""
+"""``Annotated`` validator metadata preserving static ``Literal`` checking while allowing open runtime parsing."""

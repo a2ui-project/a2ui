@@ -39,17 +39,33 @@ A tool server answering a request it fully understands does not need inference
 at all. It constructs the tree and returns the messages:
 
 ```python
-from a2ui.builder.v0_9 import create_surface
+from a2ui.core.schema.server_to_client import (
+    CreateSurface,
+    CreateSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
+)
 from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text
 
 def order_status(order_id: str, state: str) -> list:
-    return create_surface(
-        "order_status",
-        Card(child=Column(children=[
-            Text(text=f"Order {order_id}", variant="h3"),
-            Text(text=state),
-        ])),
-    )
+    tree = Card(child=Column(children=[
+        Text(text=f"Order {order_id}", variant="h3"),
+        Text(text=state),
+    ]))
+    return [
+        CreateSurfaceMessage(
+            create_surface=CreateSurface(
+                surface_id="order_status",
+                catalog_id="https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            )
+        ),
+        UpdateComponentsMessage(
+            update_components=UpdateComponents(
+                surface_id="order_status",
+                components=tree.flatten(),
+            )
+        ),
+    ]
 ```
 
 There is no prompt, no parsing and no model. The value is that `variant="h3"`
@@ -287,9 +303,10 @@ them is an open question rather than a settled one, tracked in
 
 A tree is a shape. How that shape is packaged into messages, what the messages
 are called and which of them a surface lifecycle requires are all properties of
-a protocol version. Putting envelope construction on the tree binds every tree
-to one version and means supporting a second version changes the authoring API.
-Keeping envelopes in a versioned module leaves the tree alone.
+a protocol version, handled by `a2ui_core` schema message models
+(`CreateSurfaceMessage`, `UpdateComponentsMessage`). The builder only flattens
+the component hierarchy via `.flatten()`, leaving message envelope construction
+to standard core models.
 
 ### Which models are shared with the core SDK
 

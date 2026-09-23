@@ -17,6 +17,7 @@
 from ..core import (
     LENIENT_ENUM_CONTEXT,
     OPEN_ENUM,
+    OPEN_ENUM_CONTEXT,
     Child,
     BuilderBaseModel,
     ComponentBuilderNode,
@@ -24,10 +25,6 @@ from ..core import (
     ComponentTree,
     IdAllocator,
     flatten_component_tree,
-)
-from .envelopes import (
-    create_surface,
-    update_components,
 )
 from .models import (
     AccessibilityAttributes,
@@ -48,6 +45,7 @@ from .models import (
 __all__ = [
     "LENIENT_ENUM_CONTEXT",
     "OPEN_ENUM",
+    "OPEN_ENUM_CONTEXT",
     "AccessibilityAttributes",
     "Action",
     "ActionEvent",
@@ -67,7 +65,5 @@ __all__ = [
     "DynamicValue",
     "FunctionCall",
     "IdAllocator",
-    "create_surface",
     "flatten_component_tree",
-    "update_components",
 ]

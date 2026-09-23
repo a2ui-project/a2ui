@@ -17,6 +17,6 @@
 To prevent breaking changes across protocol versions, builder models are explicitly versioned.
 Import from the specific protocol version package:
 
-    from a2ui.builder.v0_9 import Action, ComponentRef, create_surface, bind
+    from a2ui.builder.v0_9 import Action, ComponentRef
     from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Row, Text
 """
