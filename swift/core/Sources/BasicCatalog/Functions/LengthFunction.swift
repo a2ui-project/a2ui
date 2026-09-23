@@ -44,10 +44,6 @@ public final class LengthFunction: FunctionImplementation, Sendable {
     )
   }
 
-  public convenience init(protocolVersion: String) {
-    self.init(returnValidationResult: protocolVersion == "v1.0" || protocolVersion == "1.0")
-  }
-
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let valueStr = arguments["value"]?.stringValue else {
       return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)

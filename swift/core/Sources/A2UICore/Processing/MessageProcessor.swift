@@ -54,14 +54,14 @@ public final class MessageProcessor: ObservableObject {
       catalogMap[cat.id] = cat
     }
     for cat in anyCatalogs {
-      if let url = URL(string: cat.id), url.lastPathComponent == "catalog.json" {
-        let shorthand = url.deletingLastPathComponent().lastPathComponent
-        if !shorthand.isEmpty {
-          if catalogMap[shorthand] == nil || cat.isV10 {
-            catalogMap[shorthand] = cat
-          }
-        }
+      guard let url = URL(string: cat.id), url.lastPathComponent == "catalog.json" else {
+        continue
       }
+      let shorthand = url.deletingLastPathComponent().lastPathComponent
+      guard !shorthand.isEmpty, catalogMap[shorthand] == nil || cat.isAtLeastV10 else {
+        continue
+      }
+      catalogMap[shorthand] = cat
     }
     self.catalogs = catalogMap
     self.validator = A2UIValidator(catalogs: anyCatalogs, config: validationConfig)
@@ -671,13 +671,12 @@ public final class MessageProcessor: ObservableObject {
       }
       var batchIDs: Set<String> = []
       for comp in components {
-        if let id = comp["id"]?.stringValue {
-          if batchIDs.contains(id) {
-            throw A2UIIntegrityError("Duplicate component ID: \(id)")
-          }
-          batchIDs.insert(id)
-          allComponentsMap[id] = comp
+        guard let id = comp["id"]?.stringValue else { continue }
+        if batchIDs.contains(id) {
+          throw A2UIIntegrityError("Duplicate component ID: \(id)")
         }
+        batchIDs.insert(id)
+        allComponentsMap[id] = comp
       }
       let allComponents = Array(allComponentsMap.values)
 

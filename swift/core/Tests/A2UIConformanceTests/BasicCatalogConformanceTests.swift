@@ -20,7 +20,7 @@ import Testing
 
 @MainActor
 private final class ConformanceMockFunctionHandler: FunctionHandler {
-  func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     nil
   }
 }
@@ -195,5 +195,113 @@ struct BasicCatalogConformanceTests {
       context: context
     )
     #expect(formattedDate.stringValue == "2026-08-26")
+  }
+
+  @Test func indexFunctionConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/index_function.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+
+    #expect(!testCases.isEmpty, "Should load test cases from index_function.yaml")
+
+    for testCase in testCases {
+      let processor = MessageProcessor(
+        catalogs: BasicCatalog.allCatalogs,
+        validationConfig: ValidationConfig(targetVersion: "v1.0")
+      )
+
+      for step in testCase.steps {
+        guard let payload = step.payload else { continue }
+
+        if let expectedError = step.expectError {
+          var caughtError: Error?
+          do {
+            let messages = try ConformanceTestHelper.parsePayload(payload)
+            processor.process(messages: messages)
+          } catch {
+            caughtError = error
+          }
+
+          if let caughtError {
+            if let expectedMessage = expectedError.message {
+              #expect(
+                caughtError.localizedDescription.contains(expectedMessage)
+                  || "\(caughtError)".contains(expectedMessage)
+              )
+            }
+          }
+        } else {
+          let messages = try ConformanceTestHelper.parsePayload(payload)
+          processor.process(messages: messages)
+
+          if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
+            for (surfaceID, expectedSurface) in expectSurfaces {
+              guard let surface = processor.surface(id: surfaceID) else {
+                Issue.record("Expected surface '\(surfaceID)' to exist")
+                continue
+              }
+
+              if let expectedComponents = expectedSurface["components"]?.objectValue {
+                for (compID, compExpected) in expectedComponents {
+                  let node = surface.findNode(id: compID)
+                  if let expectedText = compExpected["text"]?.stringValue {
+                    #expect(
+                      node?.string(for: "text") == expectedText,
+                      "[\(testCase.name)] Expected node \(compID).text == '\(expectedText)', got '\(node?.string(for: "text") ?? "nil")'"
+                    )
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test func validationResultConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/validation_result.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+
+    #expect(!testCases.isEmpty, "Should load test cases from validation_result.yaml")
+
+    for testCase in testCases {
+      let processor = MessageProcessor(
+        catalogs: BasicCatalog.allCatalogs,
+        validationConfig: ValidationConfig(targetVersion: "v1.0")
+      )
+
+      for step in testCase.steps {
+        guard let payload = step.payload else { continue }
+        let messages = try ConformanceTestHelper.parsePayload(payload)
+        processor.process(messages: messages)
+      }
+
+      if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
+        for (surfaceID, expectedSurface) in expectSurfaces {
+          guard let surface = processor.surface(id: surfaceID) else {
+            Issue.record("Expected surface '\(surfaceID)' to exist")
+            continue
+          }
+
+          if let expectedVR = expectedSurface["validationResult"]?.objectValue {
+            for (nodeID, expectedCheck) in expectedVR {
+              let node = surface.findNode(id: nodeID)
+              let expectedValid = expectedCheck["valid"]?.boolValue ?? true
+              #expect(
+                node?.isValid == expectedValid,
+                "[\(testCase.name)] Expected node \(nodeID).isValid == \(expectedValid)"
+              )
+
+              if let expectedMsg = expectedCheck["message"]?.stringValue {
+                #expect(
+                  node?.validationErrors.contains(expectedMsg) == true,
+                  "[\(testCase.name)] Expected validation errors to contain '\(expectedMsg)'"
+                )
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

@@ -19,7 +19,7 @@ import Testing
 
 @MainActor
 private final class MockFunctionHandler: FunctionHandler {
-  func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     return nil
   }
 }

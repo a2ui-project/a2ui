@@ -69,31 +69,14 @@ public final class DataContext {
         let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
         return dataModel.get(absPath) ?? .null
       } else if let callName = dict["call"]?.stringValue {
-        if callName == "@index" {
-          // System function cannot specify a custom catalogId.
-          guard dict["catalogId"] == nil else {
-            return .null
-          }
-          // The @index function is strictly valid within a collection/template iteration scope.
-          guard let currentIndex = self.index else {
-            return .null
-          }
-          var offset = 0
-          if let argsObj = dict["args"]?.dictionaryValue, let offsetVal = argsObj["offset"] {
-            let resolvedOffset = resolveDynamicValue(offsetVal)
-            if let intVal = resolvedOffset.intValue {
-              offset = intVal
-            } else if let doubleVal = resolvedOffset.doubleValue,
-              let intVal = Int(exactly: doubleVal)
-            {
-              offset = intVal
-            }
-          }
-          return .integer(currentIndex + offset)
-        }
-
         let catalogID = dict["catalogId"]?.stringValue
-        guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
+        guard !(callName == "@index" && catalogID != nil) else {
+          return .null
+        }
+        guard
+          let function = functionHandler?.function(named: callName, catalogID: catalogID)
+            ?? (callName == "@index" ? IndexFunction() : nil)
+        else {
           return .null
         }
 
