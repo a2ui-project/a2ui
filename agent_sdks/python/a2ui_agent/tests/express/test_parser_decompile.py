@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests focusing on the A2UI Express Decompiler.
+"""Unit tests focusing on the Python A2UI Express Decompiler.
 
-Decompilation behaviour the protocol fixes for every language lives in
-`conformance/agent/express/decompiler.yaml`, which this SDK runs from
-`tests/conformance/test_conformance.py`. What stays here is what conformance
-does not reach: the positional argument spellings a catalog's
-`positionalIndex` produces, an unknown function call, `has_format_content`, and
-behaviour the suites rule against and mark `xfail`.
+Data-driven input/output decompilation behavior is comprehensively covered by
+the platform-agnostic conformance suite in `conformance/agent/express/decompiler.yaml`
+(run via `tests/conformance/test_conformance.py`).
+
+These unit tests specifically cover Python language-specific aspects that
+conformance suites leave to the SDK implementation:
+- String quoting, multi-line formatting, and raw string escaping choices
+- Internal schema-driven child reference helper reflection
+- Tag detection (`has_format_content`) and tag unwrapping
 """
 
 import json
@@ -189,8 +192,7 @@ class TestExpressParser(unittest.TestCase):
         static_type = {"type": "string"}
         self.assertFalse(_is_component_reference_property(static_type))
 
-    # Standard decompilation cases (data models, function calls, surface directives,
-    # and component updates) are covered by conformance/agent/express/decompiler.yaml.
+
 
     def test_has_format_content_and_unwrap_tags(self):
         """Test has_format_content checks and unwrap tag tokenization."""

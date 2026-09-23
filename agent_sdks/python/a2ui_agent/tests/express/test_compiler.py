@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests focusing on the A2UI Express Compiler and Prompt Generator.
+"""Unit tests focusing on the Python A2UI Express Compiler.
 
-Compilation behaviour the protocol fixes for every language lives in
-`conformance/agent/express/compiler.yaml`, which this SDK runs from
-`tests/conformance/test_conformance.py`. What stays here is what conformance
-deliberately leaves to an implementation: exact error types and their
-attributes, the wording of a synthesised check message, thread safety, catalog
-polymorphism, and behaviour the suites rule against and mark `xfail`, which
-these tests are the only executing coverage of until it is fixed.
+Data-driven input/output compilation behavior is comprehensively covered by the
+platform-agnostic conformance suite in `conformance/agent/express/compiler.yaml`
+(run via `tests/conformance/test_conformance.py`).
+
+These unit tests specifically cover Python language-specific aspects that
+conformance suites leave to the SDK implementation:
+- Multi-threaded execution and compiler thread safety
+- Custom Python exception hierarchies and error properties (e.g. ExpressCompilerError subclasses)
+- Catalog polymorphism (accepting Catalog models, A2uiCatalog instances, and raw dictionaries)
+- Python schema helper initialization validation and feature flag gating
 """
 
 import json
@@ -61,9 +64,7 @@ class TestExpressCompiler(unittest.TestCase):
         self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
         self.helper = CatalogSchemaHelper(self.catalog)
 
-    # Basic component compilation, standalone function calls, event inlining,
-    # template helpers, comments, and syntax errors are covered by
-    # conformance/agent/express/compiler.yaml.
+
 
     def test_compiler_concurrency(self):
         """Verifies that ExpressCompiler is thread-safe and supports concurrent compilation."""
@@ -131,8 +132,7 @@ btnLabel = Text("Click Thread 2")
         validator = A2uiValidator(catalog, experiments={"version_1_0"})
         self.assertEqual(validator.version, "1.0")
 
-    # Enum validation and nested databinding validation are covered by
-    # conformance/agent/express/compiler.yaml.
+
 
     def test_polymorphic_catalog_initialization(self):
         """Verifies compiler, decompiler, prompt generator, and parser with polymorphic catalogs."""
@@ -247,8 +247,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             compiler.compile('some_var = Text("Hello")')
         self.assertEqual(ctx.exception.root_target, "root")
 
-    # Check expressions, enum choices, and surface directives are covered by
-    # conformance/agent/express/compiler.yaml.
+
 
 
 if __name__ == "__main__":
