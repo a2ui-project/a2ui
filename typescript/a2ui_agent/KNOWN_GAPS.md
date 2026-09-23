@@ -20,12 +20,33 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Re-sending the same `createSurface` in a new payload across multiple turns of a conversational session using the same processor instance will throw an `A2uiStateError`. Callers must manually recreate and recycle the `A2uiRequestProcessor` per _request_ (turn), not per session.
 - **Done looks like:** The request-scoped lifecycle is prominently documented, or the internal structure is changed to expose a clear `reset()` method.
 
-### Unsupported protocol versions and formats
+### Partial protocol version support and unimplemented formats
 
-- **What it is:** The package targets `v1.0` exclusively, permanently skipping 88 of 131 conformance cases for `v0.8` and `v0.9`. Inference formats other than Direct JSON (Express, Elemental, Atom) are unimplemented.
-- **Why it exists:** An explicit scope decision to limit the initial drop to the modern `v1.0` standard and the most common inference format.
-- **What it blocks:** Legacy agents and alternative format use cases.
-- **Done looks like:** The `InferenceFormat` seam is populated with implementations for Express, Elemental, and Atom, and the skipped conformance tests are enabled and passing.
+- **What it is:** The package supports `v1.0` and `v0.9`. `v0.8` and inference formats other than Direct JSON (Express, Elemental, Atom) remain unimplemented.
+- **Why it exists:** An explicit scope decision to add protocol support incrementally, starting with `v1.0`.
+- **What it blocks:** Legacy `v0.8` agents and alternative format use cases.
+- **Done looks like:** The `InferenceFormat` seam is populated with implementations for Express, Elemental, and Atom, and the `v0.8` conformance cases are enabled.
+
+### Streaming parser gaps against the canonical conformance suite
+
+- **What it is:** Eleven canonical conformance cases run as expected failures, registered with a reason each in `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Python passes all of them, so each is a real gap in this SDK.
+- **Why it exists:** The canonical streaming suite is 39 `v0.8` cases, 41 `v0.9` cases, and a single `v1.0` case. Until `v0.9` was enabled this package ran one canonical streaming case and relied on local hand-translated fixtures for everything else, which were too weak to catch these. The gaps are almost all version-independent; enabling `v0.9` made them visible rather than causing them.
+- **What it risks:** The parser emits components earlier than the protocol allows, dropping template-referenced children as orphans and yielding components whose required properties or children have not arrived yet. A renderer can receive a component it cannot yet draw.
+- **Done looks like:** `KNOWN_FAILURES` is empty. Because entries are expected failures rather than skips, fixing a gap turns its test red until the entry is removed.
+
+### No server-to-client envelope validation
+
+- **What it is:** Conformance cases declare `s2cSchema` and `commonTypesSchema`, and Python threads both into its own `A2uiCatalog` type and validates every message envelope against the s2c schema while streaming. This package builds on `web_core`'s `Catalog`, which models neither, so `tests/conformance/fixtures.ts` has nothing to hand them to and malformed envelopes pass straight through.
+- **Why it exists:** `web_core`'s `Catalog` is shaped for renderers, which receive envelopes rather than emit them.
+- **What it risks:** An agent can emit a `createSurface` that omits a required field or carries an unknown one, and nothing notices until the renderer rejects it.
+- **Done looks like:** The catalog abstraction carries the s2c and common types schemas, the streaming parser validates envelopes against them, and the two `No s2c envelope validation` entries leave `KNOWN_FAILURES`.
+
+### Conformance harness does not implement every action
+
+- **What it is:** The harness throws `Should not be executed` for the `generate_prompt` and `skill` actions, and hardcodes `progressiveKeys` instead of reading `customCuttableKeys` from the case. Three cases are registered as expected failures for this reason.
+- **Why it exists:** The harness was built for the `process_chunk` and `parse_full` actions that the `v1.0` cases use.
+- **What it risks:** Prompt generation has no canonical cross-language coverage in TypeScript, so it can drift from Python unnoticed.
+- **Done looks like:** The harness implements `generate_prompt` and honours `customCuttableKeys`, and the three harness entries leave `KNOWN_FAILURES`.
 
 ### `no-explicit-any` lint warnings
 

@@ -27,6 +27,7 @@ import {normalizeVersionString} from '../internal/web_core.js';
  * to make {@link getBasicCatalogPath} serve it, provided web_core ships the JSON.
  */
 const CATALOG_DIRECTORY_BY_VERSION: Record<string, string> = {
+  '0.9': 'v0_9',
   '1.0': 'v1_0',
 };
 

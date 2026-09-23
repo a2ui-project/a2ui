@@ -72,9 +72,18 @@ describe('Foundations', () => {
     expect(basicCatalog('v1_0' as any)).toBe(first);
   });
 
+  it('provides a properly configured basicCatalog() for v0.9', () => {
+    const catalog = basicCatalog('v0.9');
+    expect(catalog.id).toBe('https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json');
+    expect(catalog.protocolVersion).toBe('v0.9');
+    expect(catalog.catalogSchema).toBeDefined();
+    expect(catalog.components.size).toBe(18);
+    expect(catalog.functions.size).toBe(14);
+    expect(catalog).not.toBe(basicCatalog('v1.0'));
+    expect(basicCatalog('v0.9')).toBe(catalog);
+  });
+
   it('throws A2uiCatalogError when no catalog ships for the requested version', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(() => basicCatalog('v0.9' as any)).toThrow(A2uiCatalogError);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => basicCatalog('v0.8' as any)).toThrow(A2uiCatalogError);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,7 +95,13 @@ describe('Foundations', () => {
     expect(catalogPath).toMatch(/dist\/src\/v1_0\/schemas\/catalogs\/basic\/catalog\.json$/);
     expect(existsSync(catalogPath)).toBe(true);
     expect(getBasicCatalogPath('1.0')).toBe(catalogPath);
-    expect(() => getBasicCatalogPath('v0.9')).toThrow(A2uiCatalogError);
+
+    const catalogPathV09 = getBasicCatalogPath('v0.9');
+    expect(catalogPathV09).toMatch(/dist\/src\/v0_9\/schemas\/catalogs\/basic\/catalog\.json$/);
+    expect(existsSync(catalogPathV09)).toBe(true);
+    expect(getBasicCatalogPath('0.9')).toBe(catalogPathV09);
+
+    expect(() => getBasicCatalogPath('v0.8')).toThrow(A2uiCatalogError);
   });
 
   it('defines custom errors extending A2uiError', () => {
