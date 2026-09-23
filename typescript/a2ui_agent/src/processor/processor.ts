@@ -27,6 +27,7 @@ import {InferenceFormatFactory, InferenceFormat} from '../inference_format/base.
 import {ResponsePart} from '../parser/response_part.js';
 import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
 import {Parser} from '../parser/parser.js';
+import {toWireProtocolVersion} from '../utils/protocol_version.js';
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
@@ -49,7 +50,7 @@ export class A2uiRequestProcessor {
     this._messageProcessor = new MessageProcessor(
       catalogs as unknown as Catalog<ComponentApi, FunctionImplementation>[],
       undefined,
-      {version: 'v1.0'},
+      {version: toWireProtocolVersion(catalogs[0]?.protocolVersion)},
     );
   }
 
