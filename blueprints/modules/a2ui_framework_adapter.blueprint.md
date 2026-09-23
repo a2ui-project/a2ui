@@ -358,7 +358,32 @@ function NodeView(node: ComponentNode): NativeView;
 
 ---
 
-## 6. Testing
+## 6. Lifecycle & Destruction
+
+A framework adapter coordinates two distinct lifecycles: the **Node lifecycle** managed by Core's `NodeResolver`, and the **View lifecycle** managed by the host UI framework.
+
+### Separation of Ownership
+
+- **Core owns `ComponentNode`**: `NodeResolver` creates nodes when referenced, updates them as properties change, and disposes them when unreferenced or deleted. The adapter MUST NOT call `node.dispose()` or attempt to destroy nodes manually.
+- **The Adapter owns Native Views**: The native framework mounts, updates, and unmounts elements. The adapter's sole responsibility is to keep view lifecycles synchronized with node state and cleanly drop listeners when views detach.
+
+### When is a native view destroyed?
+
+1. **Child removal from a parent**: When an inbound message deletes a child component or shrinks a dynamic array, `NodeResolver` disposes that `ComponentNode` and emits an updated children list on the parent. When the parent re-renders its children (keyed by `node.instanceId`), the native framework unmounts and destroys the view for the dropped child.
+2. **Placeholder replacement**: When a component definition arrives after being referenced, `NodeResolver` replaces the placeholder node in place and emits a new parent props object containing the concrete `ComponentNode`. The native framework unmounts the placeholder view and mounts the concrete component view.
+3. **Surface unmount**: When the host application removes the `Surface` view/widget (e.g. user navigates away), the adapter MUST invoke `nodeResolver.dispose()`. This recursively disposes all living `ComponentNode` instances, cancels data model subscriptions, and drops internal listeners.
+
+### View cleanup obligations
+
+Whenever a native component unmounts (via framework hooks like React `useEffect` cleanup, Flutter `State.dispose()`, Angular `DestroyRef`, or SwiftUI teardown):
+
+- **Unsubscribe from `node.props`**: Terminate the signal subscription or listener immediately to prevent memory leaks and ghost updates.
+- **Flush or discard pending debounced writes**: If the component debounced user input (e.g., text typing), flush pending writes to `WritableBinding.set()` or cancel active timers.
+- **Release native resources**: Dispose native controllers, focus nodes, gesture recognizers, or media players.
+
+---
+
+## 7. Testing
 
 ### Conformance Grounding
 
@@ -378,7 +403,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 
 ---
 
-## 7. Reference Implementations
+## 8. Reference Implementations
 
 Consult existing implementations for concrete language mechanics:
 
