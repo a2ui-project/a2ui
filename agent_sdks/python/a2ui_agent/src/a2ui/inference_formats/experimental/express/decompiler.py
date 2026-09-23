@@ -169,7 +169,10 @@ class _ExpressDecompiler:
             return dsl_body
 
         # Handle callFunction or callRendererFunction action
-        if "callRendererFunction" in envelope_json or SurfaceOperation.CALL_FUNC in envelope_json:
+        if (
+            "callRendererFunction" in envelope_json
+            or SurfaceOperation.CALL_FUNC in envelope_json
+        ):
             func_op = envelope_json.get("callRendererFunction")
             if isinstance(func_op, dict) and "callFunction" in func_op:
                 func_op = func_op["callFunction"]
