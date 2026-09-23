@@ -174,6 +174,12 @@ def _is_child_list_json_schema(schema: Any) -> bool:
         if comb in schema and isinstance(schema[comb], list):
             if any(_is_child_list_json_schema(sub) for sub in schema[comb]):
                 return True
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        if "explicitList" in props or "template" in props:
+            return True
+        if "componentId" in props and ("path" in props or "dataBinding" in props):
+            return True
     return False
 
 

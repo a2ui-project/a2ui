@@ -585,3 +585,65 @@ def test_nested_child_list_in_structured_array_items():
         ("c2", "sections[0].children[1]"),
         ("c3", "sections[1].children[0]"),
     ]
+
+
+def test_v0_8_container_child_list_schema_recognition():
+    v08_column_schema = {
+        "type": "object",
+        "properties": {
+            "children": {
+                "type": "object",
+                "properties": {
+                    "explicitList": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "template": {
+                        "type": "object",
+                        "properties": {
+                            "componentId": {"type": "string"},
+                            "dataBinding": {"type": "string"},
+                        },
+                        "required": ["componentId", "dataBinding"],
+                    },
+                },
+            },
+            "alignment": {"type": "string"},
+        },
+    }
+    spec = analyze_child_ref_schema(v08_column_schema)
+    assert spec.is_child_prop("children")
+    assert "children" in spec.list_refs
+
+    # Test extraction with explicitList
+    props_explicit = {"children": {"explicitList": ["item1", "item2"]}}
+    refs_explicit = list(spec.extract_child_references(props_explicit))
+    assert refs_explicit == [
+        ("item1", "children.explicitList.[0]"),
+        ("item2", "children.explicitList.[1]"),
+    ]
+
+    # Test extraction with template
+    props_template = {
+        "children": {"template": {"componentId": "card_tpl", "dataBinding": "/users"}}
+    }
+    refs_template = list(spec.extract_child_references(props_template))
+    assert refs_template == [("card_tpl", "children.template.componentId")]
+
+
+def test_inline_template_schema_recognition():
+    schema = {
+        "type": "object",
+        "properties": {
+            "templateSlot": {
+                "type": "object",
+                "properties": {
+                    "componentId": {"type": "string"},
+                    "path": {"type": "string"},
+                },
+            }
+        },
+    }
+    spec = analyze_child_ref_schema(schema)
+    assert spec.is_child_prop("templateSlot")
+    assert "templateSlot" in spec.list_refs
