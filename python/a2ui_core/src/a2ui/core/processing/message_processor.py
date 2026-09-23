@@ -500,6 +500,8 @@ class MessageProcessor:
 
         if path == "/" and isinstance(value, dict):
             for k, v in value.items():
+                if not k:
+                    continue
                 escaped_k = k.replace("~", "~0").replace("/", "~1")
                 surface.data_model.set(f"/{escaped_k}", v)
         else:

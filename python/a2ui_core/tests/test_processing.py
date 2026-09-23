@@ -1529,3 +1529,31 @@ def test_v1_0_adapter_drops_theme_from_create_surface():
         },
     )
     assert raw_ops[0].theme is None
+
+
+def test_update_data_model_root_merge_ignores_empty_key():
+    from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV10
+
+    processor = MessageProcessor(catalogs=[BasicCatalogV10()])
+    processor.process_messages([{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "s_empty_key",
+            "dataModel": {"validKey": "validVal"},
+        },
+    }])
+    surface = processor.model.get_surface("s_empty_key")
+    assert surface is not None
+
+    # Updating with empty key does not overwrite root
+    processor.process_messages([{
+        "version": "v1.0",
+        "updateDataModel": {
+            "surfaceId": "s_empty_key",
+            "path": "/",
+            "value": {"": "emptyKeyVal", "anotherKey": "anotherVal"},
+        },
+    }])
+
+    assert surface.data_model.get("/validKey") == "validVal"
+    assert surface.data_model.get("/anotherKey") == "anotherVal"
