@@ -26,7 +26,10 @@
 # To run script locally, you need to set API key as an environment variable.
 # Example: export GEMINI_API_KEY=your_api_key
 
-set -e
+# No exit on failure, because we want all tests to run
+# regardless of previous test failures.
+# set -e
+
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 cd "$REPO_ROOT/samples/client/flutter/restaurant_finder/e2e_test"
