@@ -586,3 +586,40 @@ def test_package_root_and_resolution_exports():
 
     with pytest.raises(AttributeError):
         wb.undeclared = True  # type: ignore[attr-defined]
+
+
+def test_resolved_binding_equality():
+    """Verifies value-based equality for ResolvedBinding and WritableBinding."""
+    from a2ui.core.resolution import ResolvedBinding, WritableBinding, is_writable
+
+    rb1 = ResolvedBinding("hello")
+    rb2 = ResolvedBinding("hello")
+    rb3 = ResolvedBinding("world")
+
+    assert rb1 == rb2
+    assert rb1 != rb3
+    assert rb1 != "hello"
+
+    setter1 = lambda v: None
+    setter2 = lambda v: None
+    wb1 = WritableBinding("hello", setter1, "/path/1")
+    wb2 = WritableBinding("hello", setter2, "/path/1")
+    wb3 = WritableBinding("hello", setter1, "/path/2")
+    wb4 = WritableBinding("world", setter1, "/path/1")
+
+    # Writable bindings with same value and same path are equal regardless of setter closure
+    assert wb1 == wb2
+    assert wb1 != wb3
+    assert wb1 != wb4
+    assert wb1 != "hello"
+
+    # ResolvedBinding and WritableBinding are not equal even with the same value
+    assert rb1 != wb1
+    assert wb1 != rb1
+
+    # Generic type narrowing with is_writable
+    int_rb: ResolvedBinding[int] = WritableBinding(42, lambda v: None, "/val")
+    if is_writable(int_rb):
+        # Type checker should recognize int_rb as WritableBinding[int]
+        assert int_rb.value == 42
+        assert int_rb.path == "/val"

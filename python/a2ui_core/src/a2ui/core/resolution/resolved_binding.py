@@ -14,7 +14,7 @@
 
 """Resolved dynamic value binding abstractions."""
 
-from typing import Any, Callable, Generic, TypeGuard, TypeVar
+from typing import Any, Callable, Generic, TypeGuard, TypeVar, overload
 
 T = TypeVar("T")
 
@@ -37,6 +37,13 @@ class ResolvedBinding(Generic[T]):
     def __repr__(self) -> str:
         return f"ResolvedBinding(value={self.value!r})"
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ResolvedBinding):
+            return NotImplemented
+        if isinstance(other, WritableBinding):
+            return False
+        return bool(self.value == other.value)
+
 
 class WritableBinding(ResolvedBinding[T]):
     """Writable resolved dynamic binding backed by a mutable data model path."""
@@ -55,6 +62,21 @@ class WritableBinding(ResolvedBinding[T]):
 
     def __repr__(self) -> str:
         return f"WritableBinding(value={self.value!r}, path={self.path!r})"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, WritableBinding):
+            return NotImplemented
+        return bool(self.value == other.value and self.path == other.path)
+
+
+@overload
+def is_writable(binding: ResolvedBinding[T]) -> TypeGuard[WritableBinding[T]]:
+    ...
+
+
+@overload
+def is_writable(binding: Any) -> TypeGuard[WritableBinding[Any]]:
+    ...
 
 
 def is_writable(binding: Any) -> TypeGuard[WritableBinding[Any]]:
