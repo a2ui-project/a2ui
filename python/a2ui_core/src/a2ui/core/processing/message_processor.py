@@ -384,17 +384,17 @@ class MessageProcessor:
             new_surface.root_id = op.root
         self.model.add_surface(new_surface)
 
-        if op.components is not None:
-            self._process_update_components_op(
-                InternalUpdateComponentsOp(
-                    surface_id=surface_id, components=op.components
-                )
-            )
-
         if op.data_model is not None:
             self._process_update_data_model_op(
                 InternalUpdateDataModelOp(
                     surface_id=surface_id, path="/", value=op.data_model
+                )
+            )
+
+        if op.components is not None:
+            self._process_update_components_op(
+                InternalUpdateComponentsOp(
+                    surface_id=surface_id, components=op.components
                 )
             )
 
@@ -474,7 +474,10 @@ class MessageProcessor:
         for new_comp in new_component_models:
             existing = surface.components_model.get(new_comp.id)
             if existing:
-                if existing.type != new_comp.type:
+                if (
+                    existing.type != new_comp.type
+                    or existing.catalog is not new_comp.catalog
+                ):
                     surface.components_model.remove_component(new_comp.id)
                     surface.components_model.add_component(new_comp)
                 else:
@@ -495,4 +498,9 @@ class MessageProcessor:
         path = op.path or "/"
         value = op.value
 
-        surface.data_model.set(path, value)
+        if path in ("/", "") and isinstance(value, dict):
+            for k, v in value.items():
+                escaped_k = k.replace("~", "~0").replace("/", "~1")
+                surface.data_model.set(f"/{escaped_k}", v)
+        else:
+            surface.data_model.set(path, value)
