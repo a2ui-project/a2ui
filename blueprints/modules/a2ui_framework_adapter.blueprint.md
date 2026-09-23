@@ -403,7 +403,36 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 
 ---
 
-## 8. Reference Implementations
+## 8. Gallery App Specification
+
+The Gallery App is a comprehensive development, demonstration, and debugging tool that serves as the reference environment for an A2UI renderer. It allows developers to visualize components, inspect the live data model, step through progressive rendering, and verify interaction logic.
+
+### UX Architecture
+
+The Gallery App implements a three-column layout:
+
+1. **Left Column (Sample Navigation)**: A list of available A2UI sample scenarios.
+2. **Center Column (Rendering & Messages)**:
+   - **Surface Preview**: Renders the active A2UI `Surface`.
+   - **JSON Message Stream**: Displays the sequence of A2UI messages.
+   - **Interactive Stepper**: An "Advance" control allowing developers to process messages one by one to verify progressive rendering and placeholder upgrades.
+3. **Right Column (Live Inspection)**:
+   - **Data Model Pane**: A live-updating view of the full `DataModel`.
+   - **Action Logs Pane**: A log of triggered actions and their resolved context scopes.
+
+### Integration Testing Requirements
+
+Every framework adapter implementation should include integration tests that utilize the Gallery App's sample scenarios to verify:
+
+- **Static Rendering**: Basic components (e.g. "Simple Text") render correctly.
+- **Layout Integrity**: Layout containers ("Row Layout", "Column Layout") arrange children properly.
+- **Two-Way Binding**: Modifying an interactive field (like `TextField` or `CheckBox`) updates both the UI and the underlying `DataModel` simultaneously.
+- **Reactive Logic**: Changes in one component dynamically update dependent components.
+- **Action Context Scoping**: Actions emitted from nested templates (like `List`) contain correctly resolved data paths.
+
+---
+
+## 9. Reference Implementations
 
 Consult existing implementations for concrete language mechanics:
 
