@@ -24,12 +24,17 @@ NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 # Maximum supported array index during path traversal and setting to prevent OOM/DoS.
 MAX_ARRAY_INDEX: Final[int] = 10_000
 
+# Keys forbidden in path resolution to prevent prototype pollution vulnerabilities.
+FORBIDDEN_KEYS: Final[frozenset[str]] = frozenset(
+    {"__proto__", "constructor", "prototype"}
+)
+
 
 class DataModel:
     """An atomic RFC 6901 JSON Pointer reactive store."""
 
     def __init__(self, initial_data: dict[str, Any] | None = None):
-        self._data = copy.deepcopy(initial_data if initial_data is not None else {})
+        self._data = initial_data if initial_data is not None else {}
         self._listeners: dict[str, list[Callable[[Any], None]]] = {}
 
     @staticmethod
@@ -43,7 +48,13 @@ class DataModel:
             tokens = path.split("/")
         else:
             tokens = path[1:].split("/")
-        return [t.replace("~1", "/").replace("~0", "~") for t in tokens]
+        parsed = [t.replace("~1", "/").replace("~0", "~") for t in tokens]
+        for segment in parsed:
+            if segment in FORBIDDEN_KEYS:
+                raise A2uiDataError(
+                    f"Forbidden path segment '{segment}' in path '{path}'."
+                )
+        return parsed
 
     @staticmethod
     def _build_pointer(tokens: list[str]) -> str:
@@ -156,11 +167,14 @@ class DataModel:
 
         tokens = self._parse_pointer(path)
 
+        if value is None and not self.has_path(path):
+            return self
+
         # Snapshot old values for all currently watched paths before mutation
         old_values = {p: copy.deepcopy(self.get(p)) for p in self._listeners.keys()}
 
         if not tokens:
-            self._data = copy.deepcopy(value) if value is not None else {}
+            self._data = value if value is not None else {}
             self._trigger_cascade(tokens, old_values)
             return self
 
@@ -220,7 +234,7 @@ class DataModel:
             if value is None:
                 current.pop(last_token, None)
             else:
-                current[last_token] = copy.deepcopy(value)
+                current[last_token] = value
         elif isinstance(current, list):
             if not NUMERIC_PATTERN.match(last_token):
                 raise A2uiDataError(
@@ -241,7 +255,7 @@ class DataModel:
             else:
                 while len(current) <= idx:
                     current.append(None)
-                current[idx] = copy.deepcopy(value)
+                current[idx] = value
         else:
             raise A2uiDataError(
                 f"Cannot set path '{path}': segment '{last_token}' is a primitive"

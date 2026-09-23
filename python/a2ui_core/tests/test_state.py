@@ -427,3 +427,36 @@ def test_data_model_max_array_index_exceeded():
         dm.set(f"/items/{MAX_ARRAY_INDEX + 1}", "overflow")
     with pytest.raises(A2uiDataError, match="exceeds maximum supported index"):
         dm.set(f"/matrix/{MAX_ARRAY_INDEX + 1}/0", "overflow")
+
+
+def test_data_model_forbidden_keys():
+    dm = DataModel()
+    for seg in ("__proto__", "constructor", "prototype"):
+        with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
+            dm.get(f"/{seg}")
+        with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
+            dm.set(f"/nested/{seg}/value", 123)
+        with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
+            dm.has_path(f"/{seg}")
+
+
+def test_data_model_absent_null_write_is_noop():
+    dm = DataModel()
+    res = dm.set("/nonexistent/child/path", None)
+    assert res is dm
+    assert dm.get("/") == {}
+    assert not dm.has_path("/nonexistent")
+
+
+def test_data_model_stores_references_directly():
+    raw_dict = {"item": [1, 2, 3]}
+    dm = DataModel(raw_dict)
+    assert dm.get("/") is raw_dict
+
+    obj = {"inner": "val"}
+    dm.set("/obj", obj)
+    assert dm.get("/obj") is obj
+
+    arr = [10, 20]
+    dm.set("/arr", arr)
+    assert dm.get("/arr") is arr
