@@ -41,7 +41,7 @@ from .function_apis import (
 from .operator_apis import (
     IndexApi,
 )
-from ..expression_parser import ExpressionParser
+from ...expressions.expression_parser import ExpressionParser
 from ..locale_formatting import apply_currency_spacing, get_locale
 from babel.numbers import format_decimal, format_currency, get_currency_symbol
 import re as _re

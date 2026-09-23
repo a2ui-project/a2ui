@@ -72,7 +72,7 @@ class ExpressionParser:
 
     def parse(self, input_str: str, depth: int = 0) -> list[Any]:
         if depth > self.MAX_DEPTH:
-            raise ValueError("Max recursion depth reached in parse")
+            raise A2uiExpressionError("Max recursion depth reached in parse")
         if not input_str or "${" not in input_str:
             return [input_str] if input_str else []
 
@@ -132,13 +132,13 @@ class ExpressionParser:
                         break
 
         if brace_balance > 0:
-            raise ValueError("Unclosed interpolation: missing '}'")
+            raise A2uiExpressionError("Unclosed interpolation: missing '}'")
 
         return scanner.input[start : scanner.pos - 1]
 
     def parse_expression(self, expr: str, depth: int = 0) -> Any:
         if depth > self.MAX_DEPTH:
-            raise ValueError("Max recursion depth reached in parse")
+            raise A2uiExpressionError("Max recursion depth reached in parse")
         expr = expr.strip()
         if not expr:
             return ""
@@ -146,7 +146,7 @@ class ExpressionParser:
         scanner = Scanner(expr)
         result = self._parse_expression_internal(scanner, depth)
         if not scanner.is_at_end():
-            raise ValueError(
+            raise A2uiExpressionError(
                 "Unexpected characters at end of expression:"
                 f" '{scanner.input[scanner.pos:]}'"
             )
@@ -157,7 +157,7 @@ class ExpressionParser:
         # interpolation, and function-call arguments that are themselves
         # expressions. Checking here counts both.
         if depth > self.MAX_DEPTH:
-            raise ValueError("Max recursion depth reached in parse")
+            raise A2uiExpressionError("Max recursion depth reached in parse")
         scanner.skip_whitespace()
         if scanner.is_at_end():
             return ""
@@ -216,7 +216,7 @@ class ExpressionParser:
             arg_name = self.scan_identifier(scanner)
             scanner.skip_whitespace()
             if not scanner.match(":"):
-                raise ValueError(
+                raise A2uiExpressionError(
                     f"Expected ':' after argument name '{arg_name}' in function"
                     f" '{func_name}'"
                 )
@@ -230,7 +230,9 @@ class ExpressionParser:
                 scanner.skip_whitespace()
 
         if not scanner.match(")"):
-            raise ValueError(f"Expected ')' after function arguments for '{func_name}'")
+            raise A2uiExpressionError(
+                f"Expected ')' after function arguments for '{func_name}'"
+            )
 
         return {"call": func_name, "args": args, "returnType": "any"}
 

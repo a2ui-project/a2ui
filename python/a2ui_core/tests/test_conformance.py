@@ -1326,7 +1326,7 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
 
 
 def validate_parse_expression_template_case(case: dict[str, Any]) -> None:
-    from a2ui.core.basic_catalog.expression_parser import ExpressionParser
+    from a2ui.core.expressions.expression_parser import ExpressionParser
 
     input_str = case.get("input", "")
     expect_error = case.get("expect_error") or case.get("expectError")

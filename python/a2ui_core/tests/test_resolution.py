@@ -247,7 +247,7 @@ def test_generic_binder_checks_validation():
 
 
 def test_expression_parser_literals_and_interpolation():
-    from a2ui.core.basic_catalog.expression_parser import ExpressionParser
+    from a2ui.core.expressions.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
 
@@ -258,7 +258,7 @@ def test_expression_parser_literals_and_interpolation():
 
 
 def test_expression_parser_function_calls():
-    from a2ui.core.basic_catalog.expression_parser import ExpressionParser
+    from a2ui.core.expressions.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
 
@@ -270,17 +270,18 @@ def test_expression_parser_function_calls():
 
 
 def test_expression_parser_parse_errors():
-    from a2ui.core.basic_catalog.expression_parser import ExpressionParser
+    from a2ui.core.exceptions import A2uiExpressionError
+    from a2ui.core.expressions.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
 
-    with pytest.raises(ValueError, match="Unclosed interpolation"):
+    with pytest.raises(A2uiExpressionError, match="Unclosed interpolation"):
         parser.parse("hello ${world")
 
-    with pytest.raises(ValueError, match="Expected '\\)'"):
+    with pytest.raises(A2uiExpressionError, match="Expected '\\)'"):
         parser.parse("${add(a: 1, b: 2}")
 
-    with pytest.raises(ValueError, match="Max recursion depth reached"):
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
         parser.parse("deep", ExpressionParser.MAX_DEPTH + 1)
 
 

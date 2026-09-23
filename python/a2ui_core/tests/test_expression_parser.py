@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import pytest
-from a2ui.core.basic_catalog.expression_parser import ExpressionParser
+from a2ui.core.exceptions import A2uiExpressionError
+from a2ui.core.expressions.expression_parser import ExpressionParser
 
 
 @pytest.fixture
@@ -60,7 +61,7 @@ def test_parses_keywords(parser):
 
 
 def test_returns_error_on_max_depth_exceeded(parser):
-    with pytest.raises(ValueError, match="Max recursion depth reached"):
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
         parser.parse("depth", ExpressionParser.MAX_DEPTH + 1)
 
 
@@ -71,7 +72,7 @@ def test_accepts_interpolations_nested_to_the_maximum_depth(parser):
 
 def test_rejects_interpolations_one_level_past_the_maximum_depth(parser):
     depth = ExpressionParser.MAX_DEPTH + 1
-    with pytest.raises(ValueError, match="Max recursion depth reached"):
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
         parser.parse("${" * depth + '"x"' + "}" * depth)
 
 
@@ -88,14 +89,14 @@ def test_accepts_function_arguments_nested_to_the_maximum_depth(parser):
 
 
 def test_rejects_function_arguments_one_level_past_the_maximum_depth(parser):
-    with pytest.raises(ValueError, match="Max recursion depth reached"):
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
         parser.parse(_nested_calls(ExpressionParser.MAX_DEPTH))
 
 
 def test_rejects_pathological_nesting_instead_of_overflowing_the_stack(parser):
     # Deep enough to exhaust the interpreter stack were the guard unreachable,
     # which it was while function arguments did not count toward the depth.
-    with pytest.raises(ValueError, match="Max recursion depth reached"):
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
         parser.parse(_nested_calls(50000))
 
 
@@ -104,17 +105,17 @@ def test_handles_deep_recursion_gracefully(parser):
 
 
 def test_returns_error_on_unclosed_interpolation(parser):
-    with pytest.raises(ValueError, match="Unclosed interpolation"):
+    with pytest.raises(A2uiExpressionError, match="Unclosed interpolation"):
         parser.parse("hello ${world")
 
 
 def test_returns_error_on_invalid_function_syntax(parser):
-    with pytest.raises(ValueError, match="Expected '\\)'"):
+    with pytest.raises(A2uiExpressionError, match="Expected '\\)'"):
         parser.parse("${add(a: 1, b: 2}")
 
 
 def test_returns_error_on_unexpected_characters_at_end(parser):
-    with pytest.raises(ValueError, match="Unexpected characters"):
+    with pytest.raises(A2uiExpressionError, match="Unexpected characters"):
         parser.parse("${true false}")
 
 
@@ -139,7 +140,7 @@ def test_handles_parsing_paths_with_special_characters(parser):
 
 
 def test_returns_error_on_missing_colon_in_function_args(parser):
-    with pytest.raises(ValueError, match="Expected ':'"):
+    with pytest.raises(A2uiExpressionError, match="Expected ':'"):
         parser.parse_expression("add(a 10, b: 20)")
 
 
