@@ -17,18 +17,7 @@
 import * as fs from 'fs';
 import {SchemaCatalog, ProtocolVersion} from '../types.js';
 import {A2uiCatalogError} from '../errors.js';
-import {Catalog} from '../internal/web_core.js';
-
-/**
- * Normalizes a protocol version string for comparison.
- * '1.0' and 'v1.0' are considered equal.
- */
-function normalizeProtocolVersion(version?: string): string | undefined {
-  if (version === undefined) {
-    return undefined;
-  }
-  return version.startsWith('v') ? version.slice(1) : version;
-}
+import {Catalog, normalizeVersionString} from '../internal/web_core.js';
 
 /**
  * Validates a loaded catalog against expected protocol version and ID.
@@ -44,8 +33,8 @@ function validateCatalog(
   expectedCatalogId?: string,
 ): void {
   if (expectedProtocolVersion !== undefined && catalog.protocolVersion !== undefined) {
-    const expected = normalizeProtocolVersion(expectedProtocolVersion);
-    const actual = normalizeProtocolVersion(catalog.protocolVersion as string);
+    const expected = normalizeVersionString(expectedProtocolVersion);
+    const actual = normalizeVersionString(catalog.protocolVersion as string);
     if (expected !== actual) {
       throw new A2uiCatalogError(
         `Protocol version mismatch. Expected: ${expectedProtocolVersion}, Actual: ${catalog.protocolVersion}`,
