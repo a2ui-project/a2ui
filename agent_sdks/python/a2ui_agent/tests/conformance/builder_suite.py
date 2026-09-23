@@ -12,18 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared harness for the language-agnostic builder conformance suite.
-
-Both the test and the golden regenerator import from here, so a golden can never
-be written by one code path and asserted by a different one. That mattered: the
-two wire-format bugs this suite now guards against originally survived review
-because the goldens were produced from implementation output and then asserted
-against, which pins a bug rather than catching it.
-
-Every case produces a list of A2UI message envelopes. A uniform shape is what
-lets a single validator call cover the whole suite, and it means another SDK can
-consume ``builder.yaml`` without also reimplementing three fixture shapes.
-"""
+"""Shared execution and validation harness for ``conformance/agent/builder/builder.yaml``."""
 
 from __future__ import annotations
 
@@ -73,13 +62,7 @@ CATALOG_VERSION = "0.9.1"
 
 @dataclass(frozen=True)
 class ValidationProfile:
-    """Which integrity relaxations a case legitimately needs, and therefore claims.
-
-    Keeping these per-case and explicit is deliberate. A case that needs
-    ``allow_dangling_references`` is asserting that its payload is an incremental
-    patch against components already on the surface, and that assertion belongs
-    in the fixture rather than buried in runner logic.
-    """
+    """Per-case validator integrity relaxations declared in ``builder.yaml``."""
 
     allow_missing_root: bool = False
     allow_orphan_components: bool = False
@@ -159,9 +142,7 @@ def build_ast(value: Any) -> Any:
         return ComponentRef(id=value["$componentRef"])
     if "$dynamicChildList" in value:
         spec = value["$dynamicChildList"]
-        return DynamicChildList(
-            path=spec["path"], template=build_ast(spec["template"])
-        )
+        return DynamicChildList(path=spec["path"], template=build_ast(spec["template"]))
     if "$checkRule" in value:
         spec = value["$checkRule"]
         return CheckRule(
@@ -230,9 +211,7 @@ def run_case(case: Case) -> list[dict[str, Any]]:
             root_id=case.root_id,
         )
     else:
-        messages = update_components(
-            case.surface_id, root=root, root_id=case.root_id
-        )
+        messages = update_components(case.surface_id, root=root, root_id=case.root_id)
     return [m.model_dump(by_alias=True, exclude_none=True) for m in messages]
 
 
@@ -263,12 +242,7 @@ def basic_catalog_schema() -> A2uiCatalog:
 
 
 def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
-    """Validates a payload with the same validator the agent SDK uses at runtime.
-
-    This covers catalog schema conformance, reference integrity and topology in
-    one call, so the builder is held to the standard every other producer is.
-    Raises if the payload is invalid.
-    """
+    """Validates ``payload`` against the bundled basic catalog schema and topology rules."""
     basic_catalog_schema().validator.validate(
         payload, config=case.validation.to_config()
     )

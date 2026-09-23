@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The strict Pydantic configuration shared by every builder model."""
+"""Strict Pydantic configuration shared by all builder models."""
 
 from __future__ import annotations
 
@@ -20,28 +20,10 @@ from pydantic import BaseModel, ConfigDict
 
 
 class BuilderBaseModel(BaseModel):
-    """Base class carrying the builder's authoring configuration.
-
-    Every model in the builder wants the same three settings, so they live in
-    one place rather than being restated per class. Pydantic merges
-    ``model_config`` along the MRO, so a subclass adds to this rather than
-    replacing it.
-
-    This is not a component. Component nodes are
-    :class:`~a2ui.builder.core.base_node.ComponentBuilderNode`, which adds the
-    ``component`` and ``id`` fields on top of this configuration. Item models
-    nested inside a component's properties, such as a tab or a picker option,
-    inherit this directly: the schema does not give them an identity of their
-    own, so they must not carry those two fields.
-    """
+    """Base model configuring strict validation for builder components and nested items."""
 
     model_config = ConfigDict(
-        # Strict authoring validation: catches typos (e.g. lable="Save") at
-        # runtime and edit-time. Loose parsing will be handled by dedicated
-        # deserialization constructors in Phase 2 (#2571).
         extra="forbid",
-        # Arbitrary types forbidden to enforce strict typing on builder inputs
         arbitrary_types_allowed=False,
-        # Modern Pydantic 2.11+ replacement for populate_by_name
         validate_by_name=True,
     )

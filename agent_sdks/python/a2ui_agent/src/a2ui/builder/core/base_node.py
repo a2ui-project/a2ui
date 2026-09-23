@@ -45,19 +45,7 @@ class ComponentBuilderNode(BuilderBaseModel):
 
 
 class ComponentRef(ComponentBuilderNode):
-    """References a component that already exists on the target surface.
-
-    Referenced components are addressed strictly by ID. They are never given a
-    namespaced ID when a subtree is stitched into a caller's surface, so the
-    address the caller knows stays valid, and they are never emitted as
-    components because the surface already holds them. Both behaviours live in
-    the child slot serializer.
-
-    ``component`` is left at its empty default. A reference is not a component
-    and never reaches the wire as one, so naming a component type here would
-    describe something that does not exist in any catalog.
-    """
+    """References an existing surface component by ``id`` without emitting or namespacing it."""
 
     def __init__(self, id: str, **kwargs: Any):
         super().__init__(id=id, **kwargs)
-

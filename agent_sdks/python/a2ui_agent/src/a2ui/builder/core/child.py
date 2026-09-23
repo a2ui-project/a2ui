@@ -12,18 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Child slot type used by generated catalogs, plus its Pydantic serializer.
-
-A2UI is a flat wire format: a component references its children by ID, and every
-component is emitted as a sibling in a single list. Builders are the opposite -
-authors nest child objects inside their parents.
-
-Rather than reflecting over builder objects after the fact, the tree-to-flat-list
-transformation is attached to the child slot type itself. Any field annotated
-:data:`Child` serializes to the child's allocated component ID and emits the child
-subtree into the surrounding flatten pass as a side effect. Everything else
-(aliases, defaults, ``exclude_none``, unions, nested models) stays Pydantic's job.
-"""
+"""Child slot type and Pydantic serializer for flattening nested builder components."""
 
 from __future__ import annotations
 
@@ -35,20 +24,12 @@ from pydantic import PlainSerializer, SerializationInfo
 from .base_node import ComponentBuilderNode, ComponentRef
 from .id_allocator import IdAllocator
 
-# Namespaced so a caller-supplied serialization context cannot collide with ours.
 FLATTEN_CONTEXT_KEY = "a2ui.flatten"
 
 
 @dataclass
 class FlattenContext:
-    """Mutable state threaded through one flatten pass via Pydantic's serialization context.
-
-    A flatten runs as two passes over the same tree, both driven by Pydantic's own
-    traversal so that both see exactly the fields the wire output will see:
-
-    1. A scan pass (``allocator is None``) that reserves every author-supplied ID.
-    2. An emit pass that allocates IDs and builds the flat component list.
-    """
+    """State threaded through Pydantic serialization context during a two-pass flatten."""
 
     prefix: str
     allocator: Optional[IdAllocator] = None
@@ -88,7 +69,11 @@ def dump_component(
         context=context.as_serialization_context(),
     )
     rest = {k: v for k, v in payload.items() if k not in ("component", "id")}
-    return {"component": payload.get("component", node.component), "id": component_id, **rest}
+    return {
+        "component": payload.get("component", node.component),
+        "id": component_id,
+        **rest,
+    }
 
 
 def emit_component(node: ComponentBuilderNode, context: FlattenContext) -> str:

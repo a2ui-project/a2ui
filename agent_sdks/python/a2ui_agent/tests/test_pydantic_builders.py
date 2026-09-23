@@ -363,14 +363,7 @@ def test_dynamic_child_list_emits_a_component_id_reference():
 
 
 def test_template_scopes_keep_relative_and_absolute_paths_distinct():
-    """Verifies the spec's own mixed-scope example survives a build.
-
-    From "Path resolution & scope" in ``specification/v0_9_1/docs/a2ui_protocol.md``:
-    inside a template iterating ``/employees``, the relative ``name`` resolves to
-    ``/employees/N/name`` while the absolute ``/company`` stays global. Collapsing
-    the two spellings would silently repoint every item-scoped binding at the
-    document root, where it resolves to nothing.
-    """
+    """Verifies relative item-scoped paths and absolute root paths are preserved verbatim."""
     comps = flatten_component_tree(
         List(
             id="employee_list",
@@ -426,12 +419,7 @@ def test_checks_serialize_on_checkable_components():
 
 
 def test_check_condition_accepts_any_dynamic_boolean():
-    """Verifies CheckRule.condition is not narrowed to a FunctionCall.
-
-    The spec and the core models both type this as a DynamicBoolean. A catalog
-    validation function is the usual spelling, but a literal and a binding are
-    legitimate, so all three are accepted and reach the wire unchanged.
-    """
+    """Verifies CheckRule.condition accepts bool literals, DataBindings, and FunctionCalls."""
     dump = lambda r: r.model_dump(by_alias=True, exclude_none=True)
 
     assert dump(CheckRule(condition=True, message="m"))["condition"] is True
@@ -445,12 +433,7 @@ def test_check_condition_accepts_any_dynamic_boolean():
 
 
 def test_reused_core_models_stay_identical_to_core():
-    """Pins which models the builder takes from a2ui_core rather than restating.
-
-    Reuse is only safe while it stays visible. If core's ActionEvent gains a
-    field or DataBinding's shape moves, that has to break a test here rather
-    than silently change what every builder payload puts on the wire.
-    """
+    """Verifies shared builder models are re-exports of core's models and do not emit unset defaults."""
     from a2ui.core.schema.common_types import (
         AccessibilityAttributes as CoreAccessibilityAttributes,
     )
@@ -459,39 +442,27 @@ def test_reused_core_models_stay_identical_to_core():
     from a2ui.core.schema.common_types import DataBinding as CoreDataBinding
     from a2ui.core.schema.common_types import FunctionCall as CoreFunctionCall
 
-    # All five are core's classes outright, not copies that happen to match.
     assert AccessibilityAttributes is CoreAccessibilityAttributes
     assert ActionEvent is CoreActionEvent
     assert CheckRule is CoreCheckRule
     assert DataBinding is CoreDataBinding
     assert FunctionCall is CoreFunctionCall
 
-    # Paths reach the wire exactly as written. The leading slash distinguishes
-    # an absolute path from one resolved against a template's item scope, so
-    # rewriting either form would change what the client resolves.
     assert DataBinding(path="user/name").path == "user/name"
     assert DataBinding(path="/user/name").path == "/user/name"
 
-    # The spec documents returnType's default as "boolean", but a JSON Schema
-    # default describes what a reader assumes when the key is absent -- it does
-    # not license a writer to emit it. Materializing it is what previously
-    # forced the builder to keep its own FunctionCall, so pin the absence.
     call = FunctionCall(call="validateEmail")
     assert call.return_type is None
     assert call.model_dump(by_alias=True, exclude_none=True) == {
         "call": "validateEmail"
     }
 
-    # An explicit returnType still survives, so the field is dropped for being
-    # unwritten rather than unsupported.
     typed = FunctionCall(call="itemCount", returnType="number")
     assert typed.model_dump(by_alias=True, exclude_none=True) == {
         "call": "itemCount",
         "returnType": "number",
     }
 
-    # CheckRule was only ever blocked transitively, through the FunctionCall in
-    # its condition union. Both condition forms the spec allows still validate.
     assert (
         CheckRule(condition=FunctionCall(call="isValid"), message="Invalid.").message
         == "Invalid."
@@ -505,18 +476,7 @@ def test_reused_core_models_stay_identical_to_core():
 
 
 def test_locally_defined_models_still_serialize_as_core_models():
-    """Pins the two models the builder does not share against core's versions.
-
-    ``Action`` and ``DynamicChildList`` are defined locally because the
-    authoring shape genuinely differs from the parsed shape, not because core's
-    models are wrong. That distinction only holds while what they emit is still
-    something core can read, so assert it rather than assume it.
-
-    Identity assertions cannot cover these -- the classes are deliberately
-    different -- so the pin is on the serialized form instead. Without it, the
-    two could drift apart silently and the divergence would only surface at a
-    client.
-    """
+    """Verifies locally defined Action and DynamicChildList serialize into valid core wire schemas."""
     from pydantic import TypeAdapter
 
     from a2ui.core.schema.common_types import (
@@ -528,8 +488,6 @@ def test_locally_defined_models_still_serialize_as_core_models():
 
     action_adapter = TypeAdapter(CoreAction)
 
-    # Core spells an action as a union of single-key wrappers. Each builder
-    # branch has to land on the matching one.
     event_form = Action(event=ActionEvent(name="save")).model_dump(
         by_alias=True, exclude_none=True
     )
@@ -544,9 +502,6 @@ def test_locally_defined_models_still_serialize_as_core_models():
         action_adapter.validate_python(call_form), ActionFunctionCallWrapper
     )
 
-    # The union rejects both degenerate forms structurally, which is the
-    # constraint the builder's validator reproduces locally. If core ever
-    # loosened that, the two would disagree about what is valid.
     for degenerate in ({}, {"event": {"name": "s"}, "functionCall": {"call": "c"}}):
         with pytest.raises(ValidationError):
             action_adapter.validate_python(degenerate)
@@ -557,8 +512,6 @@ def test_locally_defined_models_still_serialize_as_core_models():
         with pytest.raises(ValidationError):
             Action(**degenerate_kwargs)
 
-    # A dynamic child list nests its template; core references it by ID. The
-    # flatten pass is what bridges the two, so check the post-flatten form.
     tree = Column(
         id="list",
         children=DynamicChildList(
@@ -589,7 +542,7 @@ def test_bare_model_dump_keeps_children_nested():
 
 
 def test_component_tree_methods():
-    """Verifies the ComponentTree container's shape-only responsibilities."""
+    """Verifies ComponentTree flatten and JSON serialization."""
     card = Card(child=Text(text="Tree Test"))
     tree = ComponentTree(root=card, surface_id="s1")
     assert tree.surface_id == "s1"
@@ -612,17 +565,15 @@ def test_top_level_envelope_helpers():
     dumped = [m.model_dump(by_alias=True, exclude_none=True) for m in create_msgs]
     assert "createSurface" in dumped[0]
     assert "updateComponents" in dumped[1]
-    # Every envelope carries the protocol version; the validator requires it.
     assert all("version" in m for m in dumped)
 
-    # update_components emits ONLY updateComponents, so it does not reset the surface.
     update_msgs = update_components("my-surface", root=root_col)
     assert len(update_msgs) == 1
     assert update_msgs[0].update_components.surface_id == "my-surface"
 
 
 def test_envelope_helpers_accept_a_list_of_roots():
-    """Verifies a forest packages as cleanly as a single tree."""
+    """Verifies envelope helpers accept a sequence of root components."""
     msgs = update_components("s", root=[Text(id="a", text="A"), Text(id="b", text="B")])
     components = msgs[0].update_components.components
     assert [c["id"] for c in components] == ["a", "b"]
@@ -647,7 +598,7 @@ def test_data_model_paths_are_normalized():
 
 
 def test_tab_item_and_choice_option_models():
-    """Verifies typed item models resolve nested children through the same serializer."""
+    """Verifies typed item models resolve nested children through the Child serializer."""
     from a2ui.builder.v0_9.catalogs.basic import (
         ChoicePickerOption,
         ChoicePicker,
@@ -752,18 +703,7 @@ def test_static_typechecker_compiler_rejections():
 
 
 def test_accessibility_attributes_match_the_v0_9_1_schema():
-    """Pins what the shared accessibility model can express and what it emits.
-
-    This is core's model, which is a v0.9/v1.0 hybrid: core's schema package is
-    flat, so ``live`` and ``hidden`` sit on it even though both are v1.0
-    additions. Sharing it anyway is deliberate -- the v0.9.1 fields are typed
-    correctly there and were narrowed here -- but it is only safe while the two
-    extras stay off the wire, which is what this pins.
-
-    The equality assertion this replaces could not survive the move to core's
-    model. It is replaced by three narrower ones that each fail for a distinct
-    reason, rather than one that fails for any reason at all.
-    """
+    """Verifies shared AccessibilityAttributes supports v0.9.1 fields and omits unset v1.0 fields."""
     import json
     import pathlib
 
@@ -784,19 +724,12 @@ def test_accessibility_attributes_match_the_v0_9_1_schema():
     versioned = set(schema["$defs"]["AccessibilityAttributes"]["properties"])
     actual = set(AccessibilityAttributes.model_fields)
 
-    # Every field the targeted version defines is expressible.
     assert versioned <= actual, f"missing from the model: {sorted(versioned - actual)}"
-
-    # The only extras are the two known v1.0 additions. A third would mean core
-    # had grown a field nobody here had looked at.
     assert actual - versioned == {
         "live",
         "hidden",
     }, f"unexpected extra fields: {sorted(actual - versioned - {'live', 'hidden'})}"
 
-    # Neither extra is defaulted, so an author who ignores them emits nothing
-    # a v0.9 renderer cannot read. This is the load-bearing assertion: `live`
-    # previously defaulted to "off" and serialized on every payload.
     for name in ("live", "hidden"):
         assert AccessibilityAttributes.model_fields[name].default is None
 
@@ -805,8 +738,5 @@ def test_accessibility_attributes_match_the_v0_9_1_schema():
     )
     assert dumped == {"label": "Save"}
 
-    # The v0.9.1 schema types label and description as DynamicString, which
-    # includes a function call. The local model this replaces narrowed them to
-    # str | DataBinding and rejected the third branch outright.
     call = FunctionCall(call="localizedLabel", args={"key": "save"})
     assert AccessibilityAttributes(label=call).label == call

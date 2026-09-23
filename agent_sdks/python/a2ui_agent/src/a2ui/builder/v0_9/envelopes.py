@@ -46,11 +46,7 @@ def _to_update_message(
     surface_id: str = "main",
     root_id: Optional[str] = None,
 ) -> UpdateComponentsMessage:
-    """Packages a component hierarchy into a v0.9 updateComponents message.
-
-    Shared by both public entry points: establishing a surface sends this
-    alongside a createSurface, and updating one sends it alone.
-    """
+    """Packages a component hierarchy into a v0.9 ``UpdateComponentsMessage``."""
     return UpdateComponentsMessage(
         update_components=UpdateComponents(
             surface_id=surface_id,

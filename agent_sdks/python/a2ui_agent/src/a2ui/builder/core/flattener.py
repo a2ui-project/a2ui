@@ -27,21 +27,7 @@ def flatten_component_tree(
     root: Union[ComponentBuilderNode, Sequence[ComponentBuilderNode]],
     root_id: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """Flattens a builder tree, or list of trees, into flat A2UI component dicts.
-
-    Traversal is Pydantic's: this sets up the ID allocator and then hands off to
-    ``model_dump``, which drives the :data:`~.child.Child` serializer. This
-    function is only responsible for the two things that are genuinely not
-    field-level concerns:
-
-    1. Anchoring the returned root to ``root_id`` so an independently authored
-       subtree stitches into the caller's surface at a known address.
-    2. Namespacing every sub-component as ``f"{root_id}__{local_id}"`` so two
-       expansions of the same subtree cannot collide.
-
-    Slot boundaries (:class:`ComponentRef`) are referenced by
-    their original ID and never namespaced or re-emitted.
-    """
+    """Flattens a builder subtree (or sequence of roots) into post-order A2UI component dicts."""
     if isinstance(root, Sequence) and not isinstance(
         root, (str, bytes, ComponentBuilderNode)
     ):

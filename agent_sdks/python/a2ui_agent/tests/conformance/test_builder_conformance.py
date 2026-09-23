@@ -12,20 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Conformance tests for the fluent builders.
-
-Two assertions per case, and both are needed:
-
-``test_matches_golden`` catches unintended changes in builder output.
-``test_golden_is_spec_valid`` catches the case the golden alone cannot, which is
-the golden itself being wrong. Both wire-format bugs fixed in this change were
-frozen into goldens generated from implementation output, so a suite that only
-diffed against them agreed with the bugs.
-
-Cases are declared in the language-agnostic
-``conformance/agent/builder/builder.yaml``, so another SDK can run the same
-inputs against the same goldens.
-"""
+"""Conformance tests running ``conformance/agent/builder/builder.yaml`` against golden files and schema validation."""
 
 from __future__ import annotations
 

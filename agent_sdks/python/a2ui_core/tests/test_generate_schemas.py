@@ -118,9 +118,7 @@ def test_compile_properties_to_pydantic():
     assert len(lines) == 1
     assert lines[0] == "    title: Optional[str] = Field(None)"
 
-    # A JSON Schema ``default`` is documented, not materialized. Emitting it as
-    # a Pydantic default would make every producer write out a value the author
-    # never set, which is not what the annotation means.
+    # Schema defaults are documented in description rather than set as field defaults
     props = {
         "num": {"type": "integer", "default": 42},
         "text": {"type": "string", "default": "hello"},
@@ -138,7 +136,7 @@ def test_compile_properties_to_pydantic():
         in lines
     )
 
-    # An existing description is preserved and the default appended to it.
+    # Appends default note to existing description
     props = {"num": {"type": "integer", "description": "A count.", "default": 42}}
     lines = generate_schemas.compile_properties_to_pydantic(props, [])
     assert (
@@ -147,7 +145,7 @@ def test_compile_properties_to_pydantic():
         in lines
     )
 
-    # ``const`` is different: the value is fixed, so it stays a real default.
+    # ``const`` values remain real field defaults
     props = {"kind": {"const": "widget"}}
     lines = generate_schemas.compile_properties_to_pydantic(props, [])
     assert "    kind: Optional[Literal['widget']] = Field(default=\"widget\")" in lines
