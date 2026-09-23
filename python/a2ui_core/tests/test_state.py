@@ -513,3 +513,69 @@ def test_component_node_to_dict_excludes_nested_setters():
             "title": "My Title",
         }
     }
+
+
+def test_exception_hierarchy_normalization():
+    from a2ui.core.exceptions import (
+        A2uiError,
+        A2uiValidationError,
+        A2uiIntegrityError,
+        A2uiRecursionError,
+        RpcErrorCode,
+    )
+
+    assert issubclass(A2uiIntegrityError, A2uiValidationError)
+    assert issubclass(A2uiRecursionError, A2uiValidationError)
+    assert issubclass(A2uiValidationError, A2uiError)
+
+    expected_codes = {
+        "INVALID_FUNCTION_CALL",
+        "EXECUTION_ERROR",
+        "UNKNOWN_FUNCTION",
+        "UNKNOWN_ERROR",
+        "CANCELLED",
+        "TIMEOUT",
+        "DISPOSED",
+        "NO_LISTENER",
+        "DUPLICATE",
+    }
+    actual_codes = {member.value for member in RpcErrorCode}
+    assert actual_codes == expected_codes
+
+
+def test_package_root_and_resolution_exports():
+    import a2ui.core
+    import a2ui.core.resolution
+
+    for name in a2ui.core.__all__:
+        assert hasattr(a2ui.core, name), f"Missing export {name} in a2ui.core"
+
+    for name in [
+        "ComponentNode",
+        "ResolvedBinding",
+        "WritableBinding",
+        "is_writable",
+        "ComponentContext",
+        "DataContext",
+        "GenericBinder",
+        "MissingDataBindingWarning",
+        "NodeGraph",
+    ]:
+        assert hasattr(
+            a2ui.core.resolution, name
+        ), f"Missing export {name} in a2ui.core.resolution"
+
+    # Verify ResolvedBinding and WritableBinding behavior
+    rb = a2ui.core.resolution.ResolvedBinding("val")
+    assert rb.value == "val"
+    assert not a2ui.core.resolution.is_writable(rb)
+
+    assigned = []
+    wb = a2ui.core.resolution.WritableBinding(
+        "val", lambda v: assigned.append(v), "/path"
+    )
+    assert wb.value == "val"
+    assert wb.path == "/path"
+    assert a2ui.core.resolution.is_writable(wb)
+    wb.set("new_val")
+    assert assigned == ["new_val"]
