@@ -17,7 +17,7 @@
 import {SchemaCatalog} from '../types.js';
 import {CatalogConfig} from '../processor/catalog_config.js';
 import {A2uiCatalogError} from '../errors.js';
-import {Catalog, V10RendererCapabilities} from '../internal/web_core.js';
+import {Catalog, RendererCapabilities} from '../internal/web_core.js';
 
 /**
  * Matches renderer capabilities against registered catalogs and returns the active,
@@ -32,7 +32,7 @@ import {Catalog, V10RendererCapabilities} from '../internal/web_core.js';
  */
 export function resolveCatalogs(
   catalogs: CatalogConfig[],
-  rendererCapabilities: V10RendererCapabilities,
+  rendererCapabilities: RendererCapabilities,
   acceptsInlineCatalogs?: boolean,
 ): SchemaCatalog[] {
   if (catalogs.length === 0) {

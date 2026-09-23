@@ -132,3 +132,81 @@ describe('Direct JSON Streaming Healer v1.0', () => {
     });
   }
 });
+
+describe('Direct JSON Streaming protocol version and placeholder', () => {
+  test('synthesised partial messages carry protocolVersion from catalog instead of hardcoded v1.0', () => {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [{name: 'Row', schema: {}} as ComponentApi, {name: 'Text', schema: {}} as ComponentApi],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    (processor as unknown as {refMap: unknown}).refMap = {
+      Row: {singleRefs: new Set(), listRefs: new Set(['children'])},
+      Text: {singleRefs: new Set(), listRefs: new Set()},
+    };
+
+    // Test synthesized updateComponents partial message
+    const compChunk =
+      '<a2ui-json>[{"createSurface": {"surfaceId": "s1"}}, {"updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text"}]}}]</a2ui-json>';
+    const compParts = processor.processChunk(compChunk);
+    const compA2uiParts = compParts.filter(p => p.type === 'a2ui');
+    const updateComponentsPart = compA2uiParts
+      .flatMap(p => (Array.isArray(p.a2ui) ? p.a2ui : []))
+      .find(m => typeof m === 'object' && m !== null && 'updateComponents' in m);
+    expect(updateComponentsPart).toBeDefined();
+    expect((updateComponentsPart as Record<string, unknown>).version).toBe('v0.9');
+
+    // Test synthesized updateDataModel delta partial message
+    const dmChunk = '<a2ui-json>[{"updateDataModel": {"surfaceId": "s1", "value": {"counter": 42';
+    const dmParts = processor.processChunk(dmChunk);
+    const dmMsg = dmParts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => (Array.isArray(p.a2ui) ? p.a2ui : []))
+      .find(m => typeof m === 'object' && m !== null && 'updateDataModel' in m);
+    expect(dmMsg).toBeDefined();
+    expect((dmMsg as Record<string, unknown>).version).toBe('v0.9');
+  });
+
+  test('placeholder component uses empty array for children instead of explicitList', () => {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [{name: 'Row', schema: {}} as ComponentApi, {name: 'Card', schema: {}} as ComponentApi],
+      [],
+      undefined,
+      undefined,
+      'v1.0',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    expect((processor as unknown as {placeholderComponent: unknown}).placeholderComponent).toEqual({
+      component: 'Row',
+      children: [],
+    });
+
+    (processor as unknown as {refMap: unknown}).refMap = {
+      Card: {singleRefs: new Set(['child']), listRefs: new Set()},
+      Row: {singleRefs: new Set(), listRefs: new Set()},
+    };
+
+    const chunk =
+      '<a2ui-json>[{"createSurface": {"surfaceId": "s1", "root": "c1"}}, {"updateComponents": {"surfaceId": "s1", "components": [{"id": "c1", "component": "Card", "child": "pending_child"}]}}]</a2ui-json>';
+    const parts = processor.processChunk(chunk);
+    const a2uiParts = parts.filter(p => p.type === 'a2ui');
+    const updateComponentsPart = a2uiParts
+      .flatMap(p => (Array.isArray(p.a2ui) ? p.a2ui : []))
+      .find(m => typeof m === 'object' && m !== null && 'updateComponents' in m) as {
+      updateComponents: {components: Array<{component?: string; children?: unknown}>};
+    };
+    expect(updateComponentsPart).toBeDefined();
+    const placeholderComp = updateComponentsPart.updateComponents.components.find(
+      c => c.component === 'Row',
+    );
+    expect(placeholderComp).toBeDefined();
+    expect(placeholderComp?.children).toEqual([]);
+    expect(placeholderComp?.children).not.toHaveProperty('explicitList');
+  });
+});

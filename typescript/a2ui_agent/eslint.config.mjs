@@ -27,4 +27,22 @@ export default [
       },
     },
   },
+  {
+    files: ['**/*.ts'],
+    ignores: ['src/internal/web_core.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/web_core/v0_9', '@a2ui/web_core/v0_9/**', '@a2ui/web_core/v0_9*'],
+              message:
+                'Importing version-specific web_core subpaths outside src/internal/web_core.ts is prohibited.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

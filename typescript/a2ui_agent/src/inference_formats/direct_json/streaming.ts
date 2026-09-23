@@ -34,6 +34,7 @@ import {
   getComponentReferences,
   A2uiRecursionError,
 } from '../../internal/web_core.js';
+import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {A2uiIntegrityError, ParseError} from '../../errors.js';
 
 export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor {
@@ -78,7 +79,11 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   }
 
   private get placeholderComponent() {
-    return {component: 'Row', children: {explicitList: []}};
+    return {component: 'Row', children: []};
+  }
+
+  private get protocolVersion(): string {
+    return toWireProtocolVersion(this.catalog.protocolVersion);
   }
 
   private get seenComponents() {
@@ -572,7 +577,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
             if (Object.keys(delta).length > 0) {
               const sid = dmObj.surfaceId ?? this.surfaceId ?? 'default';
               const deltaMsg = {
-                version: 'v1.0',
+                version: this.protocolVersion,
                 [msgType]: {
                   surfaceId: sid,
                   value: delta,
@@ -968,7 +973,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
         }
 
         const partialMsg = {
-          version: 'v1.0',
+          version: this.protocolVersion,
           [MSG_TYPE_UPDATE_COMPONENTS]: {
             surfaceId: sid,
             components: processedComponents,
