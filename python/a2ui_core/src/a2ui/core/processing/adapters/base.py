@@ -16,6 +16,7 @@
 
 from collections.abc import Mapping, Sequence
 from abc import ABC, abstractmethod
+import copy
 from typing import Any
 from pydantic import ValidationError
 from ..operations import InternalOperation
@@ -168,7 +169,13 @@ class BaseVersionAdapter(VersionAdapter, ABC):
 
     def prepare_payload_for_validation(self, msg_obj: dict[str, Any]) -> dict[str, Any]:
         """Normalizes the message object before running schema validation."""
-        return msg_obj
+        payload = copy.deepcopy(msg_obj)
+        ver = payload.get("version")
+        if isinstance(ver, str) and not ver.startswith("v"):
+            canonical = to_canonical_version(ver)
+            if canonical and canonical in self.compatible_catalog_versions:
+                payload["version"] = f"v{canonical}"
+        return payload
 
     def _extract_single_action(self, message: dict[str, Any]) -> str:
         """Validates presence of exactly one action key from valid_actions."""

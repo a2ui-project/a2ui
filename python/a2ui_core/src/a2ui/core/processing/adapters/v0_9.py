@@ -44,7 +44,7 @@ class V0Point9Adapter(BaseVersionAdapter):
         return frozenset({"0.9", "0.9.1"})
 
     def prepare_payload_for_validation(self, message: dict[str, Any]) -> dict[str, Any]:
-        payload = copy.deepcopy(message)
+        payload = super().prepare_payload_for_validation(message)
         if payload.get("version") == "v0.9.1":
             payload["version"] = "v0.9"
         return payload

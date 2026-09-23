@@ -566,3 +566,30 @@ def test_extract_operations_cross_version_action_rejection():
             "version": "v0.9",
             "completelyUnknownAction": {"surfaceId": "s1"},
         })
+
+
+def test_version_normalization_without_leading_v():
+    """Verifies that unadorned version strings ('0.9', '0.9.1', '1.0') pass validation."""
+    v09_adapter = VersionAdapterFactory.get_adapter("v0.9")
+    for ver in ["0.9", "0.9.1", "v0.9", "v0.9.1"]:
+        ops = v09_adapter.extract_operations({
+            "version": ver,
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": "basic",
+            },
+        })
+        assert len(ops) == 1
+        assert isinstance(ops[0], InternalCreateSurfaceOp)
+
+    v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
+    for ver in ["1.0", "v1.0"]:
+        ops = v10_adapter.extract_operations({
+            "version": ver,
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": "basic",
+            },
+        })
+        assert len(ops) == 1
+        assert isinstance(ops[0], InternalCreateSurfaceOp)
