@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UICore
 import JSONSchema
+import OrderedJSON
 
 /// Implementation of the `@index` system function, which returns the current zero-based index
 /// of a collection template loop iteration, with an optional offset.

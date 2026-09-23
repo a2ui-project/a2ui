@@ -221,8 +221,17 @@ struct StateEngineV10Tests {
 
   @Test func compositionConstraintsValidation() throws {
     let dummySchema = try Schema(
-      rawSchema: .object(["type": .string("object")]),
-      context: Context(dialect: .draft2020_12)
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "child": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child"
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
     )
     let rootOnlyComp = AnyComponentAPI(
       name: "AppLayout",
@@ -436,7 +445,7 @@ struct StateEngineV10Tests {
 }
 
 private final class DummyFunctionHandler: FunctionHandler {
-  func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     nil
   }
 }

@@ -38,10 +38,6 @@ public final class RequiredFunction: FunctionImplementation, Sendable {
     )
   }
 
-  public convenience init(protocolVersion: String) {
-    self.init(returnValidationResult: protocolVersion == "v1.0" || protocolVersion == "1.0")
-  }
-
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"] else {
       return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)

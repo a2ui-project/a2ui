@@ -60,21 +60,9 @@ public enum ConformanceTestHelper {
     return repoRoot.appendingPathComponent("conformance")
   }
 
-  /// Loads and decodes a YAML file relative to the `conformance/` directory,
-  /// falling back to embedded test data if the file is not present on disk.
+  /// Loads and decodes a YAML file relative to the `conformance/` directory.
   public static func loadYAML(filename: String) throws -> Any {
     let fileURL = conformanceDirectory.appendingPathComponent(filename)
-    if FileManager.default.fileExists(atPath: fileURL.path),
-      let yamlString = try? String(contentsOf: fileURL, encoding: .utf8),
-      let loaded = try? Yams.load(yaml: yamlString)
-    {
-      return loaded
-    }
-    if let embedded = EmbeddedV10YAML.embedded[filename],
-      let loaded = try? Yams.load(yaml: embedded)
-    {
-      return loaded
-    }
     let yamlString = try String(contentsOf: fileURL, encoding: .utf8)
     guard let loaded = try Yams.load(yaml: yamlString) else {
       throw A2UIValidationError("Failed to parse YAML from \(filename)")
@@ -167,11 +155,16 @@ public enum ConformanceTestHelper {
       functions = BasicFunctions.v09Functions
     }
 
+    let themeSchema: Schema? = catalogSchemaJSON["theme"].flatMap {
+      try? Schema(rawSchema: $0, context: context)
+    }
+
     return Catalog(
       id: catalogID,
       protocolVersion: protocolVersion,
       components: components,
-      functions: functions
+      functions: functions,
+      themeSchema: themeSchema
     )
   }
 
@@ -217,7 +210,9 @@ public enum ConformanceTestHelper {
       catalogConfiguration["catalog_schema"]
       ?? catalogConfiguration["catalogSchema"]
       ?? catalogConfiguration["catalog"]
-    if catalogSchemaValue == nil, catalogConfiguration["components"] != nil {
+    if catalogSchemaValue == nil,
+      catalogConfiguration["components"] != nil || catalogConfiguration["theme"] != nil
+    {
       catalogSchemaValue = .object(OrderedDictionary(uniqueKeysWithValues: catalogConfiguration))
     }
     guard let catalogSchemaValue else { return nil }
@@ -442,5 +437,44 @@ public struct ConformanceExpectError: Sendable {
     self.code = code
     self.message = message
     self.details = details
+  }
+}
+
+extension ConformanceTestHelper {
+  public static func parsePayload(_ payload: JSONValue) throws -> [AgentToRendererMessage] {
+    let data = try JSONEncoder().encode(payload)
+    let decoder = JSONDecoder()
+    if let list = try? decoder.decode([AgentToRendererMessage].self, from: data) {
+      return list
+    }
+    let single = try decoder.decode(AgentToRendererMessage.self, from: data)
+    return [single]
+  }
+}
+
+@MainActor
+extension SurfaceViewModel {
+  func findNode(id: String) -> A2UICore.Node? {
+    guard let root = rootNode else { return nil }
+    return findNodeInTree(node: root, targetID: id)
+  }
+
+  private func findNodeInTree(node: A2UICore.Node, targetID: String) -> A2UICore.Node? {
+    if node.id == targetID { return node }
+    for property in node.properties.values {
+      if let childNode = property as? A2UICore.Node,
+        let found = findNodeInTree(node: childNode, targetID: targetID)
+      {
+        return found
+      }
+      if let childList = property as? [A2UICore.Node] {
+        for child in childList {
+          if let found = findNodeInTree(node: child, targetID: targetID) {
+            return found
+          }
+        }
+      }
+    }
+    return nil
   }
 }

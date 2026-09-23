@@ -19,7 +19,7 @@ import Testing
 
 @MainActor
 private final class MockIndexFunctionHandler: FunctionHandler {
-  func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     nil
   }
 }
@@ -71,7 +71,7 @@ struct IndexFunctionTests {
     let dataModel = DataModel()
     let context = DataContext(dataModel: dataModel, path: "", functionHandler: handler)
 
-    let emailFn = EmailFunction(protocolVersion: "v1.0")
+    let emailFn = EmailFunction(returnValidationResult: true)
     #expect(emailFn.api.returnType == .validationResult)
     let validRes = try emailFn.evaluate(
       arguments: ["value": .string("test@example.com")], context: context)
@@ -82,14 +82,14 @@ struct IndexFunctionTests {
     #expect(invalidRes.objectValue?["valid"] == JSONValue.boolean(false))
     #expect(invalidRes.objectValue?["code"] == JSONValue.string("INVALID_EMAIL"))
 
-    let requiredFn = RequiredFunction(protocolVersion: "v1.0")
+    let requiredFn = RequiredFunction(returnValidationResult: true)
     #expect(requiredFn.api.returnType == .validationResult)
     let reqValid = try requiredFn.evaluate(arguments: ["value": .string("hello")], context: context)
     #expect(reqValid == JSONValue.object(["valid": .boolean(true)]))
     let reqInvalid = try requiredFn.evaluate(arguments: ["value": .string("")], context: context)
     #expect(reqInvalid == JSONValue.object(["valid": .boolean(false)]))
 
-    let numericFn = NumericFunction(protocolVersion: "v1.0")
+    let numericFn = NumericFunction(returnValidationResult: true)
     #expect(numericFn.api.returnType == .validationResult)
     let numValid = try numericFn.evaluate(
       arguments: ["value": .number(20), "min": .number(18)], context: context)
@@ -98,7 +98,7 @@ struct IndexFunctionTests {
       arguments: ["value": .number(15), "min": .number(18)], context: context)
     #expect(numInvalid == JSONValue.object(["valid": .boolean(false)]))
 
-    let lengthFn = LengthFunction(protocolVersion: "v1.0")
+    let lengthFn = LengthFunction(returnValidationResult: true)
     #expect(lengthFn.api.returnType == .validationResult)
     let lenValid = try lengthFn.evaluate(
       arguments: ["value": .string("abc"), "min": .integer(2)], context: context)
@@ -107,7 +107,7 @@ struct IndexFunctionTests {
       arguments: ["value": .string("a"), "min": .integer(2)], context: context)
     #expect(lenInvalid == JSONValue.object(["valid": .boolean(false)]))
 
-    let regexFn = RegexFunction(protocolVersion: "v1.0")
+    let regexFn = RegexFunction(returnValidationResult: true)
     #expect(regexFn.api.returnType == .validationResult)
     let regValid = try regexFn.evaluate(
       arguments: ["value": .string("123"), "pattern": .string("^[0-9]+$")], context: context)

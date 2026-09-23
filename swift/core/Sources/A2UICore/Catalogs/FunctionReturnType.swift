@@ -21,7 +21,7 @@ public enum FunctionReturnType: String, Sendable {
   case boolean
   case array
   case object
-  case validationResult = "validationResult"
+  case validationResult
   case any
   case void
 }

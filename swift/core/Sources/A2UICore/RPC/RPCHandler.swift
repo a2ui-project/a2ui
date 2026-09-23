@@ -97,7 +97,8 @@ public final class RPCHandler {
         functionCallID: message.functionCallID,
         error: FunctionErrorPayload(
           code: .invalidFunctionCall,
-          message: "Catalog '\(catalog.id)' does not support v1.0+ RPC execution."
+          message:
+            "Catalog '\(catalog.id)' protocol version (\(catalog.protocolVersion ?? "")) does not match message protocol version."
         )
       )
     }
@@ -309,6 +310,9 @@ private final class DummyContextFunctionHandler: FunctionHandler {
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    if name == "@index" && catalogID != nil {
+      return nil
+    }
     if let catalogID {
       return catalogs[catalogID]?.functions[name]
     }

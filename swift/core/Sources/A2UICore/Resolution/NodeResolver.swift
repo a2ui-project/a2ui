@@ -104,7 +104,7 @@ public final class NodeResolver: Sendable {
       }
       if let catalog = catalogs.values.first(where: {
         $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
-          && $0.isV10
+          && $0.isAtLeastV10
       }) {
         return catalog
       }
@@ -935,6 +935,9 @@ public final class NodeResolver: Sendable {
 
 extension NodeResolver: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    if name == "@index" && catalogID != nil {
+      return nil
+    }
     let callCatalogID = catalogID ?? defaultCatalogID
     var targetFunction = getCatalog(id: callCatalogID)?.functions[name]
     if targetFunction == nil && catalogID == nil {

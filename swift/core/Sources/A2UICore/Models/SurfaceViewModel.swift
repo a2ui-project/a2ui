@@ -40,7 +40,7 @@ public final class SurfaceViewModel: ObservableObject {
       }
       if let catalog = catalogs.values.first(where: {
         $0.id.hasSuffix("/\(defaultCatalogID)/catalog.json")
-          && $0.isV10
+          && $0.isAtLeastV10
       }) {
         return catalog
       }

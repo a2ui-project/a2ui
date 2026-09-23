@@ -131,18 +131,16 @@ public enum GraphTopologyValidator {
         let allowedParents = rootCompAPI.allowedParents
       {
         if !allowedParents.contains("Surface") {
+          let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
+          let msg =
+            "Component '\(rootID)' (\(rootInfo.type)) cannot be placed under parent "
+            + "'Surface' (Surface). Allowed parents: [\(allowedFormatted)]."
           let detail = A2UIErrorDetail(
             path: "\(rootID)",
             code: "UNALLOWED_PARENT",
-            message:
-              "Component '\(rootID)' of type '\(rootInfo.type)' "
-              + "cannot have parent of type 'Surface'"
+            message: msg
           )
-          throw A2UIValidationError(
-            "Component '\(rootID)' of type '\(rootInfo.type)' "
-              + "has unallowed parent 'Surface'",
-            details: [detail]
-          )
+          throw A2UIValidationError(msg, details: [detail])
         }
       }
     }
@@ -170,36 +168,32 @@ public enum GraphTopologyValidator {
         // Validate parent's allowedChildren
         if let allowedChildren = parentCompAPI?.allowedChildren {
           if !allowedChildren.contains(childInfo.type) {
+            let allowedFormatted = allowedChildren.map { "'\($0)'" }.joined(separator: ", ")
+            let msg =
+              "Container '\(parentID)' (\(parentInfo.type)) cannot contain child "
+              + "'\(childID)' (\(childInfo.type)). Allowed children: [\(allowedFormatted)]."
             let detail = A2UIErrorDetail(
               path: "\(parentID).\(ref.field)",
               code: "UNALLOWED_CHILD",
-              message:
-                "Component '\(parentID)' of type '\(parentInfo.type)' "
-                + "cannot have child of type '\(childInfo.type)'"
+              message: msg
             )
-            throw A2UIValidationError(
-              "Component '\(parentID)' of type '\(parentInfo.type)' "
-                + "has unallowed child '\(childInfo.type)'",
-              details: [detail]
-            )
+            throw A2UIValidationError(msg, details: [detail])
           }
         }
 
         // Validate child's allowedParents
         if let allowedParents = childCompAPI?.allowedParents {
           if !allowedParents.contains(parentInfo.type) {
+            let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
+            let msg =
+              "Component '\(childID)' (\(childInfo.type)) cannot be placed under parent "
+              + "'\(parentID)' (\(parentInfo.type)). Allowed parents: [\(allowedFormatted)]."
             let detail = A2UIErrorDetail(
               path: "\(childID)",
               code: "UNALLOWED_PARENT",
-              message:
-                "Component '\(childID)' of type '\(childInfo.type)' "
-                + "cannot have parent of type '\(parentInfo.type)'"
+              message: msg
             )
-            throw A2UIValidationError(
-              "Component '\(childID)' of type '\(childInfo.type)' "
-                + "has unallowed parent '\(parentInfo.type)'",
-              details: [detail]
-            )
+            throw A2UIValidationError(msg, details: [detail])
           }
         }
       }
@@ -276,7 +270,7 @@ public enum GraphTopologyValidator {
         if !allIDs.contains(reference.referenceID) {
           throw A2UIIntegrityError(
             """
-            Component '\(componentID)' references non-existent component \
+            Dangling reference: Component '\(componentID)' references non-existent component \
             '\(reference.referenceID)' in field '\(reference.field)'
             """
           )
@@ -311,7 +305,7 @@ public enum GraphTopologyValidator {
           }
         } else if recursionStack.contains(neighbor) {
           throw A2UIRecursionError(
-            "Circular reference detected involving component '\(neighbor)'"
+            "Circular component reference (Circular reference) detected involving component '\(neighbor)'"
           )
         }
       }
@@ -341,29 +335,18 @@ public enum GraphTopologyValidator {
     from component: [String: JSONValue],
     schema: JSONValue? = nil
   ) -> [Reference] {
+    guard let schema else { return [] }
     var references: [Reference] = []
-
-    if let schema {
-      let propertySchemas = extractPropertiesSchema(from: schema)
-      for (key, propertyValue) in component
-      where key != "id" && key != "component" && key != "catalogId" {
-        if let propSchema = propertySchemas[key] {
-          collectSchemaReferences(
-            from: propertyValue,
-            schema: propSchema,
-            path: key,
-            into: &references
-          )
-        } else {
-          collectFallbackReferences(from: propertyValue, path: key, into: &references)
-        }
-      }
-      return references
-    }
-
+    let propertySchemas = extractPropertiesSchema(from: schema)
     for (key, propertyValue) in component
     where key != "id" && key != "component" && key != "catalogId" {
-      collectFallbackReferences(from: propertyValue, path: key, into: &references)
+      guard let propSchema = propertySchemas[key] else { continue }
+      collectSchemaReferences(
+        from: propertyValue,
+        schema: propSchema,
+        path: key,
+        into: &references
+      )
     }
     return references
   }
@@ -374,7 +357,7 @@ public enum GraphTopologyValidator {
     path: String,
     into result: inout [Reference]
   ) {
-    if isChildListSchema(schema) {
+    if isChildListSchema(schema, propertyName: path) {
       switch value {
       case .array(let array):
         for item in array {
@@ -392,7 +375,7 @@ public enum GraphTopologyValidator {
       return
     }
 
-    if isSingleChildSchema(schema) {
+    if isSingleChildSchema(schema, propertyName: path) {
       if let childID = value.stringValue {
         result.append((childID, path))
       }
@@ -401,57 +384,51 @@ public enum GraphTopologyValidator {
 
     // If the schema has an explicit $ref to another type (e.g. DynamicString, Action, CheckRule),
     // it is definitively not a child component reference.
-    if schema["$ref"]?.stringValue != nil {
+    guard schema["$ref"]?.stringValue == nil else {
       return
     }
 
     switch value {
     case .array(let array):
-      if let itemsSchema = schema["items"] {
-        for (index, item) in array.enumerated() {
-          collectSchemaReferences(
-            from: item,
-            schema: itemsSchema,
-            path: "\(path)[\(index)]",
-            into: &result
-          )
-        }
-      } else {
-        collectFallbackReferences(from: value, path: path, into: &result)
+      guard let itemsSchema = schema["items"] else { break }
+      for (index, item) in array.enumerated() {
+        collectSchemaReferences(
+          from: item,
+          schema: itemsSchema,
+          path: "\(path)[\(index)]",
+          into: &result
+        )
       }
     case .object(let dict):
       let subProperties = extractPropertiesSchema(from: schema)
-      if !subProperties.isEmpty {
-        for (key, propValue) in dict {
-          if let subSchema = subProperties[key] {
-            collectSchemaReferences(
-              from: propValue,
-              schema: subSchema,
-              path: "\(path).\(key)",
-              into: &result
-            )
-          } else {
-            collectFallbackReferences(from: propValue, path: "\(path).\(key)", into: &result)
-          }
-        }
-      } else {
-        collectFallbackReferences(from: value, path: path, into: &result)
+      for (key, propValue) in dict {
+        guard let subSchema = subProperties[key] else { continue }
+        collectSchemaReferences(
+          from: propValue,
+          schema: subSchema,
+          path: "\(path).\(key)",
+          into: &result
+        )
       }
-    case .string:
-      collectFallbackReferences(from: value, path: path, into: &result)
     default:
       break
     }
   }
 
-  private static func isChildListSchema(_ schema: JSONValue) -> Bool {
+  private static func isChildListSchema(_ schema: JSONValue, propertyName: String = "") -> Bool {
     if let ref = schema["$ref"]?.stringValue {
       let refName = ref.split(separator: "/").last.map(String.init)
       if refName == "ChildList" { return true }
     }
+    if propertyName == "children",
+      schema["type"]?.stringValue == "array",
+      schema["items"]?["type"]?.stringValue == "string"
+    {
+      return true
+    }
     for combiner in ["oneOf", "anyOf", "allOf"] {
       if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: isChildListSchema)
+        subSchemas.contains(where: { isChildListSchema($0, propertyName: propertyName) })
       {
         return true
       }
@@ -459,14 +436,17 @@ public enum GraphTopologyValidator {
     return false
   }
 
-  private static func isSingleChildSchema(_ schema: JSONValue) -> Bool {
+  private static func isSingleChildSchema(_ schema: JSONValue, propertyName: String = "") -> Bool {
     if let ref = schema["$ref"]?.stringValue {
       let refName = ref.split(separator: "/").last.map(String.init)
       if refName == "Child" || refName == "ComponentId" { return true }
     }
+    if propertyName == "child", schema["type"]?.stringValue == "string" {
+      return true
+    }
     for combiner in ["oneOf", "anyOf", "allOf"] {
       if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: isSingleChildSchema)
+        subSchemas.contains(where: { isSingleChildSchema($0, propertyName: propertyName) })
       {
         return true
       }
@@ -492,45 +472,5 @@ public enum GraphTopologyValidator {
       }
     }
     return result
-  }
-
-  private static func collectFallbackReferences(
-    from value: JSONValue,
-    path: String,
-    into result: inout [Reference]
-  ) {
-    switch value {
-    case .string(let stringValue):
-      let lowercasedPath = path.lowercased()
-      if lowercasedPath.hasSuffix("child") || lowercasedPath.hasSuffix("componentid")
-        || lowercasedPath == "trigger" || lowercasedPath == "content"
-      {
-        result.append((stringValue, path))
-      }
-
-    case .array(let array):
-      for (index, item) in array.enumerated() {
-        if let stringValue = item.stringValue {
-          let lowercasedPath = path.lowercased()
-          if lowercasedPath.contains("child") {
-            result.append((stringValue, path))
-          }
-        } else {
-          collectFallbackReferences(from: item, path: "\(path)[\(index)]", into: &result)
-        }
-      }
-
-    case .object(let dictionary):
-      if let componentID = dictionary["componentId"]?.stringValue {
-        result.append((componentID, "\(path).componentId"))
-      } else {
-        for (key, propertyValue) in dictionary {
-          collectFallbackReferences(from: propertyValue, path: "\(path).\(key)", into: &result)
-        }
-      }
-
-    default:
-      break
-    }
   }
 }

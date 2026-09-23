@@ -84,11 +84,16 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
       components.map { ($0.name, $0) },
       uniquingKeysWith: { _, last in last }
     )
-    self.functions = Dictionary(
+    var functionMap = Dictionary(
       functions.map { ($0.api.name, $0) },
       uniquingKeysWith: { _, last in last }
     )
     self.themeSchema = themeSchema
+    self.functions = functionMap
+    if self.isAtLeastV10 && self.functions["@index"] == nil {
+      functionMap["@index"] = IndexFunction()
+      self.functions = functionMap
+    }
   }
 
   /// Converts this catalog to a schema-only representation.
@@ -143,11 +148,6 @@ extension CatalogProtocol {
     let cleanVersion =
       protocolVersion.hasPrefix("v") ? String(protocolVersion.dropFirst()) : protocolVersion
     return cleanVersion.compare("1.0", options: .numeric) != .orderedAscending
-  }
-
-  /// Whether this catalog conforms to A2UI Protocol v1.0 or later.
-  public var isV10: Bool {
-    isAtLeastV10
   }
 }
 
