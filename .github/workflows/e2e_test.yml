@@ -17,6 +17,7 @@ name: E2E Tests
 on:
   schedule:
     - cron: "0 0 * * *" # daily
+  workflow_dispatch:
 
 permissions:
   contents: read
