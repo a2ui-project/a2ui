@@ -674,11 +674,11 @@ def test_surface_components_model_parity_features():
     scm.add_component(c1)
     scm.add_component(c2)
 
-    assert scm.size == 2
-    assert scm.keys == ["c1", "c2"]
-    assert scm.values == [c1, c2]
-    assert scm.entries == [("c1", c1), ("c2", c2)]
-    assert scm.components_map == {"c1": c1, "c2": c2}
+    assert len(scm) == 2
+    assert "c1" in scm
+    assert "c2" in scm
+    assert "c3" not in scm
+    assert scm.get_all() == {"c1": c1, "c2": c2}
 
     # Duplicate component throws A2uiStateError
     with pytest.raises(A2uiStateError, match="already exists"):

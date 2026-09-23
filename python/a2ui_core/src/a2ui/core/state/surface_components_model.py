@@ -39,30 +39,13 @@ class SurfaceComponentsModel:
         self.on_created = EventSource()
         self.on_deleted = EventSource()
 
-    @property
-    def entries(self) -> list[tuple[str, ComponentModel]]:
-        """Returns list of (id, component) pairs."""
-        return list(self._components.items())
-
-    @property
-    def keys(self) -> list[str]:
-        """Returns list of component IDs."""
-        return list(self._components.keys())
-
-    @property
-    def values(self) -> list[ComponentModel]:
-        """Returns list of component models."""
-        return list(self._components.values())
-
-    @property
-    def size(self) -> int:
+    def __len__(self) -> int:
         """Returns total number of components."""
         return len(self._components)
 
-    @property
-    def components_map(self) -> dict[str, ComponentModel]:
-        """Returns a dictionary view of all active components."""
-        return dict(self._components)
+    def __contains__(self, component_id: str) -> bool:
+        """Checks if a component with the specified ID exists in the model."""
+        return component_id in self._components
 
     def get(self, component_id: str) -> ComponentModel | None:
         return self._components.get(component_id)
