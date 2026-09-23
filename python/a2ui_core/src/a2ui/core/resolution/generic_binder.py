@@ -307,7 +307,7 @@ class GenericBinder:
             return None
 
         if behavior.type == BehaviorType.DYNAMIC:
-            return self._bind_dynamic_value(value, key, is_sync)
+            return self._bind_dynamic_value(value, path, is_sync)
 
         if behavior.type == BehaviorType.ACTION:
             return self._bind_action(value, path)
@@ -336,9 +336,32 @@ class GenericBinder:
 
         return value
 
-    def _bind_dynamic_value(self, value: Any, key: str, is_sync: bool) -> Any:
+    def _update_deep_value(self, path: list[str], new_value: Any) -> None:
+        if not path:
+            return
+        curr: Any = self.current_props
+        for seg in path[:-1]:
+            if isinstance(curr, list) and seg.isdigit():
+                idx = int(seg)
+                if idx < len(curr):
+                    curr = curr[idx]
+                    continue
+                return
+            if isinstance(curr, dict) and seg in curr:
+                curr = curr[seg]
+                continue
+            return
+        last = path[-1]
+        if isinstance(curr, list) and last.isdigit():
+            idx = int(last)
+            if idx < len(curr):
+                curr[idx] = new_value
+        elif isinstance(curr, dict):
+            curr[last] = new_value
+
+    def _bind_dynamic_value(self, value: Any, path: list[str], is_sync: bool) -> Any:
         def on_change(new_val: Any) -> None:
-            self.current_props[key] = new_val
+            self._update_deep_value(path, new_val)
             self._notify()
 
         bound = self.context.data_context.subscribe_dynamic_value(value, on_change)

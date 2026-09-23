@@ -460,3 +460,25 @@ def test_data_model_stores_references_directly():
     arr = [10, 20]
     dm.set("/arr", arr)
     assert dm.get("/arr") is arr
+
+
+def test_component_node_to_dict_excludes_nested_setters():
+    node = ComponentNode(
+        "inst_1",
+        "c1",
+        "Test",
+        "/",
+        Signal({
+            "header": {
+                "title": "My Title",
+                "setTitle": lambda v: None,
+            },
+            "setTitle": lambda v: None,
+        }),
+    )
+    serialized = node.to_dict()
+    assert serialized["props"] == {
+        "header": {
+            "title": "My Title",
+        }
+    }

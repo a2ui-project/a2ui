@@ -658,4 +658,32 @@ def test_generic_binder_nested_checkable_does_not_pollute_root_props():
     assert binder.current_props["topLevel"] == "safe"
     assert "fieldVal" not in binder.current_props
     assert binder.current_props["section"]["isValid"] is True
+
+    # Mutate the nested dynamic property value
+    data_model.set("/form/field", "updated_value")
+    # Verify the nested property is updated and root remains unpolluted
+    assert binder.current_props["section"]["fieldVal"] == "updated_value"
+    assert "fieldVal" not in binder.current_props
+    binder.dispose()
+
+
+def test_generic_binder_nested_list_dynamic_update():
+    cat = BasicCatalog()
+    data_model = DataModel({"items": ["initial"]})
+    comp = ComponentModel(
+        "list_comp",
+        "ListComp",
+        cat,
+        {"items": [{"path": "/items/0"}]},
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    binder = GenericBinder(context)
+    assert binder.current_props["items"][0] == "initial"
+
+    data_model.set("/items/0", "updated")
+    assert binder.current_props["items"][0] == "updated"
+    assert "0" not in binder.current_props
     binder.dispose()
