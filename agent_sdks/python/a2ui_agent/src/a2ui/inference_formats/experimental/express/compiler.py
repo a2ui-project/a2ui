@@ -377,16 +377,21 @@ class ExpressCompiler:
 
             if not isinstance(compiled_val, dict) or "call" not in compiled_val:
                 raise ExpressValidationError(
-                    f"Standalone statement did not compile to a valid function call: {compiled_val}"
+                    "Standalone statement did not compile to a valid function call:"
+                    f" {compiled_val}"
                 )
             call_func_obj = {
                 "call": compiled_val["call"],
                 "args": compiled_val.get("args", {}),
             }
             scope_cat_id = (
-                call_scope.catalog_id if call_scope and call_scope.catalog_id else (
+                call_scope.catalog_id
+                if call_scope and call_scope.catalog_id
+                else (
                     catalog_id
-                    or self.helper.catalog.get("catalogId", "https://a2ui.org/catalog.json")
+                    or self.helper.catalog.get(
+                        "catalogId", "https://a2ui.org/catalog.json"
+                    )
                 )
             )
             if scope_cat_id:
