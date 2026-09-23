@@ -41,7 +41,6 @@ import {isAtLeastVersion} from '../common/semver.js';
 export const DEFAULT_PROTOCOL_VERSION = '0.9';
 
 import {assertUax31Identifier} from '../common/uax31.js';
-import {A2uiCatalogError} from '../errors.js';
 
 const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicString: DynamicStringSchema,
