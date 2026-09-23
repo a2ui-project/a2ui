@@ -50,7 +50,7 @@ export const mapJustify = (j?: string) => {
   }
 };
 
-export const mapAlign = (a?: string) => {
+export const mapAlign = (a?: string, defaultAlign: 'flex-start' | 'stretch' = 'stretch') => {
   switch (a) {
     case 'start':
       return 'flex-start';
@@ -61,7 +61,7 @@ export const mapAlign = (a?: string) => {
     case 'stretch':
       return 'stretch';
     default:
-      return 'stretch';
+      return defaultAlign;
   }
 };
 

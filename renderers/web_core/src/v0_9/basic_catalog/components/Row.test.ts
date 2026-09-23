@@ -187,4 +187,46 @@ describe('Row Component', () => {
     assert.strictEqual(reorderedNodes[1].__marker, 'first-marker');
     assert.strictEqual(reorderedNodes[2].__marker, 'second-marker');
   });
+
+  it('should apply flex, min-width: 0, and min-height: 0 to weighted children in a Row', async () => {
+    await import('./Column.js');
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'order-row',
+              component: 'Row',
+              children: ['details-col', 'txt2'],
+              justify: 'spaceBetween',
+              align: 'start',
+            },
+            {
+              id: 'details-col',
+              component: 'Column',
+              children: ['txt1'],
+              weight: 1,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-basic-row') as A2uiBasicRowElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'order-row');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const colEl = el.querySelector('a2ui-basic-column') as HTMLElement | null;
+    assert.notStrictEqual(colEl, null);
+    assert.strictEqual(colEl?.style.flex.startsWith('1'), true);
+    assert.strictEqual(colEl?.style.minWidth, '0px');
+    assert.strictEqual(colEl?.style.minHeight, '0px');
+  });
 });

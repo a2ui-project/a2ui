@@ -17,7 +17,8 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input, signal} from '@angular/core';
 import {RowComponent} from './row.component';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
+import {ColumnComponent} from './column.component';
+import {ComponentContext, ComponentModel} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
 import {By} from '@angular/platform-browser';
@@ -152,5 +153,56 @@ describe('RowComponent', () => {
     const div = fixture.debugElement;
     expect(div.styles['justify-content']).toBeFalsy();
     expect(div.styles['align-items']).toBeFalsy();
+  });
+
+  it('should style direct Column/Row children with width: auto without affecting nested descendants', () => {
+    mockSurface.componentsModel.set('directCol', new ComponentModel('directCol', 'Column', {}));
+    mockSurface.componentsModel.set('nestedCol', new ComponentModel('nestedCol', 'Column', {}));
+    mockSurface.componentsModel.set('nestedRow', new ComponentModel('nestedRow', 'Row', {}));
+    mockSurface.catalog.components.set('Column', {component: ColumnComponent});
+    mockSurface.catalog.components.set('Row', {component: RowComponent});
+
+    mockBinder.bind.and.callFake((ctx: ComponentContext) => {
+      if (ctx.componentModel.id === 'directCol') {
+        return {
+          children: createBoundProperty([
+            {id: 'nestedCol', basePath: '/'},
+            {id: 'nestedRow', basePath: '/'},
+          ]),
+        };
+      }
+      return {
+        children: createBoundProperty([]),
+      };
+    });
+
+    const hostEl = fixture.debugElement.nativeElement as HTMLElement;
+    hostEl.style.width = '500px';
+
+    setComponentProps(fixture, {
+      ...defaultProps,
+      children: createBoundProperty([{id: 'directCol', basePath: '/'}]),
+    });
+    fixture.detectChanges();
+
+    const directColDebug = fixture.debugElement.query(By.directive(ColumnComponent));
+    const nestedColDebug = directColDebug.query(By.directive(ColumnComponent));
+    const nestedRowDebug = directColDebug.query(By.directive(RowComponent));
+
+    expect(directColDebug).toBeTruthy();
+    expect(nestedColDebug).toBeTruthy();
+    expect(nestedRowDebug).toBeTruthy();
+
+    // Direct child Column inside Row has width: auto (0px since it has no content),
+    // whereas nested Column/Row inside that Column retain width: 100% of their parent.
+    directColDebug.nativeElement.style.width = '200px';
+    fixture.detectChanges();
+
+    expect(window.getComputedStyle(nestedColDebug.nativeElement).width).toBe('200px');
+    expect(window.getComputedStyle(nestedRowDebug.nativeElement).width).toBe('200px');
+
+    directColDebug.nativeElement.style.removeProperty('width');
+    fixture.detectChanges();
+    expect(window.getComputedStyle(directColDebug.nativeElement).width).toBe('0px');
   });
 });

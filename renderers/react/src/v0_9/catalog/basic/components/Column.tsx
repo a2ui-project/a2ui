@@ -28,7 +28,7 @@ export const Column = createComponentImplementation(ColumnApi, ({props, buildChi
         display: 'flex',
         flexDirection: 'column',
         justifyContent: mapJustify(props.justify),
-        alignItems: mapAlign(props.align),
+        alignItems: mapAlign(props.align, 'flex-start'),
         gap: 'var(--a2ui-column-gap, var(--a2ui-spacing-m))',
       }}
     >

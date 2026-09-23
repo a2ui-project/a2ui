@@ -188,4 +188,33 @@ describe('Column Component', () => {
     assert.strictEqual(reorderedNodes[1].__marker, 'marker-3');
     assert.strictEqual(reorderedNodes[2].__marker, 'marker-1');
   });
+
+  it('should default alignItems to flex-start when align prop is omitted', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'col-default-align',
+              component: 'Column',
+              children: ['txt1'],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-basic-column') as A2uiBasicColumnElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'col-default-align');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    assert.strictEqual(el.style.alignItems, 'flex-start');
+  });
 });

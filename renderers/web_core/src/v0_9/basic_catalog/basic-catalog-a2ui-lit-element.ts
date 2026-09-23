@@ -60,8 +60,12 @@ export abstract class BasicCatalogA2uiLitElement<
     const props = this.controller?.props as any;
     if (props && props.weight !== undefined) {
       this.style.flex = String(props.weight);
+      this.style.minWidth = '0';
+      this.style.minHeight = '0';
     } else {
       this.style.removeProperty('flex');
+      this.style.removeProperty('min-width');
+      this.style.removeProperty('min-height');
     }
 
     const primaryColor = this.context?.theme?.primaryColor;

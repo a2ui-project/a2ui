@@ -61,7 +61,12 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
     a2ui-basic-row {
       display: flex;
       flex-direction: row;
+      width: var(--a2ui-row-width, 100%);
       gap: var(--a2ui-row-gap, var(--a2ui-spacing-m));
+    }
+    :host > a2ui-basic-column,
+    :host > a2ui-basic-row {
+      width: auto;
     }
   `;
 
@@ -71,16 +76,8 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
-      if (props.justify) {
-        this.style.justifyContent = JUSTIFY_MAP[props.justify] ?? 'flex-start';
-      } else {
-        this.style.removeProperty('justify-content');
-      }
-      if (props.align) {
-        this.style.alignItems = ALIGN_MAP[props.align] ?? 'stretch';
-      } else {
-        this.style.removeProperty('align-items');
-      }
+      this.style.justifyContent = JUSTIFY_MAP[props.justify ?? 'start'] ?? 'flex-start';
+      this.style.alignItems = ALIGN_MAP[props.align ?? 'stretch'] ?? 'stretch';
     }
   }
 

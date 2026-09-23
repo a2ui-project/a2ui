@@ -202,7 +202,7 @@ export const RowApi = {
         .enum(['center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'])
         .default('start')
         .describe(
-          "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together.",
+          "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Unweighted children size to their intrinsic content width so they do not starve sibling items.",
         )
         .optional(),
       'align': z
@@ -215,7 +215,7 @@ export const RowApi = {
     })
     .strict()
     .describe(
-      'A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.',
+      "A layout component that arranges its children horizontally. Fills available width in vertical containers, while unweighted children inside a Row size to their intrinsic content width unless 'weight' is specified. To create a grid layout, nest Columns within this Row.",
     ),
 } satisfies ComponentApi;
 
@@ -237,15 +237,15 @@ export const ColumnApi = {
         .optional(),
       'align': z
         .enum(['center', 'end', 'start', 'stretch'])
-        .default('stretch')
+        .default('start')
         .describe(
-          "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
+          "Defines the alignment of children along the cross axis (horizontally). Defaults to 'start' so interactive/leaf children (e.g., Button, Icon) retain their intrinsic width rather than stretching unnaturally across the column, while full-width containers (e.g., Row, Divider) fill the available width.",
         )
         .optional(),
     })
     .strict()
     .describe(
-      'A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.',
+      "A layout component that arranges its children vertically. Fills available width in vertical containers, but sizes to its intrinsic content width when placed as an unweighted child inside a Row (unless 'weight' is set). To create a grid layout, nest Rows within this Column.",
     ),
 } satisfies ComponentApi;
 

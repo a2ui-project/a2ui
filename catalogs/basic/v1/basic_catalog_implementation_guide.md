@@ -67,21 +67,26 @@ An audio player.
 
 A horizontal layout container.
 
-**Rendering Guidelines:** Implemented using a horizontal layout container (e.g., CSS Flexbox row, Compose `Row`, SwiftUI `HStack`). Ensure it fills the available width.
+**Rendering Guidelines:** Implemented using a horizontal layout container (e.g., CSS Flexbox row, Compose `Row`, SwiftUI `HStack`). Ensure it fills the available width when placed at the surface/card root or inside a vertical container (`Column`), but sizes to its intrinsic content width (`width: auto` / `wrapContentWidth()`) when placed as an unweighted child (`weight` omitted) inside another `Row`.
+**Main-Axis Sizing & Weight (Preventing Space Starvation):**
+
+- **Unweighted children (`weight` omitted):** Children without an explicit `weight` MUST size to their intrinsic content width along the horizontal main axis rather than expanding to `100%` of the `Row` (`Modifier.fillMaxWidth()`). In single-pass native layout engines (such as Jetpack Compose, Flutter, and SwiftUI) that do not perform CSS Flexbox's automatic `flex-shrink: 1` pass, applying `fillMaxWidth()` to an unweighted child (e.g., a nested `Column`) consumes all available width and starves subsequent sibling elements to `0px` (causing vertical character-by-character text wrapping).
+- **Weighted children (`weight > 0`):** Map `weight` to proportional main-axis space allocation (e.g., CSS `flex: <weight>; min-width: 0;`, Compose `Modifier.weight(weight)`, Flutter `Expanded(flex: weight)`).
+
 **Property Mapping:**
 
-- `justify`: Maps to main-axis alignment (e.g., `justify-content` in CSS, `horizontalArrangement` in Compose). Use equivalents for pushing items to edges (`spaceBetween`) or packing them together (`start`, `center`, `end`).
-- `align`: Maps to cross-axis alignment (e.g., `align-items` in CSS, `verticalAlignment` in Compose). Use equivalents for top (`start`), center, or bottom (`end`).
+- `justify`: Maps to main-axis alignment (e.g., `justify-content` in CSS, `horizontalArrangement` in Compose). Defaults to `"start"`. Use equivalents for pushing items to edges (`spaceBetween`) or packing them together (`start`, `center`, `end`).
+- `align`: Maps to cross-axis alignment (e.g., `align-items` in CSS, `verticalAlignment` in Compose). Defaults to `"stretch"`. Use equivalents for top (`start`), center, or bottom (`end`).
 
 ### Column
 
 A vertical layout container.
 
-**Rendering Guidelines:** Implemented using a vertical layout container (e.g., CSS Flexbox column, Compose `Column`, SwiftUI `VStack`).
+**Rendering Guidelines:** Implemented using a vertical layout container (e.g., CSS Flexbox column, Compose `Column`, SwiftUI `VStack`). Ensure it fills the available width (`width: 100%` / `Modifier.fillMaxWidth()`) when placed at the surface/card root or inside a `Column`, **except** when placed as an unweighted child (`weight` omitted) inside a `Row`, where it MUST size to its intrinsic content width (`width: auto` / `wrapContentWidth()`) so it does not starve sibling items in the `Row`.
 **Property Mapping:**
 
-- `justify`: Maps to main-axis alignment on the vertical axis.
-- `align`: Maps to cross-axis alignment on the horizontal axis.
+- `justify`: Maps to main-axis alignment on the vertical axis. Defaults to `"start"`.
+- `align`: Maps to cross-axis alignment on the horizontal axis. Defaults to `"start"` (`Alignment.Start` in Compose, `CrossAxisAlignment.start` in Flutter, `align-items: flex-start` in CSS) so interactive and leaf components (e.g., `Button`, `Icon`) retain their natural width rather than stretching unnaturally across the column, while full-width container components (e.g., `Row`, `Divider`) span the available width of the `Column`.
 
 ### List
 

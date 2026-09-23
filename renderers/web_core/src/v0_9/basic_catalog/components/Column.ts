@@ -62,6 +62,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
     a2ui-basic-column {
       display: flex;
       flex-direction: column;
+      align-items: flex-start;
       width: var(--a2ui-column-width, 100%);
       gap: var(--a2ui-column-gap, var(--a2ui-spacing-m));
     }
@@ -73,16 +74,8 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof Co
     super.updated(changedProperties);
     const props = this.controller.props;
     if (props) {
-      if (props.justify) {
-        this.style.justifyContent = JUSTIFY_MAP[props.justify] ?? 'flex-start';
-      } else {
-        this.style.removeProperty('justify-content');
-      }
-      if (props.align) {
-        this.style.alignItems = ALIGN_MAP[props.align] ?? 'stretch';
-      } else {
-        this.style.removeProperty('align-items');
-      }
+      this.style.justifyContent = JUSTIFY_MAP[props.justify ?? 'start'] ?? 'flex-start';
+      this.style.alignItems = ALIGN_MAP[props.align ?? 'start'] ?? 'flex-start';
     }
   }
 
