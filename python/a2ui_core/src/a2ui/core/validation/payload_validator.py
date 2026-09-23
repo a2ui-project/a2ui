@@ -314,23 +314,40 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             targets_this_catalog = not cat_id or cat_id == getattr(
                 self.catalog, "catalog_id", None
             )
-            if fn_name and isinstance(fn_name, str) and targets_this_catalog:
+            if fn_name and isinstance(fn_name, str):
                 fn_args = val.get("args")
-                try:
-                    self.validate_function(fn_name, fn_args)
-                except A2uiValidationError as e:
-                    if e.details:
-                        errors.extend(e.details)
-                    else:
-                        errors.append(
-                            A2uiErrorDetail(
-                                path=f"components.{comp_id}.{path}"
-                                if path
-                                else f"components.{comp_id}",
-                                code="invalid_function_call",
-                                message=str(e),
+                if targets_this_catalog:
+                    try:
+                        self.validate_function(fn_name, fn_args)
+                    except A2uiValidationError as e:
+                        if e.details:
+                            errors.extend(e.details)
+                        else:
+                            errors.append(
+                                A2uiErrorDetail(
+                                    path=f"components.{comp_id}.{path}"
+                                    if path
+                                    else f"components.{comp_id}",
+                                    code="invalid_function_call",
+                                    message=str(e),
+                                )
                             )
-                        )
+                else:
+                    try:
+                        self._validate_function_identifiers(fn_name, fn_args)
+                    except A2uiValidationError as e:
+                        if e.details:
+                            errors.extend(e.details)
+                        else:
+                            errors.append(
+                                A2uiErrorDetail(
+                                    path=f"components.{comp_id}.{path}"
+                                    if path
+                                    else f"components.{comp_id}",
+                                    code="invalid_identifier",
+                                    message=str(e),
+                                )
+                            )
             for k, v in val.items():
                 if k not in ("id", "component"):
                     child_path = f"{path}.{k}" if path else k
@@ -381,40 +398,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         ],
                     )
 
-    def _map_positional_args(self, name: str, args: list[Any]) -> dict[str, Any]:
-        """Maps a list of positional arguments to named parameters using the catalog definition."""
-        fn_def, fn_schema, _ = self._find_function_definition(name)
-        param_names: list[str] = []
-
-        model_cls = (
-            getattr(fn_def, "schema", None)
-            or getattr(fn_def, "model_class", None)
-            or getattr(fn_def, "parameters", None)
-            if fn_def is not None
-            else None
-        )
-        if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
-            param_names = [
-                field_info.alias or field_name
-                for field_name, field_info in model_cls.model_fields.items()
-            ]
-        elif isinstance(fn_schema, dict):
-            props = fn_schema.get("properties")
-            if isinstance(props, dict):
-                param_names = list(props.keys())
-
-        mapped: dict[str, Any] = {}
-        for idx, val in enumerate(args):
-            if idx < len(param_names):
-                mapped[param_names[idx]] = val
-            else:
-                mapped[f"arg_{idx}"] = val
-        return mapped
-
     def validate_function(
         self,
         name: str,
-        args: dict[str, Any] | list[Any] | None,
+        args: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Validates function call parameters against catalog function schema definitions."""
         active_config = self.config
@@ -422,20 +409,18 @@ class PayloadValidator(Generic[TComponent, TFunction]):
 
         if args is None:
             norm_args: dict[str, Any] = {}
-        elif isinstance(args, list):
-            norm_args = self._map_positional_args(name, args)
         elif isinstance(args, dict):
             norm_args = dict(args)
         else:
             raise A2uiValidationError(
-                f"Function arguments for '{name}' must be a dictionary or list",
+                f"Function arguments for '{name}' must be an object/dictionary",
                 details=[
                     A2uiErrorDetail(
                         path=f"functions.{name}",
                         code="type_mismatch",
                         message=(
-                            f"Function arguments for '{name}' must be a dictionary or"
-                            " list"
+                            f"Function arguments for '{name}' must be an"
+                            " object/dictionary"
                         ),
                     )
                 ],
@@ -544,56 +529,78 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             summary = "\n".join(f"{e.path}: {e.message}" for e in fn_errors)
             raise A2uiValidationError(summary, details=fn_errors)
 
-    def _build_param_schema(
+    def _extract_schema_defs(
         self,
         fn_schema: dict[str, Any],
         base_schema: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """Constructs a JSON Schema object for function parameter validation."""
+    ) -> dict[str, Any]:
+        """Combines $defs from base catalog schema and function schema."""
         base_defs = (
             base_schema.get("$defs", {}) if isinstance(base_schema, dict) else {}
         )
         fn_defs = fn_schema.get("$defs", {}) if isinstance(fn_schema, dict) else {}
-        defs = {**base_defs, **fn_defs}
+        return {**base_defs, **fn_defs}
 
-        param_schema: dict[str, Any] | None = None
+    def _extract_raw_param_schema(
+        self,
+        fn_schema: dict[str, Any],
+        defs: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Derives the parameter sub-schema from standard or legacy function definitions."""
         if "parameters" in fn_schema and isinstance(fn_schema["parameters"], dict):
-            param_schema = {
+            schema: dict[str, Any] = {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,
                 "$defs": defs,
                 "type": "object",
                 "properties": fn_schema["parameters"],
             }
             if "required" in fn_schema and isinstance(fn_schema["required"], list):
-                param_schema["required"] = fn_schema["required"]
+                schema["required"] = fn_schema["required"]
             if "additionalProperties" in fn_schema:
-                param_schema["additionalProperties"] = fn_schema["additionalProperties"]
-        elif (
-            "properties" in fn_schema
-            and isinstance(fn_schema["properties"], dict)
-            and "args" in fn_schema["properties"]
-            and isinstance(fn_schema["properties"]["args"], dict)
-        ):
-            param_schema = {
-                "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                "$defs": defs,
-                **fn_schema["properties"]["args"],
-            }
-        elif "properties" in fn_schema and isinstance(fn_schema["properties"], dict):
-            param_schema = {
+                schema["additionalProperties"] = fn_schema["additionalProperties"]
+            return schema
+
+        props = fn_schema.get("properties")
+        if isinstance(props, dict):
+            if "args" in props and isinstance(props["args"], dict):
+                return {
+                    "$schema": JSON_SCHEMA_DRAFT_2020_12,
+                    "$defs": defs,
+                    **props["args"],
+                }
+            return {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,
                 "$defs": defs,
                 "type": "object",
                 **fn_schema,
             }
 
-        if param_schema and isinstance(base_schema, dict):
-            if "functions" in base_schema and "functions" not in param_schema:
-                param_schema["functions"] = base_schema["functions"]
-            if "components" in base_schema and "components" not in param_schema:
-                param_schema["components"] = base_schema["components"]
+        return None
+
+    def _attach_catalog_context(
+        self,
+        param_schema: dict[str, Any] | None,
+        base_schema: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Injects root catalog functions and components for self-referential schemas."""
+        if not param_schema or not isinstance(base_schema, dict):
+            return param_schema
+
+        for key in ("functions", "components"):
+            if key in base_schema and key not in param_schema:
+                param_schema[key] = base_schema[key]
 
         return param_schema
+
+    def _build_param_schema(
+        self,
+        fn_schema: dict[str, Any],
+        base_schema: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Constructs a JSON Schema object for function parameter validation."""
+        defs = self._extract_schema_defs(fn_schema, base_schema)
+        raw_schema = self._extract_raw_param_schema(fn_schema, defs)
+        return self._attach_catalog_context(raw_schema, base_schema)
 
     def _validate_dict_function(
         self,
