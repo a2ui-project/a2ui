@@ -65,9 +65,7 @@ const _runtimeImports = <String>[
   'FunctionCall',
   'IdAllocator',
   'OPEN_ENUM',
-  'create_surface',
   'flatten_component_tree',
-  'update_components',
 ];
 
 const _sectionRule =

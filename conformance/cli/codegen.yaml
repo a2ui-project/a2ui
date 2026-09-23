@@ -142,9 +142,7 @@
               FunctionCall,
               IdAllocator,
               OPEN_ENUM,
-              create_surface,
               flatten_component_tree,
-              update_components,
           )
 
 
@@ -180,9 +178,7 @@
               "DynamicChildList",
               "FunctionCall",
               "IdAllocator",
-              "create_surface",
               "flatten_component_tree",
-              "update_components",
           ]
 - name: test_codegen_all_primitive_types_and_defaults
   description: Tests generating code with string, integer, float, boolean, and any primitive types with defaults.
@@ -258,9 +254,7 @@
               FunctionCall,
               IdAllocator,
               OPEN_ENUM,
-              create_surface,
               flatten_component_tree,
-              update_components,
           )
 
 
@@ -300,9 +294,7 @@
               "DynamicChildList",
               "FunctionCall",
               "IdAllocator",
-              "create_surface",
               "flatten_component_tree",
-              "update_components",
           ]
 - name: test_codegen_open_enums
   description: Tests generating open enum types with trailing '| str' for catalog evolution.
@@ -371,9 +363,7 @@
               FunctionCall,
               IdAllocator,
               OPEN_ENUM,
-              create_surface,
               flatten_component_tree,
-              update_components,
           )
 
 
@@ -422,9 +412,7 @@
               "DynamicChildList",
               "FunctionCall",
               "IdAllocator",
-              "create_surface",
               "flatten_component_tree",
-              "update_components",
           ]
 - name: test_codegen_python_keyword_sanitization
   description: Tests sanitizing property names that collide with Python reserved keywords (from, class, def, pass).
@@ -497,9 +485,7 @@
               FunctionCall,
               IdAllocator,
               OPEN_ENUM,
-              create_surface,
               flatten_component_tree,
-              update_components,
           )
 
 
@@ -538,9 +524,7 @@
               "DynamicChildList",
               "FunctionCall",
               "IdAllocator",
-              "create_surface",
               "flatten_component_tree",
-              "update_components",
           ]
 - name: test_codegen_custom_base_import
   description: Tests configuring custom base import path via --base-import.
@@ -771,9 +755,7 @@
               FunctionCall,
               IdAllocator,
               OPEN_ENUM,
-              create_surface,
               flatten_component_tree,
-              update_components,
           )
 
 
@@ -808,9 +790,7 @@
               "DynamicChildList",
               "FunctionCall",
               "IdAllocator",
-              "create_surface",
               "flatten_component_tree",
-              "update_components",
           ]
 - name: test_codegen_complex_nested_types
   description: Tests generating code for complex types including sequences of strings and key-value mapping properties.
@@ -887,8 +867,6 @@
           # Wire names that differ from the Python name carry an alias.
           - 'serialization_alias="validationRegexp"'
           - "class OpenUrl(FunctionCall):"
-          - '"create_surface"'
-          - '"update_components"'
         content_not_contains:
           - "def to_dict("
           - "_serialize_prop"
@@ -896,3 +874,5 @@
           - "Slot"
           # Functions are reached through their class alone.
           - "def open_url("
+          - '"create_surface"'
+          - '"update_components"'

@@ -98,8 +98,12 @@ from basic import (
     OpenUrl,
     Row,
     Text,
-    create_surface,
-    update_components,
+)
+from a2ui.core.schema.server_to_client import (
+    CreateSurface,
+    CreateSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
 )
 
 tree = Card(
@@ -125,8 +129,28 @@ tree = Card(
 )
 
 fn_call = OpenUrl(url="https://a2ui.org/specification")
-surface_msgs = create_surface("surface_main", root=tree, catalog_id="org.a2ui.basic")
-update_msgs = update_components("surface_main", root=tree)
+surface_msgs = [
+    CreateSurfaceMessage(
+        create_surface=CreateSurface(
+            surface_id="surface_main",
+            catalog_id="org.a2ui.basic",
+        )
+    ),
+    UpdateComponentsMessage(
+        update_components=UpdateComponents(
+            surface_id="surface_main",
+            components=tree.flatten(),
+        )
+    ),
+]
+update_msgs = [
+    UpdateComponentsMessage(
+        update_components=UpdateComponents(
+            surface_id="surface_main",
+            components=tree.flatten(),
+        )
+    )
+]
 
 
 def dump(messages):
