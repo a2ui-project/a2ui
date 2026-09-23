@@ -716,11 +716,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     // A partial update names no component type; the existing model supplies it.
     const existing = surface.componentsModel.get(id);
-    new PayloadValidator(
-      targetCatalog,
-      this.validationConfig,
-      surface.availableCatalogs,
-    ).validateComponent(comp, existing?.type);
+    new PayloadValidator(targetCatalog, this.validationConfig).validateComponent(
+      comp,
+      existing?.type,
+    );
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {

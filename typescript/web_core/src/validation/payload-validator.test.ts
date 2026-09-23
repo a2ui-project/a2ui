@@ -91,27 +91,7 @@ describe('PayloadValidator', () => {
       },
     });
 
-    const utilCat = Catalog.fromSchema({
-      catalogId: 'util-cat',
-      protocolVersion: '1.0',
-      components: {},
-      functions: {
-        joinStrings: {
-          returnType: 'string',
-          properties: {
-            sep: {type: 'string'},
-          },
-          required: ['sep'],
-          additionalProperties: false,
-        },
-      },
-    });
-
-    const available = new Map([
-      ['app-cat', appCat],
-      ['util-cat', utilCat],
-    ]);
-    const validator = new PayloadValidator(appCat, STRICT_VALIDATION, available);
+    const validator = new PayloadValidator(appCat, STRICT_VALIDATION);
 
     // Valid nested function in default catalog
     assert.doesNotThrow(() =>
@@ -144,22 +124,22 @@ describe('PayloadValidator', () => {
       A2uiValidationError,
     );
 
-    // Valid nested function with catalogId override to util-cat passes
+    // Nested function with foreign catalogId skips schema validation against appCat
     assert.doesNotThrow(() =>
       validator.validateComponent({
         id: 't1',
         component: 'Text',
-        text: {call: 'joinStrings', catalogId: 'util-cat', args: {sep: ','}},
+        text: {call: 'joinStrings', catalogId: 'util-cat', args: {wrongArg: 123}},
       }),
     );
 
-    // Invalid argument to util-cat function fails
+    // Foreign function with invalid UAX #31 identifier fails in v1.0
     assert.throws(
       () =>
         validator.validateComponent({
           id: 't1',
           component: 'Text',
-          text: {call: 'joinStrings', catalogId: 'util-cat', args: {}},
+          text: {call: 'invalid-name-!', catalogId: 'util-cat', args: {}},
         }),
       A2uiValidationError,
     );

@@ -55,14 +55,10 @@ export class PayloadValidator {
    * @param catalog Catalog whose schemas define what a valid payload is.
    * @param config Validation strictness. When omitted, unknown components and
    *   functions are tolerated.
-   * @param availableCatalogs Optional map of compatible catalogs available on
-   *   the surface, used to validate nested function calls that specify a
-   *   `catalogId` override.
    */
   constructor(
     private readonly catalog: CatalogInterface<any, any>,
     private readonly config?: ValidationConfig,
-    private readonly availableCatalogs?: ReadonlyMap<string, CatalogInterface<any, any>>,
   ) {
     this.enforceIdentifiers = isAtLeastVersion(catalog.protocolVersion, '1.0');
   }
@@ -178,22 +174,10 @@ export class PayloadValidator {
           : undefined;
 
       if (callCatalogId && callCatalogId !== this.catalog.id) {
-        if (this.availableCatalogs) {
-          const targetCat = this.availableCatalogs.get(callCatalogId);
-          if (!targetCat) {
-            throw new A2uiValidationError(
-              `Unknown catalog ID '${callCatalogId}' for function '${rawName}'.`,
-            );
-          }
-          new PayloadValidator(targetCat, this.config, this.availableCatalogs).validateFunction(
-            rawName,
-            argsDict,
-          );
-        } else {
-          // Single-catalog validator without surface context: still enforce
-          // UAX #31 identifier syntax on the function name and argument keys.
-          this.assertFunctionIdentifiers(rawName, argsDict);
-        }
+        // Single-catalog validator: enforce UAX #31 syntax on the function name
+        // and argument keys, but leave schema validation to runtime resolution in
+        // DataContext against the target catalog.
+        this.assertFunctionIdentifiers(rawName, argsDict);
       } else {
         this.validateFunction(rawName, argsDict);
       }
