@@ -14,7 +14,7 @@
 
 """Resolved dynamic value binding abstractions."""
 
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeGuard, TypeVar
 
 T = TypeVar("T")
 
@@ -53,6 +53,6 @@ class WritableBinding(ResolvedBinding[T]):
         return f"WritableBinding(value={self.value!r}, path={self.path!r})"
 
 
-def is_writable(binding: Any) -> bool:
+def is_writable(binding: Any) -> TypeGuard[WritableBinding[Any]]:
     """Returns True if the binding is an instance of WritableBinding."""
     return isinstance(binding, WritableBinding)
