@@ -1106,7 +1106,8 @@ class DirectJsonStreamParser:
                             all_errors.extend(e.details)
                 if all_errors:
                     raise A2uiValidationError(
-                        f"Validation failed: {[e.message for e in all_errors]}",
+                        "Validation failed:"
+                        f" {[detail.message for detail in all_errors]}",
                         details=all_errors,
                     )
 

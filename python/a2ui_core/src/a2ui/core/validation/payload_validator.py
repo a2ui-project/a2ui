@@ -161,7 +161,9 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                     )
                 )
             if errors:
-                summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+                summary = "\n".join(
+                    f"{detail.path}: {detail.message}" for detail in errors
+                )
                 raise A2uiValidationError(summary, details=errors)
             return
 
@@ -193,7 +195,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
 
         self._validate_nested_functions(comp_id or "unknown", comp, "", errors)
         if errors:
-            summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+            summary = "\n".join(f"{detail.path}: {detail.message}" for detail in errors)
             raise A2uiValidationError(summary, details=errors)
 
     def _validate_model_component(
@@ -557,7 +559,9 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         )
                     )
                 if errors:
-                    summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+                    summary = "\n".join(
+                        f"{detail.path}: {detail.message}" for detail in errors
+                    )
                     raise A2uiValidationError(summary, details=errors)
             except A2uiValidationError:
                 raise

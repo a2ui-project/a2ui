@@ -44,7 +44,9 @@ class _TestValidatorHelper:
             except A2uiValidationError as e:
                 all_errors.extend(e.details)
         if all_errors:
-            summary = "\n".join(f"{e.path}: {e.message}" for e in all_errors)
+            summary = "\n".join(
+                f"{detail.path}: {detail.message}" for detail in all_errors
+            )
             raise A2uiValidationError(summary, details=all_errors)
 
     def validate_components(self, components: Any) -> None:
