@@ -57,13 +57,13 @@ class A2uiCatalogError(A2uiError):
     pass
 
 
-class A2uiIntegrityError(A2uiError):
+class A2uiIntegrityError(A2uiValidationError):
     """Exception raised when layout graph integrity or relationship checks fail."""
 
     pass
 
 
-class A2uiRecursionError(A2uiError):
+class A2uiRecursionError(A2uiValidationError):
     """Exception raised when recursive or traversal limits are exceeded."""
 
     pass
