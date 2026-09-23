@@ -26,6 +26,7 @@ else:
 from pydantic import BaseModel, TypeAdapter
 
 from ..common.semver import is_at_least_version, parse_semver
+from ..schema import ProtocolVersion
 
 
 def _generate_dynamic_type_def(
@@ -123,7 +124,7 @@ def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
         },
     }
 
-    if is_at_least_version(protocol_version, "1.0"):
+    if is_at_least_version(protocol_version, ProtocolVersion.V1_0):
         from ..schema.v1_0.common_types import (
             DataBinding as DataBindingV10,
             DynamicBoolean as DynamicBooleanV10,
@@ -730,7 +731,9 @@ class Catalog(Generic[TComponent, TFunction]):
             copy.deepcopy(common_types_defs) if common_types_defs else {}
         )
 
-        validate_identifiers = is_at_least_version(protocol_version, "1.0")
+        validate_identifiers = is_at_least_version(
+            protocol_version, ProtocolVersion.V1_0
+        )
 
         self.components: dict[str, TComponent] = {}
         for c in components or []:
@@ -990,7 +993,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 if isinstance(ref, str) and ref.startswith("#/components/"):
                     permitted_names.add(ref.split("/")[-1])
 
-        validate_identifiers = is_at_least_version(p_ver, "1.0")
+        validate_identifiers = is_at_least_version(p_ver, ProtocolVersion.V1_0)
 
         components = []
         for name, schema in components_map.items():

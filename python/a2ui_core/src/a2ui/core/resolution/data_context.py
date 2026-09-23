@@ -300,9 +300,11 @@ class DataContext(Generic[TComponent, TFunction]):
             target_catalog = self.surface.default_catalog
 
         try:
-            PayloadValidator(catalog=target_catalog).validate_function(
+            val_args = PayloadValidator(catalog=target_catalog).validate_function(
                 name, resolved_args
             )
+            if isinstance(val_args, dict):
+                resolved_args = val_args
         except Exception as e:
             if self.surface and hasattr(self.surface, "dispatch_error"):
                 self.surface.dispatch_error({

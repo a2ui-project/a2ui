@@ -488,3 +488,44 @@ async def test_rpc_handler_sync_execution_of_async_function_in_running_loop() ->
         )
     )
     assert resp["rendererFunctionResponse"]["value"] == "Async via sync bridge"
+
+
+def test_rpc_handler_passes_validated_and_coerced_args_to_target_fn() -> None:
+    from pydantic import BaseModel
+
+    class MathArgs(BaseModel):
+        num: int
+        multiplier: int = 10
+
+    received_args: dict[str, Any] = {}
+
+    def compute(args: dict[str, Any], context: DataContext | None = None) -> int:
+        received_args.update(args)
+        return args["num"] * args["multiplier"]
+
+    func_impl = FunctionImplementation(
+        name="computeValue",
+        schema=MathArgs,
+        execute=compute,
+        allowed_callers="agentOnly",
+    )
+    cat = Catalog("math", protocol_version="v1.0", functions=[func_impl])
+    handler = RpcHandler([cat])
+
+    # Call with string num that needs coercion ("5" -> 5) and omitting multiplier (default 10)
+    resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="v1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-coerce-1",
+                call_function=FunctionCall(
+                    call="computeValue",
+                    catalog_id="math",
+                    args={"num": "5"},
+                ),
+            ),
+        )
+    )
+    assert resp["rendererFunctionResponse"]["value"] == 50
+    # Confirm target function actually received the coerced arguments with defaults applied
+    assert received_args == {"num": 5, "multiplier": 10}

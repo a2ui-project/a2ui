@@ -35,13 +35,10 @@ from a2ui.core.exceptions import (
     A2uiExpressionError,
 )
 
-from a2ui.core.validation import A2uiValidatorError
-
 CATEGORY_TO_EXCEPTION = {
     "ParseError": (A2uiParseError, A2uiExpressionError, A2uiError, ValueError),
     "ValidationError": (
         A2uiValidationError,
-        A2uiValidatorError,
         A2uiExpressionError,
         A2uiError,
         ValueError,
@@ -50,13 +47,11 @@ CATEGORY_TO_EXCEPTION = {
     "IntegrityError": (
         A2uiIntegrityError,
         A2uiValidationError,
-        A2uiValidatorError,
         A2uiError,
         ValueError,
     ),
     "RecursionError": (
         A2uiValidationError,
-        A2uiValidatorError,
         A2uiExpressionError,
         A2uiError,
         ValueError,

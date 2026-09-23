@@ -86,6 +86,7 @@ class _TargetFnOrError:
 
     target_fn: Callable[..., Any] | None = None
     error_response: RendererFunctionResponseMessage | None = None
+    validated_args: dict[str, Any] | None = None
 
 
 @dataclass
@@ -319,11 +320,14 @@ class RpcHandler(Generic[TComponent, TFunction]):
         version: str,
     ) -> _TargetFnOrError:
         """Validates payload schema and resolves target callable."""
+        validated_args = args
         if matched_catalog:
             try:
-                PayloadValidator(catalog=matched_catalog).validate_function(
+                res = PayloadValidator(catalog=matched_catalog).validate_function(
                     call_name, args
                 )
+                if isinstance(res, dict):
+                    validated_args = res
             except Exception as e:
                 err_resp = self._create_response_error(
                     call_id,
@@ -357,7 +361,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
             )
             return _TargetFnOrError(error_response=err_resp)
 
-        return _TargetFnOrError(target_fn=target_fn)
+        return _TargetFnOrError(target_fn=target_fn, validated_args=validated_args)
 
     def _build_success_response(
         self, val: Any, call_id: str, version: str
@@ -393,14 +397,17 @@ class RpcHandler(Generic[TComponent, TFunction]):
         try:
             target_fn = prepared.target_fn
             assert target_fn is not None
+            fn_args = (
+                prepared.validated_args if prepared.validated_args is not None else args
+            )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
             raw_res = (
-                target_fn(args, context)
+                target_fn(fn_args, context)
                 if has_pos_context
                 else (
-                    target_fn(args, context=context)
+                    target_fn(fn_args, context=context)
                     if has_kw_context
-                    else target_fn(args)
+                    else target_fn(fn_args)
                 )
             )
             if inspect.isawaitable(raw_res):
@@ -454,14 +461,17 @@ class RpcHandler(Generic[TComponent, TFunction]):
         try:
             target_fn = prepared.target_fn
             assert target_fn is not None
+            fn_args = (
+                prepared.validated_args if prepared.validated_args is not None else args
+            )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
             raw_res = (
-                target_fn(args, context)
+                target_fn(fn_args, context)
                 if has_pos_context
                 else (
-                    target_fn(args, context=context)
+                    target_fn(fn_args, context=context)
                     if has_kw_context
-                    else target_fn(args)
+                    else target_fn(fn_args)
                 )
             )
             val = await cast(Any, raw_res) if inspect.isawaitable(raw_res) else raw_res

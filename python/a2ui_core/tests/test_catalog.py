@@ -52,8 +52,8 @@ class _TestValidatorHelper:
     def validate_components(self, components: Any) -> None:
         self.validate_component(components)
 
-    def validate_function(self, name: str, args: dict[str, Any]) -> None:
-        self.validator.validate_function(name, args)
+    def validate_function(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        return self.validator.validate_function(name, args)
 
 
 def _val(catalog: Catalog[TComponent, TFunction]) -> _TestValidatorHelper:
@@ -314,6 +314,43 @@ def test_function_validation_from_json():
     val.validate_function("search", {"query": "hello", "limit": 10})
     with pytest.raises(A2uiValidationError):
         val.validate_function("search", {"query": "hello", "limit": "not-an-int"})
+
+
+def test_validate_function_returns_coerced_model_args():
+    class SearchArgs(BaseModel):
+        query: str
+        limit: int = 20
+        offset: int = 0
+
+    catalog = Catalog(
+        protocol_version=PROTOCOL_VERSION,
+        catalog_id="https://a2ui.org/func-coerce-test",
+        functions=[FunctionApi("search", schema=SearchArgs)],
+    )
+    val = _val(catalog)
+    # Int string should be coerced to int, and offset default should be populated
+    res = val.validate_function("search", {"query": "hello", "limit": "50"})
+    assert res == {"query": "hello", "limit": 50, "offset": 0}
+
+
+def test_validate_function_returns_dict_args_with_defaults():
+    json_catalog = {
+        "catalogId": "https://a2ui.org/func-json-defaults",
+        "protocolVersion": PROTOCOL_VERSION,
+        "functions": {
+            "search": {
+                "parameters": {
+                    "query": {"type": "string"},
+                    "limit": {"type": "integer", "default": 25},
+                },
+                "required": ["query"],
+            }
+        },
+    }
+    catalog = Catalog.from_json(json_catalog)
+    val = _val(catalog)
+    res = val.validate_function("search", {"query": "hello"})
+    assert res == {"query": "hello", "limit": 25}
 
 
 def test_nested_function_validation_with_models():
@@ -978,3 +1015,37 @@ def test_payload_validator_collects_errors_past_a_foreign_catalog_call():
     assert [detail.code for detail in exc_info.value.details] == [
         "unrecognized_function"
     ]
+
+
+def test_is_valid_uax31_identifier():
+    from a2ui.core.catalog.catalog import is_valid_uax31_identifier
+
+    # Empty string
+    assert not is_valid_uax31_identifier("")
+
+    # Valid ASCII
+    assert is_valid_uax31_identifier("foo")
+    assert is_valid_uax31_identifier("_foo")
+    assert is_valid_uax31_identifier("foo_1")
+
+    # Valid Unicode (\p{XID_Start} / \p{XID_Continue})
+    assert is_valid_uax31_identifier("café")
+    assert is_valid_uax31_identifier("변수")
+    assert is_valid_uax31_identifier("alpha_α")
+
+    # Single leading @
+    assert is_valid_uax31_identifier("@index")
+    assert is_valid_uax31_identifier("@custom")
+
+    # Bare "@"
+    assert not is_valid_uax31_identifier("@")
+
+    # Invalid symbols and leading digits
+    assert not is_valid_uax31_identifier("foo-bar")
+    assert not is_valid_uax31_identifier("1foo")
+    assert not is_valid_uax31_identifier("foo.bar")
+    assert not is_valid_uax31_identifier("@@index")
+
+    # Keyword names (valid syntactic identifiers)
+    assert is_valid_uax31_identifier("class")
+    assert is_valid_uax31_identifier("def")

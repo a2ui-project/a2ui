@@ -15,7 +15,6 @@
 from ..catalog.catalog import is_valid_uax31_identifier
 from .payload_validator import (
     PayloadValidator,
-    A2uiValidatorError,
     ValidationConfig,
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
@@ -29,7 +28,6 @@ from ..state.validation_helpers import (
 
 __all__ = [
     "is_valid_uax31_identifier",
-    "A2uiValidatorError",
     "ValidationConfig",
     "STRICT_VALIDATION",
     "RELAXED_VALIDATION",
