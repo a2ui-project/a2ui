@@ -135,7 +135,7 @@ def test_message_processor_mismatched_catalog_versions_on_component_add():
     assert "different protocol version" in str(exc_info.value)
 
 
-def test_component_update_resets_catalog_to_default_when_omitted():
+def test_component_update_preserves_catalog_when_omitted():
     cat_default = Catalog(
         catalog_id="cat_default", protocol_version="v1.0", components=[]
     )
@@ -178,7 +178,7 @@ def test_component_update_resets_catalog_to_default_when_omitted():
 
     comp_updated = surface.components_model.get("btn")
     assert comp_updated is not None
-    assert comp_updated.catalog == cat_default
+    assert comp_updated.catalog == cat_custom
 
     # 2. Delete surface
     delete_msg = {
@@ -1432,71 +1432,60 @@ def test_create_surface_data_model_before_components_avoids_warning():
     assert surface.data_model.get("/userName") == "Alice"
 
 
-def test_update_data_model_root_merge_preserves_unrelated_properties():
+def test_update_data_model_root_replaces_entire_data_model():
     from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV10
 
     processor = MessageProcessor(catalogs=[BasicCatalogV10()])
     processor.process_messages([{
         "version": "v1.0",
         "createSurface": {
-            "surfaceId": "s_merge",
+            "surfaceId": "s_replace",
             "dataModel": {"initialKey": "value1", "sharedKey": "old"},
         },
     }])
-    surface = processor.model.get_surface("s_merge")
+    surface = processor.model.get_surface("s_replace")
     assert surface is not None
 
     processor.process_messages([{
         "version": "v1.0",
         "updateDataModel": {
-            "surfaceId": "s_merge",
+            "surfaceId": "s_replace",
             "path": "/",
             "value": {"newKey": "value2", "sharedKey": "new"},
         },
     }])
 
-    assert surface.data_model.get("/initialKey") == "value1"
+    assert surface.data_model.get("/initialKey") is None
     assert surface.data_model.get("/newKey") == "value2"
     assert surface.data_model.get("/sharedKey") == "new"
+    assert surface.data_model.get("/") == {"newKey": "value2", "sharedKey": "new"}
 
 
-def test_update_data_model_root_merge_escapes_special_characters():
+def test_update_data_model_omitted_path_replaces_entire_data_model():
     from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV10
 
     processor = MessageProcessor(catalogs=[BasicCatalogV10()])
     processor.process_messages([{
         "version": "v1.0",
         "createSurface": {
-            "surfaceId": "s_escape",
-            "dataModel": {
-                "slash/key": "val1",
-                "tilde~key": "val2",
-            },
+            "surfaceId": "s_omitted",
+            "dataModel": {"oldProp": "oldVal"},
         },
     }])
-    surface = processor.model.get_surface("s_escape")
+    surface = processor.model.get_surface("s_omitted")
     assert surface is not None
 
     processor.process_messages([{
         "version": "v1.0",
         "updateDataModel": {
-            "surfaceId": "s_escape",
-            "path": "/",
-            "value": {
-                "slash/key": "updated_val1",
-                "other/key": "val3",
-            },
+            "surfaceId": "s_omitted",
+            "value": {"newProp": "newVal"},
         },
     }])
 
-    assert surface.data_model.get("/slash~1key") == "updated_val1"
-    assert surface.data_model.get("/tilde~0key") == "val2"
-    assert surface.data_model.get("/other~1key") == "val3"
-    assert surface.data_model.get("/") == {
-        "slash/key": "updated_val1",
-        "tilde~key": "val2",
-        "other/key": "val3",
-    }
+    assert surface.data_model.get("/oldProp") is None
+    assert surface.data_model.get("/newProp") == "newVal"
+    assert surface.data_model.get("/") == {"newProp": "newVal"}
 
 
 def test_v1_0_adapter_drops_theme_from_create_surface():
@@ -1531,29 +1520,53 @@ def test_v1_0_adapter_drops_theme_from_create_surface():
     assert raw_ops[0].theme is None
 
 
-def test_update_data_model_root_merge_ignores_empty_key():
-    from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV10
+def test_message_processor_component_partial_update_preserves_catalog_when_omitted():
+    from a2ui.core.catalog import Catalog, ComponentApi
 
-    processor = MessageProcessor(catalogs=[BasicCatalogV10()])
+    cat_a = Catalog(
+        catalog_id="cat_a",
+        protocol_version="v1.0",
+        components=[ComponentApi(name="Box", schema={"type": "object"})],
+    )
+    cat_b = Catalog(
+        catalog_id="cat_b",
+        protocol_version="v1.0",
+        components=[ComponentApi(name="Box", schema={"type": "object"})],
+    )
+    processor = MessageProcessor(catalogs=[cat_a, cat_b])
     processor.process_messages([{
         "version": "v1.0",
         "createSurface": {
-            "surfaceId": "s_empty_key",
-            "dataModel": {"validKey": "validVal"},
+            "surfaceId": "s1",
+            "catalogId": "cat_a",
+            "components": [{"id": "c1", "component": "Box", "catalogId": "cat_b"}],
         },
     }])
-    surface = processor.model.get_surface("s_empty_key")
+    surface = processor.model.get_surface("s1")
     assert surface is not None
+    original_comp = surface.components_model.get("c1")
+    assert original_comp is not None
+    assert original_comp.catalog is cat_b
 
-    # Updating with empty key does not overwrite root
+    events: list[str] = []
+    surface.components_model.on_deleted.subscribe(
+        lambda cid: events.append(f"del_{cid}")
+    )
+    surface.components_model.on_created.subscribe(
+        lambda c: events.append(f"create_{c.id}")
+    )
+
+    # Partial update without catalogId should preserve existing catalog and NOT recreate component
     processor.process_messages([{
         "version": "v1.0",
-        "updateDataModel": {
-            "surfaceId": "s_empty_key",
-            "path": "/",
-            "value": {"": "emptyKeyVal", "anotherKey": "anotherVal"},
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "c1", "title": "Updated Title"}],
         },
     }])
-
-    assert surface.data_model.get("/validKey") == "validVal"
-    assert surface.data_model.get("/anotherKey") == "anotherVal"
+    updated_comp = surface.components_model.get("c1")
+    assert updated_comp is not None
+    assert updated_comp.catalog is cat_b
+    assert updated_comp is original_comp
+    assert updated_comp.properties.get("title") == "Updated Title"
+    assert events == []

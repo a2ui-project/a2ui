@@ -453,6 +453,8 @@ class MessageProcessor:
                         f" protocol version {comp_ver} than default catalog"
                         f" {surface_ver}."
                     )
+            elif existing and (not comp_type_raw or comp_type_raw == existing.type):
+                comp_catalog = existing.catalog
             else:
                 comp_catalog = surface.default_catalog
 
@@ -481,7 +483,6 @@ class MessageProcessor:
                     surface.components_model.remove_component(new_comp.id)
                     surface.components_model.add_component(new_comp)
                 else:
-                    existing.catalog = new_comp.catalog
                     existing.properties = new_comp.properties
             else:
                 surface.components_model.add_component(new_comp)
@@ -497,12 +498,4 @@ class MessageProcessor:
 
         path = op.path or "/"
         value = op.value
-
-        if path == "/" and isinstance(value, dict):
-            for k, v in value.items():
-                if not k:
-                    continue
-                escaped_k = k.replace("~", "~0").replace("/", "~1")
-                surface.data_model.set(f"/{escaped_k}", v)
-        else:
-            surface.data_model.set(path, value)
+        surface.data_model.set(path, value)
