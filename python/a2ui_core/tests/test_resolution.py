@@ -607,3 +607,55 @@ def test_generic_binder_schema_driven_custom_checkable_property():
     assert binder.current_props["isValid"] is True
     assert binder.current_props["validationErrors"] == []
     binder.dispose()
+
+
+def test_generic_binder_empty_key_property_does_not_crash_setter_generation():
+    cat = BasicCatalog()
+    data_model = DataModel()
+    comp = ComponentModel(
+        "comp_empty_key",
+        "CustomComp",
+        cat,
+        {"": {"path": "/empty"}},
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    # Should not raise IndexError on empty key
+    binder = GenericBinder(context)
+    assert "" in binder.current_props
+    binder.dispose()
+
+
+def test_generic_binder_nested_checkable_does_not_pollute_root_props():
+    cat = BasicCatalog()
+    data_model = DataModel({"form": {"field": "valid"}})
+    comp = ComponentModel(
+        "nested_form",
+        "FormComp",
+        cat,
+        {
+            "topLevel": "safe",
+            "section": {
+                "fieldVal": {"path": "/form/field"},
+                "checks": [{
+                    "condition": {
+                        "call": "required",
+                        "args": {"value": {"path": "/form/field"}},
+                    },
+                    "message": "Field required",
+                }],
+            },
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    binder = GenericBinder(context)
+    # Root props should not be polluted by section's internal properties
+    assert binder.current_props["topLevel"] == "safe"
+    assert "fieldVal" not in binder.current_props
+    assert binder.current_props["section"]["isValid"] is True
+    binder.dispose()

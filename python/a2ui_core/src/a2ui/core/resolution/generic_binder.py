@@ -281,7 +281,7 @@ class GenericBinder:
                 raw_val is not None
                 and _classify_value_fallback(k, raw_val).type == BehaviorType.DYNAMIC
             )
-            if is_dynamic:
+            if is_dynamic and k:
                 setter_name = f"set{k[0].upper() + k[1:]}"
                 result[setter_name] = self._create_setter(raw_val)
 
@@ -401,7 +401,6 @@ class GenericBinder:
             parent_dict["validationResult"] = (
                 failed_rules[0] if failed_rules else {"valid": True}
             )
-            self.current_props.update(parent_dict)
             self._notify()
 
         for idx, rule in enumerate(rules):
@@ -439,21 +438,6 @@ class GenericBinder:
             initial_failed[0] if initial_failed else {"valid": True}
         )
         return value
-
-    @staticmethod
-    def _extract_validation_result(val: Any, fallback_message: str) -> dict[str, Any]:
-        if isinstance(val, dict) and "valid" in val:
-            custom_msg = val.get("message")
-            return {
-                "valid": bool(val["valid"]),
-                "message": (
-                    str(custom_msg) if custom_msg is not None else fallback_message
-                ),
-            }
-        return {
-            "valid": bool(val),
-            "message": fallback_message,
-        }
 
     def _notify(self) -> None:
         for listener in list(self.listeners):
