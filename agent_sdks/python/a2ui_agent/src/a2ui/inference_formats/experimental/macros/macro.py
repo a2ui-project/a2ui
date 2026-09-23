@@ -36,7 +36,12 @@ from a2ui.builder.v0_9 import (
     ComponentBuilderNode,
     ComponentRef,
     DataBinding,
+    DynamicBoolean,
     DynamicChildList,
+    DynamicNumber,
+    DynamicString,
+    DynamicStringList,
+    DynamicValue,
     FunctionCall,
 )
 
@@ -113,6 +118,32 @@ def _map_type_hint_to_schema(
     """Maps a Python type hint to a canonical A2UI JSON schema property."""
     COMMON_REF_PREFIX = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
 
+    if t == DynamicValue:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicValue"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t == DynamicStringList:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicStringList"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t == DynamicString:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicString"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t == DynamicNumber:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicNumber"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t == DynamicBoolean:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicBoolean"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
     origin = get_origin(t)
     args = get_args(t)
 
@@ -161,7 +192,7 @@ def _map_type_hint_to_schema(
             elif any(
                 get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
                 for a in types_set
-            ):
+            ) and not any(a in (int, float, bool) for a in types_set):
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicStringList"}
                 if param_desc:
                     schema["description"] = param_desc
@@ -384,7 +415,7 @@ def register_macro(
 
     sig = inspect.signature(func)
     try:
-        hints = get_type_hints(func)
+        hints = get_type_hints(func, include_extras=True)
     except Exception:
         hints = {}
 

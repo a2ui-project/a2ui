@@ -33,9 +33,7 @@ from a2ui.builder.v0_9 import (
     FunctionCall,
     ComponentTree,
     IdAllocator,
-    create_surface,
     flatten_component_tree,
-    update_components,
 )
 from a2ui.inference_formats.experimental.macros.format import (
     MacroInferenceFormat,
@@ -88,6 +86,4 @@ __all__ = [
     "IdAllocator",
     "ComponentTree",
     "flatten_component_tree",
-    "create_surface",
-    "update_components",
 ]

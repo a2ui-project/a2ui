@@ -41,11 +41,18 @@ from a2ui.inference_formats.experimental.macros import (
     MacroProcessor,
     ComponentTree,
     clear_macros,
-    create_surface,
     flatten_component_tree,
     get_macro,
     list_macros,
     macro,
+)
+from a2ui.core.schema.server_to_client import (
+    CreateSurface,
+    CreateSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
+    UpdateDataModel,
+    UpdateDataModelMessage,
 )
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.builder.v0_9.catalogs.basic import (
@@ -236,13 +243,33 @@ def test_component_tree_serialization_and_messages():
     assert len(comps) == 2
     assert tree.to_json() is not None
 
-    # A tree knows its own shape but not how a protocol version packages it;
-    # envelope construction lives in the versioned helper.
+    # Surface lifecycle envelopes packaging the component tree.
     messages = [
-        wire(m)
-        for m in create_surface(
-            "home", tree.root, data_model={"user": {"name": "Alice"}}
-        )
+        wire(
+            CreateSurfaceMessage(
+                create_surface=CreateSurface(
+                    surface_id="home",
+                    catalog_id="org.a2ui.basic",
+                )
+            )
+        ),
+        wire(
+            UpdateComponentsMessage(
+                update_components=UpdateComponents(
+                    surface_id="home",
+                    components=tree.flatten(),
+                )
+            )
+        ),
+        wire(
+            UpdateDataModelMessage(
+                update_data_model=UpdateDataModel(
+                    surface_id="home",
+                    path="/user",
+                    value={"name": "Alice"},
+                )
+            )
+        ),
     ]
     assert len(messages) == 3
     assert "createSurface" in messages[0]
