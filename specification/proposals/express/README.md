@@ -34,7 +34,7 @@ To run inference and compiler validation using a standard remote Gemini model (e
 
    # Run inference against Gemini API (using the a2ui_agent project environment)
    A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_inference.py \
-     ../../v1_0/catalogs/basic/examples/01_flight-status.json \
+     ../../../catalogs/basic/v1/examples/01_flight-status.json \
      --model gemini-3.1-flash-lite
    ```
 
@@ -57,7 +57,7 @@ The `express` package provides standalone developer scripts in `specification/pr
 Generate the model prompt contract, containing positional component signatures and rules compiled from the active catalog schema:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_prompt_generator.py --catalog ../../v1_0/catalogs/basic/catalog.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_prompt_generator.py --catalog ../../../catalogs/basic/v1/catalog.json
 ```
 
 ### Plain DSL compiler
@@ -75,7 +75,7 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent
 Convert standard A2UI v1.0 JSON envelopes back into compact A2UI Express code:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_decompiler.py ../../v1_0/catalogs/basic/examples/01_flight-status.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_decompiler.py ../../../catalogs/basic/v1/examples/01_flight-status.json
 ```
 
 ### Regenerate documentation examples

@@ -19,7 +19,7 @@
   action: from_format
   args:
     format: express
-    catalog: specification/v1_0/catalogs/basic/catalog.json
+    catalog: catalogs/basic/v1/catalog.json
     name: a2ui
   expected_file: conformance/test_data/skills/express_basic_monolithic.skill.md
 
@@ -28,7 +28,7 @@
   action: core_syntax
   args:
     format: express
-    catalog: specification/v1_0/catalogs/basic/catalog.json
+    catalog: catalogs/basic/v1/catalog.json
     name: a2ui-core
   expected_file: conformance/test_data/skills/express_core.skill.md
 
@@ -37,7 +37,7 @@
   action: from_catalog
   args:
     format: express
-    catalog: specification/v1_0/catalogs/basic/catalog.json
+    catalog: catalogs/basic/v1/catalog.json
   expected_file: conformance/test_data/skills/express_basic_catalog.skill.md
 
 - name: test_express_skill_set
@@ -45,7 +45,7 @@
   action: skill_set
   args:
     format: express
-    catalog: specification/v1_0/catalogs/basic/catalog.json
+    catalog: catalogs/basic/v1/catalog.json
   expected_skills:
     - a2ui-core/SKILL.md
     - a2ui-basic/SKILL.md

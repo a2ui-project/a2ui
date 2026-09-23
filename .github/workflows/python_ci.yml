@@ -20,6 +20,7 @@ on:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
+      - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
@@ -31,6 +32,7 @@ on:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
+      - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"

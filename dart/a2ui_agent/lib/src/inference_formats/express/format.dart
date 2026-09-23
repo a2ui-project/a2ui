@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-class Awesome {
-  bool get isAwesome => true;
+import '../../inference_format.dart';
+
+/// The Express format: a compact DSL enclosed in `<a2ui>` tags, compiled into
+/// A2UI messages after the response is complete.
+///
+/// See `specification/proposals/express/`.
+class ExpressFormatFactory extends InferenceFormatFactory {
+  const ExpressFormatFactory();
 }

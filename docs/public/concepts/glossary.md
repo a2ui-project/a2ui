@@ -1,41 +1,72 @@
 # Glossary
 
-## A2UI protocol terms
+**A2UI protocol, between renderer and agent:**
 
-Terms, required by A2UI protocol.
+The A2UI protocol defines a conversation between an **agent** and a **renderer**:
 
-### A2UI agent and A2UI renderer
+1. The **renderer** sends its **UI capabilities** as a set of A2UI catalogs, with **instructions** on how to use them.
+2. The **agent** then repeats a loop:
+    - Sends **UI** to render and **functions** to call, based on the catalog it received
+    - Receives **user input** from the renderer
+    - Updates the **data** shown in the UI
 
-The A2UI protocol enables conversation between **agent** and **renderer**:
+**Agent and model:**
 
-1. **Renderer** provides **UI capabilities** in the form of A2UI catalog and **instructions** on how to use it.
-2. **Agent** iterates on the loop:
-    - Provides **UI** and **functions** to call, taking into account the received catalog
-    - Receives **user input**, communicated by renderer
-    - Updates **data** to show in UI
+To produce responses for the renderer, the agent sends requests to a model. The model can be:
+
+- a remote or local LLM, in most cases
+- another agent, in more complex orchestrations
+- a deterministic engine, usually for testing
+
+**Interaction overview:**
 
 ```mermaid
 sequenceDiagram
-    participant Renderer as A2UI Renderer
-    participant Agent as A2UI Agent
+    participant Renderer
+    participant Agent
+    participant Model
 
     Renderer->>Agent: Catalog & instructions
 
     loop Agentic flow
-        Agent->>Renderer: Data + UI Updates. Function calls.
         Renderer->>Agent: User input
+        Agent->>Model: Context + User input
+        Model->>Agent: Response
+        Agent->>Agent: Parse response
+        Agent->>Renderer: Data + UI Updates. Function calls.
     end
 ```
 
-While the protocol is designed for **AI-empowered agents**, it can work with deterministic agents as well. For example, an agent may return a pre-canned A2UI UI.
+**A2UI SDKs:**
 
-In case the agent is stateless or does not guarantee to preserve the catalog, the renderer should provide the catalog with every message.
+The A2UI team provides two SDKs for a number of languages and frameworks:
 
-And, sometimes, an agent is using a predefined catalog, thus forcing the renderers to either support this catalog or use an adapter.
+- **Agent SDK**: sets up the agent side of the interaction with the renderer and the model.
+- **Framework adapter SDK (aka renderer SDK)**: sets up the renderer side of the interaction with the agent and handles incoming messages.
 
-### GenUI Component
+**Terms in this glossary:**
 
-UI component, allowed for use by agent. Examples: date picker, carousel, button, hotel selector.
+The terms below are grouped into three categories:
+
+- **A2UI protocol terms**: interaction between the renderer and the agent.
+- **A2UI agent terms**: agent architecture and the Agent SDK.
+- **Generative UI terms**: general generative UI concepts.
+
+## A2UI protocol terms
+
+Terms required by the A2UI protocol.
+
+### A2UI agent and A2UI renderer
+
+The protocol is designed for **AI-powered agents**, but it works with deterministic agents as well. For example, an agent may return a pre-canned A2UI UI.
+
+If the agent is stateless, or does not guarantee that it preserves the catalog, the renderer should send the catalog with every message.
+
+Some agents use a predefined catalog, so renderers must either support that catalog or use an adapter.
+
+### GenUI component
+
+A UI component that the agent is allowed to use. Examples: date picker, carousel, button, hotel selector.
 
 ### Catalog
 
@@ -43,9 +74,9 @@ UI component, allowed for use by agent. Examples: date picker, carousel, button,
     - List of components that the agent can use to generate UI
     - List of functions that can be invoked by renderer
     - Styles and themes
-2. Explanation on how the renderer capabilities should be used.
+2. An explanation of how to use those capabilities.
 
-It is observed that depending on use case, catalog components may be more or less specific to domain:
+Depending on the use case, catalog components can be more or less domain-specific:
 
 - **Less specific**:
 
@@ -55,23 +86,23 @@ It is observed that depending on use case, catalog components may be more or les
 
     Components like HotelCheckout or FlightSelector.
 
-### Basic Catalog
+### Basic catalog
 
-A catalog maintained by the A2UI team to get up and running quickly with A2UI.
+A catalog maintained by the A2UI team for getting started with A2UI quickly.
 
 See the [basic catalog](../../../specification/v0_9_1/catalogs/basic/catalog.json).
 
-### Catalog Transformer
+### Catalog transformer
 
-A rule set that programmatically filters, adapts, or mutates a pristine **Catalog** before system prompt instructions are generated or payload validation schemas are compiled.
+A rule set that filters, adapts, or mutates a pristine **catalog** before system prompt instructions are generated or payload validation schemas are compiled.
 
-#### Why Catalog Transformers are needed
+#### Why catalog transformers are needed
 
-While a catalog provides a complete specification of all UI components and functions supported by a renderer, agent implementations frequently need to prune or restrict the catalog for specific use cases:
+A catalog specifies every component and function that a renderer supports, but agents often need to prune or restrict it:
 
-- **Context Window Token Optimization**: A catalog can define dozens of components and logic functions. Injecting all component JSON schemas into an LLM's system prompt consumes significant context window tokens, increases prompt latency, and inflates LLM inference costs. Pruning transformers restrict system prompt instructions to only the subset of components relevant to that agent's domain task.
-- **Task-Specific Capability Guardrails**: Specific agent workflows or security roles may require restricting interactive features (e.g. allowing display cards and text, but disabling form inputs or administrative components in guest mode).
-- **Model Signature Reduction**: Pruning function rules and validation checks to produce compact prompt instruction blocks for smaller or micro LLMs.
+- **Context window optimization**: A catalog can define dozens of components and functions. Injecting all of their JSON schemas into a model's system prompt costs context window tokens, adds prompt latency, and raises inference costs. A pruning transformer keeps only the components that the agent's task needs.
+- **Capability guardrails**: Some workflows or security roles need interactive features restricted. For example, a guest mode may allow display cards and text, but no form inputs or administrative components.
+- **Model signature reduction**: Pruning function rules and validation checks produces compact prompt instructions for small models.
 
 #### Example catalog transformers
 
@@ -79,9 +110,9 @@ While a catalog provides a complete specification of all UI components and funct
 
 - `FunctionPruningTransformer`: a utility class that filters the catalog based on a list of allowed function names.
 
-### Capabilities Object
+### Capabilities object
 
-Set of catalogs that are available for use. Through this set, agent or renderer advertises what it supports, so the other side knows what it may send.
+The set of catalogs that are available for use. An agent or a renderer advertises what it supports through this set, so the other side knows what it may send.
 
 For example, if a renderer supports Basic, Hotels and Flights catalogs, it will advertise them in its capabilities object.
 
@@ -91,133 +122,49 @@ The objects are named differently in earlier versions of the protocol: v0.9 and 
 
 ### Surface
 
-An area of UI, constructed by A2UI agent and managed by the A2UI renderer,
-which consists of a number of components. Surfaces cannot nest.
-
-### A2UI Tag
-
-Enclosing delimiter tags (such as `<a2ui-json>`, `<a2ui>`) used to bound A2UI payload code blocks within LLM text output.
-
-Because LLMs stream conversational plain text and UI payloads within the same turn, A2UI Tags serve as explicit syntactic boundaries isolating structured UI blocks from conversational text.
-
-### Tag Unwrapping
-
-The initial phase of response parsing (`unwrap`) where a parser scans LLM text responses for opening and closing **A2UI Tags**, isolating non-UI conversational text (e.g., _"Here is your summary:"_) from enclosed raw UI code blocks.
-
-### Compilation
-
-The second phase of response parsing (`compile`) where raw model-generated UI code string blocks extracted during unwrapping (such as standard JSON, Express DSL syntax, or Elemental HTML tags) are parsed, decompiled, and transformed into standardized A2UI protocol payload dictionaries (`createSurface`, `updateDataModel`).
-
-### Agent architecture
-
-There are options for A2UI agent:
-
-- **Same-process or server-side**:
-
-    Agent and renderer may reside in one process of a client side application. Example: desktop Flutter application.
-
-    Or, renderer may reside on the box that displays UI, and agent may reside on another box (server).
-
-- **Orchestrator agent**:
-
-    The central orchestrator manages interactions between a user and several specialized sub-agents. The orchestrator can be in the same process or on the server.
-
-- **Pulling / pushing**:
-
-    An agent can wait for messages/requests from the renderer, or push messages/requests to it.
-
-- **Stateful / stateless**:
-
-    Agents can preserve state or be stateless.
-
-- **Mixed with other protocols**:
-
-    A2UI can be used in combination with other protocols. For example, an agent may be an MCP and/or A2A server.
-
-- **Something else**:
-
-    In addition to the above options, there is possibility for any custom variation.
-
-### Renderer stack
-
-Functionality of A2UI renderer consists of layers that can be developed separately and reused:
-
-- **Core Library**:
-
-    Set of primitives, needed to describe catalog and to interact with the agent.
-
-    For example, see the [JavaScript web core library](../../../renderers/web_core/README.md).
-
-- **Catalog Schema**:
-
-    Definition of catalog in the form of JSON.
-
-    For example, see the [basic catalog schema](../../../specification/v0_9_1/catalogs/basic/catalog.json).
-
-- **Framework adapter**:<a id="fw-adapter"></a>
-
-    Code that implements the execution of the agent’s instructions in a concrete framework. For example:
-    - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
-    - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
-
-    See the [Angular adapter](../../../renderers/angular/README.md).
-
-- **Catalog Implementation**:
-
-    Implementation of the catalog schema for a framework.
-
-    For example:
-    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/v0_9/catalog/basic)
-
-```mermaid
-flowchart TD;
-cimpl("Catalog<br>Implementation")-->cschema("Catalog<br>Schema");
-cschema-->core("Core<br>Library");
-cimpl-->fadapter("Framework<br>Adapter");
-fadapter-->core;
-```
+An area of UI, built by the A2UI agent and managed by the A2UI renderer, that consists of a number of components. Surfaces cannot nest.
 
 ### A2UI message
 
-A message between agent and renderer.
+A message between the agent and the renderer.
 
-As the protocol allows streaming, any message can be finished (completely delivered) or not finished (partially delivered). A finished message may be completed (successfully delivered) or interrupted (delivery stopped because of some technical issues).
+Because the protocol supports streaming, a message can be finished (fully delivered) or unfinished (partially delivered). A finished message is either completed (delivered successfully) or interrupted (delivery stopped because of a technical problem).
 
 See the [data flow guide](data-flow.md).
 
 ### Agent turn
 
-Set of messages sent by agent, before it starts waiting for user input.
+The set of messages that the agent sends before it starts waiting for user input.
 
 ### Data model
 
-Observable, hierarchical, JSON-like object, shared between renderer and agent and updatable by both. Each Surface has a separate Data Model.
+An observable, hierarchical, JSON-like object, shared between the renderer and the agent and updatable by both. Each surface has its own data model.
 
-Components can be bound to nodes of the data model, in order to auto-update when the values are changed.
+Components can bind to nodes of the data model and update automatically when those values change.
 
-Data model allows bidirectional synchronization by capturing user interactions into a state object for transmission to the agent, while also allowing agent to push data updates back to the UI.
+The data model gives two-way synchronization: it captures user interactions into a state object that is sent to the agent, and it lets the agent push data updates back to the UI.
 
 See the [data binding guide](data-binding.md).
 
 ### Data reference
 
-In component definition, a reference to a data element, resolvable either by path in the data model or by value.
+In a component definition, a reference to a data element, resolved either by a path in the data model or by value.
 
 See the [example in the basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json#L23).
 
-### Client function
+### Renderer function
 
-A function provided for agent to invoke when needed.
+A function that the renderer provides for the agent to invoke when needed.
 
-Do not confuse with LLM tool:
+A renderer function is not the same as an LLM tool:
 
-| Feature      | Client Function                                                       | LLM Tool Invocation                                                                   |
-| ------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Executor     | A2UI Renderer                                                         | LLM requests invocation without concern about execution details.                      |
-| Timing       | After the agent to renderer message is sent.                          | Before the agent to renderer message is sent.                                         |
-| Purpose      | UI logic (Validation, visible toggles, Formatting)                    | Reasoning, Data Fetching, Backend Actions                                             |
-| Definition   | Registered in client side function registry and advertised in catalog | Defined in ToolDefinition (passed to LLM)                                             |
-| State Access | Access to DataContext and Input values.                               | No access to trigger requests to AI. Access to external APIs, databases, and services |
+| Feature      | Renderer function                                                  | LLM tool invocation                                                  |
+| ------------ | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Executor     | A2UI renderer                                                      | LLM requests the invocation without concern about execution details. |
+| Timing       | After the agent to renderer message is sent.                       | Before the agent to renderer message is sent.                        |
+| Purpose      | UI logic: validation, visibility toggles, formatting.              | Reasoning, data fetching, backend actions.                           |
+| Definition   | Registered in renderer function registry and advertised in catalog | Defined in ToolDefinition, passed to the LLM.                        |
+| State access | Access to DataContext and input values.                            | Access to external APIs, databases, and services, but not to the UI. |
 
 See the [example in common types](../../../specification/v0_9_1/json/common_types.json#L200).
 
@@ -230,9 +177,111 @@ A container for an interaction triggered by the user in the UI. Actions come in 
 
 See the [detailed guide on actions](actions.md).
 
+## A2UI agent terms
+
+Terms used to describe agent architecture and the Agent SDK.
+
+### A2UI tag
+
+In model-to-agent messages, a delimiter tag such as `<a2ui-json>` or `<a2ui>` that bounds an A2UI payload block inside the model's text output.
+
+A single model turn can mix conversational text and structured UI blocks, so A2UI tags mark where each UI block starts and ends.
+
+### Inference format
+
+The format of the structured UI blocks in model-to-agent messages, for example JSON, [Express DSL syntax](https://github.com/a2ui-project/a2ui/tree/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express), or Elemental HTML tags.
+
+### Phases of parsing of model-to-agent responses
+
+**Tag unwrapping:**
+
+The first phase of response parsing (`unwrap`), where the parser scans the model response for opening and closing **A2UI tags**, and separates conversational text (e.g., _"Here is your summary:"_) from the enclosed raw UI blocks.
+
+**Compilation:**
+
+The second phase of response parsing (`compile`), where the raw UI blocks extracted during unwrapping (standard JSON, Express DSL syntax, or Elemental HTML tags) are parsed, decompiled, and transformed into standard A2UI protocol payloads such as `createSurface` and `updateDataModel`.
+
+### Agent architecture
+
+An A2UI agent can be built in several ways:
+
+- **Same-process or server-side**:
+
+    The agent and the renderer may live in one process of a client side application. Example: a desktop Flutter application.
+
+    Or the renderer may live on the box that displays the UI, and the agent on another box (server).
+
+- **Orchestrator agent**:
+
+    A central orchestrator manages interactions between a user and several specialized sub-agents. The orchestrator can be in the same process or on the server.
+
+- **Pulling / pushing**:
+
+    An agent can wait for messages and requests from the renderer, or push them to it.
+
+- **Stateful / stateless**:
+
+    Agents can preserve state or be stateless.
+
+- **Mixed with other protocols**:
+
+    A2UI can be used in combination with other protocols. For example, an agent may be an MCP and/or A2A server.
+
+- **Something else**:
+
+    Custom variations of the options above are also possible.
+
+### Recommended code organization
+
+Agent and renderer functionality consists of layers that can be developed separately and reused:
+
+- **Core library**:
+
+    Set of primitives needed to describe a catalog and to interact with the agent.
+
+    For example, see the [JavaScript web core library](../../../renderers/web_core/README.md).
+
+- **Catalog schema**:
+
+    Definition of a catalog in the form of JSON.
+
+    For example, see the [basic catalog schema](../../../specification/v0_9_1/catalogs/basic/catalog.json).
+
+- **Agent SDK**:
+
+    Code that implements the agent's interaction with the model and the renderer.
+
+- **Framework adapter (or renderer SDK)**:<a id="fw-adapter"></a>
+
+    Code that runs the agent's instructions in a concrete framework. For example:
+    - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
+    - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
+
+    See the [Angular adapter](../../../renderers/angular/README.md).
+
+- **Catalog implementation**:
+
+    Implementation of the catalog schema for a framework.
+
+    For example:
+    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/v0_9/catalog/basic)
+
+```mermaid
+flowchart TD;
+cimpl-->fadapter("Framework<br>Adapter");
+cimpl("Catalog<br>Implementation")-->cschema("Catalog<br>Schema");
+cschema-->core("Core<br>Library");
+agentsdk("Agent SDK")-->cschema;
+agentsdk-->core;
+fadapter-->core;
+renderer-->fadapter;
+renderer("Renderer")-->cimpl;
+agent("Agent")-->agentsdk;
+```
+
 ## Generative UI terms
 
-Terms, not required by A2UI protocol, but commonly used in the context of generative UI.
+Terms that the A2UI protocol does not require, but that are common in the context of generative UI.
 
 ### Known patterns of GenUI
 
@@ -242,20 +291,20 @@ Terms, not required by A2UI protocol, but commonly used in the context of genera
 
 - **Canvas**:
 
-    Space for collaboration with an agent.
+    A space for collaboration with an agent.
 
 - **Dashboard**:
 
-    Pieces of generated UI are organized not by time, but by their meaning and stay reliably (a.k.a. pinned) where the user expects to see them.
+    Pieces of generated UI are organized by meaning rather than by time, and stay pinned where the user expects to see them.
 
 - **Wizard**:
 
-    Pieces of generated UI are shown one by one, with the goal to collect necessary information for a certain task.
+    Pieces of generated UI are shown one by one, to collect the information needed for a certain task.
 
 ### NoAI information
 
-Information, categorized as **not accessible by AI** (for example, credit card information).
+Information categorized as **not accessible by AI**, for example credit card details.
 
-Which information should not be accessible by AI is defined by owners of the application and it is **different in different contexts**. For example, in some contexts medical history should never go to AI, while in others AI is heavily used to help with medical diagnostics and thus needs medical history.
+Application owners decide which information is not accessible by AI, and the answer is **different in different contexts**. For example, in some products medical history should never go to the AI, while in others the AI relies on medical history to help with diagnostics.
 
-This term is important in the GenUI context, because end users want to **clearly see** what their input is allowed to go to the AI and what is not allowed.
+The term matters in the GenUI context, because end users want to **clearly see** which of their input may go to the AI and which may not.
