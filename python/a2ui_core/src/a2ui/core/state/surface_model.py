@@ -67,11 +67,12 @@ class SurfaceModel(Generic[TComponent, TFunction]):
             elif "functionCall" in payload:
                 event_payload = payload["functionCall"]
 
-        if isinstance(event_payload, dict) and not catalog_id:
-            catalog_id = event_payload.get("catalogId")
+        event_dict = event_payload if isinstance(event_payload, dict) else {}
+        if not catalog_id:
+            catalog_id = event_dict.get("catalogId")
 
         action_event: dict[str, Any] = {
-            "name": event_payload.get("name", event_payload.get("call", "")),
+            "name": event_dict.get("name", event_dict.get("call", "")),
             "surfaceId": self.id,
             "sourceComponentId": source_component_id,
             "timestamp": (
@@ -79,7 +80,7 @@ class SurfaceModel(Generic[TComponent, TFunction]):
                 .isoformat()
                 .replace("+00:00", "Z")
             ),
-            "context": event_payload.get("context", event_payload.get("args", {})),
+            "context": event_dict.get("context", event_dict.get("args", {})),
         }
         if catalog_id and isinstance(catalog_id, str):
             action_event["catalogId"] = catalog_id

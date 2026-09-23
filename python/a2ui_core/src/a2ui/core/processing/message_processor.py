@@ -498,7 +498,7 @@ class MessageProcessor:
         path = op.path or "/"
         value = op.value
 
-        if path in ("/", "") and isinstance(value, dict):
+        if path == "/" and isinstance(value, dict):
             for k, v in value.items():
                 escaped_k = k.replace("~", "~0").replace("/", "~1")
                 surface.data_model.set(f"/{escaped_k}", v)

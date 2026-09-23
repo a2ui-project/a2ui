@@ -183,6 +183,12 @@ def test_surface_model_action_and_error_dispatch():
     assert actions[2]["name"] == "save"
     assert actions[2]["catalogId"] == "another_cat"
 
+    # Action with non-dict event payload does not crash
+    surface.dispatch_action({"event": "custom_string_event"}, "btn4")
+    assert len(actions) == 4
+    assert actions[3]["name"] == ""
+    assert actions[3]["context"] == {}
+
     surface.dispatch_error({"code": "ERR_1", "message": "Failed"})
     assert len(errors) == 1
     assert errors[0]["code"] == "ERR_1"
