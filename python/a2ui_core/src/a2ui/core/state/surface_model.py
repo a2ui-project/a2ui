@@ -59,13 +59,18 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         import datetime
 
         event_payload = payload
+        catalog_id: str | None = None
         if isinstance(payload, dict):
+            catalog_id = payload.get("catalogId")
             if "event" in payload:
                 event_payload = payload["event"]
             elif "functionCall" in payload:
                 event_payload = payload["functionCall"]
 
-        action_event = {
+        if isinstance(event_payload, dict) and not catalog_id:
+            catalog_id = event_payload.get("catalogId")
+
+        action_event: dict[str, Any] = {
             "name": event_payload.get("name", event_payload.get("call", "")),
             "surfaceId": self.id,
             "sourceComponentId": source_component_id,
@@ -76,6 +81,9 @@ class SurfaceModel(Generic[TComponent, TFunction]):
             ),
             "context": event_payload.get("context", event_payload.get("args", {})),
         }
+        if catalog_id and isinstance(catalog_id, str):
+            action_event["catalogId"] = catalog_id
+
         self.on_action.emit(action_event)
 
     def dispatch_error(self, error: dict[str, Any]) -> None:
