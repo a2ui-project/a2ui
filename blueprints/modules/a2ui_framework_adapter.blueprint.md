@@ -381,6 +381,15 @@ Whenever a native component unmounts (via framework hooks like React `useEffect`
 - **Flush or discard pending debounced writes**: If the component debounced user input (e.g., text typing), flush pending writes to `WritableBinding.set()` or cancel active timers.
 - **Release native resources**: Dispose native controllers, focus nodes, gesture recognizers, or media players.
 
+### Node Teardown Callbacks (`addCleanup` and `onDestroyed`)
+
+The adapter does not need to orchestrate complex teardown pipelines. `ComponentNode` provides two built-in hooks:
+
+1. **`node.addCleanup(fn)`**: Registers a callback that runs automatically when the node is disposed by `NodeResolver`. Component implementations and binding wrappers can attach cleanup logic (such as releasing native controllers, timers, or subscriptions) directly to the node.
+2. **`node.onDestroyed`**: An event that fires exactly once when the node is disposed.
+
+In modern declarative frameworks (React, Flutter, SwiftUI), child views unmount naturally when removed from their parent's children list. Between the framework's native unmount hooks and `node.addCleanup()`, lifecycle disposal requires minimal adapter-side code.
+
 ---
 
 ## 7. Testing
