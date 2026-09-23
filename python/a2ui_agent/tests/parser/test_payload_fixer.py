@@ -54,3 +54,27 @@ class TestPayloadFixer(unittest.TestCase):
         self.assertEqual(len(res), 1)
         components = res[0]['createSurface']['components']
         self.assertEqual(components[0]['text'], 'Hello world')
+
+    def test_parse_and_fix_recovers_unescaped_control_characters(self):
+        """Verify parse_and_fix recovers payloads with unescaped control characters in strings."""
+        corrupt_payload = (
+            '[\n'
+            '  {\n'
+            '    "version": "v0.9",\n'
+            '    "createSurface": {\n'
+            '      "surfaceId": "main",\n'
+            '      "components": [\n'
+            '        {\n'
+            '          "id": "t1",\n'
+            '          "component": "Text",\n'
+            '          "text": "Grand Hotel\n5 Stars\n$200/night"\n'
+            '        }\n'
+            '      ]\n'
+            '    }\n'
+            '  }\n'
+            ']'
+        )
+        res = parse_and_fix(corrupt_payload)
+        self.assertEqual(len(res), 1)
+        components = res[0]['createSurface']['components']
+        self.assertEqual(components[0]['text'], 'Grand Hotel\n5 Stars\n$200/night')

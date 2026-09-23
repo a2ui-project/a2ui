@@ -195,7 +195,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
             fixed_fragment = self._fix_json(raw_fragment)
             obj = None
             try:
-                obj = json.loads(fixed_fragment)
+                obj = json.loads(fixed_fragment, strict=False)
             except json.JSONDecodeError:
                 # Fallback: iteratively strip from the last comma
                 trimmed = raw_fragment
@@ -204,7 +204,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                     try:
                         fixed_trimmed = self._fix_json(trimmed)
                         if fixed_trimmed:
-                            obj = json.loads(fixed_trimmed)
+                            obj = json.loads(fixed_trimmed, strict=False)
                             break
                     except json.JSONDecodeError:
                         continue

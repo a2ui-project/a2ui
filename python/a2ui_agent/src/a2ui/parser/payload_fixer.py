@@ -48,7 +48,7 @@ def parse_and_fix(payload: str) -> list[dict[str, Any]]:
 def _parse(payload: str) -> list[dict[str, Any]]:
     """Parses the payload and returns a list of A2UI JSON objects."""
     try:
-        a2ui_json = json.loads(payload)
+        a2ui_json = json.loads(payload, strict=False)
         if not isinstance(a2ui_json, list):
             logger.info(
                 "Received a single JSON object, wrapping in a list for validation."
