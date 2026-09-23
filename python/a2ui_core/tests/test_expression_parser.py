@@ -84,6 +84,11 @@ def _nested_calls(calls: int) -> str:
     return "${" + "f(a: " * calls + "1" + ")" * calls + "}"
 
 
+def _nested_interpolations(depth: int) -> str:
+    """Returns '${${... "x" ...}}' nested to depth levels."""
+    return "${" * depth + '"x"' + "}" * depth
+
+
 def test_accepts_function_arguments_nested_to_the_maximum_depth(parser):
     assert parser.parse(_nested_calls(ExpressionParser.MAX_DEPTH - 1))
 
@@ -94,10 +99,12 @@ def test_rejects_function_arguments_one_level_past_the_maximum_depth(parser):
 
 
 def test_rejects_pathological_nesting_instead_of_overflowing_the_stack(parser):
-    # Deep enough to exhaust the interpreter stack were the guard unreachable,
-    # which it was while function arguments did not count toward the depth.
-    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
+    # Deep enough to exhaust the interpreter stack were the guard unreachable.
+    # Asserted on the error kind rather than its message, matching TS test parity.
+    with pytest.raises(A2uiExpressionError):
         parser.parse(_nested_calls(50000))
+    with pytest.raises(A2uiExpressionError):
+        parser.parse(_nested_interpolations(50000))
 
 
 def test_handles_deep_recursion_gracefully(parser):
@@ -162,3 +169,19 @@ def test_rejects_numbers_with_multiple_decimal_dots(parser):
 
     with pytest.raises(A2uiExpressionError, match="Invalid number literal"):
         parser.parse_expression("1.2.3")
+
+
+def test_rejects_expression_template_exceeding_max_length(parser):
+    from a2ui.core.expressions.expression_parser import MAX_EXPRESSION_TEMPLATE_LENGTH
+
+    oversized = "a" * (MAX_EXPRESSION_TEMPLATE_LENGTH + 1)
+    with pytest.raises(A2uiExpressionError, match="exceeds maximum limit"):
+        parser.parse(oversized)
+
+
+def test_rejects_expression_parts_exceeding_max_limit(parser):
+    from a2ui.core.expressions.expression_parser import MAX_EXPRESSION_PARTS
+
+    too_many_parts = "${x}" * (MAX_EXPRESSION_PARTS + 1)
+    with pytest.raises(A2uiExpressionError, match="parts count exceeds maximum limit"):
+        parser.parse(too_many_parts)

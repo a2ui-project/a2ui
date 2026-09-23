@@ -718,7 +718,7 @@ class Catalog(Generic[TComponent, TFunction]):
         common_types_defs: dict[str, Any] | None = None,
     ):
         if not protocol_version:
-            raise ValueError("protocol_version must be provided.")
+            raise A2uiCatalogError("protocol_version must be provided.")
         self.catalog_id = catalog_id
         self.protocol_version = protocol_version
         self.instructions = instructions

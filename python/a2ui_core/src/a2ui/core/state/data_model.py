@@ -178,8 +178,12 @@ class DataModel:
             self._trigger_cascade(tokens, old_values)
             return self
 
-        if self._data is None or not isinstance(self._data, (dict, list)):
+        if self._data is None:
             self._data = {}
+        elif not isinstance(self._data, (dict, list)):
+            raise A2uiDataError(
+                f"Cannot set path '{path}': the data model root is a primitive value."
+            )
 
         # Auto-vivification: traverse and construct intermediate dicts/lists
         current = self._data

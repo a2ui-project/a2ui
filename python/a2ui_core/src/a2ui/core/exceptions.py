@@ -57,6 +57,12 @@ class A2uiCatalogError(A2uiError):
     pass
 
 
+class A2uiStateError(A2uiError):
+    """Exception raised for UI tree structural errors."""
+
+    pass
+
+
 class A2uiIntegrityError(A2uiValidationError):
     """Exception raised when layout graph integrity or relationship checks fail."""
 

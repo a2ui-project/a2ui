@@ -135,7 +135,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
                 A2uiRpcError(
                     f"RpcHandler disposed while call '{call_id}' was pending: {reason}",
                     function_call_id=call_id,
-                    code=RpcErrorCode.DISPOSED.value,
+                    code=RpcErrorCode.CANCELLED.value,
                 )
             )
         self._pending_agent_calls.clear()

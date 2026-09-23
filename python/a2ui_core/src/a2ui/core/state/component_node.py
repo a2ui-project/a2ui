@@ -53,6 +53,16 @@ class ComponentNode:
         self._cleanup_callbacks.clear()
         self.on_destroyed.emit(None)
 
+    @property
+    def disposed(self) -> bool:
+        """Indicates whether this node has been disposed."""
+        return self._disposed
+
+    @property
+    def is_placeholder(self) -> bool:
+        """Indicates whether this node is an unresolved placeholder."""
+        return self.type == "Placeholder"
+
     def __str__(self) -> str:
         return self.component_id
 
@@ -106,3 +116,7 @@ class ComponentNode:
             "type": self.type,
             "props": resolved_props,
         }
+
+    def to_debug_tree(self) -> dict[str, Any]:
+        """Serializes this node and its children recursively to a standard dict layout."""
+        return self.to_dict()

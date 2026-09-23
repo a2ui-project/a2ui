@@ -14,6 +14,16 @@
 
 """A2UI expression parsing module."""
 
-from .expression_parser import ExpressionParser, Scanner
+from .expression_parser import (
+    MAX_EXPRESSION_PARTS,
+    MAX_EXPRESSION_TEMPLATE_LENGTH,
+    ExpressionParser,
+    Scanner,
+)
 
-__all__ = ["ExpressionParser", "Scanner"]
+__all__ = [
+    "ExpressionParser",
+    "MAX_EXPRESSION_PARTS",
+    "MAX_EXPRESSION_TEMPLATE_LENGTH",
+    "Scanner",
+]

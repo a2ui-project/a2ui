@@ -26,7 +26,11 @@ from a2ui.core.state import (
     SurfaceGroupModel,
 )
 from a2ui.core.state.data_model import MAX_ARRAY_INDEX
-from a2ui.core.exceptions import A2uiDataError, A2uiValidationError
+from a2ui.core.exceptions import (
+    A2uiDataError,
+    A2uiStateError,
+    A2uiValidationError,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 
 dummy_catalog = BasicCatalog()
@@ -623,3 +627,90 @@ def test_resolved_binding_equality():
         # Type checker should recognize int_rb as WritableBinding[int]
         assert int_rb.value == 42
         assert int_rb.path == "/val"
+
+
+def test_data_model_primitive_root_rejection():
+    dm = DataModel()
+    dm.set("/", 42)
+    assert dm.get("/") == 42
+    with pytest.raises(A2uiDataError, match="the data model root is a primitive value"):
+        dm.set("/count", 1)
+
+
+def test_surface_model_parity_features():
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", default_catalog=cat, root_id="custom_root")
+
+    assert surface.root_id == "custom_root"
+    assert surface.catalog is cat
+    assert cat.id in surface.available_catalogs
+    assert surface.available_catalogs[cat.id] is cat
+
+    warnings_received: list[dict[str, Any]] = []
+    surface.on_warning.subscribe(lambda w: warnings_received.append(w))
+    surface.dispatch_warning({"code": "TEST_WARN", "message": "caution"})
+    assert len(warnings_received) == 1
+    assert warnings_received[0]["code"] == "TEST_WARN"
+    assert warnings_received[0]["surfaceId"] == "s1"
+
+    errors_received: list[dict[str, Any]] = []
+    surface.on_error.subscribe(lambda e: errors_received.append(e))
+    # Foreign surfaceId should be overwritten to surface.id
+    surface.dispatch_error({"code": "ERR", "surfaceId": "other_surface"})
+    assert len(errors_received) == 1
+    assert errors_received[0]["surfaceId"] == "s1"
+
+    # Non-dict payload is dropped
+    surface.dispatch_action("invalid", "c1")  # type: ignore[arg-type]
+
+
+def test_surface_components_model_parity_features():
+    cat = BasicCatalog()
+    scm = SurfaceComponentsModel(default_catalog=cat)
+    assert scm.default_catalog is cat
+
+    c1 = ComponentModel("c1", "Text", cat, {"text": "hello"})
+    c2 = ComponentModel("c2", "Button", cat, {"label": "click"})
+    scm.add_component(c1)
+    scm.add_component(c2)
+
+    assert scm.size == 2
+    assert scm.keys == ["c1", "c2"]
+    assert scm.values == [c1, c2]
+    assert scm.entries == [("c1", c1), ("c2", c2)]
+    assert scm.components_map == {"c1": c1, "c2": c2}
+
+    # Duplicate component throws A2uiStateError
+    with pytest.raises(A2uiStateError, match="already exists"):
+        scm.add_component(ComponentModel("c1", "Text", cat, {}))
+
+    # Child query methods
+    assert scm.get_child_references("c1") == []
+    assert scm.get_child_ids("c1") == []
+
+    # Cycle detection
+    visited = scm.detect_cycles(allow_missing_root=True)
+    assert "c1" in visited
+    assert "c2" in visited
+
+    # Verify custom max_depth parameter is respected
+    chain_scm = SurfaceComponentsModel(default_catalog=cat)
+    chain_scm.add_component(ComponentModel("root", "Box", cat, {"child": "node1"}))
+    chain_scm.add_component(ComponentModel("node1", "Box", cat, {"child": "node2"}))
+    chain_scm.add_component(ComponentModel("node2", "Text", cat, {"text": "leaf"}))
+    from a2ui.core.exceptions import A2uiRecursionError
+
+    with pytest.raises(A2uiRecursionError, match="logical depth > 1"):
+        chain_scm.detect_cycles(root_id="root", max_depth=1)
+    visited_chain = chain_scm.detect_cycles(root_id="root", max_depth=5)
+    assert len(visited_chain) == 3
+
+
+def test_component_node_parity_features():
+    node = ComponentNode("inst_1", "c1", "Placeholder", "/", Signal({}))
+    assert node.is_placeholder is True
+    assert node.disposed is False
+    assert node.to_debug_tree()["type"] == "Placeholder"
+
+    node.dispose()
+    assert node.disposed is True

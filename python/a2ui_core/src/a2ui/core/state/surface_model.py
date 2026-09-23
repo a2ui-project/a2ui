@@ -37,20 +37,34 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         theme: dict[str, Any] | None = None,
         send_data_model: bool = False,
         data_model: DataModel | None = None,
+        root_id: str = "root",
     ) -> None:
         self.id = surface_id
         self.default_catalog = default_catalog
-        self.available_catalogs: dict[str, Catalog[TComponent, TFunction]] = (
+        catalogs: dict[str, Catalog[TComponent, TFunction]] = (
             dict(available_catalogs) if available_catalogs else {}
         )
+        cat_id = getattr(default_catalog, "catalog_id", None) or getattr(
+            default_catalog, "id", None
+        )
+        if cat_id and cat_id not in catalogs:
+            catalogs[cat_id] = default_catalog
+        self.available_catalogs = catalogs
+
         self.theme = theme or {}
         self.send_data_model = send_data_model
 
         self.data_model = data_model or DataModel()
-        self.components_model = SurfaceComponentsModel()
-        self.root_id: str | None = None
+        self.components_model = SurfaceComponentsModel(default_catalog)
+        self.root_id = root_id
         self.on_action = EventSource()
         self.on_error = EventSource()
+        self.on_warning = EventSource()
+
+    @property
+    def catalog(self) -> Catalog[TComponent, TFunction]:
+        """The surface's default catalog (deprecated alias for default_catalog)."""
+        return self.default_catalog
 
     def dispatch_action(
         self, payload: dict[str, Any], source_component_id: str
@@ -96,10 +110,15 @@ class SurfaceModel(Generic[TComponent, TFunction]):
 
     def dispatch_error(self, error: dict[str, Any]) -> None:
         """Dispatches an error from this surface to listeners."""
-        err_payload = copy.deepcopy(error)
-        if "surfaceId" not in err_payload:
-            err_payload["surfaceId"] = self.id
+        err_payload = copy.deepcopy(error) if isinstance(error, dict) else {}
+        err_payload["surfaceId"] = self.id
         self.on_error.emit(err_payload)
+
+    def dispatch_warning(self, warning: dict[str, Any]) -> None:
+        """Dispatches a non-fatal warning from this surface to listeners."""
+        warn_payload = copy.deepcopy(warning) if isinstance(warning, dict) else {}
+        warn_payload["surfaceId"] = self.id
+        self.on_warning.emit(warn_payload)
 
     def dispose(self) -> None:
         """Disposes of the surface and its resources."""
@@ -123,3 +142,9 @@ class SurfaceModel(Generic[TComponent, TFunction]):
                     RuntimeWarning,
                     stacklevel=2,
                 )
+        if hasattr(self.on_action, "dispose") and callable(self.on_action.dispose):
+            self.on_action.dispose()
+        if hasattr(self.on_error, "dispose") and callable(self.on_error.dispose):
+            self.on_error.dispose()
+        if hasattr(self.on_warning, "dispose") and callable(self.on_warning.dispose):
+            self.on_warning.dispose()

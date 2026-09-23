@@ -14,6 +14,7 @@
 
 from typing import (
     Any,
+    Final,
     Generic,
     Type,
     cast,
@@ -41,6 +42,7 @@ class ValidationConfig(BaseModel):
     allow_missing_root: bool = False
     allow_unknown_elements: bool = False
     allowed_messages: list[str] | None = None
+    max_depth: int | None = None
 
 
 # Presets for validation configuration
@@ -51,6 +53,8 @@ RELAXED_VALIDATION = ValidationConfig(
     allow_missing_root=True,
     allow_unknown_elements=True,
 )
+
+MAX_FUNCTION_CALL_ARGS: Final[int] = 1_000
 
 JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 
@@ -427,6 +431,22 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             )
 
         self._validate_function_identifiers(name, norm_args)
+
+        if len(norm_args) > MAX_FUNCTION_CALL_ARGS:
+            raise A2uiValidationError(
+                f"Function call '{name}' exceeds maximum allowed arguments count"
+                f" ({MAX_FUNCTION_CALL_ARGS})",
+                details=[
+                    A2uiErrorDetail(
+                        path=f"functions.{name}",
+                        code="too_many_arguments",
+                        message=(
+                            f"Function call '{name}' exceeds maximum allowed"
+                            f" arguments count ({MAX_FUNCTION_CALL_ARGS})"
+                        ),
+                    )
+                ],
+            )
 
         fn_def, fn_schema, base_schema = self._find_function_definition(name)
 

@@ -1242,7 +1242,7 @@ def test_message_processor_disposal_cancels_pending_calls(mock_catalog):
     assert fut2.done()
     with pytest.raises(A2uiRpcError) as exc_info:
         fut1.result()
-    assert exc_info.value.code == RpcErrorCode.DISPOSED.value
+    assert exc_info.value.code == RpcErrorCode.CANCELLED.value
     assert exc_info.value.function_call_id == "call_1"
     assert "Surface closed" in str(exc_info.value)
 

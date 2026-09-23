@@ -26,6 +26,7 @@ from a2ui.core.exceptions import (
     A2uiParseError as A2uiParseError,
     A2uiRecursionError as A2uiRecursionError,
     A2uiRpcError as A2uiRpcError,
+    A2uiStateError as A2uiStateError,
     A2uiValidationError as A2uiValidationError,
     RpcErrorCode as RpcErrorCode,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "A2uiParseError",
     "A2uiRecursionError",
     "A2uiRpcError",
+    "A2uiStateError",
     "A2uiValidationError",
     "CallOptions",
     "Catalog",

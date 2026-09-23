@@ -14,6 +14,7 @@
 
 from ..catalog.catalog import is_valid_uax31_identifier
 from .payload_validator import (
+    MAX_FUNCTION_CALL_ARGS,
     PayloadValidator,
     ValidationConfig,
     RELAXED_VALIDATION,
@@ -27,6 +28,7 @@ from ..state.validation_helpers import (
 )
 
 __all__ = [
+    "MAX_FUNCTION_CALL_ARGS",
     "is_valid_uax31_identifier",
     "ValidationConfig",
     "STRICT_VALIDATION",

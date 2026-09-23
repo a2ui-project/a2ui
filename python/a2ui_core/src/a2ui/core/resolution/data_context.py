@@ -180,6 +180,8 @@ class DataContext(Generic[TComponent, TFunction]):
                 for k, v in evt["context"].items():
                     resolved_context[k] = self.resolve_dynamic_value(v)
             evt["context"] = resolved_context
+            if "userMessage" in evt and evt["userMessage"] is not None:
+                evt["userMessage"] = self.resolve_dynamic_value(evt["userMessage"])
             return {"event": evt}
         if isinstance(action, dict) and "functionCall" in action:
             return self.resolve_dynamic_value(action["functionCall"])

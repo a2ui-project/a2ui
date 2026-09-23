@@ -14,7 +14,7 @@
 
 from typing import Any
 from ..common.events import EventSource
-from ..exceptions import A2uiErrorDetail, A2uiValidationError
+from ..exceptions import A2uiErrorDetail, A2uiStateError, A2uiValidationError
 from .component_model import ComponentModel
 from .validation_helpers import (
     analyze_topology,
@@ -33,10 +33,36 @@ from ..catalog.catalog import TComponent, TFunction
 class SurfaceComponentsModel:
     """Manages the adjacency map of component configs in a surface."""
 
-    def __init__(self) -> None:
+    def __init__(self, default_catalog: Any = None) -> None:
+        self.default_catalog = default_catalog
         self._components: dict[str, ComponentModel] = {}
         self.on_created = EventSource()
         self.on_deleted = EventSource()
+
+    @property
+    def entries(self) -> list[tuple[str, ComponentModel]]:
+        """Returns list of (id, component) pairs."""
+        return list(self._components.items())
+
+    @property
+    def keys(self) -> list[str]:
+        """Returns list of component IDs."""
+        return list(self._components.keys())
+
+    @property
+    def values(self) -> list[ComponentModel]:
+        """Returns list of component models."""
+        return list(self._components.values())
+
+    @property
+    def size(self) -> int:
+        """Returns total number of components."""
+        return len(self._components)
+
+    @property
+    def components_map(self) -> dict[str, ComponentModel]:
+        """Returns a dictionary view of all active components."""
+        return dict(self._components)
 
     def get(self, component_id: str) -> ComponentModel | None:
         return self._components.get(component_id)
@@ -46,7 +72,7 @@ class SurfaceComponentsModel:
 
     def add_component(self, component: ComponentModel) -> None:
         if component.id in self._components:
-            raise ValueError(f"Component with id '{component.id}' already exists.")
+            raise A2uiStateError(f"Component with id '{component.id}' already exists.")
         self._components[component.id] = component
         self.on_created.emit(component)
 
@@ -56,6 +82,35 @@ class SurfaceComponentsModel:
             del self._components[component_id]
             comp.dispose()
             self.on_deleted.emit(component_id)
+
+    def get_child_references(self, component_id: str) -> list[tuple[str, str]]:
+        """Resolves child component references for a given component identifier."""
+        comp = self.get(component_id)
+        if not comp:
+            return []
+        return list(comp.get_child_references(set(self._components.keys())))
+
+    def get_child_ids(self, component_id: str) -> list[str]:
+        """Returns list of referenced child component IDs for a given component identifier."""
+        return [ref_id for ref_id, _ in self.get_child_references(component_id)]
+
+    def detect_cycles(
+        self,
+        root_id: str = "root",
+        max_depth: int = 50,
+        allow_missing_root: bool = False,
+    ) -> set[str]:
+        """Detects self-references, circular dependencies, and exceeds depth limits."""
+        config = ValidationConfig(
+            allow_missing_root=allow_missing_root,
+            max_depth=max_depth,
+        )
+        return analyze_topology(
+            self._components,
+            root_id=root_id,
+            config=config,
+            max_depth=max_depth,
+        )
 
     def validate_components_update(
         self,
