@@ -920,7 +920,7 @@ For complete setup instructions, test harness requirements, suite descriptions, 
 
 In addition to the per-format YAML suites, implementations of non-JSON inference formats (such as Express) should implement a systematic round-trip test against the full corpus of catalog golden example files (`specification/v1_0/catalogs/basic/examples/*.json`).
 
-Because the Express notation is human-authored and catalog-driven, decompile-then-recompile round-trips against the full set of specification examples verify that:
+Because Express notation is a compact, catalog-driven DSL, decompile-then-recompile round-trips against the full set of specification examples verify that:
 
 1. Every standard component, property, data-binding, and check rule decompiles into clean notation without error.
 2. Recompiling the decompiled DSL reproduces the original semantic surface envelope, components, and data model.
