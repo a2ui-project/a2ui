@@ -27,13 +27,19 @@
 # Example: export GEMINI_API_KEY=your_api_key
 
 # No exit on failure, because we want all tests to run
-# regardless of previous test failures. The script still exits
-# with an error if any of them failed.
+# regardless of previous test failures.
 # set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Without `set -e`, the script would exit with the status of its last command,
+# so a failure in an earlier test suite would be lost: the workflow would pass
+# and no issue would be filed. STATUS records any failure, and the script exits
+# with it at the end.
 STATUS=0
 
+# A failed `cd` stops the script, because the tests would run in the wrong
+# directory.
 cd "$REPO_ROOT/samples/client/flutter/restaurant_finder/e2e_test" || exit 1
 # Parallel tests are disabled to avoid conflicts on environment.
 flutter test --concurrency=1 --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY" || STATUS=1
