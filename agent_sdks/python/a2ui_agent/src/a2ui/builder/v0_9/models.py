@@ -16,14 +16,27 @@
 
 A model here is reused from ``a2ui.core.schema.common_types`` when the authoring
 form and the parsed form are genuinely the same thing, and defined locally when
-they are not. ``ActionEvent``, ``DataBinding``, ``FunctionCall`` and
-``CheckRule`` are core's outright.
+they are not. ``AccessibilityAttributes``, ``ActionEvent``, ``CheckRule``,
+``DataBinding`` and ``FunctionCall`` are core's outright.
 
-The rest stay local because authoring is a different job from parsing. It wants
-nested children rather than IDs, narrow enums, and no defaulted field reaching
-the wire that the author never wrote. ``Action`` is the clearest case: core
-models it as a union of two single-key wrappers, which is the right shape for
-parsing but a poor one to write by hand.
+Two stay local, and in both cases because the authoring shape really is a
+different shape rather than because core's model has a defect:
+
+``Action``
+    Core models this as ``ActionEventWrapper | ActionFunctionCallWrapper``. The
+    union is the right read of the wire and enforces the ``oneOf`` structurally,
+    but it cannot be constructed — ``Action(...)`` on a ``Union`` raises
+    ``TypeError`` — so every call site would name a wrapper class instead of the
+    type its own signature advertises.
+
+``DynamicChildList``
+    Core's ``TemplateChildList`` references its template by ``component_id``,
+    which is what a parser sees. An author nests the template and lets the
+    flatten pass allocate the ID, so the reference cannot dangle.
+
+Both are pinned against their core counterparts by tests asserting that what
+they serialize validates as core's model, so the shapes cannot drift apart
+without failing the suite.
 
 No model here defines a custom serializer, and none rewrites a value the author
 supplied. Field shape, aliases, defaults and null handling are Pydantic's; the
@@ -52,27 +65,13 @@ from pydantic import (
 from ..core.base_model import BuilderBaseModel
 from ..core.child import Child
 
+from a2ui.core.schema.common_types import (
+    AccessibilityAttributes as AccessibilityAttributes,
+)
 from a2ui.core.schema.common_types import ActionEvent as ActionEvent
 from a2ui.core.schema.common_types import CheckRule as CheckRule
 from a2ui.core.schema.common_types import DataBinding as DataBinding
 from a2ui.core.schema.common_types import FunctionCall as FunctionCall
-
-
-class AccessibilityAttributes(BuilderBaseModel):
-    """Attributes to enhance accessibility when using assistive technologies.
-
-    Only ``label`` and ``description`` exist in v0.9.1. The ``live`` and
-    ``hidden`` attributes are v1.0 additions and belong on the v1.0 model:
-    v0.9.1 omits ``additionalProperties: false`` here, so declaring them would
-    validate cleanly while no v0.9 renderer read them.
-
-    Core's model is not reused because it carries those two v1.0 fields on a
-    v0.9-pinned class. That is fixed on core's ``v1_0`` branch, which splits the
-    schema into versioned packages; reuse becomes possible once it lands.
-    """
-
-    label: Optional[Union[str, DataBinding]] = None
-    description: Optional[Union[str, DataBinding]] = None
 
 
 # Canonical Protocol Type Aliases

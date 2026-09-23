@@ -304,35 +304,46 @@ The test is whether reuse changes what reaches the wire:
   thing. A named event carrying a name and a context is the same object to both
   sides, and so is a data binding: it is one field holding a path that must
   reach the wire exactly as written, which is as true for an author as it is
-  for a parser. A function call and a validation check are the same both ways
-  too, once core stops materializing the documented `returnType` default.
+  for a parser. A function call, a validation check and a set of accessibility
+  attributes are the same both ways too.
 - **Extend the core model** where the fields agree but authoring genuinely needs
   added behaviour. Extending keeps the core type assignable, so the two cannot
   diverge structurally. No model currently needs this tier; it is recorded
   because it is the correct answer when the alternative is a parallel copy.
 - **Define locally** where the authoring shape is genuinely different. An action
   is the clearest case: core models it as a union of single-key wrappers, which
-  reads a parse cleanly but is awkward to write, so the builder uses one model
-  with a validator. A template child list is another: core references a template
-  by ID, while an author nests it and lets the flatten pass assign the ID.
+  reads a parse cleanly but cannot be constructed — calling a union raises —
+  so every call site would have to name a wrapper class rather than the type its
+  own signature advertises. A template child list is the other: core references a
+  template by ID, while an author nests it and lets the flatten pass assign one.
 
-Two things look like reasons to define locally but are not, and should be fixed
-upstream instead:
+Two things look like reasons to define locally but are not:
 
 - **A field defaulted to a non-null value.** A JSON Schema `default` tells a
   reader what to assume when a key is absent; it does not license a writer to
   emit it. If core materializes one, every builder payload carries a property
   the author never wrote — but the fix belongs in core's schema generator, not
   in a forked model.
-- **A field from a newer protocol version.** A v1.0 attribute on a v0.9-pinned
-  model is a version-fidelity bug in core. Fork only until core's schema is
-  split per version, and record the expiry in the local model's docstring.
+- **An undefaulted field from a newer protocol version.** A v1.0 attribute on a
+  v0.9-pinned model is a version-fidelity bug in core, but it is not a reason to
+  fork on its own: if the field is optional and undefaulted it never reaches the
+  wire unless an author sets it deliberately. Weigh that against what forking
+  costs. Restating a model by hand risks narrowing it — dropping a `oneOf` branch
+  the version does allow — which breaks payloads that are legal, whereas the
+  extra field only exposes one that is ignored. Prefer sharing, and pin the
+  extras as undefaulted so the exposure stays theoretical.
 
 Whatever is reused must be pinned by a test asserting it still matches core.
 Reuse is only safe while it is visible; without that test an upstream field
 change reaches every payload the builder produces with no local diff to review.
 That test must also assert the *output*, not just class identity: a shared model
 whose defaults change starts emitting new keys without changing any local code.
+
+Whatever is **not** reused needs the same treatment from the other direction. A
+locally-defined model must be pinned by a test asserting that what it serializes
+still validates as core's equivalent. Identity assertions cannot cover these,
+since the classes differ deliberately, so without an output check the two can
+drift apart silently and the divergence surfaces at a client rather than in CI.
 
 ### Why generated and hand-written code are separated
 

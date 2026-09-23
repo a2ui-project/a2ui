@@ -23,11 +23,31 @@ from a2ui.core.schema.common_types import (
 
 
 def test_accessibility_attributes_defaults():
+    """An unset optional field stays unset and stays off the wire.
+
+    The v1.0 schema documents ``live`` as defaulting to ``"off"``. That is an
+    annotation telling a *reader* what to assume when the key is absent, not an
+    instruction for a *writer* to emit it. Materializing it here would put a
+    ``live`` on every accessibility payload that no author asked for, and would
+    make "unspecified" indistinguishable from "explicitly off".
+    """
     attr = AccessibilityAttributes(label="Click Me")
     assert attr.label == "Click Me"
     assert attr.description is None
-    assert attr.live == "off"
+    assert attr.live is None
     assert attr.hidden is None
+
+    assert attr.model_dump(by_alias=True, exclude_none=True) == {"label": "Click Me"}
+
+
+def test_accessibility_attributes_explicit_live_off_is_preserved():
+    """Choosing the documented default explicitly is not the same as omitting it."""
+    attr = AccessibilityAttributes(label="Click Me", live="off")
+    assert attr.live == "off"
+    assert attr.model_dump(by_alias=True, exclude_none=True) == {
+        "label": "Click Me",
+        "live": "off",
+    }
 
 
 def test_accessibility_attributes_all_fields():

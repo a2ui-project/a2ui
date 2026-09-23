@@ -451,12 +451,16 @@ def test_reused_core_models_stay_identical_to_core():
     field or DataBinding's shape moves, that has to break a test here rather
     than silently change what every builder payload puts on the wire.
     """
+    from a2ui.core.schema.common_types import (
+        AccessibilityAttributes as CoreAccessibilityAttributes,
+    )
     from a2ui.core.schema.common_types import ActionEvent as CoreActionEvent
     from a2ui.core.schema.common_types import CheckRule as CoreCheckRule
     from a2ui.core.schema.common_types import DataBinding as CoreDataBinding
     from a2ui.core.schema.common_types import FunctionCall as CoreFunctionCall
 
-    # All four are core's classes outright, not copies that happen to match.
+    # All five are core's classes outright, not copies that happen to match.
+    assert AccessibilityAttributes is CoreAccessibilityAttributes
     assert ActionEvent is CoreActionEvent
     assert CheckRule is CoreCheckRule
     assert DataBinding is CoreDataBinding
@@ -498,6 +502,73 @@ def test_reused_core_models_stay_identical_to_core():
         ).message
         == "Required."
     )
+
+
+def test_locally_defined_models_still_serialize_as_core_models():
+    """Pins the two models the builder does not share against core's versions.
+
+    ``Action`` and ``DynamicChildList`` are defined locally because the
+    authoring shape genuinely differs from the parsed shape, not because core's
+    models are wrong. That distinction only holds while what they emit is still
+    something core can read, so assert it rather than assume it.
+
+    Identity assertions cannot cover these -- the classes are deliberately
+    different -- so the pin is on the serialized form instead. Without it, the
+    two could drift apart silently and the divergence would only surface at a
+    client.
+    """
+    from pydantic import TypeAdapter
+
+    from a2ui.core.schema.common_types import (
+        Action as CoreAction,
+        ActionEventWrapper,
+        ActionFunctionCallWrapper,
+        TemplateChildList,
+    )
+
+    action_adapter = TypeAdapter(CoreAction)
+
+    # Core spells an action as a union of single-key wrappers. Each builder
+    # branch has to land on the matching one.
+    event_form = Action(event=ActionEvent(name="save")).model_dump(
+        by_alias=True, exclude_none=True
+    )
+    assert event_form == {"event": {"name": "save"}}
+    assert isinstance(action_adapter.validate_python(event_form), ActionEventWrapper)
+
+    call_form = Action(function_call=FunctionCall(call="closeModal")).model_dump(
+        by_alias=True, exclude_none=True
+    )
+    assert call_form == {"functionCall": {"call": "closeModal"}}
+    assert isinstance(
+        action_adapter.validate_python(call_form), ActionFunctionCallWrapper
+    )
+
+    # The union rejects both degenerate forms structurally, which is the
+    # constraint the builder's validator reproduces locally. If core ever
+    # loosened that, the two would disagree about what is valid.
+    for degenerate in ({}, {"event": {"name": "s"}, "functionCall": {"call": "c"}}):
+        with pytest.raises(ValidationError):
+            action_adapter.validate_python(degenerate)
+    for degenerate_kwargs in (
+        {},
+        {"event": ActionEvent(name="s"), "function_call": FunctionCall(call="c")},
+    ):
+        with pytest.raises(ValidationError):
+            Action(**degenerate_kwargs)
+
+    # A dynamic child list nests its template; core references it by ID. The
+    # flatten pass is what bridges the two, so check the post-flatten form.
+    tree = Column(
+        id="list",
+        children=DynamicChildList(
+            path="/feed/posts",
+            template=Text(id="row", text=DataBinding(path="title")),
+        ),
+    )
+    flattened = flatten_component_tree(tree)
+    column = next(c for c in flattened if c["component"] == "Column")
+    TemplateChildList.model_validate(column["children"])
 
 
 def test_bare_model_dump_keeps_children_nested():
@@ -681,15 +752,26 @@ def test_static_typechecker_compiler_rejections():
 
 
 def test_accessibility_attributes_match_the_v0_9_1_schema():
-    """Pins the v0.9 model's field set to the v0.9.1 schema.
+    """Pins what the shared accessibility model can express and what it emits.
 
-    The schema omits ``additionalProperties: false`` on this definition, so a
-    field that only exists in a later version validates cleanly while no v0.9
-    renderer reads it. ``live`` and ``hidden`` reached the builder that way.
-    An equality assertion is what makes the drift fail rather than pass.
+    This is core's model, which is a v0.9/v1.0 hybrid: core's schema package is
+    flat, so ``live`` and ``hidden`` sit on it even though both are v1.0
+    additions. Sharing it anyway is deliberate -- the v0.9.1 fields are typed
+    correctly there and were narrowed here -- but it is only safe while the two
+    extras stay off the wire, which is what this pins.
+
+    The equality assertion this replaces could not survive the move to core's
+    model. It is replaced by three narrower ones that each fail for a distinct
+    reason, rather than one that fails for any reason at all.
     """
     import json
     import pathlib
+
+    from a2ui.core.schema.common_types import (
+        AccessibilityAttributes as CoreAccessibilityAttributes,
+    )
+
+    assert AccessibilityAttributes is CoreAccessibilityAttributes
 
     repo_root = next(
         p
@@ -699,10 +781,32 @@ def test_accessibility_attributes_match_the_v0_9_1_schema():
     schema_path = repo_root / "specification/v0_9_1/json/common_types.json"
     schema = json.loads(schema_path.read_text())
 
-    expected = set(schema["$defs"]["AccessibilityAttributes"]["properties"])
+    versioned = set(schema["$defs"]["AccessibilityAttributes"]["properties"])
     actual = set(AccessibilityAttributes.model_fields)
 
-    assert actual == expected, (
-        f"builder has {sorted(actual - expected)} not in the v0.9.1 schema; "
-        f"schema has {sorted(expected - actual)} not on the builder model"
+    # Every field the targeted version defines is expressible.
+    assert versioned <= actual, f"missing from the model: {sorted(versioned - actual)}"
+
+    # The only extras are the two known v1.0 additions. A third would mean core
+    # had grown a field nobody here had looked at.
+    assert actual - versioned == {
+        "live",
+        "hidden",
+    }, f"unexpected extra fields: {sorted(actual - versioned - {'live', 'hidden'})}"
+
+    # Neither extra is defaulted, so an author who ignores them emits nothing
+    # a v0.9 renderer cannot read. This is the load-bearing assertion: `live`
+    # previously defaulted to "off" and serialized on every payload.
+    for name in ("live", "hidden"):
+        assert AccessibilityAttributes.model_fields[name].default is None
+
+    dumped = AccessibilityAttributes(label="Save").model_dump(
+        by_alias=True, exclude_none=True
     )
+    assert dumped == {"label": "Save"}
+
+    # The v0.9.1 schema types label and description as DynamicString, which
+    # includes a function call. The local model this replaces narrowed them to
+    # str | DataBinding and rejected the third branch outright.
+    call = FunctionCall(call="localizedLabel", args={"key": "save"})
+    assert AccessibilityAttributes(label=call).label == call
