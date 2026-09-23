@@ -15,6 +15,13 @@
 """Common utilities for A2UI core, including event handling and SemVer parsing."""
 
 from .events import Subscription, EventSource, Signal, AbortSignal
+from .json_pointer import (
+    FORBIDDEN_PATH_SEGMENTS,
+    NUMERIC_PATTERN,
+    UNESCAPE_PATTERN,
+    split_json_pointer,
+    unescape_json_pointer,
+)
 from .semver import (
     SemVer,
     compare_semver,
@@ -30,6 +37,11 @@ __all__ = [
     "EventSource",
     "Signal",
     "AbortSignal",
+    "FORBIDDEN_PATH_SEGMENTS",
+    "NUMERIC_PATTERN",
+    "UNESCAPE_PATTERN",
+    "unescape_json_pointer",
+    "split_json_pointer",
     "SemVer",
     "normalize_version_string",
     "parse_semver",

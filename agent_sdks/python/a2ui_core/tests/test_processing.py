@@ -741,3 +741,41 @@ def test_message_processor_json_catalog_theme_validation():
                 "theme": {"primaryColor": "red"},  # Must match hex color regex!
             },
         }])
+
+
+def test_message_processor_rejects_prototype_pollution_in_update_data_model(
+    real_catalog_09,
+):
+    processor = MessageProcessor(catalogs=[real_catalog_09], strict_mode=False)
+    processor.process_messages([{
+        "version": SPEC_VERSION,
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": real_catalog_09.catalog_id,
+        },
+    }])
+
+    surface = processor.model.get_surface("s1")
+    assert surface is not None
+
+    with pytest.raises(ValueError, match="Forbidden path segment '__proto__'"):
+        processor.process_messages([{
+            "version": SPEC_VERSION,
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": "/__proto__/polluted",
+                "value": "hacked",
+            },
+        }])
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'constructor'"):
+        processor.process_messages([{
+            "version": SPEC_VERSION,
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": "/constructor/prototype/polluted",
+                "value": "hacked",
+            },
+        }])
+
+    assert surface.data_model.get("/") == {}

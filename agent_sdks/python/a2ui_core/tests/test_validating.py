@@ -504,3 +504,34 @@ def test_relaxed_validation_allows_missing_root():
         )
 
     validator.validate(catalog, payload_with_create_surface, config=RELAXED_VALIDATION)
+
+
+def test_validator_rejects_forbidden_path_segments():
+    validator = A2uiValidator()
+
+    for forbidden in ["__proto__", "constructor", "prototype"]:
+        msg = [{
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": f"/{forbidden}/key",
+                "value": 1,
+            },
+        }]
+        with pytest.raises(
+            A2uiValidatorError, match=f"Forbidden path segment '{forbidden}'"
+        ):
+            validator.validate_protocol_envelope(msg)
+
+
+def test_validator_accepts_escaped_path_segments():
+    validator = A2uiValidator()
+    msg = [{
+        "version": "v0.9",
+        "updateDataModel": {
+            "surfaceId": "s1",
+            "path": "/a~1b/m~0n",
+            "value": 123,
+        },
+    }]
+    validator.validate_protocol_envelope(msg)

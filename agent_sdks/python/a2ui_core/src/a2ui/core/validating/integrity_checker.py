@@ -14,11 +14,15 @@
 
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterator, Mapping
 import re
+from ..common.json_pointer import (
+    FORBIDDEN_PATH_SEGMENTS,
+    NUMERIC_PATTERN,
+    split_json_pointer,
+)
 from ..schema.constants import ROOT_ID
 from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiIntegrityError, A2uiRecursionError
 
 
-NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 MAX_GLOBAL_DEPTH = 50
 MAX_FUNC_CALL_DEPTH = 5
 RELAXED_PATH_PATTERN = re.compile(
@@ -155,6 +159,21 @@ def validate_recursion_and_paths(data: Any) -> None:
                             )
                         ],
                     )
+                for seg in split_json_pointer(path):
+                    if seg in FORBIDDEN_PATH_SEGMENTS:
+                        raise A2uiValidationError(
+                            f"Forbidden path segment '{seg}' in path '{path}'",
+                            details=[
+                                A2uiErrorDetail(
+                                    path="path",
+                                    code="forbidden_path_segment",
+                                    message=(
+                                        f"Forbidden path segment '{seg}' in path"
+                                        f" '{path}'"
+                                    ),
+                                )
+                            ],
+                        )
 
             is_func_v08 = "functionCall" in item and isinstance(
                 item["functionCall"], dict
