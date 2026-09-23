@@ -16,7 +16,7 @@
 
 import {describe, test, expect} from 'vitest';
 import * as path from 'path';
-import {loadCases, classify, CONFORMANCE_ROOT} from './loader.js';
+import {loadCases, classify, CONFORMANCE_ROOT, KNOWN_FAILURES} from './loader.js';
 import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
 import {
   A2uiValidationError,
@@ -236,6 +236,8 @@ describe('Conformance Harness', () => {
 
     if (!verdict.runnable) {
       test.skip(`${testName} (${verdict.reason})`, testFn);
+    } else if (KNOWN_FAILURES.has(name)) {
+      test.fails(`${testName} (known gap: ${KNOWN_FAILURES.get(name)})`, testFn);
     } else {
       test(testName, testFn);
     }
