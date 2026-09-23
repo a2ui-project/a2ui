@@ -490,6 +490,7 @@ __metadata:
     js-yaml: "npm:^4.1.0"
     jsdom: "npm:^29.1.1"
     lit: "npm:^3.3.3"
+    redos-detector: "npm:^6.1.4"
     rxjs: "npm:^7.8.2"
     typescript: "npm:5.9.3"
     validate-color: "npm:^2.2.4"
@@ -16025,7 +16026,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsesc@npm:^3.0.2":
+"jsesc@npm:^3.0.2, jsesc@npm:~3.1.0":
   version: 3.1.0
   resolution: "jsesc@npm:3.1.0"
   bin:
@@ -20408,6 +20409,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"redos-detector@npm:^6.1.4":
+  version: 6.1.4
+  resolution: "redos-detector@npm:6.1.4"
+  dependencies:
+    regjsparser: "npm:0.13.0"
+  bin:
+    redos-detector: bin.js
+  checksum: 10c0/5119a875985da41a83883f533cd5117048ba2f418a0f4f00aa8825489ee3bdc391c47ead0d1936e64edc584c47a4997fe85d671037a539ee926f883a67a44c60
+  languageName: node
+  linkType: hard
+
 "reflect-metadata@npm:^0.2.0, reflect-metadata@npm:^0.2.2":
   version: 0.2.2
   resolution: "reflect-metadata@npm:0.2.2"
@@ -20478,6 +20490,17 @@ __metadata:
     gopd: "npm:^1.2.0"
     set-function-name: "npm:^2.0.2"
   checksum: 10c0/83b88e6115b4af1c537f8dabf5c3744032cb875d63bc05c288b1b8c0ef37cbe55353f95d8ca817e8843806e3e150b118bc624e4279b24b4776b4198232735a77
+  languageName: node
+  linkType: hard
+
+"regjsparser@npm:0.13.0":
+  version: 0.13.0
+  resolution: "regjsparser@npm:0.13.0"
+  dependencies:
+    jsesc: "npm:~3.1.0"
+  bin:
+    regjsparser: bin/parser
+  checksum: 10c0/4702f85cda09f67747c1b2fb673a0f0e5d1ba39d55f177632265a0be471ba59e3f320623f411649141f752b126b8126eac3ff4c62d317921e430b0472bfc6071
   languageName: node
   linkType: hard
 
