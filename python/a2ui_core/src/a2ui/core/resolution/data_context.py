@@ -86,6 +86,11 @@ class DataContext(Generic[TComponent, TFunction]):
             return base_path if base_path else "/"
         return f"{base_path}/{absolute_or_relative}"
 
+    def set(self, path: str, value: Any) -> None:
+        """Sets a value in the DataModel relative to this DataContext path."""
+        absolute_path = self.resolve_path(path)
+        self.data_model.set(absolute_path, value)
+
     @staticmethod
     def _peek_value(obj: Any) -> Any:
         if hasattr(obj, "peek") and callable(obj.peek):

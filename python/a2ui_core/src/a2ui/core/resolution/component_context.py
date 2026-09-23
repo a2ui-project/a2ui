@@ -65,3 +65,11 @@ class ComponentContext:
         """Dispatches a user-initiated action back to the global controller handler."""
         if self._dispatch_action:
             self._dispatch_action(action_payload, self.component_model.id)
+        elif (
+            self.data_context
+            and hasattr(self.data_context, "surface")
+            and self.data_context.surface
+        ):
+            self.data_context.surface.dispatch_action(
+                action_payload, self.component_model.id
+            )

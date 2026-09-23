@@ -87,6 +87,8 @@ class ComponentNode:
 
         resolved_props = {}
         for k, val in self.props.value.items():
+            if k.startswith("set") and len(k) > 3 and k[3].isupper() and callable(val):
+                continue
             resolved_props[k] = serialize_value(val)
 
         return {

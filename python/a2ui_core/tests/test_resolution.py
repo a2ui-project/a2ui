@@ -489,3 +489,121 @@ def test_data_context_catalog_and_missing_function_error_dispatch():
     assert len(mock_errors) == 1
     assert mock_errors[0]["code"] == "EXPRESSION_ERROR"
     assert "not found in catalog" in mock_errors[0]["message"]
+
+
+def test_generic_binder_two_way_setters():
+    cat = BasicCatalog()
+    data_model = DataModel({"form": {"firstName": "Alice"}})
+    comp = ComponentModel(
+        "input_1",
+        "TextInput",
+        cat,
+        {"value": {"path": "/form/firstName"}},
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    dynamic_schema = {
+        "type": "object",
+        "properties": {
+            "value": {"$ref": "common_types.json#/$defs/DynamicString"},
+        },
+    }
+    binder = GenericBinder(context, schema=dynamic_schema)
+
+    assert binder.current_props["value"] == "Alice"
+    assert "setValue" in binder.current_props
+    assert callable(binder.current_props["setValue"])
+
+    # Call generated two-way setter
+    binder.current_props["setValue"]("Bob")
+    assert data_model.get("/form/firstName") == "Bob"
+    assert binder.current_props["value"] == "Bob"
+    binder.dispose()
+
+
+def test_generic_binder_action_closure():
+    cat = BasicCatalog()
+    data_model = DataModel({"user": {"id": "u123", "role": "admin"}})
+    comp = ComponentModel(
+        "btn_submit",
+        "Button",
+        cat,
+        {
+            "onClick": {
+                "event": {
+                    "name": "submit_form",
+                    "context": {"userId": {"path": "/user/id"}},
+                }
+            }
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    dispatched_actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched_actions.append(act))
+
+    action_schema = {
+        "type": "object",
+        "properties": {
+            "onClick": {"$ref": "common_types.json#/$defs/Action"},
+        },
+    }
+    binder = GenericBinder(context, schema=action_schema)
+
+    assert "onClick" in binder.current_props
+    assert callable(binder.current_props["onClick"])
+
+    # Invoke action closure
+    binder.current_props["onClick"]()
+    assert len(dispatched_actions) == 1
+    assert dispatched_actions[0]["name"] == "submit_form"
+    assert dispatched_actions[0]["context"] == {"userId": "u123"}
+    assert dispatched_actions[0]["sourceComponentId"] == "btn_submit"
+    binder.dispose()
+
+
+def test_generic_binder_schema_driven_custom_checkable_property():
+    cat = BasicCatalog()
+    data_model = DataModel({"username": ""})
+    comp = ComponentModel(
+        "username_input",
+        "CustomInput",
+        cat,
+        {
+            "customValidators": [{
+                "condition": {
+                    "call": "required",
+                    "args": {"value": {"path": "/username"}},
+                },
+                "message": "Username is required",
+            }]
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    custom_schema = {
+        "type": "object",
+        "properties": {
+            "customValidators": {
+                "type": "array",
+                "items": {"$ref": "common_types.json#/$defs/CheckRule"},
+            }
+        },
+    }
+    binder = GenericBinder(context, schema=custom_schema)
+
+    # Note: Property name is customValidators, NOT 'checks'
+    assert binder.current_props["isValid"] is False
+    assert binder.current_props["validationErrors"] == ["Username is required"]
+    assert binder.current_props["validationResult"]["valid"] is False
+
+    data_model.set("/username", "valid_user")
+    assert binder.current_props["isValid"] is True
+    assert binder.current_props["validationErrors"] == []
+    binder.dispose()
