@@ -170,11 +170,13 @@ class _ExpressDecompiler:
 
         # Handle callFunction or callRendererFunction action
         if "callRendererFunction" in envelope_json or SurfaceOperation.CALL_FUNC in envelope_json:
-            func_op = envelope_json.get("callRendererFunction", {})
-            if "callFunction" in func_op:
+            func_op = envelope_json.get("callRendererFunction")
+            if isinstance(func_op, dict) and "callFunction" in func_op:
                 func_op = func_op["callFunction"]
-            elif not func_op:
-                func_op = envelope_json.get(SurfaceOperation.CALL_FUNC, {})
+            else:
+                func_op = envelope_json.get(SurfaceOperation.CALL_FUNC)
+            if not isinstance(func_op, dict):
+                func_op = {}
             fn_name = func_op.get("call", "")
             fn_args = func_op.get("args", {})
             args_list = []

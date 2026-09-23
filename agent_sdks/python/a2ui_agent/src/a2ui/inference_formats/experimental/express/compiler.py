@@ -375,8 +375,12 @@ class ExpressCompiler:
                 first_call, raw_syms, ctx, is_action=False
             )
 
+            if not isinstance(compiled_val, dict) or "call" not in compiled_val:
+                raise ExpressValidationError(
+                    f"Standalone statement did not compile to a valid function call: {compiled_val}"
+                )
             call_func_obj = {
-                "call": compiled_val.get("call"),
+                "call": compiled_val["call"],
                 "args": compiled_val.get("args", {}),
             }
             scope_cat_id = (
