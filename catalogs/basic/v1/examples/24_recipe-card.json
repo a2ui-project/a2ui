@@ -47,7 +47,7 @@
             "id": "recipe_image",
             "component": "Image",
             "url": {
-              "path": "/image"
+              "@path": "/image"
             },
             "fit": "cover"
           },
@@ -60,7 +60,7 @@
             "id": "title",
             "component": "Text",
             "text": {
-              "path": "/title"
+              "@path": "/title"
             }
           },
           {
@@ -78,7 +78,7 @@
             "id": "rating",
             "component": "Text",
             "text": {
-              "path": "/rating"
+              "@path": "/rating"
             },
             "variant": "body"
           },
@@ -86,7 +86,7 @@
             "id": "review_count",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "(${formatNumber(value: ${/reviewCount})} ${pluralize(value: ${/reviewCount}, one: 'review', other: 'reviews')})"
               }
@@ -113,7 +113,7 @@
             "id": "prep_text",
             "component": "Text",
             "text": {
-              "path": "/prepTime"
+              "@path": "/prepTime"
             },
             "variant": "caption"
           },
@@ -132,7 +132,7 @@
             "id": "cook_text",
             "component": "Text",
             "text": {
-              "path": "/cookTime"
+              "@path": "/cookTime"
             },
             "variant": "caption"
           },
@@ -140,7 +140,7 @@
             "id": "servings",
             "component": "Text",
             "text": {
-              "path": "/servings"
+              "@path": "/servings"
             },
             "variant": "caption"
           },
@@ -164,7 +164,7 @@
             "id": "item_template",
             "component": "Text",
             "text": {
-              "path": "text"
+              "@path": "text"
             },
             "variant": "body"
           }

@@ -95,7 +95,7 @@
             "id": "asset_name",
             "component": "Text",
             "text": {
-              "path": "name"
+              "@path": "name"
             },
             "variant": "body"
           },
@@ -103,7 +103,7 @@
             "id": "asset_symbol",
             "component": "Text",
             "text": {
-              "path": "symbol"
+              "@path": "symbol"
             },
             "variant": "caption"
           },
@@ -111,10 +111,10 @@
             "id": "asset_price",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "price"
+                  "@path": "price"
                 },
                 "currency": "USD"
               }
@@ -125,7 +125,7 @@
             "id": "asset_change",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "${change}%"
               }
@@ -136,10 +136,10 @@
             "id": "asset_market_cap",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "marketCap"
+                  "@path": "marketCap"
                 },
                 "currency": "USD"
               }

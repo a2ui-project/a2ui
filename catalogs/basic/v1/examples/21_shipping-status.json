@@ -45,7 +45,7 @@
             "id": "tracking_number",
             "component": "Text",
             "text": {
-              "path": "/trackingNumber"
+              "@path": "/trackingNumber"
             },
             "variant": "caption"
           },
@@ -71,14 +71,14 @@
             "id": "step_icon",
             "component": "Icon",
             "name": {
-              "path": "icon"
+              "@path": "icon"
             }
           },
           {
             "id": "step_text",
             "component": "Text",
             "text": {
-              "path": "label"
+              "@path": "label"
             },
             "variant": "body"
           },
@@ -97,7 +97,7 @@
             "id": "eta_text",
             "component": "Text",
             "text": {
-              "path": "/eta"
+              "@path": "/eta"
             },
             "variant": "body"
           }

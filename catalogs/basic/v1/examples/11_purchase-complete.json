@@ -53,7 +53,7 @@
             "id": "product_image",
             "component": "Image",
             "url": {
-              "path": "/productImage"
+              "@path": "/productImage"
             },
             "fit": "cover"
           },
@@ -66,17 +66,17 @@
             "id": "product_name",
             "component": "Text",
             "text": {
-              "path": "/productName"
+              "@path": "/productName"
             }
           },
           {
             "id": "product_price",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/price"
+                  "@path": "/price"
                 },
                 "currency": "USD"
               }
@@ -107,7 +107,7 @@
             "id": "delivery_text",
             "component": "Text",
             "text": {
-              "path": "/deliveryDate"
+              "@path": "/deliveryDate"
             },
             "variant": "body"
           },
@@ -126,7 +126,7 @@
             "id": "seller_name",
             "component": "Text",
             "text": {
-              "path": "/seller"
+              "@path": "/seller"
             },
             "variant": "body"
           },

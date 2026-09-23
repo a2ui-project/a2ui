@@ -125,7 +125,7 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
-- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `path` string ([JSON Pointer]), or a `FunctionCall` (function call).
+- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`).
 - **`ChildList`**: Defines how containers hold children. It supports:
   - `array`: A static array of `ComponentId` component references.
   - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
@@ -1176,7 +1176,15 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 
 ### Functions
 
-> **System Namespace Rule (`@` Prefix)**: Function names beginning with `@` (e.g., `@index`) represent universal system context evaluations available across all catalogs. Custom catalogs MUST NOT define functions prefixed with `@`.
+> **Reserved Protocol Directives (`@` Prefix)**: The `@` prefix is strictly reserved for protocol-level directives and system context functions:
+>
+> - **`@path`**: Represents a dynamic data binding to a path in the data model (e.g. `{"@path": "/user/name"}`).
+> - **`@call`**: Represents a catalog or system function invocation (e.g. `{"@call": "formatString", "args": {...}}`).
+> - **`@index`**: Represents the universal system context function returning the 0-based iteration index during list template rendering (`{"@call": "@index"}`). Custom catalogs MUST NOT define functions prefixed with `@`.
+>
+> **Single-`@` Directive Rule**: Any key in a dynamic object matching `^@([^@]|$)` (a leading `@` that is not doubled, including a key consisting of `@` alone) that is not a recognized protocol directive is disallowed and rejected by renderers and validators. This reserves the single-`@` namespace for future protocol extensions without breaking backward compatibility.
+>
+> **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with `"path"` and `"call"` keys are literal objects and are never intercepted as dynamic bindings.
 
 | Function           | Description                                                              |
 | :----------------- | :----------------------------------------------------------------------- |

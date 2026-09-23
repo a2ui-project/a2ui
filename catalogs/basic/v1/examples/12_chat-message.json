@@ -40,7 +40,7 @@
             "id": "channel_name",
             "component": "Text",
             "text": {
-              "path": "/channelName"
+              "@path": "/channelName"
             }
           },
           {
@@ -66,7 +66,7 @@
             "id": "msg_avatar",
             "component": "Image",
             "url": {
-              "path": "avatar"
+              "@path": "avatar"
             },
             "fit": "cover",
             "variant": "avatar"
@@ -86,17 +86,17 @@
             "id": "msg_username",
             "component": "Text",
             "text": {
-              "path": "username"
+              "@path": "username"
             }
           },
           {
             "id": "msg_time",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "timestamp"
+                  "@path": "timestamp"
                 },
                 "format": "h:mm a"
               }
@@ -107,7 +107,7 @@
             "id": "msg_text",
             "component": "Text",
             "text": {
-              "path": "text"
+              "@path": "text"
             },
             "variant": "body"
           }

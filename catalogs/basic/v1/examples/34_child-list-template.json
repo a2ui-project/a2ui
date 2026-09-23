@@ -48,7 +48,7 @@
             "id": "item_name",
             "component": "Text",
             "text": {
-              "path": "name"
+              "@path": "name"
             }
           },
           {
@@ -60,7 +60,7 @@
             "id": "item_qty",
             "component": "Text",
             "text": {
-              "path": "quantity"
+              "@path": "quantity"
             }
           }
         ]

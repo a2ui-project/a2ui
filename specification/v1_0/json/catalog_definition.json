@@ -83,7 +83,7 @@
         "properties": {
           "type": "object",
           "properties": {
-            "call": {
+            "@call": {
               "type": "object",
               "properties": {
                 "const": {"type": "string"}
@@ -96,13 +96,13 @@
               "$ref": "https://json-schema.org/draft/2020-12/schema"
             }
           },
-          "required": ["call"],
+          "required": ["@call"],
           "additionalProperties": false
         },
         "required": {
           "type": "array",
           "items": {"type": "string"},
-          "contains": {"const": "call"}
+          "contains": {"const": "@call"}
         }
       },
       "required": ["type", "properties", "required"]

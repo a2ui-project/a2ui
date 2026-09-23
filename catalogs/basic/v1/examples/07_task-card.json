@@ -31,7 +31,7 @@
             "component": "CheckBox",
             "label": "",
             "value": {
-              "path": "/completed"
+              "@path": "/completed"
             }
           },
           {
@@ -43,14 +43,14 @@
             "id": "title",
             "component": "Text",
             "text": {
-              "path": "/title"
+              "@path": "/title"
             }
           },
           {
             "id": "description",
             "component": "Text",
             "text": {
-              "path": "/description"
+              "@path": "/description"
             },
             "variant": "body"
           },
@@ -65,7 +65,7 @@
             "component": "DateTimeInput",
             "label": "Due",
             "value": {
-              "path": "/dueDate"
+              "@path": "/dueDate"
             },
             "enableDate": true,
             "enableTime": true
@@ -74,7 +74,7 @@
             "id": "project",
             "component": "Text",
             "text": {
-              "path": "/project"
+              "@path": "/project"
             },
             "variant": "caption"
           },
@@ -82,7 +82,7 @@
             "id": "priority",
             "component": "Icon",
             "name": {
-              "path": "/priorityIcon"
+              "@path": "/priorityIcon"
             }
           }
         ]

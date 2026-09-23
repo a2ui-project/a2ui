@@ -29,7 +29,7 @@
             "id": "restaurant_image",
             "component": "Image",
             "url": {
-              "path": "/image"
+              "@path": "/image"
             },
             "fit": "cover"
           },
@@ -49,14 +49,14 @@
             "id": "restaurant_name",
             "component": "Text",
             "text": {
-              "path": "/name"
+              "@path": "/name"
             }
           },
           {
             "id": "price_range",
             "component": "Text",
             "text": {
-              "path": "/priceRange"
+              "@path": "/priceRange"
             },
             "variant": "body"
           },
@@ -64,7 +64,7 @@
             "id": "cuisine",
             "component": "Text",
             "text": {
-              "path": "/cuisine"
+              "@path": "/cuisine"
             },
             "variant": "caption"
           },
@@ -83,7 +83,7 @@
             "id": "rating",
             "component": "Text",
             "text": {
-              "path": "/rating"
+              "@path": "/rating"
             },
             "variant": "body"
           },
@@ -91,7 +91,7 @@
             "id": "reviews",
             "component": "Text",
             "text": {
-              "path": "/reviewCount"
+              "@path": "/reviewCount"
             },
             "variant": "caption"
           },
@@ -104,7 +104,7 @@
             "id": "distance",
             "component": "Text",
             "text": {
-              "path": "/distance"
+              "@path": "/distance"
             },
             "variant": "caption"
           },
@@ -112,7 +112,7 @@
             "id": "delivery_time",
             "component": "Text",
             "text": {
-              "path": "/deliveryTime"
+              "@path": "/deliveryTime"
             },
             "variant": "caption"
           }

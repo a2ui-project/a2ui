@@ -30,7 +30,7 @@
             "id": "player_image",
             "component": "Image",
             "url": {
-              "path": "/playerImage"
+              "@path": "/playerImage"
             },
             "fit": "cover"
           },
@@ -44,7 +44,7 @@
             "id": "player_name",
             "component": "Text",
             "text": {
-              "path": "/playerName"
+              "@path": "/playerName"
             }
           },
           {
@@ -57,14 +57,14 @@
             "id": "player_number",
             "component": "Text",
             "text": {
-              "path": "/number"
+              "@path": "/number"
             }
           },
           {
             "id": "player_team",
             "component": "Text",
             "text": {
-              "path": "/team"
+              "@path": "/team"
             },
             "variant": "caption"
           },
@@ -88,14 +88,14 @@
             "id": "stat1_value",
             "component": "Text",
             "text": {
-              "path": "/stat1/value"
+              "@path": "/stat1/value"
             }
           },
           {
             "id": "stat1_label",
             "component": "Text",
             "text": {
-              "path": "/stat1/label"
+              "@path": "/stat1/label"
             },
             "variant": "caption"
           },
@@ -109,14 +109,14 @@
             "id": "stat2_value",
             "component": "Text",
             "text": {
-              "path": "/stat2/value"
+              "@path": "/stat2/value"
             }
           },
           {
             "id": "stat2_label",
             "component": "Text",
             "text": {
-              "path": "/stat2/label"
+              "@path": "/stat2/label"
             },
             "variant": "caption"
           },
@@ -130,14 +130,14 @@
             "id": "stat3_value",
             "component": "Text",
             "text": {
-              "path": "/stat3/value"
+              "@path": "/stat3/value"
             }
           },
           {
             "id": "stat3_label",
             "component": "Text",
             "text": {
-              "path": "/stat3/label"
+              "@path": "/stat3/label"
             },
             "variant": "caption"
           }
