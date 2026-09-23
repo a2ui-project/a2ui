@@ -144,27 +144,14 @@ public final class DataContext {
     name callName: String,
     dict: OrderedDictionary<String, JSONValue>
   ) -> JSONValue {
-    if callName == "@index" {
-      guard dict["catalogId"] == nil else {
-        return .null
-      }
-      guard let currentIndex = self.index else {
-        return .null
-      }
-      var offset = 0
-      if let argsObj = dict["args"]?.dictionaryValue, let offsetVal = argsObj["offset"] {
-        let resolvedOffset = resolveDynamicValue(offsetVal)
-        if let intVal = resolvedOffset.intValue {
-          offset = intVal
-        } else if let doubleVal = resolvedOffset.doubleValue, let intExactly = Int(exactly: doubleVal) {
-          offset = intExactly
-        }
-      }
-      return .integer(currentIndex + offset)
-    }
-
     let catalogID = dict["catalogId"]?.stringValue
-    guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
+    guard !(callName == "@index" && catalogID != nil) else {
+      return .null
+    }
+    guard
+      let function = functionHandler?.function(named: callName, catalogID: catalogID)
+        ?? (callName == "@index" ? IndexFunction() : nil)
+    else {
       return .null
     }
 

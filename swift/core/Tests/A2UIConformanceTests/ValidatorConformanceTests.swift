@@ -14,6 +14,7 @@
 
 import A2UICore
 import A2UIJSON
+import BasicCatalog
 import Foundation
 import JSONSchema
 import OrderedJSON
@@ -86,7 +87,8 @@ struct ValidatorConformanceTests {
         }
         executedSteps += 1
 
-        if let expectedError = step.expectError {
+        let expectedError = step.expectError ?? testCase.expectError
+        if let expectedError {
           var caughtError: Error?
           do {
             try validator.validate(payload: payload)
@@ -116,6 +118,74 @@ struct ValidatorConformanceTests {
     }
 
     #expect(executedSteps > 0, "no step of core/validator_v0_9.yaml was executed")
+  }
+
+  @Test func compositionConstraintsConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/composition_constraints.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+    #expect(!testCases.isEmpty, "Should find test cases in core/composition_constraints.yaml")
+
+    for testCase in testCases {
+      var catalogs: [AnyCatalog] = [BasicCatalog.v10Catalog]
+      for aliasId in ["basic", "test-catalog", "https://a2ui.org/basic-catalog"] {
+        catalogs.append(
+          Catalog(
+            id: aliasId,
+            protocolVersion: BasicCatalog.v10Catalog.protocolVersion,
+            components: Array(BasicCatalog.v10Catalog.components.values),
+            functions: Array(BasicCatalog.v10Catalog.functions.values)
+          ).eraseToAnyCatalog()
+        )
+      }
+      if let customCatalog = ConformanceTestHelper.buildCatalog(from: testCase.catalogConfiguration)
+      {
+        catalogs.append(customCatalog)
+      }
+
+      let validator = A2UIValidator(
+        catalogs: catalogs,
+        config: ValidationConfig(targetVersion: "v1.0")
+      )
+
+      for (stepIndex, step) in testCase.steps.enumerated() {
+        guard let payload = step.payload else { continue }
+
+        let expectedError = step.expectError ?? testCase.expectError
+        if let expectedError {
+          var caughtError: Error?
+          do {
+            try validator.validate(payload: payload)
+          } catch {
+            caughtError = error
+          }
+
+          let error = try #require(
+            caughtError,
+            "Expected failure for '\(testCase.name)' at step \(stepIndex)"
+          )
+
+          if let expectedCode = expectedError.code, let valError = error as? A2UIValidationError {
+            #expect(
+              valError.details.contains(where: { $0.code == expectedCode }),
+              "[\(testCase.name)] Expected error code '\(expectedCode)', got \(valError.details)"
+            )
+          } else {
+            assertErrorMatches(error: error, expected: expectedError, testName: testCase.name)
+          }
+        } else {
+          do {
+            try validator.validate(payload: payload)
+          } catch {
+            Issue.record(
+              """
+              Expected payload to validate cleanly for '\(testCase.name)' \
+              at step \(stepIndex), but caught: \(error)
+              """
+            )
+          }
+        }
+      }
+    }
   }
 
   private func assertErrorMatches(

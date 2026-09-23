@@ -44,10 +44,6 @@ public final class NumericFunction: FunctionImplementation, Sendable {
     )
   }
 
-  public convenience init(protocolVersion: String) {
-    self.init(returnValidationResult: protocolVersion == "v1.0" || protocolVersion == "1.0")
-  }
-
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let numberValue: Double
     if let val = arguments["value"]?.doubleValue {
