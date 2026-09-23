@@ -517,21 +517,35 @@ function convertPropertiesToShape(
 }
 
 /**
+ * A piece of a component definition gathered while flattening `allOf`.
+ *
+ * Most pieces are raw JSON Schema fragments taken from the catalog document. A piece that
+ * comes from an external `$ref` into `common_types.json` cannot be read as JSON here, since
+ * only the catalog document is loaded, so it arrives as the zod mirror of the canonical
+ * type instead.
+ */
+type ComponentSubSchema =
+  | {kind: 'json'; schema: Record<string, unknown>}
+  | {kind: 'zod'; properties: Record<string, z.ZodTypeAny>};
+
+/**
  * Collects all property definitions and constraints from a component schema.
  *
- * Resolves local document `$defs` and canonical protocol `ComponentCommon` references.
+ * Resolves local document `$defs` and canonical protocol references, including
+ * external `common_types.json` mixins such as `Checkable`.
  *
  * @param schema Component schema definition.
  * @param rootDoc Root schema document containing definition targets.
  * @param visitedPointers Set of reference pointers currently being resolved to prevent cycles.
- * @returns Array of property schema definitions extracted from the schema and its `allOf` hierarchy.
+ * @returns The pieces gathered from the schema and its `allOf` hierarchy, as JSON Schema
+ *     fragments or zod mirrors of canonical types.
  */
 function collectComponentSubSchemas(
   schema: Record<string, unknown>,
   rootDoc: Record<string, unknown>,
   visitedPointers = new Set<string>(),
-): Record<string, unknown>[] {
-  const result: Record<string, unknown>[] = [];
+): ComponentSubSchema[] {
+  const result: ComponentSubSchema[] = [];
   if (!schema || typeof schema !== 'object') return result;
 
   if (Array.isArray(schema.allOf)) {
@@ -543,9 +557,8 @@ function collectComponentSubSchemas(
         if (ref.includes('common_types.json') && ref.includes('ComponentCommon')) {
           // Protocol common properties: accessibility attributes
           result.push({
-            properties: {
-              accessibility: AccessibilityAttributesSchema.optional(),
-            },
+            kind: 'zod',
+            properties: {accessibility: AccessibilityAttributesSchema.optional()},
           });
         } else if (ref.startsWith('#/')) {
           if (!visitedPointers.has(ref)) {
@@ -555,6 +568,15 @@ function collectComponentSubSchemas(
               result.push(...collectComponentSubSchemas(target, rootDoc, visitedPointers));
             }
           }
+        } else {
+          // Any other external reference, such as common_types.json#/$defs/Checkable.
+          // The referenced document is not loaded here, so fall back to the zod mirror of
+          // the canonical type. Without this the mixin is dropped with no error, which is
+          // how `checks` used to disappear from every Checkable component.
+          const mirror = resolveProtocolRef(ref);
+          if (mirror instanceof z.ZodObject) {
+            result.push({kind: 'zod', properties: {...mirror.shape}});
+          }
         }
       } else {
         result.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers));
@@ -563,7 +585,7 @@ function collectComponentSubSchemas(
   }
 
   if (schema.properties) {
-    result.push(schema);
+    result.push({kind: 'json', schema});
   }
 
   return result;
@@ -592,16 +614,20 @@ function convertComponentJsonSchemaToZod(
 
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
-    if (Array.isArray(s.required)) {
-      s.required.forEach((r: unknown) => {
+    if (s.kind === 'json' && Array.isArray(s.schema.required)) {
+      s.schema.required.forEach((r: unknown) => {
         if (typeof r === 'string') requiredSet.add(r);
       });
     }
   }
 
   for (const s of schemasToMerge) {
+    if (s.kind === 'zod') {
+      Object.assign(shape, s.properties);
+      continue;
+    }
     const propShape = convertPropertiesToShape(
-      (s.properties as Record<string, unknown>) || {},
+      (s.schema.properties as Record<string, unknown>) || {},
       requiredSet,
       omitEnvelopeFields,
       rootDoc,
