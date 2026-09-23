@@ -34,6 +34,14 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Mild technical debt.
 - **Done looks like:** The partial JSON trees are given a more rigorous generic recursive type, or `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
 
+### Basic catalog read from disk at runtime
+
+- **What it is:** `basicCatalog()` reads `catalog.json` from disk inside `@a2ui/web_core` at runtime using `fs.readFileSync`.
+- **Why it exists:** The compiled constants in `web_core` lack catalog instructions, and future v0.9 support requires reading from JSON to avoid coupling to Lit.
+- **What it risks:** This will not survive bundling for a browser or execution in environments without local filesystem access to `node_modules`.
+- **Status:** The package is Node-targeted, so synchronous filesystem reading from the resolved package location is accepted for now.
+- **Done looks like:** Catalogs are bundled or compiled as headless constants containing instructions, or an asynchronous/pluggable catalog loader is introduced.
+
 ## 2. `web_core`
 
 ### Overtight generic constraints on `MessageProcessor`
@@ -82,10 +90,10 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Basic catalog instructions missing programmatically
 
-- **What it is:** The `v1.0` basic catalog JSON includes a large `instructions` string ("For layout, use the Row..."), but `BASIC_COMPONENTS` has no programmatic equivalent.
+- **What it is:** The `v1.0` basic catalog JSON includes a large `instructions` string ("For layout, use the Row..."), but the compiled `BASIC_COMPONENTS` in `web_core` has no programmatic equivalent.
 - **Why it exists:** A gap between the generated `web_core` schema and the JSON source.
-- **What it risks:** `basicCatalog()` passes `undefined` for instructions, forcing agents to manually append UI guidelines to their preambles.
-- **Done looks like:** `web_core` exports the basic catalog instructions natively.
+- **Status in `@a2ui/agent`:** Resolved. `basicCatalog()` now builds the catalog directly from `@a2ui/web_core`'s shipped `catalog.json` instead of the compiled constants, supplying the full 2,880 character `instructions`.
+- **Done looks like:** `web_core` exports the basic catalog instructions natively so consumers without filesystem access do not need to read `catalog.json`.
 
 ### Capabilities schema inconsistency
 

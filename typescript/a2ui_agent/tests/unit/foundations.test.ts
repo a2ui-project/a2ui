@@ -15,8 +15,10 @@
  */
 
 import {describe, it, expect} from 'vitest';
+import {existsSync} from 'fs';
 import * as webCore from '../../src/internal/web_core.js';
 import {basicCatalog} from '../../src/types.js';
+import {getBasicCatalogPath} from '../../src/utils/catalog_path.js';
 import {ParseError, A2uiCatalogError, A2uiError} from '../../src/errors.js';
 
 describe('Foundations', () => {
@@ -46,10 +48,45 @@ describe('Foundations', () => {
 
   it('provides a properly configured basicCatalog()', () => {
     const catalog = basicCatalog();
+    expect(catalog.id).toBe('https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json');
     expect(catalog.protocolVersion).toBe('v1.0');
     expect(catalog.catalogSchema).toBeDefined();
-    // Contains a plausible number of components
-    expect(catalog.components.size).toBeGreaterThan(5);
+    expect(catalog.components.size).toBe(18);
+    expect(catalog.functions.size).toBe(14);
+    expect(typeof catalog.instructions).toBe('string');
+    expect(catalog.instructions!.length).toBeGreaterThan(0);
+  });
+
+  it('memoizes basicCatalog() returning the identical instance across calls', () => {
+    const first = basicCatalog();
+    const second = basicCatalog();
+    const defaultExplicit = basicCatalog('v1.0');
+    expect(first).toBe(second);
+    expect(first).toBe(defaultExplicit);
+
+    // The memo is keyed on the normalised version, so every spelling of v1.0 lands on the
+    // same instance rather than reloading and reparsing the JSON.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(basicCatalog('1.0' as any)).toBe(first);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(basicCatalog('v1_0' as any)).toBe(first);
+  });
+
+  it('throws A2uiCatalogError when no catalog ships for the requested version', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => basicCatalog('v0.9' as any)).toThrow(A2uiCatalogError);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => basicCatalog('v0.8' as any)).toThrow(A2uiCatalogError);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => basicCatalog('invalid' as any)).toThrow(A2uiCatalogError);
+  });
+
+  it('resolves the basic catalog path to the web_core distribution json', () => {
+    const catalogPath = getBasicCatalogPath('v1.0');
+    expect(catalogPath).toMatch(/dist\/src\/v1_0\/schemas\/catalogs\/basic\/catalog\.json$/);
+    expect(existsSync(catalogPath)).toBe(true);
+    expect(getBasicCatalogPath('1.0')).toBe(catalogPath);
+    expect(() => getBasicCatalogPath('v0.9')).toThrow(A2uiCatalogError);
   });
 
   it('defines custom errors extending A2uiError', () => {
