@@ -1049,3 +1049,70 @@ def test_is_valid_uax31_identifier():
     # Keyword names (valid syntactic identifiers)
     assert is_valid_uax31_identifier("class")
     assert is_valid_uax31_identifier("def")
+
+
+def test_validate_function_positional_args():
+    from a2ui.core.catalog import Catalog, FunctionImplementation
+    from a2ui.core.validation import PayloadValidator
+    from pydantic import BaseModel
+
+    class SearchParams(BaseModel):
+        query: str
+        limit: int = 10
+
+    catalog = Catalog(
+        catalog_id="test_cat",
+        protocol_version="v1.0",
+        components=[],
+        functions=[
+            FunctionImplementation(
+                name="search",
+                return_type="array",
+                schema=SearchParams,
+                execute=lambda args, ctx, abort: [],
+            )
+        ],
+    )
+    val = PayloadValidator(catalog=catalog)
+
+    # Positional args as list
+    res = val.validate_function("search", ["apple", 25])
+    assert res == {"query": "apple", "limit": 25}
+
+    # Positional args with default
+    res_def = val.validate_function("search", ["banana"])
+    assert res_def == {"query": "banana", "limit": 10}
+
+    # Invalid non-dict/list args
+    with pytest.raises(A2uiValidationError) as exc_info:
+        val.validate_function("search", 12345)  # type: ignore
+    assert exc_info.value.details[0].code == "type_mismatch"
+
+
+def test_validate_function_non_string_arg_key_defensive():
+    from a2ui.core.catalog import Catalog, FunctionImplementation
+    from a2ui.core.validation import PayloadValidator
+    from pydantic import BaseModel
+
+    class NoopParams(BaseModel):
+        pass
+
+    catalog = Catalog(
+        catalog_id="test_cat",
+        protocol_version="v1.0",
+        components=[],
+        functions=[
+            FunctionImplementation(
+                name="noop",
+                return_type="string",
+                schema=NoopParams,
+                execute=lambda args, ctx, abort: "",
+            )
+        ],
+    )
+    val = PayloadValidator(catalog=catalog)
+
+    # Non-string dictionary key
+    with pytest.raises(A2uiValidationError) as exc_info:
+        val.validate_function("noop", {123: "val"})  # type: ignore
+    assert exc_info.value.details[0].code == "invalid_identifier"

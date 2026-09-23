@@ -316,9 +316,8 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             )
             if fn_name and isinstance(fn_name, str) and targets_this_catalog:
                 fn_args = val.get("args")
-                args_dict = fn_args if isinstance(fn_args, dict) else {}
                 try:
-                    self.validate_function(fn_name, args_dict)
+                    self.validate_function(fn_name, fn_args)
                 except A2uiValidationError as e:
                     if e.details:
                         errors.extend(e.details)
@@ -341,7 +340,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 child_path = f"{path}.{idx}"
                 self._validate_nested_functions(comp_id, item, child_path, errors)
 
-    def _validate_function_identifiers(self, name: str, args: dict[str, Any]) -> None:
+    def _validate_function_identifiers(self, name: str, args: Any) -> None:
         """Validates function name and argument identifiers against UAX #31 for v1.0+."""
         from ..catalog.catalog import is_valid_uax31_identifier
 
@@ -364,7 +363,9 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             )
         if isinstance(args, dict):
             for arg_name in args:
-                if not is_valid_uax31_identifier(arg_name):
+                if not isinstance(arg_name, str) or not is_valid_uax31_identifier(
+                    arg_name
+                ):
                     raise A2uiValidationError(
                         f"Function argument '{arg_name}' in function '{name}' must"
                         " be a valid UAX #31 identifier",
@@ -380,16 +381,67 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         ],
                     )
 
+    def _map_positional_args(self, name: str, args: list[Any]) -> dict[str, Any]:
+        """Maps a list of positional arguments to named parameters using the catalog definition."""
+        fn_def, fn_schema, _ = self._find_function_definition(name)
+        param_names: list[str] = []
+
+        model_cls = (
+            getattr(fn_def, "schema", None)
+            or getattr(fn_def, "model_class", None)
+            or getattr(fn_def, "parameters", None)
+            if fn_def is not None
+            else None
+        )
+        if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+            param_names = [
+                field_info.alias or field_name
+                for field_name, field_info in model_cls.model_fields.items()
+            ]
+        elif isinstance(fn_schema, dict):
+            props = fn_schema.get("properties")
+            if isinstance(props, dict):
+                param_names = list(props.keys())
+
+        mapped: dict[str, Any] = {}
+        for idx, val in enumerate(args):
+            if idx < len(param_names):
+                mapped[param_names[idx]] = val
+            else:
+                mapped[f"arg_{idx}"] = val
+        return mapped
+
     def validate_function(
         self,
         name: str,
-        args: dict[str, Any],
+        args: dict[str, Any] | list[Any] | None,
     ) -> dict[str, Any]:
         """Validates function call parameters against catalog function schema definitions."""
         active_config = self.config
         allow_unknown = active_config.allow_unknown_elements if active_config else False
 
-        self._validate_function_identifiers(name, args)
+        if args is None:
+            norm_args: dict[str, Any] = {}
+        elif isinstance(args, list):
+            norm_args = self._map_positional_args(name, args)
+        elif isinstance(args, dict):
+            norm_args = dict(args)
+        else:
+            raise A2uiValidationError(
+                f"Function arguments for '{name}' must be a dictionary or list",
+                details=[
+                    A2uiErrorDetail(
+                        path=f"functions.{name}",
+                        code="type_mismatch",
+                        message=(
+                            f"Function arguments for '{name}' must be a dictionary or"
+                            " list"
+                        ),
+                    )
+                ],
+            )
+
+        self._validate_function_identifiers(name, norm_args)
 
         fn_def, fn_schema, base_schema = self._find_function_definition(name)
 
@@ -405,7 +457,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         )
                     ],
                 )
-            return dict(args or {})
+            return dict(norm_args)
 
         model_cls = (
             getattr(fn_def, "schema", None)
@@ -415,12 +467,12 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             else None
         )
         if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
-            return self._validate_model_function(model_cls, name, args)
+            return self._validate_model_function(model_cls, name, norm_args)
         elif isinstance(fn_schema, dict):
             return self._validate_dict_function(
-                fn_schema, base_schema, name, args, allow_unknown
+                fn_schema, base_schema, name, norm_args, allow_unknown
             )
-        return dict(args or {})
+        return dict(norm_args)
 
     def _find_function_definition(
         self,
