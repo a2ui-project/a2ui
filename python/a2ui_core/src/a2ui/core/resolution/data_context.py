@@ -21,7 +21,7 @@ from typing import Any, Callable, Generic
 from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..state import DataModel
 from ..state.surface_model import SurfaceModel
-from ..validation.payload_validator import PayloadValidator
+from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS, PayloadValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 
 
@@ -293,9 +293,18 @@ class DataContext(Generic[TComponent, TFunction]):
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
     ) -> Any:
-        from ..exceptions import A2uiCatalogError
+        from ..exceptions import A2uiCatalogError, A2uiExpressionError
 
         try:
+            if (
+                isinstance(resolved_args, dict)
+                and len(resolved_args) > MAX_FUNCTION_CALL_ARGS
+            ):
+                raise A2uiExpressionError(
+                    f"Function call '{name}' exceeds maximum allowed arguments count"
+                    f" ({MAX_FUNCTION_CALL_ARGS})"
+                )
+
             target_catalog: Catalog[TComponent, TFunction] | None = None
             if catalog_id is not None:
                 target_catalog = self.surface.available_catalogs.get(catalog_id)

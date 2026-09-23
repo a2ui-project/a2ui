@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **BREAKING**: `DataModel.set` now raises `A2uiDataError` instead of resetting the root when attempting to traverse or set a subpath under a primitive root value.
+- **BREAKING**: `SurfaceComponentsModel.add_component` now raises `A2uiStateError` if a component with the same ID already exists in the model.
+- **BREAKING**: pending RPC requests on `RpcHandler.dispose()` are now rejected with error code `CANCELLED` (previously `DISPOSED`).
+- `SurfaceModel` now accepts a `root_id` parameter (defaulting to `"root"`) and provides a deprecated `catalog` property aliasing `default_catalog`.
+- `SurfaceComponentsModel.detect_cycles` now correctly ignores disconnected orphan components by passing `allow_orphan_components=True` to topology analysis, reporting cycle and depth limit violations exclusively.
+- Bound function calls to `MAX_FUNCTION_CALL_ARGS` (1,000 arguments) across both `PayloadValidator.validate_function` and runtime `DataContext._execute_function` resolution.
+- Bound expression template strings to `MAX_EXPRESSION_TEMPLATE_LENGTH` (10,000 characters) and parsed expression segments to `MAX_EXPRESSION_PARTS` (1,000 parts) in `ExpressionParser`.
 - Add SemVer parsing and comparison utilities (`SemVer`, `compare_semver`, `is_at_least_version`, `normalize_version_string`, `parse_semver`, `to_canonical_version`, `to_semver`) in `a2ui.core.common.semver`.
 - Add `A2uiProtocolVersion` and `ProtocolVersion` enum in `a2ui.core.schema`.
 - Remove `A2uiCompileError` from `a2ui_core` exception hierarchy.
