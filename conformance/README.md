@@ -76,6 +76,10 @@ Both Dart and TypeScript locate the suite by walking up from the test file, so t
 
 > **Note**: Conformance tests provide the primary verification of protocol and inference format specifications across languages. Unit tests in SDK packages are reserved for language-specific implementation residue (e.g., exception types, thread-safety, stream lifecycle). To test everything, both unit tests and conformance tests must be run.
 
+### Specification Example Round-Trip Verification
+
+In addition to the declarative YAML conformance suites, SDKs implementing inference formats (such as Express) should implement an example round-trip test that iterates across all golden JSON examples in `specification/v1_0/catalogs/basic/examples/*.json`, decompiles them into the target format notation, recompiles them back to messages, and asserts semantic equivalence against the original payload. Refer to `agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py` for a worked example of this test.
+
 ### Writing cases for `parse_expression_template`
 
 `input` is the template string handed to the parser, and `expect` is the sequence of parsed parts — literal strings, data bindings (`{path: ...}`) and function calls (`{call: ..., args: ..., returnType: ...}`).
