@@ -102,6 +102,88 @@ describe('Catalog.fromSchema & schema_loader', () => {
     assert.strictEqual(validAction.success, true);
   });
 
+  it('resolves the Checkable mixin referenced from an external document', () => {
+    // Checkable arrives as an allOf $ref into common_types.json, a document the loader never
+    // reads. It used to fall through every branch and be discarded without an error, taking
+    // `checks` off every input component with it.
+    const catalog = Catalog.fromSchema(basicCatalogJson);
+
+    for (const name of [
+      'Button',
+      'TextField',
+      'CheckBox',
+      'ChoicePicker',
+      'Slider',
+      'DateTimeInput',
+    ]) {
+      const comp = catalog.components.get(name);
+      assert.ok(comp, `${name} is missing from the basic catalog`);
+      const shape = (comp.schema as z.ZodObject<any>).shape;
+      assert.ok(shape.checks, `${name} lost its checks property`);
+    }
+
+    const button = catalog.components.get('Button');
+    assert.ok(button);
+    const withChecks = button.schema.safeParse({
+      child: 'txt1',
+      action: {event: {name: 'submit'}},
+      checks: [{condition: {path: '/form/valid'}, message: 'This field is required'}],
+    });
+    assert.strictEqual(withChecks.success, true);
+
+    // The property is typed, not a free-form escape hatch.
+    const badChecks = button.schema.safeParse({
+      child: 'txt1',
+      action: {event: {name: 'submit'}},
+      checks: 'always',
+    });
+    assert.strictEqual(badChecks.success, false);
+  });
+
+  it('resolves an external mixin written as a relative reference', () => {
+    // v1.0 catalogs spell the same reference without the absolute URL prefix.
+    const catalog = Catalog.fromSchema({
+      catalogId: 'test_relative_checkable',
+      protocolVersion: 'v1.0',
+      components: {
+        Input: {
+          type: 'object',
+          allOf: [
+            {$ref: 'common_types.json#/$defs/Checkable'},
+            {type: 'object', properties: {label: {type: 'string'}}},
+          ],
+        },
+      },
+    } as any);
+
+    const input = catalog.components.get('Input');
+    assert.ok(input);
+    const shape = (input.schema as z.ZodObject<any>).shape;
+    assert.ok(shape.checks);
+    assert.ok(shape.label);
+  });
+
+  it('ignores an external reference that names no canonical protocol type', () => {
+    const catalog = Catalog.fromSchema({
+      catalogId: 'test_unknown_external_ref',
+      protocolVersion: 'v1.0',
+      components: {
+        Widget: {
+          type: 'object',
+          allOf: [
+            {$ref: 'other_document.json#/$defs/NotAProtocolType'},
+            {type: 'object', properties: {label: {type: 'string'}}},
+          ],
+        },
+      },
+    } as any);
+
+    const widget = catalog.components.get('Widget');
+    assert.ok(widget);
+    const shape = (widget.schema as z.ZodObject<any>).shape;
+    assert.deepStrictEqual(Object.keys(shape), ['label']);
+  });
+
   it('parses functions from catalog into FunctionApi map', () => {
     const catalog = Catalog.fromSchema(basicCatalogJson, '0.9');
     assert.ok(catalog.functions.size > 0);
