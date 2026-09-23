@@ -14,34 +14,54 @@
  * limitations under the License.
  */
 
+import * as fs from 'fs';
 import {CatalogConfig, InMemoryCatalogProvider} from '../../src/index.js';
 import * as path from 'path';
 import {SchemaCatalog, ProtocolVersion} from '../../src/types.js';
 import {CatalogTransformer} from '../../src/catalog_transformers/base.js';
 import {Catalog} from '../../src/internal/web_core.js';
+import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
 import {CONFORMANCE_ROOT} from './loader.js';
 
 export async function createCatalogConfig(
   catalogData: Record<string, unknown>,
 ): Promise<CatalogConfig> {
-  const rawVersion = (catalogData.protocolVersion as string) || 'v1.0';
-  const version = rawVersion.startsWith('v') ? rawVersion : `v${rawVersion}`;
+  const version = toWireProtocolVersion(catalogData.protocolVersion as string | undefined);
 
-  const catalogSchema = (catalogData.catalogSchema || {}) as Record<string, unknown>;
-  const name = (catalogData.name as string) || 'test_catalog';
+  // Cases give the catalog either inline or as a path relative to the conformance root.
+  let catalogSchema: Record<string, unknown>;
+  if (typeof catalogData.catalogSchema === 'string') {
+    catalogSchema = JSON.parse(
+      fs.readFileSync(path.resolve(CONFORMANCE_ROOT, catalogData.catalogSchema), 'utf8'),
+    ) as Record<string, unknown>;
+  } else {
+    catalogSchema = (catalogData.catalogSchema || {}) as Record<string, unknown>;
+  }
 
-  const provider = new InMemoryCatalogProvider(
-    {
-      $id: name,
-      components: catalogSchema.components || {},
-      functions: catalogSchema.functions || {},
-    },
-    version as ProtocolVersion,
-    name,
-  );
+  // Cases also declare `commonTypesSchema` and `s2cSchema`. Python threads both into its
+  // own A2uiCatalog type and validates message envelopes against the s2c schema while
+  // streaming. The TypeScript SDK builds on web_core's Catalog, which models neither, and
+  // validates no envelopes, so there is nothing here to hand them to. Wiring them in is
+  // recorded in KNOWN_GAPS.md rather than faked with a field nothing reads.
 
-  const catalog = await provider.load();
-  return new CatalogConfig(catalog);
+  const name =
+    (catalogData.name as string) ||
+    (catalogSchema.catalogId as string) ||
+    (catalogSchema.$id as string) ||
+    'test_catalog';
+
+  // Spread the whole catalog schema rather than picking out components and functions. Cases
+  // rely on sibling keys, notably `$defs.anyComponent`, which drives component filtering.
+  const schemaToLoad: Record<string, unknown> = {
+    $id: name,
+    protocolVersion: version,
+    ...catalogSchema,
+    components: catalogSchema.components || {},
+    functions: catalogSchema.functions || {},
+  };
+
+  const provider = new InMemoryCatalogProvider(schemaToLoad, version as ProtocolVersion, name);
+  return new CatalogConfig(await provider.load());
 }
 
 export async function createFileCatalogConfig(
