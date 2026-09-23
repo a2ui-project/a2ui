@@ -105,6 +105,9 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         }
         if catalog_id and isinstance(catalog_id, str):
             action_event["catalogId"] = catalog_id
+        user_message = event_dict.get("userMessage")
+        if user_message is not None:
+            action_event["userMessage"] = str(user_message)
 
         self.on_action.emit(action_event)
 

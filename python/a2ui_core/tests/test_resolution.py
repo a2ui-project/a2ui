@@ -706,3 +706,11 @@ def test_data_context_resolve_action_resolves_user_message():
     resolved = ctx.resolve_action(action)
     assert resolved["event"]["userMessage"] == "Hello Agent"
     assert resolved["event"]["context"]["x"] == 10
+
+    dispatched = []
+    surface.on_action.subscribe(lambda a: dispatched.append(a))
+    surface.dispatch_action(resolved, "btn1")
+    assert len(dispatched) == 1
+    assert dispatched[0]["name"] == "send"
+    assert dispatched[0]["userMessage"] == "Hello Agent"
+    assert dispatched[0]["context"]["x"] == 10
