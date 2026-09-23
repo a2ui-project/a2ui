@@ -175,9 +175,15 @@ class _CompileContext:
 class _SurfaceScope:
     """Holds symbols and data path assignments for a target surface scope."""
 
-    def __init__(self, surface_id: str, catalog_id: Optional[str] = None):
+    def __init__(
+        self,
+        surface_id: str,
+        catalog_id: Optional[str] = None,
+        has_surface_directive: bool = False,
+    ):
         self.surface_id = surface_id
         self.catalog_id = catalog_id
+        self.has_surface_directive = has_surface_directive
         self.raw_symbols: dict[str, Any] = {}
         self.data_path_assignments: dict[str, Any] = {}
 
@@ -327,7 +333,9 @@ class ExpressCompiler:
                     )
 
                     current_scope = _SurfaceScope(
-                        surface_id=target_surf, catalog_id=target_cat
+                        surface_id=target_surf,
+                        catalog_id=target_cat,
+                        has_surface_directive=True,
                     )
                     scopes.append(current_scope)
                 elif (
@@ -424,19 +432,6 @@ class ExpressCompiler:
                 compiled_val = self._compile_value(ast_val, scope.raw_symbols, ctx)
                 _set_nested_path(data_model, path_name, compiled_val)
 
-            if "root" not in scope.raw_symbols:
-                if scope.data_path_assignments:
-                    result_messages.append({
-                        "version": target_version,
-                        SurfaceOperation.UPDATE_DATA: {
-                            "surfaceId": scope_surf_id,
-                            "path": "/",
-                            "value": data_model,
-                        },
-                    })
-                    continue
-                raise ExpressUndefinedRootError("root")
-
             compiled_components = []
             for var_name, ast in scope.raw_symbols.items():
                 comp_dict = self._compile_ast_node(
@@ -446,6 +441,40 @@ class ExpressCompiler:
                     compiled_components.append(comp_dict)
                     compiled_components.extend(ctx.extra_components)
                     ctx.extra_components = []
+
+            if "root" not in scope.raw_symbols:
+                if not compiled_components:
+                    if scope.data_path_assignments:
+                        result_messages.append({
+                            "version": target_version,
+                            SurfaceOperation.UPDATE_DATA: {
+                                "surfaceId": scope_surf_id,
+                                "path": "/",
+                                "value": data_model,
+                            },
+                        })
+                        continue
+                    raise ExpressUndefinedRootError("root")
+                elif scope.has_surface_directive:
+                    result_messages.append({
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_COMPONENTS: {
+                            "surfaceId": scope_surf_id,
+                            "components": compiled_components,
+                        },
+                    })
+                    if data_model:
+                        result_messages.append({
+                            "version": target_version,
+                            SurfaceOperation.UPDATE_DATA: {
+                                "surfaceId": scope_surf_id,
+                                "path": "/",
+                                "value": data_model,
+                            },
+                        })
+                    continue
+                else:
+                    raise ExpressUndefinedRootError("root")
 
             if is_at_least_version(target_version, ProtocolVersion.V1_0):
                 envelope = {
@@ -510,8 +539,14 @@ class ExpressCompiler:
         kwargs = ast.get("kwargs", {})
 
         if comp_name not in self.helper.components:
-            # Not a component, could be a standalone action/helper; skip writing as component
-            return None
+            if comp_name in self.helper.functions or comp_name in (
+                "Event",
+                "_template",
+            ):
+                return None
+            raise ExpressValidationError(
+                f"Unknown component '{comp_name}' not defined in catalog."
+            )
 
         properties = self.helper.get_component_properties(comp_name)
         comp_dict = {"id": var_name, "component": comp_name}
@@ -661,6 +696,11 @@ class ExpressCompiler:
                 comp_dict["checks"] = compiled_checks
 
         ctx.active_value_path = None
+        for req_prop in self.helper.get_component_required(comp_name):
+            if req_prop not in comp_dict and req_prop != "checks":
+                raise ExpressValidationError(
+                    f"Component '{comp_name}' missing required property '{req_prop}'."
+                )
         return {k: v for k, v in comp_dict.items() if v is not None}
 
     def _compile_value(
@@ -854,14 +894,10 @@ class ExpressCompiler:
                     res_expr = {"call": fn_name, "args": compiled_args}
                     return res_expr
 
-                # Fallback
-                return {
-                    "call": fn_name,
-                    "args": [
-                        self._compile_value(a, raw_symbols, ctx, is_action)
-                        for a in fn_args
-                    ],
-                }
+                # Fallback: unknown function not declared in catalog
+                raise ExpressValidationError(
+                    f"Unknown function '{fn_name}' not defined in catalog."
+                )
 
             return {
                 k: self._compile_value(v, raw_symbols, ctx, is_action)

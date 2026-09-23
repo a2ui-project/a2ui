@@ -465,33 +465,16 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
+#
+# NOTE ON REMAINING GAPS (Category B):
+# The remaining gaps below are response parser and wrapping architectural
+# gaps (affecting both Express and Direct JSON). They depend on agent SDK
+# structural changes: migrating the Python SDK from its legacy response parser
+# interface (which bundles preceding text and payload into a single part) to
+# the module blueprint Parser contract (blueprints/modules/a2ui_agent.blueprint.md),
+# where responses are decomposed into sequences of disjoint [TextPart, A2uiPart, ...]
+# parts and wrap() consumes structured ResponsePart objects.
 KNOWN_GAPS = {
-    # Compiler, Express.
-    "test_compile_express_unknown_component_is_a_validation_error": (
-        "a component the catalog does not declare is dropped from the compiled"
-        " surface instead of failing the compile"
-    ),
-    "test_compile_express_missing_required_property_is_a_validation_error": (
-        "a component missing a property its catalog requires compiles without"
-        " it instead of failing the compile"
-    ),
-    "test_compile_express_unknown_function_is_a_validation_error": (
-        "a call to a function the catalog does not declare compiles instead of"
-        " failing the compile"
-    ),
-    # Decompiler, Express.
-    "test_decompile_express_update_components": (
-        "an updateComponents writes a block naming no root, which the compiler"
-        " then rejects, so the round trip fails"
-    ),
-    "test_decompile_express_update_data_model": (
-        "a standalone updateDataModel writes no surface line, so the round trip"
-        " lands on the default surface"
-    ),
-    "test_decompile_express_nested_data_model_is_one_assignment_per_leaf": (
-        "a standalone updateDataModel writes no surface line, so the round trip"
-        " lands on the default surface"
-    ),
     # Response parser. A part carries text and payload together, where the
     # suites fix one or the other per part, so every case with text beside a
     # block comes back short.
@@ -568,10 +551,6 @@ KNOWN_GAPS = {
     "test_parse_response_unwrapped_compiles_the_whole_body": (
         "parse_response takes no `wrapped` argument, so a response the case"
         " declares unwrapped cannot be handed to the compiler whole"
-    ),
-    "test_parse_response_express_validation_failure_surfaces": (
-        "a component the catalog does not declare is dropped from the compiled"
-        " surface instead of failing the parse"
     ),
 }
 

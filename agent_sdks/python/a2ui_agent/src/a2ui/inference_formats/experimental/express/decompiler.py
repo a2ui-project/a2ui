@@ -159,8 +159,11 @@ class _ExpressDecompiler:
         # Handle updateDataModel action
         if SurfaceOperation.UPDATE_DATA in envelope_json:
             val_op = envelope_json[SurfaceOperation.UPDATE_DATA]
+            surface_id = val_op.get("surfaceId", "")
             data_val = val_op.get("value", {})
             dsl_lines = []
+            if surface_id and surface_id != "default_surface":
+                dsl_lines.append(f'surface("{surface_id}")')
             if data_val:
                 for path, val in sorted(_flatten_data_model(data_val)):
                     val_str = self._decompile_value(val, set(), False)
