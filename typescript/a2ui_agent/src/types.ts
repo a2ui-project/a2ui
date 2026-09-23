@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-import {
-  Catalog,
-  ComponentApi,
-  FunctionApi,
-  BASIC_COMPONENTS,
-  BASIC_FUNCTION_APIS,
-} from './internal/web_core.js';
+import * as fs from 'fs';
+import {Catalog, ComponentApi, FunctionApi, ProtocolVersion} from './internal/web_core.js';
+import {A2uiCatalogError} from './errors.js';
+import {toWireProtocolVersion} from './utils/protocol_version.js';
+import {getBasicCatalogPath} from './utils/catalog_path.js';
 
 export type {ProtocolVersion} from './internal/web_core.js';
 
@@ -32,31 +30,70 @@ export type {ProtocolVersion} from './internal/web_core.js';
  */
 export type SchemaCatalog = Catalog<ComponentApi, FunctionApi>;
 
-let _basicCatalogMemo: SchemaCatalog | undefined;
+const _basicCatalogMemoMap = new Map<string, SchemaCatalog>();
 
 /**
- * Returns the v1.0 basic catalog as a `SchemaCatalog`.
+ * Returns the basic catalog for a protocol version as a `SchemaCatalog`.
  *
- * The catalog instance is built once per process and memoized for reuse.
+ * The catalog instance is built once per protocol version and memoized for reuse.
  *
  * @remarks
- * **Known limitation:** This currently passes `undefined` for the catalog's `instructions`
- * because there is no programmatic equivalent to the string found in `catalog.json`.
- * Until this is addressed in core, agents must manually supply the basic catalog
- * formatting guidance in their preambles.
+ * Built from the catalog JSON that `@a2ui/web_core` ships, rather than from its compiled
+ * component constants, because the JSON is the only source that carries the catalog
+ * `instructions`.
  *
+ * @param protocolVersion The protocol version to load. Defaults to `'v1.0'`.
  * @returns The memoized basic catalog.
+ * @throws {A2uiCatalogError} If no catalog ships for the version, or loading fails.
  */
-export function basicCatalog(): SchemaCatalog {
-  if (!_basicCatalogMemo) {
-    _basicCatalogMemo = new Catalog(
-      'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
-      BASIC_COMPONENTS,
-      BASIC_FUNCTION_APIS,
-      undefined,
-      undefined,
-      'v1.0',
+export function basicCatalog(protocolVersion: ProtocolVersion = 'v1.0'): SchemaCatalog {
+  const version = toWireProtocolVersion(protocolVersion);
+
+  const memoized = _basicCatalogMemoMap.get(version);
+  if (memoized) {
+    return memoized;
+  }
+
+  const catalogPath = getBasicCatalogPath(version);
+
+  let content: string;
+  try {
+    content = fs.readFileSync(catalogPath, 'utf8');
+  } catch (e: unknown) {
+    throw new A2uiCatalogError(
+      `Failed to read basic catalog file at ${catalogPath}: ${(e as Error).message}`,
     );
   }
-  return _basicCatalogMemo;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(content) as Record<string, unknown>;
+  } catch (e: unknown) {
+    throw new A2uiCatalogError(
+      `Failed to parse JSON in basic catalog file at ${catalogPath}: ${(e as Error).message}`,
+    );
+  }
+
+  // The JSON spells the version without the `v` prefix, and the v0.9 catalog omits it
+  // altogether, so the requested version is what gets stamped on the catalog. Guard against
+  // loading the wrong file by rejecting a JSON that names a different version.
+  const declared = parsed.protocolVersion;
+  if (typeof declared === 'string' && toWireProtocolVersion(declared) !== version) {
+    throw new A2uiCatalogError(
+      `Basic catalog at ${catalogPath} declares protocol version '${declared}', expected '${version}'.`,
+    );
+  }
+  parsed.protocolVersion = version;
+
+  let catalog: SchemaCatalog;
+  try {
+    catalog = Catalog.fromSchema(parsed);
+  } catch (e: unknown) {
+    throw new A2uiCatalogError(
+      `Failed to build basic catalog from schema at ${catalogPath}: ${(e as Error).message}`,
+    );
+  }
+
+  _basicCatalogMemoMap.set(version, catalog);
+  return catalog;
 }
