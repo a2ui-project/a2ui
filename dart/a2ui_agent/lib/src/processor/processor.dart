@@ -15,8 +15,12 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
+import '../inference_formats/express/blocks.dart';
+import '../inference_formats/express/compiler.dart';
 import '../inference_formats/express/format.dart';
+import '../inference_formats/express/prompt_generator.dart';
 import '../parser/response_part.dart';
+import 'validation.dart';
 
 /// The tag that opens a direct JSON payload, which this processor does not
 /// read.
@@ -52,15 +56,19 @@ class A2uiRequestProcessor {
   /// components and functions of [activeCatalogs].
   ///
   /// The agent adds its own role and workflow instructions around it.
-  String get promptSnippet {
-    throw UnimplementedError('A2uiRequestProcessor.promptSnippet');
-  }
+  String get promptSnippet => generateExpressPrompt(activeCatalogs);
 
   /// Parses a complete LLM response into text and v0.9 A2UI messages, in the
   /// order the LLM emitted them.
   ///
-  /// Throws [A2uiParseError] if [content] carries a payload in a format other
-  /// than Express.
+  /// Each Express block becomes one [A2uiPart], checked as a renderer holding
+  /// [activeCatalogs] would check it.
+  ///
+  /// Throws [A2uiParseError] if a block is not valid Express or [content]
+  /// carries a payload in another format, [A2uiValidationError] if a block
+  /// uses anything the catalogs do not declare, and another [A2uiError] if a
+  /// renderer would reject the messages, such as an [A2uiIntegrityError] for
+  /// a component nothing reaches from `root`.
   List<ResponsePart> parseResponse(String content) {
     if (content.contains(_directJsonOpenTag)) {
       throw A2uiParseError(
@@ -69,6 +77,17 @@ class A2uiRequestProcessor {
         rawContent: content,
       );
     }
-    throw UnimplementedError('A2uiRequestProcessor.parseResponse');
+    final compiler = ExpressCompiler(activeCatalogs);
+    final List<ResponsePart> parts = [
+      for (final RawPart raw in unwrapExpress(content))
+        switch (raw) {
+          RawText(:final String text) => TextPart(text),
+          RawBlock(:final String source) => A2uiPart(compiler.compile(source)),
+        },
+    ];
+    validatePayloads(activeCatalogs, [
+      for (final A2uiPart part in parts.whereType<A2uiPart>()) part.a2ui,
+    ]);
+    return parts;
   }
 }
