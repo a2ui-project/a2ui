@@ -55,11 +55,14 @@
   "sideEffects": false,
   "files": [
     "dist",
-    "src"
+    "src",
+    "!dist/**/*.test.*",
+    "!dist/.tsbuildinfo",
+    "!src/**/*.test.*"
   ],
   "scripts": {
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
-    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepublishOnly": "node -e \"console.error('Error: Do not publish this package directly. Use yarn publish:package instead.'); process.exit(1);\"",
+    "publish:package": "yarn build && yarn npm publish --access public",
     "prepack": "yarn build",
     "prepare": "yarn build",
     "build": "wireit",

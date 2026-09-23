@@ -24,6 +24,8 @@ import {getPackageGraph} from './lib/workspace.mjs';
 //   --source <path>: Path to the source package.json (defaults to ./package.json)
 //   --dist <path>: Path to the output directory (defaults to ./dist)
 //   --skip-path-adjustment: Skip rewriting paths to remove './dist/' prefixes
+//   --prepack: Temporarily copy generated manifest fields (exports, module, typings) from dist/package.json to root package.json
+//   --postpack: Remove temporary generated manifest fields from root package.json
 
 const args = process.argv.slice(2);
 let sourcePkgPath = './package.json';
@@ -41,6 +43,44 @@ const scriptDir = fileURLToPath(new URL('.', import.meta.url));
 const resolvedSourcePkg = resolve(packageDir, sourcePkgPath);
 const resolvedDistDir = resolve(packageDir, distDir);
 const rootDir = resolve(scriptDir, '../../');
+
+if (args.includes('--prepack')) {
+  const pkgPath = resolve(packageDir, 'package.json');
+  const distPkgPath = resolve(resolvedDistDir, 'package.json');
+  if (existsSync(pkgPath) && existsSync(distPkgPath)) {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    const distPkg = JSON.parse(readFileSync(distPkgPath, 'utf8'));
+    const prefixDist = p =>
+      typeof p === 'string' && p.startsWith('./') && p !== './package.json'
+        ? './dist/' + p.slice(2)
+        : typeof p === 'string' && !p.startsWith('.')
+          ? './dist/' + p
+          : p;
+    if (distPkg.type) pkg.type = distPkg.type;
+    if (distPkg.module) pkg.module = prefixDist(distPkg.module);
+    if (distPkg.typings) pkg.typings = prefixDist(distPkg.typings);
+    if (distPkg.exports) {
+      pkg.exports = JSON.parse(JSON.stringify(distPkg.exports), (_k, v) =>
+        typeof v === 'string' ? prefixDist(v) : v,
+      );
+    }
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  }
+  process.exit(0);
+}
+
+if (args.includes('--postpack')) {
+  const pkgPath = resolve(packageDir, 'package.json');
+  if (existsSync(pkgPath)) {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    delete pkg.type;
+    delete pkg.module;
+    delete pkg.typings;
+    delete pkg.exports;
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  }
+  process.exit(0);
+}
 
 if (!existsSync(resolvedDistDir)) {
   mkdirSync(resolvedDistDir, {recursive: true});
