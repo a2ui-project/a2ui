@@ -172,6 +172,34 @@ describe('ExpressionParser', () => {
     }, /Expected ':'/);
   });
 
+  it('parses non-ASCII identifiers and paths', () => {
+    assert.deepStrictEqual(parser.parse('${señor}'), [{path: 'señor'}]);
+    assert.deepStrictEqual(parser.parse('${café/precio}'), [{path: 'café/precio'}]);
+    assert.deepStrictEqual(parser.parse('${日本}'), [{path: '日本'}]);
+    assert.deepStrictEqual(parser.parse('hola ${señor} qué tal'), [
+      'hola ',
+      {path: 'señor'},
+      ' qué tal',
+    ]);
+    // UAX #31 combining marks (decomposed Unicode)
+    assert.deepStrictEqual(parser.parse('${sen\u0303or}'), [{path: 'sen\u0303or'}]);
+    assert.deepStrictEqual(parser.parse('${cafe\u0301/precio}'), [{path: 'cafe\u0301/precio'}]);
+    // Keywords followed by identifier continuation characters
+    assert.deepStrictEqual(parser.parse('${true_val}'), [{path: 'true_val'}]);
+    assert.deepStrictEqual(parser.parse('${trueñ}'), [{path: 'trueñ'}]);
+    assert.deepStrictEqual(parser.parse('${true1}'), [{path: 'true1'}]);
+    assert.deepStrictEqual(parser.parse('${true𐐷}'), [{path: 'true𐐷'}]);
+    // Supplementary plane Unicode characters (U+10437 Deseret Small Letter Yee)
+    assert.deepStrictEqual(parser.parse('${𐐷}'), [{path: '𐐷'}]);
+    assert.deepStrictEqual(parser.parse('${a𐐷b}'), [{path: 'a𐐷b'}]);
+    // Identifiers in function calls
+    assert.deepStrictEqual(parser.parseExpression('add(número: 10, 日本: 20)'), {
+      call: 'add',
+      args: {número: 10, 日本: 20},
+      returnType: 'any',
+    });
+  });
+
   it('rejects template string exceeding MAX_EXPRESSION_TEMPLATE_LENGTH (Issue #2389)', () => {
     assert.strictEqual(MAX_EXPRESSION_TEMPLATE_LENGTH, 10000);
     const oversizedTemplate = 'a'.repeat(MAX_EXPRESSION_TEMPLATE_LENGTH + 1);

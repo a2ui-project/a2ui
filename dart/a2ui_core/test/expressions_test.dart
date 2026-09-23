@@ -75,6 +75,57 @@ void main() {
       expect(() => parser.parse('hello \${world'), throwsException);
     });
 
+    test('parses non-ASCII identifiers and paths', () {
+      expect(parser.parse(r'${señor}'), [
+        {'path': 'señor'},
+      ]);
+      expect(parser.parse(r'${café/precio}'), [
+        {'path': 'café/precio'},
+      ]);
+      expect(parser.parse(r'${日本}'), [
+        {'path': '日本'},
+      ]);
+      expect(parser.parse(r'hola ${señor} qué tal'), [
+        'hola ',
+        {'path': 'señor'},
+        ' qué tal',
+      ]);
+      // UAX #31 combining marks (decomposed Unicode)
+      expect(parser.parse(r'${señor}'), [
+        {'path': 'señor'},
+      ]);
+      expect(parser.parse(r'${café/precio}'), [
+        {'path': 'café/precio'},
+      ]);
+      // Keywords followed by identifier continuation characters
+      expect(parser.parse(r'${true_val}'), [
+        {'path': 'true_val'},
+      ]);
+      expect(parser.parse(r'${trueñ}'), [
+        {'path': 'trueñ'},
+      ]);
+      expect(parser.parse(r'${true1}'), [
+        {'path': 'true1'},
+      ]);
+      expect(parser.parse(r'${true𐐷}'), [
+        {'path': 'true𐐷'},
+      ]);
+      // Supplementary plane Unicode characters (U+10437 Deseret Small Letter
+      // Yee)
+      expect(parser.parse(r'${𐐷}'), [
+        {'path': '𐐷'},
+      ]);
+      expect(parser.parse(r'${a𐐷b}'), [
+        {'path': 'a𐐷b'},
+      ]);
+      // Identifiers in function calls
+      expect(parser.parseExpression('add(número: 10, 日本: 20)'), {
+        'call': 'add',
+        'args': {'número': 10, '日本': 20},
+        'returnType': 'any',
+      });
+    });
+
     group('recursion depth', () {
       // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so
       // this nests [calls] + 1 deep.

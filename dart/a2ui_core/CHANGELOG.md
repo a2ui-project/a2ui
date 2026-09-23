@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support non-ASCII data model keys in templates.
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
 
 ## 0.2.1
