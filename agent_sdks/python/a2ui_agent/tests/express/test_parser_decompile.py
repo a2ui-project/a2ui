@@ -192,8 +192,6 @@ class TestExpressParser(unittest.TestCase):
         static_type = {"type": "string"}
         self.assertFalse(_is_component_reference_property(static_type))
 
-
-
     def test_has_format_content_and_unwrap_tags(self):
         """Test has_format_content checks and unwrap tag tokenization."""
         parser = ExpressParser(self.catalog)

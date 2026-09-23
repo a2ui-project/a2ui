@@ -64,8 +64,6 @@ class TestExpressCompiler(unittest.TestCase):
         self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
         self.helper = CatalogSchemaHelper(self.catalog)
 
-
-
     def test_compiler_concurrency(self):
         """Verifies that ExpressCompiler is thread-safe and supports concurrent compilation."""
         import threading
@@ -131,8 +129,6 @@ btnLabel = Text("Click Thread 2")
         # It can be enabled by passing 'version_1_0' in experiments
         validator = A2uiValidator(catalog, experiments={"version_1_0"})
         self.assertEqual(validator.version, "1.0")
-
-
 
     def test_polymorphic_catalog_initialization(self):
         """Verifies compiler, decompiler, prompt generator, and parser with polymorphic catalogs."""
@@ -205,8 +201,6 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             CatalogSchemaHelper(self.catalog_path)
         self.assertIn("Unsupported catalog type", str(context.exception))
 
-
-
     def test_custom_exception_types(self):
         """Verifies specific ExpressCompilerError subclasses are raised for invalid DSL constructs."""
         compiler = ExpressCompiler(self.catalog)
@@ -246,8 +240,6 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         with self.assertRaises(ExpressUndefinedRootError) as ctx:
             compiler.compile('some_var = Text("Hello")')
         self.assertEqual(ctx.exception.root_target, "root")
-
-
 
 
 if __name__ == "__main__":
