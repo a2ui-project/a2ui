@@ -67,25 +67,117 @@ const ACTION_REF = 'REF:common_types.json#/$defs/Action';
 const DATA_BINDING_REF = 'REF:common_types.json#/$defs/DataBinding';
 const DYNAMIC_REF_PREFIX = '#/$defs/Dynamic';
 
-function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNode {
+/**
+ * The bits of a Zod node's internal definition that schema scraping relies on.
+ * Catalog schemas come from host applications, which may build them with zod 4
+ * even though web_core is compiled against zod 3 (a single hoisted `zod`
+ * copy: a "dual-zod" setup). The majors shape their internals differently:
+ *
+ * - zod 3 discriminates nodes with `_def.typeName` (`'ZodUnion'`), stores
+ *   object shapes behind `_def.shape()` and array elements at `_def.type`.
+ * - zod 4 discriminates nodes with `def.type` (`'union'`), stores object
+ *   shapes directly at `def.shape`, array elements at `def.element`, and
+ *   keeps descriptions in a metadata registry read via `.description`.
+ *
+ * A scraper that only reads zod 3 internals classifies every property of a
+ * zod-4-built catalog as STATIC, silently dropping all of its bindings.
+ */
+interface ZodInternals {
+  /** zod 3 node discriminator, e.g. `'ZodUnion'`. */
+  typeName?: string;
+  /** zod 4 node discriminator, e.g. `'union'`. */
+  type?: unknown;
+  /** Union branches; an array under both majors. */
+  options?: unknown;
+  /** Object shape; a factory under zod 3, a plain object under zod 4. */
+  shape?: unknown;
+  /** Wrapped schema of optional/nullable/default nodes. */
+  innerType?: unknown;
+  /** zod 4 array element (zod 3 stores the element at `type`). */
+  element?: unknown;
+}
+
+function internalsOf(schema: z.ZodTypeAny): ZodInternals {
+  const legacy = schema as unknown as {_def?: ZodInternals};
+  const modern = schema as unknown as {def?: ZodInternals};
+  return legacy._def ?? modern.def ?? {};
+}
+
+/**
+ * The node kind in either major's vocabulary: the zod 3 `typeName`
+ * (`'ZodUnion'`) or the zod 4 `type` (`'union'`).
+ */
+function kindOf(def: ZodInternals): string | undefined {
+  return def.typeName ?? (typeof def.type === 'string' ? def.type : undefined);
+}
+
+/** True when the node carries zod 3 or zod 4 internals we know how to read. */
+function isKnownSchemaNode(def: ZodInternals): boolean {
+  return kindOf(def) !== undefined;
+}
+
+/**
+ * The shape of an object schema under either major: `_def.shape()` (zod 3)
+ * or the `def.shape` object (zod 4).
+ */
+function objectShapeOf(def: ZodInternals): Record<string, z.ZodTypeAny> | undefined {
+  if (typeof def.shape === 'function') {
+    return (def.shape as () => Record<string, z.ZodTypeAny>)();
+  }
+  if (def.shape && typeof def.shape === 'object') {
+    return def.shape as Record<string, z.ZodTypeAny>;
+  }
+  return undefined;
+}
+
+/** The branches of a union schema; an array under both majors. */
+function unionOptionsOf(def: ZodInternals): z.ZodTypeAny[] | undefined {
+  return Array.isArray(def.options) ? (def.options as z.ZodTypeAny[]) : undefined;
+}
+
+/**
+ * A node's description under either major: zod 3 stores it on `_def` while
+ * zod 4 keeps it in a metadata registry, but both expose it through the
+ * `.description` getter.
+ */
+function descriptionOf(schema: z.ZodTypeAny): string {
+  return (schema as {description?: string}).description ?? '';
+}
+
+function getFieldBehavior(
+  type: z.ZodTypeAny,
+  propertyName?: string,
+  pathLabel = '(root)',
+): BehaviorNode {
   let current = type;
 
-  let description = current._def?.description || '';
+  let description = descriptionOf(current);
 
-  // Unwrap optionals/nullables/defaults
-  while (
-    current._def.typeName === 'ZodOptional' ||
-    current._def.typeName === 'ZodNullable' ||
-    current._def.typeName === 'ZodDefault'
-  ) {
-    if (!description && current._def.description) {
-      description = current._def.description;
+  // Unwrap optionals/nullables/defaults (zod 3 `_def.typeName`, zod 4 `def.type`),
+  // keeping the first description found on the way in.
+  for (;;) {
+    const wrapperDef = internalsOf(current);
+    const wrapperKind = kindOf(wrapperDef);
+    const isWrapper =
+      wrapperKind === 'ZodOptional' ||
+      wrapperKind === 'optional' ||
+      wrapperKind === 'ZodNullable' ||
+      wrapperKind === 'nullable' ||
+      wrapperKind === 'ZodDefault' ||
+      wrapperKind === 'default';
+    if (!isWrapper) break;
+    const innerType = wrapperDef.innerType as z.ZodTypeAny | undefined;
+    if (!innerType) break;
+    current = innerType;
+    if (!description) {
+      description = descriptionOf(current);
     }
-    current = current._def.innerType;
   }
-  if (!description && current._def.description) {
-    description = current._def.description;
-  }
+
+  const def = internalsOf(current);
+  const kind = kindOf(def);
+  const isObjectNode = kind === 'ZodObject' || kind === 'object';
+  const isArrayNode = kind === 'ZodArray' || kind === 'array';
 
   if (propertyName === 'checks') {
     return {type: 'CHECKABLE'};
@@ -101,54 +193,76 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
 
   if (
     (description.startsWith(DATA_BINDING_REF) || description.includes(DYNAMIC_REF_PREFIX)) &&
-    current._def.typeName !== 'ZodObject' &&
-    current._def.typeName !== 'ZodArray'
+    !isObjectNode &&
+    !isArrayNode
   ) {
     return {type: 'DYNAMIC'};
   }
 
-  // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
-  if (current._def.typeName === 'ZodUnion') {
-    const options = current._def.options as z.ZodTypeAny[];
+  // Structural matching for A2UI primitives using node kinds (not instanceof)
+  // to avoid dual-module issues
+  if (kind === 'ZodUnion' || kind === 'union') {
+    const options = unionOptionsOf(def) ?? [];
 
     // ActionSchema is a union containing { event: ... }
-    const isAction = options.some(o => o._def.typeName === 'ZodObject' && o._def.shape().event);
+    const isAction = options.some(o => {
+      const shape = objectShapeOf(internalsOf(o));
+      return shape !== undefined && shape.event;
+    });
     if (isAction) return {type: 'ACTION'};
 
     // Dynamic strings/values are unions containing DataBindingSchema { path: ... } but NOT { componentId: ... }
-    const isDynamic = options.some(
-      o => o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId,
-    );
+    const isDynamic = options.some(o => {
+      const shape = objectShapeOf(internalsOf(o));
+      return shape !== undefined && shape.path && !shape.componentId;
+    });
     if (isDynamic) return {type: 'DYNAMIC'};
 
     // ChildList is a union containing an array and an object with { componentId, path }
-    const isChildList = options.some(
-      o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
-    );
+    const isChildList = options.some(o => {
+      const shape = objectShapeOf(internalsOf(o));
+      return shape !== undefined && shape.componentId && shape.path;
+    });
     if (isChildList) return {type: 'STRUCTURAL'};
-  } else if (current._def.typeName === 'ZodString') {
+  } else if (kind === 'ZodString') {
     // ComponentId falls back to STATIC since we can't perfectly identify it, which is fine because STATIC returns strings as-is.
   }
 
   // Recursive array scraping
-  if (current._def.typeName === 'ZodArray') {
+  if (isArrayNode) {
+    const element = (def.element ?? def.type) as z.ZodTypeAny;
     return {
       type: 'ARRAY',
-      element: getFieldBehavior(current._def.type),
+      element: getFieldBehavior(element, undefined, `${pathLabel}[]`),
     };
   }
 
   // Recursive object scraping
-  if (current._def.typeName === 'ZodObject') {
+  if (isObjectNode) {
     const shape: Record<string, BehaviorNode> = {};
-    const objShape = current._def.shape();
-    for (const [key, value] of Object.entries(objShape)) {
-      shape[key] = getFieldBehavior(value as z.ZodTypeAny, key);
+    const objShape = objectShapeOf(def);
+    for (const [key, value] of Object.entries(objShape ?? {})) {
+      shape[key] = getFieldBehavior(value as z.ZodTypeAny, key, `${pathLabel}.${key}`);
     }
     return {type: 'OBJECT', shape};
   }
 
-  // Fallback
+  // Fallback: known-but-unclassified zod nodes are plain static values. A node
+  // we cannot recognize at all is almost always a dual-zod setup, which used
+  // to silently scrape every property as STATIC; fail loudly instead.
+  if (!isKnownSchemaNode(def)) {
+    throw new Error(
+      `[A2UI GenericBinder] Cannot classify the schema for property "${pathLabel}": the ` +
+        'schema node exposes internals that are neither zod 3 (`_def.typeName`) nor zod 4 ' +
+        '(`def.type`), so it cannot be introspected. The most common cause is a dual-zod ' +
+        'setup: the host application resolved `zod` to a different major than the one used ' +
+        'to build this component catalog, and GenericBinder would silently scrape every ' +
+        'property as STATIC, dropping all data bindings. Align the zod major used by the ' +
+        `catalog with the one @a2ui/web_core resolves. Received node "${
+          current.constructor?.name ?? typeof current
+        }" with definition keys [${Object.keys(def).join(', ')}].`,
+    );
+  }
   return {type: 'STATIC'};
 }
 
