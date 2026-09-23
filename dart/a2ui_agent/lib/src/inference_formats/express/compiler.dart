@@ -636,22 +636,25 @@ void _setPath(Map<String, Object?> model, String path, Object? value) {
       if (key.isNotEmpty) key,
   ];
   if (keys.isEmpty) {
-    if (value is! Map) {
+    // Every map the compiler builds has string keys, so this is the only
+    // check needed.
+    if (value is! Map<String, Object?>) {
       throw A2uiValidationError(
         r'Only a map can be assigned to the whole data model, $/.',
       );
     }
-    model.addAll(value.cast<String, Object?>());
+    model.addAll(value);
     return;
   }
   var current = model;
   for (final String key in keys.take(keys.length - 1)) {
-    final Object? next = current[key];
-    if (next is Map<String, Object?>) {
-      current = next;
-    } else {
-      current = current[key] = <String, Object?>{};
-    }
+    // A map assigned earlier is copied rather than written into: its value
+    // type may be narrower than Object?, as it is for an Event's map.
+    final Object? existing = current[key];
+    final child = existing is Map
+        ? Map<String, Object?>.from(existing)
+        : <String, Object?>{};
+    current = current[key] = child;
   }
   current[keys.last] = value;
 }

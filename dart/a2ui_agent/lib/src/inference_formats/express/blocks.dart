@@ -54,16 +54,11 @@ final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 /// block are removed. See `conformance/agent/express/response_parser.yaml`.
 List<RawPart> unwrapExpress(String content) {
   final parts = <RawPart>[];
-  var text = StringBuffer();
   var i = 0;
-  while (i < content.length) {
-    final Match? open = _openTag.matchAsPrefix(content, i);
-    if (open == null) {
-      text.write(content[i++]);
-      continue;
-    }
-    _addText(parts, text.toString());
-    text = StringBuffer();
+  while (true) {
+    final Match? open = _openTag.allMatches(content, i).firstOrNull;
+    if (open == null) break;
+    _addText(parts, content.substring(i, open.start));
     final int start = open.end;
     final int? end = _blockEnd(content, start);
     if (end == null) {
@@ -73,7 +68,7 @@ List<RawPart> unwrapExpress(String content) {
     parts.add(RawBlock(_clean(content.substring(start, end)), isFinal: true));
     i = _closeTag.matchAsPrefix(content, end)!.end;
   }
-  _addText(parts, text.toString());
+  _addText(parts, content.substring(i));
   return parts;
 }
 

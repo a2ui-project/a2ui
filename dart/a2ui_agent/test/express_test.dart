@@ -257,6 +257,25 @@ root = Text($/user/name)
       );
     });
 
+    test('data assignments into a map assigned earlier', () {
+      expect(
+        (compile(r'''
+$/user = {name: "Ada"}
+$/user/age = 36
+$/action = Event("go")
+$/action/event/extra = null
+root = Text($/user/name)
+''').last['updateDataModel']!
+            as Map)['value'],
+        {
+          'user': {'name': 'Ada', 'age': 36},
+          'action': {
+            'event': {'name': 'go', 'extra': null},
+          },
+        },
+      );
+    });
+
     test('comments, semicolons, trailing commas and wrapped lines', () {
       expect(
         components('''
