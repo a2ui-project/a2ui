@@ -443,3 +443,49 @@ def test_data_context_expression_error_dispatching():
     assert errors[0]["code"] == "EXPRESSION_ERROR"
     assert errors[0]["expression"] == "buggy_fn"
     assert "division by zero" in errors[0]["message"].lower()
+
+
+def test_data_context_catalog_and_missing_function_error_dispatch():
+    errors: list[dict[str, Any]] = []
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat)
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    # 1. Non-existent function name in catalog
+    res1 = ctx.resolve_dynamic_value({"call": "nonExistentFunction"})
+    assert res1 is None
+    assert len(errors) == 1
+    assert errors[0]["code"] == "EXPRESSION_ERROR"
+    assert errors[0]["expression"] == "nonExistentFunction"
+    assert "Unrecognized function" in errors[0]["message"]
+
+    # 2. Non-existent catalog ID
+    res2 = ctx.resolve_dynamic_value({
+        "call": "formatString",
+        "catalogId": "unknown_catalog_id",
+        "args": {"value": "test"},
+    })
+    assert res2 is None
+    assert len(errors) == 2
+    assert errors[1]["code"] == "EXPRESSION_ERROR"
+    assert "Catalog not found" in errors[1]["message"]
+
+    # 3. Function missing in catalog implementation
+    class MissingFnCatalog(BasicCatalog):
+
+        def get_function(self, name: str) -> Any:
+            return None
+
+    mock_surface = SurfaceModel("s2", MissingFnCatalog())
+    mock_errors: list[dict[str, Any]] = []
+    mock_surface.on_error.subscribe(lambda err: mock_errors.append(err))
+    mock_ctx = DataContext(mock_surface, path="/")
+    res3 = mock_ctx.resolve_dynamic_value({
+        "call": "formatString",
+        "args": {"value": "test"},
+    })
+    assert res3 is None
+    assert len(mock_errors) == 1
+    assert mock_errors[0]["code"] == "EXPRESSION_ERROR"
+    assert "not found in catalog" in mock_errors[0]["message"]

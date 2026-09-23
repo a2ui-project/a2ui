@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import copy
 import inspect
-import re
 import warnings
 from typing import Any, Callable, Generic
 from ..catalog.catalog import Catalog, TComponent, TFunction
@@ -24,8 +23,6 @@ from ..state import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import PayloadValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
-
-EXPRESSION_PATTERN = re.compile(r"(\\)?\$\{(.*?)\}")
 
 
 class MissingDataBindingWarning(UserWarning):
@@ -289,63 +286,54 @@ class DataContext(Generic[TComponent, TFunction]):
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
     ) -> Any:
-        from ..exceptions import A2uiCatalogError, A2uiValidationError
-
-        target_catalog: Catalog[TComponent, TFunction] | None = None
-        if catalog_id is not None:
-            target_catalog = self.surface.available_catalogs.get(catalog_id)
-            if not target_catalog:
-                raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
-        else:
-            target_catalog = self.surface.default_catalog
+        from ..exceptions import A2uiCatalogError
 
         try:
+            target_catalog: Catalog[TComponent, TFunction] | None = None
+            if catalog_id is not None:
+                target_catalog = self.surface.available_catalogs.get(catalog_id)
+                if not target_catalog:
+                    raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
+            else:
+                target_catalog = self.surface.default_catalog
+
             val_args = PayloadValidator(catalog=target_catalog).validate_function(
                 name, resolved_args
             )
             if isinstance(val_args, dict):
                 resolved_args = val_args
-        except Exception as e:
-            if self.surface and hasattr(self.surface, "dispatch_error"):
-                self.surface.dispatch_error({
-                    "code": "EXPRESSION_ERROR",
-                    "message": str(e),
-                    "expression": name,
-                })
-                return None
-            else:
-                raise
 
-        fn = (
-            target_catalog.get_function(name)
-            if hasattr(target_catalog, "get_function")
-            else None
-        )
-        if fn is None:
-            raise A2uiCatalogError(
-                f"Function '{name}' not found in catalog '{target_catalog.catalog_id}'."
+            fn = (
+                target_catalog.get_function(name)
+                if hasattr(target_catalog, "get_function")
+                else None
             )
+            if fn is None:
+                catalog_desc = (
+                    f"catalog '{target_catalog.catalog_id}'"
+                    if hasattr(target_catalog, "catalog_id")
+                    else "catalog"
+                )
+                raise A2uiCatalogError(
+                    f"Function '{name}' not found in {catalog_desc}."
+                )
 
-        try:
             if hasattr(fn, "execute") and callable(fn.execute):
-                res = fn.execute(resolved_args, self, abort_signal)
-            elif hasattr(fn, "execute_func") and callable(fn.execute_func):
-                res = fn.execute_func(resolved_args, self, abort_signal)
-            elif callable(fn):
-                res = fn(resolved_args, self, abort_signal)
-            else:
-                res = None
-
-            return res
+                return fn.execute(resolved_args, self, abort_signal)
+            if hasattr(fn, "execute_func") and callable(fn.execute_func):
+                return fn.execute_func(resolved_args, self, abort_signal)
+            if callable(fn):
+                return fn(resolved_args, self, abort_signal)
+            return None
         except Exception as e:
-            if isinstance(e, (A2uiCatalogError, A2uiValidationError)):
-                raise
             if self.surface and hasattr(self.surface, "dispatch_error"):
-                self.surface.dispatch_error({
+                error_payload: dict[str, Any] = {
                     "code": "EXPRESSION_ERROR",
                     "message": str(e),
                     "expression": name,
-                })
+                }
+                if hasattr(e, "details") and getattr(e, "details"):
+                    error_payload["details"] = getattr(e, "details")
+                self.surface.dispatch_error(error_payload)
                 return None
-            else:
-                raise
+            raise
