@@ -16,7 +16,7 @@
  */
 
 import {CatalogConfig} from './catalog_config.js';
-import {V10RendererCapabilities, AgentToRendererMessage} from '../internal/web_core.js';
+import {RendererCapabilities, AgentToRendererMessage} from '../internal/web_core.js';
 import {InferenceFormatFactory} from '../inference_format/base.js';
 import {A2uiRequestProcessor} from './processor.js';
 import {resolveCatalogs} from '../utils/catalog_resolver.js';
@@ -47,7 +47,7 @@ export class A2uiGenerator {
    * example uses a component the negotiated catalogs do not support.
    */
   createProcessor(
-    rendererCapabilities: V10RendererCapabilities,
+    rendererCapabilities: RendererCapabilities,
     inferenceFormatFactory?: InferenceFormatFactory,
   ): A2uiRequestProcessor {
     const activeCatalogs = resolveCatalogs(this.catalogs, rendererCapabilities);

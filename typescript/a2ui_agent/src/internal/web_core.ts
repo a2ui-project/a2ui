@@ -37,11 +37,17 @@ export {
   RendererToAgentMessageSchema,
   V10RendererCapabilitiesSchema,
 } from '@a2ui/web_core/v1_0';
-export type {
+import type {
   AgentToRendererMessage,
   RendererToAgentMessage,
   V10RendererCapabilities,
 } from '@a2ui/web_core/v1_0';
+export type {AgentToRendererMessage, RendererToAgentMessage, V10RendererCapabilities};
+
+/**
+ * Version-neutral alias for renderer capabilities across protocol versions.
+ */
+export type RendererCapabilities = V10RendererCapabilities;
 
 // ./v1_0/basic_catalog
 export {BASIC_COMPONENTS, BASIC_FUNCTION_APIS} from '@a2ui/web_core/v1_0/basic_catalog';
@@ -76,3 +82,6 @@ export {
 
 // ./adapters
 export type {ProtocolVersion} from '@a2ui/web_core/adapters';
+
+// ./semver
+export {normalizeVersionString} from '@a2ui/web_core/semver';

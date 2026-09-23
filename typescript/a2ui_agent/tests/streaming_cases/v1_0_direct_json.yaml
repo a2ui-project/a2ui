@@ -344,10 +344,10 @@
           type: object
           properties:
             children:
-              type: object
-              properties:
-                explicitList:
-                  type: array
+              type: array
+              items:
+                type: string
+                title: ComponentId
   action: process_chunk
   steps:
     - input: '<a2ui-json>[{"createSurface": {"root": "root", "surfaceId": "s1"}},'
@@ -368,8 +368,7 @@
                     child: loading_c1
                   - id: loading_c1
                     component: Row
-                    children:
-                      explicitList: []
+                    children: []
     - input: '{"id": "c1", "component": "Text", "text": "child 1"}]}}'
       expect:
         - a2ui:
@@ -412,10 +411,10 @@
           type: object
           properties:
             children:
-              type: object
-              properties:
-                explicitList:
-                  type: array
+              type: array
+              items:
+                type: string
+                title: ComponentId
   action: process_chunk
   steps:
     - input: '<a2ui-json>[{"createSurface": {"root": "root", "surfaceId": "s1"}},'
@@ -438,8 +437,7 @@
                         componentId: loading_c1
                   - id: loading_c1
                     component: Row
-                    children:
-                      explicitList: []
+                    children: []
     - input: '{"id": "c1", "component": "Text", "text": "child 1"}]}}'
       expect:
         - a2ui:
@@ -480,10 +478,10 @@
           type: object
           properties:
             children:
-              type: object
-              properties:
-                explicitList:
-                  type: array
+              type: array
+              items:
+                type: string
+                title: ComponentId
   action: process_chunk
   steps:
     - input: '<a2ui-json>[{"createSurface": {"root": "root", "surfaceId": "s1"}},'
@@ -507,16 +505,13 @@
                       - loading_c3
                   - id: loading_c1
                     component: Row
-                    children:
-                      explicitList: []
+                    children: []
                   - id: loading_c2
                     component: Row
-                    children:
-                      explicitList: []
+                    children: []
                   - id: loading_c3
                     component: Row
-                    children:
-                      explicitList: []
+                    children: []
     - input: '{"id": "c1", "component": "Text", "text": "child 1"}]}}'
       expect:
         - a2ui:
@@ -534,12 +529,10 @@
                       - loading_c3
                   - id: loading_c2
                     component: Row
-                    children:
-                      explicitList: []
+                    children: []
                   - id: loading_c3
                     component: Row
-                    children:
-                      explicitList: []
+                    children: []
 - name: test_data_model_before_components
   description: Tests that data model updates can be processed before components.
   catalog:
