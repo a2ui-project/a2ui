@@ -668,10 +668,12 @@ def test_surface_model_dispatch_warning_and_error():
     assert errors_received[0]["surfaceId"] == "s1"
 
     # Non-dict error and warning payloads raise TypeError
-    with pytest.raises(TypeError, match="Error payload must be a dictionary"):
+    with pytest.raises(TypeError, match="Expected error payload to be a dict, got str"):
         surface.dispatch_error("not_a_dict")  # type: ignore[arg-type]
 
-    with pytest.raises(TypeError, match="Warning payload must be a dictionary"):
+    with pytest.raises(
+        TypeError, match="Expected warning payload to be a dict, got int"
+    ):
         surface.dispatch_warning(123)  # type: ignore[arg-type]
 
 
