@@ -1498,3 +1498,34 @@ def test_update_data_model_root_merge_escapes_special_characters():
         "other/key": "val3",
     }
 
+
+def test_v1_0_adapter_drops_theme_from_create_surface():
+    from a2ui.core.processing.adapters.v1_0 import V1Point0Adapter
+    from a2ui.core.processing.operations import InternalCreateSurfaceOp
+
+    adapter = V1Point0Adapter()
+    ops = adapter.extract_operations({
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "s_v1",
+            "catalogId": "basic",
+        },
+    })
+    create_op = next(
+        (op for op in ops if isinstance(op, InternalCreateSurfaceOp)), None
+    )
+    assert create_op is not None
+    assert create_op.theme is None
+
+    # Even if raw message dict has theme, v1.0 adapter ignores it
+    raw_ops = adapter._extract_operations_for_action(
+        "createSurface",
+        {
+            "createSurface": {
+                "surfaceId": "s_v1",
+                "catalogId": "basic",
+                "theme": {"primaryColor": "#ff0000"},
+            }
+        },
+    )
+    assert raw_ops[0].theme is None

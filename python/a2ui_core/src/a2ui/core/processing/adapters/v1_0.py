@@ -71,7 +71,6 @@ class V1Point0Adapter(BaseVersionAdapter):
                 InternalCreateSurfaceOp(
                     surface_id=self._get_surface_id(cs),
                     catalog_id=cs.get("catalogId"),
-                    theme=cs.get("theme"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
                     version=message.get("version")
                     or (
