@@ -22,9 +22,19 @@ import {
   restHandler,
   UserBuilder,
 } from '@a2a-js/sdk/server/express';
-import {RestaurantExecutor, agentCard} from './agent.js';
+import {RestaurantExecutor, agentCard, resolveLlmMode} from './agent.js';
 
 export function main() {
+  // Fail before binding the port. A misconfigured key should stop the process,
+  // not surface as a canned response on the first request.
+  let mode;
+  try {
+    mode = resolveLlmMode();
+  } catch (e) {
+    console.error(`Configuration error: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
+  }
+
   const app = express();
   app.use(express.json());
 
@@ -58,6 +68,11 @@ export function main() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Restaurant Agent Node Sample running on port ${PORT}`);
+    console.log(
+      mode === 'stub'
+        ? 'Model: none. STUB_LLM=true, so every turn serves the canned response.'
+        : 'Model: gemini-2.5-flash via GEMINI_API_KEY.',
+    );
     console.log(`JSON-RPC endpoint: http://localhost:${PORT}/a2a/json-rpc`);
   });
 }

@@ -78,6 +78,52 @@ const generator = new A2uiGenerator([basicConf], {
 
 const sessionHistory = new Map<string, Content[]>();
 
+/** Which backend serves a turn: a real model, or the canned response. */
+export type LlmMode = 'live' | 'stub';
+
+/**
+ * Decides how to answer requests, and rejects any configuration that is
+ * ambiguous about it.
+ *
+ * Stubbing has to be asked for with `STUB_LLM=true`. It is never inferred from a
+ * missing key, because an unset, empty or misspelled `GEMINI_API_KEY` is far more
+ * likely to be a mistake than a request for canned output, and silently serving
+ * the stub in that case hides the mistake behind a response that looks like it
+ * worked.
+ *
+ * @param env Environment to read, injectable for tests.
+ * @returns The resolved mode.
+ * @throws Error if the environment does not select exactly one mode.
+ */
+export function resolveLlmMode(env: NodeJS.ProcessEnv = process.env): LlmMode {
+  const stubFlag = env.STUB_LLM?.trim();
+  if (stubFlag !== undefined && stubFlag !== '' && stubFlag !== 'true' && stubFlag !== 'false') {
+    throw new Error(
+      `STUB_LLM must be "true" or "false", but it is "${env.STUB_LLM}". ` +
+        'Use STUB_LLM=true to serve the canned response without calling a model.',
+    );
+  }
+
+  if (stubFlag === 'true') {
+    return 'stub';
+  }
+
+  if (env.GEMINI_API_KEY?.trim()) {
+    return 'live';
+  }
+
+  const named = env.GEMINI_API_KEY !== undefined;
+  throw new Error(
+    (named
+      ? 'GEMINI_API_KEY is set but empty.'
+      : 'GEMINI_API_KEY is not set, and it is required to reach a model.') +
+      '\nEither provide a key:\n' +
+      '  GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start\n' +
+      'or ask for the canned response explicitly:\n' +
+      '  STUB_LLM=true yarn workspace @a2ui/agent-restaurant-node run start',
+  );
+}
+
 export class RestaurantExecutor implements AgentExecutor {
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const {taskId, contextId, userMessage, task} = requestContext;
@@ -123,7 +169,7 @@ export class RestaurantExecutor implements AgentExecutor {
 
     const systemInstruction =
       ROLE_DESCRIPTION + '\n' + UI_DESCRIPTION + '\n' + processor.promptSnippet;
-    const useStub = process.env.STUB_LLM === 'true' || !process.env.GEMINI_API_KEY;
+    const useStub = resolveLlmMode() === 'stub';
 
     const workingEvent: TaskStatusUpdateEvent = {
       kind: 'status-update',

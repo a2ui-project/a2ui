@@ -12,11 +12,10 @@ yarn workspace @a2ui/agent-restaurant-node run build
 
 ### Without an API key
 
-With no `GEMINI_API_KEY` set, the agent automatically serves a canned A2UI response instead of
-calling the model. No extra flag is needed:
+Ask for the canned response explicitly:
 
 ```bash
-yarn workspace @a2ui/agent-restaurant-node run start
+STUB_LLM=true yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
 The stub is deliberately delivered in four mid-token chunks, so the streaming healer in
@@ -30,22 +29,22 @@ cp .env.example .env    # then add your GEMINI_API_KEY
 GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
-### Forcing the stub while a key is present
-
-`STUB_LLM=true` overrides a configured key, which is useful for deterministic runs without
-spending quota:
+`STUB_LLM=true` takes precedence over a configured key, which is useful for deterministic runs
+without spending quota:
 
 ```bash
 STUB_LLM=true GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
-The selection logic is `STUB_LLM === 'true' || !GEMINI_API_KEY`, so the flag is redundant when
-no key is set and only meaningful as an override.
+### When the configuration is wrong
 
-> [!WARNING]
-> The fallback is silent. An unset, empty or misspelled `GEMINI_API_KEY` produces canned output
-> rather than an error, so check the server log for `Using stub LLM response...` if you are
-> unsure which path ran.
+The agent refuses to start rather than guessing. It exits with a non-zero status, before binding
+the port, if `GEMINI_API_KEY` is missing or empty and `STUB_LLM=true` was not passed, or if
+`STUB_LLM` is set to anything other than `true` or `false`. A misspelled key name therefore
+produces an error instead of canned output that looks like a working model.
+
+On a successful start the banner names the backend, either `Model: gemini-2.5-flash via
+GEMINI_API_KEY.` or `Model: none. STUB_LLM=true, ...`, so which path is live is never in doubt.
 
 Override the port with `PORT`. Once running:
 
@@ -190,9 +189,14 @@ action generically into `User submitted an action: <name> with data: <json>`.
 renderers all stop at v0.9, while this sample emits v1.0, so none of the existing sample
 clients can display its output.
 
-The agent is therefore verified headlessly: run it and read the A2A stream directly. Once a
-v1.0 renderer lands, this sample should be connectable with no changes on the agent side, as
-it already serves the port and protocol the clients expect.
+This is accepted rather than outstanding. A v1.0 renderer is expected to arrive from outside
+this repository, so the sample stays headless in the meantime: run it and read the A2A stream
+directly. When that renderer lands, the sample should be connectable with no changes on the
+agent side, as it already serves the port and protocol the clients expect.
+
+A rendered demo is likely to arrive by the other route first. Once the agent SDK supports v0.9
+it can talk to the Lit, React and Angular renderers that already exist, which is one of the
+reasons v0.9 support is planned ahead of the Express format.
 
 ## Why not the Agent Development Kit?
 
