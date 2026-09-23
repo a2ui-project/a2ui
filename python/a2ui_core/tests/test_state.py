@@ -667,6 +667,13 @@ def test_surface_model_dispatch_warning_and_error():
     assert len(errors_received) == 1
     assert errors_received[0]["surfaceId"] == "s1"
 
+    # Non-dict error and warning payloads raise TypeError
+    with pytest.raises(TypeError, match="Error payload must be a dictionary"):
+        surface.dispatch_error("not_a_dict")  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="Warning payload must be a dictionary"):
+        surface.dispatch_warning(123)  # type: ignore[arg-type]
+
 
 def test_surface_model_dispatch_action_payload_handling():
     cat = BasicCatalog()

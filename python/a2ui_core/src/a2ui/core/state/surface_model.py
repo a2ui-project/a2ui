@@ -110,12 +110,16 @@ class SurfaceModel(Generic[TComponent, TFunction]):
 
     def dispatch_error(self, error: dict[str, Any]) -> None:
         """Dispatches an error from this surface to listeners."""
+        if not isinstance(error, dict):
+            raise TypeError("Error payload must be a dictionary")
         err_payload = copy.deepcopy(error)
         err_payload["surfaceId"] = self.id
         self.on_error.emit(err_payload)
 
     def dispatch_warning(self, warning: dict[str, Any]) -> None:
         """Dispatches a non-fatal warning from this surface to listeners."""
+        if not isinstance(warning, dict):
+            raise TypeError("Warning payload must be a dictionary")
         warn_payload = copy.deepcopy(warning)
         warn_payload["surfaceId"] = self.id
         self.on_warning.emit(warn_payload)
