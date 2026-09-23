@@ -579,3 +579,10 @@ def test_package_root_and_resolution_exports():
     assert a2ui.core.resolution.is_writable(wb)
     wb.set("new_val")
     assert assigned == ["new_val"]
+
+    # Verify __slots__ prevents arbitrary attributes
+    with pytest.raises(AttributeError):
+        rb.undeclared = True  # type: ignore[attr-defined]
+
+    with pytest.raises(AttributeError):
+        wb.undeclared = True  # type: ignore[attr-defined]

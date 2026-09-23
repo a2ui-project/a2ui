@@ -29,6 +29,8 @@ class ResolvedBinding(Generic[T]):
     accidental writes without explicitly narrowing to WritableBinding.
     """
 
+    __slots__ = ("value",)
+
     def __init__(self, value: T) -> None:
         self.value: T = value
 
@@ -38,6 +40,8 @@ class ResolvedBinding(Generic[T]):
 
 class WritableBinding(ResolvedBinding[T]):
     """Writable resolved dynamic binding backed by a mutable data model path."""
+
+    __slots__ = ("set", "path")
 
     def __init__(
         self,

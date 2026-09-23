@@ -18,8 +18,10 @@ from a2ui.core.catalog import (
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError as A2uiCatalogError,
+    A2uiDataError as A2uiDataError,
     A2uiError as A2uiError,
     A2uiErrorDetail as A2uiErrorDetail,
+    A2uiExpressionError as A2uiExpressionError,
     A2uiIntegrityError as A2uiIntegrityError,
     A2uiParseError as A2uiParseError,
     A2uiRecursionError as A2uiRecursionError,
@@ -44,8 +46,10 @@ from a2ui.core.version import __version__ as __version__
 
 __all__ = [
     "A2uiCatalogError",
+    "A2uiDataError",
     "A2uiError",
     "A2uiErrorDetail",
+    "A2uiExpressionError",
     "A2uiIntegrityError",
     "A2uiParseError",
     "A2uiRecursionError",
