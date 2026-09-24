@@ -116,62 +116,36 @@ class SurfaceComponentsModel:
 
     def detect_cycles(
         self,
-        root_id: str | ValidationConfig | dict[str, Any] = "root",
-        max_depth: int = 50,
-        allow_missing_root: bool = False,
+        config: ValidationConfig | None = None,
     ) -> set[str]:
         """Detects self-references, circular dependencies, and exceeds depth limits."""
-        if isinstance(root_id, ValidationConfig):
-            actual_root = root_id.root_id
-            actual_depth = (
-                root_id.max_depth if root_id.max_depth is not None else max_depth
-            )
-            actual_allow_missing = root_id.allow_missing_root
-        elif isinstance(root_id, dict):
-            actual_root = str(root_id.get("root_id", root_id.get("rootId", "root")))
-            raw_depth = root_id.get("max_depth", root_id.get("maxDepth"))
-            actual_depth = int(raw_depth) if raw_depth is not None else max_depth
-            actual_allow_missing = bool(
-                root_id.get(
-                    "allow_missing_root",
-                    root_id.get("allowMissingRoot", allow_missing_root),
-                )
-            )
-        else:
-            actual_root = root_id
-            actual_depth = max_depth
-            actual_allow_missing = allow_missing_root
-
-        config = ValidationConfig(
-            root_id=actual_root,
-            allow_missing_root=actual_allow_missing,
-            allow_orphan_components=True,
-            max_depth=actual_depth,
+        cfg = (config or ValidationConfig()).model_copy(
+            update={"allow_orphan_components": True}
         )
         return analyze_topology(
             self._components,
-            root_id=actual_root,
-            config=config,
+            root_id=cfg.root_id,
+            config=cfg,
         )
 
     def validate_topology(
         self,
-        options: ValidationConfig | None = None,
+        config: ValidationConfig | None = None,
     ) -> None:
         """Validates full graph topology (integrity, dangling references, orphans, cycles, and depth)."""
         if not self._components:
             return
-        cfg = options or ValidationConfig()
+        cfg = config or ValidationConfig()
         validate_component_integrity(self._components, root_id=cfg.root_id, config=cfg)
         analyze_topology(self._components, root_id=cfg.root_id, config=cfg)
 
     def validate_references(
         self,
-        options: ValidationConfig | None = None,
+        config: ValidationConfig | None = None,
     ) -> list[A2uiValidationError]:
         """Non-throwing wrapper over validate_topology returning a list of A2uiValidationError."""
         try:
-            self.validate_topology(options)
+            self.validate_topology(config)
             return []
         except A2uiValidationError as err:
             return [err]

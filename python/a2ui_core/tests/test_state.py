@@ -727,12 +727,14 @@ def test_surface_components_model_cycle_detection_ignores_orphans():
     scm.add_component(ComponentModel("orphan", "Text", cat, {"text": "unreachable"}))
 
     # detect_cycles should validate topology without raising A2uiIntegrityError for orphan
-    visited = scm.detect_cycles(root_id="root")
+    visited = scm.detect_cycles()
     assert "root" in visited
     assert "c1" in visited
 
 
 def test_surface_components_model_max_depth_enforcement():
+    from a2ui.core.validation import ValidationConfig
+
     cat = BasicCatalog()
     chain_scm = SurfaceComponentsModel(default_catalog=cat)
     chain_scm.add_component(ComponentModel("root", "Box", cat, {"child": "node1"}))
@@ -740,8 +742,10 @@ def test_surface_components_model_max_depth_enforcement():
     chain_scm.add_component(ComponentModel("node2", "Text", cat, {"text": "leaf"}))
 
     with pytest.raises(A2uiRecursionError, match="logical depth > 1"):
-        chain_scm.detect_cycles(root_id="root", max_depth=1)
-    visited_chain = chain_scm.detect_cycles(root_id="root", max_depth=5)
+        chain_scm.detect_cycles(ValidationConfig(root_id="root", max_depth=1))
+    visited_chain = chain_scm.detect_cycles(
+        ValidationConfig(root_id="root", max_depth=5)
+    )
     assert len(visited_chain) == 3
 
 
@@ -773,7 +777,7 @@ def test_surface_components_model_collection_helpers_and_topology():
     assert scm.components_map["root"] is root
 
     # detect_cycles isolates cycle/depth detection and allows orphans
-    visited = scm.detect_cycles(root_id="root")
+    visited = scm.detect_cycles()
     assert visited == {"root", "child1"}
 
     # validate_topology enforces orphan check by default
@@ -789,9 +793,8 @@ def test_surface_components_model_collection_helpers_and_topology():
     scm.validate_topology(ValidationConfig(allow_orphan_components=True))
     assert scm.validate_references(ValidationConfig(allow_orphan_components=True)) == []
 
-    # detect_cycles accepts ValidationConfig or dict options
-    assert scm.detect_cycles(ValidationConfig(root_id="root")) == {"root", "child1"}
-    assert scm.detect_cycles({"rootId": "root"}) == {"root", "child1"}
+    # detect_cycles accepts ValidationConfig with custom root_id
+    assert scm.detect_cycles(ValidationConfig(root_id="child1")) == {"child1"}
 
     # Missing root is still caught even when allow_dangling_references=True
     missing_root_scm = SurfaceComponentsModel(default_catalog=cat)
