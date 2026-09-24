@@ -42,7 +42,10 @@ def get_yaml_files():
         files.extend(
             f
             for f in glob.glob(pattern, recursive=True)
-            if not f.startswith(os.path.join(CONFORMANCE_DIR, "agent", "builder"))
+            if not (
+                f.startswith(os.path.join(CONFORMANCE_DIR, "agent", "builder"))
+                or f.startswith(os.path.join(CONFORMANCE_DIR, "agent", "macros"))
+            )
         )
     return sorted(files)
 

@@ -14,7 +14,8 @@
 
 """Runtime expansion processor for A2UI macros."""
 
-from typing import Any, Optional, Sequence, Union
+from collections.abc import Sequence as AbcSequence
+from typing import Any, Optional, Sequence, Union, get_args, get_origin
 
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
@@ -26,6 +27,40 @@ from a2ui.builder.v0_9 import (
     flatten_component_tree,
 )
 from a2ui.inference_formats.experimental.macros.macro import get_macro
+
+
+def _is_component_type(t: Any) -> bool:
+    origin = get_origin(t)
+    args = get_args(t)
+    if origin is Union:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _is_component_type(non_none[0])
+        return any(_is_component_type(a) for a in non_none)
+    if t in (ComponentBuilderNode, ComponentRef):
+        return True
+    if isinstance(t, type) and issubclass(t, ComponentBuilderNode):
+        return True
+    return False
+
+
+def _is_component_sequence_type(t: Any) -> bool:
+    origin = get_origin(t)
+    args = get_args(t)
+    if origin is Union:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _is_component_sequence_type(non_none[0])
+        return any(_is_component_sequence_type(a) for a in non_none)
+    if (
+        origin in (list, Sequence, AbcSequence, tuple, set)
+        or (
+            isinstance(origin, type)
+            and issubclass(origin, (list, tuple, set, AbcSequence))
+        )
+    ) and args:
+        return _is_component_type(args[0])
+    return False
 
 
 def _coerce_action(value: dict[str, Any]) -> Action:
@@ -45,7 +80,7 @@ def _coerce_action(value: dict[str, Any]) -> Action:
     return Action.model_validate(value)
 
 
-class MacroProcessor:
+class _MacroProcessor:
     """Executes registered macros and flattens them into standard A2UI components."""
 
     def has_macro(self, macro_name: str) -> bool:
@@ -81,26 +116,12 @@ class MacroProcessor:
                 t = p_meta.type_hint
 
                 # 1. Coerce single child slot from string ID to ComponentRef
-                if isinstance(p_val, str) and (
-                    t
-                    in (
-                        ComponentBuilderNode,
-                        ComponentRef,
-                        Optional[ComponentBuilderNode],
-                        Optional[ComponentRef],
-                    )
-                    or (isinstance(t, type) and issubclass(t, ComponentBuilderNode))
-                ):
+                if isinstance(p_val, str) and _is_component_type(t):
                     coerced_args[p_name] = ComponentRef(id=p_val)
 
                 # 2. Coerce child slot list from sequence of IDs to ComponentRefs
-                elif isinstance(p_val, (list, tuple)) and (
+                elif isinstance(p_val, (list, tuple)) and _is_component_sequence_type(
                     t
-                    in (
-                        Sequence[ComponentBuilderNode],
-                        list[ComponentBuilderNode],
-                        Optional[Sequence[ComponentBuilderNode]],
-                    )
                 ):
                     coerced_args[p_name] = [
                         ComponentRef(id=x) if isinstance(x, str) else x for x in p_val
@@ -155,3 +176,8 @@ class MacroProcessor:
 
         # Flatten into primitive components with ID namespacing and root stitching
         return flatten_component_tree(result, root_id=root_id)
+
+
+MacroProcessor = _MacroProcessor
+
+__all__ = ["_MacroProcessor", "MacroProcessor"]

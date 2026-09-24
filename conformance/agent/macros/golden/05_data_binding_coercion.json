@@ -1,0 +1,36 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "metric_1__text_1",
+          "text": "CPU Usage",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "metric_1__text_2",
+          "text": {
+            "path": "/system/cpu"
+          },
+          "variant": "h1"
+        },
+        {
+          "component": "Column",
+          "id": "metric_1__column_1",
+          "children": ["metric_1__text_1", "metric_1__text_2"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "metric_1",
+          "child": "metric_1__column_1"
+        }
+      ]
+    }
+  }
+]

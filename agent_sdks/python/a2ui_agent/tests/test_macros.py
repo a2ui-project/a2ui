@@ -20,7 +20,7 @@ from typing import Any, Literal, Optional, Sequence, Union
 
 from pydantic import BaseModel, ValidationError
 
-from a2ui.inference_formats.experimental.macros import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     ActionEvent,
@@ -29,6 +29,7 @@ from a2ui.inference_formats.experimental.macros import (
     ChildList,
     ComponentBuilderNode,
     ComponentRef,
+    ComponentTree,
     DataBinding,
     DynamicBoolean,
     DynamicChildList,
@@ -37,14 +38,20 @@ from a2ui.inference_formats.experimental.macros import (
     DynamicStringList,
     DynamicValue,
     FunctionCall,
-    MacroInferenceFormat,
-    MacroProcessor,
-    ComponentTree,
-    clear_macros,
     flatten_component_tree,
+)
+from a2ui.inference_formats.experimental.macros import (
+    MacroInferenceFormat,
+    clear_macros,
     get_macro,
     list_macros,
     macro,
+)
+from a2ui.inference_formats.experimental.macros.parser import (
+    _MacroParser as MacroParser,
+)
+from a2ui.inference_formats.experimental.macros.processor import (
+    _MacroProcessor as MacroProcessor,
 )
 from a2ui.core.schema.server_to_client import (
     CreateSurface,
@@ -480,8 +487,6 @@ def test_macro_inference_format_pipeline():
         def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
             return ""
 
-    from a2ui.inference_formats.experimental.macros import MacroParser
-
     macro_parser = MacroParser(MockUnderlyingParser(), processor=MacroProcessor())
     expanded = macro_parser.compile("dummy")
 
@@ -703,3 +708,165 @@ def test_macro_parser_parse_response():
 
     assert "Let me know if you need any adjustments." in parts[1].text
     assert parts[1].a2ui_json is None
+
+
+def test_macro_hidden_components():
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    @macro
+    def MiniBadge(label: str) -> Card:
+        return Card(child=Text(text=label))
+
+    base_cat = {
+        "components": {
+            "Button": {"type": "object", "properties": {"variant": {"type": "string"}}},
+            "Card": {"type": "object", "properties": {"child": {"type": "string"}}},
+            "Text": {"type": "object", "properties": {"text": {"type": "string"}}},
+        },
+        "$defs": {
+            "anyComponent": {
+                "oneOf": [
+                    {"$ref": "#/components/Button"},
+                    {"$ref": "#/components/Card"},
+                    {"$ref": "#/components/Text"},
+                ]
+            }
+        },
+    }
+
+    base = ExpressFormat(catalog=base_cat, surface_id="main")
+    fmt = MacroInferenceFormat(
+        base_format=base,
+        macros=[MiniBadge],
+        hidden_components=["Button", "Card"],
+    )
+
+    combined_schema = fmt.combined_catalog.catalog_schema
+    comps = combined_schema["components"]
+    # Button and Card should be hidden
+    assert "Button" not in comps
+    assert "Card" not in comps
+    # Text should remain
+    assert "Text" in comps
+    # MiniBadge should be added
+    assert "MiniBadge" in comps
+
+    # Check anyComponent.oneOf
+    one_of = combined_schema["$defs"]["anyComponent"]["oneOf"]
+    refs = [ref["$ref"] for ref in one_of if isinstance(ref, dict) and "$ref" in ref]
+    assert "#/components/Button" not in refs
+    assert "#/components/Card" not in refs
+    assert "#/components/Text" in refs
+    assert "#/components/MiniBadge" in refs
+
+
+def test_macro_schema_any_and_dict_types():
+    @macro
+    def FlexibleMacro(
+        arbitrary_data: Any,
+        metadata: dict[str, Any],
+        raw_dict: dict,
+    ) -> Card:
+        """Macro accepting Any and dictionary data."""
+        return Card(child=Text(text="flexible"))
+
+    meta = get_macro("FlexibleMacro")
+    assert meta is not None
+    schema = meta.to_json_schema()
+    props = schema["properties"]
+
+    assert props["arbitrary_data"] == {"description": "Arbitrary data"}
+    assert props["metadata"] == {"type": "object", "description": "Metadata"}
+    assert props["raw_dict"] == {"type": "object", "description": "Raw dict"}
+
+
+def test_macro_component_subclass_parameter_coercion():
+    @macro
+    def CardWrapper(
+        header: Optional[Row],
+        card: Card,
+        cards: Sequence[Card],
+    ) -> Column:
+        children: list[ComponentBuilderNode] = []
+        if header:
+            children.append(header)
+        children.append(card)
+        children.extend(cards)
+        return Column(children=children)
+
+    processor = MacroProcessor()
+    expanded = processor.expand(
+        "CardWrapper",
+        {
+            "header": "header_row_id",
+            "card": "main_card_id",
+            "cards": ["card_sub_1", "card_sub_2"],
+        },
+        instance_id="wrapper_root",
+    )
+
+    col = [c for c in expanded if c["component"] == "Column"][0]
+    assert col["id"] == "wrapper_root"
+    assert "header_row_id" in col["children"]
+    assert "main_card_id" in col["children"]
+    assert "card_sub_1" in col["children"]
+    assert "card_sub_2" in col["children"]
+
+
+def test_macro_expansion_failure_logs_error(caplog):
+    import logging
+    from a2ui.parser.parser import Parser
+
+    @macro
+    def FailingMacro(bad_arg: str) -> Card:
+        raise RuntimeError("Something exploded inside macro expansion")
+
+    raw_message = [{
+        "surfaceUpdate": {
+            "surfaceId": "main",
+            "components": [{
+                "component": "FailingMacro",
+                "id": "fail_1",
+                "bad_arg": "test",
+            }],
+        }
+    }]
+
+    class DummyParser(Parser):
+
+        def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+            return True
+
+        def unwrap(self, content: str):
+            return []
+
+        def compile(self, format_content: str, *, is_final: bool = True):
+            return raw_message
+
+        def parse_response(self, content: str):
+            return []
+
+        @property
+        def supports_streaming(self) -> bool:
+            return False
+
+        def decompile(self, val: Any) -> str:
+            return ""
+
+        def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
+            return ""
+
+    parser = MacroParser(DummyParser(), processor=MacroProcessor())
+    with caplog.at_level(logging.ERROR):
+        result = parser.compile("dummy")
+
+    # Should retain unexpanded component rather than crashing
+    assert len(result) == 1
+    comps = result[0]["surfaceUpdate"]["components"]
+    assert len(comps) == 1
+    assert comps[0]["component"] == "FailingMacro"
+    # Should have logged the error
+    assert any(
+        "Failed to expand macro 'FailingMacro'" in record.message
+        for record in caplog.records
+    )

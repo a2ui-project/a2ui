@@ -183,6 +183,25 @@ def _map_type_hint_to_schema(
                     schema["description"] = param_desc
                 return schema
             elif any(
+                (
+                    get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
+                    and get_args(a)
+                    and (
+                        get_args(a)[0] in (ComponentBuilderNode, ComponentRef)
+                        or (
+                            isinstance(get_args(a)[0], type)
+                            and issubclass(get_args(a)[0], ComponentBuilderNode)
+                        )
+                    )
+                )
+                or a is DynamicChildList
+                for a in types_set
+            ):
+                schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+            elif any(
                 get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
                 for a in types_set
             ) and not any(a in (int, float, bool) for a in types_set):
@@ -343,6 +362,18 @@ def _map_type_hint_to_schema(
             schema["description"] = param_desc
         return schema
 
+    if t is Any:
+        schema = {}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
+    if t is dict or origin is dict or (isinstance(t, type) and issubclass(t, dict)):
+        schema = {"type": "object"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
     schema = {"type": "string"}
     if param_desc:
         schema["description"] = param_desc
@@ -350,7 +381,7 @@ def _map_type_hint_to_schema(
 
 
 @dataclass(frozen=True)
-class MacroParameter:
+class _MacroParameter:
     """Describes a parameter accepted by a macro."""
 
     name: str
@@ -360,14 +391,17 @@ class MacroParameter:
     description: Optional[str] = None
 
 
+MacroParameter = _MacroParameter
+
+
 @dataclass
-class MacroMetadata:
+class _MacroMetadata:
     """Metadata for a registered macro."""
 
     name: str
     description: Optional[str]
     func: Callable[..., Any]
-    parameters: dict[str, MacroParameter]
+    parameters: dict[str, _MacroParameter]
     return_type: Any
 
     def to_json_schema(self) -> dict[str, Any]:
@@ -392,7 +426,10 @@ class MacroMetadata:
         return schema
 
 
-_MACRO_REGISTRY: dict[str, MacroMetadata] = {}
+MacroMetadata = _MacroMetadata
+
+
+_MACRO_REGISTRY: dict[str, _MacroMetadata] = {}
 
 
 def register_macro(

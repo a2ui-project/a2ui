@@ -16,15 +16,21 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from a2ui.parser.parser import Parser
 from a2ui.parser.response_part import ResponsePart
 
-from a2ui.inference_formats.experimental.macros.processor import MacroProcessor
+from a2ui.inference_formats.experimental.macros.processor import (
+    _MacroProcessor,
+    MacroProcessor,
+)
+
+logger = logging.getLogger(__name__)
 
 
-class MacroParser(Parser):
+class _MacroParser(Parser):
     """Parser decorator that intercepts parsed A2UI messages and expands macros.
 
     Wraps an underlying inference format parser (such as ExpressParser or
@@ -37,17 +43,17 @@ class MacroParser(Parser):
     def __init__(
         self,
         underlying_parser: Parser,
-        processor: Optional[MacroProcessor] = None,
+        processor: Optional[_MacroProcessor] = None,
     ):
         """Initializes the macro parser.
 
         Args:
             underlying_parser: The base syntax parser producing raw A2UI messages.
             processor: The macro execution processor. If None, a new
-                MacroProcessor is instantiated.
+                _MacroProcessor is instantiated.
         """
         self.underlying_parser = underlying_parser
-        self.processor = processor or MacroProcessor()
+        self.processor = processor or _MacroProcessor()
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Checks whether the input text contains recognizable format markup.
@@ -120,7 +126,10 @@ class MacroParser(Parser):
                     )
                     # Spliced components may themselves contain macros
                     expanded.extend(self._expand_component_list(expanded_macro))
-                except Exception:
+                except Exception as e:
+                    logger.error(
+                        "Failed to expand macro %r: %s", c_name, e, exc_info=True
+                    )
                     expanded.append(comp)
             else:
                 expanded.append(comp)
@@ -186,3 +195,8 @@ class MacroParser(Parser):
                 expanded_msgs.append(msg)
 
         return expanded_msgs
+
+
+MacroParser = _MacroParser
+
+__all__ = ["_MacroParser", "MacroParser"]

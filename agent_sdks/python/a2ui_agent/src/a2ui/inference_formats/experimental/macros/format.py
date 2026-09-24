@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import copy
+from dataclasses import replace
 from typing import Any, Callable, Optional, Sequence, Union
 
 from a2ui.inference_format import InferenceFormat
@@ -23,6 +25,7 @@ from a2ui.parser.parser import Parser
 from a2ui.prompt import PromptGenerator
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
+    CATALOG_COMPONENTS_KEY,
     COMMON_TYPES_SCHEMA_KEY,
     SERVER_TO_CLIENT_SCHEMA_KEY,
     SPEC_VERSION_MAP,
@@ -31,17 +34,66 @@ from a2ui.schema.utils import load_from_bundled_resource
 from google.adk.utils.feature_decorator import experimental
 
 from a2ui.inference_formats.experimental.macros.macro import (
+    _MacroMetadata,
     MacroMetadata,
     get_macro,
     list_macros,
 )
-from a2ui.inference_formats.experimental.macros.parser import MacroParser
-from a2ui.inference_formats.experimental.macros.processor import MacroProcessor
+from a2ui.inference_formats.experimental.macros.parser import (
+    _MacroParser,
+    MacroParser,
+)
+from a2ui.inference_formats.experimental.macros.processor import (
+    _MacroProcessor,
+    MacroProcessor,
+)
 
 
 def _clean_version(version: str) -> str:
     """Normalizes version string by removing leading 'v' if present."""
     return version.lstrip("v")
+
+
+def _combine_catalog_with_macros(
+    base_catalog: A2uiCatalog,
+    macro_components: dict[str, dict[str, Any]],
+    hidden_components: Optional[Sequence[str]] = None,
+) -> A2uiCatalog:
+    """Combines a base catalog with macro components, optionally filtering hidden ones.
+
+    Args:
+        base_catalog: The original base catalog.
+        macro_components: Mapping of macro name to JSON schema dict.
+        hidden_components: Optional sequence of component names to hide from the catalog.
+
+    Returns:
+        A new A2uiCatalog with macro components registered and hidden components removed.
+    """
+    schema_copy = copy.deepcopy(base_catalog.catalog_schema)
+    comps_map = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
+    defs_map = schema_copy.setdefault("$defs", {})
+    any_comp = defs_map.setdefault("anyComponent", {})
+    any_comp_refs = any_comp.setdefault("oneOf", [])
+
+    if hidden_components:
+        hidden_set = set(hidden_components)
+        for h in hidden_set:
+            comps_map.pop(h, None)
+        any_comp_refs[:] = [
+            ref
+            for ref in any_comp_refs
+            if not isinstance(ref, dict)
+            or ref.get("$ref", "").rsplit("/", 1)[-1] not in hidden_set
+        ]
+
+    for name, comp_schema in macro_components.items():
+        comps_map[name] = comp_schema
+        ref_entry = {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{name}"}
+        if ref_entry not in any_comp_refs:
+            any_comp_refs.append(ref_entry)
+
+    schema_copy[CATALOG_COMPONENTS_KEY] = comps_map
+    return replace(base_catalog, catalog_schema=schema_copy)
 
 
 @experimental
@@ -59,7 +111,8 @@ class MacroInferenceFormat(InferenceFormat):
         base_format: Optional[InferenceFormat] = None,
         *,
         catalog: Optional[Union[A2uiCatalog, dict[str, Any]]] = None,
-        macros: Optional[Sequence[Union[Callable[..., Any], MacroMetadata]]] = None,
+        macros: Optional[Sequence[Union[Callable[..., Any], _MacroMetadata]]] = None,
+        hidden_components: Optional[Sequence[str]] = None,
         surface_id: Optional[str] = None,
         version: Optional[str] = None,
     ):
@@ -68,8 +121,9 @@ class MacroInferenceFormat(InferenceFormat):
         Args:
             base_format: The underlying syntax format to wrap (e.g., ExpressFormat).
             catalog: Optional override catalog. If omitted, uses base_format.catalog.
-            macros: Explicit sequence of macro functions or MacroMetadata objects.
+            macros: Explicit sequence of macro functions or _MacroMetadata objects.
                 If None, defaults to all globally registered macros.
+            hidden_components: Optional component names from base catalog to hide.
             surface_id: Target surface identifier for emitted envelopes.
             version: A2UI protocol version (defaults to '0.9.1').
 
@@ -89,13 +143,14 @@ class MacroInferenceFormat(InferenceFormat):
         if clean_v not in ("0.9", "0.9.1", "0.8", "1.0"):
             clean_v = "0.9.1"
         self.version = raw_version
-        self.processor = MacroProcessor()
+        self.hidden_components = list(hidden_components) if hidden_components else []
+        self.processor = _MacroProcessor()
 
         # Ingest macros
         if macros is not None:
-            self.macros: list[MacroMetadata] = []
+            self.macros: list[_MacroMetadata] = []
             for m in macros:
-                if isinstance(m, MacroMetadata):
+                if isinstance(m, _MacroMetadata):
                     self.macros.append(m)
                 elif hasattr(m, "__a2ui_macro__"):
                     self.macros.append(getattr(m, "__a2ui_macro__"))
@@ -135,7 +190,11 @@ class MacroInferenceFormat(InferenceFormat):
 
         # 2. Programmatically combine base catalog with macro component schemas
         macro_components = {m.name: m.to_json_schema() for m in self.macros}
-        self.combined_catalog = self.base_catalog.with_components(macro_components)
+        self.combined_catalog = _combine_catalog_with_macros(
+            self.base_catalog,
+            macro_components,
+            hidden_components=self.hidden_components,
+        )
 
         # 3. Instantiate underlying inference format with the combined catalog
         fmt_cls = base_format.__class__
@@ -161,7 +220,7 @@ class MacroInferenceFormat(InferenceFormat):
     @property
     def parser(self) -> Parser:
         """Returns the MacroParser wrapping the underlying syntax parser."""
-        return MacroParser(self.underlying_format.parser, processor=self.processor)
+        return _MacroParser(self.underlying_format.parser, processor=self.processor)
 
 
-__all__ = ["MacroInferenceFormat", "MacroParser"]
+__all__ = ["MacroInferenceFormat"]

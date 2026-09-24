@@ -1,0 +1,258 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+suite: "a2ui_macros_conformance"
+version: "v0.9"
+
+# Macro definitions specifying the signature and the declarative builder AST
+# returned by each macro. Runners can inspect these templates to synthesize or
+# verify language-specific fluent builder macro implementations.
+#
+# Sentinels:
+#   {$param: "name"}        - Injects parameter value (slot, string, binding, action).
+#   {$spreadParam: "name"}  - Spreads a list parameter into children.
+#   ${name}                 - String interpolation for primitive arguments.
+
+macros:
+  - name: "StatusBadge"
+    description: "Status badge with uppercase status and title"
+    parameters:
+      status: {type: "string"}
+      title: {type: "string"}
+    # Native builder:
+    #   Card(child=Row(children=[Text(text=status.upper(), variant="caption"), Text(text=title, variant="h3")]))
+    template:
+      component: "Card"
+      child:
+        component: "Row"
+        children:
+          - component: "Text"
+            text: {$param: "status"}
+            variant: "caption"
+          - component: "Text"
+            text: {$param: "title"}
+            variant: "h3"
+
+  - name: "SlotContainer"
+    description: "Container accepting an external child slot"
+    parameters:
+      title: {type: "string"}
+      content: {type: "component"}
+    # Native builder:
+    #   Card(child=Column(children=[Text(text=title, variant="h2"), content]))
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: {$param: "title"}
+            variant: "h2"
+          - {$param: "content"}
+
+  - name: "MultiSlotContainer"
+    description: "Container accepting a list of child slots"
+    parameters:
+      header: {type: "string"}
+      items: {type: "component_list"}
+    # Native builder:
+    #   Card(child=Column(children=[Text(text=header, variant="h2"), *items]))
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: {$param: "header"}
+            variant: "h2"
+          - {$spreadParam: "items"}
+
+  - name: "ActionButton"
+    description: "Button with coerced action"
+    parameters:
+      label: {type: "string"}
+      action: {type: "action"}
+    # Native builder:
+    #   Button(child=Text(text=label, variant="body"), variant="primary", action=action)
+    template:
+      component: "Button"
+      variant: "primary"
+      child:
+        component: "Text"
+        text: {$param: "label"}
+        variant: "body"
+      action: {$param: "action"}
+
+  - name: "BoundMetric"
+    description: "Metric card displaying a dynamic value"
+    parameters:
+      label: {type: "string"}
+      value: {type: "dynamic_string"}
+    # Native builder:
+    #   Card(child=Column(children=[Text(text=label, variant="caption"), Text(text=value, variant="h1")]))
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: {$param: "label"}
+            variant: "caption"
+          - component: "Text"
+            text: {$param: "value"}
+            variant: "h1"
+
+  - name: "ConfigCard"
+    description: "Configuration card displaying primitives and metadata"
+    parameters:
+      name: {type: "string"}
+      port: {type: "integer"}
+      active: {type: "boolean"}
+    # Native builder:
+    #   Card(child=Column(children=[Text(text=name, variant="h2"), Text(text=f"Port: {port}", variant="body"), Text(text=f"Active: {active}", variant="body")]))
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: {$param: "name"}
+            variant: "h2"
+          - component: "Text"
+            text: "Port: ${port}"
+            variant: "body"
+          - component: "Text"
+            text: "Active: ${active}"
+            variant: "body"
+
+  - name: "NestedMacroCard"
+    description: "Macro composing another macro"
+    parameters:
+      title: {type: "string"}
+      status: {type: "string"}
+    # Native builder:
+    #   Card(child=Column(children=[Text(text=title, variant="h1"), StatusBadge(status=status, title=f"{title} Status")]))
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: {$param: "title"}
+            variant: "h1"
+          - component: "StatusBadge"
+            status: {$param: "status"}
+            title: "${title} Status"
+
+tests:
+  - id: "01_status_badge_expansion"
+    description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
+    golden: "01_status_badge_expansion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "StatusBadge"
+      id: "badge_1"
+      status: "active"
+      title: "Server 1"
+
+  - id: "02_slot_boundary_preservation"
+    description: "Single child slot referencing an external component ID without namespacing or re-emission"
+    golden: "02_slot_boundary_preservation.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+      allow_dangling_references: true
+    input:
+      component: "SlotContainer"
+      id: "container_1"
+      title: "Settings"
+      content: "external_child_42"
+
+  - id: "03_multi_slot_list_coercion"
+    description: "Multi-child slot list referencing external component IDs without namespacing or re-emission"
+    golden: "03_multi_slot_list_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+      allow_dangling_references: true
+    input:
+      component: "MultiSlotContainer"
+      id: "multi_1"
+      header: "Action Group"
+      items:
+        - "action_btn_1"
+        - "action_btn_2"
+
+  - id: "04_action_string_coercion"
+    description: "Action parameter coerced from string event name to Action wire object"
+    golden: "04_action_string_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "ActionButton"
+      id: "btn_1"
+      label: "Save Changes"
+      action: "submit_form"
+
+  - id: "05_data_binding_coercion"
+    description: "Dynamic string parameter coerced from data binding dictionary"
+    golden: "05_data_binding_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "BoundMetric"
+      id: "metric_1"
+      label: "CPU Usage"
+      value:
+        path: "/system/cpu"
+
+  - id: "06_primitive_and_dict_arguments"
+    description: "Macro arguments with integer, boolean, and string primitives"
+    golden: "06_primitive_and_dict_arguments.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "ConfigCard"
+      id: "cfg_1"
+      name: "Worker 1"
+      port: 8080
+      active: true
+
+  - id: "07_nested_macro_composition"
+    description: "Composition of a macro inside another macro expanding recursively"
+    golden: "07_nested_macro_composition.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "NestedMacroCard"
+      id: "nested_1"
+      title: "Service Cluster"
+      status: "online"
+
+  - id: "08_surface_lifecycle_envelopes"
+    description: "Full surface lifecycle message containing macro components"
+    golden: "08_surface_lifecycle_envelopes.json"
+    surface_id: "conformance"
+    catalog_id: "org.a2ui.basic"
+    input:
+      component: "StatusBadge"
+      id: "root"
+      status: "ready"
+      title: "System"
