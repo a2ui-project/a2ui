@@ -38,15 +38,34 @@ describe('ExpressPromptGenerator', () => {
   }
 
   describe('1. Golden files byte-for-byte check', () => {
-    it('generateBaseRules() returns catalog-agnostic base rules', () => {
-      const cat = basicCatalog('v1.0');
-      const generator = new ExpressPromptGenerator([cat]);
+    it('generateBaseRules() matches express_base_rules.txt except for its catalog-specific names', () => {
+      // The golden still names basic-catalog components, which the conformance pruning case
+      // forbids (see KNOWN_GAPS.md). Everything except these substitutions must match it.
+      const goldenPath = path.resolve(
+        __dirname,
+        '../../../../../../conformance/test_data/skills/express_base_rules.txt',
+      );
+      const substitutions: [string, string][] = [
+        ['date-time inputs (e.g. in DateTimeInput)', 'date-time properties'],
+        ['itemTemplate = Image($url)', 'itemTemplate = ComponentA($url)'],
+        [
+          "Parameters named 'action' (or annotated in component signatures)",
+          'Action parameters (or parameters annotated in component signatures)',
+        ],
+        ['root = Card(...)', 'root = ComponentA(...)'],
+      ];
+      let expected = fs.readFileSync(goldenPath, 'utf8');
+      for (const [from, to] of substitutions) {
+        expect(expected, `golden should contain '${from}'`).toContain(from);
+        expected = expected.replace(from, to);
+      }
+
+      const generator = new ExpressPromptGenerator([basicCatalog('v1.0')]);
       const actual = generator.generateBaseRules();
 
-      expect(actual).toContain('root = ComponentA(...)');
+      expect(actual).toBe(expected);
       expect(actual).not.toContain('Card(');
       expect(actual).not.toContain('DateTimeInput');
-      expect(actual).not.toContain("Parameters named 'action'");
     });
 
     it('generateCatalogInstructions(basicCatalog("v1.0")) matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
