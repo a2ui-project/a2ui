@@ -344,16 +344,17 @@ which currently holds `direct_json` only.
 1. Inherit the catalog JSON access mechanism built for v0.9, and land the
    property-order comparison from section 4 as a permanent test, including the
    `checks` placement on the six Checkable components.
-2. Add the codegen script, running the same ANTLR 4.13.2 jar Python uses with
-   `-Dlanguage=TypeScript -visitor -no-listener` and with the working directory set
-   to the grammar's own directory, and take the `antlr4` npm runtime at 4.13.2.
-   Check the generated lexer, parser, and visitor into the repository so a plain
-   `yarn build` needs no Java. Exclude the generated directory from eslint and
-   prettier. Two build details are known in advance and are described in
-   `antlr_parity_notes.md`: the generated imports are extensionless and this package
-   is ESM under `nodenext`, and the `antlr4` type declarations may not resolve under
-   that setting. Confirm the second with a one-file compile probe before wiring the
-   dependency.
+2. Add codegen and check the generated lexer, parser, and visitor into the
+   repository so a plain `yarn build` never runs the generator. Exclude the
+   generated directory from eslint and prettier. Done 2026-09-23 with antlr-ng and
+   `antlr4ng` (section 10): `yarn generate:express` runs `antlr-ng` with a visitor
+   and no listener, matching Python's options. Findings: generated relative imports
+   carry `.js`, so no post-processing is needed under `nodenext`; the generated code
+   type-checks cleanly; regeneration is byte-for-byte deterministic; the lexer and
+   parser ATNs and the `.interp` and `.tokens` files are identical to Python's.
+   `generated_parser.test.ts` keeps the ATN comparison permanent and smoke-tests a
+   parse. ESLint already ignores `**/generated/**`; a package `.prettierignore`
+   covers prettier. The README documents regeneration.
 3. Build `visitor.ts` and the AST types against grammar fixtures.
 4. Build `schema_helper.ts`, with the ordering test from step 1 kept as a permanent
    regression test.
@@ -389,9 +390,14 @@ before a second format arrives. Python already separates `A2UI_OPEN_TAG` from
 
 `createFormat` takes an array of catalogs but `DirectJsonFormat.createParser` uses
 only `catalogs[0]`, and Python's Express is single-catalog by construction, while
-`PromptGenerator` is already multi-catalog. Express resolves bare identifiers
-against a symbol table, so multi-catalog support means a merged table with collision
-rules. Decide this explicitly rather than inheriting the existing asymmetry.
+`PromptGenerator` is already multi-catalog. Decided 2026-09-23: Express takes
+exactly one catalog, matching Python, and throws when given more than one rather
+than silently using the first. Within that catalog, names resolve first-match-wins in
+Python's order (`compiler.py:713-776`): catalog components, then the built-ins
+`_template` and `Event`, then catalog functions. A function sharing a component's
+name, or a function named `Event` or `_template`, is unreachable without error, as
+in Python. Up-front collision detection at catalog load, and multi-catalog support
+with collision rules, are deferred.
 
 Python surfaces a compilation error carrying line, column, help text, and partial
 results, plus seven Express-specific error classes. TypeScript has `ParseError` and
@@ -415,8 +421,13 @@ callers.
 
 `surface()` is specified as stateful, resolving to `createSurface` or
 `updateComponents` based on session state, but `ExpressParser.compile` constructs a
-fresh compiler on every call, so there is no session memory. Settle the intended
-semantics before building, or the ambiguity gets ported.
+fresh compiler on every call, so there is no session memory. Decided 2026-09-23:
+match Python, which is stateless. Each `compile` call is independent. Every scope
+that assigns `root` emits `createSurface` (on v0.9 followed by `updateComponents`,
+and `updateDataModel` when data paths are assigned; on v1.0 a single
+`createSurface` carrying `components` and optional `dataModel`). A scope with data
+path assignments but no `root` emits only `updateDataModel`; one with neither raises
+`ExpressUndefinedRootError`. `updateComponents` is never emitted on its own.
 
 The specification also describes an error-recovery pipeline whose later steps send
 broken lines to a fast model for correction. Python implements only the first step.
@@ -442,32 +453,44 @@ expected to graduate to non-experimental, so the TypeScript implementation lands
 `inference_formats/express/` and is presented as supported. This is a deliberate
 divergence from Python's layout rather than an oversight.
 
-The ANTLR toolchain is the released 4.13.2 jar with `-Dlanguage=TypeScript`, and the
-`antlr4` npm runtime at 4.13.2. This satisfies the criterion that Python stays the
-reference implementation for the grammar, and it does so more strongly than expected:
-TypeScript is an official target of the same tool, so both languages come out of the
-one jar that Python already pins, and the serialized ATN, which decides every parse,
-is produced by the tool rather than the runtime. The ANTLR documentation puts it
-plainly, that the TypeScript runtime is the JavaScript runtime with type files added,
-which "guarantees the same behaviour and performance across both target languages".
+The ANTLR toolchain is [antlr-ng](https://www.antlr-ng.org/introduction.html) 1.0.10,
+a TypeScript port of the ANTLR 4.13.2 tool, as a devDependency, with the `antlr4ng`
+3.0.16 runtime as a runtime dependency, both pinned exactly. Decided 2026-09-23,
+superseding an earlier decision for the official 4.13.2 jar with the official
+`antlr4` npm runtime.
 
-The alternatives were rejected on that same criterion. `antlr4ng` requires its own
-`antlr4ng-cli`, which ships `antlr4-4.13.2-SNAPSHOT-complete.jar`, a snapshot rather
-than the release Python uses, so the two languages would no longer share a tool; it
-also renames runtime accessors from methods to properties by design, which breaks the
-line-by-line correspondence between the two visitors. `antlr4ts` last published
-`0.5.0-alpha.4` on 2021-01-01 and predates the ANTLR 4.10 serialized ATN format
-change, so it cannot read 4.13.2 output at all.
+The criterion is unchanged: Python stays the reference implementation for the
+grammar. The earlier decision met it by sharing Python's jar. The current one meets
+it by testing the output: the serialized ATN decides every lexing and parsing
+decision, and `tests/unit/inference_formats/express/generated_parser.test.ts` asserts
+that the TypeScript lexer and parser ATNs equal Python's checked-in ones value for
+value. They do (1,985 and 1,416 values).
+
+The official pair was dropped for two reasons found on 2026-09-23. The `antlr4`
+runtime's type declarations fail under this package's `nodenext` resolution with 216
+errors: its `types` entry `index.d.cts` re-exports subdirectories whose ESM `.d.ts`
+files use extensionless relative re-exports. The generated code type-checks cleanly
+under `moduleResolution: bundler`, so the fault is the runtime's packaging. And the
+official tool needs Java, which the npm package does not ship. `antlr4ng` resolves
+cleanly under `nodenext`, and `antlr-ng` runs under Node, so the toolchain needs no
+Java and no jar download.
+
+`antlr4ng` also removes what the parity notes had ranked as the largest divergence
+risk. Its `AbstractParseTreeVisitor` has `defaultResult`, `aggregateResult`, and
+`shouldVisitNextChild`, and its default `visitChildren` returns the last child's
+result as Python's does, where the official JavaScript runtime returns an array. The
+cost is that `antlr4ng` renames some accessors from methods to properties, so the
+TypeScript visitor does not read line-by-line against Python's.
+
+`antlr4ng-cli` remains rejected: it ships `antlr4-4.13.2-SNAPSHOT-complete.jar` and
+needs Java. `antlr4ts` last published `0.5.0-alpha.4` on 2021-01-01 and predates the
+ANTLR 4.10 serialized ATN format change, so it cannot read 4.13.2 output at all.
 
 The reviewer notes asked for alongside this decision are written, at
-`antlr_parity_notes.md` in this directory. They cover eight divergence risks, each
-marked verified or needing a test, the two build-integration problems, and a
-checklist for reviewing a grammar diff. The largest finding is that the default
-`visitChildren` returns the last child's result in Python and an array of every
-child's result in JavaScript, with no `aggregateResult` or `shouldVisitNextChild` on
-the JavaScript side at all. That is dormant today, because the Python visitor
-overrides all 16 parser rules, and it activates the first time a rule is added
-without an override. The document moves next to the generated code when step 2 lands.
+`antlr_parity_notes.md` in this directory, revised for the current toolchain. They
+cover the divergence risks, each marked verified or needing a test, the settled
+build-integration problems, and a checklist for reviewing a grammar diff. The document
+moves next to the generated code when the Express implementation lands.
 
 Conformance targets the suites where they are today and migrates to the per-format
 layout when PR #2713 arrives with the `main` into `v1_0` merge. Express is built

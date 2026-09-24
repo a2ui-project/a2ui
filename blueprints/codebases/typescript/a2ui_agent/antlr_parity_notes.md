@@ -6,35 +6,34 @@ These notes exist so that a reviewer of a change to
 visitor, can tell whether the change will behave the same in both languages, instead
 of waiting for a conformance failure to say so.
 
-This document is written before the TypeScript implementation exists. Everything
-below about Python and the grammar is checked against the repository. Everything
-about TypeScript is checked against the published ANTLR 4.13.2 runtime and the
-official target documentation, but has not yet been run. Items that still need a
-test say so. When the TypeScript Express implementation lands, this file moves next
-to it, at `typescript/a2ui_agent/src/inference_formats/express/`.
+This document was first written before the TypeScript implementation existed, and
+revised on 2026-09-23 when the TypeScript toolchain moved to antlr-ng and the
+`antlr4ng` runtime. Everything below about Python and the grammar is checked against
+the repository. Items that still need a test say so. When the TypeScript Express
+implementation lands, this file moves next to it, at
+`typescript/a2ui_agent/src/inference_formats/express/`.
 
 ---
 
-## One tool, two targets
+## Two tools, one ATN
 
-There is a single ANTLR tool, written in Java, and it generates code for every
-target. TypeScript is one of its official targets, so both languages are generated
-by the same jar from the same `.g4` file:
+The two SDKs generate their parsers with different tools from the same `.g4` file:
 
 ```bash
-antlr4 -Dlanguage=Python3    -visitor -no-listener -o generated Express.g4   # Python
-antlr4 -Dlanguage=TypeScript -visitor -no-listener -o generated Express.g4   # TypeScript
+# Python: the official ANTLR 4.13.2 Java tool, via antlr4-tools
+antlr4 -Dlanguage=Python3 -visitor -no-listener -o generated Express.g4
+# TypeScript: antlr-ng 1.0.10, a TypeScript port of the 4.13.2 tool, from npm
+antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o generated Express.g4
 ```
 
-The TypeScript target is the JavaScript runtime plus type declarations. The ANTLR
-documentation states the consequence directly: "Antlr4 TypeScript runtime uses the
-JavaScript runtime and adds type files to it. This guarantees the same behaviour and
-performance across both target languages."
-
-This matters more than it first appears. The serialized ATN, which encodes every
-parse decision the generated parser makes, is produced by the tool, not by the
-runtime. Same jar plus same `.g4` means the same ATN and the same parse. The places
-where the two languages can diverge are therefore narrow: runtime library
+The serialized ATN, which encodes every lexing and parsing decision the generated
+code makes, is produced by the tool, not by the runtime. The two tools are required
+to produce identical ATNs, and
+`typescript/a2ui_agent/tests/unit/inference_formats/express/generated_parser.test.ts`
+enforces it by comparing the TypeScript lexer and parser ATNs, value for value,
+against Python's checked-in `express_lexer.py` and `express_parser.py`. That check is
+stronger than "same jar", because it tests the output rather than trusting the tool.
+The places where the two languages can diverge are therefore narrow: runtime library
 differences, the shape of the generated visitor, and the hand-written code that sits
 on top. The rest of this document is that list.
 
@@ -42,82 +41,86 @@ Python pins the tool to 4.13.2 explicitly, in
 [pack_specs_hook.py:143](file:///work/google/a2ui/python/a2ui_agent/pack_specs_hook.py#L143),
 and pins the runtime to the matching 4.13.x range in
 [pyproject.toml:24](file:///work/google/a2ui/python/a2ui_agent/pyproject.toml#L24).
-TypeScript must use the same 4.13.2 jar and the `antlr4` npm runtime, whose current
-release is also 4.13.2.
+TypeScript pins `antlr-ng` at exactly 1.0.10 as a devDependency and `antlr4ng` at
+exactly 3.0.16 as a runtime dependency; `antlr-ng` itself depends on exactly that
+`antlr4ng` version.
 
-Python runs the tool with the working directory set to the grammar's own directory,
-at [pack_specs_hook.py:147](file:///work/google/a2ui/python/a2ui_agent/pack_specs_hook.py#L147),
-so that generated headers do not embed an absolute machine path. Do the same in the
-TypeScript codegen script, or every regeneration will produce a spurious diff.
+### Why not the official tool and runtime
 
-### Do not use antlr4ng-cli
+The first attempt used the official 4.13.2 jar with the official `antlr4` npm
+runtime. The generated code was fine, and its ATN matched Python's, but the runtime's
+own type declarations do not resolve under this package's `"moduleResolution":
+"nodenext"`: its `types` entry is `index.d.cts`, which re-exports subdirectories
+whose `.d.ts` files are ESM (the package is `"type": "module"`) and use
+extensionless relative re-exports such as `export * from './ATN'`. The compile
+produced 216 errors, all missing exports from those subdirectories. The official tool
+also needs Java, which the npm `antlr4` package does not ship.
 
-`antlr4ng` is a well-maintained alternative runtime, but it comes with its own
-command line tool, `antlr4ng-cli`, and that package ships
-`antlr4-4.13.2-SNAPSHOT-complete.jar`. A snapshot build is not the released 4.13.2
-that Python uses. Two different jars means the "same tool, same ATN" argument no
-longer holds, and Python stops being a reliable reference. `antlr4ng` also renames
-runtime accessors from methods to properties on purpose, which breaks the
-line-by-line correspondence between the two visitors that makes review possible.
+`antlr4ng` declares `exports.types` as `dist/index.d.ts` and writes `.js` extensions
+on every relative re-export, so it resolves under `nodenext` without workarounds.
+`antlr-ng` runs under Node, so the toolchain needs no Java.
 
-`antlr4ts` is a third option and is not viable. Its last release,
-`0.5.0-alpha.4`, was published on 2021-01-01, and it predates the ANTLR 4.10 change
-to the serialized ATN format, so it cannot consume output from the 4.13.2 tool at
-all.
+`antlr4ng-cli` remains unsuitable. It ships `antlr4-4.13.2-SNAPSHOT-complete.jar`,
+a snapshot rather than a release, and still needs Java; `antlr-ng` replaces it.
+
+`antlr4ts` is not viable. Its last release, `0.5.0-alpha.4`, was published on
+2021-01-01, and it predates the ANTLR 4.10 change to the serialized ATN format, so it
+cannot consume output from a 4.13.2 tool at all.
+
+`antlr4ng` renames some runtime accessors from methods to properties, for example
+`parser.numberOfSyntaxErrors`. The TypeScript visitor therefore does not read
+line-by-line against Python's. That affects review convenience, not behaviour.
 
 ---
 
 ## Gotchas
 
-### Generated visitor members are lambdas, not methods
+### Generated visitor members are optional properties, not methods
 
-The TypeScript target does not emit a visitor interface. It emits a class whose
-per-rule members are assigned as lambdas. Python emits ordinary methods on
-`ExpressVisitor`.
+The generated `ExpressVisitor<Result>` extends `antlr4ng`'s
+`AbstractParseTreeVisitor<Result>` and declares one optional property per rule, such
+as `visitProgram?: (ctx: ProgramContext) => Result`. Each context's `accept` calls
+the property if it is set and falls back to `visitChildren` otherwise. Python emits
+ordinary methods on `ExpressVisitor`.
 
 Subclassing therefore works differently. In Python,
 [ExpressAstVisitor](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L49)
 overrides methods on the prototype chain, and `super()` reaches the base. In
-TypeScript, a subclass field declaration overwrites an instance property that the
-base constructor has already assigned, and `super.visitFoo` is not a method to call.
+TypeScript, declaring a method where the base declares a property is a type error,
+and there is no `super.visitFoo` to call.
 
 The practical rule for the port: assign the overrides as instance properties in the
 subclass, and do not write `super.visitX(ctx)` anywhere. If the port needs base
-behaviour it must call the runtime's `visitChildren` explicitly, which leads directly
-to the next item.
+behaviour it calls `this.visitChildren(ctx)`, which behaves as in Python (next item).
 
-Status: verified from the ANTLR target documentation. The exact generated shape
-should be pinned by a test once the first generation runs.
+Status: verified from the generated `ExpressVisitor.ts` and `ExpressParser.ts`.
 
-### Default visitChildren behaves differently
+### Default visitChildren matches Python
 
-The two runtimes disagree about what visiting a rule with no override returns.
+This was the largest divergence under the official JavaScript runtime, whose
+`visitChildren` returns an array of every child's result and which has no
+`defaultResult`, `aggregateResult`, or `shouldVisitNextChild`. `antlr4ng` follows the
+Java and Python design instead.
 
-| | Python 4.13.2 | JavaScript and TypeScript 4.13.2 |
+| | Python 4.13.2 | `antlr4ng` 3.0.16 |
 | --- | --- | --- |
-| No children | `defaultResult()`, which is `None` | `null` |
-| With children | the last child's result | an array of every child's result |
-| `defaultResult` | present, overridable | absent |
-| `aggregateResult` | present, returns `nextResult` | absent |
-| `shouldVisitNextChild` | present, returns `True` | absent |
+| No children | `defaultResult()`, which is `None` | `defaultResult()`, which is `null` |
+| With children | the last child's result | the last child's result |
+| `defaultResult` | present, overridable | present, `protected` |
+| `aggregateResult` | present, returns `nextResult` | present, returns `nextResult` |
+| `shouldVisitNextChild` | present, returns `True` | present, returns `true` |
 
-Python's `ParseTreeVisitor.visitChildren` loops over children and folds them with
-`aggregateResult`, whose default returns the newest result, so the effective return
-is the last child's value. The JavaScript `ParseTreeVisitor.visitChildren` calls
-`visit(ctx.children)`, and `visit` maps over arrays, so the effective return is a
-list.
-
-Today this is latent rather than active. The grammar has 16 parser rules and
+The grammar has 16 parser rules and
 [visitor.py](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py)
-overrides all 16, so the inherited default is never reached. That is exactly why it
-is dangerous: the first time someone adds a rule to `Express.g4` without adding an
-override, Python will quietly return one value and TypeScript will quietly return an
-array.
+overrides all 16, so the inherited default is not reached today. If a rule is added
+without an override, both languages now return the last child's result.
 
-Reviewer action: when a new parser rule appears in a grammar diff, check that both
-visitors gained an override for it.
+Reviewer action: when a new parser rule appears in a grammar diff, still check that
+both visitors gained an override for it. A silent last-child default is rarely what
+the compiler wants.
 
-Status: verified by reading both runtimes at tag 4.13.2 and counting the overrides.
+Status: verified by reading `AbstractParseTreeVisitor` in the installed
+`antlr4ng@3.0.16` (`dist/index.mjs`) and Python's `Tree.py` at 4.13.2.
 
 ### Numbers lose their Python int and float distinction
 
@@ -226,27 +229,21 @@ Status: reasoned. Relevant when extending the harness error-category map.
 
 ## Build integration
 
-Two problems are worth knowing about before step 2 starts, because both are easier to
-handle in the codegen script than to discover during the build.
+Both problems predicted here before step 2 were settled by running it on 2026-09-23.
 
-The generated TypeScript uses extensionless relative imports, as in
-`import MyGrammarLexer from './MyGrammarLexer'`. `@a2ui/agent` is an ES module
-compiled with `"moduleResolution": "nodenext"`, which requires explicit `.js`
-extensions on relative imports. Expect to append extensions as a post-generation
-step.
+Relative imports: `antlr-ng` writes `.js`-suffixed relative imports
+(`import { ExpressVisitor } from "./ExpressVisitor.js"`), as does the official 4.13.2
+tool, so no post-generation step is needed under `nodenext`.
 
-The `antlr4` package's own type declarations may not resolve. It ships
-`src/antlr4/index.d.cts` and a tree of `.d.ts` files, with no `.d.mts` and no
-declarations beside `dist/`. Its `exports` map lists the `node` condition before the
-`types` condition, so under `nodenext` TypeScript is likely to match `node`, resolve
-to `dist/antlr4.node.mjs`, look for a neighbouring `dist/antlr4.node.d.mts`, and fail
-to find one. The workaround is a local declaration or a `paths` entry pointing at
-`antlr4/src/antlr4/index.d.cts`.
+Runtime types: the official `antlr4` runtime's declarations did fail under
+`nodenext`, for the reason given in "Why not the official tool and runtime" above,
+which is what moved the toolchain to `antlr4ng`. With `antlr4ng`, the generated
+files type-check cleanly under this package's `tsconfig.check.json`.
 
-Status: the package contents and the condition order are verified from the published
-tarball listing and metadata. The resolution failure itself is predicted and should
-be confirmed with a one-file compile probe as the first task of step 2, since it is
-cheap to check and changes how the dependency is wired.
+`antlr-ng` defaults to `--exact-output-dir`, so output goes straight into `-o`
+regardless of the grammar's path, and its generated files carry no header that embeds
+a path or timestamp. Regeneration is byte-for-byte deterministic. ESLint already
+ignores `**/generated/**`, and the package's `.prettierignore` covers Prettier.
 
 ---
 
@@ -261,8 +258,8 @@ cheap to check and changes how the dependency is wired.
 * Did `NUMBER` gain an exponent or a larger range? Revisit the integer and float
   split.
 * Did a string delimiter become non-ASCII? Revisit the slicing in the visitors.
-* Was the generated code regenerated with 4.13.2 for both targets, from the grammar's
-  own directory?
+* Were both SDKs regenerated in the same change? The TypeScript ATN parity test fails
+  until they are.
 
 ---
 
@@ -300,3 +297,14 @@ version was published on 2021-01-01.
 
 The npm registry was read over HTTPS rather than with the `npm` client, which is
 blocked in this environment by a registry proxy.
+
+Revised on 2026-09-23 after running step 2. The official jar's TypeScript output had
+the same parser ATN as Python and identical `.interp` files; the `antlr4@4.13.2`
+runtime then failed to type-check under `nodenext` with 216 errors. `antlr-ng@1.0.10`
+output, installed with `antlr4ng@3.0.16`, has a parser ATN (1,416 values) and lexer
+ATN (1,985 values) identical to Python's including signs, identical `.interp` and
+`.tokens` files, compiles cleanly under `nodenext`, and parses a sample program with
+zero syntax errors under vitest. A first version of the ATN comparison dropped minus
+signs from both sides; the vitest version compared signed values against the
+generated array, caught the lexer ATN's `-1`, and the Python-side extraction was
+fixed to read signed values.
