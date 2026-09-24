@@ -179,3 +179,20 @@ export class ExpressUndefinedChildError extends ExpressParseError {
     this.childId = childId;
   }
 }
+
+/**
+ * Raised when a lexer or parser syntax error is encountered in the Express DSL.
+ */
+export class ExpressSyntaxError extends ExpressParseError {
+  readonly line: number;
+  readonly column: number;
+  readonly isLexer: boolean;
+
+  constructor(message: string, line: number, column: number, isLexer: boolean) {
+    super(message);
+    this.name = 'ExpressSyntaxError';
+    this.line = line;
+    this.column = column;
+    this.isLexer = isLexer;
+  }
+}

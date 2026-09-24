@@ -346,5 +346,27 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       expect(fnArgSchema).toBeDefined();
       expect(fnArgSchema?.type).toBe('string');
     });
+
+    it('resolves subschema for array items and object properties', () => {
+      const cat = basicCatalog('v1.0');
+      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+
+      const tabsSchema = helper.getPropertySchema('Tabs', 'tabs');
+      expect(tabsSchema).toBeDefined();
+
+      const itemsSchema = helper.resolveSubschema(tabsSchema, 'items');
+      expect(itemsSchema).toBeDefined();
+
+      const titleSchema = helper.resolveSubschema(itemsSchema, 'title');
+      expect(titleSchema).toBeDefined();
+      expect(helper.admitsPath(titleSchema)).toBe(true);
+
+      const childSchema = helper.resolveSubschema(itemsSchema, 'child');
+      expect(childSchema).toBeDefined();
+      expect(helper.admitsPath(childSchema)).toBe(false);
+
+      expect(helper.resolveSubschema(null, 'items')).toBeUndefined();
+      expect(helper.resolveSubschema({}, 'nonexistent')).toBeUndefined();
+    });
   });
 });
