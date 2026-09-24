@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import {SchemaCatalog, ProtocolVersion} from '../types.js';
 import {A2uiCatalogError} from '../errors.js';
 import {Catalog, normalizeVersionString} from '../internal/web_core.js';
+import {registerCatalogDocument} from '../utils/catalog_document.js';
 
 /**
  * Validates a loaded catalog against expected protocol version and ID.
@@ -115,6 +116,7 @@ export class FileSystemCatalogProvider implements CatalogProvider {
       );
     }
 
+    registerCatalogDocument(catalog, parsed);
     validateCatalog(catalog, this.protocolVersion, this.catalogId);
     return catalog;
   }
@@ -153,6 +155,7 @@ export class InMemoryCatalogProvider implements CatalogProvider {
       );
     }
 
+    registerCatalogDocument(parsedCatalog, this.catalog);
     validateCatalog(parsedCatalog, this.protocolVersion, this.catalogId);
     return parsedCatalog;
   }
