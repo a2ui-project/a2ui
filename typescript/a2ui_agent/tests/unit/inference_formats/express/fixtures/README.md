@@ -16,7 +16,17 @@ be checked against it without a Python toolchain.
 - `forms_catalog_v1_0.json`: a copy of `conformance/test_data/catalogs/forms_catalog_v1_0.json`
   from `main`, reformatted by Prettier. It declares `checks` as an own property
   instead of inheriting it from `Checkable`.
+- `simplified_catalog_v1_0.json`: a copy of `conformance/test_data/catalogs/simplified_catalog_v1_0.json`
+  from `main`.
+- `custom_catalog_v1_0.json`: a copy of `conformance/test_data/catalogs/custom_catalog_v1_0.json`
+  from `main`.
+- `compiler_corpus.json`: Express inputs across the simplified, custom, forms and
+  both basic catalogs (including every case in `conformance/agent/express/compiler.yaml`)
+  with the messages or error that Python's `ExpressCompiler` produces.
+- `decompiler_parity_cases.json`: parity corpus of 31 Express message lists (including all 12 from
+  `conformance/agent/express/decompiler.yaml` plus 19 more covering all branches) evaluated against
+  Python's `ExpressDecompiler` oracle on `main`.
 
-To regenerate, run the Python helper or visitor from `main` on the same inputs
-and write the results as JSON. Keep key order as Python emits it, because the
-helper tables encode positional-argument order.
+To regenerate any of these, run the corresponding Python code from `main`
+on the same inputs and write the results as JSON. Keep key order as Python emits it,
+because the helper tables encode positional-argument order.

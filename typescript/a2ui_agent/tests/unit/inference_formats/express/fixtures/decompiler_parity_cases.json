@@ -1,0 +1,812 @@
+[
+  {
+    "name": "test_decompile_express_components",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Card",
+              "child": "body"
+            },
+            {
+              "id": "body",
+              "component": "Text",
+              "text": "Hello"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\nroot = Card(body)\nbody = Text(\"Hello\")"
+  },
+  {
+    "name": "test_decompile_express_data_model",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": {
+                "path": "/title"
+              }
+            }
+          ],
+          "dataModel": {
+            "title": "Hello"
+          }
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\n$/title = \"Hello\"\nroot = Text($/title)"
+  },
+  {
+    "name": "test_decompile_express_update_components",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "s1",
+          "components": [
+            {
+              "id": "greeting",
+              "component": "Text",
+              "text": "Hello"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\ngreeting = Text(\"Hello\")"
+  },
+  {
+    "name": "test_decompile_express_update_data_model",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "updateDataModel": {
+          "surfaceId": "s1",
+          "path": "/",
+          "value": {
+            "title": "Hello"
+          }
+        }
+      }
+    ],
+    "expectedNotation": "$/title = \"Hello\""
+  },
+  {
+    "name": "test_decompile_express_delete_surface",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "deleteSurface": {
+          "surfaceId": "s1"
+        }
+      }
+    ],
+    "expectedNotation": "deleteSurface(\"s1\")"
+  },
+  {
+    "name": "test_decompile_express_escapes_a_quote_in_a_string",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "He said \"hello\"."
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\nroot = Text(\"\"\"He said \"hello\".\"\"\")"
+  },
+  {
+    "name": "test_decompile_express_backslashes_are_not_doubled",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "C:\\temp\\notes"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\nroot = Text(r\"C:\\temp\\notes\")"
+  },
+  {
+    "name": "test_decompile_express_function_call_action",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Button",
+              "child": "label",
+              "action": {
+                "functionCall": {
+                  "call": "openUrl",
+                  "args": {
+                    "url": "https://example.com"
+                  }
+                }
+              }
+            },
+            {
+              "id": "label",
+              "component": "Text",
+              "text": "Open the docs"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\nroot = Button(label, openUrl(\"https://example.com\"))\nlabel = Text(\"Open the docs\")"
+  },
+  {
+    "name": "test_decompile_express_renderer_function_call",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "callRendererFunction": {
+          "functionCallId": "call_1",
+          "callFunction": {
+            "catalogId": "conformance/simplified",
+            "call": "openUrl",
+            "args": {
+              "url": "https://example.com"
+            }
+          }
+        }
+      }
+    ],
+    "expectedNotation": ""
+  },
+  {
+    "name": "test_decompile_express_quotes_a_map_key_that_is_not_an_identifier",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Button",
+              "child": "label",
+              "action": {
+                "event": {
+                  "name": "submit",
+                  "context": {
+                    "item-id": "42"
+                  }
+                }
+              }
+            },
+            {
+              "id": "label",
+              "component": "Text",
+              "text": "Submit"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\nroot = Button(label, Event(\"submit\", {item-id: \"42\"}))\nlabel = Text(\"Submit\")"
+  },
+  {
+    "name": "test_decompile_express_nested_data_model_is_one_assignment_per_leaf",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "updateDataModel": {
+          "surfaceId": "s1",
+          "path": "/",
+          "value": {
+            "user": {
+              "name": "Ada",
+              "city": "London"
+            }
+          }
+        }
+      }
+    ],
+    "expectedNotation": "$/user/city = \"London\"\n$/user/name = \"Ada\""
+  },
+  {
+    "name": "test_decompile_express_list_of_numbers",
+    "catalog": "custom",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/custom",
+          "components": [
+            {
+              "id": "root",
+              "component": "Chart",
+              "values": [1, 2, 3],
+              "caption": "Rainfall"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\nroot = Chart([1, 2, 3], \"Rainfall\")"
+  },
+  {
+    "name": "branch_create_surface_with_components_and_datamodel",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "main",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Card",
+              "child": "body"
+            },
+            {
+              "id": "body",
+              "component": "Text",
+              "text": {
+                "path": "/user/name"
+              }
+            }
+          ],
+          "dataModel": {
+            "user": {
+              "name": "Alice",
+              "age": 30
+            }
+          }
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"main\")\n$/user/age = 30\n$/user/name = \"Alice\"\nroot = Card(body)\nbody = Text($/user/name)"
+  },
+  {
+    "name": "branch_template_absolute_path",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": {
+                "path": "/items",
+                "componentId": "itemTmpl"
+              }
+            },
+            {
+              "id": "itemTmpl",
+              "component": "Text",
+              "text": {
+                "path": "label"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = Column(_template($/items, itemTmpl))\nitemTmpl = Text($label)"
+  },
+  {
+    "name": "branch_template_relative_path",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": {
+                "path": "items",
+                "componentId": "itemTmpl"
+              }
+            },
+            {
+              "id": "itemTmpl",
+              "component": "Text",
+              "text": {
+                "path": ""
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = Column(_template($items, itemTmpl))\nitemTmpl = Text($)"
+  },
+  {
+    "name": "branch_event_without_context",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Button",
+              "child": "bText",
+              "action": {
+                "event": {
+                  "name": "click"
+                }
+              }
+            },
+            {
+              "id": "bText",
+              "component": "Text",
+              "text": "Click me"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = Button(bText, Event(\"click\"))\nbText = Text(\"Click me\")"
+  },
+  {
+    "name": "branch_event_with_context",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Button",
+              "child": "bText",
+              "action": {
+                "event": {
+                  "name": "save",
+                  "context": {
+                    "userId": "u123",
+                    "confirmed": true,
+                    "count": 5
+                  }
+                }
+              }
+            },
+            {
+              "id": "bText",
+              "component": "Text",
+              "text": "Save"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = Button(bText, Event(\"save\", {userId: \"u123\", confirmed: true, count: 5}))\nbText = Text(\"Save\")"
+  },
+  {
+    "name": "branch_event_with_nested_dict_context",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Button",
+              "child": "bText",
+              "action": {
+                "event": {
+                  "name": "checkout",
+                  "context": {
+                    "cart": {
+                      "itemId": "i1",
+                      "qty": 2
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "id": "bText",
+              "component": "Text",
+              "text": "Checkout"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = Button(bText, Event(\"checkout\", {cart: {itemId: \"i1\", qty: 2}}))\nbText = Text(\"Checkout\")"
+  },
+  {
+    "name": "branch_standalone_call_function",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "openUrl",
+          "args": {
+            "url": "https://example.com/help"
+          }
+        }
+      }
+    ],
+    "expectedNotation": "openUrl(\"https://example.com/help\")"
+  },
+  {
+    "name": "branch_standalone_call_function_with_omitted_args",
+    "catalog": "forms",
+    "messages": [
+      {
+        "version": "v1.0",
+        "callFunction": {
+          "call": "regex",
+          "args": {
+            "value": "123",
+            "pattern": "^[0-9]+$"
+          }
+        }
+      }
+    ],
+    "expectedNotation": "regex(\"123\", \"^[0-9]+$\")"
+  },
+  {
+    "name": "branch_dynamic_expression_call_in_component",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": {
+                "call": "formatString",
+                "args": {
+                  "value": "Welcome, ${/user/name}!"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = Text(formatString(\"Welcome, ${/user/name}!\"))"
+  },
+  {
+    "name": "branch_checks_single",
+    "catalog": "forms",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/forms",
+          "components": [
+            {
+              "id": "root",
+              "component": "TextField",
+              "label": "Name",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "required",
+                    "args": {
+                      "value": {
+                        "path": "/name"
+                      }
+                    }
+                  },
+                  "message": "Required check failed"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = TextField(\"Name\", ?required)"
+  },
+  {
+    "name": "branch_checks_with_args",
+    "catalog": "forms",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/forms",
+          "components": [
+            {
+              "id": "root",
+              "component": "TextField",
+              "label": "Zip",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "regex",
+                    "args": {
+                      "value": {
+                        "path": "/zip"
+                      },
+                      "pattern": "^[0-9]{5}$"
+                    }
+                  },
+                  "message": "Regex check failed"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = TextField(\"Zip\", ?regex(\"^[0-9]{5}$\"))"
+  },
+  {
+    "name": "branch_checks_with_custom_message",
+    "catalog": "forms",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/forms",
+          "components": [
+            {
+              "id": "root",
+              "component": "TextField",
+              "label": "Zip",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "regex",
+                    "args": {
+                      "value": {
+                        "path": "/zip"
+                      },
+                      "pattern": "^[0-9]{5}$"
+                    }
+                  },
+                  "message": "Must be 5 digits"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = TextField(\"Zip\", ?regex(\"^[0-9]{5}$\", \"Must be 5 digits\"))"
+  },
+  {
+    "name": "branch_checks_multiple",
+    "catalog": "forms",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/forms",
+          "components": [
+            {
+              "id": "root",
+              "component": "TextField",
+              "label": "Zip",
+              "checks": [
+                {
+                  "condition": {
+                    "call": "required",
+                    "args": {
+                      "value": {
+                        "path": "/zip"
+                      }
+                    }
+                  }
+                },
+                {
+                  "condition": {
+                    "call": "regex",
+                    "args": {
+                      "value": {
+                        "path": "/zip"
+                      },
+                      "pattern": "^[0-9]{5}$"
+                    }
+                  },
+                  "message": "Must be 5 digits"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = TextField(\"Zip\", [?required, ?regex(\"^[0-9]{5}$\", \"Must be 5 digits\")])"
+  },
+  {
+    "name": "branch_delete_surface_custom",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "deleteSurface": {
+          "surfaceId": "panel_surface_42"
+        }
+      }
+    ],
+    "expectedNotation": "deleteSurface(\"panel_surface_42\")"
+  },
+  {
+    "name": "branch_v0_9_create_surface_basic",
+    "catalog": "basic_v0_9",
+    "messages": [
+      {
+        "version": "v0.9",
+        "createSurface": {
+          "surfaceId": "surf_09",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "v0.9 message"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"surf_09\")\nroot = Text(\"v0.9 message\")"
+  },
+  {
+    "name": "branch_v0_9_update_components_basic",
+    "catalog": "basic_v0_9",
+    "messages": [
+      {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "surf_09",
+          "components": [
+            {
+              "id": "card1",
+              "component": "Card",
+              "child": "t1"
+            },
+            {
+              "id": "t1",
+              "component": "Text",
+              "text": "updated"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"surf_09\")\ncard1 = Card(t1)\nt1 = Text(\"updated\")"
+  },
+  {
+    "name": "branch_v0_9_update_data_model_basic",
+    "catalog": "basic_v0_9",
+    "messages": [
+      {
+        "version": "v0.9",
+        "updateDataModel": {
+          "surfaceId": "surf_09",
+          "value": {
+            "profile": {
+              "name": "Bob",
+              "active": true
+            }
+          }
+        }
+      }
+    ],
+    "expectedNotation": "$/profile/active = true\n$/profile/name = \"Bob\""
+  },
+  {
+    "name": "branch_batch_multiple_messages",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "First"
+            }
+          ]
+        }
+      },
+      {
+        "version": "v1.0",
+        "updateDataModel": {
+          "surfaceId": "s1",
+          "value": {
+            "status": "loaded"
+          }
+        }
+      }
+    ],
+    "expectedNotation": "surface(\"s1\")\nroot = Text(\"First\")\n$/status = \"loaded\""
+  },
+  {
+    "name": "branch_raw_triple_quoted_string_with_backslash",
+    "catalog": "simplified",
+    "messages": [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "default_surface",
+          "catalogId": "conformance/simplified",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Path: C:\\Program Files\\App\nLine 2"
+            }
+          ]
+        }
+      }
+    ],
+    "expectedNotation": "root = Text(r\"\"\"Path: C:\\Program Files\\App\nLine 2\"\"\")"
+  }
+]
