@@ -42,19 +42,20 @@ Where the port follows Python even though conformance disagrees, `typescript/a2u
 
 ### **What is NOT Implemented (and Why)**
 
-- **v0.8 protocol support**: Permanently out of scope for this SDK.
-- **Elemental and Atom inference formats**: The `InferenceFormat` seam stays open for them.
-- **Express streaming and multiple catalogs**: Express compiles only complete blocks, and each Express parser holds one catalog.
-- **Skill generation**: The `skill_generator` feature is not claimed. Only its first requirement, the three-hook `PromptGenerator` contract, is in place; there is no `SkillGenerator`, `Skill` or `SkillSet`.
-- **A2A helpers**: There is no counterpart to Python's `a2ui.a2a` (part wrapping, extension negotiation). The Node sample at `samples/agent/node/restaurant_finder` does this itself.
-- **Extended catalog transformers and utils**: Only the transformers the current features need are implemented. The wider `catalog_transformers` and `utils` packages the module blueprint describes wait for a concrete use.
+- **v0.8 protocol support**: Permanently out of scope. v0.8 has a different message model (`beginRendering` and `surfaceUpdate`), Python forks its stream parser to handle it, and its conformance cases are a second body of work rather than an extension of v0.9 and v1.0.
+- **Elemental and Atom inference formats**: Only Express was required for this release, so the other two formats were not ported. On main they are still experimental in Python (`inference_formats/experimental/`). Adding them later means implementing `InferenceFormat` again, not changing it.
+- **Express streaming**: Python's Express does not stream either, and upstream has said there will be no Express streaming conformance suite while the format does not stream. Building it here would be original design with nothing to check it against.
+- **Express with more than one catalog**: Python's Express parser holds a single catalog, and the conformance case for a block that targets a second catalog is marked unsupported in Python. Supporting several catalogs would also need a rule for component names that collide across them, which has not been designed. Throwing is better than silently choosing one catalog.
+- **Skill generation**: The `skill_generator` feature is not claimed. It is a composition layer on top of `InferenceFormat` and `PromptGenerator`, so it can be added later without changing either. The part that is not additive, splitting `PromptGenerator` into three hooks, is already done, because retrofitting that split after formats exist would mean rewriting each format. There is no `SkillGenerator`, `Skill` or `SkillSet`, and the four `skill.yaml` conformance cases are skipped.
+- **A2A and ADK helpers**: There is no counterpart to Python's `a2ui.a2a` or `a2ui.adk` packages (part wrapping, extension negotiation). The package stays transport-agnostic: it produces `AgentToRendererMessage` objects and leaves delivery to the caller. Adding transport bindings now would double the public surface before the core API has settled.
+- **Extended catalog transformers and utils**: Only the transformers the current features need are implemented. The wider `catalog_transformers` and `utils` packages the module blueprint describes are left until a concrete use defines what they must do, so their API is not guessed in advance.
 
 ## **Validation & Execution Recipes**
 
 ### **Test Posture**
 
-- **Overall**: 582 tests: 519 pass, 15 are expected failures, 48 are skipped, none fail.
-- **Main conformance runner**: 131 cases, 84 pass and 47 are skipped. Its `KNOWN_FAILURES` list (`tests/conformance/loader.ts`) is empty. Cases are skipped by the protocol version and format they declare, not by name: 45 declare `v0.8`, and one each uses Elemental and Atom. None is skipped for a defect.
+- **Overall**: 582 tests: 515 pass, 15 are expected failures, 52 are skipped, none fail.
+- **Main conformance runner**: 131 cases, 80 pass and 51 are skipped. Its `KNOWN_FAILURES` list (`tests/conformance/loader.ts`) is empty. Cases are skipped by the protocol version, format or action they declare, not by name: 45 declare `v0.8`, one each uses Elemental and Atom, and 4 are skill generation cases (`UNIMPLEMENTED_ACTIONS`). None is skipped for a defect. An action the runner does not handle fails the test instead of passing without assertions.
 - **Express conformance runner**: 86 cases, 70 pass, 15 are expected failures and 1 is skipped. The expected failures are cases Python also fails, registered with `test.fails` and Python's reason, so fixing one turns the test red: 7 compiler, 6 decompiler, 1 response parser and 1 prompt generator case. The skipped case is the one Python marks unsupported, a block that targets a second catalog.
 - **Unit tests**: 365 pass. Express parity fixtures for the visitor, compiler, decompiler and schema helper were generated from main's Python and are checked in under `tests/unit/inference_formats/express/fixtures/`.
 
