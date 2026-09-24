@@ -55,15 +55,30 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v1.0']);
  * Enabling v0.9 is what made the gaps visible; it did not create them.
  */
 export const KNOWN_FAILURES = new Map<string, string>([
-  // No envelope validation. Python's catalog carries the server-to-client schema and the
-  // streaming parser validates messages against it; web_core's Catalog models no such
-  // schema, so malformed envelopes pass straight through.
+  // Half of what is left is one missing capability, not several.
+  //
+  // Python's catalog carries the server-to-client schema and the shared common-types schema
+  // as first-class fields. It validates every inbound envelope against the first, and it
+  // prints both into the generated system prompt. This SDK builds on web_core's Catalog,
+  // which models neither, so envelopes are never validated and the prompt omits the
+  // sections entirely. Closing any of these five needs the same design decision about where
+  // those two schemas live.
   ['test_create_surface_missing_catalog_id_v09', 'No s2c envelope validation'],
   ['test_strict_begin_rendering_validation_v09', 'No s2c envelope validation'],
+  // Feeds `components: []`, which the s2c schema rejects with minItems 1. Python raises
+  // 'Validation failed' from the envelope validator before it ever looks for a root; this
+  // SDK gets as far as the root check and reports a missing root instead.
+  ['test_yield_validation_failure_v09', 'No s2c envelope validation'],
+  // The harness implements the generate_prompt action; these fail on SDK output. The
+  // prompt never emits '### Server To Client Schema:', '### Common Types Schema:' or
+  // '### Catalog Schema:', which Python produces in catalog.py around lines 384 to 395.
+  ['test_generate_system_prompt_with_schema', 'Prompt omits the schema sections'],
+  ['test_generate_system_prompt_v0_9_common_types', 'Prompt omits the schema sections'],
 
   // Partial component emission. The parser yields a component as soon as it can be parsed,
   // where Python holds it back until it satisfies the catalog schema and its children
-  // resolve.
+  // resolve. The required-property half of this was fixed; what remains is about reference
+  // discovery and subtree completeness.
   [
     'test_partial_children_lists_v09',
     'Yields with unresolved children when no placeholder type exists',
@@ -75,28 +90,10 @@ export const KNOWN_FAILURES = new Map<string, string>([
   ],
 
   // Reachability traversal does not follow a template child reference, so the template
-  // component is treated as an orphan and dropped.
+  // component is treated as an orphan and dropped. Note the placeholder machinery itself
+  // exists, in getPlaceholderId and its callers; something upstream stops it firing.
   ['test_incremental_data_model_streaming_v09', 'Template child not followed during reachability'],
   ['test_partial_empty_dict_discarded_v09', 'Template child not followed during reachability'],
-
-  // Ordering and state.
-  ['test_yield_validation_failure_v09', 'Root existence checked before component validation'],
-  ['test_multiple_concurrent_surfaces_v09', 'Active surface overwritten by an interleaved surface'],
-  [
-    'test_self_reference_detection_v09',
-    "web_core raises 'Circular reference detected', case expects 'Self-reference detected'",
-  ],
-
-  // Harness gaps rather than SDK gaps.
-  ['test_custom_cuttable_keys', 'Harness hardcodes progressiveKeys and ignores customCuttableKeys'],
-  [
-    'test_generate_system_prompt_with_schema',
-    'Harness does not implement the generate_prompt action',
-  ],
-  [
-    'test_generate_system_prompt_v0_9_common_types',
-    'Harness does not implement the generate_prompt action',
-  ],
 ]);
 
 const SUPPORTED_FORMATS = new Set(['direct_json']);
