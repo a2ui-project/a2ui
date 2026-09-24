@@ -636,4 +636,90 @@ export class CatalogSchemaHelper {
 
     return check(schema, false);
   }
+
+  /**
+   * Resolves a subschema for an array item ('items') or an object property key.
+   *
+   * Traverses $ref (both in common types and catalog document), allOf, oneOf, and anyOf
+   * to find the declared schema at that position.
+   *
+   * @param schema The parent JSON schema to inspect.
+   * @param key 'items' for array items, or property name for object properties.
+   * @returns The resolved subschema, or undefined if not declared.
+   */
+  resolveSubschema(schema: unknown, key: string): Record<string, unknown> | undefined {
+    const visited = new Set<unknown>();
+
+    const resolve = (s: unknown, inCommonTypes: boolean): Record<string, unknown> | undefined => {
+      if (!s || typeof s !== 'object') {
+        return undefined;
+      }
+      if (visited.has(s)) {
+        return undefined;
+      }
+      visited.add(s);
+
+      const obj = s as Record<string, unknown>;
+
+      if (key === 'items') {
+        if (obj.items && typeof obj.items === 'object') {
+          return obj.items as Record<string, unknown>;
+        }
+      } else {
+        if (obj.properties && typeof obj.properties === 'object') {
+          const props = obj.properties as Record<string, unknown>;
+          if (key in props && props[key] && typeof props[key] === 'object') {
+            return props[key] as Record<string, unknown>;
+          }
+        }
+        if (obj.additionalProperties && typeof obj.additionalProperties === 'object') {
+          return obj.additionalProperties as Record<string, unknown>;
+        }
+      }
+
+      if (typeof obj.$ref === 'string') {
+        const ref = obj.$ref;
+        const defName = commonDefName(ref);
+        if (defName) {
+          const target = this.lookupCommonDef(defName);
+          const found = resolve(target, true);
+          if (found) {
+            return found;
+          }
+        } else if (
+          inCommonTypes &&
+          (ref.startsWith('#/$defs/') || ref.startsWith('#/definitions/'))
+        ) {
+          const name = ref.startsWith('#/$defs/') ? ref.slice(8) : ref.slice(14);
+          const target = this.lookupCommonDef(name);
+          const found = resolve(target, true);
+          if (found) {
+            return found;
+          }
+        } else if (ref.startsWith('#/')) {
+          const target = this.resolveJsonPointer(this.catalog, ref);
+          const found = resolve(target, false);
+          if (found) {
+            return found;
+          }
+        }
+      }
+
+      for (const k of ['allOf', 'oneOf', 'anyOf'] as const) {
+        const list = obj[k];
+        if (Array.isArray(list)) {
+          for (const sub of list) {
+            const found = resolve(sub, inCommonTypes);
+            if (found) {
+              return found;
+            }
+          }
+        }
+      }
+
+      return undefined;
+    };
+
+    return resolve(schema, false);
+  }
 }
