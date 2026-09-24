@@ -40,21 +40,14 @@
         {
           "component": "Row",
           "id": "main_card__action_row",
-          "children": [
-            "main_card__save_icon",
-            "main_card__btn_save"
-          ],
+          "children": ["main_card__save_icon", "main_card__btn_save"],
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Column",
           "id": "main_card__main_col",
-          "children": [
-            "main_card__title",
-            "main_card__div_1",
-            "main_card__action_row"
-          ],
+          "children": ["main_card__title", "main_card__div_1", "main_card__action_row"],
           "justify": "start",
           "align": "stretch"
         },

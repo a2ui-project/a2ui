@@ -98,6 +98,7 @@ def build_order_card(order_id: str) -> list:
 ```
 
 **Reference codebase links:**
+
 - Version-agnostic runtime (`core/`): [`agent_sdks/python/a2ui_agent/src/a2ui/builder/core/`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/core/)
 - Versioned v0.9 models (`v0_9/`): [`agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/)
 - Generated basic catalog: [`agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py)
@@ -133,11 +134,11 @@ Use the language construct that provides named or optional parameters, default o
 
 Classify each protocol model into one of three tiers:
 
-| Tier | Condition | Protocol models | Implementation rule |
-| :--- | :--- | :--- | :--- |
-| **1. Direct reuse** | Authoring shape and wire shape are identical. | `DataBinding`, `ActionEvent`, `FunctionCall`, `CheckRule`, `AccessibilityAttributes` | Re-export directly from `a2ui_core`. |
-| **2. Ergonomic subclass / wrapper** | Wire model wraps parameters inside an inner map (`args`), which is awkward to author directly. | Catalog functions (`Required`, `Regex`, `Pluralize`, `OpenUrl`, etc.) | Subclass or wrap `FunctionCall` with a flat typed initializer (`Pluralize(value=1, ...)`) that sets `call="pluralize"` and `args={...}` without requiring an intermediate `PluralizeArgs` object. |
-| **3. Builder-specific model** | Authoring holds nested `ComponentBuilderNode` objects or requires a single constructible type where Core uses a union. | `DynamicChildList` (holds `template: ComponentBuilderNode` instead of wire `componentId: str`), `Action` (constructible class enforcing mutual exclusion between `event` and `functionCall`) | Define in `builder/<version>` and verify that serialized output validates against `a2ui_core` wire models. |
+| Tier                                | Condition                                                                                                              | Protocol models                                                                                                                                                                              | Implementation rule                                                                                                                                                                               |
+| :---------------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1. Direct reuse**                 | Authoring shape and wire shape are identical.                                                                          | `DataBinding`, `ActionEvent`, `FunctionCall`, `CheckRule`, `AccessibilityAttributes`                                                                                                         | Re-export directly from `a2ui_core`.                                                                                                                                                              |
+| **2. Ergonomic subclass / wrapper** | Wire model wraps parameters inside an inner map (`args`), which is awkward to author directly.                         | Catalog functions (`Required`, `Regex`, `Pluralize`, `OpenUrl`, etc.)                                                                                                                        | Subclass or wrap `FunctionCall` with a flat typed initializer (`Pluralize(value=1, ...)`) that sets `call="pluralize"` and `args={...}` without requiring an intermediate `PluralizeArgs` object. |
+| **3. Builder-specific model**       | Authoring holds nested `ComponentBuilderNode` objects or requires a single constructible type where Core uses a union. | `DynamicChildList` (holds `template: ComponentBuilderNode` instead of wire `componentId: str`), `Action` (constructible class enforcing mutual exclusion between `event` and `functionCall`) | Define in `builder/<version>` and verify that serialized output validates against `a2ui_core` wire models.                                                                                        |
 
 ### Decision 4: Dual-mode enum representation
 
@@ -261,6 +262,7 @@ Catalog files (such as `builder/v0_9/catalogs/basic.<ext>`) are generated from t
 All positive authoring and serialization cases are defined in [`conformance/agent/builder/builder.yaml`](../../conformance/agent/builder/builder.yaml) with golden outputs in [`conformance/agent/builder/golden/`](../../conformance/agent/builder/golden/) (see [`builder_suite.py`](../../agent_sdks/python/a2ui_agent/tests/conformance/builder_suite.py) for the reference test harness).
 
 Every conformance test runner must verify each case with two checks:
+
 1. **Golden equality**: Serialized envelope lists match golden JSON byte-for-byte.
 2. **A2UI schema validation**: Output passes the `a2ui_core` schema and integrity validator (`ValidationConfig`).
 

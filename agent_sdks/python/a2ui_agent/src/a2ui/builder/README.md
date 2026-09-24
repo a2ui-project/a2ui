@@ -45,7 +45,6 @@ The traversal itself is Pydantic's. Child resolution is attached to the `Child` 
 components = tree.flatten()
 ```
 
-
 ### Packaging into message envelopes
 
 Flattened component trees are packaged into standard A2UI server-to-client messages using models from `a2ui.core.schema.server_to_client`:
@@ -173,7 +172,6 @@ action = Action(event=ActionEvent(name="open_site", context={"target": "docs"}))
 action = Action(function_call=OpenUrl(url="https://a2ui.org"))
 ```
 
-
 ## Inheritance and customization
 
 ### Extending standard components
@@ -296,4 +294,3 @@ It deliberately knows nothing about envelopes. Message shape and the protocol ve
 ### Nested model traversal
 
 Components nested within item models (such as `TabItem` inside `Tabs`) or inside arbitrary mappings resolve through the same `Child` serializer as a direct slot. There is no special case: if a field is annotated `Child`, it resolves, wherever it sits.
-
