@@ -47,10 +47,10 @@ components = tree.flatten()
 
 ### Packaging into message envelopes
 
-Flattened component trees are packaged into standard A2UI server-to-client messages using models from `a2ui.core.schema.server_to_client`:
+Flattened component trees are packaged into standard A2UI server-to-client messages using models from `a2ui.core.schema.v0_9.server_to_client`:
 
 ```python
-from a2ui.core.schema.server_to_client import (
+from a2ui.core.schema.v0_9.server_to_client import (
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,

@@ -56,7 +56,7 @@ In the [Python reference implementation](../../python/a2ui_agent/src/a2ui/builde
 ```python
 from a2ui.builder.v0_9 import Action, ActionEvent, DataBinding
 from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
-from a2ui.core.schema.server_to_client import (
+from a2ui.core.schema.v0_9.server_to_client import (
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,

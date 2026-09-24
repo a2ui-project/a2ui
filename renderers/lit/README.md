@@ -142,7 +142,9 @@ Group your custom components into a `Catalog` from `@a2ui/web_core/v0_9`.
 import {Catalog} from '@a2ui/web_core/v0_9';
 import {MyProfile} from './my-profile';
 
-export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', [MyProfile]);
+export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', 'v0.9', [
+  MyProfile,
+]);
 ```
 
 ### 4. Use the Custom Catalog

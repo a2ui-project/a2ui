@@ -477,17 +477,21 @@ pip install a2ui-agent-sdk
 ```
 
 ```python
-from a2ui.strategies.schema import A2uiSchemaManager
 from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.schema.constants import VERSION_0_9
 
-# Initialize the schema manager with the basic catalog
-schema_manager = A2uiSchemaManager(
-    catalogs=[BasicCatalog.get_config()],
+# Initialize the inference format with the basic catalog
+inference_format = DirectJsonFormat(
+    version=VERSION_0_9,
+    catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
 )
 
 # Validate A2UI output before sending
-selected_catalog = schema_manager.get_selected_catalog()
-selected_catalog.validator.validate(a2ui_payload)
+selected_catalog = inference_format.get_selected_catalog()
+errors = selected_catalog.validate_components(a2ui_payload)
+if errors:
+    raise ValueError(f"Invalid A2UI payload: {errors}")
 ```
 
 See the full [Agent Development Guide](agent-development.md) for details on schema management, dynamic catalogs, and streaming.

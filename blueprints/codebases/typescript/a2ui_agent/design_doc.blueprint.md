@@ -803,15 +803,14 @@ and the legacy Kotlin SDK. A ready-built `basicCatalog` instance exists only at
 no assembled catalog. `scripts/copy-spec.js` still copies the specification JSON and
 catalogs into the build, so the move to Zod-only is intent rather than current state.
 
-Section 10 was reconciled against `v1_0_implementation_plan.md` on 2026-09-14. The
-Python agent SDK is at the end of that plan's Stage 3: `A2uiGenerator`,
+Section 10 was reconciled against the Python agent SDK on 2026-09-14: `A2uiGenerator`,
 `A2uiRequestProcessor`, and the `processor/`, `catalog_transformers/`, and `utils/`
 packages the blueprint describes do not exist yet.
 
 Section 3's `PromptGenerator` follows
 `blueprints/features/skill_generator.blueprint.md`, added on the same branch and bound to
 the `a2ui_agent` module. Its four conformance cases in `conformance/agent/skill.yaml` all
-generate Express skills against `specification/v1_0/catalogs/basic/catalog.json`.
+generate Express skills against `catalogs/basic/v1/catalog.json`.
 
 Re-verified at `99f4fd17`. `MessageProcessor` takes catalogs positionally rather than in
 an options bag, and its `version` option defaults to `'v0.9'` — section 6 was corrected

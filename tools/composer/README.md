@@ -35,12 +35,12 @@ yarn install
 yarn build
 
 # Build web-core renderer
-cd ../../web_core
+cd ../../../../typescript/web_core
 yarn install
 yarn build
 
 # Build lit renderer
-cd ../lit
+cd ../../renderers/lit
 yarn install
 yarn build
 

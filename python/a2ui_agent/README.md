@@ -11,10 +11,9 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`manager.py`**: The `A2uiSchemaManager` handles loading specification
   schemas, managing catalogs, and generating system prompts for LLMs.
-- **`validator.py`**: Implements `A2uiValidator` for validating A2UI messages
-  against JSON schemas and protocol rules.
 - **`catalog.py`**: Defines `A2uiCatalog` and `CatalogConfig` for handling
-  component libraries.
+  component libraries. `A2uiCatalog.validate_components` checks components
+  against the catalog schema with the `a2ui-core` `PayloadValidator`.
 
 ### Parser (`src/a2ui/parser`)
 

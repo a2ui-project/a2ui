@@ -57,7 +57,7 @@ defined as `z.any().optional()` in the Zod schema, meaning the agent can pass an
 renderer and catalog understand.
 
 - See the schema definition in [server-to-client.ts](../../../typescript/web_core/src/v0_9/schema/server-to-client.ts).
-- See the `Catalog` class and `themeSchema` in [catalog/types.ts](../../../typescript/web_core/src/v0_9/catalog/types.ts).
+- See the `Catalog` class and `themeSchema` in [catalog/types.ts](../../../typescript/web_core/src/catalog/types.ts).
 
 **Note:** The _basic catalog_ components are not wired to use the `theme` coming from the agent.
 

@@ -354,9 +354,19 @@ def generate_basic_catalog(
         os.path.join(s_root, dir_name, "json/catalog.json"),
         os.path.join(s_root, dir_name, "standard_catalog_definition.json"),
     ]
+    if dir_name == "v1_0":
+        # From v1.0 on, catalogs are versioned separately from the protocol and live
+        # in the top-level `catalogs/` directory.
+        possible_paths.insert(
+            0,
+            os.path.join(os.path.dirname(s_root), "catalogs/basic/v1/catalog.json"),
+        )
     catalog_path = next((p for p in possible_paths if os.path.exists(p)), None)
     if not catalog_path:
-        return
+        raise FileNotFoundError(
+            f"No basic catalog found for {version}. Looked in: "
+            + ", ".join(possible_paths)
+        )
 
     out_dir = os.path.join(o_root, "basic_catalog", dir_name)
     os.makedirs(out_dir, exist_ok=True)
