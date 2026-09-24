@@ -38,11 +38,17 @@ export async function createCatalogConfig(
     catalogSchema = (catalogData.catalogSchema || {}) as Record<string, unknown>;
   }
 
-  // Cases also declare `commonTypesSchema` and `s2cSchema`. Python threads both into its
-  // own A2uiCatalog type and validates message envelopes against the s2c schema while
-  // streaming. The TypeScript SDK builds on web_core's Catalog, which models neither, and
-  // validates no envelopes, so there is nothing here to hand them to. Wiring them in is
-  // recorded in KNOWN_GAPS.md rather than faked with a field nothing reads.
+  // Cases also declare `commonTypesSchema` and `s2cSchema`, pointing at simplified schemas
+  // under `conformance/test_data/`. They are deliberately not threaded through. The SDK
+  // validates envelopes against the zod schemas web_core generates from the protocol's own
+  // JSON, selected by the catalog's protocol version. Honouring an arbitrary per-case JSON
+  // Schema would need a general JSON Schema validator, which this SDK does not depend on.
+  //
+  // The outcome is the same for every case that exercises validation, because the real
+  // v0.9 schema carries the constraints the simplified ones test: `catalogId` is required
+  // on `createSurface`, `components` has `minItems: 1`, and unknown message keys are
+  // rejected. A future case relying on a constraint only its simplified schema carries
+  // would fail here, and that would be the signal to revisit this.
 
   const name =
     (catalogData.name as string) ||

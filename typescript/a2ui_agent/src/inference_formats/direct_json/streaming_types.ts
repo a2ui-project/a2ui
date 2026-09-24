@@ -28,6 +28,10 @@ export interface DirectJsonStreamProcessorOptions {
    * before the containing JSON object is complete.
    */
   progressiveKeys?: string[];
+  /**
+   * If true, skips envelope schema validation on inbound server-to-client message envelopes.
+   */
+  disableValidation?: boolean;
 }
 
 /**

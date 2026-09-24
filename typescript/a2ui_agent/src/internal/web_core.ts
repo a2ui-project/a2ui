@@ -31,8 +31,22 @@ export type {
   FunctionImplementation,
 } from '@a2ui/web_core/catalog';
 
+// ./v0_9
+export {
+  CreateSurfaceMessageSchema as V09CreateSurfaceMessageSchema,
+  UpdateComponentsMessageSchema as V09UpdateComponentsMessageSchema,
+  UpdateDataModelMessageSchema as V09UpdateDataModelMessageSchema,
+  DeleteSurfaceMessageSchema as V09DeleteSurfaceMessageSchema,
+} from '@a2ui/web_core/v0_9';
+
 // ./v1_0
 export {
+  CreateSurfaceMessageSchema as V10CreateSurfaceMessageSchema,
+  UpdateComponentsMessageSchema as V10UpdateComponentsMessageSchema,
+  UpdateDataModelMessageSchema as V10UpdateDataModelMessageSchema,
+  DeleteSurfaceMessageSchema as V10DeleteSurfaceMessageSchema,
+  CallRendererFunctionMessageSchema as V10CallRendererFunctionMessageSchema,
+  AgentFunctionResponseMessageSchema as V10AgentFunctionResponseMessageSchema,
   AgentToRendererMessageSchema,
   RendererToAgentMessageSchema,
   V10RendererCapabilitiesSchema,
