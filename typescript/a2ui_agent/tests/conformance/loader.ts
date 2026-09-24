@@ -54,22 +54,7 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v1.0']);
  * canonical streaming case and relied on local hand-translated fixtures for the rest.
  * Enabling v0.9 is what made the gaps visible; it did not create them.
  */
-export const KNOWN_FAILURES = new Map<string, string>([
-  // Half of what is left is one missing capability, not several.
-  //
-  // Python's catalog carries the server-to-client schema and the shared common-types schema
-  // as first-class fields. It validates every inbound envelope against the first, and it
-  // prints both into the generated system prompt. This SDK builds on web_core's Catalog,
-  // which models neither, so envelopes are never validated and the prompt omits the
-  // sections entirely. Closing any of these five needs the same design decision about where
-  // those two schemas live.
-  ['test_create_surface_missing_catalog_id_v09', 'No s2c envelope validation'],
-  ['test_strict_begin_rendering_validation_v09', 'No s2c envelope validation'],
-  // Feeds `components: []`, which the s2c schema rejects with minItems 1. Python raises
-  // 'Validation failed' from the envelope validator before it ever looks for a root; this
-  // SDK gets as far as the root check and reports a missing root instead.
-  ['test_yield_validation_failure_v09', 'No s2c envelope validation'],
-]);
+export const KNOWN_FAILURES = new Map<string, string>([]);
 
 const SUPPORTED_FORMATS = new Set(['direct_json']);
 

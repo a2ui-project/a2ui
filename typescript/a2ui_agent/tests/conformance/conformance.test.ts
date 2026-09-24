@@ -223,6 +223,7 @@ describe('Conformance Harness', () => {
         ];
         const processor = new DirectJsonStreamProcessorImpl(catalog, {
           progressiveKeys,
+          disableValidation: Boolean(testCase.disableValidation),
         });
 
         for (const step of testCase.steps as any[]) {
