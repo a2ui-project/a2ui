@@ -43,13 +43,13 @@ The reference TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`). Th
 
 ### **Test Posture**
 
-- **Overall**: 126 passing tests, 95 skipped, 0 failing.
-- **Conformance**: 36 passing cases and 95 skipped (out of 131 total cases).
-- **Why cases are skipped**: Cases are skipped dynamically based on protocol version and format declarations, rather than hardcoded skip lists. The 95 skipped cases are skipped because they depend on unsupported protocols (v0.8, v0.9) or formats (Express, Elemental, Atom), not because of implementation defects.
+- **Overall**: 175 passing tests, 52 skipped, 0 failing, 0 expected failures.
+- **Conformance**: 79 passing cases and 52 skipped (out of 131 total cases). `KNOWN_FAILURES` in `tests/conformance/loader.ts` is empty.
+- **Why cases are skipped**: Cases are skipped dynamically based on protocol version and format declarations, rather than hardcoded skip lists. Of the 52, 45 declare protocol `v0.8`, which is permanently out of scope, and 7 use an unimplemented inference format (5 Express, 1 Elemental, 1 Atom). None are skipped for an implementation defect.
 
-### **Locally-Authored Streaming Cases**
+### **Streaming Coverage**
 
-Hand-translated v1.0 streaming cases are temporarily located at `tests/streaming_cases/v1_0_direct_json.yaml` because no canonical v1.0 streaming cases currently exist upstream. These should be promoted to `conformance/agent/` or retired once upstream versions land.
+Streaming behaviour is verified entirely against the canonical cases in `conformance/agent/`. Those are almost all `v0.9`, with a single `v1.0` case, but the streaming parser is version-independent in everything they exercise, so the `v0.9` cases cover the `v1.0` path too. The hand-translated local fixtures that stood in before `v0.9` was enabled have been retired: 19 of their 20 cases have a direct `_v09` canonical counterpart, and the twentieth, `test_url_placeholders_with_hints`, asserted only full resolution of a complete tree, which the canonical suite covers repeatedly.
 
 - **Test execution**: Run unit/integration tests with `yarn test`.
 - **Linting check**: Check style boundaries with `yarn lint`.
