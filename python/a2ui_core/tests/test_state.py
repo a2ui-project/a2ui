@@ -17,10 +17,8 @@ import pytest
 
 from a2ui.core.state import (
     ComponentModel,
-    ComponentNode,
     DataModel,
     EventSource,
-    PLACEHOLDER_TYPE,
     Signal,
     SurfaceComponentsModel,
     SurfaceModel,
@@ -416,40 +414,6 @@ def test_signal_reactivity():
     assert emitted == [10, 20]
 
 
-def test_component_node_lifecycle():
-    sig = Signal({"text": "Initial"})
-    node = ComponentNode(
-        instance_id="inst_1",
-        component_id="comp_1",
-        node_type="Text",
-        data_path="/",
-        props=sig,
-    )
-    assert node.instance_id == "inst_1"
-    assert node.component_id == "comp_1"
-    assert node.type == "Text"
-    assert node.data_path == "/"
-    assert str(node) == "comp_1"
-    assert (
-        repr(node)
-        == "ComponentNode(instance_id='inst_1', component_id='comp_1', type='Text')"
-    )
-
-    cleanup_executed = []
-    node.add_cleanup(lambda: cleanup_executed.append(True))
-
-    destroyed = []
-    node.on_destroyed.subscribe(lambda _: destroyed.append(True))
-
-    node.dispose()
-    assert cleanup_executed == [True]
-    assert destroyed == [True]
-
-    # Double dispose is idempotent
-    node.dispose()
-    assert len(cleanup_executed) == 1
-
-
 def test_data_model_set_fluent_chaining():
     dm = DataModel()
     res = dm.set("/a", 1).set("/b", 2).delete("/a")
@@ -499,28 +463,6 @@ def test_data_model_stores_references_directly():
     assert dm.get("/arr") is arr
 
 
-def test_component_node_to_dict_excludes_nested_setters():
-    node = ComponentNode(
-        "inst_1",
-        "c1",
-        "Test",
-        "/",
-        Signal({
-            "header": {
-                "title": "My Title",
-                "setTitle": lambda v: None,
-            },
-            "setTitle": lambda v: None,
-        }),
-    )
-    serialized = node.to_dict()
-    assert serialized["props"] == {
-        "header": {
-            "title": "My Title",
-        }
-    }
-
-
 def test_exception_hierarchy_normalization():
     from a2ui.core.exceptions import (
         A2uiError,
@@ -557,7 +499,6 @@ def test_package_root_and_resolution_exports():
         assert hasattr(a2ui.core, name), f"Missing export {name} in a2ui.core"
 
     for name in [
-        "ComponentNode",
         "ResolvedBinding",
         "WritableBinding",
         "is_writable",
@@ -565,7 +506,6 @@ def test_package_root_and_resolution_exports():
         "DataContext",
         "GenericBinder",
         "MissingDataBindingWarning",
-        "NodeGraph",
     ]:
         assert hasattr(
             a2ui.core.resolution, name
@@ -787,12 +727,14 @@ def test_surface_components_model_cycle_detection_ignores_orphans():
     scm.add_component(ComponentModel("orphan", "Text", cat, {"text": "unreachable"}))
 
     # detect_cycles should validate topology without raising A2uiIntegrityError for orphan
-    visited = scm.detect_cycles(root_id="root")
+    visited = scm.detect_cycles()
     assert "root" in visited
     assert "c1" in visited
 
 
 def test_surface_components_model_max_depth_enforcement():
+    from a2ui.core.validation import ValidationConfig
+
     cat = BasicCatalog()
     chain_scm = SurfaceComponentsModel(default_catalog=cat)
     chain_scm.add_component(ComponentModel("root", "Box", cat, {"child": "node1"}))
@@ -800,16 +742,83 @@ def test_surface_components_model_max_depth_enforcement():
     chain_scm.add_component(ComponentModel("node2", "Text", cat, {"text": "leaf"}))
 
     with pytest.raises(A2uiRecursionError, match="logical depth > 1"):
-        chain_scm.detect_cycles(root_id="root", max_depth=1)
-    visited_chain = chain_scm.detect_cycles(root_id="root", max_depth=5)
+        chain_scm.detect_cycles(ValidationConfig(root_id="root", max_depth=1))
+    visited_chain = chain_scm.detect_cycles(
+        ValidationConfig(root_id="root", max_depth=5)
+    )
     assert len(visited_chain) == 3
 
 
-def test_component_node_parity_features():
-    node = ComponentNode("inst_1", "c1", PLACEHOLDER_TYPE, "/", Signal({}))
-    assert node.is_placeholder is True
-    assert node.disposed is False
-    assert node.to_dict()["type"] == PLACEHOLDER_TYPE
+def test_surface_components_model_collection_helpers_and_topology():
+    from a2ui.core.validation import ValidationConfig
+    from a2ui.core.exceptions import A2uiIntegrityError
 
-    node.dispose()
-    assert node.disposed is True
+    cat = BasicCatalog()
+    scm = SurfaceComponentsModel(default_catalog=cat)
+
+    # Empty topology validation is a no-op
+    scm.validate_topology()
+    assert scm.validate_references() == []
+
+    root = ComponentModel("root", "Box", cat, {"child": "child1"})
+    child1 = ComponentModel("child1", "Text", cat, {"text": "hello"})
+    orphan = ComponentModel("orphan", "Text", cat, {"text": "orphan"})
+
+    scm.add_component(root)
+    scm.add_component(child1)
+    scm.add_component(orphan)
+
+    assert scm.has("root") is True
+    assert scm.has("missing") is False
+    assert scm.size == 3
+    assert set(scm.keys) == {"root", "child1", "orphan"}
+    assert set(scm.values) == {root, child1, orphan}
+    assert dict(scm.entries) == {"root": root, "child1": child1, "orphan": orphan}
+    assert scm.components_map["root"] is root
+
+    # detect_cycles isolates cycle/depth detection and allows orphans
+    visited = scm.detect_cycles()
+    assert visited == {"root", "child1"}
+
+    # validate_topology enforces orphan check by default
+    with pytest.raises(A2uiIntegrityError, match="orphan"):
+        scm.validate_topology()
+
+    # validate_references returns error list without raising
+    errs = scm.validate_references()
+    assert len(errs) == 1
+    assert "orphan" in str(errs[0])
+
+    # Relaxed orphan option passes
+    scm.validate_topology(ValidationConfig(allow_orphan_components=True))
+    assert scm.validate_references(ValidationConfig(allow_orphan_components=True)) == []
+
+    # detect_cycles accepts ValidationConfig with custom root_id
+    assert scm.detect_cycles(ValidationConfig(root_id="child1")) == {"child1"}
+
+    # Missing root is still caught even when allow_dangling_references=True
+    missing_root_scm = SurfaceComponentsModel(default_catalog=cat)
+    missing_root_scm.add_component(
+        ComponentModel("not_root", "Box", cat, {"child": "dangling_child"})
+    )
+    with pytest.raises(A2uiIntegrityError, match="Missing root component"):
+        missing_root_scm.validate_topology(
+            ValidationConfig(
+                allow_dangling_references=True, allow_orphan_components=True
+            )
+        )
+
+
+def test_uax31_identifier_helpers():
+    from a2ui.core.common import assert_uax31_identifier, is_valid_uax31_identifier
+    from a2ui.core.exceptions import A2uiCatalogError
+
+    assert is_valid_uax31_identifier("validName_1") is True
+    assert is_valid_uax31_identifier("@index") is True
+    assert is_valid_uax31_identifier("123invalid") is False
+    assert is_valid_uax31_identifier("invalid-name") is False
+    assert is_valid_uax31_identifier("") is False
+
+    assert_uax31_identifier("validName_1", "component identifier")
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        assert_uax31_identifier("bad-fn!", "function identifier")

@@ -716,6 +716,51 @@ def test_data_context_resolve_action_resolves_user_message():
     assert dispatched[0]["context"]["x"] == 10
 
 
+def test_data_context_deduplicated_on_warning_and_warnings_warn():
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat)
+    surface_warnings: list[dict[str, Any]] = []
+    surface.on_warning.subscribe(lambda w: surface_warnings.append(w))
+
+    ctx = DataContext(surface, path="/")
+    nested_ctx = ctx.nested("items/0")
+
+    with pytest.warns(MissingDataBindingWarning):
+        assert ctx.resolve_dynamic_value({"path": "/missing/field"}) is None
+    assert len(surface_warnings) == 1
+    assert surface_warnings[0]["code"] == "MISSING_DATA_BINDING"
+    assert surface_warnings[0]["path"] == "/missing/field"
+    assert surface_warnings[0]["surfaceId"] == "s1"
+
+    # Second resolution of same path still emits Python warning, but surface.on_warning is deduplicated
+    with pytest.warns(MissingDataBindingWarning):
+        assert nested_ctx.resolve_dynamic_value({"path": "/missing/field"}) is None
+    assert len(surface_warnings) == 1
+
+    # Different missing path via subscribe_dynamic_value emits both
+    with pytest.warns(MissingDataBindingWarning):
+        sub = ctx.subscribe_dynamic_value({"path": "/another/missing"}, lambda _: None)
+        sub.unsubscribe()
+    assert len(surface_warnings) == 2
+    assert surface_warnings[1]["path"] == "/another/missing"
+
+
+def test_data_context_max_function_call_args_limit():
+    from a2ui.core.validation.payload_validator import MAX_FUNCTION_CALL_ARGS
+
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat)
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(lambda e: errors.append(e))
+
+    ctx = DataContext(surface, path="/")
+    too_many_args = {f"arg_{i}": i for i in range(MAX_FUNCTION_CALL_ARGS + 1)}
+    res = ctx.resolve_dynamic_value({"call": "formatString", "args": too_many_args})
+    assert res is None
+    assert len(errors) == 1
+    assert "exceeds maximum allowed arguments count" in errors[0]["message"]
+
+
 def test_data_context_execute_function_exceeds_max_args():
     from a2ui.core.exceptions import A2uiExpressionError
     from a2ui.core.validation.payload_validator import MAX_FUNCTION_CALL_ARGS

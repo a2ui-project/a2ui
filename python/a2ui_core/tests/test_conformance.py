@@ -563,6 +563,57 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         )
 
 
+def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
+    from a2ui.core.resolution import ComponentContext, GenericBinder
+
+    resolved: dict[str, dict[str, Any]] = {}
+
+    def _resolve_one(comp_id: str, data_path: str, instance_key: str) -> None:
+        if instance_key in resolved:
+            return
+        comp = surface.components_model.get(comp_id)
+        if not comp:
+            return
+        ctx = ComponentContext.from_surface(
+            surface, comp_id, data_model_base_path=data_path
+        )
+        binder = GenericBinder(ctx)
+        props = dict(binder.current_props)
+        binder.dispose()
+
+        for _, p_val in list(props.items()):
+            if isinstance(p_val, dict) and "componentId" in p_val and "path" in p_val:
+                tpl_comp_id = p_val["componentId"]
+                tpl_path = ctx.data_context.resolve_path(p_val["path"])
+                arr = surface.data_model.get(tpl_path)
+                if isinstance(arr, list):
+                    base_tpl_path = tpl_path.rstrip("/")
+                    for i in range(len(arr)):
+                        scoped_path = f"{base_tpl_path}/{i}"
+                        _resolve_one(tpl_comp_id, scoped_path, f"{tpl_comp_id}_{i}")
+                        _resolve_one(
+                            tpl_comp_id, scoped_path, f"{tpl_comp_id}-[{scoped_path}]"
+                        )
+
+        parts = [p for p in data_path.strip("/").split("/") if p]
+        idx_suffix = parts[-1] if parts and parts[-1].isdigit() else None
+        if idx_suffix is not None:
+            known_ids = set(surface.components_model.keys)
+            for child_id, _ in comp.get_child_references(known_ids):
+                _resolve_one(child_id, data_path, f"{child_id}_{idx_suffix}")
+                _resolve_one(child_id, data_path, f"{child_id}-[{data_path}]")
+
+        resolved[instance_key] = {
+            "type": comp.type,
+            "props": props,
+        }
+
+    for comp_id, _ in list(surface.components_model.entries):
+        _resolve_one(comp_id, "/", comp_id)
+
+    return resolved
+
+
 def _assert_expected_surface_state(
     processor: MessageProcessor, expected: dict[str, Any]
 ) -> None:
@@ -589,37 +640,23 @@ def _assert_expected_surface_state(
                     ]
                 else:
                     comp_items = []
+                resolved_nodes = _resolve_surface_components(surface)
                 for c_id, c_exp in comp_items:
                     comp = surface.components_model.get(c_id)
-                    from a2ui.core.resolution.node_graph import NodeGraph
-
-                    graph = NodeGraph(surface)
-                    node = next(
-                        (
-                            n
-                            for n in graph.active_nodes.values()
-                            if getattr(n, "component_id", None) == c_id
-                            or getattr(n, "instance_id", None) == c_id
-                        ),
-                        None,
-                    )
-                    if node is None and isinstance(c_exp, dict):
-                        for n in graph.active_nodes.values():
-                            data_p = getattr(n, "data_path", "")
-                            parts = [p for p in data_p.strip("/").split("/") if p]
-                            if parts and parts[-1].isdigit():
-                                if f"{n.component_id}_{parts[-1]}" == c_id:
-                                    node = n
-                                    break
+                    node_info = resolved_nodes.get(c_id)
                     assert (
-                        comp is not None or node is not None
+                        comp is not None or node_info is not None
                     ), f"Component '{c_id}' missing from surface '{s_id}'"
                     if isinstance(c_exp, dict):
-                        c_type = comp.type if comp else (node.type if node else "")
+                        c_type = (
+                            comp.type
+                            if comp
+                            else (node_info["type"] if node_info else "")
+                        )
                         if "component" in c_exp:
                             assert c_type == c_exp["component"]
-                        if node:
-                            node_props = node.props.value
+                        if node_info:
+                            node_props = node_info["props"]
                             for p_key, p_val in c_exp.items():
                                 if p_key in ("id", "component"):
                                     continue
@@ -644,24 +681,14 @@ def _assert_expected_surface_state(
                                 )
 
             if "validationResult" in s_exp:
-                from a2ui.core.resolution.node_graph import NodeGraph
-
-                graph = NodeGraph(surface)
+                resolved_nodes = _resolve_surface_components(surface)
                 val_res_exp = s_exp["validationResult"]
                 for c_id, exp_vr in val_res_exp.items():
-                    node = next(
-                        (
-                            n
-                            for n in graph.active_nodes.values()
-                            if getattr(n, "component_id", None) == c_id
-                            or getattr(n, "instance_id", None) == c_id
-                        ),
-                        None,
-                    )
+                    node_info = resolved_nodes.get(c_id)
                     assert (
-                        node is not None
+                        node_info is not None
                     ), f"Component node '{c_id}' missing from surface '{s_id}'"
-                    node_props = node.props.value
+                    node_props = node_info["props"]
                     vr = node_props.get("validationResult")
                     assert vr == exp_vr, (
                         f"ValidationResult mismatch for '{c_id}': got {vr}, expected"
@@ -695,13 +722,9 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
                 for s in processor.model.surfaces.values():
                     s.on_error.subscribe(lambda err: errors.append(err))
                 processor.process_messages(messages)
-                from a2ui.core.resolution.node_graph import NodeGraph
-
                 for s in processor.model.surfaces.values():
                     s.on_error.subscribe(lambda err: errors.append(err))
-                    g = NodeGraph(s)
-                    for n in list(g.active_nodes.values()):
-                        _ = n.props.value
+                    _resolve_surface_components(s)
                 if errors:
                     err = errors[0]
                     raise A2uiValidationError(err.get("message", "Expression error"))

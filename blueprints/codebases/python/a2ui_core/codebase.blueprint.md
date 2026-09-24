@@ -15,8 +15,8 @@ local_development:
 
 The official Python implementation of the A2UI Core State Layer (`a2ui_core`).
 
-- **Validation**: Leverages `pydantic` (v2) for strongly-typed input validation and `jsonschema` for validating message boundaries.
-- **Reactivity**: Uses a lightweight custom synchronous `Signal` and subscription tracker inside `a2ui.core.common` to notify properties changes and support bubble/cascade strategies.
+- **Validation**: Leverages `pydantic` (v2) for strongly-typed input validation, `jsonschema` for validating message boundaries, and `SurfaceComponentsModel.validate_topology` / `validate_references` for structural graph validation.
+- **Reactivity**: Uses a lightweight custom synchronous `Signal` and subscription tracker inside `a2ui.core.common` alongside `DataContext`, `GenericBinder`, `ComponentContext`, and `ResolvedBinding` in `a2ui.core.resolution` (`NodeResolver` and `ComponentNode` are omitted as renderer-only constructs).
 
 ## **Local Technical Decisions & Overrides**
 

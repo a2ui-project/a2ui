@@ -19,7 +19,7 @@ import inspect
 import warnings
 from typing import Any, Callable, Generic
 from ..catalog.catalog import Catalog, TComponent, TFunction
-from ..state import DataModel
+from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS, PayloadValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
@@ -46,6 +46,33 @@ class DataContext(Generic[TComponent, TFunction]):
         self.data_model = surface.data_model
         self._index = index
         self.parent = parent
+        if parent is not None:
+            self._warned_paths: set[str] = parent._warned_paths
+        elif surface is not None:
+            surface_warned = getattr(surface, "_warned_paths", None)
+            if not isinstance(surface_warned, set):
+                surface_warned = set()
+                setattr(surface, "_warned_paths", surface_warned)
+            self._warned_paths = surface_warned
+        else:
+            self._warned_paths = set()
+
+    def _emit_missing_data_binding_warning(self, resolved_path: str) -> None:
+        """Emits MissingDataBindingWarning and dispatches deduplicated surface warning."""
+        msg = (
+            "Preflight DataBinding Warning: The bound JSON Pointer"
+            f" '{resolved_path}' does not physically exist in the active"
+            " DataModel. Evaluating to None."
+        )
+        warnings.warn(msg, MissingDataBindingWarning, stacklevel=3)
+        if resolved_path not in self._warned_paths:
+            self._warned_paths.add(resolved_path)
+            if self.surface and hasattr(self.surface, "dispatch_warning"):
+                self.surface.dispatch_warning({
+                    "code": "MISSING_DATA_BINDING",
+                    "path": resolved_path,
+                    "message": msg,
+                })
 
     @property
     def locale(self) -> str | None:
@@ -121,13 +148,7 @@ class DataContext(Generic[TComponent, TFunction]):
             if hasattr(self.data_model, "has_path") and not self.data_model.has_path(
                 resolved_path
             ):
-                warnings.warn(
-                    "Preflight DataBinding Warning: The bound JSON Pointer"
-                    f" '{resolved_path}' does not physically exist in the active"
-                    " DataModel. Evaluating to None.",
-                    MissingDataBindingWarning,
-                    stacklevel=2,
-                )
+                self._emit_missing_data_binding_warning(resolved_path)
 
             return self.data_model.get(resolved_path)
 
@@ -137,14 +158,19 @@ class DataContext(Generic[TComponent, TFunction]):
             and "call" in value
             and isinstance(value["call"], str)
         ):
+            from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS
+
             func_name = value["call"]
             raw_args = value.get("args", {})
             cat_id = value.get("catalogId") or value.get("catalog_id")
 
-            # Recursively resolve function arguments first
-            resolved_args = self.resolve_dynamic_value(
-                raw_args, peek=True, abort_signal=abort_signal
-            )
+            # Check argument count limit before recursively resolving arguments
+            if isinstance(raw_args, dict) and len(raw_args) > MAX_FUNCTION_CALL_ARGS:
+                resolved_args = raw_args
+            else:
+                resolved_args = self.resolve_dynamic_value(
+                    raw_args, peek=True, abort_signal=abort_signal
+                )
             res = self._execute_function(
                 func_name, resolved_args, catalog_id=cat_id, abort_signal=abort_signal
             )
@@ -214,13 +240,7 @@ class DataContext(Generic[TComponent, TFunction]):
         if paths and hasattr(self.data_model, "has_path"):
             for p in paths:
                 if not self.data_model.has_path(p):
-                    warnings.warn(
-                        f"Preflight DataBinding Warning: The bound JSON Pointer '{p}'"
-                        " does not physically exist in the active DataModel."
-                        " Evaluating to None.",
-                        MissingDataBindingWarning,
-                        stacklevel=2,
-                    )
+                    self._emit_missing_data_binding_warning(p)
 
         path_subs: list[Subscription] = []
         stream_sub: list[Any] = []  # Holds subscription to returned EventSource stream

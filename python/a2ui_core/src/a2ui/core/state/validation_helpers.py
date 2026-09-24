@@ -51,13 +51,13 @@ def validate_component_integrity(
 
     ids: set[str] = set(components.keys())
 
-    if allow_dangling_references:
-        return
-
     if not allow_missing_root and root_id not in ids:
         raise A2uiIntegrityError(
             f"Missing root component: No component has id='{root_id}'"
         )
+
+    if allow_dangling_references:
+        return
 
     for comp_id, comp in components.items():
         if comp_id is None or not isinstance(comp_id, str):
@@ -176,6 +176,8 @@ def analyze_topology(
         recursion_stack.add(node_id)
 
         for neighbor in adj_list.get(node_id, []):
+            if neighbor not in all_ids:
+                continue
             if neighbor not in visited:
                 dfs(neighbor, depth + 1)
             elif neighbor in recursion_stack:

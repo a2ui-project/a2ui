@@ -14,6 +14,9 @@
 
 from a2ui.core.catalog import (
     Catalog as Catalog,
+)
+from a2ui.core.common import (
+    assert_uax31_identifier as assert_uax31_identifier,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
 )
 from a2ui.core.exceptions import (
@@ -36,7 +39,11 @@ from a2ui.core.processing import (
     MessageProcessorOptions as MessageProcessorOptions,
 )
 from a2ui.core.rpc import CallOptions as CallOptions, RpcHandler as RpcHandler
-from a2ui.core.state import DataModel as DataModel, SurfaceModel as SurfaceModel
+from a2ui.core.state import (
+    DataModel as DataModel,
+    SurfaceComponentsModel as SurfaceComponentsModel,
+    SurfaceModel as SurfaceModel,
+)
 from a2ui.core.validation import (
     PayloadValidator as PayloadValidator,
     RELAXED_VALIDATION as RELAXED_VALIDATION,
@@ -68,8 +75,10 @@ __all__ = [
     "RpcErrorCode",
     "RpcHandler",
     "STRICT_VALIDATION",
+    "SurfaceComponentsModel",
     "SurfaceModel",
     "ValidationConfig",
     "__version__",
+    "assert_uax31_identifier",
     "is_valid_uax31_identifier",
 ]

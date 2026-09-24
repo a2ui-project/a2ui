@@ -15,6 +15,8 @@
 """Custom exceptions for the A2UI SDK."""
 
 import dataclasses
+import enum
+import re
 
 
 @dataclasses.dataclass(frozen=True)
@@ -94,9 +96,6 @@ class A2uiExpressionError(A2uiError):
     pass
 
 
-import enum
-
-
 class RpcErrorCode(str, enum.Enum):
     """RPC error codes matching A2UI protocol specification."""
 
@@ -116,11 +115,17 @@ class A2uiRpcError(A2uiError):
 
     def __init__(
         self,
-        message: str,
+        message: str | RpcErrorCode,
+        code: str | RpcErrorCode = RpcErrorCode.UNKNOWN_ERROR,
         function_call_id: str | None = None,
-        code: str = RpcErrorCode.UNKNOWN_ERROR.value,
         details: list[A2uiErrorDetail] | None = None,
     ) -> None:
-        super().__init__(message, details=details)
-        self.code: str = code.value if isinstance(code, RpcErrorCode) else str(code)
+        code_str = code.value if isinstance(code, RpcErrorCode) else str(code)
+        msg_str = message.value if isinstance(message, RpcErrorCode) else str(message)
+        is_first_known_code = msg_str in RpcErrorCode._value2member_map_
+        is_second_like_message = bool(re.search(r"[a-z\s]", code_str)) or code_str == ""
+        if is_first_known_code and is_second_like_message:
+            msg_str, code_str = code_str, msg_str
+        super().__init__(msg_str, details=details)
+        self.code: str = code_str
         self.function_call_id: str | None = function_call_id

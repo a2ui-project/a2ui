@@ -7,7 +7,7 @@ It provides the logic-neutral, visual-agnostic layer used by python-based server
 ## Features
 
 - **Protocol Handling**: Symmetrical processing and validation of A2UI specification envelope messages (`CreateSurface`, `UpdateComponents`, `UpdateDataModel`, and `DeleteSurface`).
-- **State Management**: Reactive state tracking driven by a high-performance custom `Signal` implementation and decoupled hierarchical models (`SurfaceGroupModel`, `SurfaceModel`, and `ComponentNode` layers).
+- **State Management**: Reactive state tracking driven by a high-performance custom `Signal` implementation and decoupled hierarchical models (`SurfaceGroupModel`, `SurfaceModel`, and `SurfaceComponentsModel`).
 - **DataContext**: Advanced data binding and function execution environment with support for dynamic path resolution and automatic dependency updates.
 - **Catalog System**: Extensible catalog registry supporting compiled object models (`ModelCatalog`) and raw text-based schemas (`JsonCatalog`) for LLM prompt integration.
 - **Validation & Integrity**: Strict validation engine combining **Pydantic** (compiled envelopes) and **JSON Schema Draft 2020-12** (dynamic catalogs) with advanced topological and integrity checks (cyclic layout detection, reachability analysis, orphan tracking, and recursive reference verification).
@@ -23,11 +23,10 @@ The `a2ui_core` architecture aligns symmetrically with the client-side `@a2ui/we
 graph TD
     MP[MessageProcessor] -->|Executes Messages| SGM[SurfaceGroupModel]
     SGM -->|Manages active surfaces| SM[SurfaceModel]
-    SM -->|Dynamic Components| SCM[Components Model]
+    SM -->|Dynamic Components| SCM[SurfaceComponentsModel]
     SM -->|State Context| DM[DataModel]
     SCM --> GB[GenericBinder]
     DM --> GB
-    GB -->|Re-resolves dynamic values| CN[ComponentNode<br/>Resolved Tree]
 ```
 
 ### Core Packages
@@ -36,11 +35,11 @@ graph TD
 
 - **`Signal`**: Thread-safe (where applicable) core reactive primitive. Allows components and rendering pipelines to subscribe to precise state increments.
 - **`DataModel`**: Active state key-value dictionary path observer supporting reactive wildcard queries and path resolution.
-- **`ComponentNode`**: Represents a live, reactively bound component instance in the final visual tree hierarchy. Automatically disposes of nested resources and subscriptions when unmounted.
+- **`SurfaceComponentsModel`**: Manages the adjacency map of component configurations and topological validation for a surface.
 - **`SurfaceModel`**: Orchestrates components and data model pipelines for a single viewport surface.
 - **`SurfaceGroupModel`**: Manages a collection of active client rendering surfaces.
 
-#### 2. Rendering Engine (`src/a2ui/core/rendering`)
+#### 2. Resolution Engine (`src/a2ui/core/resolution`)
 
 - **`DataContext`**: Coordinates lexical scopes, resolves data paths (e.g., `/some/data`), and handles dynamic expressions.
 - **`GenericBinder`**: Subscribes to relevant data path models and binds component properties dynamically.

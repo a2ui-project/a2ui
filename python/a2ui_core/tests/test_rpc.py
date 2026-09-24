@@ -529,3 +529,29 @@ def test_rpc_handler_passes_validated_and_coerced_args_to_target_fn() -> None:
     assert resp["rendererFunctionResponse"]["value"] == 50
     # Confirm target function actually received the coerced arguments with defaults applied
     assert received_args == {"num": 5, "multiplier": 10}
+
+
+def test_a2ui_rpc_error_constructor_parameter_order() -> None:
+    # Standard order: (message, code, function_call_id)
+    err1 = A2uiRpcError("Call timed out", RpcErrorCode.TIMEOUT, "call-1")
+    assert str(err1) == "Call timed out"
+    assert err1.code == "TIMEOUT"
+    assert err1.function_call_id == "call-1"
+
+    # Default code is UNKNOWN_ERROR
+    err2 = A2uiRpcError("Something failed")
+    assert str(err2) == "Something failed"
+    assert err2.code == "UNKNOWN_ERROR"
+    assert err2.function_call_id is None
+
+    # Swapped (code, message) is normalized automatically
+    err3 = A2uiRpcError(RpcErrorCode.CANCELLED, "Operation cancelled", "call-2")
+    assert str(err3) == "Operation cancelled"
+    assert err3.code == "CANCELLED"
+    assert err3.function_call_id == "call-2"
+
+    # Uppercase message matching a known code with a custom uppercase code is NOT swapped
+    err4 = A2uiRpcError("TIMEOUT", "SERVER_FAULT", "call-3")
+    assert str(err4) == "TIMEOUT"
+    assert err4.code == "SERVER_FAULT"
+    assert err4.function_call_id == "call-3"
