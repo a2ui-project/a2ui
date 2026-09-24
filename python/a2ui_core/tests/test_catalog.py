@@ -55,6 +55,9 @@ class _TestValidatorHelper:
     def validate_function(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         return self.validator.validate_function(name, args)
 
+    def validate_theme(self, theme: dict[str, Any]) -> None:
+        self.validator.validate_theme(theme)
+
 
 def _val(catalog: Catalog[TComponent, TFunction]) -> _TestValidatorHelper:
     return _TestValidatorHelper(catalog)
@@ -205,32 +208,149 @@ def test_additional_properties_handling_with_models():
         )
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_additional_properties_handling_from_json():
-    pass
+    # 1. additionalProperties is not set explicitly (defaults to True)
+    cat_default_json = {
+        "catalogId": "https://a2ui.org/default",
+        "components": {
+            "SimpleBox": {
+                "type": "object",
+                "properties": {"component": {"const": "SimpleBox"}},
+            }
+        },
+    }
+    cat_default = Catalog.from_json(cat_default_json, protocol_version=PROTOCOL_VERSION)
+
+    # Permits extra properties when additionalProperties is not set explicitly
+    _val(cat_default).validate_component(
+        {"id": "b1", "component": "SimpleBox", "extraProp": 123}
+    )
+
+    # 2. additionalProperties being set explicitly to true
+    cat_true_json = {
+        "catalogId": "https://a2ui.org/explicit-true",
+        "components": {
+            "FlexBox": {
+                "type": "object",
+                "properties": {"component": {"const": "FlexBox"}},
+                "additionalProperties": True,
+            }
+        },
+    }
+    cat_true = Catalog.from_json(cat_true_json, protocol_version=PROTOCOL_VERSION)
+
+    # Permits extra properties when additionalProperties is explicitly True
+    _val(cat_true).validate_component(
+        {"id": "b2", "component": "FlexBox", "extraProp": 456}
+    )
 
 
 @pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
+    reason=(
+        "PayloadValidator checks model components with Pydantic model_validate, which"
+        " ignores json_schema_extra={'unevaluatedProperties': False}."
+    )
 )
 def test_unevaluated_properties_handling_with_models():
-    pass
+    class DefaultBox(BaseModel):
+        component: Literal["DefaultBox"] = "DefaultBox"
+
+    class AllowBox(BaseModel):
+        model_config = {"json_schema_extra": {"unevaluatedProperties": True}}
+        component: Literal["AllowBox"] = "AllowBox"
+
+    class ForbidBox(BaseModel):
+        model_config = {"json_schema_extra": {"unevaluatedProperties": False}}
+        component: Literal["ForbidBox"] = "ForbidBox"
+
+    cat = Catalog(
+        catalog_id="https://a2ui.org/model-unevaluated",
+        protocol_version=PROTOCOL_VERSION,
+        components=[
+            ModelComponentApi(DefaultBox, "DefaultBox"),
+            ModelComponentApi(AllowBox, "AllowBox"),
+            ModelComponentApi(ForbidBox, "ForbidBox"),
+        ],
+        functions=[],
+    )
+
+    # 1. Permits extra properties when unevaluatedProperties is True or default
+    _val(cat).validate_components(
+        [{"id": "b1", "component": "DefaultBox", "extraProp": 123}]
+    )
+    _val(cat).validate_components(
+        [{"id": "b2", "component": "AllowBox", "extraProp": 456}]
+    )
+
+    # 2. Rejects extra properties when unevaluatedProperties is False
+    with pytest.raises(
+        (ValidationError, ValueError),
+        match="Additional properties are not allowed|Unevaluated properties",
+    ):
+        _val(cat).validate_components(
+            [{"id": "b3", "component": "ForbidBox", "extraProp": 789}]
+        )
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_unevaluated_properties_handling_from_json():
-    pass
+    # 1. unevaluatedProperties with the default settings (omitted/true)
+    cat_default_json = {
+        "catalogId": "https://a2ui.org/unevaluated-default",
+        "components": {
+            "DefaultBox": {
+                "type": "object",
+                "properties": {"component": {"const": "DefaultBox"}},
+            }
+        },
+    }
+    cat_default = Catalog.from_json(cat_default_json, protocol_version=PROTOCOL_VERSION)
+
+    # Permits extra properties when unevaluatedProperties is default (omitted/true)
+    _val(cat_default).validate_component(
+        {"id": "b1", "component": "DefaultBox", "extraField": 123}
+    )
+
+    # 2. unevaluatedProperties set to false
+    cat_false_json = {
+        "catalogId": "https://a2ui.org/unevaluated-false",
+        "components": {
+            "StrictBox": {
+                "type": "object",
+                "properties": {"component": {"const": "StrictBox"}},
+                "unevaluatedProperties": False,
+            }
+        },
+    }
+    cat_false = Catalog.from_json(cat_false_json, protocol_version=PROTOCOL_VERSION)
+
+    # Rejects extra properties when unevaluatedProperties is False
+    with pytest.raises(
+        A2uiValidationError, match="Unevaluated properties|Additional properties"
+    ):
+        _val(cat_false).validate_component(
+            {"id": "b2", "component": "StrictBox", "extraField": 123}
+        )
+
+    # 3. unevaluatedProperties set to true
+    cat_true_json = {
+        "catalogId": "https://a2ui.org/unevaluated-true",
+        "components": {
+            "FlexBox": {
+                "type": "object",
+                "properties": {"component": {"const": "FlexBox"}},
+                "unevaluatedProperties": True,
+            }
+        },
+    }
+    cat_true = Catalog.from_json(cat_true_json, protocol_version=PROTOCOL_VERSION)
+
+    # Permits extra properties when unevaluatedProperties is True
+    _val(cat_true).validate_component(
+        {"id": "b3", "component": "FlexBox", "extraField": 456}
+    )
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_unrecognized_type_and_mismatched_properties_with_models():
-    pass
 
     class CardComp(BaseModel):
         id: str
@@ -247,7 +367,9 @@ def test_unrecognized_type_and_mismatched_properties_with_models():
     )
 
     # 1. Unrecognized Component Type
-    with pytest.raises(ValueError, match="Unknown component type: NonExistent"):
+    with pytest.raises(
+        A2uiValidationError, match="Unrecognized component type 'NonExistent'"
+    ):
         _val(catalog).validate_components([{"id": "c1", "component": "NonExistent"}])
 
     # 2. Unrecognized Properties (extra=forbid)
@@ -421,18 +543,52 @@ def test_nested_function_validation_from_json():
         }])
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_theme_validation_with_models():
-    pass
+    class TestTheme(BaseModel):
+        primary: str = Field(..., pattern="^#[0-9A-F]{6}$")
+
+    cat = Catalog(
+        catalog_id="https://a2ui.org/model",
+        protocol_version=PROTOCOL_VERSION,
+        components=[],
+        functions=[],
+        theme_schema=TestTheme.model_json_schema(),
+    )
+
+    # 1. Test Valid Theme
+    _val(cat).validate_theme({"primary": "#00FF00"})
+
+    # 2. Test Invalid Theme raises A2uiValidationError
+    with pytest.raises(A2uiValidationError) as exc_info:
+        _val(cat).validate_theme({"primary": "blue"})
+    error_msg = str(exc_info.value)
+    assert "primary" in error_msg
+    assert "does not match" in error_msg.lower()
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_theme_validation_from_json():
-    pass
+    catalog_json = {
+        "catalogId": "https://rizzcharts.com/catalog.json",
+        "theme": {
+            "type": "object",
+            "properties": {
+                "primaryColor": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$",
+                }
+            },
+            "additionalProperties": False,
+        },
+    }
+
+    catalog = Catalog.from_json(catalog_json, protocol_version=PROTOCOL_VERSION)
+
+    # 1. Test Valid Theme
+    _val(catalog).validate_theme({"primaryColor": "#00FF00"})
+
+    # 2. Test Invalid Theme fails on incorrect color hex code pattern
+    with pytest.raises(A2uiValidationError, match="does not match"):
+        _val(catalog).validate_theme({"primaryColor": "red"})
 
 
 # ==============================================================================
@@ -440,11 +596,7 @@ def test_theme_validation_from_json():
 # ==============================================================================
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_seamless_mixed_catalogs():
-    pass
     from a2ui.core.catalog import Catalog, ComponentApi, ModelComponentApi
 
     # Pydantic model for Component A
@@ -530,11 +682,15 @@ def test_basic_catalog_validate_components():
         _val(catalog).validate_components([invalid_text_comp])
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_basic_catalog_validate_theme():
-    pass
+    catalog = BasicCatalog()
+
+    # 1. Test Valid Theme
+    _val(catalog).validate_theme({"primaryColor": "#00BFFF"})
+
+    # 2. Test Invalid Theme raises A2uiValidationError
+    with pytest.raises(A2uiValidationError):
+        _val(catalog).validate_theme({"primaryColor": "invalid-color-name"})
 
 
 def test_basic_catalog_validate_functions():

@@ -62,7 +62,6 @@ SKIP_TEST_NAMES = set()
 # Transition skip list containing specific test suite files to skip during active feature transitions.
 SKIP_TEST_SUITES = {
     "core/catalog.yaml",
-    "core/validator.yaml",
 }
 
 

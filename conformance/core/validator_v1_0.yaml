@@ -421,3 +421,947 @@
       expectError:
         category: "ValidationError"
         message: "Component id '123invalid_id' must be a valid"
+
+# ------------------------------------------------------------------------------
+# Cases ported from the pre-split conformance/core/validator.yaml.
+# ------------------------------------------------------------------------------
+
+- name: test_v10_topology_template_child_reachable
+  description: Tests that a component referenced only as a list template is reachable from the root in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: List
+                children:
+                  componentId: item
+                  path: /items
+              - id: item
+                component: Text
+                text: Reachable
+
+- name: test_v10_topology_template_dangling_reference_error
+  description: Tests that a list template naming a component that does not exist fails validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: List
+                children:
+                  componentId: missing_id
+                  path: /items
+              - id: item
+                component: Text
+                text: Unused
+      expectError:
+        category: ValidationError
+        message: references non-existent component 'missing_id'
+
+- name: test_v10_invalid_binding_path_error
+  description: Tests that a data binding path with an invalid JSON Pointer escape ('~2') fails validation in v1.0.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  path: /invalid/escape/~2
+      expectError:
+        category: ValidationError
+        message: Invalid path syntax
+
+- name: test_v10_component_nesting_depth_limit_exceeded_error
+  description: Tests that a chain of nested components deeper than the global limit (50) fails validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Card
+                child: c0
+              - id: c0
+                component: Card
+                child: c1
+              - id: c1
+                component: Card
+                child: c2
+              - id: c2
+                component: Card
+                child: c3
+              - id: c3
+                component: Card
+                child: c4
+              - id: c4
+                component: Card
+                child: c5
+              - id: c5
+                component: Card
+                child: c6
+              - id: c6
+                component: Card
+                child: c7
+              - id: c7
+                component: Card
+                child: c8
+              - id: c8
+                component: Card
+                child: c9
+              - id: c9
+                component: Card
+                child: c10
+              - id: c10
+                component: Card
+                child: c11
+              - id: c11
+                component: Card
+                child: c12
+              - id: c12
+                component: Card
+                child: c13
+              - id: c13
+                component: Card
+                child: c14
+              - id: c14
+                component: Card
+                child: c15
+              - id: c15
+                component: Card
+                child: c16
+              - id: c16
+                component: Card
+                child: c17
+              - id: c17
+                component: Card
+                child: c18
+              - id: c18
+                component: Card
+                child: c19
+              - id: c19
+                component: Card
+                child: c20
+              - id: c20
+                component: Card
+                child: c21
+              - id: c21
+                component: Card
+                child: c22
+              - id: c22
+                component: Card
+                child: c23
+              - id: c23
+                component: Card
+                child: c24
+              - id: c24
+                component: Card
+                child: c25
+              - id: c25
+                component: Card
+                child: c26
+              - id: c26
+                component: Card
+                child: c27
+              - id: c27
+                component: Card
+                child: c28
+              - id: c28
+                component: Card
+                child: c29
+              - id: c29
+                component: Card
+                child: c30
+              - id: c30
+                component: Card
+                child: c31
+              - id: c31
+                component: Card
+                child: c32
+              - id: c32
+                component: Card
+                child: c33
+              - id: c33
+                component: Card
+                child: c34
+              - id: c34
+                component: Card
+                child: c35
+              - id: c35
+                component: Card
+                child: c36
+              - id: c36
+                component: Card
+                child: c37
+              - id: c37
+                component: Card
+                child: c38
+              - id: c38
+                component: Card
+                child: c39
+              - id: c39
+                component: Card
+                child: c40
+              - id: c40
+                component: Card
+                child: c41
+              - id: c41
+                component: Card
+                child: c42
+              - id: c42
+                component: Card
+                child: c43
+              - id: c43
+                component: Card
+                child: c44
+              - id: c44
+                component: Card
+                child: c45
+              - id: c45
+                component: Card
+                child: c46
+              - id: c46
+                component: Card
+                child: c47
+              - id: c47
+                component: Card
+                child: c48
+              - id: c48
+                component: Card
+                child: c49
+              - id: c49
+                component: Card
+                child: c50
+              - id: c50
+                component: Card
+                child: c51
+              - id: c51
+                component: Card
+                child: c52
+              - id: c52
+                component: Card
+                child: c53
+              - id: c53
+                component: Card
+                child: c54
+              - id: c54
+                component: Card
+                child: c55
+              - id: c55
+                component: Text
+                text: Leaf
+      expectError:
+        category: ValidationError
+        message: Global recursion limit exceeded
+
+- name: test_v10_component_nesting_depth_within_limit
+  description: Tests that a chain of 41 nested components, within the global limit (50), passes validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Card
+                child: c0
+              - id: c0
+                component: Card
+                child: c1
+              - id: c1
+                component: Card
+                child: c2
+              - id: c2
+                component: Card
+                child: c3
+              - id: c3
+                component: Card
+                child: c4
+              - id: c4
+                component: Card
+                child: c5
+              - id: c5
+                component: Card
+                child: c6
+              - id: c6
+                component: Card
+                child: c7
+              - id: c7
+                component: Card
+                child: c8
+              - id: c8
+                component: Card
+                child: c9
+              - id: c9
+                component: Card
+                child: c10
+              - id: c10
+                component: Card
+                child: c11
+              - id: c11
+                component: Card
+                child: c12
+              - id: c12
+                component: Card
+                child: c13
+              - id: c13
+                component: Card
+                child: c14
+              - id: c14
+                component: Card
+                child: c15
+              - id: c15
+                component: Card
+                child: c16
+              - id: c16
+                component: Card
+                child: c17
+              - id: c17
+                component: Card
+                child: c18
+              - id: c18
+                component: Card
+                child: c19
+              - id: c19
+                component: Card
+                child: c20
+              - id: c20
+                component: Card
+                child: c21
+              - id: c21
+                component: Card
+                child: c22
+              - id: c22
+                component: Card
+                child: c23
+              - id: c23
+                component: Card
+                child: c24
+              - id: c24
+                component: Card
+                child: c25
+              - id: c25
+                component: Card
+                child: c26
+              - id: c26
+                component: Card
+                child: c27
+              - id: c27
+                component: Card
+                child: c28
+              - id: c28
+                component: Card
+                child: c29
+              - id: c29
+                component: Card
+                child: c30
+              - id: c30
+                component: Card
+                child: c31
+              - id: c31
+                component: Card
+                child: c32
+              - id: c32
+                component: Card
+                child: c33
+              - id: c33
+                component: Card
+                child: c34
+              - id: c34
+                component: Card
+                child: c35
+              - id: c35
+                component: Card
+                child: c36
+              - id: c36
+                component: Card
+                child: c37
+              - id: c37
+                component: Card
+                child: c38
+              - id: c38
+                component: Card
+                child: c39
+              - id: c39
+                component: Card
+                child: c40
+              - id: c40
+                component: Text
+                text: Leaf
+
+- name: test_v10_multi_surface_independent_roots
+  description: Tests that two surfaces are each validated against their own component tree in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: surface_a
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          createSurface:
+            surfaceId: surface_b
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: surface_a
+            components:
+              - id: root
+                component: Card
+                child: child_a
+              - id: child_a
+                component: Text
+                text: Hello A
+        - version: v1.0
+          updateComponents:
+            surfaceId: surface_b
+            components:
+              - id: root
+                component: Card
+                child: child_b
+              - id: child_b
+                component: Text
+                text: Hello B
+
+- name: test_v10_multi_surface_missing_root_error
+  description: Tests that a missing root on one of two surfaces fails validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: surface_a
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          createSurface:
+            surfaceId: surface_b
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: surface_a
+            components:
+              - id: root
+                component: Text
+                text: Hello A
+        - version: v1.0
+          updateComponents:
+            surfaceId: surface_b
+            components:
+              - id: not_root
+                component: Text
+                text: Hello B
+      expectError:
+        category: ValidationError
+        message: Missing root component
+
+- name: test_v10_incremental_update_without_root
+  description: Tests that an updateComponents message that omits the root component passes once the root has been sent, in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Column
+                children:
+                  - card
+              - id: card
+                component: Card
+                child: text
+              - id: text
+                component: Text
+                text: Initial
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: card
+                component: Card
+                child: text
+              - id: text
+                component: Text
+                text: Updated
+
+- name: test_v10_incremental_update_self_reference_error
+  description: Tests that an incremental updateComponents message introducing a self-reference fails validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Column
+                children:
+                  - card
+              - id: card
+                component: Card
+                child: text
+              - id: text
+                component: Text
+                text: Initial
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: card
+                component: Card
+                child: card
+      expectError:
+        category: ValidationError
+        message: Self-reference detected
+
+- name: test_v10_incremental_update_circular_reference_error
+  description: Tests that an incremental updateComponents message introducing a cycle fails validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Column
+                children:
+                  - card
+              - id: card
+                component: Card
+                child: text
+              - id: text
+                component: Text
+                text: Initial
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: card
+                component: Card
+                child: loop
+              - id: loop
+                component: Card
+                child: card
+      expectError:
+        category: ValidationError
+        message: Circular reference detected
+
+- name: test_v10_incremental_update_duplicate_component_id_error
+  description: Tests that an incremental updateComponents message listing the same component ID twice fails validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Column
+                children:
+                  - card
+              - id: card
+                component: Card
+                child: text
+              - id: text
+                component: Text
+                text: Initial
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: text
+                component: Text
+                text: A
+              - id: text
+                component: Text
+                text: B
+      expectError:
+        category: ValidationError
+        message: Duplicate component ID
+
+- name: test_v10_recursion_limit_function_call_depth_exceeded_error
+  description: Tests that nested function calls exceeding the maximum depth (5) fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  call: f1
+                  args:
+                    v:
+                      call: f2
+                      args:
+                        v:
+                          call: f3
+                          args:
+                            v:
+                              call: f4
+                              args:
+                                v:
+                                  call: f5
+                                  args:
+                                    v:
+                                      call: f6
+                                      args: {}
+      expectError:
+        category: ValidationError
+        message: functionCall depth
+
+- name: test_v10_data_model_nesting_depth_limit_exceeded_error
+  description: Tests that an updateDataModel value nested deeper than the global limit (50) fails validation in v1.0.
+  action: validate
+  protocolVersion: v1.0
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: Hello
+        - version: v1.0
+          updateDataModel:
+            surfaceId: s1
+            path: /
+            value:
+              {
+                "level": 0,
+                "next":
+                  {
+                    "level": 1,
+                    "next":
+                      {
+                        "level": 2,
+                        "next":
+                          {
+                            "level": 3,
+                            "next":
+                              {
+                                "level": 4,
+                                "next":
+                                  {
+                                    "level": 5,
+                                    "next":
+                                      {
+                                        "level": 6,
+                                        "next":
+                                          {
+                                            "level": 7,
+                                            "next":
+                                              {
+                                                "level": 8,
+                                                "next":
+                                                  {
+                                                    "level": 9,
+                                                    "next":
+                                                      {
+                                                        "level": 10,
+                                                        "next":
+                                                          {
+                                                            "level": 11,
+                                                            "next":
+                                                              {
+                                                                "level": 12,
+                                                                "next":
+                                                                  {
+                                                                    "level": 13,
+                                                                    "next":
+                                                                      {
+                                                                        "level": 14,
+                                                                        "next":
+                                                                          {
+                                                                            "level": 15,
+                                                                            "next":
+                                                                              {
+                                                                                "level": 16,
+                                                                                "next":
+                                                                                  {
+                                                                                    "level": 17,
+                                                                                    "next":
+                                                                                      {
+                                                                                        "level": 18,
+                                                                                        "next":
+                                                                                          {
+                                                                                            "level": 19,
+                                                                                            "next":
+                                                                                              {
+                                                                                                "level": 20,
+                                                                                                "next":
+                                                                                                  {
+                                                                                                    "level": 21,
+                                                                                                    "next":
+                                                                                                      {
+                                                                                                        "level": 22,
+                                                                                                        "next":
+                                                                                                          {
+                                                                                                            "level": 23,
+                                                                                                            "next":
+                                                                                                              {
+                                                                                                                "level": 24,
+                                                                                                                "next":
+                                                                                                                  {
+                                                                                                                    "level": 25,
+                                                                                                                    "next":
+                                                                                                                      {
+                                                                                                                        "level": 26,
+                                                                                                                        "next":
+                                                                                                                          {
+                                                                                                                            "level": 27,
+                                                                                                                            "next":
+                                                                                                                              {
+                                                                                                                                "level": 28,
+                                                                                                                                "next":
+                                                                                                                                  {
+                                                                                                                                    "level": 29,
+                                                                                                                                    "next":
+                                                                                                                                      {
+                                                                                                                                        "level": 30,
+                                                                                                                                        "next":
+                                                                                                                                          {
+                                                                                                                                            "level": 31,
+                                                                                                                                            "next":
+                                                                                                                                              {
+                                                                                                                                                "level": 32,
+                                                                                                                                                "next":
+                                                                                                                                                  {
+                                                                                                                                                    "level": 33,
+                                                                                                                                                    "next":
+                                                                                                                                                      {
+                                                                                                                                                        "level": 34,
+                                                                                                                                                        "next":
+                                                                                                                                                          {
+                                                                                                                                                            "level": 35,
+                                                                                                                                                            "next":
+                                                                                                                                                              {
+                                                                                                                                                                "level": 36,
+                                                                                                                                                                "next":
+                                                                                                                                                                  {
+                                                                                                                                                                    "level": 37,
+                                                                                                                                                                    "next":
+                                                                                                                                                                      {
+                                                                                                                                                                        "level": 38,
+                                                                                                                                                                        "next":
+                                                                                                                                                                          {
+                                                                                                                                                                            "level": 39,
+                                                                                                                                                                            "next":
+                                                                                                                                                                              {
+                                                                                                                                                                                "level": 40,
+                                                                                                                                                                                "next":
+                                                                                                                                                                                  {
+                                                                                                                                                                                    "level": 41,
+                                                                                                                                                                                    "next":
+                                                                                                                                                                                      {
+                                                                                                                                                                                        "level": 42,
+                                                                                                                                                                                        "next":
+                                                                                                                                                                                          {
+                                                                                                                                                                                            "level": 43,
+                                                                                                                                                                                            "next":
+                                                                                                                                                                                              {
+                                                                                                                                                                                                "level": 44,
+                                                                                                                                                                                                "next":
+                                                                                                                                                                                                  {
+                                                                                                                                                                                                    "level": 45,
+                                                                                                                                                                                                    "next":
+                                                                                                                                                                                                      {
+                                                                                                                                                                                                        "level": 46,
+                                                                                                                                                                                                        "next":
+                                                                                                                                                                                                          {
+                                                                                                                                                                                                            "level": 47,
+                                                                                                                                                                                                            "next":
+                                                                                                                                                                                                              {
+                                                                                                                                                                                                                "level": 48,
+                                                                                                                                                                                                                "next":
+                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                    "level": 49,
+                                                                                                                                                                                                                    "next":
+                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                        "level": 50,
+                                                                                                                                                                                                                        "next":
+                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                            "level": 51,
+                                                                                                                                                                                                                            "next":
+                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                "level": 52,
+                                                                                                                                                                                                                                "next":
+                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                    "level": 53,
+                                                                                                                                                                                                                                    "next":
+                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                        "level": 54,
+                                                                                                                                                                                                                                        "next":
+                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                            "level": 55,
+                                                                                                                                                                                                                                          },
+                                                                                                                                                                                                                                      },
+                                                                                                                                                                                                                                  },
+                                                                                                                                                                                                                              },
+                                                                                                                                                                                                                          },
+                                                                                                                                                                                                                      },
+                                                                                                                                                                                                                  },
+                                                                                                                                                                                                              },
+                                                                                                                                                                                                          },
+                                                                                                                                                                                                      },
+                                                                                                                                                                                                  },
+                                                                                                                                                                                              },
+                                                                                                                                                                                          },
+                                                                                                                                                                                      },
+                                                                                                                                                                                  },
+                                                                                                                                                                              },
+                                                                                                                                                                          },
+                                                                                                                                                                      },
+                                                                                                                                                                  },
+                                                                                                                                                              },
+                                                                                                                                                          },
+                                                                                                                                                      },
+                                                                                                                                                  },
+                                                                                                                                              },
+                                                                                                                                          },
+                                                                                                                                      },
+                                                                                                                                  },
+                                                                                                                              },
+                                                                                                                          },
+                                                                                                                      },
+                                                                                                                  },
+                                                                                                              },
+                                                                                                          },
+                                                                                                      },
+                                                                                                  },
+                                                                                              },
+                                                                                          },
+                                                                                      },
+                                                                                  },
+                                                                              },
+                                                                          },
+                                                                      },
+                                                                  },
+                                                              },
+                                                          },
+                                                      },
+                                                  },
+                                              },
+                                          },
+                                      },
+                                  },
+                              },
+                          },
+                      },
+                  },
+              }
+      expectError:
+        category: ValidationError
+        message: Global recursion limit exceeded

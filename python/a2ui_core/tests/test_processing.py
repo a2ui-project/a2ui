@@ -885,9 +885,6 @@ def test_message_processor_empty_catalogs_throws():
         MessageProcessor(catalogs=[])
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_message_processor_theme_validation(real_catalog_09):
     processor = MessageProcessor(
         catalogs=[real_catalog_09],
@@ -988,9 +985,6 @@ def test_message_processor_json_catalog_validation():
         }])
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_message_processor_json_catalog_theme_validation():
     # Define JSON catalog schema containing theme and functions specs
     catalog_json = {

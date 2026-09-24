@@ -325,3 +325,1241 @@
                     unknownAttribute: "someValue"
       expectError:
         category: "ValidationError"
+
+# ------------------------------------------------------------------------------
+# Cases ported from the pre-split conformance/core/validator.yaml.
+# ------------------------------------------------------------------------------
+
+- name: test_v08_topology_duplicate_component_id_error
+  description: Tests that a surfaceUpdate listing the same component ID twice fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c1
+              - id: c1
+                component:
+                  Text:
+                    text:
+                      literalString: A
+              - id: c1
+                component:
+                  Text:
+                    text:
+                      literalString: B
+      expectError:
+        category: ValidationError
+        message: Duplicate component ID
+
+- name: test_v08_topology_template_child_reachable
+  description: Tests that a component referenced only as a list template is reachable from the root in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  List:
+                    children:
+                      template:
+                        componentId: item
+                        dataBinding: /items
+              - id: item
+                component:
+                  Text:
+                    text:
+                      literalString: Reachable
+
+- name: test_v08_topology_template_dangling_reference_error
+  description: Tests that a list template naming a component that does not exist fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  List:
+                    children:
+                      template:
+                        componentId: missing_id
+                        dataBinding: /items
+              - id: item
+                component:
+                  Text:
+                    text:
+                      literalString: Unused
+      expectError:
+        category: ValidationError
+        message: references non-existent component
+
+- name: test_v08_topology_custom_root_reachable
+  description: Tests that reachability is computed from the root named by beginRendering, not from an ID of 'root', in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: custom_root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: custom_root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - child
+              - id: child
+                component:
+                  Text:
+                    text:
+                      literalString: Reachable
+
+- name: test_v08_topology_card_child_reachable
+  description: Tests that a component referenced through a single-child property (Card.child) is reachable from the root in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Card:
+                    child: child
+              - id: child
+                component:
+                  Text:
+                    text:
+                      literalString: Reachable
+
+- name: test_v08_invalid_data_model_path_error
+  description: Tests that a dataModelUpdate path with an invalid JSON Pointer escape ('~2') fails validation in v0.8.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Text:
+                    text:
+                      literalString: Hello
+        - dataModelUpdate:
+            surfaceId: s1
+            path: /invalid/escape/~2
+            contents:
+              - key: dummy
+                valueString: data
+      expectError:
+        category: ValidationError
+        message: Invalid path syntax
+
+- name: test_v08_component_nesting_depth_limit_exceeded_error
+  description: Tests that a chain of nested components deeper than the global limit (50) fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c0
+              - id: c0
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c1
+              - id: c1
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c2
+              - id: c2
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c3
+              - id: c3
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c4
+              - id: c4
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c5
+              - id: c5
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c6
+              - id: c6
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c7
+              - id: c7
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c8
+              - id: c8
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c9
+              - id: c9
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c10
+              - id: c10
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c11
+              - id: c11
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c12
+              - id: c12
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c13
+              - id: c13
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c14
+              - id: c14
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c15
+              - id: c15
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c16
+              - id: c16
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c17
+              - id: c17
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c18
+              - id: c18
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c19
+              - id: c19
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c20
+              - id: c20
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c21
+              - id: c21
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c22
+              - id: c22
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c23
+              - id: c23
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c24
+              - id: c24
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c25
+              - id: c25
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c26
+              - id: c26
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c27
+              - id: c27
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c28
+              - id: c28
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c29
+              - id: c29
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c30
+              - id: c30
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c31
+              - id: c31
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c32
+              - id: c32
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c33
+              - id: c33
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c34
+              - id: c34
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c35
+              - id: c35
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c36
+              - id: c36
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c37
+              - id: c37
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c38
+              - id: c38
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c39
+              - id: c39
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c40
+              - id: c40
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c41
+              - id: c41
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c42
+              - id: c42
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c43
+              - id: c43
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c44
+              - id: c44
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c45
+              - id: c45
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c46
+              - id: c46
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c47
+              - id: c47
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c48
+              - id: c48
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c49
+              - id: c49
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c50
+              - id: c50
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c51
+              - id: c51
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c52
+              - id: c52
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c53
+              - id: c53
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c54
+              - id: c54
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c55
+              - id: c55
+                component:
+                  Text:
+                    text:
+                      literalString: Leaf
+      expectError:
+        category: ValidationError
+        message: Global recursion limit exceeded
+
+- name: test_v08_component_nesting_depth_within_limit
+  description: Tests that a chain of 41 nested components, within the global limit (50), passes validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c0
+              - id: c0
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c1
+              - id: c1
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c2
+              - id: c2
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c3
+              - id: c3
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c4
+              - id: c4
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c5
+              - id: c5
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c6
+              - id: c6
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c7
+              - id: c7
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c8
+              - id: c8
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c9
+              - id: c9
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c10
+              - id: c10
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c11
+              - id: c11
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c12
+              - id: c12
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c13
+              - id: c13
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c14
+              - id: c14
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c15
+              - id: c15
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c16
+              - id: c16
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c17
+              - id: c17
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c18
+              - id: c18
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c19
+              - id: c19
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c20
+              - id: c20
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c21
+              - id: c21
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c22
+              - id: c22
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c23
+              - id: c23
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c24
+              - id: c24
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c25
+              - id: c25
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c26
+              - id: c26
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c27
+              - id: c27
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c28
+              - id: c28
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c29
+              - id: c29
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c30
+              - id: c30
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c31
+              - id: c31
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c32
+              - id: c32
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c33
+              - id: c33
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c34
+              - id: c34
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c35
+              - id: c35
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c36
+              - id: c36
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c37
+              - id: c37
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c38
+              - id: c38
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c39
+              - id: c39
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - c40
+              - id: c40
+                component:
+                  Text:
+                    text:
+                      literalString: Leaf
+
+- name: test_v08_property_nesting_depth_limit_exceeded_error
+  description: Tests that a component property nested deeper than the global limit (50) fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalog:
+    catalogId: deep_catalog
+    components:
+      DeepComp:
+        type: object
+        additionalProperties: true
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  DeepComp:
+                    payload:
+                      level: 0
+                      next:
+                        level: 1
+                        next:
+                          level: 2
+                          next:
+                            level: 3
+                            next:
+                              level: 4
+                              next:
+                                level: 5
+                                next:
+                                  level: 6
+                                  next:
+                                    level: 7
+                                    next:
+                                      level: 8
+                                      next:
+                                        level: 9
+                                        next:
+                                          level: 10
+                                          next:
+                                            level: 11
+                                            next:
+                                              level: 12
+                                              next:
+                                                level: 13
+                                                next:
+                                                  level: 14
+                                                  next:
+                                                    level: 15
+                                                    next:
+                                                      level: 16
+                                                      next:
+                                                        level: 17
+                                                        next:
+                                                          level: 18
+                                                          next:
+                                                            level: 19
+                                                            next:
+                                                              level: 20
+                                                              next:
+                                                                level: 21
+                                                                next:
+                                                                  level: 22
+                                                                  next:
+                                                                    level: 23
+                                                                    next:
+                                                                      level: 24
+                                                                      next:
+                                                                        level: 25
+                                                                        next:
+                                                                          level: 26
+                                                                          next:
+                                                                            level: 27
+                                                                            next:
+                                                                              level: 28
+                                                                              next:
+                                                                                level: 29
+                                                                                next:
+                                                                                  level: 30
+                                                                                  next:
+                                                                                    level: 31
+                                                                                    next:
+                                                                                      level: 32
+                                                                                      next:
+                                                                                        level: 33
+                                                                                        next:
+                                                                                          level: 34
+                                                                                          next:
+                                                                                            level: 35
+                                                                                            next:
+                                                                                              level: 36
+                                                                                              next:
+                                                                                                level: 37
+                                                                                                next:
+                                                                                                  level: 38
+                                                                                                  next:
+                                                                                                    level: 39
+                                                                                                    next:
+                                                                                                      level: 40
+                                                                                                      next:
+                                                                                                        level: 41
+                                                                                                        next:
+                                                                                                          level: 42
+                                                                                                          next:
+                                                                                                            level: 43
+                                                                                                            next:
+                                                                                                              level: 44
+                                                                                                              next:
+                                                                                                                level: 45
+                                                                                                                next:
+                                                                                                                  level: 46
+                                                                                                                  next:
+                                                                                                                    level: 47
+                                                                                                                    next:
+                                                                                                                      level: 48
+                                                                                                                      next:
+                                                                                                                        level: 49
+                                                                                                                        next:
+                                                                                                                          level: 50
+                                                                                                                          next:
+                                                                                                                            level: 51
+                                                                                                                            next:
+                                                                                                                              level: 52
+                                                                                                                              next:
+                                                                                                                                level: 53
+                                                                                                                                next:
+                                                                                                                                  level: 54
+                                                                                                                                  next:
+                                                                                                                                    level: 55
+      expectError:
+        category: ValidationError
+        message: Global recursion limit exceeded
+
+- name: test_v08_multi_surface_independent_roots
+  description: Tests that two surfaces with different root IDs are each validated against their own root in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: surface_a
+            root: root_a
+        - beginRendering:
+            surfaceId: surface_b
+            root: root_b
+        - surfaceUpdate:
+            surfaceId: surface_a
+            components:
+              - id: root_a
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - child_a
+              - id: child_a
+                component:
+                  Text:
+                    text:
+                      literalString: Hello A
+        - surfaceUpdate:
+            surfaceId: surface_b
+            components:
+              - id: root_b
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - child_b
+              - id: child_b
+                component:
+                  Text:
+                    text:
+                      literalString: Hello B
+
+- name: test_v08_multi_surface_missing_root_error
+  description: Tests that a missing root on one of two surfaces fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: surface_a
+            root: root_a
+        - beginRendering:
+            surfaceId: surface_b
+            root: root_b
+        - surfaceUpdate:
+            surfaceId: surface_a
+            components:
+              - id: root_a
+                component:
+                  Text:
+                    text:
+                      literalString: Hello A
+        - surfaceUpdate:
+            surfaceId: surface_b
+            components:
+              - id: not_root_b
+                component:
+                  Text:
+                    text:
+                      literalString: Hello B
+      expectError:
+        category: ValidationError
+        message: Missing root component
+
+- name: test_v08_incremental_update_without_root
+  description: Tests that a surfaceUpdate that omits the root component passes once the root has been sent, in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - card
+              - id: card
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - text
+              - id: text
+                component:
+                  Text:
+                    text:
+                      literalString: Initial
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: card
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - text
+              - id: text
+                component:
+                  Text:
+                    text:
+                      literalString: Updated
+
+- name: test_v08_incremental_update_self_reference_error
+  description: Tests that an incremental surfaceUpdate introducing a self-reference fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - card
+              - id: card
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - text
+              - id: text
+                component:
+                  Text:
+                    text:
+                      literalString: Initial
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: card
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - card
+      expectError:
+        category: ValidationError
+        message: Self-reference detected
+
+- name: test_v08_incremental_update_circular_reference_error
+  description: Tests that an incremental surfaceUpdate introducing a cycle fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - card
+              - id: card
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - text
+              - id: text
+                component:
+                  Text:
+                    text:
+                      literalString: Initial
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: card
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - loop
+              - id: loop
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - card
+      expectError:
+        category: ValidationError
+        message: Circular reference detected
+
+- name: test_v08_incremental_update_duplicate_component_id_error
+  description: Tests that an incremental surfaceUpdate listing the same component ID twice fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - card
+              - id: card
+                component:
+                  Column:
+                    children:
+                      explicitList:
+                        - text
+              - id: text
+                component:
+                  Text:
+                    text:
+                      literalString: Initial
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: text
+                component:
+                  Text:
+                    text:
+                      literalString: A
+              - id: text
+                component:
+                  Text:
+                    text:
+                      literalString: B
+      expectError:
+        category: ValidationError
+        message: Duplicate component ID
+
+- name: test_v08_invalid_child_type_error
+  description: Tests that a child reference given as a number instead of a component ID string fails validation in v0.8.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Card:
+                    child: 123
+      expectError:
+        category: ValidationError

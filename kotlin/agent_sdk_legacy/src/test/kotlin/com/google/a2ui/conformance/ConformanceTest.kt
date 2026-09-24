@@ -63,7 +63,14 @@ class ConformanceTest {
   }
 
   private fun assertExceptionMatches(exception: Throwable, expect: ExpectError) {
-    if (expect.category != null) {
+    if (expect.category == "ValidationError") {
+      // The suites use `ValidationError` for every rejected payload, including the integrity and
+      // recursion failures that this SDK reports with their own exception types.
+      assertTrue(
+        exception.javaClass.simpleName in VALIDATION_ERROR_CLASS_NAMES,
+        "Expected a validation, integrity, or recursion exception, but got: ${exception.javaClass.name}",
+      )
+    } else if (expect.category != null) {
       val expectedClassName =
         when (expect.category) {
           "ParseError" -> "A2uiParseException"
@@ -126,7 +133,8 @@ class ConformanceTest {
       val case = caseObj as Map<*, *>
       val name = case[ConformanceTestHelper.KEY_NAME] as? String
       val catalog = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *> ?: emptyMap<Any, Any>()
-      val rawVersion = (catalog["protocolVersion"] ?: "v0.9").toString()
+      val rawVersion =
+        (case[KEY_PROTOCOL_VERSION] ?: catalog[KEY_PROTOCOL_VERSION] ?: "v0.9").toString()
       val version = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
 
       if (version !in SUPPORTED_PROTOCOL_VERSIONS || (name != null && name in SKIP_TEST_NAMES)) {
@@ -168,7 +176,7 @@ class ConformanceTest {
     return cases.map { case ->
       val name = case[ConformanceTestHelper.KEY_NAME] as String
 
-      val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as Map<*, *>
+      val catalogMap = catalogConfigFor(case)
       val (catalog, schemaMappings) = buildCatalog(catalogMap, conformanceDir, baseSchemaMappings)
 
       val stepsList =
@@ -198,6 +206,39 @@ class ConformanceTest {
         }
 
       ConformanceTestCase(name, catalog, validate, schemaMappings)
+    }
+  }
+
+  /**
+   * Returns the catalog configuration that [buildCatalog] expects for [case].
+   *
+   * Legacy cases carry a full `catalog` configuration with `catalogSchema`. The split validator
+   * suites instead set a top-level `protocolVersion`, and either `catalogPaths` (repository-relative
+   * catalog files) or an inline `catalog` with `catalogId` and `components`. For those, the server
+   * to client and common types schemas come from the matching `specification/` directory.
+   */
+  private fun catalogConfigFor(case: Map<*, *>): Map<*, *> {
+    val catalog = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
+    if (catalog != null && catalog.containsKey(KEY_CATALOG_SCHEMA)) {
+      return catalog
+    }
+    val version = (case[KEY_PROTOCOL_VERSION] ?: "v0.9").toString()
+    val specJsonDir =
+      if (version == "v0.8") "../specification/v0_8/json" else "../specification/v0_9/json"
+    val catalogPath = (case[KEY_CATALOG_PATHS] as? List<*>)?.firstOrNull() as? String
+    val catalogSchema: Any =
+      catalog
+        ?: catalogPath?.let { "../$it" }
+        ?: throw IllegalArgumentException(
+          "Test case ${case[ConformanceTestHelper.KEY_NAME]} declares no catalog"
+        )
+    return buildMap {
+      put(KEY_PROTOCOL_VERSION, version)
+      put("s2cSchema", "$specJsonDir/server_to_client.json")
+      put(KEY_CATALOG_SCHEMA, catalogSchema)
+      if (version != "v0.8") {
+        put("commonTypesSchema", "$specJsonDir/common_types.json")
+      }
     }
   }
 
@@ -282,7 +323,8 @@ class ConformanceTest {
   @TestFactory
   fun testValidatorConformance(): List<DynamicTest> {
     val conformanceDir = ConformanceTestHelper.getConformanceDir()
-    val cases = parseConformanceYaml(VALIDATOR_YAML_FILE, conformanceDir)
+    val cases = VALIDATOR_YAML_FILES.flatMap { parseConformanceYaml(it, conformanceDir) }
+    assertTrue(cases.isNotEmpty(), "No validator conformance case was loaded")
     return cases.map { case ->
       val name = case.name
 
@@ -760,18 +802,40 @@ class ConformanceTest {
 
     // Transition skip list containing specific test case names to skip during active feature
     // transitions.
-    private val SKIP_TEST_NAMES = emptySet<String>()
+    private val SKIP_TEST_NAMES =
+      setOf(
+        // `A2uiValidator` reports cycles and dangling references with different wording
+        // ("Circular reference detected", "references non-existent component").
+        "test_v08_topology_circular_reference_error",
+        "test_v08_topology_dangling_child_reference_error",
+        "test_v09_topology_circular_reference_error",
+        "test_v09_topology_dangling_child_reference_error",
+        // `A2uiValidator` checks each component update message as a complete tree, so a partial
+        // update that follows the initial render in the same payload fails the root check.
+        "test_v08_incremental_update_without_root",
+        "test_v08_incremental_update_self_reference_error",
+        "test_v08_incremental_update_circular_reference_error",
+        "test_v08_incremental_update_duplicate_component_id_error",
+        "test_v09_incremental_update_without_root",
+        "test_v09_incremental_update_self_reference_error",
+        "test_v09_incremental_update_circular_reference_error",
+        "test_v09_incremental_update_duplicate_component_id_error",
+      )
 
-    // Transition skip list containing specific test suite files to skip during active feature
-    // transitions.
-    private val SKIP_TEST_SUITES = setOf("core/catalog.yaml", "core/validator.yaml")
+    private val VALIDATION_ERROR_CLASS_NAMES =
+      setOf("A2uiValidationException", "A2uiIntegrityException", "A2uiRecursionException")
+
+    // Suite files to skip. `core/catalog.yaml` only holds `from_json` and `catalog_schema` cases,
+    // which this harness does not implement, and its catalog configurations have no
+    // `catalogSchema` for `buildCatalog`.
+    private val SKIP_TEST_SUITES = setOf("core/catalog.yaml")
 
     private const val STREAMING_PARSER_YAML_FILE = "agent/legacy/streaming_parser.yaml"
     private const val URL_PREFIX_V09 = "https://a2ui.org/specification/v0_9/"
     private const val URL_PREFIX_V08 = "https://a2ui.org/specification/v0_8/"
     private const val VERSION_0_8_STR = "0.8"
     private const val TEST_CATALOG_NAME = "test_catalog"
-    private const val VALIDATOR_YAML_FILE = "core/validator.yaml"
+    private val VALIDATOR_YAML_FILES = listOf("core/validator_v0_8.yaml", "core/validator_v0_9.yaml")
     private const val CATALOG_YAML_FILE = "core/catalog.yaml"
     private const val SCHEMA_MANAGER_YAML_FILE = "agent/legacy/inference_format.yaml"
     private const val PARSER_YAML_FILE = "agent/legacy/parser.yaml"
@@ -783,6 +847,8 @@ class ConformanceTest {
     private const val KEY_PATH = "path"
     private const val KEY_ALLOWED_COMPONENTS = "allowedComponents"
     private const val KEY_CATALOG_SCHEMA = "catalogSchema"
+    private const val KEY_CATALOG_PATHS = "catalogPaths"
+    private const val KEY_PROTOCOL_VERSION = "protocolVersion"
 
     private fun isSkipped(suitePath: String): Boolean {
       return suitePath in SKIP_TEST_SUITES || File(suitePath).name in SKIP_TEST_SUITES

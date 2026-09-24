@@ -10,7 +10,7 @@ Test suites are organized by functional domain:
 
 - `core/catalog.yaml`: Contains test cases for catalog operations (prune, render, load).
 - `core/accessibility.yaml`: Contains test cases for accessibility attributes and checks.
-- `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
+- `core/validator_v0_8.yaml`, `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`: Contain test cases for schema and structural validation, one suite per protocol version. They cover envelope and component schema checks, duplicate IDs, missing roots, dangling references, cycles, reachability (including list templates and custom v0.8 roots), nesting depth limits, invalid paths, multiple surfaces, and incremental updates. Every case uses `action: validate` in strict mode. The messages in a step are processed in order, so a later message is checked against the components that earlier messages in the same step created. These three suites replace the former `core/validator.yaml`.
 - `core/data_model.yaml`: Contains test cases for the reactive data model, verifying JSON Pointer reads and writes, container creation, deletion, and observer notification.
 - `core/message_processor.yaml`: Contains test cases for the message processor's state machine. Written in the case vocabulary of the `v1_0` branch, whose suite of the same name is the primary one, so the two converge rather than conflict.
 - `core/expressions.yaml`: Contains test cases for the client-side expression parser behind `formatString`, covering literals, data bindings, function calls, nested interpolation, escaped markers and parse errors.
@@ -43,7 +43,7 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 
 #### Legacy agent suites (`agent/legacy/`)
 
-`agent/legacy/` holds the suites for the earlier agent interface, the one implemented by `agent_sdks/python/a2ui_agent` and `kotlin/agent_sdk_legacy`. They stay until those SDKs move to the blueprint interface. New cases belong in the suites above.
+`agent/legacy/` holds the suites for the earlier agent interface, the one implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`. They stay until those SDKs move to the blueprint interface. New cases belong in the suites above.
 
 - `agent/legacy/streaming_parser.yaml`: Streaming parser cases, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
 - `agent/legacy/parser.yaml`: Non-streaming parsing and payload fixing.
