@@ -18,6 +18,7 @@ import {SchemaCatalog} from '../types.js';
 import {CatalogConfig} from '../processor/catalog_config.js';
 import {A2uiCatalogError} from '../errors.js';
 import {Catalog, RendererCapabilities} from '../internal/web_core.js';
+import {registerCatalogDocument} from './catalog_document.js';
 
 /**
  * Matches renderer capabilities against registered catalogs and returns the active,
@@ -82,6 +83,7 @@ export function resolveCatalogs(
       } catch (e: unknown) {
         throw new A2uiCatalogError(`Failed to parse inline catalog: ${(e as Error).message}`);
       }
+      registerCatalogDocument(inlineCatalog, inlineSchema);
       activeCatalogs.push(inlineCatalog);
     }
   }
