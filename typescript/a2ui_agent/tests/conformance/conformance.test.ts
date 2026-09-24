@@ -21,7 +21,10 @@ import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
 import {
   A2uiValidationError,
   A2uiCatalogError,
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
   A2uiRecursionError,
+  ExpressParser,
   ParseError,
   ResponsePart,
   basicCatalog,
@@ -47,10 +50,29 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
   if (typeof expectError === 'string') {
     expect(fn).toThrowError(expectError);
   } else {
-    const ErrorClass = CATEGORY_TO_ERROR[expectError.category as string] || Error;
-    expect(fn).toThrowError(ErrorClass);
+    const category = expectError.category as string;
+    let thrownError: unknown;
+    try {
+      fn();
+    } catch (e) {
+      thrownError = e;
+    }
+    expect(thrownError).toBeDefined();
+    if (category === 'ParseError') {
+      expect(
+        thrownError instanceof ParseError || thrownError instanceof A2uiCompilationParseError,
+      ).toBe(true);
+    } else if (category === 'ValidationError') {
+      expect(
+        thrownError instanceof A2uiValidationError ||
+          thrownError instanceof A2uiCompilationValidationError,
+      ).toBe(true);
+    } else {
+      const ErrorClass = CATEGORY_TO_ERROR[category] || Error;
+      expect(thrownError).toBeInstanceOf(ErrorClass);
+    }
     if (expectError.message) {
-      expect(fn).toThrowError(expectError.message as string);
+      expect((thrownError as Error).message).toContain(expectError.message as string);
     }
   }
 }
@@ -98,10 +120,22 @@ describe('Conformance Harness', () => {
 
     const testFn = async () => {
       if (action === 'parse_full') {
-        const catalog = testCase.catalog
-          ? (await createCatalogConfig(testCase.catalog as Record<string, unknown>)).catalog
-          : basicCatalog();
-        const parser = new DirectJsonParser(catalog);
+        let parser: DirectJsonParser | ExpressParser;
+        if (testCase.format === 'express') {
+          // As Python's harness does (python/a2ui_agent/tests/conformance/test_conformance.py:385-402),
+          // formatted cases compile against the basic catalog of the case's protocol version.
+          const version = toWireProtocolVersion(
+            (testCase.catalog as Record<string, unknown> | undefined)?.protocolVersion as
+              | string
+              | undefined,
+          );
+          parser = new ExpressParser(basicCatalog(version));
+        } else {
+          const catalog = testCase.catalog
+            ? (await createCatalogConfig(testCase.catalog as Record<string, unknown>)).catalog
+            : basicCatalog();
+          parser = new DirectJsonParser(catalog);
+        }
 
         if (expectError) {
           assertThrows(() => {
@@ -130,7 +164,10 @@ describe('Conformance Harness', () => {
         }
       } else if (action === 'has_parts') {
         const catalog = basicCatalog();
-        const parser = new DirectJsonParser(catalog);
+        const parser =
+          testCase.format === 'express'
+            ? new ExpressParser(catalog)
+            : new DirectJsonParser(catalog);
         const result = parser.hasA2uiParts(input);
         expect(result).toBe(expected);
       } else if (action === 'load_catalog') {
