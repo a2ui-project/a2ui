@@ -74,26 +74,6 @@ export const KNOWN_FAILURES = new Map<string, string>([
   // '### Catalog Schema:', which Python produces in catalog.py around lines 384 to 395.
   ['test_generate_system_prompt_with_schema', 'Prompt omits the schema sections'],
   ['test_generate_system_prompt_v0_9_common_types', 'Prompt omits the schema sections'],
-
-  // Partial component emission. The parser yields a component as soon as it can be parsed,
-  // where Python holds it back until it satisfies the catalog schema and its children
-  // resolve. The required-property half of this was fixed; what remains is about reference
-  // discovery and subtree completeness.
-  [
-    'test_partial_children_lists_v09',
-    'Yields with unresolved children when no placeholder type exists',
-  ],
-  ['test_partial_template_componentId_v09', 'Yields template child before its path arrives'],
-  [
-    'test_sniff_partial_component_discards_empty_children_dict_v09',
-    'No placeholder for an incomplete child object',
-  ],
-
-  // Reachability traversal does not follow a template child reference, so the template
-  // component is treated as an orphan and dropped. Note the placeholder machinery itself
-  // exists, in getPlaceholderId and its callers; something upstream stops it firing.
-  ['test_incremental_data_model_streaming_v09', 'Template child not followed during reachability'],
-  ['test_partial_empty_dict_discarded_v09', 'Template child not followed during reachability'],
 ]);
 
 const SUPPORTED_FORMATS = new Set(['direct_json']);
