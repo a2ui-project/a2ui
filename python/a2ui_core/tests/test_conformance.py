@@ -23,7 +23,11 @@ import yaml
 from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.schema import ProtocolVersion
-from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
+from a2ui.core.processing import (
+    CapabilitiesOptions,
+    MessageProcessor,
+    MessageProcessorOptions,
+)
 from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.core.exceptions import (
     A2uiError,
@@ -792,7 +796,7 @@ def validate_capabilities_case(case: dict[str, Any]) -> None:
     processor = MessageProcessor(catalogs)
     ver = resolve_protocol_version(case) or "v0.9"
     p_ver = ProtocolVersion(ver)
-    caps = processor.get_renderer_capabilities(versions=[p_ver])
+    caps = processor.get_renderer_capabilities(CapabilitiesOptions(versions=[p_ver]))
     expected = case.get("expect", {})
     for k, v in expected.items():
         assert k in caps
@@ -1016,7 +1020,9 @@ def validate_get_renderer_data_model_case(case: dict[str, Any]) -> None:
         msgs = case.get("messages") or ([case["payload"]] if "payload" in case else [])
         if msgs:
             processor.process_messages(msgs)
-    res = processor.get_renderer_data_model()
+    args = case.get("args") or {}
+    ver = args.get("version") or resolve_protocol_version(case)
+    res = processor.get_renderer_data_model(ver)
     expected = case.get("expect")
     if expected is None and "expect" in case:
         assert res is None

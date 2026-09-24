@@ -73,15 +73,10 @@ from .operations import (
     InternalUpdateDataModelOp,
 )
 
-from dataclasses import dataclass
-
 from ..rpc import CallOptions, OutboundListener, RpcHandler
+from ..resolution.data_context import DataContext
 
 PendingAgentCallCallback = Callable[[Any, Optional[dict[str, Any]]], None]
-
-
-from .execution_context import ExecutionContext
-from ..resolution.data_context import DataContext
 
 
 @dataclass
@@ -97,6 +92,21 @@ class MessageProcessorOptions:
     validation_config: ValidationConfig | None = None
     outbound_listener: OutboundListener | None = None
     default_timeout_ms: float = 30000.0
+
+
+@dataclass
+class CapabilitiesOptions:
+    """Options for generating renderer capabilities.
+
+    Attributes:
+        versions: Sequence of protocol versions to generate capabilities for.
+            Defaults to [ProtocolVersion.V0_9].
+        include_inline_catalogs: Whether full definitions of all catalogs will be included inline.
+    """
+
+    versions: Sequence[ProtocolVersion | str]
+    include_inline_catalogs: bool = False
+    component_envelope_ref: str | None = None
 
 
 class MessageProcessor:
@@ -213,12 +223,29 @@ class MessageProcessor:
 
     def get_renderer_capabilities(
         self,
-        versions: list[ProtocolVersion],
-        include_inline_catalogs: bool = False,
+        options: CapabilitiesOptions,
     ) -> dict[str, Any]:
-        """Generates renderer capabilities dictionary keyed by protocol version(s)."""
+        """Generates renderer capabilities dictionary keyed by protocol version(s).
+
+        Args:
+            options: Configuration options for capability generation.
+
+        Returns:
+            Renderer capabilities dictionary.
+        """
+        if not options or not options.versions:
+            raise A2uiValidationError(
+                "At least one protocol version must be provided in CapabilitiesOptions"
+                " to generate renderer capabilities."
+            )
+        effective_versions = options.versions
+        effective_include_inline = options.include_inline_catalogs
+
         capabilities: dict[str, Any] = {}
-        for ver in versions:
+        for ver in effective_versions:
+            if not ver:
+                continue
+            ver_str = ver.value if isinstance(ver, ProtocolVersion) else str(ver)
             version_caps: dict[str, Any] = {
                 "supportedCatalogIds": [
                     cat_id
@@ -226,31 +253,73 @@ class MessageProcessor:
                     if (cat_id := getattr(c, "catalog_id", None)) is not None
                 ]
             }
-            if include_inline_catalogs:
+            if effective_include_inline:
                 version_caps["inlineCatalogs"] = [
                     schema
                     for c in self.catalogs
                     if (schema := getattr(c, "catalog_schema", None)) is not None
                 ]
-            capabilities[ver.value] = version_caps
+            capabilities[ver_str] = version_caps
 
         return capabilities
 
     def get_renderer_data_model(
-        self, version: str | ProtocolVersion = ProtocolVersion.V0_9
+        self, version: str | ProtocolVersion | None = None
     ) -> dict[str, Any] | None:
-        """Aggregates active renderer data models for sync metadata."""
-        surfaces = {}
-        for surface in self.model.surfaces.values():
-            if surface.send_data_model:
-                surfaces[surface.id] = surface.data_model.get("/")
+        """Aggregates active renderer data models for sync metadata.
 
-        if not surfaces:
+        If version is provided, returns data models only for surfaces compatible with that version.
+        If version is omitted:
+          - Automatically derives the protocol version from the active surface(s) with send_data_model.
+          - If active surfaces have conflicting protocol versions, raises A2uiValidationError.
+
+        Args:
+            version: Optional target protocol version to filter surfaces.
+
+        Returns:
+            Renderer data model dictionary, or None if no matching surfaces exist.
+        """
+        enabled_surfaces = [
+            s for s in self.model.surfaces.values() if s.send_data_model
+        ]
+        if not enabled_surfaces:
             return None
 
-        ver_str = (
-            version.value if isinstance(version, ProtocolVersion) else str(version)
-        )
+        if version is not None:
+            ver_str = (
+                version.value if isinstance(version, ProtocolVersion) else str(version)
+            )
+            surfaces = {}
+            for surface in enabled_surfaces:
+                cat_ver = (
+                    surface.default_catalog.protocol_version
+                    if surface.default_catalog
+                    else None
+                )
+                if not cat_ver or is_catalog_version_compatible(cat_ver, ver_str):
+                    surfaces[surface.id] = surface.data_model.get("/")
+            if not surfaces:
+                return None
+            return {"version": ver_str, "surfaces": surfaces}
+
+        versions_set = {
+            s.default_catalog.protocol_version.value
+            if isinstance(s.default_catalog.protocol_version, ProtocolVersion)
+            else str(s.default_catalog.protocol_version)
+            for s in enabled_surfaces
+            if s.default_catalog
+            and getattr(s.default_catalog, "protocol_version", None)
+        }
+
+        if len(versions_set) > 1:
+            raise A2uiValidationError(
+                "Multiple protocol versions detected among active surfaces:"
+                f" {sorted(versions_set)}. Specify a target protocol version in"
+                " get_renderer_data_model(version)."
+            )
+
+        ver_str = next(iter(versions_set)) if versions_set else "v1.0"
+        surfaces = {s.id: s.data_model.get("/") for s in enabled_surfaces}
         return {"version": ver_str, "surfaces": surfaces}
 
     def process_operation(
@@ -328,22 +397,8 @@ class MessageProcessor:
         send_data_model = op.send_data_model
 
         if catalog_id is None and self.catalogs:
-            msg_ver = op.version or getattr(self, "version", None)
-            matching_cat = (
-                next(
-                    (
-                        c
-                        for c in self.catalogs
-                        if is_catalog_version_compatible(
-                            getattr(c, "protocol_version", None), msg_ver
-                        )
-                    ),
-                    None,
-                )
-                if msg_ver
-                else None
-            )
-            surface_catalog = matching_cat or self.catalogs[0]
+            # v0.8 fallback to the first catalog
+            surface_catalog = self.catalogs[0]
         else:
             surface_catalog = cast(Any, self._resolve_catalog(catalog_id))
         if not surface_catalog:

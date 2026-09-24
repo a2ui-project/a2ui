@@ -61,16 +61,35 @@ describe('MessageProcessor', () => {
   });
 
   describe('getRendererCapabilities', () => {
+    it('throws when no protocol versions are provided', () => {
+      assert.throws(
+        () => (processor as any).getRendererCapabilities(),
+        /At least one protocol version must be provided/,
+      );
+      assert.throws(
+        () => processor.getRendererCapabilities({} as any),
+        /At least one protocol version must be provided/,
+      );
+      assert.throws(
+        () => processor.getRendererCapabilities({versions: []}),
+        /At least one protocol version must be provided/,
+      );
+    });
+
     it('generates basic capabilities with supportedCatalogIds', () => {
-      const caps = processor.getRendererCapabilities();
-      assert.deepStrictEqual(caps.supportedCatalogIds, ['test-catalog']);
+      const caps = processor.getRendererCapabilities({versions: ['v0.9']});
       assert.ok(caps['v0.9']);
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-catalog']);
+      assert.strictEqual(caps.supportedCatalogIds, undefined);
     });
 
     it('includes inline catalogs when requested', () => {
-      const caps = processor.getRendererCapabilities({includeInlineCatalogs: true});
-      assert.ok(caps.inlineCatalogs);
-      assert.strictEqual(caps.inlineCatalogs.length, 1);
+      const caps = processor.getRendererCapabilities({
+        versions: ['v0.9'],
+        includeInlineCatalogs: true,
+      });
+      assert.ok((caps['v0.9'] as any).inlineCatalogs);
+      assert.strictEqual((caps['v0.9'] as any).inlineCatalogs.length, 1);
     });
 
     it('supports custom componentEnvelopeRef for inline catalogs', () => {
@@ -80,10 +99,11 @@ describe('MessageProcessor', () => {
       };
       const proc = new MessageProcessor([new Catalog('cat-custom', '1.0', [strictComp])]);
       const caps = proc.getRendererCapabilities({
+        versions: ['v0.9'],
         includeInlineCatalogs: true,
         componentEnvelopeRef: 'https://example.com/schema.json#/$defs/Base',
       });
-      const inlineCat = caps.inlineCatalogs?.[0] as any;
+      const inlineCat = (caps['v0.9'] as any).inlineCatalogs?.[0] as any;
       assert.strictEqual(
         inlineCat.components.CustomButton.allOf[0].$ref,
         'https://example.com/schema.json#/$defs/Base',
@@ -94,8 +114,11 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('cat-basic', '1.0', [CardApi, RowApi, TabsApi]);
       const proc = new MessageProcessor([cat]);
 
-      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
-      const inlineCat = caps.inlineCatalogs?.[0] as any;
+      const caps = proc.getRendererCapabilities({
+        versions: ['v0.9'],
+        includeInlineCatalogs: true,
+      });
+      const inlineCat = (caps['v0.9'] as any).inlineCatalogs?.[0] as any;
       const components = inlineCat?.components;
       assert.ok(components);
 
@@ -122,7 +145,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([cat], undefined, {version: 'v1.0'});
 
       const caps = proc.getRendererCapabilities({
-        version: 'v1.0',
+        versions: ['v1.0'],
         includeInlineCatalogs: true,
       });
 
@@ -135,6 +158,45 @@ describe('MessageProcessor', () => {
       assert.strictEqual(typeof inlineCat.functions, 'object');
       assert.ok(!Array.isArray(inlineCat.functions));
     });
+
+    it('generates capabilities for multiple versions when versions array is provided', () => {
+      const caps = processor.getRendererCapabilities({
+        versions: ['v0.9', 'v1.0'],
+      });
+      assert.ok(caps['v0.9']);
+      assert.ok(caps['v1.0']);
+      assert.strictEqual(caps.supportedCatalogIds, undefined);
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-catalog']);
+      assert.deepStrictEqual((caps['v1.0'] as any).supportedCatalogIds, ['test-catalog']);
+    });
+
+    it('generates inline catalogs across multiple versions when requested', () => {
+      const greetFunc: FunctionImplementation = {
+        name: 'greet',
+        description: 'Greets user',
+        returnType: 'string',
+        schema: z.object({name: z.string()}),
+        execute: async (args: any) => `Hello, ${args.name}!`,
+      };
+      const cat = new Catalog('cat-multi', '1.0', [CardApi], [greetFunc]);
+      const proc = new MessageProcessor([cat]);
+
+      const caps = proc.getRendererCapabilities({
+        versions: ['v0.9', 'v1.0'],
+        includeInlineCatalogs: true,
+      });
+
+      assert.strictEqual(caps.inlineCatalogs, undefined);
+      assert.ok((caps['v0.9'] as any)?.inlineCatalogs);
+      assert.ok((caps['v1.0'] as any)?.inlineCatalogs);
+      // v1.0 has dictionary functions
+      const v10Cat = (caps['v1.0'] as any).inlineCatalogs[0];
+      assert.strictEqual(typeof v10Cat.functions, 'object');
+      assert.ok(!Array.isArray(v10Cat.functions));
+      // v0.9 has array functions
+      const v09Cat = (caps['v0.9'] as any).inlineCatalogs[0];
+      assert.ok(Array.isArray(v09Cat.functions));
+    });
   });
 
   describe('getRendererDataModel', () => {
@@ -143,7 +205,7 @@ describe('MessageProcessor', () => {
       assert.strictEqual(model, undefined);
     });
 
-    it('returns data model payload for surfaces with sendDataModel enabled', () => {
+    it('returns data model payload and auto-infers version from surface catalog', () => {
       const processor = new MessageProcessor<ComponentApi>([
         new Catalog('test-catalog', '1.0', []),
       ]);
@@ -157,9 +219,68 @@ describe('MessageProcessor', () => {
         },
       });
 
-      const model = processor.getRendererDataModel();
-      assert.ok(model);
-      assert.strictEqual((model as any).surfaces.s1.user.name, 'Alice');
+      // Auto-inferred
+      const autoModel = processor.getRendererDataModel();
+      assert.ok(autoModel);
+      assert.strictEqual(autoModel.version, 'v1.0');
+      assert.strictEqual((autoModel as any).surfaces.s1.user.name, 'Alice');
+
+      // Explicit target version
+      const explicitModel = processor.getRendererDataModel('v1.0');
+      assert.ok(explicitModel);
+      assert.strictEqual(explicitModel.version, 'v1.0');
+      assert.strictEqual((explicitModel as any).surfaces.s1.user.name, 'Alice');
+    });
+
+    it('throws when multiple protocol versions are present without explicit version', () => {
+      const catV09 = new Catalog('cat-09', '0.9', []);
+      const catV10 = new Catalog('cat-10', '1.0', []);
+      const multiProc = new MessageProcessor<ComponentApi>([catV09, catV10]);
+
+      multiProc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 's09',
+            catalogId: 'cat-09',
+            sendDataModel: true,
+          },
+        },
+        {
+          version: 'v0.9',
+          updateDataModel: {
+            surfaceId: 's09',
+            value: {val: 'from-09'},
+          },
+        },
+      ]);
+      multiProc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's10',
+            catalogId: 'cat-10',
+            sendDataModel: true,
+            dataModel: {val: 'from-10'},
+          },
+        },
+      ]);
+
+      assert.throws(
+        () => multiProc.getRendererDataModel(),
+        /Multiple protocol versions detected among active surfaces/,
+      );
+
+      // But specifying target version succeeds and filters:
+      const v09Model = multiProc.getRendererDataModel('v0.9');
+      assert.ok(v09Model);
+      assert.strictEqual(v09Model.version, 'v0.9');
+      assert.deepStrictEqual((v09Model as any).surfaces, {s09: {val: 'from-09'}});
+
+      const v10Model = multiProc.getRendererDataModel('v1.0');
+      assert.ok(v10Model);
+      assert.strictEqual(v10Model.version, 'v1.0');
+      assert.deepStrictEqual((v10Model as any).surfaces, {s10: {val: 'from-10'}});
     });
   });
 
@@ -2088,9 +2209,9 @@ describe('MessageProcessor', () => {
     it('provides getClientCapabilities alias', () => {
       const cat = new Catalog('test-cat', '0.9', []);
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getClientCapabilities();
-      assert.deepStrictEqual(caps, proc.getRendererCapabilities());
-      assert.deepStrictEqual(caps.supportedCatalogIds, ['test-cat']);
+      const caps = proc.getClientCapabilities({versions: ['v0.9']});
+      assert.deepStrictEqual(caps, proc.getRendererCapabilities({versions: ['v0.9']}));
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-cat']);
     });
 
     it('provides getClientDataModel alias', () => {

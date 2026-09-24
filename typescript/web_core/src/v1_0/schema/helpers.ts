@@ -109,11 +109,5 @@ export const ComponentsListSchema = z.array(AnyComponentSchema).min(1);
 export type ComponentsList = z.infer<typeof ComponentsListSchema>;
 
 /** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
-export const RendererCapabilitiesSchema = z
-  .object({
-    'v1.0': z.lazy(() => z.record(z.string(), z.any())).optional(),
-    'supportedCatalogIds': z.array(z.string()).optional(),
-    'inlineCatalogs': z.array(z.record(z.string(), z.any())).optional(),
-  })
-  .catchall(z.any());
+export const RendererCapabilitiesSchema = z.record(z.string(), z.any());
 export type RendererCapabilities = z.infer<typeof RendererCapabilitiesSchema>;

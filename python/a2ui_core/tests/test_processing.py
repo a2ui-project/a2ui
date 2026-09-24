@@ -278,11 +278,14 @@ def test_message_processor_data_model_updates(mock_catalog):
 def test_message_processor_get_renderer_capabilities_list_of_versions(
     mock_catalog,
 ):
+    from a2ui.core.processing import CapabilitiesOptions
     from a2ui.core.schema import ProtocolVersion
 
     processor = MessageProcessor(catalogs=[mock_catalog])
     caps = processor.get_renderer_capabilities(
-        versions=[ProtocolVersion.V0_8, ProtocolVersion.V0_9, ProtocolVersion.V1_0]
+        CapabilitiesOptions(
+            versions=[ProtocolVersion.V0_8, ProtocolVersion.V0_9, ProtocolVersion.V1_0]
+        )
     )
     assert caps == {
         "v0.8": {"supportedCatalogIds": ["https://a2ui.org/mock.json"]},
@@ -291,13 +294,53 @@ def test_message_processor_get_renderer_capabilities_list_of_versions(
     }
 
 
+def test_message_processor_get_renderer_capabilities_with_options_class(
+    mock_catalog,
+):
+    from a2ui.core.exceptions import A2uiValidationError
+    from a2ui.core.processing import CapabilitiesOptions
+    from a2ui.core.schema import ProtocolVersion
+
+    processor = MessageProcessor(catalogs=[mock_catalog])
+
+    # 1. With explicit versions and include_inline_catalogs
+    caps = processor.get_renderer_capabilities(
+        CapabilitiesOptions(
+            versions=[ProtocolVersion.V0_9, ProtocolVersion.V1_0],
+            include_inline_catalogs=True,
+        )
+    )
+    assert "v0.9" in caps
+    assert "v1.0" in caps
+    assert caps["v0.9"]["supportedCatalogIds"] == ["https://a2ui.org/mock.json"]
+    assert "inlineCatalogs" in caps["v0.9"]
+    assert caps["v1.0"]["supportedCatalogIds"] == ["https://a2ui.org/mock.json"]
+    assert "inlineCatalogs" in caps["v1.0"]
+
+    # 2. Passing empty versions raises A2uiValidationError
+    with pytest.raises(
+        A2uiValidationError, match="At least one protocol version must be provided"
+    ):
+        processor.get_renderer_capabilities(CapabilitiesOptions(versions=[]))
+
+    # 3. Missing required versions argument raises TypeError
+    with pytest.raises(TypeError):
+        CapabilitiesOptions()  # type: ignore[call-arg]
+
+    with pytest.raises(TypeError):
+        processor.get_renderer_capabilities()  # type: ignore[call-arg]
+
+
 def test_message_processor_capabilities_and_sync(mock_catalog):
+    from a2ui.core.processing import CapabilitiesOptions
     from a2ui.core.schema import ProtocolVersion
 
     processor = MessageProcessor(catalogs=[mock_catalog])
 
     # Check Capabilities
-    caps = processor.get_renderer_capabilities(versions=[ProtocolVersion.V0_9])
+    caps = processor.get_renderer_capabilities(
+        CapabilitiesOptions(versions=[ProtocolVersion.V0_9])
+    )
     assert caps == {
         PROTOCOL_VERSION: {"supportedCatalogIds": ["https://a2ui.org/mock.json"]}
     }
@@ -318,9 +361,69 @@ def test_message_processor_capabilities_and_sync(mock_catalog):
         },
     ])
 
-    # Retrieve client data model sync payload
-    client_dm = processor.get_renderer_data_model()
-    assert client_dm == {"version": PROTOCOL_VERSION, "surfaces": {"s1": {"val": 100}}}
+    # Retrieve client data model sync payload (auto-inferred and explicit)
+    client_dm_auto = processor.get_renderer_data_model()
+    assert client_dm_auto == {
+        "version": PROTOCOL_VERSION,
+        "surfaces": {"s1": {"val": 100}},
+    }
+    client_dm_explicit = processor.get_renderer_data_model(PROTOCOL_VERSION)
+    assert client_dm_explicit == {
+        "version": PROTOCOL_VERSION,
+        "surfaces": {"s1": {"val": 100}},
+    }
+
+
+def test_message_processor_get_renderer_data_model_multi_version():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.exceptions import A2uiValidationError
+    from a2ui.core.schema import ProtocolVersion
+
+    cat_09 = Catalog(catalog_id="cat-09", protocol_version=ProtocolVersion.V0_9)
+    cat_10 = Catalog(catalog_id="cat-10", protocol_version=ProtocolVersion.V1_0)
+    processor = MessageProcessor(catalogs=[cat_09, cat_10])
+
+    processor.process_messages([
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": "s09",
+                "catalogId": "cat-09",
+                "sendDataModel": True,
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateDataModel": {"surfaceId": "s09", "value": {"from": "09"}},
+        },
+    ])
+    processor.process_messages([
+        {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "s10",
+                "catalogId": "cat-10",
+                "sendDataModel": True,
+            },
+        },
+        {
+            "version": "v1.0",
+            "updateDataModel": {"surfaceId": "s10", "value": {"from": "10"}},
+        },
+    ])
+
+    # Calling without version raises error due to conflict:
+    with pytest.raises(
+        A2uiValidationError, match="Multiple protocol versions detected"
+    ):
+        processor.get_renderer_data_model()
+
+    # Calling with explicit target version filters successfully:
+    dm_09 = processor.get_renderer_data_model("v0.9")
+    assert dm_09 == {"version": "v0.9", "surfaces": {"s09": {"from": "09"}}}
+
+    dm_10 = processor.get_renderer_data_model("v1.0")
+    assert dm_10 == {"version": "v1.0", "surfaces": {"s10": {"from": "10"}}}
 
 
 def test_message_processor_throws_on_duplicate_surface(mock_catalog):
@@ -818,9 +921,12 @@ def test_message_processor_component_catalog_override():
         "version": "v1.0",
         "updateComponents": {
             "surfaceId": "s1",
-            "components": [
-                {"id": "c2", "component": "CompA", "text": "updated", "count": 100}
-            ],
+            "components": [{
+                "id": "c2",
+                "component": "CompA",
+                "text": "updated",
+                "count": 100,
+            }],
         },
     }])
     assert surface.components_model.get("c2").catalog is cat_a
@@ -1316,7 +1422,10 @@ def test_message_processor_options(mock_catalog):
 @pytest.mark.asyncio
 async def test_message_processor_process_operation_async():
     from a2ui.core.basic_catalog import v1_0
-    from a2ui.core.processing.operations import InternalCallRendererFunctionOp, InternalCreateSurfaceOp
+    from a2ui.core.processing.operations import (
+        InternalCallRendererFunctionOp,
+        InternalCreateSurfaceOp,
+    )
 
     cat = v1_0.BasicCatalog()
 
