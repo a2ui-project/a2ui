@@ -22,10 +22,24 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Partial protocol version support and unimplemented formats
 
-- **What it is:** The package supports `v1.0` and `v0.9`. `v0.8` and inference formats other than Direct JSON (Express, Elemental, Atom) remain unimplemented.
-- **Why it exists:** An explicit scope decision to add protocol support incrementally, starting with `v1.0`.
-- **What it blocks:** Legacy `v0.8` agents and alternative format use cases.
-- **Done looks like:** The `InferenceFormat` seam is populated with implementations for Express, Elemental, and Atom, and the `v0.8` conformance cases are enabled.
+- **What it is:** The package supports `v1.0` and `v0.9`. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
+- **Why it exists:** An explicit scope decision to add protocol support incrementally, starting with `v1.0`. `v0.8` is out of scope for this SDK.
+- **What it blocks:** Elemental and Atom use cases, and streaming Express output.
+- **Done looks like:** The `InferenceFormat` seam is populated with implementations for Elemental and Atom.
+
+### Express compilation errors have one parent class
+
+- **What it is:** `A2uiCompilationParseError` and `A2uiCompilationValidationError` extend `A2uiCompilationError` only. In main's Python they also inherit from the core parse and validation errors, so an `except A2uiValidationError` there catches an Express validation failure. The Express compiler also raises its own `ExpressSyntaxError` where Python raises the built-in `SyntaxError`.
+- **Why it exists:** TypeScript classes have a single parent.
+- **What it risks:** Code that catches `ParseError` or `A2uiValidationError` to handle every format misses Express compilation errors. The conformance harness accepts either class for the `ParseError` and `ValidationError` categories.
+- **Done looks like:** Callers have one documented way to catch a compile failure from any format, such as a shared interface or a `category` field checked by a type guard.
+
+### Express number formatting differs from Python
+
+- **What it is:** JavaScript has one number type, so Express `1.0` and `1` compile to the same value, where Python keeps an int and a float. When the prompt generator rewrites catalog JSON examples as Express, it keeps the `.0` of values such as `1500.00`, as Python does, by reading the source text of each number during `JSON.parse`. That needs Node 21 or later. On older runtimes those values are written without the `.0`, and the generated catalog instructions no longer match Python's.
+- **Why it exists:** Python's decompiler prints floats with `repr`, and a JavaScript number does not record how it was written.
+- **What it risks:** Small textual differences in prompts on old Node versions. The repository uses Node 22.
+- **Done looks like:** Nothing, unless the package has to support Node 20, in which case example numbers need a custom JSON reader.
 
 ### `no-explicit-any` lint warnings
 
@@ -144,7 +158,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** Python's Express compiler writes a `checks` key on any component given a `?check`, whether or not the component's schema declares a check-rule property. `Text("hi", _, _, [?required])` compiles against the v1.0 basic catalog to a `Text` carrying `checks`, and because `Text` has no bound `value` the check's `args` are empty. The compiler never raises. The literal `"checks"` is also hardcoded rather than read from the schema (`compiler.py:502` and `:639` on `origin/main`).
 - **Why it exists:** Python decides whether a component is checkable by matching the substring `"Checkable"` in an `allOf` `$ref`, but uses that result only for property ordering, not to validate checks.
 - **What it risks:** The model gets no feedback from the compiler. Any error surfaces later, away from the line that caused it, and the check silently has nothing to check.
-- **TypeScript:** The port reads the check-rule property from the schema and throws `ExpressValidationError` when a component has none. See `express_format.blueprint.md` §5.2 item 4. This is a deliberate difference from Python.
+- **TypeScript:** The port reads the check-rule property from the schema and throws `ExpressValidationError` when a component has none. See `express_format.blueprint.md` §5.2 item 4. This is a deliberate difference from Python. The schema-based test also finds a check-rule property that a component declares itself instead of inheriting from `Checkable`: main's `forms_catalog_v1_0.json` declares `TextField.checks` that way, and Python's helper reports that `TextField` is not checkable while still compiling its checks.
 - **Done looks like:** Python raises a validation error for checks on a component without a check-rule property, and a conformance case pins the behaviour for both SDKs.
 
 ### Python's Express rejects paths nested inside array items
@@ -152,8 +166,40 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** Python's Express compiler rejects a data binding anywhere inside a property whose top-level schema doesn't admit one. `Tabs([{title: $/t, child: c}])` raises `ExpressForbiddenDatabindingError` against the v1.0 basic catalog, even though `title` is a `DynamicString`.
 - **Why it exists:** `_schema_allows_databinding` checks the property's top-level schema, and `_has_databinding` then searches the whole written value for a `path`, without following the schema down to where the path appears (`compiler.py:75-121` on `origin/main`).
 - **What it risks:** Valid bindings inside arrays of objects cannot be written in Express. Tabs titles are the case in the basic catalog.
-- **TypeScript:** The port checks each path against the schema at the position where it is written. See `express_format.blueprint.md` §5.2 item 6. This is a deliberate difference from Python.
+- **TypeScript:** When a property's schema doesn't admit a path as a whole, the port walks the written value alongside the schema and checks each path against the schema where it appears. A property that admits a path as a whole is not inspected further, as in Python. See `express_format.blueprint.md` §5.2 item 6. This is a deliberate difference from Python.
 - **Done looks like:** Python checks bindings positionally, and a conformance case pins the behaviour for both SDKs.
+
+### Express follows Python's known conformance gaps
+
+- **What it is:** Main's conformance suites for Express contain cases that Python's implementation fails, which its harness lists as known gaps. The TypeScript port follows Python, so it fails the same cases. They run as expected failures in `tests/conformance/express_conformance.test.ts`, with Python's reasons:
+  - compiler: inline components get `_inline_N` ids rather than `<parent id>_<property>`; an Event with no context compiles `context: {}`; a standalone call compiles to a top-level `functionCallId`/`callFunction`, which `agent_to_renderer.json` rejects, rather than to `callRendererFunction`; unknown components are dropped instead of failing the compile; missing required properties are not reported; calls to unknown functions compile;
+  - decompiler: a standalone `updateComponents` has no root line and a standalone `updateDataModel` has no surface line, so both fail the round trip; a string holding a quote is written triple-quoted instead of escaped; `callRendererFunction` decompiles to an empty string; a map key that is not an identifier is written unquoted, which the grammar rejects;
+  - response parser: a component the catalog doesn't declare is dropped, so a response that should fail validation parses.
+- **Why it exists:** These are behaviours of main's Python compiler and decompiler. The port matches Python rather than the conformance suite, so both SDKs change together when Python is fixed.
+- **What it risks:** Unknown components and missing required properties reach the renderer without a compile-time error, and decompiled output does not always compile back to the same messages.
+- **Differences from Python:** Seven response-parser cases that Python lists as gaps pass here. Four `wrap` cases pass because TypeScript's `wrap` takes response parts, where Python's takes strings; two text-between-blocks cases pass because the shared TypeScript block lexer keeps text separate from payloads; and the unwrapped-body case passes because `parseResponse` accepts `wrapped`. Python skips `test_compile_express_surface_targeting_names_a_catalog` as unsupported, and so does TypeScript.
+- **Done looks like:** Python fixes each gap, the port follows, and the expected-failure entries are removed.
+
+### Express grammar rules name basic-catalog components
+
+- **What it is:** The fixed Express rules that head every Express prompt (`EXPRESS_RULES`, copied verbatim from Python) name catalog-specific things. Rule 15's example is `root = Card(...)`, the dates rule mentions `DateTimeInput`, and rule 14 refers to parameters named `action`. With a catalog that has no `Card`, the prompt still shows one. The prompt generator suite's `test_express_snippet_omits_a_pruned_component` fails for this reason and runs as an expected failure. Python's harness doesn't run that suite, so the failure is not visible there.
+- **Why it exists:** The rules text was written against the basic catalog. The port keeps it verbatim (`express_format.blueprint.md` §5.2 item 5) so that the generated base rules equal the conformance golden `express_base_rules.txt`.
+- **What it risks:** The model may be told to use components or properties that the negotiated catalog does not have. This conflicts with the repository rule that inference formats stay catalog-agnostic.
+- **Done looks like:** The rules use placeholder names or text derived from the catalog, the golden is regenerated, and both SDKs pass the pruning case.
+
+### Python's Express decompiles a check without a condition as `?None`
+
+- **What it is:** When the prompt generator rewrites catalog examples as Express, a check rule written as `{"call": "required"}` without the `condition` wrapper decompiles to `?None`. The v1.0 basic catalog has one such example, so the golden `express_catalog_instructions.txt` contains `?None` (line 197), and the port produces the same.
+- **Why it exists:** Python's decompiler reads `rc.get("condition", {}).get("call")` and formats the missing value as `None`.
+- **What it risks:** The model is shown an example that does not compile.
+- **Done looks like:** The catalog example is corrected, or Python's decompiler handles a bare call, and the golden is regenerated.
+
+### Python's Express ignores common properties defined inside a v0.9 catalog
+
+- **What it is:** v0.9 basic catalog components get `weight` through a local `allOf` reference to `#/$defs/CatalogComponentCommon`. Python's schema helper does not follow that reference when listing a component's properties, so `weight` never appears in v0.9 Express signatures, and `Text("hi", weight=1)` fails with "Property 'weight' is not a valid property of component 'Text'". The port does the same.
+- **Why it exists:** The helper collects properties only from a component's own `properties` and from inline `allOf` entries. It reads `$ref`s only to detect `Checkable`, whose `checks` property it then appends by name. The v1.0 basic catalog inherits only `Checkable`, so it is not affected.
+- **What it risks:** An Express author targeting v0.9 cannot set `weight`.
+- **Done looks like:** Python's helper follows local `$defs` references, and the port follows.
 
 ## 5. Node Sample (`samples/agent/node/restaurant_finder`)
 
