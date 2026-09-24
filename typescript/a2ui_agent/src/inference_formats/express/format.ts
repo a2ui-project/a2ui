@@ -70,7 +70,7 @@ export class ExpressFormatFactory implements InferenceFormatFactory {
 
   createFormat(
     catalogs: SchemaCatalog[],
-    examples?: Record<string, AgentToRendererMessage[]>,
+    examples?: Record<string, AgentToRendererMessage[] | string>,
   ): InferenceFormat {
     return new ExpressFormat(catalogs, {
       ...this.options,

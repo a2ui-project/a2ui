@@ -27,6 +27,7 @@ import {InferenceFormatFactory, InferenceFormat} from '../inference_format/base.
 import {ResponsePart} from '../parser/response_part.js';
 import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
 import {Parser} from '../parser/parser.js';
+import {PromptOptions} from '../prompt/generator.js';
 import {toWireProtocolVersion} from '../utils/protocol_version.js';
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
@@ -37,7 +38,7 @@ export class A2uiRequestProcessor {
 
   constructor(
     private readonly catalogs: SchemaCatalog[],
-    private readonly _examples?: Record<string, AgentToRendererMessage[]>,
+    private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
   ) {
     const factory = formatFactory || new DirectJsonFormatFactory();
@@ -59,7 +60,7 @@ export class A2uiRequestProcessor {
     return this.catalogs;
   }
 
-  get examples(): Record<string, AgentToRendererMessage[]> | undefined {
+  get examples(): Record<string, AgentToRendererMessage[] | string> | undefined {
     return this._examples;
   }
 
@@ -72,6 +73,19 @@ export class A2uiRequestProcessor {
    */
   get promptSnippet(): string {
     return this._format.promptGenerator.generate();
+  }
+
+  /**
+   * Builds the full system prompt for the negotiated catalogs.
+   *
+   * The counterpart of Python's `generate_system_prompt`. Unlike `promptSnippet`, it
+   * takes options, so it can prepend role and UI descriptions and append examples.
+   *
+   * @param options Sections to include in the prompt.
+   * @returns The system prompt.
+   */
+  generatePrompt(options?: PromptOptions): string {
+    return this._format.promptGenerator.generate(options);
   }
 
   /** Parses and validates a model response. */
