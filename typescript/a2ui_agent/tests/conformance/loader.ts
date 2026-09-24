@@ -69,11 +69,6 @@ export const KNOWN_FAILURES = new Map<string, string>([
   // 'Validation failed' from the envelope validator before it ever looks for a root; this
   // SDK gets as far as the root check and reports a missing root instead.
   ['test_yield_validation_failure_v09', 'No s2c envelope validation'],
-  // The harness implements the generate_prompt action; these fail on SDK output. The
-  // prompt never emits '### Server To Client Schema:', '### Common Types Schema:' or
-  // '### Catalog Schema:', which Python produces in catalog.py around lines 384 to 395.
-  ['test_generate_system_prompt_with_schema', 'Prompt omits the schema sections'],
-  ['test_generate_system_prompt_v0_9_common_types', 'Prompt omits the schema sections'],
 ]);
 
 const SUPPORTED_FORMATS = new Set(['direct_json']);
