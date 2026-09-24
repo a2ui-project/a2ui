@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import fs from 'fs';
+import path from 'path';
+import * as crypto from 'crypto';
 import {
   AgentCard,
   Task,
@@ -24,59 +27,60 @@ import {
   DataPart,
 } from '@a2a-js/sdk';
 import {AgentExecutor, RequestContext, ExecutionEventBus} from '@a2a-js/sdk/server';
-import {GoogleGenAI, Content} from '@google/genai';
+import {GoogleGenAI, FunctionCall, PartListUnion, Chat} from '@google/genai';
 import {
   A2uiGenerator,
+  A2uiRequestProcessor,
   basicCatalog,
-  DirectJsonStreamProcessorImpl,
   CatalogConfig,
+  DirectJsonStreamProcessorImpl,
+  ExpressDecompiler,
+  ExpressFormatFactory,
+  ResponsePart,
 } from '@a2ui/agent';
-import {confirmationExample} from './examples/confirmation.js';
-import * as crypto from 'crypto';
+import {ROLE_DESCRIPTION, getUiDescription} from './prompt.js';
+import {
+  executeGetRestaurants,
+  getPackageRootDir,
+  getRestaurantsDeclaration,
+  resolvePythonSampleDir,
+  verifyPythonSampleAssets,
+} from './tools.js';
 
-export const agentCard: AgentCard = {
-  name: 'Restaurant Agent',
-  description: 'Node minimal sample.',
-  protocolVersion: '0.3.0',
-  version: '0.1.0',
-  url: 'http://localhost:10002/a2a/json-rpc',
-  defaultInputModes: ['text/plain'],
-  defaultOutputModes: ['text/plain'],
-  skills: [
-    {
-      id: 'find_restaurants',
-      name: 'Find Restaurants Tool',
-      description: 'Helps find restaurants.',
-      tags: [],
-    },
-  ],
-  capabilities: {
-    streaming: true,
-    extensions: [
-      {
-        uri: 'https://a2ui.org/a2a-extension/a2ui/v1.0',
-        params: {
-          version: '1.0.0',
-          capabilities: {
-            supportedCatalogIds: [
-              'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
-            ],
-          },
-        },
-      },
-    ],
-  },
-};
+export interface SampleConfig {
+  version: 'v0.9' | 'v1.0';
+  format: 'direct_json' | 'express';
+}
 
-const ROLE_DESCRIPTION = 'You are a helpful restaurant assistant.';
-const UI_DESCRIPTION = 'You use A2UI to build interactive UIs for the user.';
+/**
+ * Resolves the A2UI version and format from environment variables.
+ * Fails fast if any variable is set to an unsupported value.
+ */
+export function resolveSampleConfig(env: NodeJS.ProcessEnv = process.env): SampleConfig {
+  const rawVersion = env.A2UI_VERSION?.trim();
+  let version: 'v0.9' | 'v1.0' = 'v1.0';
+  if (rawVersion !== undefined && rawVersion !== '') {
+    if (rawVersion !== 'v0.9' && rawVersion !== 'v1.0') {
+      throw new Error(
+        `A2UI_VERSION must be "v0.9" or "v1.0", but it is "${env.A2UI_VERSION}". Allowed values are "v0.9", "v1.0".`,
+      );
+    }
+    version = rawVersion;
+  }
 
-const basicConf = new CatalogConfig(basicCatalog());
-const generator = new A2uiGenerator([basicConf], {
-  'confirmation': confirmationExample,
-});
+  const rawFormat = env.A2UI_FORMAT?.trim();
+  let format: 'direct_json' | 'express' = 'direct_json';
+  if (rawFormat !== undefined && rawFormat !== '') {
+    if (rawFormat !== 'direct_json' && rawFormat !== 'express') {
+      throw new Error(
+        `A2UI_FORMAT must be "direct_json" or "express", but it is "${env.A2UI_FORMAT}". Allowed values are "direct_json", "express".`,
+      );
+    }
+    format = rawFormat;
+  }
 
-const sessionHistory = new Map<string, Content[]>();
+  return {version, format};
+}
 
 /** Which backend serves a turn: a real model, or the canned response. */
 export type LlmMode = 'live' | 'stub';
@@ -84,16 +88,6 @@ export type LlmMode = 'live' | 'stub';
 /**
  * Decides how to answer requests, and rejects any configuration that is
  * ambiguous about it.
- *
- * Stubbing has to be asked for with `STUB_LLM=true`. It is never inferred from a
- * missing key, because an unset, empty or misspelled `GEMINI_API_KEY` is far more
- * likely to be a mistake than a request for canned output, and silently serving
- * the stub in that case hides the mistake behind a response that looks like it
- * worked.
- *
- * @param env Environment to read, injectable for tests.
- * @returns The resolved mode.
- * @throws Error if the environment does not select exactly one mode.
  */
 export function resolveLlmMode(env: NodeJS.ProcessEnv = process.env): LlmMode {
   const stubFlag = env.STUB_LLM?.trim();
@@ -124,7 +118,215 @@ export function resolveLlmMode(env: NodeJS.ProcessEnv = process.env): LlmMode {
   );
 }
 
+/** Builds the AgentCard matching the Python sample and configured A2UI version. */
+export function buildAgentCard(config: SampleConfig, port = 10002): AgentCard {
+  const catalogId = basicCatalog(config.version).id;
+
+  const extension =
+    config.version === 'v0.9'
+      ? {
+          uri: 'https://a2ui.org/a2a-extension/a2ui/v0.9',
+          description: 'Provides agent driven UI using the A2UI JSON format.',
+          params: {
+            supportedCatalogIds: [catalogId],
+          },
+        }
+      : {
+          uri: 'https://a2ui.org/a2a-extension/a2ui/v1.0',
+          params: {
+            version: '1.0.0',
+            capabilities: {
+              supportedCatalogIds: [catalogId],
+            },
+          },
+        };
+
+  return {
+    name: 'Restaurant Agent',
+    description: 'This agent helps find restaurants based on user criteria.',
+    protocolVersion: '0.3.0',
+    version: '1.0.0',
+    url: `http://localhost:${port}/a2a/json-rpc`,
+    defaultInputModes: ['text/plain'],
+    defaultOutputModes: ['text/plain'],
+    skills: [
+      {
+        id: 'find_restaurants',
+        name: 'Find Restaurants Tool',
+        description: 'Helps find restaurants based on user criteria (e.g., cuisine, location).',
+        tags: ['restaurant', 'finder'],
+        examples: ['Find me the top 10 chinese restaurants in the US'],
+      },
+    ],
+    capabilities: {
+      streaming: true,
+      extensions: [extension],
+    },
+  };
+}
+
+export interface LoadedExamples {
+  exampleBlocks: Record<string, string>;
+  catalogExamplesString: string;
+}
+
+/**
+ * Loads, decompiles (if Express), and validates examples at startup.
+ */
+export function loadAndValidateExamples(
+  config: SampleConfig,
+  packageRoot: string = getPackageRootDir(),
+): LoadedExamples {
+  const examplesDir = path.join(packageRoot, 'examples', config.version);
+  if (!fs.existsSync(examplesDir)) {
+    throw new Error(`Examples directory not found at ${examplesDir}`);
+  }
+
+  const catalog = basicCatalog(config.version);
+  const files = fs
+    .readdirSync(examplesDir)
+    .filter(f => f.endsWith('.json'))
+    .sort();
+
+  if (files.length === 0) {
+    throw new Error(`No example files found in ${examplesDir}`);
+  }
+
+  const exampleBlocks: Record<string, string> = {};
+  const decompiler =
+    config.format === 'express' ? new ExpressDecompiler(catalog, config.version) : null;
+
+  const tempGen = new A2uiGenerator([new CatalogConfig(catalog)]);
+
+  for (const file of files) {
+    const basename = path.parse(file).name;
+    const fullPath = path.join(examplesDir, file);
+    const rawContent = fs.readFileSync(fullPath, 'utf-8');
+
+    if (config.format === 'direct_json') {
+      try {
+        const proc = tempGen.createProcessor({supportedCatalogIds: [catalog.id]});
+        proc.parseResponse(`<a2ui-json>\n${rawContent}\n</a2ui-json>`);
+      } catch (e) {
+        throw new Error(`Failed to validate example ${file} (direct_json): ${e}`);
+      }
+      exampleBlocks[basename] = rawContent;
+    } else {
+      const messages = JSON.parse(rawContent) as Array<Record<string, unknown>>;
+      const withoutCreateSurface = messages.filter(m => !('createSurface' in m));
+      const decompiled = decompiler!.decompile(withoutCreateSurface as never);
+      const wrapped = decompiler!.wrapDecompiledBlocks([decompiled]);
+
+      try {
+        const proc = tempGen.createProcessor(
+          {supportedCatalogIds: [catalog.id]},
+          new ExpressFormatFactory({surfaceId: 'default', version: config.version}),
+        );
+        proc.parseResponse(wrapped);
+      } catch (e) {
+        throw new Error(`Failed to validate example ${file} (express): ${e}`);
+      }
+      exampleBlocks[basename] = wrapped;
+    }
+  }
+
+  const formattedBlocks = files.map(f => {
+    const basename = path.parse(f).name;
+    const content = exampleBlocks[basename];
+    return `---BEGIN ${basename}---\n${content}\n---END ${basename}---`;
+  });
+
+  const catalogExamplesString = formattedBlocks.join('\n\n');
+  return {exampleBlocks, catalogExamplesString};
+}
+
+/** Converts a ResponsePart to A2A Parts wrapping each A2UI message in a DataPart. */
+export function convertResponsePartToA2aParts(part: ResponsePart, mimeType: string): Part[] {
+  if (part.type === 'text') {
+    const tp: TextPart = {kind: 'text', text: part.text};
+    return [tp];
+  }
+  return part.a2ui.map(
+    (msg): DataPart => ({
+      kind: 'data',
+      data: msg as unknown as Record<string, unknown>,
+      metadata: {mimeType},
+    }),
+  );
+}
+
+/**
+ * LRU cache for DirectJsonStreamProcessorImpl instances keyed by contextId.
+ */
+class ParserLruCache {
+  private readonly map = new Map<string, DirectJsonStreamProcessorImpl>();
+  constructor(private readonly maxEntries = 1000) {}
+
+  getOrCreate(
+    contextId: string,
+    factory: () => DirectJsonStreamProcessorImpl,
+  ): DirectJsonStreamProcessorImpl {
+    const existing = this.map.get(contextId);
+    if (existing) {
+      this.map.delete(contextId);
+      this.map.set(contextId, existing);
+      return existing;
+    }
+    const created = factory();
+    this.map.set(contextId, created);
+    if (this.map.size > this.maxEntries) {
+      const oldestKey = this.map.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.map.delete(oldestKey);
+      }
+    }
+    return created;
+  }
+}
+
 export class RestaurantExecutor implements AgentExecutor {
+  private readonly catalog = basicCatalog(this.config.version);
+  private readonly generator: A2uiGenerator;
+  private readonly loadedExamples: LoadedExamples;
+  private readonly parserCache = new ParserLruCache(1000);
+  private readonly sessionChats = new Map<string, Chat>();
+  private readonly mimeType: string;
+
+  constructor(
+    public readonly config: SampleConfig = resolveSampleConfig(),
+    public readonly port: number = 10002,
+    private readonly pythonSampleDir: string = resolvePythonSampleDir(),
+  ) {
+    verifyPythonSampleAssets(this.pythonSampleDir);
+    this.loadedExamples = loadAndValidateExamples(this.config);
+
+    this.mimeType =
+      this.config.version === 'v0.9' ? 'application/json+a2ui' : 'application/a2ui+json';
+
+    const basicConf = new CatalogConfig(this.catalog);
+    const examplesMap = {[this.catalog.id]: this.loadedExamples.catalogExamplesString};
+
+    if (this.config.format === 'express') {
+      this.generator = new A2uiGenerator(
+        [basicConf],
+        examplesMap,
+        new ExpressFormatFactory({surfaceId: 'default', version: this.config.version}),
+      );
+    } else {
+      this.generator = new A2uiGenerator([basicConf], examplesMap);
+    }
+  }
+
+  private createProcessor(): A2uiRequestProcessor {
+    if (this.config.format === 'express') {
+      return this.generator.createProcessor(
+        {supportedCatalogIds: [this.catalog.id]},
+        new ExpressFormatFactory({surfaceId: 'default', version: this.config.version}),
+      );
+    }
+    return this.generator.createProcessor({supportedCatalogIds: [this.catalog.id]});
+  }
+
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const {taskId, contextId, userMessage, task} = requestContext;
 
@@ -139,38 +341,130 @@ export class RestaurantExecutor implements AgentExecutor {
       eventBus.publish(initialTask);
     }
 
-    let query = '';
-    for (const part of userMessage.parts) {
-      if ('text' in part && part.text) {
-        query = part.text;
-      } else if ('data' in part && typeof part.data === 'object' && part.data !== null) {
-        const dataMap = part.data as Record<string, unknown>;
-        if (dataMap.version === 'v1.0' && dataMap.action && typeof dataMap.action === 'object') {
-          const action = dataMap.action as Record<string, unknown>;
-          query = `User submitted an action: ${action.name} with data: ${JSON.stringify(action)}`;
+    // --- Extension Negotiation ---
+    const configuredUri = `https://a2ui.org/a2a-extension/a2ui/${this.config.version}`;
+    const requestedA2uiUris: string[] = [];
+
+    const callContext = requestContext.context;
+    if (callContext?.requestedExtensions) {
+      for (const ext of callContext.requestedExtensions) {
+        if (typeof ext === 'string' && ext.startsWith('https://a2ui.org/a2a-extension/a2ui')) {
+          requestedA2uiUris.push(ext);
+        }
+      }
+    }
+    if (userMessage.extensions) {
+      for (const ext of userMessage.extensions) {
+        if (typeof ext === 'string' && ext.startsWith('https://a2ui.org/a2a-extension/a2ui')) {
+          if (!requestedA2uiUris.includes(ext)) {
+            requestedA2uiUris.push(ext);
+          }
         }
       }
     }
 
-    if (!query) {
-      query = 'Hello!';
+    if (requestedA2uiUris.length > 0) {
+      if (requestedA2uiUris.includes(configuredUri)) {
+        callContext?.addActivatedExtension(configuredUri);
+      } else {
+        console.warn(
+          `Client requested A2UI extensions [${requestedA2uiUris.join(', ')}], but this agent is configured for ${configuredUri}. Failing task.`,
+        );
+        const failMessage: Message = {
+          kind: 'message',
+          messageId: crypto.randomUUID(),
+          role: 'agent',
+          taskId,
+          contextId,
+          parts: [
+            {
+              kind: 'text',
+              text: `This agent serves A2UI ${this.config.version} (format: ${this.config.format}). The client requested [${requestedA2uiUris.join(', ')}]. Start the agent with A2UI_VERSION=${requestedA2uiUris[0].split('/').pop()} to serve that version.`,
+            },
+          ],
+        };
+        const failEvent: TaskStatusUpdateEvent = {
+          kind: 'status-update',
+          taskId,
+          contextId,
+          status: {
+            state: 'failed',
+            timestamp: new Date().toISOString(),
+            message: failMessage,
+          },
+          final: true,
+        };
+        eventBus.publish(failEvent);
+        return;
+      }
+    } else {
+      console.warn(
+        `Warning: No A2UI extension requested by client; defaulting to configured A2UI version ${this.config.version}.`,
+      );
     }
 
-    // Note: Inbound renderer capability negotiation is not natively supported on ServerCallContext.
-    // We default to the basic catalog. A production deployment might negotiate this out-of-band
-    // or via an explicit capabilities convention in metadata.
-    const supportedCatalogIds = ['https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json'];
+    // --- Inbound Message Parsing ---
+    let useStreaming = true;
+    let uiEventPart: Record<string, unknown> | undefined;
 
-    const processor = generator.createProcessor({supportedCatalogIds});
-
-    if (!processor.activeCatalogs[0]) {
-      throw new Error('No active catalog negotiated.');
+    if (userMessage.parts) {
+      for (const part of userMessage.parts) {
+        if ('data' in part && typeof part.data === 'object' && part.data !== null) {
+          const dataMap = part.data as Record<string, unknown>;
+          if (typeof dataMap.useStreaming === 'boolean') {
+            useStreaming = dataMap.useStreaming;
+          }
+          if (
+            dataMap.version === this.config.version &&
+            dataMap.action &&
+            typeof dataMap.action === 'object'
+          ) {
+            uiEventPart = dataMap.action as Record<string, unknown>;
+          } else if (dataMap.userAction && typeof dataMap.userAction === 'object') {
+            uiEventPart = dataMap.userAction as Record<string, unknown>;
+          }
+        }
+      }
     }
 
-    const systemInstruction =
-      ROLE_DESCRIPTION + '\n' + UI_DESCRIPTION + '\n' + processor.promptSnippet;
-    const useStub = resolveLlmMode() === 'stub';
+    let query = '';
+    let actionName: string | undefined;
 
+    if (uiEventPart) {
+      actionName = typeof uiEventPart.name === 'string' ? uiEventPart.name : undefined;
+      const ctx =
+        typeof uiEventPart.context === 'object' && uiEventPart.context !== null
+          ? (uiEventPart.context as Record<string, unknown>)
+          : {};
+
+      if (actionName === 'book_restaurant') {
+        const restaurantName = (ctx.restaurantName as string) ?? 'Unknown Restaurant';
+        const address = (ctx.address as string) ?? 'Address not provided';
+        const imageUrl = (ctx.imageUrl as string) ?? '';
+        query = `USER_WANTS_TO_BOOK: ${restaurantName}, Address: ${address}, ImageURL: ${imageUrl}`;
+      } else if (actionName === 'submit_booking') {
+        const restaurantName = (ctx.restaurantName as string) ?? 'Unknown Restaurant';
+        const partySize = ctx.partySize !== undefined ? String(ctx.partySize) : 'Unknown Size';
+        const reservationTime = (ctx.reservationTime as string) ?? 'Unknown Time';
+        const dietary = (ctx.dietary as string) ?? 'None';
+        const imageUrl = (ctx.imageUrl as string) ?? '';
+        query = `User submitted a booking for ${restaurantName} for ${partySize} people at ${reservationTime} with dietary requirements: ${dietary}. The image URL is ${imageUrl}`;
+      } else {
+        query = `User submitted an event: ${actionName} with data: ${JSON.stringify(ctx)}`;
+      }
+    } else {
+      const texts: string[] = [];
+      if (userMessage.parts) {
+        for (const part of userMessage.parts) {
+          if ('text' in part && typeof part.text === 'string' && part.text) {
+            texts.push(part.text);
+          }
+        }
+      }
+      query = texts.join('') || 'Hello!';
+    }
+
+    // Publish initial working status-update
     const workingEvent: TaskStatusUpdateEvent = {
       kind: 'status-update',
       taskId,
@@ -180,128 +474,246 @@ export class RestaurantExecutor implements AgentExecutor {
     };
     eventBus.publish(workingEvent);
 
-    const streamProcessor = new DirectJsonStreamProcessorImpl(processor.activeCatalogs[0], {
-      progressiveKeys: ['text', 'literalString'],
-    });
-
-    const history = sessionHistory.get(contextId) || [];
-    history.push({role: 'user', parts: [{text: query}]});
-
-    let fullOutput = '';
-
-    if (useStub) {
-      console.log('Using stub LLM response...');
-      // Note there is no "root" key: createSurface is strict and defines no such property.
-      // The root of the component tree is the component whose id is "root".
-      const stubResponse = `<a2ui-json>\n{\n  "version": "v1.0",\n  "createSurface": {\n    "surfaceId": "test",\n    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n    "components": [\n      {\n        "id": "root",\n        "component": "Text",\n        "text": "Stub response"\n      }\n    ]\n  }\n}\n</a2ui-json>`;
-
-      const chunks = [
-        stubResponse.substring(0, 30),
-        stubResponse.substring(30, 60),
-        stubResponse.substring(60, 100),
-        stubResponse.substring(100),
-      ];
-
-      for (const chunk of chunks) {
-        fullOutput += chunk;
-        const parts = streamProcessor.processChunk(chunk);
-        if (parts.length > 0) {
-          const messageEvent: Message = {
-            kind: 'message',
-            messageId: crypto.randomUUID(),
-            role: 'agent',
-            taskId,
-            contextId,
-            parts: parts.map((p): Part => {
-              if (p.type === 'text') {
-                const tp: TextPart = {kind: 'text', text: p.text};
-                return tp;
-              } else {
-                const dp: DataPart = {
-                  kind: 'data',
-                  data: p.a2ui as unknown as Record<string, unknown>,
-                };
-                return dp;
-              }
-            }),
-          };
-          eventBus.publish(messageEvent);
-        }
-      }
-    } else {
-      const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-
-      const previousHistory = history.slice(0, -1);
-
-      const chat = ai.chats.create({
-        model: 'gemini-2.5-flash',
-        config: {systemInstruction},
-        history: previousHistory,
-      });
-
-      const responseStream = await chat.sendMessageStream({message: query});
-
-      for await (const chunk of responseStream) {
-        if (chunk.text) {
-          fullOutput += chunk.text;
-          const parts = streamProcessor.processChunk(chunk.text);
-          if (parts.length > 0) {
-            const messageEvent: Message = {
-              kind: 'message',
-              messageId: crypto.randomUUID(),
-              role: 'agent',
-              taskId,
-              contextId,
-              parts: parts.map((p): Part => {
-                if (p.type === 'text') {
-                  const tp: TextPart = {kind: 'text', text: p.text};
-                  return tp;
-                } else {
-                  const dp: DataPart = {
-                    kind: 'data',
-                    data: p.a2ui as unknown as Record<string, unknown>,
-                  };
-                  return dp;
-                }
-              }),
-            };
-            eventBus.publish(messageEvent);
-          }
-        }
-      }
-    }
-
-    // Post-hoc integrity check: validate the full emitted payload
-    // against the processor's active catalog.
-    // If validation throws, the invalid UI has already started to stream,
-    // but we mark the task 'failed' here to properly halt the flow
-    // and indicate the error to the A2A client.
-    try {
-      processor.parseResponse(fullOutput);
-    } catch (e) {
-      console.error('A2UI Validation Error during final state check:', e);
-      const errorEvent: TaskStatusUpdateEvent = {
+    const publishWorkingBatch = (parts: Part[]) => {
+      if (parts.length === 0) return;
+      const intermediateEvent: TaskStatusUpdateEvent = {
         kind: 'status-update',
         taskId,
         contextId,
-        status: {state: 'failed', timestamp: new Date().toISOString()},
-        final: true,
+        status: {
+          state: 'working',
+          timestamp: new Date().toISOString(),
+          message: {
+            kind: 'message',
+            role: 'agent',
+            messageId: crypto.randomUUID(),
+            taskId,
+            contextId,
+            parts,
+          },
+        },
+        final: false,
       };
-      eventBus.publish(errorEvent);
-      return;
+      eventBus.publish(intermediateEvent);
+    };
+
+    const isStub = resolveLlmMode() === 'stub';
+    let partsStreamed = false;
+    let finalParts: Part[] = [];
+
+    if (isStub) {
+      console.log('Using stub LLM response...');
+      const stubKey =
+        actionName === 'book_restaurant'
+          ? 'booking_form'
+          : actionName === 'submit_booking'
+            ? 'confirmation'
+            : 'single_column_list';
+
+      const stubContent = this.loadedExamples.exampleBlocks[stubKey];
+
+      if (this.config.format === 'direct_json') {
+        const streamProcessor = this.parserCache.getOrCreate(
+          contextId,
+          () =>
+            new DirectJsonStreamProcessorImpl(this.catalog, {
+              progressiveKeys: ['text', 'literalString'],
+            }),
+        );
+        const stubResponse = `<a2ui-json>\n${stubContent}\n</a2ui-json>`;
+        const chunkSize = Math.ceil(stubResponse.length / 4);
+        const chunks = [
+          stubResponse.substring(0, chunkSize),
+          stubResponse.substring(chunkSize, chunkSize * 2),
+          stubResponse.substring(chunkSize * 2, chunkSize * 3),
+          stubResponse.substring(chunkSize * 3),
+        ];
+
+        for (const chunk of chunks) {
+          const parts = streamProcessor.processChunk(chunk);
+          if (parts.length > 0) {
+            const a2aParts = parts.flatMap(p => convertResponsePartToA2aParts(p, this.mimeType));
+            if (a2aParts.length > 0) {
+              partsStreamed = true;
+              if (useStreaming) {
+                publishWorkingBatch(a2aParts);
+              }
+            }
+          }
+        }
+        const freshProcessor = this.createProcessor();
+        const validated = freshProcessor.parseResponse(stubResponse);
+        finalParts = validated.flatMap(p => convertResponsePartToA2aParts(p, this.mimeType));
+      } else {
+        const freshProcessor = this.createProcessor();
+        const validated = freshProcessor.parseResponse(stubContent);
+        const a2aParts = validated.flatMap(p => convertResponsePartToA2aParts(p, this.mimeType));
+        if (useStreaming) {
+          partsStreamed = true;
+          publishWorkingBatch(a2aParts);
+        }
+        finalParts = a2aParts;
+      }
+    } else {
+      // Live model execution
+      const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+      const modelName = process.env.MODEL_NAME?.trim() || 'gemini-2.5-flash';
+
+      const initialProcessor = this.createProcessor();
+      const systemInstruction = initialProcessor.generatePrompt({
+        roleDescription: ROLE_DESCRIPTION,
+        uiDescription: getUiDescription(this.config.format),
+        includeSchema: true,
+        includeExamples: true,
+      });
+
+      let chat = this.sessionChats.get(contextId);
+      if (!chat) {
+        chat = ai.chats.create({
+          model: modelName,
+          config: {
+            systemInstruction,
+            tools: [{functionDeclarations: [getRestaurantsDeclaration]}],
+          },
+        });
+        this.sessionChats.set(contextId, chat);
+      }
+
+      const streamProcessor =
+        this.config.format === 'direct_json'
+          ? this.parserCache.getOrCreate(
+              contextId,
+              () =>
+                new DirectJsonStreamProcessorImpl(this.catalog, {
+                  progressiveKeys: ['text', 'literalString'],
+                }),
+            )
+          : null;
+
+      const maxRetries = 1;
+      let attempt = 0;
+      let currentQueryText = query;
+      let isValid = false;
+
+      while (attempt <= maxRetries) {
+        attempt++;
+        console.log(`--- RestaurantExecutor: Attempt ${attempt}/${maxRetries + 1} ---`);
+
+        let currentTurnInput: PartListUnion = currentQueryText;
+        let turnComplete = false;
+        const fullContentList: string[] = [];
+
+        while (!turnComplete) {
+          const responseStream = await chat.sendMessageStream({message: currentTurnInput});
+          const pendingToolCalls: FunctionCall[] = [];
+
+          for await (const chunk of responseStream) {
+            if (chunk.text) {
+              fullContentList.push(chunk.text);
+              if (streamProcessor && this.config.format === 'direct_json') {
+                const parts = streamProcessor.processChunk(chunk.text);
+                if (parts.length > 0) {
+                  const a2aParts = parts.flatMap(p =>
+                    convertResponsePartToA2aParts(p, this.mimeType),
+                  );
+                  if (a2aParts.length > 0) {
+                    partsStreamed = true;
+                    if (useStreaming) {
+                      publishWorkingBatch(a2aParts);
+                    }
+                  }
+                }
+              }
+            }
+            if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+              pendingToolCalls.push(...chunk.functionCalls);
+            }
+          }
+
+          if (pendingToolCalls.length > 0) {
+            const baseUrl = `http://localhost:${this.port}`;
+            currentTurnInput = pendingToolCalls.map(fc => {
+              const args = (fc.args ?? {}) as Record<string, unknown>;
+              const result = executeGetRestaurants(args, baseUrl, this.pythonSampleDir);
+              return {
+                functionResponse: {
+                  name: fc.name ?? 'get_restaurants',
+                  response: {result},
+                },
+              };
+            });
+          } else {
+            turnComplete = true;
+          }
+        }
+
+        const fullText = fullContentList.join('');
+
+        // Validation using a fresh processor
+        const freshProc = this.createProcessor();
+        try {
+          const validated = freshProc.parseResponse(fullText);
+          const a2aParts = validated.flatMap(p => convertResponsePartToA2aParts(p, this.mimeType));
+          if (this.config.format === 'express' && useStreaming) {
+            publishWorkingBatch(a2aParts);
+            partsStreamed = true;
+          }
+          finalParts = a2aParts;
+          isValid = true;
+          break;
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          console.warn(`--- A2UI validation failed: ${errMsg} (Attempt ${attempt}) ---`);
+          if (attempt <= maxRetries) {
+            currentQueryText =
+              this.config.format === 'direct_json'
+                ? `Your previous response was invalid. Validation failed: ${errMsg}. You MUST generate a valid response that strictly follows the A2UI JSON SCHEMA. The response MUST be a JSON list of A2UI messages. Ensure each JSON part is wrapped in '<a2ui-json>' and '</a2ui-json>' tags. Please retry the original request: '${query}'`
+                : `Your previous response was invalid. Validation failed: ${errMsg}. You MUST generate a valid response that is valid A2UI Express wrapped in the '<a2ui-express>' and '</a2ui-express>' tags. Please retry the original request: '${query}'`;
+          }
+        }
+      }
+
+      if (!isValid) {
+        console.error('--- Max retries exhausted. Sending text-only error. ---');
+        finalParts = [
+          {
+            kind: 'text',
+            text: "I'm sorry, I'm having trouble generating the interface for that request right now. Please try again in a moment.",
+          },
+        ];
+        partsStreamed = false;
+      }
     }
 
-    history.push({role: 'model', parts: [{text: fullOutput}]});
-    sessionHistory.set(contextId, history);
+    // Terminal status-update
+    const finalState = actionName === 'submit_booking' ? 'completed' : 'input-required';
+    const omitParts = useStreaming && partsStreamed;
 
-    const completedEvent: TaskStatusUpdateEvent = {
+    const finalStatus: TaskStatusUpdateEvent['status'] = {
+      state: finalState,
+      timestamp: new Date().toISOString(),
+      ...(omitParts
+        ? {}
+        : {
+            message: {
+              kind: 'message',
+              role: 'agent',
+              messageId: crypto.randomUUID(),
+              taskId,
+              contextId,
+              parts: finalParts,
+            },
+          }),
+    };
+
+    const finalEvent: TaskStatusUpdateEvent = {
       kind: 'status-update',
       taskId,
       contextId,
-      status: {state: 'completed', timestamp: new Date().toISOString()},
+      status: finalStatus,
       final: true,
     };
-    eventBus.publish(completedEvent);
+    eventBus.publish(finalEvent);
   }
 
   async cancelTask(taskId: string, _eventBus: ExecutionEventBus): Promise<void> {

@@ -107,13 +107,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** None; `Catalog.fromSchema` works and is actively used instead.
 - **Done looks like:** The export is properly wired in `web_core`, or the dead code is removed.
 
-### Component payloads are structurally unchecked (Sharp edge)
-
-- **What it is:** `AnyComponentSchema` is declared `z.ZodType<any>` and built with `.passthrough()` (`web_core/src/v1_0/schema/helpers.ts:95`). Validation therefore stops at the message envelope: `createSurface` and `updateComponents` are `.strict()` and reject unknown keys, but anything inside the `components` array is accepted as-is.
-- **Why it exists:** The recursive component tree is catalog-dependent, so a single static schema cannot know which props a given `component` permits.
-- **What it risks:** A misspelled or invented component prop passes both the TypeScript compiler and `MessageProcessor.processMessages` without complaint, and only fails at the renderer — or renders silently wrong. Typing example payloads as `AgentToRendererMessage[]` buys envelope-level safety only; do not read a passing typecheck as proof that component props are correct.
-- **Done looks like:** Component payloads are validated against the negotiated catalog's per-component Zod schemas, rather than a permissive `any` passthrough.
-
 ### Catalog loader keeps a second copy of the common types map
 
 - **What it is:** `schema_loader.ts` resolves protocol `$ref`s through its own `COMMON_TYPE_SCHEMAS` table, a partial copy of the complete `CommonSchemas` map that `types/common-types.ts` already exports.
@@ -127,6 +120,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The loader handles named `$ref` item types but not inline `properties` on array items.
 - **What it risks:** `Tabs.tabs` is affected on both the v0.9 and v1.0 basic catalogs. `@a2ui/agent` compensates with a name-matching fallback in `src/utils/legacy_child_refs.ts`, which on the shipped catalogs claims exactly that one property. Every other consumer of the reference map gets no child reference for `Tabs` at all.
 - **Done looks like:** The loader builds a real object schema for inline array items, `Tabs.tabs` reports formal child references, and the fallback in `@a2ui/agent` can be deleted.
+
+### Component payloads are structurally unchecked (Sharp edge)
+
+- **What it is:** `AnyComponentSchema` is declared `z.ZodType<any>` and built with `.passthrough()` (`web_core/src/v1_0/schema/helpers.ts:95`). Validation therefore stops at the message envelope: `createSurface` and `updateComponents` are `.strict()` and reject unknown keys, but anything inside the `components` array is accepted as-is.
+- **Why it exists:** The recursive component tree is catalog-dependent, so a single static schema cannot know which props a given `component` permits.
+- **What it risks:** A misspelled or invented component prop passes both the TypeScript compiler and `MessageProcessor.processMessages` without complaint, and only fails at the renderer — or renders silently wrong. Typing example payloads as `AgentToRendererMessage[]` buys envelope-level safety only; do not read a passing typecheck as proof that component props are correct.
+- **Done looks like:** Component payloads are validated against the negotiated catalog's per-component Zod schemas, rather than a permissive `any` passthrough.
 
 ## 3. Specification & Blueprints
 
@@ -272,12 +272,24 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 5. Node Sample (`samples/agent/node/restaurant_finder`)
 
-### Only the first streamed message reaches the client (Sharp edge)
+### Only the first streamed message reaches the client (Resolved)
 
-- **What it is:** `@a2a-js/sdk` terminates the SSE stream on the first `message` event it sees (`dist/server/index.js:290` — `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample publishes one `message` per healed chunk, so with a live model only the first is delivered; the rest, and the terminal `completed`/`failed` status, are published to the bus but never reach the wire.
-- **Why it exists:** The A2A event contract treats a `Message` as a terminal response. Progressive output is expected to travel as non-final `status-update` events carrying a `status.message`, not as repeated top-level `message` events.
-- **What it risks:** Stub mode emits exactly one message, so the sample looks correct in the only mode that runs without an API key. The defect appears only against a real model, which is the harder case to notice. It also means the post-hoc validation failure is invisible to the client.
-- **Done looks like:** Progressive chunks are published as non-final `TaskStatusUpdateEvent`s with the payload in `status.message`, reserving a terminal event for the end of the turn.
+- **What it was:** `@a2a-js/sdk` ends the SSE stream at the first `message` event (`dist/server/index.js:290`: `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample published one `message` per chunk, so with a live model only the first reached the client.
+- **Resolution:** The sample now publishes each batch of parts as a non-final `working` status update carrying `status.message`, as the Python sample does, and ends the turn with one final status update.
+
+### The sample answers in A2UI when no A2UI extension is requested
+
+- **What it is:** Python's sample answers with plain text when the client does not request an A2UI extension. The Node sample logs a warning and answers in its configured A2UI version, so curl works without the `X-A2A-Extensions` header. A request for a different A2UI version fails the task with a message that says how to restart the agent.
+- **Why it exists:** Porting the text-only agent would double the sample for a path no sample client uses. Telling "none requested" from "another version requested" also needs a workaround: `DefaultRequestHandler` drops requested extensions the agent card does not advertise, so `index.ts` copies the header into `message.extensions`.
+- **What it risks:** A client that wants text gets A2UI.
+- **Done looks like:** A text-only mode, if a client needs one.
+
+### `input-required` turns end with `final: true`
+
+- **What it is:** Python marks only `completed` status updates as final. The Node sample also marks `input-required` as final.
+- **Why it exists:** `@a2a-js/sdk` keeps the SSE stream open until it sees a final status update, so a non-final `input-required` would leave streaming clients waiting.
+- **What it risks:** Nothing found so far. The multi-turn flow continues through `contextId`.
+- **Done looks like:** Nothing, unless the SDK changes.
 
 ### `@google/adk` cannot be used in this monorepo
 
