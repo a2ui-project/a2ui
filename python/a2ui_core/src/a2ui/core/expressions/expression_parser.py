@@ -72,16 +72,14 @@ class ExpressionParser:
     #: in TypeScript and ``ExpressionParser.maxDepth`` in Swift. They must
     #: agree, or an expression one engine accepts the other rejects.
     MAX_DEPTH = 100
-    MAX_EXPRESSION_TEMPLATE_LENGTH = MAX_EXPRESSION_TEMPLATE_LENGTH
-    MAX_EXPRESSION_PARTS = MAX_EXPRESSION_PARTS
 
     def parse(self, input_str: str, depth: int = 0) -> list[Any]:
         if depth > self.MAX_DEPTH:
             raise A2uiExpressionError("Max recursion depth reached in parse")
-        if input_str and len(input_str) > self.MAX_EXPRESSION_TEMPLATE_LENGTH:
+        if input_str and len(input_str) > MAX_EXPRESSION_TEMPLATE_LENGTH:
             raise A2uiExpressionError(
                 f"Expression template length ({len(input_str)}) exceeds maximum"
-                f" limit ({self.MAX_EXPRESSION_TEMPLATE_LENGTH})"
+                f" limit ({MAX_EXPRESSION_TEMPLATE_LENGTH})"
             )
         if not input_str or "${" not in input_str:
             return [input_str] if input_str else []
@@ -90,10 +88,10 @@ class ExpressionParser:
         scanner = Scanner(input_str)
 
         while not scanner.is_at_end():
-            if len(parts) >= self.MAX_EXPRESSION_PARTS:
+            if len(parts) >= MAX_EXPRESSION_PARTS:
                 raise A2uiExpressionError(
                     "Expression parts count exceeds maximum limit"
-                    f" ({self.MAX_EXPRESSION_PARTS})"
+                    f" ({MAX_EXPRESSION_PARTS})"
                 )
             if scanner.matches("${"):
                 scanner.advance(2)

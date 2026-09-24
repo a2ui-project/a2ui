@@ -50,6 +50,10 @@ def mock_catalog():
             self.single_refs = set()
             self.list_refs = set()
 
+        @property
+        def id(self) -> str:
+            return self.catalog_id
+
         def validate_components(self, components):
             pass
 

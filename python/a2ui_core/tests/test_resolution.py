@@ -759,3 +759,31 @@ def test_data_context_max_function_call_args_limit():
     assert res is None
     assert len(errors) == 1
     assert "exceeds maximum allowed arguments count" in errors[0]["message"]
+
+
+def test_data_context_execute_function_exceeds_max_args():
+    from a2ui.core.exceptions import A2uiExpressionError
+    from a2ui.core.validation.payload_validator import MAX_FUNCTION_CALL_ARGS
+
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat)
+    ctx = DataContext(surface, path="/")
+
+    errors_dispatched: list[dict[str, Any]] = []
+    surface.on_error.subscribe(lambda e: errors_dispatched.append(e))
+
+    oversized_args = {f"arg_{i}": i for i in range(MAX_FUNCTION_CALL_ARGS + 1)}
+    result = ctx._execute_function("dummy_fn", oversized_args)
+    assert result is None
+
+    assert len(errors_dispatched) == 1
+    assert errors_dispatched[0]["code"] == "EXPRESSION_ERROR"
+    assert "exceeds maximum allowed arguments count" in errors_dispatched[0]["message"]
+    assert errors_dispatched[0]["surfaceId"] == "s1"
+
+    # When surface has no error dispatcher, it re-raises
+    ctx.surface = None  # type: ignore[assignment]
+    with pytest.raises(
+        A2uiExpressionError, match="exceeds maximum allowed arguments count"
+    ):
+        ctx._execute_function("dummy_fn", oversized_args)

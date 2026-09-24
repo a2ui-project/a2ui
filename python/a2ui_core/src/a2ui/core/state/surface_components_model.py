@@ -14,6 +14,7 @@
 
 from collections.abc import ItemsView, KeysView, Mapping, ValuesView
 from typing import Any
+from ..catalog import Catalog
 from ..common.events import EventSource
 from ..exceptions import A2uiErrorDetail, A2uiStateError, A2uiValidationError
 from .component_model import ComponentModel
@@ -28,7 +29,7 @@ from ..validation.payload_validator import ValidationConfig
 class SurfaceComponentsModel:
     """Manages the adjacency map of component configs in a surface."""
 
-    def __init__(self, default_catalog: Any = None) -> None:
+    def __init__(self, default_catalog: Catalog[Any, Any] | None = None) -> None:
         self.default_catalog = default_catalog
         self._components: dict[str, ComponentModel] = {}
         self.on_created = EventSource()
@@ -99,7 +100,15 @@ class SurfaceComponentsModel:
         comp = self.get(component_id)
         if not comp:
             return []
-        return list(comp.get_child_references(set(self._components.keys())))
+        fallback_cat = (
+            comp.catalog if isinstance(comp.catalog, Catalog) else self.default_catalog
+        )
+        return list(
+            comp.get_child_references(
+                set(self._components.keys()),
+                catalog=fallback_cat,
+            )
+        )
 
     def get_child_ids(self, component_id: str) -> list[str]:
         """Returns list of referenced child component IDs for a given component identifier."""
@@ -143,7 +152,6 @@ class SurfaceComponentsModel:
             self._components,
             root_id=actual_root,
             config=config,
-            max_depth=actual_depth,
         )
 
     def validate_topology(
@@ -232,7 +240,5 @@ class SurfaceComponentsModel:
         for component in list(self._components.values()):
             component.dispose()
         self._components.clear()
-        if hasattr(self.on_created, "dispose"):
-            self.on_created.dispose()
-        if hasattr(self.on_deleted, "dispose"):
-            self.on_deleted.dispose()
+        self.on_created.dispose()
+        self.on_deleted.dispose()

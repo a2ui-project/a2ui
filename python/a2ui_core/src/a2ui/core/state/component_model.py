@@ -173,13 +173,17 @@ class ComponentModel:
         validator.validate_component(comp_dict)
 
     def get_child_references(
-        self, known_component_ids: set[str] | None = None
+        self,
+        known_component_ids: set[str] | None = None,
+        catalog: Catalog[TComponent, TFunction] | None = None,
     ) -> Iterator[tuple[str, str]]:
         """Recursively extracts referenced child ComponentIds and their property paths from properties.
 
         Args:
             known_component_ids: Optional set of active component IDs on the surface used
                 during fallback heuristic discovery for legacy v0.8 components.
+            catalog: Optional catalog used to resolve component reference specs if not
+                already bound to this component model.
 
         Yields:
             Tuples of `(referenced_component_id, property_path)` where:
@@ -191,10 +195,11 @@ class ComponentModel:
         if not isinstance(props, dict):
             return
 
+        target_catalog = catalog if catalog is not None else self.catalog
         ref_spec = (
-            self.catalog.get_component_ref_spec(self.type)
-            if self.catalog is not None
-            and hasattr(self.catalog, "get_component_ref_spec")
+            target_catalog.get_component_ref_spec(self.type)
+            if target_catalog is not None
+            and hasattr(target_catalog, "get_component_ref_spec")
             else None
         )
 

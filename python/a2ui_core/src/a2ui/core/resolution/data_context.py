@@ -21,7 +21,7 @@ from typing import Any, Callable, Generic
 from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
-from ..validation.payload_validator import PayloadValidator
+from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS, PayloadValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 
 
@@ -314,7 +314,6 @@ class DataContext(Generic[TComponent, TFunction]):
         abort_signal: AbortSignal | None = None,
     ) -> Any:
         from ..exceptions import A2uiCatalogError, A2uiExpressionError
-        from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS
 
         try:
             if (

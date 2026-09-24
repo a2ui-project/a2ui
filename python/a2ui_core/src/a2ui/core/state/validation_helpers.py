@@ -133,19 +133,14 @@ def analyze_topology(
     components: dict[str, ComponentModel],
     root_id: str = ROOT_ID,
     config: ValidationConfig | None = None,
-    max_depth: int | None = None,
 ) -> set[str]:
     """Analyzes component graph topology for self-references, circular cycles, and unreachable orphans."""
     allow_orphan_components = config.allow_orphan_components if config else False
     allow_missing_root = config.allow_missing_root if config else False
     effective_max_depth = (
-        max_depth
-        if max_depth is not None
-        else (
-            config.max_depth
-            if config and config.max_depth is not None
-            else MAX_GLOBAL_DEPTH
-        )
+        config.max_depth
+        if config and config.max_depth is not None
+        else MAX_GLOBAL_DEPTH
     )
 
     adj_list: dict[str, list[str]] = {}
