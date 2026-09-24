@@ -145,3 +145,19 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The TypeScript port started from the same regex. A review of this package pointed out the corruption, and only the TypeScript side was changed.
 - **What it risks:** For the same model output, the two SDKs can emit different string values. Conformance does not catch it: `test_compile_json_trailing_commas_removed` has no comma inside a string.
 - **Done looks like:** Python skips string literals as well, and a conformance case with a `,}` inside a string value pins the behaviour.
+
+### Python's Express emits checks on components that take none
+
+- **What it is:** Python's Express compiler writes a `checks` key on any component given a `?check`, whether or not the component's schema declares a check-rule property. `Text("hi", _, _, [?required])` compiles against the v1.0 basic catalog to a `Text` carrying `checks`, and because `Text` has no bound `value` the check's `args` are empty. The compiler never raises. The literal `"checks"` is also hardcoded rather than read from the schema (`compiler.py:502` and `:639` on `origin/main`).
+- **Why it exists:** Python decides whether a component is checkable by matching the substring `"Checkable"` in an `allOf` `$ref`, but uses that result only for property ordering, not to validate checks.
+- **What it risks:** The model gets no feedback from the compiler. Any error surfaces later, away from the line that caused it, and the check silently has nothing to check.
+- **TypeScript:** The port reads the check-rule property from the schema and throws `ExpressValidationError` when a component has none. See `express_format.blueprint.md` §5.2 item 4. This is a deliberate difference from Python.
+- **Done looks like:** Python raises a validation error for checks on a component without a check-rule property, and a conformance case pins the behaviour for both SDKs.
+
+### Python's Express rejects paths nested inside array items
+
+- **What it is:** Python's Express compiler rejects a data binding anywhere inside a property whose top-level schema doesn't admit one. `Tabs([{title: $/t, child: c}])` raises `ExpressForbiddenDatabindingError` against the v1.0 basic catalog, even though `title` is a `DynamicString`.
+- **Why it exists:** `_schema_allows_databinding` checks the property's top-level schema, and `_has_databinding` then searches the whole written value for a `path`, without following the schema down to where the path appears (`compiler.py:75-121` on `origin/main`).
+- **What it risks:** Valid bindings inside arrays of objects cannot be written in Express. Tabs titles are the case in the basic catalog.
+- **TypeScript:** The port checks each path against the schema at the position where it is written. See `express_format.blueprint.md` §5.2 item 6. This is a deliberate difference from Python.
+- **Done looks like:** Python checks bindings positionally, and a conformance case pins the behaviour for both SDKs.
