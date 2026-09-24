@@ -29,6 +29,7 @@ import {
   AccessibilityAttributesSchema,
   DataBindingSchema,
   FunctionCallSchema,
+  ChildSchema,
 } from '../types/common-types.js';
 import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
@@ -49,6 +50,7 @@ const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicStringList: DynamicStringListSchema,
   DynamicValue: DynamicValueSchema,
   ComponentId: ComponentIdSchema,
+  Child: ChildSchema,
   ChildList: ChildListSchema,
   Action: ActionSchema,
   CheckRule: CheckRuleSchema,
