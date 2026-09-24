@@ -2,7 +2,7 @@
 
 A2UI Agent SDK for TypeScript and Node.js.
 
-This package targets the A2UI protocol **v0.9** and **v1.0**, and currently supports the **Direct JSON** inference format. The emitted protocol version is derived from the catalog.
+This package targets the A2UI protocol **v0.9** and **v1.0**, and supports the **Direct JSON** and **Express** inference formats. Express takes exactly one catalog and does not stream. The emitted protocol version is derived from the catalog.
 
 ## Regenerating the Express parser
 
