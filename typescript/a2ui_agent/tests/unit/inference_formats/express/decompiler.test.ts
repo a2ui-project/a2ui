@@ -22,6 +22,7 @@ import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core
 import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
+import {ExpressInvalidIdentifierError} from '../../../../src/inference_formats/express/errors.js';
 import {ExpressParser} from '../../../../src/inference_formats/express/parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -161,6 +162,77 @@ describe('ExpressDecompiler', () => {
       } as AgentToRendererMessage;
       const actual = decompiler.decompile(msg, true);
       expect(actual).toBe('surface("s1")\nroot = Text(text="Hello")');
+    });
+  });
+
+  describe('Follow-up 3: Map keys that are grammar keywords are quoted on decompile', () => {
+    it('quotes true, false, null as dictionary keys', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler(catalog, version);
+      const msg = {
+        createSurface: {
+          surfaceId: 'default_surface',
+          components: [
+            {
+              id: 'c1',
+              component: 'Card',
+              child: {
+                event: {
+                  name: 'e1',
+                  context: {
+                    true: 1,
+                    false: 2,
+                    null: 3,
+                    valid_key: 4,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const dsl = decompiler.decompile(msg);
+      expect(dsl).toContain(
+        'c1 = Card(Event("e1", {"true": 1, "false": 2, "null": 3, valid_key: 4}))',
+      );
+    });
+  });
+
+  describe('B6: decompiling a component id that is not an Express identifier throws', () => {
+    it('throws ExpressInvalidIdentifierError when component id contains hyphen', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler(catalog, version);
+      const msg = {
+        createSurface: {
+          surfaceId: 'default_surface',
+          components: [
+            {
+              id: 'title-heading',
+              component: 'Text',
+              text: 'Hello',
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      expect(() => decompiler.decompile(msg)).toThrow(ExpressInvalidIdentifierError);
+    });
+
+    it('throws ExpressInvalidIdentifierError when component id is a reserved keyword', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler(catalog, version);
+      const msg = {
+        createSurface: {
+          surfaceId: 'default_surface',
+          components: [
+            {
+              id: 'true',
+              component: 'Text',
+              text: 'Hello',
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      expect(() => decompiler.decompile(msg)).toThrow(ExpressInvalidIdentifierError);
     });
   });
 

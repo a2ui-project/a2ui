@@ -165,7 +165,7 @@ describe('ExpressParser', () => {
       // error: "A2uiCompilationParseError"
       // message: "Root target 'root' is not defined. - Help: Ensure root component 'root' is assigned in your Express DSL."
       try {
-        parser.compile('x = Text("hi")');
+        parser.compile('');
         expect.unreachable('Should have thrown');
       } catch (e) {
         expect(e).toBeInstanceOf(A2uiCompilationParseError);

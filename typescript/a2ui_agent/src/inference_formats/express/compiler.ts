@@ -504,23 +504,6 @@ export class ExpressCompiler {
         setNestedPath(dataModel, pathName, compiledVal);
       }
 
-      if (!('root' in scope.rawSymbols)) {
-        if (Object.keys(scope.dataPathAssignments).length > 0) {
-          resultMessages.push(
-            asAgentToRendererMessage({
-              version: targetVersion,
-              [SurfaceOperation.UPDATE_DATA]: {
-                surfaceId: scopeSurfId,
-                path: '/',
-                value: dataModel,
-              },
-            }),
-          );
-          continue;
-        }
-        throw new ExpressUndefinedRootError('root');
-      }
-
       const compiledComponents: Record<string, unknown>[] = [];
       for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
         const compDict = this._compileAstNode(varName, ast, scope.rawSymbols, ctx);
@@ -531,6 +514,41 @@ export class ExpressCompiler {
 
       compiledComponents.push(...ctx.extraComponents);
       ctx.extraComponents = [];
+
+      if (!('root' in scope.rawSymbols)) {
+        if (
+          compiledComponents.length === 0 &&
+          Object.keys(scope.dataPathAssignments).length === 0
+        ) {
+          throw new ExpressUndefinedRootError('root');
+        }
+
+        if (compiledComponents.length > 0) {
+          resultMessages.push(
+            asAgentToRendererMessage({
+              version: targetVersion,
+              [SurfaceOperation.UPDATE_COMPONENTS]: {
+                surfaceId: scopeSurfId,
+                components: compiledComponents,
+              },
+            }),
+          );
+        }
+
+        if (Object.keys(dataModel).length > 0) {
+          resultMessages.push(
+            asAgentToRendererMessage({
+              version: targetVersion,
+              [SurfaceOperation.UPDATE_DATA]: {
+                surfaceId: scopeSurfId,
+                path: '/',
+                value: dataModel,
+              },
+            }),
+          );
+        }
+        continue;
+      }
 
       if (isAtLeastVersion(targetVersion, 'v1.0')) {
         const createPayload: Record<string, unknown> = {
@@ -977,9 +995,10 @@ export class ExpressCompiler {
             throw new ExpressIdCollisionError(inlineId);
           }
           ctx.generatedIds.add(inlineId);
+          const extraStartIndex = ctx.extraComponents.length;
           const compiledInline = this._compileAstNode(inlineId, val, rawSymbols, ctx);
           if (compiledInline) {
-            ctx.extraComponents.push(compiledInline);
+            ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
           }
           return inlineId;
         }
