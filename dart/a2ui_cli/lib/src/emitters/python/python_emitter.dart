@@ -251,7 +251,8 @@ class PythonEmitter {
   /// Emits `Name = Annotated[Literal[...], OPEN_ENUM]`, wrapped when it is long.
   String _enumAlias(String name, List<String> values) {
     final rendered = values.map(_pyString).toList();
-    final oneLine = '$name = Annotated[Literal[${rendered.join(', ')}], OPEN_ENUM]';
+    final oneLine =
+        '$name = Annotated[Literal[${rendered.join(', ')}], OPEN_ENUM]';
     if (oneLine.length <= _lineWidth) return oneLine;
 
     final indented = '    Literal[${rendered.join(', ')}], OPEN_ENUM';
@@ -442,11 +443,7 @@ class PythonEmitter {
         _wrapCall(
           indent: 8,
           prefix: 'super().__init__(',
-          args: [
-            'call=${_pyString(fn.name)}',
-            'args=$argsLiteral',
-            '**kwargs',
-          ],
+          args: ['call=${_pyString(fn.name)}', 'args=$argsLiteral', '**kwargs'],
           suffix: ')',
         ),
       );

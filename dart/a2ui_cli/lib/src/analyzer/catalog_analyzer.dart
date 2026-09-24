@@ -337,7 +337,9 @@ class CatalogAnalyzer {
               itemMap,
               isRequired: false,
             ).type;
-            if (t is! DynamicType && t is! DataBindingType && t is! ActionType) {
+            if (t is! DynamicType &&
+                t is! DataBindingType &&
+                t is! ActionType) {
               baseTypes.add(t);
             }
           }
