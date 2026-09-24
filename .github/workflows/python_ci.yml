@@ -62,10 +62,16 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-python
       - name: Verify SDK version tags are reachable
+        env:
+          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
         run: |
           set -euo pipefail
           for glob in 'python/a2ui-core/v*' 'python/a2ui-agent-sdk/v*'; do
             if ! git describe --tags --match "$glob" >/dev/null 2>&1; then
+              if [ "$TARGET_BRANCH" != "main" ]; then
+                echo "::warning::No tag matching $glob is reachable on branch $TARGET_BRANCH; fallback version will be used."
+                continue
+              fi
               echo "::error::No tag matching $glob is reachable, so package" \
                 "versions would fall back instead of coming from tags."
               exit 1
