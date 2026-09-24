@@ -15,7 +15,12 @@
  */
 
 import {describe, it, expect} from 'vitest';
-import {A2uiCompilationError, A2uiError} from '../../src/errors.js';
+import {
+  A2uiCompilationError,
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
+  A2uiError,
+} from '../../src/errors.js';
 import type {ResponsePart} from '../../src/parser/response_part.js';
 
 describe('A2uiCompilationError', () => {
@@ -93,6 +98,48 @@ describe('A2uiCompilationError', () => {
 
   it('is an instance of A2uiError and Error', () => {
     const err = new A2uiCompilationError('Failed', {rawContent: 'raw text'});
+    expect(err).toBeInstanceOf(A2uiError);
+    expect(err).toBeInstanceOf(Error);
+  });
+});
+
+describe('A2uiCompilationParseError', () => {
+  it('instantiates with name and options', () => {
+    const err = new A2uiCompilationParseError('Syntax failure', {
+      rawContent: 'raw dsl',
+      line: 3,
+      column: 14,
+      helpMessage: 'Check grammar',
+    });
+    expect(err.name).toBe('A2uiCompilationParseError');
+    expect(err.detail).toBe('Syntax failure');
+    expect(err.rawContent).toBe('raw dsl');
+    expect(err.line).toBe(3);
+    expect(err.column).toBe(14);
+    expect(err.helpMessage).toBe('Check grammar');
+    expect(err.message).toBe('Syntax failure - Line 3, Col 14 - Help: Check grammar');
+    expect(err).toBeInstanceOf(A2uiCompilationError);
+    expect(err).toBeInstanceOf(A2uiError);
+    expect(err).toBeInstanceOf(Error);
+  });
+});
+
+describe('A2uiCompilationValidationError', () => {
+  it('instantiates with name and options', () => {
+    const err = new A2uiCompilationValidationError('Catalog failure', {
+      rawContent: 'raw dsl',
+      line: 5,
+      column: 2,
+      helpMessage: 'Check property names',
+    });
+    expect(err.name).toBe('A2uiCompilationValidationError');
+    expect(err.detail).toBe('Catalog failure');
+    expect(err.rawContent).toBe('raw dsl');
+    expect(err.line).toBe(5);
+    expect(err.column).toBe(2);
+    expect(err.helpMessage).toBe('Check property names');
+    expect(err.message).toBe('Catalog failure - Line 5, Col 2 - Help: Check property names');
+    expect(err).toBeInstanceOf(A2uiCompilationError);
     expect(err).toBeInstanceOf(A2uiError);
     expect(err).toBeInstanceOf(Error);
   });
