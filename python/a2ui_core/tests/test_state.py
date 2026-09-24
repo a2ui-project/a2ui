@@ -760,6 +760,22 @@ def test_surface_components_model_collection_helpers_and_topology():
     scm.validate_topology(ValidationConfig(allow_orphan_components=True))
     assert scm.validate_references(ValidationConfig(allow_orphan_components=True)) == []
 
+    # detect_cycles accepts ValidationConfig or dict options
+    assert scm.detect_cycles(ValidationConfig(root_id="root")) == {"root", "child1"}
+    assert scm.detect_cycles({"rootId": "root"}) == {"root", "child1"}
+
+    # Missing root is still caught even when allow_dangling_references=True
+    missing_root_scm = SurfaceComponentsModel(default_catalog=cat)
+    missing_root_scm.add_component(
+        ComponentModel("not_root", "Box", cat, {"child": "dangling_child"})
+    )
+    with pytest.raises(A2uiIntegrityError, match="Missing root component"):
+        missing_root_scm.validate_topology(
+            ValidationConfig(
+                allow_dangling_references=True, allow_orphan_components=True
+            )
+        )
+
 
 def test_uax31_identifier_helpers():
     from a2ui.core.common import assert_uax31_identifier, is_valid_uax31_identifier

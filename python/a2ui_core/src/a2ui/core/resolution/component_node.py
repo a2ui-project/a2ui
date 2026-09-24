@@ -16,6 +16,30 @@ from typing import Any, Callable
 from ..common.events import EventSource, Signal
 
 
+def _is_setter_callback(key: str, val: Any) -> bool:
+    """Checks if a key-value pair is a generated setter closure (e.g., setValue)."""
+    return key.startswith("set") and len(key) > 3 and key[3].isupper() and callable(val)
+
+
+def _serialize_prop_value(v: Any) -> Any:
+    """Recursively serializes a resolved property value for ComponentNode.to_dict."""
+    if isinstance(v, ComponentNode):
+        return v.to_dict()
+    if isinstance(v, list):
+        return [_serialize_prop_value(item) for item in v]
+    if isinstance(v, dict):
+        return {
+            dk: _serialize_prop_value(dv)
+            for dk, dv in v.items()
+            if not _is_setter_callback(dk, dv)
+        }
+    if isinstance(v, Signal):
+        return _serialize_prop_value(v.value)
+    if callable(v):
+        return "<Action>"
+    return v
+
+
 class ComponentNode:
     """Represents a living, fully resolved component instance in the view hierarchy."""
 
@@ -81,34 +105,11 @@ class ComponentNode:
                 "type": "Placeholder",
             }
 
-        def serialize_value(v: Any) -> Any:
-            if isinstance(v, ComponentNode):
-                return v.to_dict()
-            elif isinstance(v, list):
-                return [serialize_value(item) for item in v]
-            elif isinstance(v, dict):
-                return {
-                    dk: serialize_value(dv)
-                    for dk, dv in v.items()
-                    if not (
-                        dk.startswith("set")
-                        and len(dk) > 3
-                        and dk[3].isupper()
-                        and callable(dv)
-                    )
-                }
-            elif isinstance(v, Signal):
-                return serialize_value(v.value)
-            elif callable(v):
-                return "<Action>"
-            else:
-                return v
-
-        resolved_props = {}
-        for k, val in self.props.value.items():
-            if k.startswith("set") and len(k) > 3 and k[3].isupper() and callable(val):
-                continue
-            resolved_props[k] = serialize_value(val)
+        resolved_props = {
+            k: _serialize_prop_value(val)
+            for k, val in self.props.value.items()
+            if not _is_setter_callback(k, val)
+        }
 
         return {
             "instance_id": self.instance_id,

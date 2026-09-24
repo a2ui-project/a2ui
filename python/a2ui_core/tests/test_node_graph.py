@@ -910,3 +910,80 @@ def test_template_child_list_reconciliation_and_reuse():
 
     resolver.dispose()
     surface.dispose()
+
+
+def test_node_resolver_custom_root_id_and_catalog_validation():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.exceptions import A2uiStateError
+    from a2ui.core.resolution import NodeResolver
+
+    catalog = BasicCatalog()
+    other_cat = Catalog("other", protocol_version="v1.0")
+    surface = SurfaceModel("surf-custom-root", catalog, root_id="main_panel")
+
+    with pytest.raises(A2uiStateError, match="must match surface.default_catalog"):
+        NodeResolver(surface, other_cat)
+
+    resolver = NodeResolver(surface, catalog)
+    assert resolver.rootNode.value is None
+
+    # Adding non-root component does not populate rootNode
+    surface.components_model.add_component(
+        ComponentModel("root", "Text", {"text": "Not the custom root"})
+    )
+    assert resolver.rootNode.value is None
+
+    # Adding custom root_id populates rootNode
+    surface.components_model.add_component(
+        ComponentModel("main_panel", "Text", {"text": "Custom Root"})
+    )
+    assert resolver.rootNode.value is not None
+    assert resolver.rootNode.value.component_id == "main_panel"
+
+    # Removing custom root_id clears rootNode
+    surface.components_model.remove_component("main_panel")
+    assert resolver.rootNode.value is None
+
+    resolver.dispose()
+    surface.dispose()
+
+
+def test_template_to_static_list_unsubscribes_template_sub():
+    from a2ui.core.resolution import NodeResolver
+
+    catalog = BasicCatalog()
+    surface = SurfaceModel("surf-unsub", catalog)
+    surface.data_model.set("/items", [{"label": "A"}])
+
+    root_comp = ComponentModel(
+        "root",
+        "Column",
+        {"children": {"componentId": "item_tpl", "path": "/items"}},
+    )
+    item_tpl = ComponentModel("item_tpl", "Text", {"text": {"path": "label"}})
+    static_child = ComponentModel("static_1", "Text", {"text": "Static"})
+
+    surface.components_model.add_component(root_comp)
+    surface.components_model.add_component(item_tpl)
+    surface.components_model.add_component(static_child)
+
+    resolver = NodeResolver(surface)
+    root_node = resolver.rootNode.value
+    assert root_node is not None
+    tpl_sig = root_node.props.value["children"]
+    assert isinstance(tpl_sig, Signal)
+    first_tpl_node = tpl_sig.value[0]
+    assert first_tpl_node.disposed is False
+
+    # Transition children from template dict to static list
+    root_comp.properties = {"children": ["static_1"]}
+    assert first_tpl_node.disposed is True
+    assert isinstance(root_node.props.value["children"], list)
+
+    # Mutating /items after transitioning to static list should NOT spawn template nodes
+    surface.data_model.set("/items", [{"label": "A"}, {"label": "B"}])
+    assert "item_tpl-[/items/0]" not in resolver.active_nodes
+    assert "item_tpl-[/items/1]" not in resolver.active_nodes
+
+    resolver.dispose()
+    surface.dispose()

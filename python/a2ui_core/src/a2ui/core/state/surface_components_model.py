@@ -22,13 +22,7 @@ from .validation_helpers import (
     validate_component_integrity,
     validate_composition_constraints,
 )
-from ..validation.payload_validator import (
-    PayloadValidator,
-    ValidationConfig,
-)
-
-from ..catalog import Catalog
-from ..catalog.catalog import TComponent, TFunction
+from ..validation.payload_validator import ValidationConfig
 
 
 class SurfaceComponentsModel:
@@ -78,18 +72,22 @@ class SurfaceComponentsModel:
         return self._components
 
     def get(self, component_id: str) -> ComponentModel | None:
+        """Retrieves a component model by ID, or None if not present."""
         return self._components.get(component_id)
 
     def get_all(self) -> dict[str, ComponentModel]:
+        """Returns a shallow dictionary copy of all component models."""
         return dict(self._components)
 
     def add_component(self, component: ComponentModel) -> None:
+        """Adds a new component model to the surface, emitting on_created."""
         if component.id in self._components:
             raise A2uiStateError(f"Component with id '{component.id}' already exists.")
         self._components[component.id] = component
         self.on_created.emit(component)
 
     def remove_component(self, component_id: str) -> None:
+        """Removes and disposes a component model by ID, emitting on_deleted."""
         if component_id in self._components:
             comp = self._components[component_id]
             del self._components[component_id]
@@ -109,21 +107,43 @@ class SurfaceComponentsModel:
 
     def detect_cycles(
         self,
-        root_id: str = "root",
+        root_id: str | ValidationConfig | dict[str, Any] = "root",
         max_depth: int = 50,
         allow_missing_root: bool = False,
     ) -> set[str]:
         """Detects self-references, circular dependencies, and exceeds depth limits."""
+        if isinstance(root_id, ValidationConfig):
+            actual_root = root_id.root_id
+            actual_depth = (
+                root_id.max_depth if root_id.max_depth is not None else max_depth
+            )
+            actual_allow_missing = root_id.allow_missing_root
+        elif isinstance(root_id, dict):
+            actual_root = str(root_id.get("root_id", root_id.get("rootId", "root")))
+            raw_depth = root_id.get("max_depth", root_id.get("maxDepth"))
+            actual_depth = int(raw_depth) if raw_depth is not None else max_depth
+            actual_allow_missing = bool(
+                root_id.get(
+                    "allow_missing_root",
+                    root_id.get("allowMissingRoot", allow_missing_root),
+                )
+            )
+        else:
+            actual_root = root_id
+            actual_depth = max_depth
+            actual_allow_missing = allow_missing_root
+
         config = ValidationConfig(
-            allow_missing_root=allow_missing_root,
+            root_id=actual_root,
+            allow_missing_root=actual_allow_missing,
             allow_orphan_components=True,
-            max_depth=max_depth,
+            max_depth=actual_depth,
         )
         return analyze_topology(
             self._components,
-            root_id=root_id,
+            root_id=actual_root,
             config=config,
-            max_depth=max_depth,
+            max_depth=actual_depth,
         )
 
     def validate_topology(

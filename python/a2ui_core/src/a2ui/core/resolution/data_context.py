@@ -46,9 +46,16 @@ class DataContext(Generic[TComponent, TFunction]):
         self.data_model = surface.data_model
         self._index = index
         self.parent = parent
-        self._warned_paths: set[str] = (
-            parent._warned_paths if parent is not None else set()
-        )
+        if parent is not None:
+            self._warned_paths: set[str] = parent._warned_paths
+        elif surface is not None:
+            surface_warned = getattr(surface, "_warned_paths", None)
+            if not isinstance(surface_warned, set):
+                surface_warned = set()
+                setattr(surface, "_warned_paths", surface_warned)
+            self._warned_paths = surface_warned
+        else:
+            self._warned_paths = set()
 
     def _emit_missing_data_binding_warning(self, resolved_path: str) -> None:
         """Emits MissingDataBindingWarning and dispatches deduplicated surface warning."""
@@ -151,14 +158,19 @@ class DataContext(Generic[TComponent, TFunction]):
             and "call" in value
             and isinstance(value["call"], str)
         ):
+            from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS
+
             func_name = value["call"]
             raw_args = value.get("args", {})
             cat_id = value.get("catalogId") or value.get("catalog_id")
 
-            # Recursively resolve function arguments first
-            resolved_args = self.resolve_dynamic_value(
-                raw_args, peek=True, abort_signal=abort_signal
-            )
+            # Check argument count limit before recursively resolving arguments
+            if isinstance(raw_args, dict) and len(raw_args) > MAX_FUNCTION_CALL_ARGS:
+                resolved_args = raw_args
+            else:
+                resolved_args = self.resolve_dynamic_value(
+                    raw_args, peek=True, abort_signal=abort_signal
+                )
             res = self._execute_function(
                 func_name, resolved_args, catalog_id=cat_id, abort_signal=abort_signal
             )

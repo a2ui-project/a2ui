@@ -589,7 +589,8 @@ def _assert_expected_surface_state(
                     comp = surface.components_model.get(c_id)
                     from a2ui.core.resolution.node_graph import NodeGraph, NodeResolver
 
-                    graph = NodeGraph(surface)
+                    assert NodeGraph is NodeResolver
+                    graph = NodeResolver(surface)
                     node = next(
                         (
                             n
@@ -642,7 +643,8 @@ def _assert_expected_surface_state(
             if "validationResult" in s_exp:
                 from a2ui.core.resolution.node_graph import NodeGraph, NodeResolver
 
-                graph = NodeGraph(surface)
+                assert NodeGraph is NodeResolver
+                graph = NodeResolver(surface)
                 val_res_exp = s_exp["validationResult"]
                 for c_id, exp_vr in val_res_exp.items():
                     node = next(
@@ -693,9 +695,10 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
                 processor.process_messages(messages)
                 from a2ui.core.resolution.node_graph import NodeGraph, NodeResolver
 
+                assert NodeGraph is NodeResolver
                 for s in processor.model.surfaces.values():
                     s.on_error.subscribe(lambda err: errors.append(err))
-                    g = NodeGraph(s)
+                    g = NodeResolver(s)
                     for n in list(g.active_nodes.values()):
                         _ = n.props.value
                 if errors:

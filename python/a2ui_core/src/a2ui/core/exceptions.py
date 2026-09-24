@@ -15,6 +15,8 @@
 """Custom exceptions for the A2UI SDK."""
 
 import dataclasses
+import enum
+import re
 
 
 @dataclasses.dataclass(frozen=True)
@@ -87,10 +89,6 @@ class A2uiExpressionError(A2uiError):
     pass
 
 
-import enum
-import re
-
-
 class RpcErrorCode(str, enum.Enum):
     """RPC error codes matching A2UI protocol specification."""
 
@@ -110,8 +108,8 @@ class A2uiRpcError(A2uiError):
 
     def __init__(
         self,
-        message: str,
-        code: str = RpcErrorCode.UNKNOWN_ERROR.value,
+        message: str | RpcErrorCode,
+        code: str | RpcErrorCode = RpcErrorCode.UNKNOWN_ERROR,
         function_call_id: str | None = None,
         details: list[A2uiErrorDetail] | None = None,
     ) -> None:
