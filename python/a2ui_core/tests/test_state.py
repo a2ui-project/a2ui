@@ -635,8 +635,38 @@ def test_data_model_primitive_root_rejection():
     dm = DataModel()
     dm.set("/", 42)
     assert dm.get("/") == 42
-    with pytest.raises(A2uiDataError, match="the data model root is a primitive value"):
+    with pytest.raises(
+        A2uiDataError, match="the data model root is a primitive value"
+    ) as err:
         dm.set("/count", 1)
+    assert err.value.path == "/count"
+
+
+def test_data_model_set_through_primitive_raises():
+    dm = DataModel({"user": "Alice", "counts": [7]})
+
+    with pytest.raises(A2uiDataError) as dict_err:
+        dm.set("/user/name", "Bob")
+    assert dict_err.value.path == "/user/name"
+
+    with pytest.raises(A2uiDataError) as list_err:
+        dm.set("/counts/0/total", 1)
+    assert list_err.value.path == "/counts/0/total"
+
+    # The rejected writes must leave the originals intact rather than replacing
+    # them with an empty container.
+    assert dm.get("/user") == "Alice"
+    assert dm.get("/counts/0") == 7
+
+
+def test_data_model_set_through_none_placeholder_vivifies():
+    dm = DataModel({"user": None, "counts": [None]})
+
+    dm.set("/user/name", "Bob")
+    dm.set("/counts/0/total", 1)
+
+    assert dm.get("/user/name") == "Bob"
+    assert dm.get("/counts/0/total") == 1
 
 
 def test_surface_model_initialization_and_catalogs():
