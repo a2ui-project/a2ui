@@ -476,14 +476,14 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       }
     }
 
-    if (!this.surfaceId && jsonStr.includes('"surfaceId"')) {
-      const match = jsonStr.match(/"surfaceId"\s*:\s*"([^"]+)"/);
-      if (match) this.surfaceId = match[1];
+    const surfaceIdMatches = [...jsonStr.matchAll(/"surfaceId"\s*:\s*"([^"]+)"/g)];
+    if (surfaceIdMatches.length > 0) {
+      this.surfaceId = surfaceIdMatches[surfaceIdMatches.length - 1][1];
     }
 
-    if (jsonStr.includes('"root"')) {
-      const match = jsonStr.match(/"root"\s*:\s*"([^"]+)"/);
-      if (match) this.setRootId(match[1]);
+    const rootMatches = [...jsonStr.matchAll(/"root"\s*:\s*"([^"]+)"/g)];
+    if (rootMatches.length > 0) {
+      this.setRootId(rootMatches[rootMatches.length - 1][1]);
     }
   }
 
@@ -696,6 +696,10 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     if (MSG_TYPE_UPDATE_COMPONENTS in obj) {
       this.addMsgType(MSG_TYPE_UPDATE_COMPONENTS);
       const val = obj[MSG_TYPE_UPDATE_COMPONENTS];
+      if (val && typeof val === 'object' && val.surfaceId) {
+        sid = val.surfaceId;
+        this.surfaceId = sid;
+      }
       this.setRootId(val?.root ?? this.getRootId());
       if (val && Array.isArray(val.components)) {
         for (const c of val.components) {
@@ -736,6 +740,10 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     if (MSG_TYPE_UPDATE_DATA_MODEL in obj) {
       this.addMsgType(MSG_TYPE_UPDATE_DATA_MODEL);
       const udm = obj[MSG_TYPE_UPDATE_DATA_MODEL];
+      if (udm && typeof udm === 'object' && udm.surfaceId) {
+        sid = udm.surfaceId;
+        this.surfaceId = sid;
+      }
       if (typeof udm === 'object' && udm !== null && 'value' in udm) {
         const val = udm.value;
         if (typeof val === 'object' && val !== null) {
@@ -921,7 +929,12 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
             pathSeen.add(nodeId);
             targetSet.add(nodeId);
             const compObj = this.seenComponents[nodeId];
-            for (const [childId] of getComponentReferences(compObj, this.refMap)) {
+            for (const [childId, fieldName] of getComponentReferences(compObj, this.refMap)) {
+              if (childId === nodeId) {
+                throw new A2uiRecursionError(
+                  `Circular reference detected: Component '${nodeId}' references itself in field '${fieldName}' (Self-reference detected)`,
+                );
+              }
               if (this.seenComponents[childId]) {
                 collect(childId, new Set(pathSeen), targetSet);
               }
