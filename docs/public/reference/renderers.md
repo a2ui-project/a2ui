@@ -27,7 +27,7 @@ You have a lot of flexibility, to bring custom components to a renderer, or buil
 | ----------------------- | ------------------ | --------- | --------- | ---------- | ------------------------------------------------------------------------------------ |
 | **Flutter (GenUI SDK)** | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | 🚧 Planned | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
 | **SwiftUI**             | iOS/macOS          | —         | —         | 🚧 Planned | —                                                                                    |
-| **Jetpack Compose**     | Android            | —         | —         | 🚧 Planned | —                                                                                    |
+| **Jetpack Compose**     | Android            | —         | ✅ alpha   | 🚧 Planned | [Docs](https://developer.android.com/develop/ui/compose/agentic) · [Code](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) |
 
 Check the [Roadmap](../roadmap.md) for more.
 
