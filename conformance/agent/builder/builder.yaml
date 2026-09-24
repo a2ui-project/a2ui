@@ -1,0 +1,327 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# A2UI Fluent Builder Conformance Test Definitions
+#
+# Used across all SDK languages (Python, Dart, TypeScript) to verify builder
+# serialization parity.
+#
+# Every case produces the same shape: a list of A2UI message envelopes. A runner
+# therefore needs exactly one code path, and the whole suite can be checked by
+# the A2UI validator rather than only diffed against a golden. A golden that is
+# only diffed pins whatever the implementation happened to emit, including its
+# bugs.
+#
+# Case fields:
+#   id, description, golden  - identity and the golden file to compare against.
+#   surface_id               - target surface for the generated envelopes.
+#   catalog_id               - present means the case emits a full createSurface
+#                              lifecycle; absent means updateComponents only.
+#   root_id                  - anchors the root component, exercising macro
+#                              namespacing. Omit to use the root's own ID.
+#   data_model               - optional updateDataModel messages to append.
+#   input                    - the builder AST, see sentinels below.
+#   validation               - integrity relaxations this payload legitimately
+#                              needs. Defaults are all false, so a case only
+#                              relaxes what it can justify.
+#
+# AST sentinels, for constructs with no natural JSON spelling:
+#   {$bind: path}            - a two-way data binding.
+#   {$componentRef: id}      - a reference to a component already on the surface.
+#   {$dynamicChildList: ...} - children generated from a data model collection.
+#   {$action: ...}           - an interaction handler.
+#   {$checkRule: ...}        - a client-side validation rule.
+#   {$accessibility: ...}    - accessibility attributes.
+#   {$tabItem: ...}, {$choiceOption: ...} - catalog item models.
+
+suite: "a2ui_fluent_builder_conformance"
+version: "v0.9"
+
+tests:
+  - id: "01_primitive_components"
+    description: "Primitive components with static attributes and strict enums"
+    golden: "01_primitive_components.json"
+    surface_id: "conformance"
+    validation:
+      # A forest of three unparented primitives: no root, and each is an orphan.
+      allow_missing_root: true
+      allow_orphan_components: true
+    input:
+      - component: "Text"
+        id: "header_text"
+        text: "Welcome to A2UI"
+        variant: "h1"
+      - component: "Divider"
+        id: "divider_0"
+        axis: "horizontal"
+      - component: "Text"
+        id: "body_text"
+        text: "This is a simple text component."
+        variant: "body"
+
+  - id: "02_nested_hierarchy_and_slots"
+    description: "Nested component trees with single and multi-child slots"
+    golden: "02_nested_hierarchy_and_slots.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Card"
+      id: "main_card"
+      child:
+        component: "Column"
+        id: "main_col"
+        children:
+          - component: "Text"
+            id: "title"
+            text: "Dashboard"
+            variant: "h2"
+          - component: "Divider"
+            id: "div_1"
+          - component: "Row"
+            id: "action_row"
+            children:
+              - component: "Icon"
+                id: "save_icon"
+                name: "check"
+              - component: "Button"
+                id: "btn_save"
+                variant: "primary"
+                child:
+                  component: "Text"
+                  id: "btn_save_text"
+                  text: "Save Changes"
+                action:
+                  $action:
+                    event: "save_changes"
+
+  - id: "03_automatic_id_allocation"
+    description: "Scoped deterministic ID allocation and macro namespacing"
+    golden: "03_automatic_id_allocation.json"
+    surface_id: "conformance"
+    root_id: "panel"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: "First Item"
+          - component: "Text"
+            text: "Second Item"
+
+  - id: "04_data_bindings"
+    description: "Data bindings preserve relative and absolute paths exactly as written"
+    golden: "04_data_bindings.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Card"
+      id: "profile_card"
+      child:
+        component: "Column"
+        id: "profile_col"
+        children:
+          # Relative: no leading slash, so it resolves against the enclosing
+          # scope. At root scope that is the data model root.
+          - component: "Text"
+            id: "user_greeting"
+            text:
+              $bind: "user/displayName"
+            variant: "h3"
+          # Absolute: always resolves from the data model root, whatever scope
+          # the component is rendered in.
+          - component: "Text"
+            id: "user_balance"
+            text:
+              $bind: "/account/balance"
+            variant: "body"
+
+  - id: "05_accessibility_attributes"
+    description: "Native serialization of AccessibilityAttributes"
+    golden: "05_accessibility_attributes.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Button"
+      id: "accessible_button"
+      accessibility:
+        $accessibility:
+          label: "Submit Application"
+          description: "Transmits all form entries to the review server"
+      child:
+        component: "Text"
+        id: "btn_label"
+        text: "Submit"
+      action:
+        $action:
+          event: "submit_application"
+
+  - id: "06_actions_and_function_calls"
+    description: "Actions with server event context maps and client function calls"
+    golden: "06_actions_and_function_calls.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Column"
+      id: "action_col"
+      children:
+        - component: "Button"
+          id: "btn_checkout"
+          variant: "primary"
+          child:
+            component: "Text"
+            id: "txt_checkout"
+            text: "Checkout"
+          action:
+            $action:
+              event:
+                name: "order_checkout"
+                context:
+                  cartId: "cart_99"
+                  userId:
+                    $bind: "/session/uid"
+                  total: 49.99
+        - component: "Button"
+          id: "btn_help"
+          child:
+            component: "Text"
+            id: "txt_help"
+            text: "Help Center"
+          action:
+            $action:
+              functionCall:
+                call: "openUrl"
+                args:
+                  url: "https://a2ui.org/docs"
+
+  - id: "07_dynamic_child_list"
+    description: "Collection templates keep item-relative bindings inside the child scope"
+    golden: "07_dynamic_child_list.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Column"
+      id: "feed_container"
+      children:
+        $dynamicChildList:
+          # Absolute: the list itself is addressed from the data model root.
+          path: "/feed/posts"
+          template:
+            component: "Card"
+            id: "post_card"
+            child:
+              component: "Text"
+              id: "post_title"
+              text:
+                # Relative: resolves against the item scope the template
+                # creates, i.e. /feed/posts/N/title. Rewriting this to
+                # "/title" would resolve at the document root instead.
+                $bind: "title"
+
+  - id: "08_component_references"
+    description: "External surface component slot references (ComponentRef)"
+    golden: "08_component_references.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+      # This payload is an incremental patch: 'existing_surface_widget' is
+      # already on the surface and is deliberately referenced, not redefined.
+      allow_dangling_references: true
+    input:
+      component: "Card"
+      id: "outer_card"
+      child:
+        component: "Column"
+        id: "inner_col"
+        children:
+          - component: "Text"
+            id: "intro_text"
+            text: "Header"
+          - $componentRef: "existing_surface_widget"
+
+  - id: "09_surface_lifecycle_envelopes"
+    description: "Full surface lifecycle: createSurface, updateComponents, updateDataModel"
+    golden: "09_surface_lifecycle_envelopes.json"
+    surface_id: "main_surface"
+    catalog_id: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    data_model:
+      /session/user: "Alice"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Card"
+      id: "hero_card"
+      child:
+        component: "Text"
+        id: "hero_txt"
+        text: "A2UI"
+
+  - id: "10_validation_rules"
+    description: "Client-side validation rules (CheckRule) on a checkable component"
+    golden: "10_validation_rules.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "TextField"
+      id: "zip_field"
+      label: "ZIP code"
+      value:
+        $bind: "/user/zip"
+      checks:
+        - $checkRule:
+            condition:
+              call: "regex"
+              args:
+                value:
+                  $bind: "/user/zip"
+                pattern: "^[0-9]{5}$"
+            message: "ZIP code must be 5 digits"
+
+  - id: "11_nested_collection_templates"
+    description: "Two-level templates address the inner list relative to the outer item scope"
+    golden: "11_nested_collection_templates.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "Column"
+      id: "org_chart"
+      children:
+        $dynamicChildList:
+          # Absolute: the outer list is addressed from the data model root.
+          path: "/departments"
+          template:
+            component: "Column"
+            id: "department_block"
+            children:
+              $dynamicChildList:
+                # Relative: each department's own employee list, resolving to
+                # /departments/N/employees. There is no absolute spelling for
+                # this, which is why the path must survive verbatim.
+                path: "employees"
+                template:
+                  component: "Text"
+                  id: "employee_name"
+                  # Relative again, now against the inner item scope:
+                  # /departments/N/employees/M/name
+                  text:
+                    $bind: "name"

@@ -32,6 +32,30 @@ TEMP_CATALOG_FILE = os.path.join(TEST_DIR, "catalog.json")
 # top-level catalogs/ directory.
 BASIC_CATALOG_FILE = os.path.join(REPO_ROOT, "catalogs/basic/v1/catalog.json")
 
+# The schemas of common_types.json that an external $ref inside a catalog may
+# target, per rule 3 ("Restricted `$ref` Targets") of the catalog schema rules
+# in docs/a2ui_protocol.md.
+ALLOWED_EXTERNAL_REF_TARGETS = {
+    "ComponentId",
+    "Child",
+    "ChildList",
+    "DynamicString",
+    "DynamicNumber",
+    "DynamicBoolean",
+    "DynamicStringList",
+    "DynamicValue",
+    "AccessibilityAttributes",
+    "CheckRule",
+    "Checkable",
+    "Action",
+    "DataBinding",
+    "FunctionCall",
+}
+
+# Keys whose values are annotations or literal data rather than subschemas, so a
+# "$ref" appearing inside them is not a reference.
+NON_SCHEMA_KEYS = ("metadata", "examples", "const", "default", "enum", "description")
+
 # Map of schema filenames to their full paths
 # Note: catalog.json is dynamically created from catalogs/basic/v1/catalog.json
 SCHEMAS = {
@@ -351,6 +375,100 @@ def validate_catalogs_identifiers():
     return passed, failed
 
 
+def validate_catalogs_ref_targets():
+    """
+    Validates that every $ref inside a catalog conforms to rule 3 ("Restricted
+    `$ref` Targets") of the catalog schema rules in docs/a2ui_protocol.md: a
+    local target names a component or function the catalog declares, and an
+    external target names one of the allowed common_types.json schemas.
+    """
+    catalogs_to_validate = [
+        ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
+    ]
+
+    passed = 0
+    failed = 0
+
+    print("\nValidating catalog $ref targets against the allowed target list...")
+
+    for name, path in catalogs_to_validate:
+        if not os.path.exists(path):
+            print(f"  [FAIL] {name} (File not found)")
+            failed += 1
+            continue
+
+        with open(path, "r") as f:
+            try:
+                catalog = json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"  [FAIL] {name} (JSON Decode Error: {e})")
+                failed += 1
+                continue
+
+        if not isinstance(catalog, dict):
+            print(f"  [FAIL] {name} (Catalog is not a JSON object)")
+            failed += 1
+            continue
+
+        refs = []
+
+        def collect_refs(obj):
+            if isinstance(obj, dict):
+                ref = obj.get("$ref")
+                if isinstance(ref, str):
+                    refs.append(ref)
+                # Declared properties are subschemas whatever they are named, so
+                # a property named "metadata" stays in scope here.
+                properties = obj.get("properties")
+                if isinstance(properties, dict):
+                    for prop_def in properties.values():
+                        collect_refs(prop_def)
+                for k, v in obj.items():
+                    if k not in ("properties",) + NON_SCHEMA_KEYS:
+                        if isinstance(v, (dict, list)):
+                            collect_refs(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    if isinstance(item, (dict, list)):
+                        collect_refs(item)
+
+        components = catalog.get("components", {})
+        functions = catalog.get("functions", {})
+        defs = catalog.get("$defs", {})
+        for section in (components, functions, defs):
+            if isinstance(section, dict):
+                for definition in section.values():
+                    collect_refs(definition)
+
+        errors = []
+        for ref in refs:
+            if ref.startswith("#/components/"):
+                target = ref[len("#/components/") :]
+                if not isinstance(components, dict) or target not in components:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("#/functions/"):
+                target = ref[len("#/functions/") :]
+                if not isinstance(functions, dict) or target not in functions:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("common_types.json#/$defs/"):
+                target = ref[len("common_types.json#/$defs/") :]
+                if target not in ALLOWED_EXTERNAL_REF_TARGETS:
+                    errors.append(f"Disallowed external $ref target: '{ref}'")
+            else:
+                errors.append(f"Disallowed $ref target: '{ref}'")
+
+        if errors:
+            failed += 1
+            print(f"  [FAIL] {name}")
+            for err in errors:
+                print(f"         {err}")
+        else:
+            passed += 1
+
+    return passed, failed
+
+
 def validate_sample_schema():
     """
     Validates that the sample.json schema is valid and can successfully
@@ -576,12 +694,17 @@ def main():
         total_passed += p
         total_failed += f
 
-        # 5. Validate sample.json schema integrity and references
+        # 5. Validate catalogs $ref targets
+        p, f = validate_catalogs_ref_targets()
+        total_passed += p
+        total_failed += f
+
+        # 6. Validate sample.json schema integrity and references
         p, f = validate_sample_schema()
         total_passed += p
         total_failed += f
 
-        # 6. Validate A2A capability and message list schemas
+        # 7. Validate A2A capability and message list schemas
         p, f = validate_a2a_schemas()
         total_passed += p
         total_failed += f

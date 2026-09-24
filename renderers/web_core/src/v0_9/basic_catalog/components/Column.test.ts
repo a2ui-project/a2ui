@@ -21,27 +21,29 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
 } from '../../index.js';
-import type {A2uiBasicColumnElement} from './Column.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Column Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Column.js');
-    await import('./Text.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiBasicColumnElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -93,7 +95,7 @@ describe('Column Component', () => {
   });
 
   it('should render children and apply flex alignment styles', async () => {
-    const el = document.createElement('a2ui-basic-column') as A2uiBasicColumnElement;
+    const el = document.createElement('a2ui-basic-column') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -132,7 +134,7 @@ describe('Column Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-basic-column') as A2uiBasicColumnElement;
+    const el = document.createElement('a2ui-basic-column') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

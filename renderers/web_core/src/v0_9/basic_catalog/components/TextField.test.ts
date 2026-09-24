@@ -17,29 +17,27 @@
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../index.js';
 import {
-  ComponentContext,
-  MessageProcessor,
-  Catalog,
-  ComponentApi,
-  SurfaceModel,
-} from '../../index.js';
-import type {A2uiBasicTextFieldElement} from './TextField.js';
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('TextField Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./TextField.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiBasicTextFieldElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -93,7 +91,7 @@ describe('TextField Component', () => {
   });
 
   it('should render input field with label and initial value', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -112,7 +110,7 @@ describe('TextField Component', () => {
   });
 
   it('should update the data model value on input event', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -133,7 +131,7 @@ describe('TextField Component', () => {
   });
 
   it('should render textarea for longText variant', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -151,7 +149,7 @@ describe('TextField Component', () => {
   });
 
   it('should render all validation error messages when invalid', async () => {
-    const el = document.createElement('a2ui-basic-textfield') as A2uiBasicTextFieldElement;
+    const el = document.createElement('a2ui-basic-textfield') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

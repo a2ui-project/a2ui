@@ -23,11 +23,24 @@ from a2ui.core.schema.common_types import (
 
 
 def test_accessibility_attributes_defaults():
+    """Verifies omitted optional fields default to None and are excluded on dump."""
     attr = AccessibilityAttributes(label="Click Me")
     assert attr.label == "Click Me"
     assert attr.description is None
-    assert attr.live == "off"
+    assert attr.live is None
     assert attr.hidden is None
+
+    assert attr.model_dump(by_alias=True, exclude_none=True) == {"label": "Click Me"}
+
+
+def test_accessibility_attributes_explicit_live_off_is_preserved():
+    """Verifies an explicit live='off' value is preserved on serialization."""
+    attr = AccessibilityAttributes(label="Click Me", live="off")
+    assert attr.live == "off"
+    assert attr.model_dump(by_alias=True, exclude_none=True) == {
+        "label": "Click Me",
+        "live": "off",
+    }
 
 
 def test_accessibility_attributes_all_fields():

@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after, afterEach} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
 import {z} from 'zod';
 import {
   ComponentContext,
@@ -25,7 +25,7 @@ import {
   ComponentApi,
   SurfaceModel,
   Subscription,
-} from '../index.js';
+} from '../../index.js';
 
 describe('BasicCatalogA2uiLitElement', () => {
   let customCatalog: Catalog<ComponentApi>;
