@@ -102,9 +102,7 @@ def test_function_call_and_action():
     }
 
     action_ev = Action(event=ActionEvent(name="submit_form", context={"id": 123}))
-    assert wire(action_ev) == {
-        "event": {"name": "submit_form", "context": {"id": 123}}
-    }
+    assert wire(action_ev) == {"event": {"name": "submit_form", "context": {"id": 123}}}
 
 
 def test_action_requires_exactly_one_branch():

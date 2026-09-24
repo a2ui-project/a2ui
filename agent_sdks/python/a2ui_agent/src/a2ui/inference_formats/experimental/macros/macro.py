@@ -154,8 +154,7 @@ def _map_type_hint_to_schema(
             return _map_type_hint_to_schema(non_none_args[0], param_desc)
 
         has_binding = any(
-            a is DataBinding
-            or (isinstance(a, type) and issubclass(a, DataBinding))
+            a is DataBinding or (isinstance(a, type) and issubclass(a, DataBinding))
             for a in non_none_args
         )
         has_func = any(
@@ -166,10 +165,7 @@ def _map_type_hint_to_schema(
         expr_types = {DataBinding, FunctionCall}
 
         if has_binding or has_func:
-            if (
-                str in types_set
-                and len(types_set - (expr_types | {str})) == 0
-            ):
+            if str in types_set and len(types_set - (expr_types | {str})) == 0:
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicString"}
                 if param_desc:
                     schema["description"] = param_desc
@@ -181,10 +177,7 @@ def _map_type_hint_to_schema(
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
-            elif (
-                bool in types_set
-                and len(types_set - (expr_types | {bool})) == 0
-            ):
+            elif bool in types_set and len(types_set - (expr_types | {bool})) == 0:
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicBoolean"}
                 if param_desc:
                     schema["description"] = param_desc
