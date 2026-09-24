@@ -808,5 +808,49 @@
       }
     ],
     "expectedNotation": "root = Text(r\"\"\"Path: C:\\Program Files\\App\nLine 2\"\"\")"
+  },
+  {
+    "name": "test_decompile_update_data_model_non_object_values",
+    "catalog": "basic_v0_9",
+    "messages": [
+      {
+        "version": "v0.9",
+        "updateDataModel": {
+          "surfaceId": "default",
+          "path": "/title",
+          "value": "Found Restaurants"
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateDataModel": {
+          "surfaceId": "default",
+          "path": "/items",
+          "value": [
+            {
+              "name": "Xi'an Famous Foods",
+              "rating": 4.5
+            }
+          ]
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateDataModel": {
+          "surfaceId": "default",
+          "path": "/empty",
+          "value": ""
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateDataModel": {
+          "surfaceId": "default",
+          "path": "/zero",
+          "value": 0
+        }
+      }
+    ],
+    "expectedNotation": "$ = \"Found Restaurants\"\n$ = [{name: \"Xi'an Famous Foods\", rating: 4.5}]\n\n"
   }
 ]
