@@ -22,6 +22,7 @@ import {InferenceFormat, InferenceFormatFactory} from '../../inference_format/ba
 import {SchemaCatalog} from '../../types.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {A2uiCatalogError} from '../../errors.js';
+import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {Parser} from '../../parser/parser.js';
 import {ExpressParser} from './parser.js';
 import {ExpressPromptGenerator} from './prompt_generator.js';
@@ -48,7 +49,15 @@ export class ExpressFormat implements InferenceFormat {
     }
     this.catalog = catalogs[0];
     this.surfaceId = options.surfaceId ?? 'main';
-    this.version = options.version ?? 'v1.0';
+
+    const catalogVersion = toWireProtocolVersion(this.catalog.protocolVersion);
+    if (options.version && options.version !== catalogVersion) {
+      throw new A2uiCatalogError(
+        `Requested protocol version '${options.version}' does not match catalog version '${catalogVersion}'`,
+      );
+    }
+    this.version = options.version ?? catalogVersion;
+
     this.promptGenerator = new ExpressPromptGenerator(catalogs, options.examples);
   }
 

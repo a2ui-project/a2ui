@@ -127,6 +127,21 @@ export function expectsOptionObjects(schema: unknown): boolean {
 /**
  * Dynamic schema crawler for A2UI catalogs used by Express format.
  */
+
+/**
+ * Returns the `$ref` of a schema when it points inside the same document (`#/...`).
+ *
+ * @param sub The schema to inspect.
+ * @returns The local reference, or undefined.
+ */
+function localRef(sub: unknown): string | undefined {
+  if (!sub || typeof sub !== 'object') {
+    return undefined;
+  }
+  const ref = (sub as Record<string, unknown>).$ref;
+  return typeof ref === 'string' && ref.startsWith('#/') ? ref : undefined;
+}
+
 export class CatalogSchemaHelper {
   readonly catalog: Record<string, unknown>;
   readonly commonTypes: Record<string, unknown>;
@@ -190,6 +205,17 @@ export class CatalogSchemaHelper {
     return current;
   }
 
+  /**
+   * Resolves a schema that is a local `#/...` reference against the catalog.
+   *
+   * @param sub The schema that may be a reference.
+   * @returns The referenced schema, or undefined if `sub` is not a local reference.
+   */
+  private resolveLocalRef(sub: unknown): unknown {
+    const ref = localRef(sub);
+    return ref ? this.resolveJsonPointer(this.catalog, ref) : undefined;
+  }
+
   private getCheckRuleDefName(ref: unknown): string | undefined {
     if (typeof ref !== 'string') {
       return undefined;
@@ -250,16 +276,30 @@ export class CatalogSchemaHelper {
       const reqs: string[] = [];
 
       const subSchemas: unknown[] = [schema];
+      const localRefs: unknown[] = [];
       if (Array.isArray(schema.allOf)) {
-        subSchemas.push(...schema.allOf);
+        for (const sub of schema.allOf) {
+          if (localRef(sub)) {
+            localRefs.push(sub);
+          } else {
+            subSchemas.push(sub);
+          }
+        }
       }
+      subSchemas.push(...localRefs);
 
       // Checkability (plan §5.2 item 4):
       // (a) own property whose schema is {type: 'array', items: {$ref: <common_types CheckRule>}}
       let ownCheckProp: string | undefined;
-      for (const sub of subSchemas) {
+      for (let sub of subSchemas) {
         if (!sub || typeof sub !== 'object') {
           continue;
+        }
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
         }
         const subObj = sub as Record<string, unknown>;
         if (subObj.$ref) {
@@ -334,9 +374,15 @@ export class CatalogSchemaHelper {
         }
       }
 
-      for (const sub of subSchemas) {
+      for (let sub of subSchemas) {
         if (!sub || typeof sub !== 'object') {
           continue;
+        }
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
         }
         const subObj = sub as Record<string, unknown>;
         if (subObj.properties && typeof subObj.properties === 'object') {
@@ -374,15 +420,29 @@ export class CatalogSchemaHelper {
 
     for (const [name, schema] of this.functions.entries()) {
       const subSchemas: unknown[] = [schema];
+      const localRefs: unknown[] = [];
       if (Array.isArray(schema.allOf)) {
-        subSchemas.push(...schema.allOf);
+        for (const sub of schema.allOf) {
+          if (localRef(sub)) {
+            localRefs.push(sub);
+          } else {
+            subSchemas.push(sub);
+          }
+        }
       }
+      subSchemas.push(...localRefs);
 
       const props: Record<string, unknown> = {};
       const reqs: string[] = [];
-      for (const sub of subSchemas) {
+      for (let sub of subSchemas) {
         if (!sub || typeof sub !== 'object') {
           continue;
+        }
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
         }
         const subObj = sub as Record<string, unknown>;
         if (subObj.properties && typeof subObj.properties === 'object') {
@@ -456,12 +516,26 @@ export class CatalogSchemaHelper {
     }
 
     const subSchemas: unknown[] = [fnSchema];
+    const localRefs: unknown[] = [];
     if (Array.isArray(fnSchema.allOf)) {
-      subSchemas.push(...fnSchema.allOf);
+      for (const sub of fnSchema.allOf) {
+        if (localRef(sub)) {
+          localRefs.push(sub);
+        } else {
+          subSchemas.push(sub);
+        }
+      }
     }
+    subSchemas.push(...localRefs);
 
-    for (const sub of subSchemas) {
+    for (let sub of subSchemas) {
       if (sub && typeof sub === 'object') {
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
+        }
         const subObj = sub as Record<string, unknown>;
         if (subObj.properties && typeof subObj.properties === 'object') {
           const argsObj = (subObj.properties as Record<string, unknown>).args;
@@ -496,7 +570,13 @@ export class CatalogSchemaHelper {
       return schema.description;
     }
     if (Array.isArray(schema.allOf)) {
-      for (const sub of schema.allOf) {
+      for (let sub of schema.allOf) {
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
+        }
         if (
           sub &&
           typeof sub === 'object' &&
@@ -533,12 +613,26 @@ export class CatalogSchemaHelper {
     }
 
     const subSchemas: unknown[] = [schema];
+    const localRefs: unknown[] = [];
     if (Array.isArray(schema.allOf)) {
-      subSchemas.push(...schema.allOf);
+      for (const sub of schema.allOf) {
+        if (localRef(sub)) {
+          localRefs.push(sub);
+        } else {
+          subSchemas.push(sub);
+        }
+      }
     }
+    subSchemas.push(...localRefs);
 
-    for (const sub of subSchemas) {
+    for (let sub of subSchemas) {
       if (sub && typeof sub === 'object') {
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
+        }
         const subObj = sub as Record<string, unknown>;
         if (subObj.properties && typeof subObj.properties === 'object') {
           const props = subObj.properties as Record<string, unknown>;
