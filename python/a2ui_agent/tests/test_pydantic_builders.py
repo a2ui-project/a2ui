@@ -486,11 +486,11 @@ def test_locally_defined_models_still_serialize_as_core_models():
     """Verifies locally defined Action and DynamicChildList serialize into valid core wire schemas."""
     from pydantic import TypeAdapter
 
-    from a2ui.core.schema.common_types import (
+    from a2ui.core.schema.common_types import TemplateChildList
+    from a2ui.core.schema.v0_9.common_types import (
         Action as CoreAction,
         ActionEventWrapper,
         ActionFunctionCallWrapper,
-        TemplateChildList,
     )
 
     action_adapter = TypeAdapter(CoreAction)
@@ -776,3 +776,10 @@ def test_accessibility_attributes_match_the_v0_9_1_schema():
     attr = AccessibilityAttributes(label=call)
     assert attr.label.call == call.call
     assert attr.label.args == call.args
+    # DynamicString infers the return type on validation, but an inferred value
+    # is not written to the wire.
+    assert attr.label.return_type == "string"
+    assert attr.model_dump(by_alias=True, exclude_none=True)["label"] == {
+        "call": "localizedLabel",
+        "args": {"key": "save"},
+    }

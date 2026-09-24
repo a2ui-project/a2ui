@@ -56,6 +56,10 @@ class FunctionCall(StrictBaseModel):
         default="boolean",
     )
 
+    # Hand-maintained: codegen_pydantic.py does not emit this serializer (or the
+    # return-type validators below), so re-add them after regenerating this file.
+    # The schema default for returnType is "boolean", but an unset or inferred
+    # returnType is omitted from the serialized output.
     @model_serializer(mode="wrap")
     def _serialize_model(self, handler: Any) -> Any:
         d = handler(self)

@@ -93,7 +93,7 @@ Client-side implementations run these suites too:
 
 ### Specification Example Round-Trip Verification
 
-In addition to the declarative YAML conformance suites, SDKs implementing inference formats (such as Express) should implement an example round-trip test that iterates across all golden JSON examples in `specification/v1_0/catalogs/basic/examples/*.json`, decompiles them into the target format notation, recompiles them back to messages, and asserts semantic equivalence against the original payload. Refer to `agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py` for a worked example of this test.
+In addition to the declarative YAML conformance suites, SDKs implementing inference formats (such as Express) should implement an example round-trip test that iterates across all golden JSON examples in `catalogs/basic/v1/examples/*.json`, decompiles them into the target format notation, recompiles them back to messages, and asserts semantic equivalence against the original payload. Refer to `python/a2ui_agent/tests/test_specification_roundtrip.py` for a worked example of this test.
 
 ### Writing cases for `parse_expression_template`
 

@@ -21,13 +21,13 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
             sendDataModel: true
             components:
               - id: "root"
@@ -188,14 +188,14 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -213,14 +213,14 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -235,14 +235,14 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -257,14 +257,14 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -282,14 +282,14 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -304,13 +304,13 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -326,13 +326,13 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -349,13 +349,13 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"
@@ -403,13 +403,13 @@
   action: validate
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: "s1"
-            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
             components:
               - id: "root"
                 component: "Column"

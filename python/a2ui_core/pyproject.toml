@@ -49,7 +49,7 @@ source = "vcs"
 fallback-version = "0.1.1"
 
 [tool.hatch.version.raw-options]
-root = "../../.."
+root = "../.."
 tag_regex = '^python/a2ui-core/v(?P<version>.+)$'
 # PyPI rejects local version segments (the `+g<hash>` that setuptools-scm adds
 # by default), so they are stripped here.

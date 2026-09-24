@@ -122,22 +122,7 @@ The objects are named differently in earlier versions of the protocol: v0.9 and 
 
 ### Surface
 
-An area of UI, constructed by A2UI agent and managed by the A2UI renderer,
-which consists of a number of components. Surfaces cannot nest.
-
-### A2UI Tag
-
-Enclosing delimiter tags (such as `<a2ui-json>`, `<a2ui>`) used to bound A2UI payload code blocks within LLM text output.
-
-Because LLMs stream conversational plain text and UI payloads within the same turn, A2UI Tags serve as explicit syntactic boundaries isolating structured UI blocks from conversational text.
-
-### Tag Unwrapping
-
-The initial phase of response parsing (`unwrap`) where a parser scans LLM text responses for opening and closing **A2UI Tags**, isolating non-UI conversational text (e.g., _"Here is your summary:"_) from enclosed raw UI code blocks.
-
-### Compilation
-
-The second phase of response parsing (`compile`) where raw model-generated UI code string blocks extracted during unwrapping (such as standard JSON, Express DSL syntax, or Elemental HTML tags) are parsed, decompiled, and transformed into standardized A2UI protocol payload dictionaries (`createSurface`, `updateDataModel`).
+An area of UI, built by the A2UI agent and managed by the A2UI renderer, that consists of a number of components. Surfaces cannot nest.
 
 ### A2UI message
 

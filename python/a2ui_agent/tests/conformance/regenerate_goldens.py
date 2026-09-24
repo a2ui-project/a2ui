@@ -16,8 +16,8 @@
 
 Run from the repository root::
 
-    uv run --project agent_sdks/python/a2ui_agent \\
-        python3 agent_sdks/python/a2ui_agent/tests/conformance/regenerate_goldens.py
+    uv run --project python/a2ui_agent \\
+        python3 python/a2ui_agent/tests/conformance/regenerate_goldens.py
 
 The validation gate is the point of this script. Regenerating from implementation
 output and then asserting against the result makes a golden agree with whatever

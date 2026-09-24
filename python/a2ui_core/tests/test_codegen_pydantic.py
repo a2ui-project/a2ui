@@ -158,7 +158,7 @@ def test_compile_properties_to_pydantic():
     assert len(lines) == 1
     assert lines[0] == "    title: str | None = Field(None)"
 
-    # Schema defaults are documented in description rather than set as field defaults
+    # Default values
     props = {
         "num": {"type": "integer", "default": 42},
         "text": {"type": "string", "default": "hello"},

@@ -14,29 +14,23 @@
  * limitations under the License.
  */
 
-/**
- * Reactive controller binding Lit components to A2UI resolution schemas.
- *
- * Manages property subscriptions, host re-renders, and resource disposal.
- */
-
 import {ReactiveController} from 'lit';
 import {GenericBinder, ResolveA2uiProps} from '../../resolution/generic-binder.js';
 import {ComponentApi, InferredComponentApiSchemaType} from '../../catalog/types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 
 /**
- * Reactive controller binding an A2UI component context to its API schema.
+ * A Lit ReactiveController that binds an A2UI component context to its API schema.
  *
- * Manages subscriptions to the {@link GenericBinder}, updating component
- * properties and requesting host updates whenever the underlying layer data changes.
+ * This controller manages the subscription to the GenericBinder, updating the
+ * component props and requesting a host update whenever the underlying layer data changes.
  *
- * @template Api Specific A2UI component API interface this controller is bound to.
+ * @template Api The specific A2UI component API interface this controller is bound to.
  * @internal
  */
 export class A2uiController<Api extends ComponentApi> implements ReactiveController {
   /**
-   * Current reactive properties of the A2UI component, matching the expected output schema.
+   * The current reactive properties of the A2UI component, matching the expected output schema.
    */
   public props: ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
   private binder: GenericBinder<InferredComponentApiSchemaType<Api>>;
@@ -62,7 +56,7 @@ export class A2uiController<Api extends ComponentApi> implements ReactiveControl
   }
 
   /**
-   * Subscribes to GenericBinder updates and component creation events when the host connects.
+   * Subscribes to the GenericBinder updates when the host connects.
    *
    * Triggers a request update on the host element when new props are received.
    */
@@ -82,7 +76,7 @@ export class A2uiController<Api extends ComponentApi> implements ReactiveControl
   }
 
   /**
-   * Unsubscribes from GenericBinder and component creation updates when the host disconnects.
+   * Unsubscribes from the GenericBinder updates when the host disconnects.
    */
   hostDisconnected() {
     this.subscription?.unsubscribe();

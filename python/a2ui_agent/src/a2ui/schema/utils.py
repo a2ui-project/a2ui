@@ -103,7 +103,12 @@ def get_spec_dir(version: str = "v1_0", start_path: str | None = None) -> str:
 
 
 def _is_at_least_v1(version: str) -> bool:
-    """Checks whether the requested protocol version is >= v1.0."""
+    """Checks whether the requested protocol version is >= v1.0.
+
+    A version string that does not parse as semver is treated as v1.0 or later
+    unless it starts with "0" (after stripping a leading "v"), so labels such as
+    "latest" select the v1 catalog.
+    """
     from a2ui.core.common.semver import normalize_version_string, parse_semver
 
     clean_version = version.split("-")[0].split("+")[0]

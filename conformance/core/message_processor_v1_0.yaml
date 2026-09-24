@@ -21,7 +21,7 @@
   action: process_messages
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   messages:
     - version: "v1.0"
       createSurface:
@@ -57,7 +57,7 @@
   action: process_messages
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   messages:
     - version: "v1.0"
       createSurface:
@@ -72,7 +72,7 @@
   action: process_messages
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   messages:
     - version: "v1.0"
       createSurface:
@@ -128,7 +128,7 @@
   action: process_messages
   protocolVersion: "v1.0"
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   messages:
     - version: "v1.0"
       createSurface:
@@ -168,7 +168,7 @@
   description: Tests that sending a single message envelope containing multiple update actions raises a ValidationError.
   action: process_messages
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   messages:
     - version: "v1.0"
       createSurface:
@@ -184,7 +184,7 @@
   description: Tests that message processor correctly processes message list arrays and wrapped container payloads.
   action: process_messages
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   messages:
     messages:
       - version: "v1.0"
@@ -219,7 +219,7 @@
   description: Tests that a v1.0 action with a non-string surfaceId raises a ValidationError.
   action: process_messages
   catalogPaths:
-    - "specification/v1_0/catalogs/basic/catalog.json"
+    - "catalogs/basic/v1/catalog.json"
   messages:
     - version: "v1.0"
       createSurface:

@@ -231,7 +231,7 @@ To regenerate after a catalog change:
 cd dart/a2ui_cli
 dart run bin/a2ui.dart codegen \
   --catalog ../../specification/v0_9_1/catalogs/basic/catalog.json \
-  --out ../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
+  --out ../../python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
 ```
 
 Pointing `--out` at the directory lets the generator name the module from the catalog ID, which is how the committed filename and the generator stay in step. Passing an explicit `.py` path works too, and is how a catalog whose ID does not make a good module name is handled.

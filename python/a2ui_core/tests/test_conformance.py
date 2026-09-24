@@ -326,6 +326,10 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     if "catalogPaths" in case and isinstance(case["catalogPaths"], list):
         for p in case["catalogPaths"]:
             full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", p))
+            if not os.path.exists(full_p):
+                raise FileNotFoundError(
+                    f"catalogPaths entry '{p}' does not exist (resolved to {full_p})"
+                )
             if os.path.exists(full_p):
                 with open(full_p, "r", encoding="utf-8") as f:
                     c_json = json.load(f)

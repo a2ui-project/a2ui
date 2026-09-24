@@ -56,7 +56,7 @@ source = "vcs"
 fallback-version = "0.6.0"
 
 [tool.hatch.version.raw-options]
-root = "../../.."
+root = "../.."
 tag_regex = '^python/a2ui-agent-sdk/v(?P<version>.+)$'
 local_scheme = "no-local-version"
 git_describe_command = [

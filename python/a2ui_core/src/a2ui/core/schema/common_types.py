@@ -147,20 +147,3 @@ class TemplateChildList(StrictBaseModel, ListReference):
 
 
 ChildList = Union[List[ComponentId], TemplateChildList]
-
-
-def __getattr__(name: str) -> Any:
-    if name in {
-        "AccessibilityAttributes",
-        "CheckRule",
-        "Checkable",
-        "Action",
-        "ActionEvent",
-        "ActionEventWrapper",
-        "ActionFunctionCallWrapper",
-    }:
-        import a2ui.core.schema.v0_9.common_types as v09_common
-
-        if hasattr(v09_common, name):
-            return getattr(v09_common, name)
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * Base Lit element for A2UI custom element rendering.
- *
- * Manages controller lifecycle, data context bindings, and Light DOM style adoption.
- */
-
 import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
 import {ComponentContext} from '../../resolution/component-context.js';
@@ -30,9 +24,8 @@ import {renderA2uiNode} from './render-a2ui-node.js';
 import {A2uiController} from './a2ui-controller.js';
 
 /**
- * Reference to a child component to render.
- *
- * Either a string ID, or an object pairing an ID with an explicit data context path.
+ * A reference to a child component to render. Either a string ID, or an object
+ * pairing an ID with an explicit data context path.
  */
 export type A2uiChildRef =
   | ComponentId
@@ -43,22 +36,21 @@ export type A2uiChildRef =
 
 export type ResolvedChildRef = A2uiChildRef;
 export type ResolvedChildList = A2uiChildRef[];
+
 /**
- * Base class for A2UI Lit elements managing controller lifecycles and Light DOM styles.
+ * A base class for A2UI Lit elements that manages the A2uiController lifecycle
+ * and provides Light DOM style adoption and scoping.
  *
  * By default, elements render into the Light DOM (direct children) to enable
  * universal CSS cascade, styling, and cross-framework composition. To opt into
  * Shadow DOM encapsulation, subclasses can override `createRenderRoot()` to return
  * `super.createRenderRoot()`.
  *
- * @template Api Specific A2UI component API defining the schema for this element.
- * @experimental Experimental and subject to change as A2UI transitions
+ * @template Api The specific A2UI component API defining the schema for this element.
+ * @experimental This class is experimental and subject to change as A2UI transitions
  * to the unified Node Layer resolution pipeline.
  */
 export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> extends LitElement {
-  /**
-   * Component context providing access to component model, data context, and action dispatching.
-   */
   @property({type: Object}) context!: ComponentContext;
 
   /**
@@ -185,7 +177,8 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
   }
 
   /**
-   * Scopes and adopts component styles when the element connects to the DOM.
+   * Lifecycle hook invoked when the element is connected to the DOM.
+   * Scopes and adopts component styles into the document or host shadow root.
    */
   override connectedCallback() {
     super.connectedCallback();
@@ -210,14 +203,15 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
   }
 
   /**
-   * Renders a child A2UI node within the current surface context.
+   * Helper method to render a child A2UI node.
+   * Abstracts away the need to manually create a ComponentContext.
    *
-   * Abstracts away manual ComponentContext creation and binds to the specified or parent data path.
+   * @param childRef The reference to the child component to render. Either a string ID
+   *                 or a reference object containing `{id, basePath}`.
+   * @param customPath An explicit data model path to bind the child to. If provided,
+   *                   this overrides any path defined in the `childRef` object. If omitted,
+   *                   falls back to the `childRef`'s `basePath`, or the current component's path.
    *
-   * @param childRef Reference to the child component to render, either as a string ID
-   *   or an object containing `{id, basePath}`.
-   * @param customPath Explicit data model path to bind the child to, overriding any path
-   *   defined in `childRef` or falling back to the current component's path.
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
   protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
@@ -270,11 +264,6 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
     }
   }
 
-  /**
-   * Updates the element DOM when a controller has been initialized.
-   *
-   * @param changedProperties Map of changed properties with their previous values.
-   */
   protected override update(changedProperties: PropertyValues) {
     if (!this._controller) {
       return;

@@ -111,20 +111,15 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
  * 'test_v09_basic_catalog_schema' and 'test_v10_basic_catalog_schema' test Python-specific
  * dictionary schema export structures from Python ADK and are skipped in Web Core TS conformance.
  */
-const SKIP_TEST_NAMES = new Set([
-  'test_v09_basic_catalog_schema',
-  'test_v10_basic_catalog_schema',
-  'test_v10_create_surface_optional_catalog_id',
-  'test_v10_topology_dangling_child_reference_error',
-  'test_v10_topology_self_reference_error',
-  'test_v10_unknown_component_property',
-]);
+const SKIP_TEST_NAMES = new Set(['test_v09_basic_catalog_schema', 'test_v10_basic_catalog_schema']);
 
 /**
  * Transition skip list containing specific test suite files to skip during active feature transitions.
  *
  * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
  * by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI) rather than headless web_core.
+ *
+ * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
 const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml']);
 
@@ -1471,7 +1466,9 @@ function getCatalogsForTestCase(testCase) {
   if (testCase.catalogPaths) {
     for (const p of testCase.catalogPaths) {
       const fullPath = path.resolve(__dirname, '../../../../', p);
-      if (!fs.existsSync(fullPath)) continue;
+      if (!fs.existsSync(fullPath)) {
+        throw new Error(`catalogPaths entry '${p}' does not exist (resolved to ${fullPath})`);
+      }
       let json;
       try {
         json = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
