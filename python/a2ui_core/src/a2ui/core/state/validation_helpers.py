@@ -39,6 +39,17 @@ RELAXED_PATH_PATTERN = re.compile(
     r"^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$"
 )
 
+__all__ = [
+    "ROOT_ID",
+    "MAX_GLOBAL_DEPTH",
+    "MAX_FUNC_CALL_DEPTH",
+    "RELAXED_PATH_PATTERN",
+    "validate_component_integrity",
+    "validate_recursion_and_paths",
+    "analyze_topology",
+    "validate_composition_constraints",
+]
+
 
 def validate_component_integrity(
     components: dict[str, ComponentModel],
