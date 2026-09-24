@@ -1,64 +1,107 @@
-# A2UI Node Restaurant Agent Sample
+# A2UI Node restaurant agent sample
 
-This is a minimal restaurant-finder agent that serves the A2A protocol over HTTP on port 10002. It calls Gemini through `@google/genai` and emits A2UI v1.0 payloads through the `@a2ui/agent` SDK.
+This is a restaurant-finder agent that serves the A2A protocol over HTTP on port 10002. It calls Gemini through `@google/genai` and generates A2UI payloads through the `@a2ui/agent` SDK.
+
+The sample supports four protocol and format combinations:
+
+- `A2UI_VERSION=v0.9 A2UI_FORMAT=direct_json`: Renders in the Lit, React, and Angular sample clients.
+- `A2UI_VERSION=v0.9 A2UI_FORMAT=express`: Express DSL compiled to v0.9 JSON; renders in the same clients.
+- `A2UI_VERSION=v1.0 A2UI_FORMAT=direct_json` (default): Headless mode using the candidate v1.0 protocol.
+- `A2UI_VERSION=v1.0 A2UI_FORMAT=express`: Headless mode using v1.0 compiled Express DSL.
 
 ## Running the sample
 
-Build first. The sample compiles to `dist/src/`, and `yarn start` runs that output:
+Build the package first. The project compiles to `dist/src/`, and `yarn start` executes that output:
 
 ```bash
 yarn workspace @a2ui/agent-restaurant-node run build
 ```
 
-### Without an API key
+### Without an API key (stub mode)
 
-Ask for the canned response explicitly:
+Use `STUB_LLM=true` to serve canned responses from the verified example files:
 
 ```bash
+# Default (v1.0, direct_json)
 STUB_LLM=true yarn workspace @a2ui/agent-restaurant-node run start
+
+# v0.9 direct JSON (works with sample clients)
+STUB_LLM=true A2UI_VERSION=v0.9 A2UI_FORMAT=direct_json yarn workspace @a2ui/agent-restaurant-node run start
+
+# v0.9 Express
+STUB_LLM=true A2UI_VERSION=v0.9 A2UI_FORMAT=express yarn workspace @a2ui/agent-restaurant-node run start
+
+# v1.0 Express
+STUB_LLM=true A2UI_VERSION=v1.0 A2UI_FORMAT=express yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
-The stub is deliberately delivered in four mid-token chunks, so the streaming healer in
-`DirectJsonStreamProcessorImpl` is exercised on the same code path the real model uses. This is
-the quickest way to confirm the server, the A2A wiring and the A2UI stream all work.
+In Direct JSON mode, the stub feeds the example in four mid-token chunks through the streaming parser. In Express mode, the stub decompiles the example to Express syntax, parses it, and emits the resulting UI messages.
 
 ### With a real model
 
+Provide a `GEMINI_API_KEY`:
+
 ```bash
-cp .env.example .env    # then add your GEMINI_API_KEY
+cp .env.example .env    # add your GEMINI_API_KEY
 GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
-`STUB_LLM=true` takes precedence over a configured key, which is useful for deterministic runs
-without spending quota:
+To run a specific combination with a live model:
+
+```bash
+GEMINI_API_KEY=... A2UI_VERSION=v0.9 A2UI_FORMAT=direct_json yarn workspace @a2ui/agent-restaurant-node run start
+```
+
+`STUB_LLM=true` takes precedence over a configured key, which is useful for predictable testing without consuming API quota:
 
 ```bash
 STUB_LLM=true GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
-### When the configuration is wrong
+### Configuration and environment variables
 
-The agent refuses to start rather than guessing. It exits with a non-zero status, before binding
-the port, if `GEMINI_API_KEY` is missing or empty and `STUB_LLM=true` was not passed, or if
-`STUB_LLM` is set to anything other than `true` or `false`. A misspelled key name therefore
-produces an error instead of canned output that looks like a working model.
+The server checks environment variables before binding to the port:
 
-On a successful start the banner names the backend, either `Model: gemini-2.5-flash via
-GEMINI_API_KEY.` or `Model: none. STUB_LLM=true, ...`, so which path is live is never in doubt.
+- `A2UI_VERSION`: `'v0.9'` or `'v1.0'` (default: `'v1.0'`).
+- `A2UI_FORMAT`: `'direct_json'` or `'express'` (default: `'direct_json'`).
+- `MODEL_NAME`: Gemini model identifier (default: `'gemini-2.5-flash'`).
+- `PORT`: HTTP port to bind (default: `10002`).
+- `GEMINI_API_KEY`: Required when `STUB_LLM` is not `'true'`.
+- `STUB_LLM`: Set to `'true'` to use canned example responses.
 
-Override the port with `PORT`. Once running:
+If `A2UI_VERSION` or `A2UI_FORMAT` contains an invalid value, or if `GEMINI_API_KEY` is missing when `STUB_LLM=true` is not passed, the process prints a clear error message and exits with status 1.
+
+Endpoints provided by the server:
 
 - Agent card: `http://localhost:10002/.well-known/agent-card.json`
 - JSON-RPC: `http://localhost:10002/a2a/json-rpc`
 - REST: `http://localhost:10002/v1`
+- Static images: `http://localhost:10002/static/` (served from `samples/agent/adk/restaurant_finder/images`)
 
-### Driving a turn
+## Client compatibility
 
-Send `message/stream` to the JSON-RPC endpoint and read the SSE response:
+### Visual clients (v0.9)
+
+Start the agent with `A2UI_VERSION=v0.9`, in either format, and then start one of the sample clients. Build the shared packages first with `yarn install && yarn build:all` from the repository root, as each client's README describes.
+
+- Lit shell (`samples/client/lit/shell`): run `yarn dev`. The browser calls the agent directly, which is why the agent allows CORS from any `http://localhost:<port>` origin.
+- React shell (`samples/client/react/shell`): run `yarn dev`, then open port 5003.
+- Angular (`samples/client/angular`): run `yarn start restaurant`, then open port 4200.
+
+All three connect to `http://localhost:10002` and request the `https://a2ui.org/a2a-extension/a2ui/v0.9` extension. Restaurant data only exists for New York, so ask for something like "top 5 chinese restaurants in New York". The images are served from the Python sample's `images` folder.
+
+### Headless operation (v1.0)
+
+No client in this repository renders v1.0 yet, so with `A2UI_VERSION=v1.0` (the default) you read the output from the JSON-RPC stream, for example with the curl commands below.
+
+## Driving a turn with curl
+
+Send a `message/stream` request to the JSON-RPC endpoint. Pass the `X-A2A-Extensions` header corresponding to the configured version:
 
 ```bash
 curl -N -X POST http://localhost:10002/a2a/json-rpc \
   -H 'Content-Type: application/json' \
+  -H 'X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0' \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
@@ -68,42 +111,28 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
         "kind": "message",
         "messageId": "m1",
         "role": "user",
-        "parts": [{"kind": "text", "text": "find me sushi in Soho"}]
+        "parts": [{"kind": "text", "text": "top 5 chinese restaurants in New York"}]
       }
     }
   }'
 ```
 
-A turn produces:
+If the client requests an A2UI extension for a different version than configured, the task fails with an informative error message. If no A2UI extension is requested, the agent logs a warning and answers with the configured version anyway. The Python sample answers with plain text in that case.
 
-```
-task  ->  status-update(working)  ->  message(data)
-```
+A turn emits non-final `status-update` events with `status.state: 'working'` and parts in `status.message.parts`, ending in a final `status-update` event with `status.state: 'input-required'` and `final: true`.
 
-The `message` event carries a `data` part holding an array of A2UI v1.0 messages. Note the
-`contextId` on those events — you need it to continue the conversation.
+### Multi-step conversation
 
-> [!NOTE]
-> `@a2a-js/sdk` closes the event stream as soon as the first `message` event is emitted, so the
-> terminal `completed`/`failed` status-update this agent publishes is not delivered to the
-> client. Post-hoc A2UI validation failures surface in the server log rather than the stream.
-> With a real model this also means only the first streamed chunk reaches the client. See
-> `KNOWN_GAPS.md`.
+The agent translates client UI events into queries for subsequent turns.
 
-### A multi-step conversation
+The first turn is the request above. Reuse the `contextId` it returns in the next requests.
 
-The Python sample walks a user from a restaurant list, through a booking form, to a
-confirmation. The same flow works here: the renderer reports a user interaction as an A2UI
-action, and the agent translates it into a query for the next turn.
-
-Reuse the `contextId` from step 1 in every later request — history is keyed by it.
-
-**Step 2 — the user picks a restaurant.** A renderer would send this when a `Button` with an
-`action.event` named `book_restaurant` is pressed:
+**Step 2: User selects a restaurant.** When the user selects a restaurant in the UI, the client sends a `book_restaurant` action:
 
 ```bash
 curl -N -X POST http://localhost:10002/a2a/json-rpc \
   -H 'Content-Type: application/json' \
+  -H 'X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0' \
   -d '{
     "jsonrpc": "2.0",
     "id": 2,
@@ -135,11 +164,12 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
   }'
 ```
 
-**Step 3 — the user submits the booking form.** Same shape, with the form values in `context`:
+**Step 3: User submits the booking.** When the user submits the booking form, the client sends a `submit_booking` action:
 
 ```bash
 curl -N -X POST http://localhost:10002/a2a/json-rpc \
   -H 'Content-Type: application/json' \
+  -H 'X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0' \
   -d '{
     "jsonrpc": "2.0",
     "id": 3,
@@ -161,8 +191,9 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
               "timestamp": "2026-01-01T19:05:00Z",
               "context": {
                 "restaurantName": "Sushi Tetsu",
-                "partySize": 2,
-                "reservationTime": "19:30"
+                "partySize": "2",
+                "reservationTime": "19:30",
+                "dietary": "None"
               }
             }
           }
@@ -172,47 +203,12 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
   }'
 ```
 
-`name`, `surfaceId`, `sourceComponentId`, `timestamp` and `context` are all required by
-`ActionMessageSchema`; `userMessage` and `metadata` are optional. Unlike the Python sample,
-which special-cases `book_restaurant` and `submit_booking` by name, this agent translates any
-action generically into `User submitted an action: <name> with data: <json>`.
-
-> [!IMPORTANT]
-> In stub mode all three steps return the **same** canned payload, because the stub ignores the
-> query entirely. The steps still prove the A2A wiring, action parsing and per-turn processor
-> recycling, but you need a real `GEMINI_API_KEY` to see the conversation actually progress from
-> a list to a booking form to a confirmation.
-
-## No visual client yet
-
-**There is currently no v1.0 renderer in this repository.** The Lit, React and Angular
-renderers all stop at v0.9, while this sample emits v1.0, so none of the existing sample
-clients can display its output.
-
-This is accepted rather than outstanding. A v1.0 renderer is expected to arrive from outside
-this repository, so the sample stays headless in the meantime: run it and read the A2A stream
-directly. When that renderer lands, the sample should be connectable with no changes on the
-agent side, as it already serves the port and protocol the clients expect.
-
-A rendered demo is likely to arrive by the other route first. Once the agent SDK supports v0.9
-it can talk to the Lit, React and Angular renderers that already exist, which is one of the
-reasons v0.9 support is planned ahead of the Express format.
+Submitting a booking marks the final task state as `completed`. In stub mode, `book_restaurant` returns the `booking_form` example, `submit_booking` returns the `confirmation` example, and other queries return `single_column_list`.
 
 ## Why not the Agent Development Kit?
 
-The Python counterpart of this sample is built on ADK, and `@google/adk` does exist for
-JavaScript. We deliberately use `@google/genai` directly instead.
+The Python counterpart of this sample uses ADK. While `@google/adk` exists for JavaScript, this sample uses `@google/genai` directly.
 
-`@google/adk@2.1.0` requires **`zod ^4.2.1`**. This monorepo pins `zod` to `^3.25.76` through a
-root `resolutions` entry, because `@a2ui/web_core` is built on Zod 3 APIs. That pin is not
-incidental: the v1.0 component catalog that `@a2ui/agent` consumes is a tree of Zod 3
-`ZodObject`s, and web_core converts them to JSON Schema to build the model prompt. So the Zod
-major version is load-bearing for the agent-side code path, not just a transitive detail.
+`@google/adk@2.1.0` requires `zod ^4.2.1`. This repository pins `zod` to `^3.25.76` because `@a2ui/web_core` uses Zod 3 APIs. The v1.0 component catalog that `@a2ui/agent` consumes is a tree of Zod 3 `ZodObject` instances that web_core converts to JSON Schema for model prompts.
 
-With the pin in place, ADK fails at import time with `z.object(...).loose is not a function`
-(`.loose()` being the Zod 4 replacement for Zod 3's `.passthrough()`). Getting ADK working
-would mean either relaxing a deliberate monorepo-wide pin or carrying two Zod majors and
-keeping them from ever meeting — a lot of fragility to add to a sample.
-
-`@google/genai` has no Zod dependency at all, so it sidesteps the conflict. We lose the
-structural parallel with the Python sample, but the A2UI flow is identical.
+Under that pin, ADK fails at import time with `z.object(...).loose is not a function`. Using `@google/genai` avoids this conflict because it has no Zod dependency.
