@@ -56,24 +56,29 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 
-`conformance_schema.json` at the root is the JSON schema that validates the structure of the YAML test files themselves.
+`conformance_schema.json` at the root is the JSON schema that validates the structure of YAML test files across all domains.
 
 ## Usage in SDKs
 
-Each language SDK must implement a test harness that:
+Each language SDK implements test harnesses that:
 
-1.  Reads the YAML files.
-2.  Feeds the inputs to the language's specific implementation of the parser/validator.
-3.  Asserts that the output matches the expected results defined in the YAML.
+1.  Read the YAML files.
+2.  Feed the inputs to the language's specific implementation of the parser/validator/compiler.
+3.  Assert that the output matches the expected results defined in the YAML.
 
-Refer to `agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py` for a reference implementation of a harness.
+Refer to the test harnesses across SDKs for worked examples of running conformance suites:
 
-Client-side implementations run these suites too:
-
+- Python: `agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py`
 - Dart: `dart/a2ui_core/test/conformance/expressions_conformance_test.dart`
 - TypeScript: `renderers/web_core/src/v0_9/basic_catalog/expressions/expression_parser.conformance.test.ts`
 
-Both locate the suite by walking up from the test file, so they need no configured path.
+Both Dart and TypeScript locate the suite by walking up from the test file, so they need no configured path.
+
+> **Note**: Conformance tests provide the primary verification of protocol and inference format specifications across languages. Unit tests in SDK packages are reserved for language-specific implementation residue (e.g., exception types, thread-safety, stream lifecycle). To test everything, both unit tests and conformance tests must be run.
+
+### Specification Example Round-Trip Verification
+
+In addition to the declarative YAML conformance suites, SDKs implementing inference formats (such as Express) should implement an example round-trip test that iterates across all golden JSON examples in `specification/v1_0/catalogs/basic/examples/*.json`, decompiles them into the target format notation, recompiles them back to messages, and asserts semantic equivalence against the original payload. Refer to `agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py` for a worked example of this test.
 
 ### Writing cases for `parse_expression_template`
 

@@ -17,7 +17,10 @@
 import {nothing} from 'lit';
 import {html, unsafeStatic} from 'lit/static-html.js';
 import {ComponentContext} from '../rendering/component-context.js';
-import {Catalog, WebComponentImplementation} from './types.js';
+import {Catalog} from '../catalog/types.js';
+import {isWebComponentImplementation} from './is_web_component_implementation.js';
+import {registerUniversalElement} from './register_universal_element.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
 
 /**
  * Pure function that acts as a generic container for A2UI components.
@@ -40,6 +43,12 @@ export function renderA2uiNode(
   if (!implementation || !implementation.tagName) {
     console.warn(`Component implementation not found or missing tagName for type: ${type}`);
     return nothing;
+  }
+
+  // A catalog can also hold entries whose element another framework's adapter
+  // already defined; those carry a tag name but no element to register.
+  if (isWebComponentImplementation(implementation)) {
+    registerUniversalElement(implementation);
   }
 
   const tag = unsafeStatic(implementation.tagName);

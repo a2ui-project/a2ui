@@ -43,7 +43,11 @@ def get_yaml_files():
     return sorted(files)
 
 
-@pytest.mark.parametrize("yaml_path", get_yaml_files(), ids=os.path.basename)
+@pytest.mark.parametrize(
+    "yaml_path",
+    get_yaml_files(),
+    ids=lambda item: os.path.basename(item) if isinstance(item, str) else str(item),
+)
 def test_validate_conformance_yaml(yaml_path):
     yaml_data = load_yaml_file(yaml_path)
     basename = os.path.basename(yaml_path)

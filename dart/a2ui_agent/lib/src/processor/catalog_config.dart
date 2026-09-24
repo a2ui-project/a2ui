@@ -12,19 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_agent/a2ui_agent.dart';
-import 'package:test/test.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 
-void main() {
-  group('A group of tests', () {
-    final awesome = Awesome();
+/// A catalog the agent supports, registered with an `A2uiGenerator`.
+///
+/// The catalog is registered for protocol v0.9, the only version this SDK
+/// implements.
+class CatalogConfig {
+  /// The catalog, as parsed by [Catalog.fromJson].
+  final SchemaCatalog catalog;
 
-    setUp(() {
-      // Additional setup goes here.
-    });
-
-    test('First Test', () {
-      expect(awesome.isAwesome, isTrue);
-    });
-  });
+  const CatalogConfig(this.catalog);
 }

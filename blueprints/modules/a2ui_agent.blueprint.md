@@ -915,3 +915,14 @@ There is no `express/response_streaming.yaml`, because Express does not stream. 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 
 For complete setup instructions, test harness requirements, suite descriptions, and schema definitions, see [Conformance README](../../conformance/README.md).
+
+### Format Round-Trip and Specification Example Testing
+
+In addition to the per-format YAML suites, implementations of non-JSON inference formats (such as Express) should implement a systematic round-trip test against the full corpus of catalog golden example files (`specification/v1_0/catalogs/basic/examples/*.json`).
+
+Because Express notation is a compact, catalog-driven DSL, decompile-then-recompile round-trips against the full set of specification examples verify that:
+
+1. Every standard component, property, data-binding, and check rule decompiles into clean notation without error.
+2. Recompiling the decompiled DSL reproduces the original semantic surface envelope, components, and data model.
+
+Refer to `agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py` for a reference implementation of this test.
