@@ -43,19 +43,25 @@ def _flatten_data_model(data_dict: dict) -> list[tuple[str, Any]]:
 
 
 def _is_component_reference_property(
-    prop_schema: Any, helper: Optional[CatalogSchemaHelper] = None
+    prop_schema: Any,
+    helper: Optional[CatalogSchemaHelper] = None,
+    visited: Optional[set[str]] = None,
 ) -> bool:
     """Checks if a property schema defines a component reference (ComponentId or list of ComponentId)."""
     if not isinstance(prop_schema, dict):
         return False
+    visited = visited or set()
     if "$ref" in prop_schema:
         ref = prop_schema["$ref"]
         if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
             return True
         if helper and isinstance(ref, str) and ref.startswith("#/$defs/"):
+            if ref in visited:
+                return False
+            visited.add(ref)
             resolved = helper.resolve_ref(prop_schema)
             if resolved != prop_schema:
-                return _is_component_reference_property(resolved, helper)
+                return _is_component_reference_property(resolved, helper, visited)
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (
             prop_schema.get("oneOf", [])
@@ -63,10 +69,10 @@ def _is_component_reference_property(
             + prop_schema.get("allOf", [])
         )
         for sub in subs:
-            if _is_component_reference_property(sub, helper):
+            if _is_component_reference_property(sub, helper, visited):
                 return True
     if prop_schema.get("type") == "array" and "items" in prop_schema:
-        return _is_component_reference_property(prop_schema["items"], helper)
+        return _is_component_reference_property(prop_schema["items"], helper, visited)
     return False
 
 

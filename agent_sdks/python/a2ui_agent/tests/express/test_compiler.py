@@ -792,6 +792,96 @@ root = Text("Hello Surface")"""
         recompiled = compiler.compile(decompiled)
         self.assertEqual(recompiled[0]["createSurface"]["components"][0], comp)
 
+    def test_cyclic_defs_handling_prevents_recursion_error(self):
+        """Verifies that circular/cyclic $defs do not cause RecursionError in compiler, decompiler, or prompt generator."""
+        from a2ui.inference_formats.experimental.express.decompiler import (
+            _is_component_reference_property,
+        )
+        from a2ui.inference_formats.experimental.express.prompt_generator import (
+            _get_schema_enum,
+            _schema_allows_databinding as _pg_allows_databinding,
+        )
+        from a2ui.inference_formats.experimental.express.compiler import (
+            _schema_allows_databinding as _comp_allows_databinding,
+            _schema_expects_option_objects,
+        )
+
+        cyclic_catalog_dict = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": "https://a2ui.org/cyclic_catalog",
+            "components": {
+                "CyclicWidget": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "CyclicWidget"},
+                        "cycleProp": {"$ref": "#/$defs/CycleA"},
+                        "cycleCombinator": {"$ref": "#/$defs/CycleCombinator"},
+                    },
+                    "required": ["component"],
+                }
+            },
+            "functions": {},
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [{"$ref": "#/components/CyclicWidget"}],
+                    "discriminator": {"propertyName": "component"},
+                },
+                "anyFunction": {"oneOf": []},
+                "CycleA": {"$ref": "#/$defs/CycleB"},
+                "CycleB": {"$ref": "#/$defs/CycleA"},
+                "CycleCombinator": {
+                    "oneOf": [
+                        {"$ref": "#/$defs/CycleCombinator"},
+                        {"type": "string", "enum": ["safe_choice"]},
+                    ]
+                },
+            },
+        }
+        catalog = Catalog.from_json(cyclic_catalog_dict, spec_version="1.0")
+        helper = CatalogSchemaHelper(catalog)
+
+        # Verify _is_component_reference_property handles cycles
+        prop_schema_a = {"$ref": "#/$defs/CycleA"}
+        self.assertFalse(_is_component_reference_property(prop_schema_a, helper))
+        prop_schema_comb = {"$ref": "#/$defs/CycleCombinator"}
+        self.assertFalse(_is_component_reference_property(prop_schema_comb, helper))
+
+        # Verify _get_schema_enum handles cycles and still retrieves enum from valid branches
+        self.assertIsNone(_get_schema_enum(prop_schema_a, helper))
+        self.assertEqual(_get_schema_enum(prop_schema_comb, helper), ["safe_choice"])
+
+        # Verify databinding and option object checks handle cycles
+        self.assertFalse(_pg_allows_databinding(prop_schema_a, helper))
+        self.assertFalse(_pg_allows_databinding(prop_schema_comb, helper))
+        self.assertFalse(_comp_allows_databinding(prop_schema_a, helper))
+        self.assertFalse(_comp_allows_databinding(prop_schema_comb, helper))
+        self.assertFalse(_schema_expects_option_objects(prop_schema_a, helper))
+        self.assertFalse(_schema_expects_option_objects(prop_schema_comb, helper))
+
+        # Verify helper.get_property_type handles cycles
+        self.assertIsNone(helper.get_property_type("CyclicWidget", "cycleProp"))
+        self.assertIsNone(helper.get_property_type("CyclicWidget", "cycleCombinator"))
+
+        # Verify prompt generator produces output without recursion error
+        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+        fmt = ExpressFormat(catalog=catalog)
+        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
+        self.assertIn("CyclicWidget(", prompt)
+        self.assertIn("safe_choice", prompt)
+
+        # Verify compiler and decompiler work with cyclic catalog
+        compiler = ExpressCompiler(catalog)
+        envelopes = compiler.compile(
+            'root = CyclicWidget(cycleCombinator="safe_choice")'
+        )
+        self.assertEqual(len(envelopes), 1)
+
+        decompiler = ExpressParser(catalog)
+        decompiled = decompiler.decompile(envelopes[0])
+        self.assertIn("CyclicWidget", decompiled)
+
 
 if __name__ == "__main__":
     unittest.main()

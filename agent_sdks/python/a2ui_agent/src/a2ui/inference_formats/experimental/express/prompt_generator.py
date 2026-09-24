@@ -94,19 +94,25 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 
 def _schema_allows_databinding(
-    prop_schema: Any, helper: Optional[CatalogSchemaHelper] = None
+    prop_schema: Any,
+    helper: Optional[CatalogSchemaHelper] = None,
+    visited: Optional[set[str]] = None,
 ) -> bool:
     """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
     if not isinstance(prop_schema, dict):
         return False
+    visited = visited or set()
     if "$ref" in prop_schema:
         ref = prop_schema["$ref"]
         if "DataBinding" in ref or "Dynamic" in ref or "ChildList" in ref:
             return True
         if helper and isinstance(ref, str) and ref.startswith("#/$defs/"):
+            if ref in visited:
+                return False
+            visited.add(ref)
             resolved = helper.resolve_ref(prop_schema)
             if resolved != prop_schema:
-                return _schema_allows_databinding(resolved, helper)
+                return _schema_allows_databinding(resolved, helper, visited)
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (
             prop_schema.get("oneOf", [])
@@ -114,29 +120,35 @@ def _schema_allows_databinding(
             + prop_schema.get("allOf", [])
         )
         for sub in subs:
-            if _schema_allows_databinding(sub, helper):
+            if _schema_allows_databinding(sub, helper, visited):
                 return True
     return False
 
 
 def _get_schema_enum(
-    prop_schema: Any, helper: Optional[CatalogSchemaHelper] = None
+    prop_schema: Any,
+    helper: Optional[CatalogSchemaHelper] = None,
+    visited: Optional[set[str]] = None,
 ) -> Optional[list[str]]:
     """Helper to recursively find enum definitions inside a JSON schema."""
     if not isinstance(prop_schema, dict):
         return None
+    visited = visited or set()
     if "enum" in prop_schema:
         return prop_schema["enum"]
     if "$ref" in prop_schema:
         ref = prop_schema["$ref"]
         if helper and isinstance(ref, str) and ref.startswith("#/$defs/"):
+            if ref in visited:
+                return None
+            visited.add(ref)
             resolved = helper.resolve_ref(prop_schema)
             if resolved != prop_schema:
-                return _get_schema_enum(resolved, helper)
+                return _get_schema_enum(resolved, helper, visited)
     if "oneOf" in prop_schema or "anyOf" in prop_schema:
         subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
         for sub in subs:
-            enum_val = _get_schema_enum(sub, helper)
+            enum_val = _get_schema_enum(sub, helper, visited)
             if enum_val:
                 return enum_val
     return None

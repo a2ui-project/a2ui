@@ -73,37 +73,44 @@ def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
 
 
 def _schema_allows_databinding(
-    schema: Any, helper: Optional[CatalogSchemaHelper] = None
+    schema: Any,
+    helper: Optional[CatalogSchemaHelper] = None,
+    visited: Optional[set[str]] = None,
 ) -> bool:
     """Recursively checks if a property's schema allows a dynamic DataBinding ref.
 
     Args:
         schema: The JSON schema dict for the target property.
         helper: Optional CatalogSchemaHelper for resolving local $defs.
+        visited: Optional set of visited $ref strings to prevent recursion loops.
 
     Returns:
         True if the schema permits dynamic databinding; False otherwise.
     """
     if not isinstance(schema, dict):
         return False
+    visited = visited or set()
     if "$ref" in schema:
         ref = schema["$ref"]
         if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
             return True
         if helper and isinstance(ref, str) and ref.startswith("#/$defs/"):
+            if ref in visited:
+                return False
+            visited.add(ref)
             resolved = helper.resolve_ref(schema)
             if resolved != schema:
-                return _schema_allows_databinding(resolved, helper)
+                return _schema_allows_databinding(resolved, helper, visited)
     if "properties" in schema and "path" in schema["properties"]:
         if "componentId" not in schema["properties"]:
             return True
     if "items" in schema:
-        if _schema_allows_databinding(schema["items"], helper):
+        if _schema_allows_databinding(schema["items"], helper, visited):
             return True
     for key in ["allOf", "oneOf", "anyOf"]:
         if key in schema and isinstance(schema[key], list):
             for sub in schema[key]:
-                if _schema_allows_databinding(sub, helper):
+                if _schema_allows_databinding(sub, helper, visited):
                     return True
     return False
 
@@ -129,26 +136,38 @@ def _has_databinding(v: Any) -> bool:
 
 
 def _schema_expects_option_objects(
-    schema: Any, helper: Optional[CatalogSchemaHelper] = None
+    schema: Any,
+    helper: Optional[CatalogSchemaHelper] = None,
+    visited: Optional[set[str]] = None,
 ) -> bool:
     """Checks if a property's schema expects a list of objects with label/value properties."""
     if not isinstance(schema, dict):
         return False
+    visited = visited or set()
     if "$ref" in schema and helper:
         ref = schema["$ref"]
         if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            if ref in visited:
+                return False
+            visited.add(ref)
             resolved = helper.resolve_ref(schema)
             if resolved != schema:
-                return _schema_expects_option_objects(resolved, helper)
+                return _schema_expects_option_objects(resolved, helper, visited)
     if "items" in schema:
         items_schema = schema["items"]
         if helper:
             items_schema = helper.resolve_ref(items_schema)
 
-        def has_label_value(sub: Any) -> bool:
+        def has_label_value(sub: Any, sub_visited: Optional[set[str]] = None) -> bool:
             if not isinstance(sub, dict):
                 return False
+            sub_visited = sub_visited or set()
             if helper and "$ref" in sub:
+                ref = sub["$ref"]
+                if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                    if ref in sub_visited:
+                        return False
+                    sub_visited.add(ref)
                 sub = helper.resolve_ref(sub)
             if (
                 "properties" in sub
@@ -158,14 +177,17 @@ def _schema_expects_option_objects(
                 return True
             for k in ["allOf", "oneOf", "anyOf"]:
                 if k in sub and isinstance(sub[k], list):
-                    if any(has_label_value(s) for s in sub[k]):
+                    if any(has_label_value(s, sub_visited) for s in sub[k]):
                         return True
             return False
 
         return has_label_value(items_schema)
     for key in ["allOf", "oneOf", "anyOf"]:
         if key in schema and isinstance(schema[key], list):
-            if any(_schema_expects_option_objects(sub, helper) for sub in schema[key]):
+            if any(
+                _schema_expects_option_objects(sub, helper, visited)
+                for sub in schema[key]
+            ):
                 return True
     return False
 

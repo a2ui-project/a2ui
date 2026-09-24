@@ -115,20 +115,30 @@ class CatalogSchemaHelper:
                     props.update(sub["properties"])
                     for pk, pv in sub["properties"].items():
 
-                        def _find_enum(s):
+                        def _find_enum(
+                            s: Any, visited: Optional[set[str]] = None
+                        ) -> Optional[list[str]]:
                             if isinstance(s, dict):
                                 if "enum" in s:
                                     return s["enum"]
+                                visited = visited or set()
                                 if "$ref" in s:
+                                    ref = s["$ref"]
+                                    if isinstance(ref, str) and ref.startswith(
+                                        "#/$defs/"
+                                    ):
+                                        if ref in visited:
+                                            return None
+                                        visited.add(ref)
                                     resolved = self.resolve_ref(s)
                                     if resolved != s:
-                                        res = _find_enum(resolved)
+                                        res = _find_enum(resolved, visited)
                                         if res:
                                             return res
                                 for k in ("oneOf", "anyOf", "allOf"):
                                     if k in s and isinstance(s[k], list):
                                         for sub_s in s[k]:
-                                            res = _find_enum(sub_s)
+                                            res = _find_enum(sub_s, visited)
                                             if res:
                                                 return res
                             return None
@@ -327,8 +337,9 @@ class CatalogSchemaHelper:
         if not p_schema:
             return None
 
-        def _crawl_ref(s: Any) -> Optional[str]:
+        def _crawl_ref(s: Any, visited: Optional[set[str]] = None) -> Optional[str]:
             if isinstance(s, dict):
+                visited = visited or set()
                 if "$ref" in s:
                     ref = s["$ref"]
                     if "ChildList" in ref:
@@ -337,15 +348,19 @@ class CatalogSchemaHelper:
                         return "Child"
                     if "Action" in ref:
                         return "Action"
+                    if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                        if ref in visited:
+                            return None
+                        visited.add(ref)
                     resolved = self.resolve_ref(s)
                     if resolved != s:
-                        res = _crawl_ref(resolved)
+                        res = _crawl_ref(resolved, visited)
                         if res:
                             return res
                 for k in ("oneOf", "anyOf", "allOf"):
                     if k in s and isinstance(s[k], list):
                         for sub_s in s[k]:
-                            res = _crawl_ref(sub_s)
+                            res = _crawl_ref(sub_s, visited)
                             if res:
                                 return res
             return None
