@@ -262,7 +262,128 @@ Six places do violate the rule, and none should be ported as written:
   implementation.
 
 Each of these needs a schema-derived replacement, which is design work rather than
-translation. Budget for it.
+translation. The design follows. All six hardcodings are still present in
+`origin/main`'s Python, shifted by about four lines, and that is the version to port.
+
+### 5.1 The principle: name protocol types, never catalog content
+
+A catalog reaches the protocol's shared types through `$ref`s into
+`common_types.json`. The v0.9 catalog writes these as absolute URLs, and v1.0 and the
+conformance fixtures write them as relative `common_types.json#/$defs/<Name>`. The
+names under `$defs` (`Action`, `CheckRule`, `DataBinding`, `ComponentId`, …) are
+defined by the protocol, not by any catalog. Recognising them is therefore no more
+catalog-specific than recognising `Event` or `_template`.
+
+Python's leak is not that it names these types. It matches **substrings** of any
+`$ref` (`"Dynamic" in ref`, `"Checkable" in ref`), and it names **catalog
+properties** (`"action"`, `"value"`, `"label"`, `"checks"`). The TS port applies two
+rules:
+
+* A `$ref` is recognised only if it points into `common_types.json`, and then only
+  by the exact def name: regex `(^|/)common_types\.json#/\$defs/(\w+)$`. A catalog's
+  own `#/$defs/MyDynamicThing` never matches.
+* The compiler never names a catalog property. It learns property names from the
+  schema. The one documented exception is option coercion (5.2 item 2).
+
+`get_property_type` (`schema_helper.py:285-309`, with its `"Child" in ref` sniffs) is
+used only by the Atom format and its tests, so it is not ported.
+
+### 5.2 The replacements
+
+Each rule was checked with a throwaway script against the v0.9 and v1.0 basic
+catalogs and main's three conformance fixtures (forms, simplified, custom). The unit
+tests for the TS schema helper should repeat these checks.
+
+1. **Action slots.** A property is an action slot when its schema references the
+   common `Action` def, directly or through `oneOf`/`anyOf`/`allOf`. This replaces
+   `prop_name in ["action", "submitAction"]`. It selects exactly `Button.action` in
+   every catalog checked, the same set as Python. `submitAction` appears in none of
+   them.
+
+2. **Option-object coercion: decided to match Python, as a documented exception.**
+   When a property doesn't admit a path, is an array, and its items are an object
+   schema declaring both `label` and `value` properties, each string `s` in the
+   written list becomes `{"label": s, "value": s}`. This is the one place the port
+   names catalog property names. It is kept because:
+   * Coercion is a convenience whose meaning depends on the names. A string can
+     stand in for `{label, value}` because a choice shown as its own value is a
+     common idiom. No schema feature expresses "this object is a label/value pair".
+   * The schema-shaped alternative looked at (items whose required properties all
+     accept strings, excluding component references) selected the same property in
+     every catalog checked. It is still the same guess in more general form: without
+     the exclusion it would have wrongly caught `Tabs.tabs` (`title`, `child`), and a
+     future catalog could defeat the exclusion too.
+   * Matching Python keeps the two SDKs compiling the same Express text to the same
+     JSON. No conformance case covers this, so parity is the only external check.
+
+   The code carries a comment citing this section. When the rule fires or fails it
+   only changes a convenience: a model can always write the objects out in full.
+
+3. **The checked value.** Python binds a check's first argument when that parameter
+   is literally named `value` and the component bound a property literally named
+   `value`. The TS rule is to bind the check function's first declared parameter
+   when the component bound a property **of the same name** to a path, and the
+   written first argument isn't itself a path.
+   * Both names come from the catalog.
+   * Every check function in every catalog checked has `value` as its first
+     parameter, so behaviour is identical.
+   * This is the suite's rule, "a `?check` passes the component's own bound value",
+     made precise.
+
+4. **The check-rule property.** A component's check-rule property is found in one of
+   two places:
+   * its own property whose schema is an array of common `CheckRule`, which is how
+     the forms fixture declares it; or
+   * a property of that shape inside a common def the component pulls in via
+     `allOf`, which is `Checkable.checks` in both basic catalogs.
+
+   The schema helper exposes that property's name per component. The compiler uses
+   it instead of the literal `"checks"` and leaves it out of the positional order. An
+   inherited one is appended last, as Python does.
+   * This finds the same six components per basic catalog as Python's `"Checkable"`
+     sniff, plus the forms fixture's `TextField`. Python only picks that one up by
+     accident: its own property happens to be named `checks`.
+   * **Deliberate difference:** writing checks on a component with no check-rule
+     property throws `ExpressValidationError`. Python silently emits a `checks` key
+     that the component doesn't declare (verified: `Text("hi", _, _, [?required])`
+     compiles to `Text` with `checks` and empty args).
+
+5. **Prompt text.** `EXPRESS_RULES` names `DateTimeInput` and an `action` parameter.
+   It is ported **verbatim**, because the skill conformance cases compare the
+   generated files byte-for-byte against `conformance/test_data/skills/`. It stays a
+   known leak, to be raised upstream rather than fixed here.
+
+6. **One databinding predicate.** Python's two copies answer different questions, and
+   neither is written structurally. The TS port uses one predicate, `admitsPath`: a
+   schema admits a path if it is, or combines via `$ref`/`oneOf`/`anyOf`/`allOf`, an
+   object schema declaring a `path` property. It never descends into `items` or into
+   property values.
+   * This covers `DataBinding` and every `Dynamic*` type, which reach `DataBinding`,
+     as well as the `ChildList` template form `{componentId, path}`, with no names at
+     all.
+   * **Prompt:** a property is labelled `(static)` when it does not admit a path.
+     Checked against the golden `express_catalog_instructions.txt`, it matches all
+     75 labels (51 static, 24 not), with 0 mismatches.
+   * **Compiler:** the forbidden-binding check applies `admitsPath` at the position
+     where a path is written, following `items` and object properties down the
+     schema.
+   * **Deliberate difference:** Python rejects a path anywhere inside a property
+     whose top level doesn't admit one. That wrongly rejects
+     `Tabs([{title: $/t, child: c}])` even though `title` is a `DynamicString`
+     (verified against Python).
+   * The prompt's `(component ID)` label keeps Python's rule: a direct `$ref` to
+     common `ComponentId`, by exact name. It must not resolve `Child` to
+     `ComponentId`, because the golden labels `Card(child (static))`, not
+     `(component ID)`.
+
+### 5.3 Decisions
+
+1. Option coercion matches Python: the `label`/`value` name test is kept as a
+   documented exception (5.2 item 2).
+2. The two Python bugs are fixed in TS, not copied: throwing on checks for a
+   component that takes none (5.2 item 4), and binding checks by position
+   (5.2 item 6). Both are recorded in `typescript/a2ui_agent/KNOWN_GAPS.md` §4 so an
+   upstream Python issue can be filed from them.
 
 ---
 
