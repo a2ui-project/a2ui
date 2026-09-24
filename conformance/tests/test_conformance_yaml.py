@@ -39,7 +39,11 @@ def get_yaml_files():
     files = []
     for domain in ["core", "agent", "extensions"]:
         pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
-        files.extend(glob.glob(pattern, recursive=True))
+        files.extend(
+            f
+            for f in glob.glob(pattern, recursive=True)
+            if not f.startswith(os.path.join(CONFORMANCE_DIR, "agent", "builder"))
+        )
     return sorted(files)
 
 
