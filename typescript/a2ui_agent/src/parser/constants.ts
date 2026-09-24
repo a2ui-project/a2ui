@@ -31,13 +31,18 @@ export const MSG_TYPE_UPDATE_DATA_MODEL = 'updateDataModel';
 // Conversational text (non-A2UI)
 export const MSG_TYPE_TEXT = 'text';
 
-// Tag markers for Direct JSON
+// Tag markers for the Direct JSON format
 export const A2UI_OPEN_TAG = '<a2ui-json>';
 export const A2UI_CLOSE_TAG = '</a2ui-json>';
+
+// Tag markers for the compiled inference formats (Express). Match Python's A2UI_INFERENCE_OPEN_TAG/CLOSE_TAG.
+export const A2UI_INFERENCE_OPEN_TAG = '<a2ui>';
+export const A2UI_INFERENCE_CLOSE_TAG = '</a2ui>';
 
 export const A2UI_SCHEMA_BLOCK_START = '---BEGIN A2UI JSON SCHEMA---';
 export const A2UI_SCHEMA_BLOCK_END = '---END A2UI JSON SCHEMA---';
 
+// Workflow rules for the Direct JSON format's system prompt.
 export const DEFAULT_WORKFLOW_RULES = `
 The generated response MUST follow these rules:
 - The response can contain one or more A2UI JSON blocks.
