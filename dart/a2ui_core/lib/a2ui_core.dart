@@ -24,7 +24,7 @@ export 'src/core/common.dart';
 export 'src/core/common_schemas.dart';
 export 'src/core/component_model.dart';
 // Rendering support.
-export 'src/core/contexts.dart';
+export 'src/core/contexts.dart' hide ComponentContext;
 // State management.
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';
@@ -45,7 +45,7 @@ export 'src/processing/basic_functions.dart';
 export 'src/processing/expressions.dart';
 // Processing & expressions.
 export 'src/processing/processor.dart';
-export 'src/rendering/binder.dart';
+export 'src/rendering/binder.dart' show ChildNode, maxDynamicChildListSize;
 export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
 export 'src/resolution/node_resolver.dart';

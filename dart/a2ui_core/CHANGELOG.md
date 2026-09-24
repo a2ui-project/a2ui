@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
+- **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
+  are no longer exported. Renderers read components through `NodeResolver` and
+  `ComponentNode`.
 - **Breaking:** `GenericBinder` resolves dynamic properties to `ResolvedBinding`
   values instead of raw values, and no longer synthesizes `set<Property>`
   setter entries; writes go through `WritableBinding.set`. Omitted and
