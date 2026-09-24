@@ -49,6 +49,12 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 - `agent/legacy/parser.yaml`: Non-streaming parsing and payload fixing.
 - `agent/legacy/inference_format.yaml`: Inference formats and schema managers (select_catalog, load_catalog, generate_prompt).
 
+#### Builder suite (`agent/builder/`)
+
+`agent/builder/builder.yaml` covers the typesafe builder API described in [`blueprints/features/typesafe_builder_api.blueprint.md`](../blueprints/features/typesafe_builder_api.blueprint.md): the authoring surface an agent uses to construct a UI in its own language rather than by emitting JSON.
+
+It is the one suite under `agent/` that does not use the case vocabulary below. A case declares a builder AST and names a golden document under `agent/builder/golden/`, and a harness asserts twice: that builder output equals the golden, and that the golden passes the A2UI validator. The second assertion is what catches a golden that froze a bug. `agent/builder/README.md` describes the AST notation and how to regenerate the goldens.
+
 ### Extensions (`extensions/`)
 
 - `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
@@ -90,7 +96,7 @@ Errors are expressed with the suite's language-agnostic categories rather than a
 
 ### Writing cases for the agent SDK suites
 
-The suites under `agent/`, including the per-format folders, share one vocabulary, described in the `$defs` of `conformance_schema.json` and summarised here.
+The suites under `agent/`, including the per-format folders, share one vocabulary, described in the `$defs` of `conformance_schema.json` and summarised here. `agent/builder/` is the exception, and uses the AST-plus-golden notation described in its own README.
 
 Catalogs under test live in `args`, either as a path relative to `conformance/` or as a document inlined in the case. A registration in `args.catalogs` is a `CatalogConfig`: the pristine document plus the transformers applied to it. An agent case states no protocol version of its own: the version it runs under is the one its catalog document declares, or the one a provider is constructed with. These rules do not vary by version, so they are written once against v1.0.
 
