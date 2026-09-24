@@ -300,4 +300,150 @@ describe('Direct JSON Streaming required fields guard', () => {
     expect(emittedComp?.component).toBe('AudioPlayer');
     expect(emittedComp?.url).toBe('http://audio.mp3');
   });
+
+  test('direct self-edge raises Self-reference detected', () => {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [
+        {
+          name: 'Card',
+          schema: z.object({
+            child: z.string().optional(),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    (processor as unknown as {refMap: unknown}).refMap = {
+      Card: {singleRefs: new Set(['child']), listRefs: new Set()},
+    };
+
+    processor.processChunk(
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}},',
+    );
+
+    let caughtError: Error | undefined;
+    try {
+      processor.processChunk(
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Card", "child": "root"}]}}',
+      );
+    } catch (e) {
+      caughtError = e as Error;
+    }
+
+    expect(caughtError).toBeDefined();
+    expect(caughtError?.message).toContain('Self-reference detected');
+    expect(caughtError?.message).toContain("Component 'root' references itself in field 'child'");
+  });
+
+  test('two-node cycle raises Circular reference detected without Self-reference', () => {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [
+        {
+          name: 'Card',
+          schema: z.object({
+            child: z.string().optional(),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    (processor as unknown as {refMap: unknown}).refMap = {
+      Card: {singleRefs: new Set(['child']), listRefs: new Set()},
+    };
+
+    processor.processChunk(
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}},',
+    );
+
+    let caughtError: Error | undefined;
+    try {
+      processor.processChunk(
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Card", "child": "child"}]}},{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "child", "component": "Card", "child": "root"}]}}',
+      );
+    } catch (e) {
+      caughtError = e as Error;
+    }
+
+    expect(caughtError).toBeDefined();
+    expect(caughtError?.message).toBe('Circular reference detected');
+    expect(caughtError?.message).not.toContain('Self-reference detected');
+  });
+
+  test('interleaved surfaces update correct surfaceId during streaming', () => {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [
+        {
+          name: 'Card',
+          schema: z.object({
+            child: z.string().optional(),
+          }),
+        } as unknown as ComponentApi,
+        {
+          name: 'Text',
+          schema: z.object({
+            text: z.string().optional(),
+          }),
+        } as unknown as ComponentApi,
+        {
+          name: 'Row',
+          schema: z.object({
+            children: z.array(z.string()).optional(),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    (processor as unknown as {refMap: unknown}).refMap = {
+      Card: {singleRefs: new Set(['child']), listRefs: new Set()},
+      Text: {singleRefs: new Set(), listRefs: new Set()},
+      Row: {singleRefs: new Set(), listRefs: new Set(['children'])},
+    };
+
+    processor.processChunk('<a2ui-json>[');
+    processor.processChunk(
+      '{"version": "v0.9", "createSurface": {"surfaceId": "surface1", "catalogId": "test_catalog"}},',
+    );
+    processor.processChunk(
+      '{"version": "v0.9", "createSurface": {"surfaceId": "surface2", "catalogId": "test_catalog"}},',
+    );
+
+    const s1Parts = processor.processChunk(
+      '{"version": "v0.9", "updateComponents": {"surfaceId": "surface1", "components": [{"id": "root", "component": "Card", "child": "c1"}, ',
+    );
+    const s1A2ui = s1Parts.filter(p => p.type === 'a2ui').flatMap(p => p.a2ui || []);
+    expect(s1A2ui).toHaveLength(1);
+    const s1Update = s1A2ui[0] as {updateComponents?: {surfaceId: string}};
+    expect(s1Update.updateComponents?.surfaceId).toBe('surface1');
+
+    const s1CompleteParts = processor.processChunk(
+      '{"id": "c1", "component": "Text", "text": "hello s1"}]}}, ',
+    );
+    const s1CompA2ui = s1CompleteParts.filter(p => p.type === 'a2ui').flatMap(p => p.a2ui || []);
+    expect(s1CompA2ui).toHaveLength(1);
+    const s1CompUpdate = s1CompA2ui[0] as {updateComponents?: {surfaceId: string}};
+    expect(s1CompUpdate.updateComponents?.surfaceId).toBe('surface1');
+
+    const s2Parts = processor.processChunk(
+      '{"version": "v0.9", "updateComponents": {"surfaceId": "surface2", "components": [{"id": "root", "component": "Card", "child": "c2"}, {"id": "c2", "component": "Text", "text": "hello s2"}]}}',
+    );
+    const s2A2ui = s2Parts.filter(p => p.type === 'a2ui').flatMap(p => p.a2ui || []);
+    expect(s2A2ui).toHaveLength(1);
+    const s2Update = s2A2ui[0] as {updateComponents?: {surfaceId: string}};
+    expect(s2Update.updateComponents?.surfaceId).toBe('surface2');
+  });
 });
