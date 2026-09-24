@@ -74,6 +74,17 @@ describe('ExpressDecompiler', () => {
     const casesPath = path.join(FIXTURES_DIR, 'decompiler_parity_cases.json');
     const cases: ParityCase[] = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
 
+    const overridesPath = path.join(FIXTURES_DIR, 'conformance_overrides.json');
+    const overridesAll = JSON.parse(fs.readFileSync(overridesPath, 'utf8'));
+    const overrides = overridesAll['decompiler_parity_cases.json'] || {};
+
+    it('every override names a case in decompiler_parity_cases.json', () => {
+      const names = new Set(cases.map(c => c.name));
+      for (const name of Object.keys(overrides)) {
+        expect(names.has(name), `override '${name}' matches no case`).toBe(true);
+      }
+    });
+
     it(`contains at least 27 cases (found ${cases.length})`, () => {
       expect(cases.length).toBeGreaterThanOrEqual(27);
     });
@@ -83,7 +94,11 @@ describe('ExpressDecompiler', () => {
         const {catalog, version} = getCatalogInfo(c.catalog);
         const decompiler = new ExpressDecompiler(catalog, version);
         const actual = decompiler.decompile(c.messages);
-        expect(actual).toBe(c.expectedNotation);
+
+        const override = overrides[c.name];
+        const expected = override ? override.expected : c.expectedNotation;
+
+        expect(actual).toBe(expected);
       });
     }
   });
