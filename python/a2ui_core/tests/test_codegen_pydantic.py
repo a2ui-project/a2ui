@@ -158,7 +158,7 @@ def test_compile_properties_to_pydantic():
     assert len(lines) == 1
     assert lines[0] == "    title: str | None = Field(None)"
 
-    # Default values
+    # Schema defaults are documented in description rather than set as field defaults
     props = {
         "num": {"type": "integer", "default": 42},
         "text": {"type": "string", "default": "hello"},
@@ -647,6 +647,7 @@ def test_generated_python_syntax_validity():
 
 
 SPEC_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", "specification"))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 
 # Functions the engine adds to a version's basic catalog beyond the ones the
 # published catalog declares. The '@' namespace is reserved for functions the
@@ -659,7 +660,14 @@ SYSTEM_FUNCTIONS: dict[str, frozenset[str]] = {
 
 def _published_function_names(version: str) -> set[str]:
     """Returns the function names the published basic catalog for `version` declares."""
-    catalog_path = os.path.join(SPEC_ROOT, version, "catalogs", "basic", "catalog.json")
+    if version == "v1_0":
+        catalog_path = os.path.join(
+            REPO_ROOT, "catalogs", "basic", "v1", "catalog.json"
+        )
+    else:
+        catalog_path = os.path.join(
+            SPEC_ROOT, version, "catalogs", "basic", "catalog.json"
+        )
     with open(catalog_path, "r", encoding="utf-8") as catalog_file:
         return set(json.load(catalog_file)["functions"])
 

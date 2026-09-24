@@ -19,10 +19,10 @@ import {defineConfig} from 'vitest/config';
 import {fileURLToPath} from 'node:url';
 
 /**
- * Entry point of the shared A2UI MCP catalog (`@a2ui/mcp-catalog`).
+ * Entry point of the shared A2UI MCP catalog (`@a2ui/catalog-mcp`).
  *
  * TODO(https://github.com/a2ui-project/a2ui/issues/1698): drop this alias and
- * declare `@a2ui/mcp-catalog` as a normal dependency once the catalog is
+ * declare `@a2ui/catalog-mcp` as a normal dependency once the catalog is
  * published to npm. `samples/community/` is a self-contained Yarn root that
  * consumes the published `@a2ui/*` packages rather than the monorepo workspace,
  * so it cannot reference the catalog as `workspace:*`. Until the package ships,
@@ -30,14 +30,14 @@ import {fileURLToPath} from 'node:url';
  * real name.
  */
 const a2uiMcpCatalogEntry = fileURLToPath(
-  new URL('../../../../../catalogs/mcp/v0_9/src/index.ts', import.meta.url),
+  new URL('../../../../../typescript/catalogs/mcp/src/index.ts', import.meta.url),
 );
 
 /**
  * The packages the catalog entry imports, resolved from this sample.
  *
  * That entry lives outside this Yarn root, so Node resolution for its imports
- * walks up from `catalogs/mcp/` and misses `samples/community/node_modules`.
+ * walks up from `typescript/catalogs/mcp/` and misses `samples/community/node_modules`.
  * Resolving here binds them to the copies this sample installs, which also
  * keeps `@a2ui/web_core` to a single copy in the bundle. `tsconfig.json`
  * carries the same list for the type checker. All of it goes away with the
@@ -72,7 +72,7 @@ export default defineConfig({
   resolve: {
     dedupe: ['lit'],
     alias: [
-      {find: exactly('@a2ui/mcp-catalog'), replacement: a2uiMcpCatalogEntry},
+      {find: exactly('@a2ui/catalog-mcp'), replacement: a2uiMcpCatalogEntry},
       ...a2uiMcpCatalogDependencies,
     ],
   },

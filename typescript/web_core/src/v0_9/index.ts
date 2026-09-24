@@ -23,9 +23,6 @@
 
 export * from '../catalog/function_invoker.js';
 export * from '../catalog/types.js';
-export * from './web_components/a2ui-controller.js';
-export * from './web_components/a2ui-lit-element.js';
-export * from './web_components/render-a2ui-node.js';
 export * from '../common/events.js';
 export * from '../processing/message-processor.js';
 export * from '../resolution/index.js';

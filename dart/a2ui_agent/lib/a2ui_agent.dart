@@ -12,6 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export 'src/a2ui_agent_base.dart';
+/// The A2UI agent SDK: capability negotiation, prompting and response parsing
+/// for agents that generate A2UI.
+///
+/// Implements protocol v0.9 and the Express inference format only.
+library;
 
-// TODO: Export any libraries intended for clients of this package.
+export 'src/inference_format.dart';
+export 'src/inference_formats/express/format.dart';
+export 'src/parser/response_part.dart';
+export 'src/processor/catalog_config.dart';
+export 'src/processor/generator.dart';
+export 'src/processor/processor.dart';

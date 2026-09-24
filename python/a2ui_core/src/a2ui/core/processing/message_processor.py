@@ -328,8 +328,22 @@ class MessageProcessor:
         send_data_model = op.send_data_model
 
         if catalog_id is None and self.catalogs:
-            # v0.8 fallback to the first catalog
-            surface_catalog = self.catalogs[0]
+            msg_ver = op.version or getattr(self, "version", None)
+            matching_cat = (
+                next(
+                    (
+                        c
+                        for c in self.catalogs
+                        if is_catalog_version_compatible(
+                            getattr(c, "protocol_version", None), msg_ver
+                        )
+                    ),
+                    None,
+                )
+                if msg_ver
+                else None
+            )
+            surface_catalog = matching_cat or self.catalogs[0]
         else:
             surface_catalog = cast(Any, self._resolve_catalog(catalog_id))
         if not surface_catalog:

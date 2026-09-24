@@ -117,6 +117,9 @@ def regenerate_master_index(target_dir: str) -> None:
                 except Exception as e:
                     print(f"Warning: Failed to parse {meta_path}: {e}", file=sys.stderr)
 
+            # Runs archived before the "model" key existed were all on
+            # gemini-3.8-flash. This fallback labels those historical runs, so it
+            # stays on 3.8 even though new runs default to gemini-3.6-flash.
             model_name = meta_data.get("model", "google/gemini-3.8-flash")
             thinking_budget = meta_data.get("thinking_budget")
             budget_str = (
@@ -220,7 +223,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="google/gemini-3.8-flash",
+        default="google/gemini-3.6-flash",
         help="Evaluation model name",
     )
     parser.add_argument(

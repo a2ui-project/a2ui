@@ -22,10 +22,11 @@ from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
-from a2ui.schema.utils import get_basic_catalog_path, get_spec_dir
+from a2ui.schema.utils import find_repo_root, get_spec_dir
 
+REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = get_spec_dir("v1_0")
-CATALOG_PATH = get_basic_catalog_path("v1_0")
+CATALOG_PATH = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
 
 
 class TestElementalParser(unittest.TestCase):

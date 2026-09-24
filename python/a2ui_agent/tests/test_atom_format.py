@@ -252,7 +252,7 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.schema.catalog import CatalogConfig
         from a2ui.inference_formats.direct_json import DirectJsonFormat
 
-        cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
@@ -283,7 +283,7 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.schema.catalog import CatalogConfig
         from a2ui.inference_formats.direct_json import DirectJsonFormat
 
-        cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
@@ -383,7 +383,7 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.schema.catalog import CatalogConfig
         from a2ui.inference_formats.direct_json import DirectJsonFormat
 
-        cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
@@ -418,7 +418,7 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.schema.catalog import CatalogConfig
         from a2ui.inference_formats.direct_json import DirectJsonFormat
 
-        cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
@@ -591,7 +591,7 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.schema.catalog import CatalogConfig
         from a2ui.inference_formats.direct_json import DirectJsonFormat
 
-        cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
@@ -668,7 +668,7 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.schema.catalog import CatalogConfig
         from a2ui.inference_formats.direct_json import DirectJsonFormat
 
-        cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         direct_json_format = DirectJsonFormat(
             version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}

@@ -77,10 +77,7 @@ function readSignal(result: unknown, assertion: (value: string) => void, done: (
 
 describe('v1.0 BASIC_FUNCTIONS catalog composition', () => {
   it('registers exactly the functions the v1.0 specification declares, plus @index', () => {
-    const catalogPath = path.resolve(
-      process.cwd(),
-      '../../specification/v1_0/catalogs/basic/catalog.json',
-    );
+    const catalogPath = path.resolve(process.cwd(), '../../catalogs/basic/v1/catalog.json');
     const specCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
     const expected = [...Object.keys(specCatalog.functions), '@index'].sort();
 

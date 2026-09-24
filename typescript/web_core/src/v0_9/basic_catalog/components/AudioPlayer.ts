@@ -15,13 +15,11 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {AudioPlayerApi} from './basic_components.js';
-import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {WebComponentImplementation} from '../../../catalog/types.js';
+import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {WebComponentImplementation} from '../../universal/index.js';
 
-@customElement('a2ui-audioplayer')
-export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlayerApi> {
+class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlayerApi> {
   static override styles = css`
     .a2ui-audio-player {
       display: flex;
@@ -66,4 +64,5 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof Au
 export const A2uiAudioPlayer: WebComponentImplementation = {
   ...AudioPlayerApi,
   tagName: 'a2ui-audioplayer',
+  element: A2uiAudioPlayerElement,
 };

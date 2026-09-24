@@ -347,7 +347,7 @@ def test_json_catalog_from_specification_v10():
     spec_path = os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
-            "../../../specification/v1_0/catalogs/basic/catalog.json",
+            "../../../catalogs/basic/v1/catalog.json",
         )
     )
     assert os.path.exists(spec_path), f"Specification catalog not found at {spec_path}"

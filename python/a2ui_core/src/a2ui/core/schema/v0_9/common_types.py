@@ -24,6 +24,8 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    field_serializer,
+    model_serializer,
 )
 from ..common_types import (
     Child,
@@ -53,6 +55,14 @@ class FunctionCall(StrictBaseModel):
         description="The expected return type of the function call.",
         default="boolean",
     )
+
+    @model_serializer(mode="wrap")
+    def _serialize_model(self, handler: Any) -> Any:
+        d = handler(self)
+        if isinstance(d, dict) and "return_type" not in self.model_fields_set:
+            d.pop("returnType", None)
+            d.pop("return_type", None)
+        return d
 
 
 def _make_return_type_validator(

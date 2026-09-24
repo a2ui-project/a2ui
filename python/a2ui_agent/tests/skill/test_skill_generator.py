@@ -28,7 +28,8 @@ from a2ui.schema.utils import find_repo_root
 # Locate standard basic catalog in repository
 _repo_root = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = os.path.join(_repo_root, "specification", "v1_0")
-CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
+CATALOGS_DIR = os.path.join(_repo_root, "catalogs", "basic")
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 
 
 class TestSkillGenerator(unittest.TestCase):

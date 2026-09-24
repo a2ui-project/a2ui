@@ -27,10 +27,11 @@ from a2ui.inference_formats.experimental.elemental.compiler import (
     _escape_nested_script_tags,
 )
 
-from a2ui.schema.utils import get_spec_dir, get_basic_catalog_path
+from a2ui.schema.utils import find_repo_root, get_spec_dir
 
+REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = get_spec_dir("v1_0")
-CATALOG_PATH = get_basic_catalog_path("v1_0")
+CATALOG_PATH = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
 
 
 class TestElementalCompiler(unittest.TestCase):

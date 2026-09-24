@@ -34,9 +34,7 @@ class TestSkillConformance(unittest.TestCase):
 
     def test_prompt_generator_base_rules_conformance(self):
         """Asserts prompt_generator.generate_base_rules() matches golden file exactly."""
-        cat_path = os.path.join(
-            REPO_ROOT, "specification", "v1_0", "catalogs", "basic", "catalog.json"
-        )
+        cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
         cat_config = CatalogConfig.from_path("basic", cat_path)
         catalog = A2uiCatalog.from_config(cat_config)
         express_fmt = ExpressFormat(catalog=catalog)
@@ -51,9 +49,7 @@ class TestSkillConformance(unittest.TestCase):
 
     def test_prompt_generator_catalog_instructions_conformance(self):
         """Asserts prompt_generator.generate_catalog_instructions() matches golden file exactly."""
-        cat_path = os.path.join(
-            REPO_ROOT, "specification", "v1_0", "catalogs", "basic", "catalog.json"
-        )
+        cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
         cat_config = CatalogConfig.from_path("basic", cat_path)
         catalog = A2uiCatalog.from_config(cat_config)
         express_fmt = ExpressFormat(catalog=catalog)

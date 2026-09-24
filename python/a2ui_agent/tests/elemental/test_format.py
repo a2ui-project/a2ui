@@ -26,10 +26,11 @@ from a2ui.inference_formats.experimental.elemental.prompt_generator import (
     ElementalPromptGenerator,
 )
 
-from a2ui.schema.utils import get_basic_catalog_path, get_spec_dir
+from a2ui.schema.utils import find_repo_root, get_spec_dir
 
+REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = get_spec_dir("v1_0")
-CATALOG_PATH = get_basic_catalog_path("v1_0")
+CATALOG_PATH = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
 
 
 class TestElementalFormat(unittest.TestCase):

@@ -150,7 +150,7 @@ The generated markdown summary file will include a top-level dataset summary tab
 ### Evaluation Summary: a2ui_v0_9_1_eval
 
 - **Status**: PASS
-- **Model**: `google/gemini-3.5-flash`
+- **Model**: `google/gemini-3.6-flash`
 - **Overall Pass Percentage**: `91.67%` (Threshold: `90.00%`)
 
 #### Dataset Performance Summary
@@ -427,7 +427,7 @@ The solver invokes `measured_generate()`, passing the assembled message list to 
     - Parses JSON from `<a2ui-json>` tags.
     - Runs the catalog validator ([A2uiValidator](../../python/a2ui_agent/README.md)) to verify schema adherence, parent-child references, and root component presence.
 2. **LLM judge scoring ([measured_model_graded_qa](../../eval/a2ui_eval/scorers.py))**:
-    - Evaluates the generated UI against the `target` criteria using the grading model (e.g. `google/gemini-3.8-flash`).
+    - Evaluates the generated UI against the `target` criteria using the grading model (e.g. `google/gemini-3.6-flash`).
     - Produces a grade of `C` (Correct), `P` (Partial Credit), or `I` (Incorrect).
 
 ---

@@ -52,6 +52,7 @@ jobs:
               - 'renderers/**'
               - 'typescript/**'
               - 'conformance/**'
+              - 'catalogs/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'
@@ -75,6 +76,8 @@ jobs:
             other:
               - 'samples/personalized_learning/**'
               - 'specification/**'
+              - 'catalogs/**'
+              - 'typescript/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'

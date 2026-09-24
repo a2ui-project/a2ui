@@ -138,6 +138,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@modelcontextprotocol/sdk": "npm:^1.0.1"
+    "@types/jmespath": "npm:^0.15.2"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    jmespath: "npm:^0.16.0"
+    prettier: "npm:^3.8.4"
+    re2js: "npm:^2.8.6"
+    tsx: "npm:^4.22.4"
+    typescript: "npm:5.9.3"
+    zod: "npm:^3.25.76"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/editor@workspace:tools/editor":
   version: 0.0.0-use.local
   resolution: "@a2ui/editor@workspace:tools/editor"
@@ -268,24 +286,6 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
   peerDependencies:
     "@a2ui/web_core": "workspace:*"
-  languageName: unknown
-  linkType: soft
-
-"@a2ui/mcp-catalog@workspace:catalogs/mcp":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/mcp-catalog@workspace:catalogs/mcp"
-  dependencies:
-    "@a2ui/web_core": "workspace:*"
-    "@modelcontextprotocol/sdk": "npm:^1.0.1"
-    "@types/jmespath": "npm:^0.15.2"
-    "@types/node": "npm:^25.9.3"
-    eslint: "npm:^10.4.1"
-    jmespath: "npm:^0.16.0"
-    prettier: "npm:^3.8.4"
-    re2js: "npm:^2.8.6"
-    tsx: "npm:^4.22.4"
-    typescript: "npm:5.9.3"
-    zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
 

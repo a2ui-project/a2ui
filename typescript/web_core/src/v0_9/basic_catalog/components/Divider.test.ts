@@ -21,26 +21,29 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
 } from '../../index.js';
-import type {A2uiDividerElement} from './Divider.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Divider Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Divider.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiDividerElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -79,7 +82,7 @@ describe('Divider Component', () => {
   });
 
   it('should render an hr element', async () => {
-    const el = document.createElement('a2ui-divider') as A2uiDividerElement;
+    const el = document.createElement('a2ui-divider') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

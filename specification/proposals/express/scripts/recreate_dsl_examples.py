@@ -77,9 +77,10 @@ def main():
             "..",
             "..",
             "..",
-            "v1_0",
+            "..",
             "catalogs",
             "basic",
+            "v1",
             "catalog.json",
         )
     )

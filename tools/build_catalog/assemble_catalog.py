@@ -59,7 +59,7 @@ BASIC_CATALOG_URLS = {
         "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v0_9/catalogs/basic/catalog.json"
     ),
     "1.0": (
-        "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/specification/v1_0/catalogs/basic/catalog.json"
+        "https://raw.githubusercontent.com/a2ui-project/a2ui/refs/heads/main/catalogs/basic/v1/catalog.json"
     ),
 }
 

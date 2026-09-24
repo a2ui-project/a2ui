@@ -388,9 +388,9 @@ def main():
             "catalog": "specification/v1_0/catalogs/basic/catalog.json",
             "refs": [
                 "specification/v1_0/json/common_types.json",
-                "specification/v1_0/catalogs/basic/catalog.json",
+                "catalogs/basic/v1/catalog.json",
             ],
-            "examples": "specification/v1_0/catalogs/basic/examples/*.json",
+            "examples": "catalogs/basic/v1/examples/*.json",
         },
     }
 

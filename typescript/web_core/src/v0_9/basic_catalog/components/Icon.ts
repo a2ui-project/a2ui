@@ -15,10 +15,9 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {customElement} from 'lit/decorators.js';
 import {IconApi} from './basic_components.js';
-import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {WebComponentImplementation} from '../../../catalog/types.js';
+import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {WebComponentImplementation} from '../../universal/index.js';
 
 const ICON_NAME_OVERRIDES: Record<string, string> = {
   play: 'play_arrow',
@@ -32,8 +31,7 @@ function toMaterialIconName(name: string): string {
   return name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
-@customElement('a2ui-icon')
-export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> {
+class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> {
   /**
    * The icon component can be customized with the following CSS variables:
    *
@@ -99,4 +97,5 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
 export const A2uiIcon: WebComponentImplementation = {
   ...IconApi,
   tagName: 'a2ui-icon',
+  element: A2uiIconElement,
 };

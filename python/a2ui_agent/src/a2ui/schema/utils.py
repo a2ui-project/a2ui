@@ -116,6 +116,11 @@ def get_basic_catalog_path(version: str = "v1_0", start_path: str | None = None)
         FileNotFoundError: If the repository root containing 'specification'
             cannot be found.
     """
+    root = find_repo_root(start_path)
+    if root:
+        canonical = os.path.join(root, "catalogs", "basic", "v1", "catalog.json")
+        if os.path.exists(canonical):
+            return canonical
     return os.path.join(
         get_spec_dir(version, start_path), "catalogs", "basic", "catalog.json"
     )
@@ -135,6 +140,11 @@ def get_basic_examples_dir(version: str = "v1_0", start_path: str | None = None)
         FileNotFoundError: If the repository root containing 'specification'
             cannot be found.
     """
+    root = find_repo_root(start_path)
+    if root:
+        canonical = os.path.join(root, "catalogs", "basic", "v1", "examples")
+        if os.path.exists(canonical):
+            return canonical
     return os.path.join(
         get_spec_dir(version, start_path), "catalogs", "basic", "examples"
     )

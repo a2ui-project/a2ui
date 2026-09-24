@@ -1,0 +1,43 @@
+{
+  "name": "@a2ui/catalog-mcp",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./catalog.json": "./dist/catalog.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "copy-catalog": "node scripts/copy-catalog.js",
+    "build": "yarn copy-catalog && tsc -b --pretty",
+    "clean": "rm -rf dist src/catalog.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "yarn copy-catalog && node --import tsx --test 'src/**/*.test.ts'",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "jmespath": "^0.16.0",
+    "re2js": "^2.8.6",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/jmespath": "^0.15.2",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
+    "typescript": "5.9.3"
+  }
+}

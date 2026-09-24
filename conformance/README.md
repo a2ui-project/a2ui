@@ -49,6 +49,12 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 - `agent/legacy/parser.yaml`: Non-streaming parsing and payload fixing.
 - `agent/legacy/inference_format.yaml`: Inference formats and schema managers (select_catalog, load_catalog, generate_prompt).
 
+#### Builder suite (`agent/builder/`)
+
+`agent/builder/builder.yaml` covers the typesafe builder API described in [`blueprints/features/typesafe_builder_api.blueprint.md`](../blueprints/features/typesafe_builder_api.blueprint.md): the authoring surface an agent uses to construct a UI in its own language rather than by emitting JSON.
+
+It is the one suite under `agent/` that does not use the case vocabulary below. A case declares a builder AST and names a golden document under `agent/builder/golden/`, and a harness asserts twice: that builder output equals the golden, and that the golden passes the A2UI validator. The second assertion is what catches a golden that froze a bug. `agent/builder/README.md` describes the AST notation and how to regenerate the goldens.
+
 ### Extensions (`extensions/`)
 
 - `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
@@ -56,17 +62,23 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 
-`conformance_schema.json` at the root is the JSON schema that validates the structure of the YAML test files themselves.
+`conformance_schema.json` at the root is the JSON schema that validates the structure of YAML test files across all domains.
 
 ## Usage in SDKs
 
-Each language SDK must implement a test harness that:
+Each language SDK implements test harnesses that:
 
-1. Reads the YAML files.
-2. Feeds the inputs to the language's specific implementation of the parser/validator.
-3. Asserts that the output matches the expected results defined in the YAML.
+1. Read the YAML files.
+2. Feed the inputs to the language's specific implementation of the parser/validator/compiler.
+3. Assert that the output matches the expected results defined in the YAML.
 
-Refer to `python/a2ui_agent/tests/conformance/test_conformance.py` for a reference implementation of a harness.
+Refer to the test harnesses across SDKs for worked examples of running conformance suites:
+
+- Python: `python/a2ui_agent/tests/conformance/test_conformance.py`
+- Dart: `dart/a2ui_core/test/conformance/expressions_conformance_test.dart`
+- TypeScript: `typescript/web_core/src/expressions/expression_parser.conformance.test.ts`
+
+Both Dart and TypeScript locate the suite by walking up from the test file, so they need no configured path.
 
 ## Harness Configuration & Transition Skip Lists
 
@@ -77,10 +89,11 @@ Every conformance test runner must declare two top-level configuration variables
 
 Client-side implementations run these suites too:
 
-- Dart: `dart/a2ui_core/test/conformance/expressions_conformance_test.dart`
-- TypeScript: `typescript/web_core/src/expressions/expression_parser.conformance.test.ts`
+> **Note**: Conformance tests provide the primary verification of protocol and inference format specifications across languages. Unit tests in SDK packages are reserved for language-specific implementation residue (e.g., exception types, thread-safety, stream lifecycle). To test everything, both unit tests and conformance tests must be run.
 
-Both locate the suite by walking up from the test file, so they need no configured path.
+### Specification Example Round-Trip Verification
+
+In addition to the declarative YAML conformance suites, SDKs implementing inference formats (such as Express) should implement an example round-trip test that iterates across all golden JSON examples in `specification/v1_0/catalogs/basic/examples/*.json`, decompiles them into the target format notation, recompiles them back to messages, and asserts semantic equivalence against the original payload. Refer to `agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py` for a worked example of this test.
 
 ### Writing cases for `parse_expression_template`
 
@@ -92,7 +105,7 @@ Errors are expressed with the suite's language-agnostic categories rather than a
 
 ### Writing cases for the agent SDK suites
 
-The suites under `agent/`, including the per-format folders, share one vocabulary, described in the `$defs` of `conformance_schema.json` and summarised here.
+The suites under `agent/`, including the per-format folders, share one vocabulary, described in the `$defs` of `conformance_schema.json` and summarised here. `agent/builder/` is the exception, and uses the AST-plus-golden notation described in its own README.
 
 Catalogs under test live in `args`, either as a path relative to `conformance/` or as a document inlined in the case. A registration in `args.catalogs` is a `CatalogConfig`: the pristine document plus the transformers applied to it. An agent case states no protocol version of its own: the version it runs under is the one its catalog document declares, or the one a provider is constructed with. These rules do not vary by version, so they are written once against v1.0.
 

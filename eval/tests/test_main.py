@@ -34,6 +34,7 @@ def test_resolve_model_name_aliases():
     assert resolve_model_name("gemma-2-2b") == "ollama/gemma2:2b"
 
     assert resolve_model_name("gemini-3.8-flash") == "google/gemini-3.8-flash"
+    assert resolve_model_name("gemini-3.6-flash") == "google/gemini-3.6-flash"
     assert resolve_model_name("gemini-3.5-flash") == "google/gemini-3.5-flash"
     assert resolve_model_name("gemini-3.1-flash-lite") == "google/gemini-3.1-flash-lite"
 

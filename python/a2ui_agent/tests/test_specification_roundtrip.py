@@ -33,7 +33,7 @@ def _find_specification_example_files():
     repo_root = find_repo_root()
     # Target v1.0 specification examples first
     search_path_v10 = os.path.join(
-        repo_root, "specification", "v1_0", "catalogs", "basic", "examples", "*.json"
+        repo_root, "catalogs", "basic", "v1", "examples", "*.json"
     )
     files = sorted(glob.glob(search_path_v10))
     if not files:

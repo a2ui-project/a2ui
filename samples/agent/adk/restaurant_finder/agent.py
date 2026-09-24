@@ -151,7 +151,7 @@ class RestaurantAgent:
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
         model_env = (
-            os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.8-flash"
+            os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.6-flash"
         )
         model_name = model_env.split("/")[-1]
 
@@ -168,7 +168,12 @@ class RestaurantAgent:
         )
 
         return LlmAgent(
-            model=Gemini(model=model_name),
+            model=Gemini(
+                model=model_name,
+                # Retry transient backend errors (429, 5xx), which the model
+                # returns under load.
+                retry_options=types.HttpRetryOptions(attempts=3, initial_delay=2.0),
+            ),
             name="restaurant_agent",
             description="An agent that finds restaurants and helps book tables.",
             instruction=instruction,

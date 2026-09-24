@@ -26,16 +26,7 @@ console.log('Generating v1.0 Basic Catalog APIs...');
 
 generateCatalogApi({
   version: 'v1_0',
-  catalogPath: join(
-    rootDir,
-    '..',
-    '..',
-    'specification',
-    'v1_0',
-    'catalogs',
-    'basic',
-    'catalog.json',
-  ),
+  catalogPath: join(rootDir, '..', '..', 'catalogs', 'basic', 'v1', 'catalog.json'),
   commonTypesPath: join(rootDir, '..', '..', 'specification', 'v1_0', 'json', 'common_types.json'),
   componentsOutPath: join(v10Dir, 'basic_catalog', 'components', 'basic_components.ts'),
   functionsOutPath: join(v10Dir, 'basic_catalog', 'functions', 'basic_functions_api.ts'),
