@@ -21,7 +21,10 @@ import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
 import {
   A2uiValidationError,
   A2uiCatalogError,
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
   A2uiRecursionError,
+  ExpressParser,
   ParseError,
   ResponsePart,
   resolveCatalogs,
@@ -31,10 +34,12 @@ import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.j
 import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
 
 import {parseAndFix} from '../../src/parser/payload_fixer.js';
+import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.
 const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV09 = await loadBasicCatalog('v0.9');
 
 // We map category strings to actual error classes for assertions
 const CATEGORY_TO_ERROR: Record<string, new (...args: string[]) => Error> = {
@@ -48,10 +53,29 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
   if (typeof expectError === 'string') {
     expect(fn).toThrowError(expectError);
   } else {
-    const ErrorClass = CATEGORY_TO_ERROR[expectError.category as string] || Error;
-    expect(fn).toThrowError(ErrorClass);
+    const category = expectError.category as string;
+    let thrownError: unknown;
+    try {
+      fn();
+    } catch (e) {
+      thrownError = e;
+    }
+    expect(thrownError).toBeDefined();
+    if (category === 'ParseError') {
+      expect(
+        thrownError instanceof ParseError || thrownError instanceof A2uiCompilationParseError,
+      ).toBe(true);
+    } else if (category === 'ValidationError') {
+      expect(
+        thrownError instanceof A2uiValidationError ||
+          thrownError instanceof A2uiCompilationValidationError,
+      ).toBe(true);
+    } else {
+      const ErrorClass = CATEGORY_TO_ERROR[category] || Error;
+      expect(thrownError).toBeInstanceOf(ErrorClass);
+    }
     if (expectError.message) {
-      expect(fn).toThrowError(expectError.message as string);
+      expect((thrownError as Error).message).toContain(expectError.message as string);
     }
   }
 }
@@ -99,10 +123,20 @@ describe('Conformance Harness', () => {
 
     const testFn = async () => {
       if (action === 'parse_full') {
-        const catalog = testCase.catalog
-          ? (await createCatalogConfig(testCase.catalog as Record<string, unknown>)).catalog
-          : basicCatalogV10;
-        const parser = new DirectJsonParser([catalog]);
+        let parser: DirectJsonParser | ExpressParser;
+        if (testCase.format === 'express') {
+          // As Python's harness does (python/a2ui_agent/tests/conformance/test_conformance.py:385-402),
+          // formatted cases compile against the basic catalog of the case's protocol version.
+          const declared = (testCase.catalog as Record<string, unknown> | undefined)
+            ?.protocolVersion as string | undefined;
+          const version = declared ? toWireProtocolVersion(declared) : 'v1.0';
+          parser = new ExpressParser(version === 'v0.9' ? basicCatalogV09 : basicCatalogV10);
+        } else {
+          const catalog = testCase.catalog
+            ? (await createCatalogConfig(testCase.catalog as Record<string, unknown>)).catalog
+            : basicCatalogV10;
+          parser = new DirectJsonParser([catalog]);
+        }
 
         if (expectError) {
           assertThrows(() => {
@@ -131,7 +165,10 @@ describe('Conformance Harness', () => {
         }
       } else if (action === 'has_parts') {
         const catalog = basicCatalogV10;
-        const parser = new DirectJsonParser([catalog]);
+        const parser =
+          testCase.format === 'express'
+            ? new ExpressParser(catalog)
+            : new DirectJsonParser([catalog]);
         const result = parser.hasFormatContent(input, {complete: true});
         expect(result).toBe(expected);
       } else if (action === 'load_catalog') {
