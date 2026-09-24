@@ -1,0 +1,904 @@
+[
+  {
+    "name": "empty_input",
+    "source": "",
+    "expected": {
+      "errors": [],
+      "statements": []
+    }
+  },
+  {
+    "name": "whitespace_only",
+    "source": "   \n\t  \n",
+    "expected": {
+      "errors": [],
+      "statements": []
+    }
+  },
+  {
+    "name": "single_comment_hash",
+    "source": "# This is a comment\nroot = Text(\"hi\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "root",
+          {
+            "call": "Text",
+            "args": ["hi"]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "single_comment_slash",
+    "source": "// This is a slash comment\nroot = Text(\"hi\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "root",
+          {
+            "call": "Text",
+            "args": ["hi"]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "block_comment",
+    "source": "/* multi\nline\ncomment */\nroot = Text(\"hi\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "root",
+          {
+            "call": "Text",
+            "args": ["hi"]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "semicolon_separated",
+    "source": "a = 1; b = 2; c = 3",
+    "expected": {
+      "errors": [],
+      "statements": [
+        ["ASSIGN", "a", 1],
+        ["ASSIGN", "b", 2],
+        ["ASSIGN", "c", 3]
+      ]
+    }
+  },
+  {
+    "name": "trailing_semicolons",
+    "source": "root = Text(\"hi\");;;;\n",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "root",
+          {
+            "call": "Text",
+            "args": ["hi"]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "multiline_statement",
+    "source": "root = Column(\n  [\n    Text(\"First\"),\n    Text(\"Second\")\n  ],\n  spacing=16\n)",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "root",
+          {
+            "call": "Column",
+            "args": [
+              [
+                {
+                  "call": "Text",
+                  "args": ["First"]
+                },
+                {
+                  "call": "Text",
+                  "args": ["Second"]
+                }
+              ]
+            ],
+            "kwargs": {
+              "spacing": 16
+            }
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "assignment_component",
+    "source": "root = Column([title, content])",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "root",
+          {
+            "call": "Column",
+            "args": [
+              [
+                {
+                  "variable": "title"
+                },
+                {
+                  "variable": "content"
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "assignment_map",
+    "source": "config = {theme: \"dark\", showHeader: true, count: 5}",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "config",
+          {
+            "theme": "dark",
+            "showHeader": true,
+            "count": 5
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "assignment_list",
+    "source": "items = [1, \"two\", true, null]",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "items", [1, "two", true, null]]]
+    }
+  },
+  {
+    "name": "assignment_primitive_int",
+    "source": "count = 42",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "count", 42]]
+    }
+  },
+  {
+    "name": "assignment_primitive_negative_int",
+    "source": "offset = -17",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "offset", -17]]
+    }
+  },
+  {
+    "name": "assignment_primitive_float",
+    "source": "ratio = 3.14159",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "ratio", 3.14159]]
+    }
+  },
+  {
+    "name": "assignment_primitive_negative_float",
+    "source": "temp = -0.5",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "temp", -0.5]]
+    }
+  },
+  {
+    "name": "assignment_primitive_boolean_true",
+    "source": "isActive = true",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "isActive", true]]
+    }
+  },
+  {
+    "name": "assignment_primitive_boolean_false",
+    "source": "isDisabled = false",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "isDisabled", false]]
+    }
+  },
+  {
+    "name": "assignment_primitive_null",
+    "source": "emptyValue = null",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "emptyValue", null]]
+    }
+  },
+  {
+    "name": "assignment_path",
+    "source": "selectedUser = $/users/active/id",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "selectedUser",
+          {
+            "path": "/users/active/id"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "assignment_bare_path_value",
+    "source": "rootPath = $",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "rootPath",
+          {
+            "path": ""
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "data_path_assignment",
+    "source": "$/app/settings/volume = 80",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "$/app/settings/volume", 80]]
+    }
+  },
+  {
+    "name": "bare_data_path_assignment",
+    "source": "$ = {status: \"ok\"}",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "$",
+          {
+            "status": "ok"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "empty_array",
+    "source": "emptyList = []",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "emptyList", []]]
+    }
+  },
+  {
+    "name": "array_single_element",
+    "source": "single = [1]",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "single", [1]]]
+    }
+  },
+  {
+    "name": "array_trailing_comma",
+    "source": "colors = [\"red\", \"green\", \"blue\",]",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "colors", ["red", "green", "blue"]]]
+    }
+  },
+  {
+    "name": "empty_map",
+    "source": "emptyMap = {}",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "emptyMap", {}]]
+    }
+  },
+  {
+    "name": "map_identifier_keys",
+    "source": "options = {key1: 10, key2: 20}",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "options",
+          {
+            "key1": 10,
+            "key2": 20
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "map_string_keys",
+    "source": "headers = {\"content-type\": \"application/json\", \"x-api-key\": \"secret\"}",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "headers",
+          {
+            "content-type": "application/json",
+            "x-api-key": "secret"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "map_trailing_comma",
+    "source": "coords = {x: 10, y: 20,}",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "coords",
+          {
+            "x": 10,
+            "y": 20
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "nested_arrays_and_maps",
+    "source": "matrix = [{row: [1, 2]}, {row: [3, 4]}]",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "matrix",
+          [
+            {
+              "row": [1, 2]
+            },
+            {
+              "row": [3, 4]
+            }
+          ]
+        ]
+      ]
+    }
+  },
+  {
+    "name": "call_no_args",
+    "source": "card = Card()",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "card",
+          {
+            "call": "Card",
+            "args": []
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "call_positional_args",
+    "source": "label = Text(\"Hello\", \"secondary\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "label",
+          {
+            "call": "Text",
+            "args": ["Hello", "secondary"]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "call_keyword_args",
+    "source": "btn = Button(label=\"Click\", disabled=false)",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "btn",
+          {
+            "call": "Button",
+            "args": [],
+            "kwargs": {
+              "label": "Click",
+              "disabled": false
+            }
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "call_mixed_args_and_trailing_comma",
+    "source": "btn = Button(\"Save\", variant=\"primary\", elevation=2,)",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "btn",
+          {
+            "call": "Button",
+            "args": ["Save"],
+            "kwargs": {
+              "variant": "primary",
+              "elevation": 2
+            }
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "call_skip_placeholder",
+    "source": "action = Event(\"submit\", _, \"onSuccess\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "action",
+          {
+            "call": "Event",
+            "args": [
+              "submit",
+              {
+                "skipped": true
+              },
+              "onSuccess"
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "nested_calls",
+    "source": "layout = Column([Row([Text(\"A\"), Text(\"B\")]), Card(content=Text(\"C\"))])",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "layout",
+          {
+            "call": "Column",
+            "args": [
+              [
+                {
+                  "call": "Row",
+                  "args": [
+                    [
+                      {
+                        "call": "Text",
+                        "args": ["A"]
+                      },
+                      {
+                        "call": "Text",
+                        "args": ["B"]
+                      }
+                    ]
+                  ]
+                },
+                {
+                  "call": "Card",
+                  "args": [],
+                  "kwargs": {
+                    "content": {
+                      "call": "Text",
+                      "args": ["C"]
+                    }
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "event_call",
+    "source": "btn = Button(onClick=Event(\"press\", action=\"save\"))",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "btn",
+          {
+            "call": "Button",
+            "args": [],
+            "kwargs": {
+              "onClick": {
+                "call": "Event",
+                "args": ["press"],
+                "kwargs": {
+                  "action": "save"
+                }
+              }
+            }
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "template_call",
+    "source": "list = List(template=_template(item, Text(item)))",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "list",
+          {
+            "call": "List",
+            "args": [],
+            "kwargs": {
+              "template": {
+                "call": "_template",
+                "args": [
+                  {
+                    "variable": "item"
+                  },
+                  {
+                    "call": "Text",
+                    "args": [
+                      {
+                        "variable": "item"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "check_bare",
+    "source": "v = ?required",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "v",
+          {
+            "check": "required",
+            "args": []
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "check_empty_parens",
+    "source": "v = ?required()",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "v",
+          {
+            "check": "required",
+            "args": []
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "check_with_args",
+    "source": "rule = ?minLength(8)",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "rule",
+          {
+            "check": "minLength",
+            "args": [8]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "check_multiple_args_trailing_comma",
+    "source": "rangeCheck = ?between(1, 100,)",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "rangeCheck",
+          {
+            "check": "between",
+            "args": [1, 100]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "check_list",
+    "source": "rules = [?required, ?email, ?minLength(6)]",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "ASSIGN",
+          "rules",
+          [
+            {
+              "check": "required",
+              "args": []
+            },
+            {
+              "check": "email",
+              "args": []
+            },
+            {
+              "check": "minLength",
+              "args": [6]
+            }
+          ]
+        ]
+      ]
+    }
+  },
+  {
+    "name": "standalone_surface_call",
+    "source": "surface(\"main_surface\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "EXPR",
+          {
+            "call": "surface",
+            "args": ["main_surface"]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "standalone_delete_surface_call",
+    "source": "deleteSurface(\"old_surface\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "EXPR",
+          {
+            "call": "deleteSurface",
+            "args": ["old_surface"]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "standalone_custom_call",
+    "source": "notify(\"hello\", level=\"warn\")",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "EXPR",
+          {
+            "call": "notify",
+            "args": ["hello"],
+            "kwargs": {
+              "level": "warn"
+            }
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "standalone_variable_expression",
+    "source": "myVar",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "EXPR",
+          {
+            "variable": "myVar"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "standalone_map_expression",
+    "source": "{theme: \"light\"}",
+    "expected": {
+      "errors": [],
+      "statements": [
+        [
+          "EXPR",
+          {
+            "theme": "light"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "name": "string_standard_escapes",
+    "source": "msg = \"line1\\nline2\\t\\\"quote\\\"\\\\slash\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "msg", "line1\nline2\t\"quote\"\\slash"]]
+    }
+  },
+  {
+    "name": "string_non_standard_escape",
+    "source": "path = \"folder\\myfile\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "path", "folder\\myfile"]]
+    }
+  },
+  {
+    "name": "string_unicode_astral",
+    "source": "emoji = \"Rocket \ud83d\ude80 and \\\ud83d\ude80 test\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "emoji", "Rocket \ud83d\ude80 and \\\ud83d\ude80 test"]]
+    }
+  },
+  {
+    "name": "string_triple_quoted",
+    "source": "doc = \"\"\"line 1\nline 2 with \"quotes\" and \\t tab\"\"\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "doc", "line 1\nline 2 with \"quotes\" and \t tab"]]
+    }
+  },
+  {
+    "name": "string_raw_single",
+    "source": "regex = r\"\\d+\\s+[a-z]\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "regex", "\\d+\\s+[a-z]"]]
+    }
+  },
+  {
+    "name": "string_raw_uppercase_single",
+    "source": "regexUpper = R\"C:\\Users\\test\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "regexUpper", "C:\\Users\\test"]]
+    }
+  },
+  {
+    "name": "string_raw_triple",
+    "source": "rawDoc = r\"\"\"first \\n second\"\"\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "rawDoc", "first \\n second"]]
+    }
+  },
+  {
+    "name": "string_raw_triple_uppercase",
+    "source": "rawDocUpper = R\"\"\"first \\t second\"\"\"",
+    "expected": {
+      "errors": [],
+      "statements": [["ASSIGN", "rawDocUpper", "first \\t second"]]
+    }
+  },
+  {
+    "name": "error_syntax_line_3_of_5",
+    "source": "a = 1\nb = 2\nc = [broken\nd = 4\ne = 5",
+    "expected": {
+      "errors": [[4, 0, "mismatched input 'd' expecting {',', ']'}", false]],
+      "statements": [
+        ["ASSIGN", "a", 1],
+        ["ASSIGN", "b", 2],
+        [
+          "ASSIGN",
+          "c",
+          [
+            {
+              "variable": "broken"
+            }
+          ]
+        ]
+      ]
+    }
+  },
+  {
+    "name": "error_syntax_on_line_3_drops_following",
+    "source": "a = 1\nb = 2\n= broken\nd = 4\ne = 5",
+    "expected": {
+      "errors": [
+        [
+          3,
+          0,
+          "extraneous input '=' expecting {<EOF>, '[', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER}",
+          false
+        ]
+      ],
+      "statements": [
+        ["ASSIGN", "a", 1],
+        ["ASSIGN", "b", 2]
+      ]
+    }
+  },
+  {
+    "name": "error_lexer_unexpected_char",
+    "source": "valid = 1\n@invalid = 2",
+    "expected": {
+      "errors": [[2, 0, "token recognition error at: '@'", true]],
+      "statements": [["ASSIGN", "valid", 1]]
+    }
+  },
+  {
+    "name": "error_lexer_and_parser_mixed",
+    "source": "ok = 1\n~bad_lexer\n broken_parser [",
+    "expected": {
+      "errors": [
+        [2, 0, "token recognition error at: '~'", true],
+        [
+          3,
+          16,
+          "mismatched input '<EOF>' expecting {'[', ']', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER}",
+          false
+        ]
+      ],
+      "statements": [["ASSIGN", "ok", 1]]
+    }
+  }
+]
