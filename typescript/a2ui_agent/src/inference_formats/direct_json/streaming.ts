@@ -69,6 +69,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
 
   private cuttableKeys: Set<string>;
   private refMap: ComponentRefMap;
+  private requiredPropsCache = new Map<string, string[]>();
 
   constructor(
     private readonly catalog: SchemaCatalog,
@@ -499,11 +500,70 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     return false;
   }
 
+  /**
+   * Returns the properties the catalog marks as required for a component type.
+   *
+   * Mirrors Python's `SchemaHelper.get_component_required`, which reads the `required` array
+   * straight out of the component's JSON Schema. No JSON Schema survives into this SDK at
+   * runtime, but web_core's loader translates `required` faithfully into non-optional zod
+   * fields, so a property is required exactly when its field is not optional.
+   *
+   * A component type the catalog does not know, or a schema whose shape cannot be read, is
+   * reported as having no required properties. That is deliberately the permissive
+   * direction: an unreadable schema should not silently withhold every component on the
+   * wire. The same applies to a shape entry that does not expose `isOptional`.
+   */
+  private getRequiredProps(componentType: string): string[] {
+    const cached = this.requiredPropsCache.get(componentType);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const componentApi = this.catalog.components.get(componentType);
+    if (!componentApi || !componentApi.schema) {
+      this.requiredPropsCache.set(componentType, []);
+      return [];
+    }
+
+    const schema = componentApi.schema;
+    if (typeof schema === 'object' && schema !== null && 'shape' in schema) {
+      interface ZodObjectShapeLike {
+        shape: Record<string, {isOptional?: () => boolean}>;
+      }
+      const shapeObj = (schema as unknown as ZodObjectShapeLike).shape;
+      if (typeof shapeObj === 'object' && shapeObj !== null) {
+        const required: string[] = [];
+        for (const [key, field] of Object.entries(shapeObj)) {
+          if (typeof field?.isOptional === 'function') {
+            if (!field.isOptional()) {
+              required.push(key);
+            }
+          }
+        }
+        this.requiredPropsCache.set(componentType, required);
+        return required;
+      }
+    }
+
+    this.requiredPropsCache.set(componentType, []);
+    return [];
+  }
+
   private handlePartialComponent(comp: Record<string, any>) {
     const compId = comp.id as string | undefined;
     if (!compId) return;
 
     if (this.hasEmptyDict(comp)) return;
+
+    const compType = comp.component;
+    if (typeof compType === 'string') {
+      const required = this.getRequiredProps(compType);
+      for (const req of required) {
+        if (!(req in comp)) {
+          return;
+        }
+      }
+    }
 
     this.seenComponents[compId] = comp;
     this.topologyDirty = true;
