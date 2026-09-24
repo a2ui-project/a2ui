@@ -182,10 +182,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Express grammar rules name basic-catalog components
 
-- **What it is:** The fixed Express rules that head every Express prompt (`EXPRESS_RULES`, copied verbatim from Python) name catalog-specific things. Rule 15's example is `root = Card(...)`, the dates rule mentions `DateTimeInput`, and rule 14 refers to parameters named `action`. With a catalog that has no `Card`, the prompt still shows one. The prompt generator suite's `test_express_snippet_omits_a_pruned_component` fails for this reason and runs as an expected failure. Python's harness doesn't run that suite, so the failure is not visible there.
-- **Why it exists:** The rules text was written against the basic catalog. The port keeps it verbatim (`express_format.blueprint.md` §5.2 item 5) so that the generated base rules equal the conformance golden `express_base_rules.txt`.
+- **What it is:** The fixed Express rules that head every Express prompt in Python (`EXPRESS_RULES` in `prompt_generator.py`) name catalog-specific things. Rule 15's example is `root = Card(...)`, the dates rule mentions `DateTimeInput`, rule 11 uses `itemTemplate = Image($url)`, and rule 14 refers to parameters named `action`. With a catalog that has no `Card`, the prompt still shows one. Python fails `test_express_snippet_omits_a_pruned_component` for this reason (though Python's harness doesn't run that suite, so the failure is not visible there).
+- **TypeScript:** The rules have been rewritten to be catalog-agnostic (using generic placeholder components such as `ComponentA(...)` and generic descriptions for date-time properties and action parameters). TypeScript now passes `test_express_snippet_omits_a_pruned_component`.
+- **Contradiction in conformance suite:** The conformance suite contradicts itself: the skill golden `conformance/test_data/skills/express_base_rules.txt` still contains `Card(...)`, which the pruning conformance case `test_express_snippet_omits_a_pruned_component` forbids. The TypeScript unit test comparing base rules against `express_base_rules.txt` was adapted in favor of following the pruning case. Upstream needs to regenerate the golden when Python changes its rules.
+- **Why it exists in Python:** The rules text was written against the basic catalog.
 - **What it risks:** The model may be told to use components or properties that the negotiated catalog does not have. This conflicts with the repository rule that inference formats stay catalog-agnostic.
-- **Done looks like:** The rules use placeholder names or text derived from the catalog, the golden is regenerated, and both SDKs pass the pruning case.
+- **Done looks like:** Upstream Python rewrites its rules to be catalog-agnostic and regenerates the `express_base_rules.txt` golden.
 
 ### Python's Express decompiles a check without a condition as `?None`
 
