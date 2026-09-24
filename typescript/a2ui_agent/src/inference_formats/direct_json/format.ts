@@ -32,6 +32,8 @@ import {
  */
 export class DirectJsonFormat implements InferenceFormat {
   readonly promptGenerator: DirectJsonPromptGenerator;
+  // createParser always injects a stream processor.
+  readonly supportsStreaming = true;
 
   constructor(
     private readonly catalogs: SchemaCatalog[],

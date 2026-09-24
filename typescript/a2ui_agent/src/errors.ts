@@ -15,6 +15,7 @@
  */
 
 import {A2uiError} from './internal/web_core.js';
+import type {ResponsePart} from './parser/response_part.js';
 
 export {
   A2uiError,
@@ -38,6 +39,49 @@ export class ParseError extends A2uiError {
   constructor(message: string) {
     super(message, 'PARSE_ERROR');
     this.name = 'ParseError';
+  }
+}
+
+/**
+ * Exception raised when compiling/parsing an A2UI format block fails.
+ */
+export class A2uiCompilationError extends A2uiError {
+  readonly detail: string;
+  readonly rawContent: string;
+  readonly line?: number;
+  readonly column?: number;
+  readonly helpMessage?: string;
+  partialResults: ResponsePart[];
+
+  constructor(
+    message: string,
+    options: {
+      rawContent: string;
+      line?: number;
+      column?: number;
+      helpMessage?: string;
+      partialResults?: ResponsePart[];
+    },
+  ) {
+    const parts = [message];
+    if (options.line !== undefined) {
+      let loc = `Line ${options.line}`;
+      if (options.column !== undefined) {
+        loc += `, Col ${options.column}`;
+      }
+      parts.push(loc);
+    }
+    if (options.helpMessage) {
+      parts.push(`Help: ${options.helpMessage}`);
+    }
+    super(parts.join(' - '), 'COMPILATION_ERROR');
+    this.name = 'A2uiCompilationError';
+    this.detail = message;
+    this.rawContent = options.rawContent;
+    this.line = options.line;
+    this.column = options.column;
+    this.helpMessage = options.helpMessage;
+    this.partialResults = options.partialResults ?? [];
   }
 }
 
