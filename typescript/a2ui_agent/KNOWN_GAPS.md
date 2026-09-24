@@ -29,7 +29,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### `no-explicit-any` lint warnings
 
-- **What it is:** There are 34 eslint warnings for `no-explicit-any` in the codebase.
+- **What it is:** There are 26 eslint warnings for `no-explicit-any` in the codebase.
 - **Why it exists:** These are heavily concentrated in the streaming healer (`streaming.ts`), where partial JSON chunks are genuinely untyped before being repaired and compiled.
 - **What it risks:** Mild technical debt.
 - **Done looks like:** The partial JSON trees are given a more rigorous generic recursive type, or `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
@@ -118,12 +118,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 4. Upstream Python & Conformance Suite
 
-### Streaming conformance cases are non-canonical
+### `v1.0` has a single canonical streaming case
 
-- **What it is:** The streaming tests in `tests/streaming_cases/v1_0_direct_json.yaml` are local hand-translations of v0.9 cases.
-- **Why it exists:** No upstream `v1.0` streaming conformance cases exist yet in `conformance/agent/`.
-- **What it risks:** Our streaming implementation is verified against tests that are not shared with Python or other SDKs, risking divergent healing behaviour.
-- **Done looks like:** The local cases are promoted to `conformance/agent/` and adopted as the canonical v1.0 streaming suite.
+- **What it is:** `conformance/agent/streaming_parser.yaml` holds 41 `v0.9` streaming cases and one `v1.0` case. The `v1.0` streaming path is therefore covered by the `v0.9` cases, on the basis that the parser is version-independent in everything they exercise.
+- **Why it exists:** Upstream has not written a `v1.0` streaming suite. The local hand-translations that stood in for one have been retired, because 19 of their 20 cases duplicated a canonical `v0.9` case.
+- **What it risks:** Any streaming behaviour that differs between versions is untested. Today the known differences are small: the server-to-client file is named differently, and `v1.0` adds the `callRendererFunction` and `agentFunctionResponse` messages, which envelope validation accepts but no streaming case sends.
+- **Done looks like:** Upstream publishes `v1.0` streaming cases in `conformance/agent/`, and they run here.
 
 ### Python's `has_format_content` contradicts conformance
 
