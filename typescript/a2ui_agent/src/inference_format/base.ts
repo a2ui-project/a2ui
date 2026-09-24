@@ -48,6 +48,6 @@ export interface InferenceFormatFactory {
    */
   createFormat(
     catalogs: SchemaCatalog[],
-    examples?: Record<string, AgentToRendererMessage[]>,
+    examples?: Record<string, AgentToRendererMessage[] | string>,
   ): InferenceFormat;
 }

@@ -79,4 +79,23 @@ describe('A2uiRequestProcessor', () => {
     // This pins down the latent behavior that parseResponse is stateful across calls.
     expect(() => processor.parseResponse(payload)).toThrow(A2uiStateError);
   });
+
+  test('generatePrompt passes options to the format prompt generator', () => {
+    const catalog = basicCatalog();
+    const processor = new A2uiRequestProcessor([catalog], {
+      [catalog.id]: '---BEGIN greeting---\nexample text\n---END greeting---',
+    });
+
+    const prompt = processor.generatePrompt({
+      roleDescription: 'You are a restaurant assistant.',
+      uiDescription: 'Use the list template.',
+      includeExamples: true,
+    });
+
+    expect(prompt.startsWith('You are a restaurant assistant.\n\nUse the list template.')).toBe(
+      true,
+    );
+    expect(prompt).toContain('---BEGIN greeting---\nexample text\n---END greeting---');
+    expect(processor.promptSnippet).not.toContain('example text');
+  });
 });

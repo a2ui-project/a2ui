@@ -37,7 +37,7 @@ export class DirectJsonFormat implements InferenceFormat {
 
   constructor(
     private readonly catalogs: SchemaCatalog[],
-    examples?: Record<string, AgentToRendererMessage[]>,
+    examples?: Record<string, AgentToRendererMessage[] | string>,
     private readonly streamProcessorFactory?: DirectJsonStreamProcessorFactory,
     private readonly streamOptions?: DirectJsonStreamProcessorOptions,
   ) {
@@ -68,7 +68,7 @@ export class DirectJsonFormatFactory implements InferenceFormatFactory {
 
   createFormat(
     catalogs: SchemaCatalog[],
-    examples?: Record<string, AgentToRendererMessage[]>,
+    examples?: Record<string, AgentToRendererMessage[] | string>,
   ): InferenceFormat {
     if (catalogs.length === 0) {
       throw new Error('At least one catalog must be provided to create a DirectJsonFormat.');
