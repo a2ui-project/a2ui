@@ -31,6 +31,7 @@ export {
   A2uiIntegrityError,
   A2uiRecursionError,
   ParseError,
+  A2uiCompilationError,
   A2uiCatalogError,
 } from './errors.js';
 

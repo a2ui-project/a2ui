@@ -73,12 +73,22 @@ export abstract class Parser {
   }
 
   /**
+   * Whether this parser supports incremental parsing via parseChunk. Mirrors Python Parser.supports_streaming.
+   */
+  get supportsStreaming(): boolean {
+    return false;
+  }
+
+  /**
    * Processes a streamed token chunk incrementally.
+   * Formats which support streaming override it and `supportsStreaming`.
    *
    * @param chunk The next text chunk from the stream.
    * @param wrapped If true, checks for sentinel tags; if false, compiles whole chunks.
    */
-  abstract parseChunk(chunk: string, wrapped?: boolean): ResponsePart[];
+  parseChunk(_chunk: string, _wrapped?: boolean): ResponsePart[] {
+    throw new Error(`Streaming is not supported by ${this.constructor.name}`);
+  }
 
   /**
    * Returns whether the content contains at least one complete format block.

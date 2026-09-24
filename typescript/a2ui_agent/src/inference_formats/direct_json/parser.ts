@@ -83,10 +83,15 @@ export class DirectJsonParser extends Parser {
     return jsonData as AgentToRendererMessage[];
   }
 
+  // Streaming needs an injected stream processor.
+  override get supportsStreaming(): boolean {
+    return this.streamProcessor !== undefined;
+  }
+
   parseChunk(chunk: string, _wrapped = true): ResponsePart[] {
     if (!this.streamProcessor) {
       throw new Error(
-        'DirectJsonStreamProcessor is not injected. Streaming is unavailable until Phase 2B implements the healer.',
+        'DirectJsonParser was constructed without a stream processor, so streaming is unavailable.',
       );
     }
 

@@ -102,4 +102,49 @@ describe('Parser', () => {
       ' world(wrapped=false)',
     );
   });
+
+  it('supportsStreaming defaults to false when not overridden', () => {
+    const parser = new NonStreamingParser();
+    expect(parser.supportsStreaming).toBe(false);
+  });
+
+  it('parseChunk throws expected error when not overridden', () => {
+    const parser = new NonStreamingParser();
+    expect(() => parser.parseChunk('x')).toThrow(
+      'Streaming is not supported by NonStreamingParser',
+    );
+  });
+
+  it('consuming parseStream of a one-chunk async iterable rejects with the same error', async () => {
+    const parser = new NonStreamingParser();
+    async function* singleChunk() {
+      yield 'x';
+    }
+    const generator = parser.parseStream(singleChunk());
+    await expect(generator.next()).rejects.toThrow(
+      'Streaming is not supported by NonStreamingParser',
+    );
+  });
 });
+
+class NonStreamingParser extends Parser {
+  unwrap(_content: string): RawResponsePart[] {
+    return [];
+  }
+
+  compile(_formatContent: string, _isFinal?: boolean): AgentToRendererMessage[] {
+    return [];
+  }
+
+  decompile(_a2uiPayload: AgentToRendererMessage[]): string {
+    return '';
+  }
+
+  wrap(_blocks: RawResponsePart[]): string {
+    return '';
+  }
+
+  hasA2uiParts(_content: string): boolean {
+    return false;
+  }
+}
