@@ -184,10 +184,7 @@ class ExpressionParser:
         # 1. Literals
         if scanner.matches_string("'") or scanner.matches_string('"'):
             return self.parse_string_literal(scanner)
-        if self.is_digit(scanner.peek()) or (
-            (scanner.peek() == "-" or scanner.peek() == "+")
-            and self.is_digit(scanner.peek(1))
-        ):
+        if self.is_number_start(scanner):
             return self.parse_number_literal(scanner)
         if scanner.matches_keyword("true"):
             return True
@@ -278,6 +275,20 @@ class ExpressionParser:
                 result += c
         return result
 
+    def is_number_start(self, scanner: Scanner) -> bool:
+        """Returns whether the scanner is at the start of a number literal.
+
+        A number starts at a digit, at a ``.`` followed by a digit, or at a
+        ``-`` or ``+`` sign followed by either of those. The grammar has no
+        arithmetic operators, so a sign here can only belong to a literal. A
+        ``-`` or ``.`` inside a path such as ``a-1`` or ``a.5`` never reaches
+        this check, because the path scanner consumes it as part of the token.
+        """
+        offset = 1 if scanner.peek() in ("-", "+") else 0
+        if self.is_digit(scanner.peek(offset)):
+            return True
+        return scanner.peek(offset) == "." and self.is_digit(scanner.peek(offset + 1))
+
     def parse_number_literal(self, scanner: Scanner) -> int | float:
         start = scanner.pos
         if scanner.peek() == "-" or scanner.peek() == "+":
@@ -295,7 +306,7 @@ class ExpressionParser:
             while not scanner.is_at_end() and self.is_digit(scanner.peek()):
                 scanner.advance()
         num_str = scanner.input[start : scanner.pos]
-        if not re.match(r"^[+-]?\d+\.?\d*(?:[eE][+-]?\d+)?$", num_str):
+        if not re.match(r"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$", num_str):
             raise A2uiExpressionError(f"Invalid number literal: '{num_str}'")
         if "." in num_str or "e" in num_str or "E" in num_str:
             return float(num_str)

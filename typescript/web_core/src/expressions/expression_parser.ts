@@ -187,10 +187,7 @@ export class ExpressionParser {
     if (scanner.matchesString("'") || scanner.matchesString('"')) {
       return this.parseStringLiteral(scanner);
     }
-    if (
-      this.isDigit(scanner.peek()) ||
-      ((scanner.peek() === '-' || scanner.peek() === '+') && this.isDigit(scanner.peek(1)))
-    ) {
+    if (this.isNumberStart(scanner)) {
       return this.parseNumberLiteral(scanner);
     }
     if (scanner.matchesKeyword('true')) return true;
@@ -288,6 +285,21 @@ export class ExpressionParser {
     return result;
   }
 
+  /**
+   * Whether the scanner is at the start of a number literal: a digit, a `.`
+   * followed by a digit, or a `-` or `+` sign followed by either of those.
+   *
+   * The grammar has no arithmetic operators, so a sign here can only belong to
+   * a literal. A `-` or `.` inside a path such as `a-1` or `a.5` never reaches
+   * this check, because the path scanner consumes it as part of the token.
+   */
+  private isNumberStart(scanner: Scanner): boolean {
+    let offset = 0;
+    if (scanner.peek() === '-' || scanner.peek() === '+') offset = 1;
+    if (this.isDigit(scanner.peek(offset))) return true;
+    return scanner.peek(offset) === '.' && this.isDigit(scanner.peek(offset + 1));
+  }
+
   private parseNumberLiteral(scanner: Scanner): number {
     const start = scanner.pos;
     if (scanner.peek() === '-' || scanner.peek() === '+') {
@@ -306,7 +318,7 @@ export class ExpressionParser {
       }
     }
     const text = scanner.input.substring(start, scanner.pos);
-    if (!/^[+-]?\d+\.?\d*(?:[eE][+-]?\d+)?$/.test(text)) {
+    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) {
       throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
     }
     return Number(text);

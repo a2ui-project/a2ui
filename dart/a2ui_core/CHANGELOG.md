@@ -3,12 +3,13 @@
 ## Unreleased
 
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
-- `ExpressionParser` accepts signed number literals (`-42`, `+1`, `-3.5`) and
-  exponent notation (`1e5`, `1E5`, `1.5e-3`, `2.5E+4`), including as
-  function-call arguments. Previously `-42` parsed as the path `-42` and `1e5`
-  failed with `Unexpected characters at end of expression`. A `-` inside a path
-  such as `a-1` is still part of the path. This matches the TypeScript and
-  Python parsers.
+- `ExpressionParser` accepts signed number literals (`-42`, `+1`, `-3.5`),
+  exponent notation (`1e5`, `1E5`, `1.5e-3`, `2.5E+4`) and a leading decimal
+  point (`.5`, `-.5`, `.5e2`), including as function-call arguments.
+  Previously `-42` parsed as the path `-42` and `1e5` failed with
+  `Unexpected characters at end of expression`. A `-` or `.` inside a path such
+  as `a-1` or `a.5` is still part of the path, and `.foo` is still a path. This
+  matches the TypeScript, Python and Swift parsers.
 - Fixed `DataModel.set` with a `null` value (a delete) at a list index at or
   past the end of the list padding the list with `null` up to that index. It
   now leaves the list unchanged; only a write extends a list.

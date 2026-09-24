@@ -37,6 +37,10 @@
 
 - **BREAKING**: `DataModel` stores data values by reference instead of making deep copies. Callers that mutate nested objects after setting them in `DataModel` will update internal state directly.
 - **BREAKING**: `A2uiRpcError` argument order is now `(message, code, ...)`.
+- `ExpressionParser` accepts number literals with a leading decimal point
+  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
+  and `./x` are still paths. This matches the TypeScript, Dart and Swift
+  parsers.
 - **BREAKING**: `DataModel.set` now raises `A2uiDataError` instead of resetting the root when attempting to traverse or set a subpath under a primitive root value.
 - **BREAKING**: `SurfaceComponentsModel.add_component` now raises `A2uiStateError` if a component with the same ID already exists in the model.
 - **BREAKING**: pending RPC requests on `RpcHandler.dispose()` are now rejected with error code `CANCELLED` (previously `DISPOSED`).
