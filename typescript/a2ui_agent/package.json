@@ -20,7 +20,8 @@
     "lint:fix": "eslint . --fix",
     "format": "wireit",
     "format:check": "wireit",
-    "clean": "wireit"
+    "clean": "wireit",
+    "generate:express": "antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference_formats/express/generated ../../specification/inference_formats/express/Express.g4"
   },
   "wireit": {
     "build": {
@@ -58,7 +59,8 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.check.json",
-        "vitest.config.ts"
+        "vitest.config.ts",
+        ".prettierignore"
       ]
     },
     "format:check": {
@@ -69,7 +71,8 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.check.json",
-        "vitest.config.ts"
+        "vitest.config.ts",
+        ".prettierignore"
       ]
     }
   },
@@ -78,6 +81,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.3",
+    "antlr-ng": "1.0.10",
     "eslint": "^10.4.1",
     "js-yaml": "^4.3.0",
     "typescript": "5.9.3",
@@ -85,6 +89,7 @@
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {
-    "@a2ui/web_core": "workspace:*"
+    "@a2ui/web_core": "workspace:*",
+    "antlr4ng": "3.0.16"
   }
 }
