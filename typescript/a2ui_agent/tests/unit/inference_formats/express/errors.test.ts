@@ -27,6 +27,7 @@ import {
   ExpressForbiddenDatabindingError,
   ExpressUndefinedRootError,
   ExpressUndefinedChildError,
+  ExpressSyntaxError,
 } from '../../../../src/inference_formats/express/errors.js';
 
 describe('Express error classes', () => {
@@ -196,6 +197,22 @@ describe('Express error classes', () => {
       expect(err.childId).toBe('childComp');
       expect(err.name).toBe('ExpressUndefinedChildError');
       expect(err).toBeInstanceOf(ExpressUndefinedChildError);
+      expect(err).toBeInstanceOf(ExpressParseError);
+      expect(err).toBeInstanceOf(ExpressCompilerError);
+      expect(err).toBeInstanceOf(A2uiError);
+    });
+  });
+
+  describe('ExpressSyntaxError', () => {
+    it('sets message, line, column, isLexer, and inheritance correctly with no helpMessage', () => {
+      const err = new ExpressSyntaxError('Syntax error at line 1:5: unexpected token', 1, 5, true);
+      expect(err.message).toBe('Syntax error at line 1:5: unexpected token');
+      expect(err.line).toBe(1);
+      expect(err.column).toBe(5);
+      expect(err.isLexer).toBe(true);
+      expect(err.helpMessage).toBeUndefined();
+      expect(err.name).toBe('ExpressSyntaxError');
+      expect(err).toBeInstanceOf(ExpressSyntaxError);
       expect(err).toBeInstanceOf(ExpressParseError);
       expect(err).toBeInstanceOf(ExpressCompilerError);
       expect(err).toBeInstanceOf(A2uiError);
