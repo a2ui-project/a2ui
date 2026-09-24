@@ -65,18 +65,6 @@ const KNOWN_FAILURES = new Map<string, string>([
     'test_compile_express_standalone_function_call',
     'a standalone call compiles to `functionCallId`/`callFunction` at the top level, which agent_to_renderer.json rejects, rather than to `callRendererFunction`',
   ],
-  [
-    'test_compile_express_unknown_component_is_a_validation_error',
-    'a component the catalog does not declare is dropped from the compiled surface instead of failing the compile',
-  ],
-  [
-    'test_compile_express_missing_required_property_is_a_validation_error',
-    'a component missing a property its catalog requires compiles without it instead of failing the compile',
-  ],
-  [
-    'test_compile_express_unknown_function_is_a_validation_error',
-    'a call to a function the catalog does not declare compiles instead of failing the compile',
-  ],
   // Decompiler, Express.
   [
     'test_decompile_express_update_components',
@@ -103,10 +91,6 @@ const KNOWN_FAILURES = new Map<string, string>([
     'a map key that is not an identifier is written unquoted, which the grammar does not admit',
   ],
   // Response parser.
-  [
-    'test_parse_response_express_validation_failure_surfaces',
-    'a component the catalog does not declare is dropped from the compiled surface instead of failing the parse',
-  ],
 ]);
 
 /**

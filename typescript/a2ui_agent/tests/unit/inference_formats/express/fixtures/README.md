@@ -26,6 +26,10 @@ be checked against it without a Python toolchain.
 - `decompiler_parity_cases.json`: parity corpus of 31 Express message lists (including all 12 from
   `conformance/agent/express/decompiler.yaml` plus 19 more covering all branches) evaluated against
   Python's `ExpressDecompiler` oracle on `main`.
+- `conformance_overrides.json`: expected value overrides for parity test cases.
+  Used when TypeScript diverges from Python in order to pass a conformance suite case.
+  The JSON structure is:
+  `{ "fixture_file.json": { "test_case_name": { "justification": "...", "expected": { ... } } } }`
 
 To regenerate any of these, run the corresponding Python code from `main`
 on the same inputs and write the results as JSON. Keep key order as Python emits it,
