@@ -15,7 +15,6 @@ The Agent SDK is responsible for:
 - **Prompt engineering**
 - **Response parsing**
 - **Payload validation**
-- **Typesafe UI authoring**
 - **Transport packaging**
 
 It enables Large Language Models (LLMs) and autonomous agents to understand available UI capabilities and ensures that generated UI payloads conform strictly to negotiated specification contracts before transmission to client renderers.
@@ -87,9 +86,6 @@ a2ui_agent/
 ├── catalog_transformers/      # Catalog and Protocol Transformers
 │   ├── base                   # Abstract CatalogTransformer class
 │   └── pruning                # ComponentPruningTransformer, FunctionPruningTransformer
-├── builder/                   # Typesafe authoring API (see section 3H)
-│   ├── core/                  # Version-independent authoring runtime
-│   └── <version>/             # Versioned models, envelopes, generated catalogs
 └── utils/                     # Utility helpers layer
     └── catalog_resolver       # resolve_catalogs capability resolution function
 ```
@@ -701,38 +697,6 @@ def resolve_catalogs(
     """
     pass
 ```
-
----
-
-### H. Typesafe Builder API (`a2ui.builder`)
-
-The builder API is the authoring counterpart to the inference formats. Where a format asks a model to emit A2UI, the builder lets application code construct it directly, with the catalog's component and function set expressed as native types so that a mistake is a compile-time or construction-time error rather than a rejected payload.
-
-It is organised as a hand-written runtime plus generated catalog modules:
-
-```
-a2ui/builder/
-├── core/                      # Version-independent authoring runtime
-│   ├── base_node              # ComponentBuilderNode, ComponentRef
-│   ├── child                  # Child slot annotation, FlattenContext, serializer
-│   ├── id_allocator           # Deterministic component ID allocation
-│   ├── open_enum              # OPEN_ENUM metadata and lenient parsing context
-│   ├── flattener              # flatten_component_tree entry point
-│   └── tree                   # ComponentTree aggregate
-└── <version>/                 # One package per protocol version (e.g. v0_9)
-    ├── models                 # DataBinding, FunctionCall, Action, CheckRule, ChildList
-    └── catalogs/              # GENERATED: one module per catalog
-```
-
-#### Authoring model
-
-A builder tree is nested; the wire format is flat. Every component references its children by ID and appears as a sibling in a single component list. The transformation between the two is the builder's only real behaviour, and it is attached to the child slot type rather than implemented as a separate traversal, so that the serialization library drives a single walk of the tree.
-
-Authoring is strict and parsing is lenient on request: unknown properties are rejected at construction and enum properties are declared as the exact value set the catalog defines, while an explicit lenient context allows a parse to accept a value from a newer catalog revision without widening the declared type.
-
-Catalog modules under `<version>/catalogs/` are generated from the catalog JSON schema by the A2UI CLI and are never edited by hand. Only the runtime in `core/` and `<version>/` is written directly.
-
-The builder API is an optional capability, and a binding is useful without one. Its requirements, the generator contract, and the reasoning behind each rule are specified in the [Typesafe Builder API feature blueprint](../features/typesafe_builder_api.blueprint.md). Implementations claim it by listing `typesafe_builder_api` under `implemented_features` in their codebase blueprint.
 
 ---
 

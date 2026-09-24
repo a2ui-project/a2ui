@@ -7,421 +7,301 @@ dependencies: []
 date_added: 2026-09-22
 ---
 
-# **Typesafe Builder API Feature Blueprint**
+# Typesafe builder API feature blueprint
 
-A builder API lets application code construct A2UI directly, with a catalog's
-component and function set expressed as native types of the host language. It is
-the authoring counterpart to the inference formats: where a format asks a model
-to emit A2UI and then parses what comes back, a builder is used by code that
-already knows what it wants to render.
+## Design goals and use cases
 
-The point of typing it is to move failure earlier. A misspelled property, an
-invalid enum value or a malformed action should fail where it is written, not
-arrive at a renderer as a payload that validates structurally and then does
-nothing.
+### Design goals
 
-This feature is optional. A language binding is useful without one, and a
-binding that has no static type system gains little from it. When implemented,
-it spans both `a2ui_agent` (for agent-side authoring, tool responses, and macros)
-and `a2ui_core` (for tree representation, message serialization, and round-trip
-deserialization back into typed node graphs).
+The A2UI wire format represents user interfaces as a flat list of sibling component dictionaries linked together by string IDs (`"child": "text_1"`, `"children": ["btn_1", "btn_2"]`). While convenient for streaming and incremental updates, authoring flat JSON lists by hand in application code is verbose and error-prone.
 
-## **Consumers**
+The Typesafe Builder API provides a typed authoring interface for constructing A2UI layouts:
 
-The builder is a standalone capability that depends on nothing above it. Any
-code holding a catalog's generated models can produce A2UI with it. Two
-consumers are worth naming, because they pull in different directions and the
-API has to serve both.
+1. **Hierarchical readability**: Developers author UI layouts as nested component trees (`Card(child=Column(children=[...]))`), and the builder flattens the hierarchy into the post-order component list required by the wire protocol.
+2. **Compile-time and construction-time strictness**: Authoring mistakes (misspelled component or property names, invalid enum variants, wrong property types, or malformed unions) are caught immediately by the compiler or constructor validation.
+3. **Idiomatic design**: The API follows standard host language conventions (such as optional named arguments, data classes, or structs) without introducing heavy frameworks.
+4. **Reuse of core models and serializers**: The builder reuses schema models from `a2ui_core` and standard serialization libraries wherever possible, adding only the logic needed to resolve nested component hierarchies into flat component lists.
 
-### A fixed layout, with no model in the loop
+> **SDD status**: This feature is optional and applies primarily to statically typed SDKs. Codebases that implement it declare `typesafe_builder_api` under `implemented_features` in their `codebase.blueprint.md`.
 
-A tool server answering a request it fully understands does not need inference
-at all. It constructs the tree and returns the messages:
+---
+
+### Use cases
+
+The builder API is consumer-agnostic and sits below both agent inference pipelines and direct server integrations:
+
+```mermaid
+flowchart LR
+    Catalog["Catalog JSON Schema"] --> Gen["A2UI CLI Codegen"]
+    Gen --> Models["Generated Catalog Models<br/>+ Hand-Written Runtime"]
+    Models --> Direct["Direct Server / Tool Code<br/>(Fixed layouts, no LLM)"]
+    Models --> Macros["Macro Runtime<br/>(Parameterized fragments)"]
+    Models --> Hybrid["Hybrid Agent Flows<br/>(Inspect & mutate trees)"]
+    Direct & Macros & Hybrid -->|".flatten()"| Envelopes["a2ui_core Message Envelopes<br/>(CreateSurface / UpdateComponents)"]
+```
+
+1. **Deterministic layouts (no model in the loop)**:
+   A tool server or deterministic agent step that already knows the data it wants to display constructs the component tree in code, flattens it, and packages it into `a2ui_core` message envelopes.
+2. **Parameterized UI fragments and macros**:
+   Reusable functions or macro definitions construct subtrees and splice them into larger surfaces. Because a fragment may be instantiated multiple times on the same surface, the builder supports anchoring `.flatten(prefix="...")` to namespace auto-generated component IDs and prevent collisions.
+3. **Round-trip tree inspection and mutation ([Phase 2, #2571](https://github.com/a2ui-project/a2ui/issues/2571))**:
+   Client or server middleware can deserialize a flat wire component list back into a nested builder tree, inspect or transform specific nodes with static typing, and re-flatten the tree while preserving stable component IDs.
+
+---
+
+### Reference implementation (Python)
+
+In the [Python reference implementation](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/), developers author nested trees using generated catalog classes and package the flattened output directly into `a2ui_core` message models:
 
 ```python
+from a2ui.builder.v0_9 import Action, ActionEvent, DataBinding
+from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
 from a2ui.core.schema.server_to_client import (
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,
     UpdateComponentsMessage,
 )
-from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text
 
-def order_status(order_id: str, state: str) -> list:
-    tree = Card(child=Column(children=[
-        Text(text=f"Order {order_id}", variant="h3"),
-        Text(text=state),
-    ]))
+def build_order_card(order_id: str) -> list:
+    # 1. Author hierarchically with static type checking
+    tree = Card(
+        id="order_card",
+        child=Column(
+            children=[
+                Text(text=f"Order #{order_id}", variant="h3"),
+                Text(text=DataBinding(path="/order/status"), variant="body"),
+                Button(
+                    variant="primary",
+                    child=Text(text="Refresh"),
+                    action=Action(event=ActionEvent(name="refresh_order")),
+                ),
+            ]
+        ),
+    )
+
+    # 2. Flatten into post-order wire dicts and package into core envelopes
     return [
         CreateSurfaceMessage(
             create_surface=CreateSurface(
-                surface_id="order_status",
+                surface_id="main",
                 catalog_id="https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
             )
         ),
         UpdateComponentsMessage(
             update_components=UpdateComponents(
-                surface_id="order_status",
+                surface_id="main",
                 components=tree.flatten(),
             )
         ),
     ]
 ```
 
-There is no prompt, no parsing and no model. The value is that `variant="h3"`
-is checked against the catalog when it is written, and the flat wire form is
-produced without the caller assembling component IDs by hand.
+**Reference codebase links:**
+- Version-agnostic runtime (`core/`): [`agent_sdks/python/a2ui_agent/src/a2ui/builder/core/`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/core/)
+- Versioned v0.9 models (`v0_9/`): [`agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/)
+- Generated basic catalog: [`agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py)
+- Unified CLI codegen emitter (`dart/a2ui_cli`): [`dart/a2ui_cli/lib/src/emitters/python/python_emitter.dart`](../../dart/a2ui_cli/lib/src/emitters/python/python_emitter.dart)
 
-### A parameterised fragment, expanded by a caller
+---
 
-A macro runtime layers parameter binding and expansion on top of the same
-models. It is a consumer of the builder, not a peer:
+## Target-language design decisions
 
-```mermaid
-flowchart LR
-    Catalog["Catalog schema"] --> Gen["Code generator"]
-    Gen --> Builder["Builder models"]
-    Builder --> MCP["Tool server<br/>(fixed layout)"]
-    Builder --> Macros["Macro runtime<br/>(parameterised)"]
-    Builder --> Agent["Agent code<br/>(direct)"]
-```
+When implementing the Typesafe Builder API in a new language, resolve four language-specific design questions first.
 
-Two properties matter more to this consumer than to direct authoring, and both
-are stated generally because they are not macro-specific: a subtree can be
-anchored at a caller-supplied root ID, which namespaces everything beneath it so
-repeated expansions cannot collide (R3.13), and a reference to something already
-on the surface stays a boundary that is never renamed or re-emitted (R3.12). A
-tool server returning the same fragment twice on one surface needs exactly the
-same guarantees.
+### Decision 1: Traversal and serialization strategy
 
-Nothing in the builder may name a specific consumer. A type whose contract can
-only be stated in terms of macros is a type in the wrong package.
+The builder transforms a nested tree of component objects into a flat list of wire-formatted component dictionaries. Component classes must not hand-write custom serialization loops; field name aliasing (`camelCase`), omission of unset fields, and union encoding should be delegated to the host serialization mechanism used by `a2ui_core`.
 
-## **Requirements**
+How the tree is walked depends on the host language's serialization library:
 
-### R1. Authoring is strict
+- **Approach A (explicit two-pass walker, preferred for most languages)**:
+  Standard serialization libraries in many languages are designed for 1:1 structural encoding and cannot carry mutable traversal state down nested fields. In these environments, write a clean, two-pass `flatten()` walker in `builder/core`. The walker inspects child slots, allocates IDs, replaces child node references with allocated string IDs, and delegates property formatting to the standard serializer.
+- **Approach B (contextual serializer hooks)**:
+  If the model library supports stateful, context-carrying field serializers (such as Pydantic's `@PlainSerializer` with `SerializationInfo.context`), child-slot resolution can be attached directly to slot annotations so a single serializer pass drives both child emission and dictionary conversion.
 
-1. Constructing a component with an unknown property must fail. A misspelled
-   attribute must not be carried silently to a renderer.
-2. A property whose catalog schema is an enumeration must be declared as exactly
-   that value set, so that a static checker rejects an invalid value before the
-   code runs. Languages without a suitable type must reject at construction.
-3. Where a schema expresses a choice between branches, the constraint must be
-   enforced at construction. An object that satisfies neither branch, or both,
-   must not be constructible.
-4. An ergonomic shorthand must not be introduced in a way that static analysis
-   cannot see. A coercion applied inside a constructor widens the runtime
-   contract while the declared type stays narrow, so a type checker reports the
-   ergonomic spelling as an error even though it works. Shorthands must be
-   separate named constructors whose signature states what they accept.
+### Decision 2: Authoring syntax and construct idioms
 
-### R2. Parsing is lenient on request
+Use the language construct that provides named or optional parameters, default omitted values, and IDE autocomplete in the target language (such as data classes, structs with default field values, or parameter objects).
 
-5. A peer may legitimately send a value from a newer catalog revision than the
-   one the builder was generated from. Parsing must be able to accept an
-   unknown enum value.
-6. That relaxation must be opt-in, supplied by the caller at the point of
-   parsing. The declared type must not be widened to achieve it, because that
-   would also relax authoring and defeat R1.2.
+- **Avoid redundant wrapper functions**: If a class or struct can be constructed cleanly (`Text(text="Hello")` or `Required(value=...)`), avoid emitting pass-through functions (`text(...)`, `required(...)`) that duplicate signatures.
+- **Static visibility of ergonomics**: Every accepted authoring form must be visible in the static type signature. Avoid hidden runtime coercions inside constructors (such as accepting a raw string where `Action` is expected), which trigger static analyzer errors. Shorthands should be statically typed constructors or factory methods (such as `Action.event("save")`) or omitted in favor of direct model construction (`Action(event=ActionEvent(name="save"))`).
 
-### R3. Authoring is nested, the wire is flat
+### Decision 3: Model reuse strategy
 
-A2UI is a flat format: every component appears as a sibling in a single list and
-references its children by ID. Builders are the opposite, because nesting is how
-a reader understands a layout. Converting between the two is the only real
-behaviour a builder has.
+`a2ui_core` defines the wire schema models for the protocol. Redefining all of them in the builder causes drift, while reusing all of them directly can degrade authoring ergonomics where nested trees differ from flat wire models.
 
-7. A field that holds a child component must serialize to that child's allocated
-   ID, and the child's own subtree must be emitted into the same flat output.
-8. Component IDs must be allocated deterministically, so that the same tree
-   produces the same output on every run.
-9. An author-supplied ID must be preserved and must never be handed out again by
-   the allocator.
-10. Components must be emitted in depth-first post-order, so that a reference
-    can only point at a component already present in the list.
-11. The same object appearing in two slots is one component referenced twice,
-    not two copies.
-12. A reference to a component that already exists on the surface is a boundary.
-    It must be referenced by its existing ID, never re-emitted and never
-    renamed.
-13. Flattening may be anchored at a caller-supplied root ID, which namespaces
-    the IDs generated beneath it. This is what allows one tree to be expanded
-    into a surface that other trees also write to, without collisions.
+Classify each protocol model into one of three tiers:
 
-### R4. Serialization belongs to the host language
+| Tier | Condition | Protocol models | Implementation rule |
+| :--- | :--- | :--- | :--- |
+| **1. Direct reuse** | Authoring shape and wire shape are identical. | `DataBinding`, `ActionEvent`, `FunctionCall`, `CheckRule`, `AccessibilityAttributes` | Re-export directly from `a2ui_core`. |
+| **2. Ergonomic subclass / wrapper** | Wire model wraps parameters inside an inner map (`args`), which is awkward to author directly. | Catalog functions (`Required`, `Regex`, `Pluralize`, `OpenUrl`, etc.) | Subclass or wrap `FunctionCall` with a flat typed initializer (`Pluralize(value=1, ...)`) that sets `call="pluralize"` and `args={...}` without requiring an intermediate `PluralizeArgs` object. |
+| **3. Builder-specific model** | Authoring holds nested `ComponentBuilderNode` objects or requires a single constructible type where Core uses a union. | `DynamicChildList` (holds `template: ComponentBuilderNode` instead of wire `componentId: str`), `Action` (constructible class enforcing mutual exclusion between `event` and `functionCall`) | Define in `builder/<version>` and verify that serialized output validates against `a2ui_core` wire models. |
 
-14. Field shape, name mapping, defaults, omission of empty values, unions and
-    nested models must be handled by the host language's existing serialization
-    library. Implementations must not hand-write a serializer per model.
-15. The only behaviour a builder adds on top of that library is child
-    resolution, as described in R3.
+### Decision 4: Dual-mode enum representation
 
-The reason is maintenance cost rather than elegance. A hand-written serializer
-has to be extended for every property of every component in every catalog, and
-each extension is a place for the wire format to drift from the schema. Three
-wire-format defects were found in the reference implementation at review time,
-all of them inside hand-written serialization code.
+Catalog enumerations (such as `Text.variant: "h1" | "h2" | "body"`) require different handling during authoring versus parsing:
 
-### R5. Names are mapped declaratively and paths are preserved
+- **Authoring requires closed types**: The static field type must be a closed enum or literal union so compilers and IDEs reject typos (such as `variant="h9"`). Widening the static type to `string` breaks authoring safety.
+- **Parsing requires opt-in leniency**: When parsing wire payloads from peers ([Phase 2, #2571](https://github.com/a2ui-project/a2ui/issues/2571)), callers need a way to accept unknown enum values from newer catalog revisions (`variant="displayLarge"`).
+- **Resolution**: Keep the static field type strictly closed. Support open enums via an opt-in deserialization context flag (`OPEN_ENUM_CONTEXT`) that allows unrecognized strings to pass through during wire parsing.
 
-16. Authoring names must be idiomatic to the host language while the emitted
-    names come from the schema. The mapping must be declared on the field, not
-    applied by a serialization step.
-17. Data model paths must reach the wire exactly as the author wrote them. The
-    leading `/` is semantically load-bearing: an absolute path resolves from the
-    root of the data model, while a path without one is *relative* and resolves
-    against the collection scope a template creates. Normalizing to absolute
-    makes item-scoped bindings — the entire purpose of templates — impossible to
-    express, and makes a nested template unable to address its own list at all.
-    See "Path resolution & scope" in `specification/v0_9_1/docs/a2ui_protocol.md`,
-    which defines relative paths as a deliberate extension to RFC 6901.
+---
 
-### R6. Envelope construction is versioned and separate
+## Type-checking and validation rules
 
-18. A component tree knows its own shape but not how a protocol version packages
-    it. Building the messages that carry a tree to a client must live with the
-    protocol version, not on the tree.
-19. Envelope helpers must return typed messages rather than untyped maps, so the
-    message schema is checked the same way component construction is.
+A conforming builder API catches authoring mistakes at compile time, static-analysis time, or object construction time:
 
-### R7. Catalog modules are generated
+1. **Unknown or misspelled component types**: Each catalog component is a distinct static type (`Card`, `Column`, `Text`). Unrecognized components cannot be instantiated through catalog classes.
+2. **Unknown or misspelled property names**: Passing an undeclared keyword or property (such as `Text(txt="Hello")`) is rejected by the compiler or forbidden at runtime.
+3. **Wrong property types and implicit coercions**:
+   - Passing an incorrect type to a property fails validation.
+   - For polymorphic `Dynamic*` unions (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DynamicValue`), validators must enforce strict primitive matching (such as `StrictStr`, `StrictInt`, `StrictBool`). A validator must not coerce an integer or boolean into `DynamicString`, or coerce `"true"` into `DynamicBoolean`.
+4. **Invalid enum values**: Passing an unlisted enum value fails static analysis and runtime construction unless the caller runs with `OPEN_ENUM_CONTEXT` enabled.
+5. **Invalid union combinations**: For mutually exclusive fields, such as `Action` requiring either `event` or `functionCall`, passing neither or both raises a validation error at construction time.
+6. **Invalid slot cardinality**:
+   - Single-child slots (`Child`) accept only a single `ComponentBuilderNode` or `ComponentRef`.
+   - Multi-child slots (`ChildList`) accept only a sequence of `ComponentBuilderNode`s or a `DynamicChildList`.
 
-20. The per-catalog part of a builder must be generated from the catalog JSON
-    schema and never edited by hand.
-21. A conforming generator must:
-    - Emit one type per component, typed against the runtime's child-slot,
-      action, binding and check-rule types.
-    - Promote inline object schemas, such as a tab or a picker option, to named
-      models, so that a component slot nested inside one is still a child slot
-      and still participates in flattening.
-    - Preserve every branch of a schema choice. Narrowing a property to its most
-      common branch rejects payloads the catalog permits.
-    - Resolve name clashes across enums, item models and components rather than
-      letting one shadow another.
-    - Emit a callable and its type per catalog function, so a call site can be
-      typed by the function it invokes.
-    - Reserve no property for call correlation. Correlating a call with its
-      response is a message-level concern, not a property of an invocation
-      inside a component.
-    - Derive the module name from the catalog's own identifier when the output
-      target is a directory, so a regenerated catalog lands on the path already
-      committed and drift shows up as a diff.
+---
 
-### R8. Round-trip parsing (not yet implemented)
+## Architecture and implementation requirements
 
-Deserialization today means reading a payload into the catalog's models, per R2.
-The inverse of flattening is a separate capability that no binding implements
-yet. Specifying it now constrains the design so that adding it later does not
-require the wire format or the authoring API to change.
+### Part 1: Core flattening runtime
 
-22. It must be possible to read a flat component list back into a nested tree.
-23. Parsing must preserve every component ID, so that a tree that is parsed,
-    modified and re-emitted keeps its references stable.
-24. A reference pointing outside the set being parsed must become an external
-    reference, per R3.12, rather than an error or a dangling ID.
-25. For any tree the builder can produce, parsing its flattened output must
-    yield a tree that flattens to the same output.
-26. An unrecognized component name must parse into a fallback node that
-    preserves its properties, rather than raising. A catalog the parser has not
-    seen must not make a payload unreadable.
-27. A payload whose components do not all reduce to one root must still parse.
-    An unrecognized container may hold children the parser can type but cannot
-    attach; those must be retained as typed subtrees alongside the primary root,
-    not dropped and not degraded to untyped maps. This is what a tree container
-    is for, and it is the reason a binding needs one at all: a single node can
-    only ever be one root.
+The core runtime is hand-written and independent of any specific protocol version or catalog.
 
-## **Detailed Description of Changes**
+#### Base builder node
 
-### Why the child slot carries the conversion
+- **`BuilderBaseModel`**: Shared base class or configuration for component nodes and auxiliary item models (`TabItem`, `ChoicePickerOption`). Enforces strict property checking, supports field aliasing (`camelCase` on wire, idiomatic naming in host code), and omits unset fields during serialization.
+- **`ComponentBuilderNode`**: Base class for generated catalog components.
+  - Declares `component: str` (the wire discriminator, such as `"Card"`) and `id: Optional[str] = None`.
+  - Exposes `.flatten(prefix: Optional[str] = None) -> list[dict[str, Any]]`, delegating to `flatten_component_tree(self, root_id=prefix)`.
 
-The obvious way to flatten a builder tree is a separate traversal that walks the
-object graph, finds the fields holding children, and rewrites them. That
-traversal has to re-derive facts the serialization library already knows: which
-fields exist, what they are named on the wire, whether a value is absent, how a
-union resolved. Two pieces of code deriving the same facts is where they drift,
-and the drift is invisible until a payload is wrong.
+#### External surface references (ComponentRef)
 
-Attaching the conversion to the child slot type itself avoids the second
-derivation. A field annotated as a child slot serializes to an ID and emits the
-subtree as a side effect, and the serialization library drives the walk. There
-is one traversal, and it is the one whose output is the wire format.
+`ComponentRef(id="existing_id")` represents a component that already exists on the target surface outside the current builder tree.
 
-This is also why R4 forbids hand-written serializers. The two requirements are
-the same decision seen from either end.
+- Assignable to any `Child` slot or `ChildList` collection.
+- Serves as a traversal boundary: resolves to its `id` string in parent slots, is never emitted into the output component list, and is never renamed or prefixed by `root_id`.
+- Carries no fake `component` wire name.
 
-### Why flattening needs two passes
+#### Two-pass deterministic flattening
 
-An author may supply IDs for some components and leave the rest to the
-allocator. If allocation happened in a single pass, an ID generated early could
-collide with an author-supplied ID appearing later in the tree, and which
-component won would depend on document order.
+Flattening converts a single `ComponentBuilderNode` or a sequence of root nodes (a forest) into a depth-first, post-order list of wire dictionaries.
 
-So flattening scans first and emits second. The scan visits the tree and
-reserves every author-supplied ID without allocating anything. The emit pass
-then allocates only names the scan did not reserve. Both passes are driven by
-the serialization library, so both see exactly the fields the output will see.
+Two passes are required because authors can mix explicit IDs (`Text(id="Card_0")`) with anonymous components (`Card()`). In a single-pass allocator, an anonymous `Card` encountered early in traversal could receive `"Card_0"`, colliding with an explicit ID declared later in the tree.
 
-### Why enum leniency is metadata rather than a wider type
+- **Pass 1 (reservation scan)**: Traverse the component graph without allocating IDs. Collect all explicit `node.id` values (and the caller-supplied `root_id` anchor) into a reserved set.
+- **Pass 2 (allocation and post-order emit)**:
+  - Initialize `IdAllocator` with the reserved set and a scope prefix (`root_id`, `root.id`, or `"root"`).
+  - For nodes lacking an explicit `id`, allocate sequential IDs (`{prefix}_{ComponentType}_{counter}`) skipping reserved names.
+  - Recursively flatten and emit all descendant nodes before appending the parent dictionary (depth-first post-order).
+- **DAG shared-instance deduplication**:
+  - Track visited component instances by object identity (`id(node)` or reference equality `===`).
+  - If the same component instance appears in two slots, allocate one ID, emit the component dictionary once, and reference that ID in both slots.
+- **Root anchoring (`root_id`) for macro namespacing**:
+  - Passing `root_id="panel_a"` assigns `"panel_a"` to the root component and prefixes all auto-allocated descendant IDs with `"panel_a_..."`. This prevents ID collisions when fragments or macros expand into an existing surface.
+- **Forest (multi-root sequence) input**:
+  - `flatten_component_tree` accepts either a single `ComponentBuilderNode` or a sequence of roots. When given a sequence, each item is flattened in its own scope (`{root_id}_{index}`) and the results are concatenated.
 
-R1.2 and R2.5 pull in opposite directions: authoring wants the narrow value set,
-parsing wants to tolerate values from a newer catalog. The tempting resolution
-is to declare the property as the enum widened with a free-form string. That
-satisfies parsing and abandons authoring, since every typo then type-checks.
+#### ComponentTree container and round-trip readiness (#2571)
 
-The resolution that holds both is to keep the declared type narrow and attach
-the leniency as metadata that a parsing context activates. Static analysis sees
-the narrow type. A parse that explicitly asks for leniency gets it.
+`ComponentTree(root=..., dangling_components=[...])` wraps a root node alongside unattached subtrees (`dangling_components`), exposing `.flatten()` and `.to_json()`.
 
-An implementation detail worth recording, because it is easy to get wrong: the
-leniency must be attached as annotation metadata on the declared type. Wrapping
-the type in a helper that returns a permissive type erases the value set for the
-static checker, which reintroduces exactly the problem the narrow type was there
-to prevent.
+Designing `ComponentTree` and `ComponentRef` with these boundaries ensures that [Phase 2 deflattening (#2571)](https://github.com/a2ui-project/a2ui/issues/2571) (`flat list -> tree`) can reconstruct external references (`ComponentRef`), fallback nodes (`UnknownComponent`), and multi-root payloads without altering the authoring API.
 
-### Why shorthands must be visible to static analysis
+---
 
-The reference implementation initially accepted a bare event name where an
-action was expected, coercing it inside the constructor. The coercion worked at
-runtime and was reported as a type error by the static checker, because the
-declared type never mentioned it. The ergonomic spelling was the one that got
-flagged.
+### Part 2: Versioned protocol layer
 
-The rule in R1.4 follows: a shorthand is a named constructor whose signature
-says what it takes. Inference output is a separate case, since it is not
-type-checked and arrives in whatever shape a model emitted. Coercion for that
-input belongs in the component that receives model output, in one place, not in
-the constructors that application code calls.
+Each protocol version (such as `v0_9` or `v1_0`) provides a package containing protocol models and generated catalog files.
 
-R1.4 constrains how a shorthand may be introduced; it does not require that any
-exist. The reference implementation has since removed the ones it had, so that
-every value is constructed through the type that models it. Whether to restore
-them is an open question rather than a settled one, tracked in
-[#2744](https://github.com/a2ui-project/a2ui/issues/2744).
+#### Shared core models
 
-### Why envelopes are separate from the tree
+When re-exporting `DataBinding`, `ActionEvent`, `FunctionCall`, `CheckRule`, and `AccessibilityAttributes` from `a2ui_core`:
 
-A tree is a shape. How that shape is packaged into messages, what the messages
-are called and which of them a surface lifecycle requires are all properties of
-a protocol version, handled by `a2ui_core` schema message models
-(`CreateSurfaceMessage`, `UpdateComponentsMessage`). The builder only flattens
-the component hierarchy via `.flatten()`, leaving message envelope construction
-to standard core models.
+1. **No materialized schema defaults on writer models**:
+   - In JSON Schema, a `"default"` annotation (such as `FunctionCall.returnType` defaulting to `"boolean"`, or `AccessibilityAttributes.live` defaulting to `"off"`) tells readers what to assume when a key is absent; it does not instruct writers to emit that key on every payload.
+   - Optional fields in `a2ui_core` models must default to unset (`None` / `null`) so unauthored default properties are omitted from the wire output.
+2. **Preserve data model paths verbatim**:
+   - `DataBinding.path` and `DynamicChildList.path` must reach the wire exactly as written.
+   - In the A2UI specification, a leading slash (`"/user/name"`) denotes an absolute path resolved from the data model root. A path without a leading slash (`"name"`) denotes a relative path resolved against the enclosing `DynamicChildList` collection scope. Adding a leading slash breaks collection templates.
 
-### Which models are shared with the core SDK
+#### Authoring-specific models
 
-The core SDK already models the protocol's common types, so a builder that
-restates them invites the two to drift. It cannot reuse all of them, though,
-because core models the wire as a client parses it and the builder models it as
-an author writes it.
+- **`DynamicChildList`**: Authoring accepts `DynamicChildList(path="/users", template=Card(...))`. During flattening, the `template` subtree is emitted as a component and `DynamicChildList` serializes to `{"path": "/users", "componentId": "<template_id>"}`.
+- **`Action`**: Accepts either `event=ActionEvent(...)` or `function_call=FunctionCall(...)`, validates mutual exclusion, and serializes to the active branch.
+- **Direct envelope packaging**: The builder does not define custom `create_surface()` or `update_components()` helper functions. Callers construct standard `a2ui_core` message envelopes (`CreateSurfaceMessage`, `UpdateComponentsMessage`, `UpdateDataModelMessage`) using the list returned by `.flatten()`.
 
-The test is whether reuse changes what reaches the wire:
+---
 
-- **Reuse outright** where the authoring form and the parsed form are the same
-  thing. A named event carrying a name and a context is the same object to both
-  sides, and so is a data binding: it is one field holding a path that must
-  reach the wire exactly as written, which is as true for an author as it is
-  for a parser. A function call, a validation check and a set of accessibility
-  attributes are the same both ways too.
-- **Extend the core model** where the fields agree but authoring genuinely needs
-  added behaviour. Extending keeps the core type assignable, so the two cannot
-  diverge structurally. No model currently needs this tier; it is recorded
-  because it is the correct answer when the alternative is a parallel copy.
-- **Define locally** where the authoring shape is genuinely different. An action
-  is the clearest case: core models it as a union of single-key wrappers, which
-  reads a parse cleanly but cannot be constructed — calling a union raises —
-  so every call site would have to name a wrapper class rather than the type its
-  own signature advertises. A template child list is the other: core references a
-  template by ID, while an author nests it and lets the flatten pass assign one.
+### Part 3: Code generator emitter (dart/a2ui_cli)
 
-Two things look like reasons to define locally but are not:
+The A2UI CLI ([`dart/a2ui_cli`](../../dart/a2ui_cli/)) is a single Dart codebase that generates catalog builder code for all supported target languages. New languages are supported by adding an emitter under [`dart/a2ui_cli/lib/src/emitters/<lang>/`](../../dart/a2ui_cli/lib/src/emitters/) consuming the CLI's shared `CatalogSpec` representation.
 
-- **A field defaulted to a non-null value.** A JSON Schema `default` tells a
-  reader what to assume when a key is absent; it does not license a writer to
-  emit it. If core materializes one, every builder payload carries a property
-  the author never wrote — but the fix belongs in core's schema generator, not
-  in a forked model.
-- **An undefaulted field from a newer protocol version.** A v1.0 attribute on a
-  v0.9-pinned model is a version-fidelity bug in core, but it is not a reason to
-  fork on its own: if the field is optional and undefaulted it never reaches the
-  wire unless an author sets it deliberately. Weigh that against what forking
-  costs. Restating a model by hand risks narrowing it — dropping a `oneOf` branch
-  the version does allow — which breaks payloads that are legal, whereas the
-  extra field only exposes one that is ignored. Prefer sharing, and pin the
-  extras as undefaulted so the exposure stays theoretical.
+Catalog files (such as `builder/v0_9/catalogs/basic.<ext>`) are generated from the catalog JSON schema by `dart/a2ui_cli` and are never edited by hand. Emitters follow these rules:
 
-Whatever is reused must be pinned by a test asserting it still matches core.
-Reuse is only safe while it is visible; without that test an upstream field
-change reaches every payload the builder produces with no local diff to review.
-That test must also assert the *output*, not just class identity: a shared model
-whose defaults change starts emitting new keys without changing any local code.
+1. **Strict directory separation**: Hand-written runtime code lives in `builder/core/` and `builder/<version>/`; generated catalogs live in `builder/<version>/catalogs/`.
+2. **Component classes**: Emit one class per catalog component, inheriting from `ComponentBuilderNode`, setting `component = "<ComponentName>"`, and mapping properties to their builder types (`Child`, `ChildList`, `DynamicString`, `Action`, open enum).
+3. **Promote inline object schemas to named models**:
+   - Inline object schemas (such as `TabItem` in `Tabs.tabItems`, `ChoicePickerOption` in `ChoicePicker.options`, or `IconNameSvgPath` in `Icon.name`) must be promoted to standalone `BuilderBaseModel` classes.
+   - This ensures child slots nested inside item objects (such as `TabItem.child`) participate in flattening.
+4. **Preserve union branches**: Preserve all `oneOf` and `anyOf` branches rather than narrowing to the most common branch.
+5. **Reserved keyword sanitization**: If a property name collides with a host language keyword (`from`, `class`, `in`, `default`), sanitize the identifier (`from_`) and attach a serialization alias (`"from"`).
+6. **Typed catalog function classes**: Emit a `FunctionCall` subclass for each catalog function with a typed initializer matching its schema parameters.
 
-Whatever is **not** reused needs the same treatment from the other direction. A
-locally-defined model must be pinned by a test asserting that what it serializes
-still validates as core's equivalent. Identity assertions cannot cover these,
-since the classes differ deliberately, so without an output check the two can
-drift apart silently and the divergence surfaces at a client rather than in CI.
+---
 
-### Why generated and hand-written code are separated
+### Part 4: Conformance and testing
 
-The runtime is small, changes rarely and encodes the decisions above. The
-catalog layer is large, changes whenever a catalog changes, and encodes nothing
-but the catalog. Mixing them means a regeneration either overwrites hand-written
-decisions or cannot be run at all, which is how the reference implementation's
-catalog module came to sit three defects behind its own generator.
+#### Cross-language golden test suite
 
-Keeping them in separate directories, with the generated directory regenerated
-in full, makes staleness visible as a diff.
+All positive authoring and serialization cases are defined in [`conformance/agent/builder/builder.yaml`](../../conformance/agent/builder/builder.yaml) with golden outputs in [`conformance/agent/builder/golden/`](../../conformance/agent/builder/golden/) (see [`builder_suite.py`](../../agent_sdks/python/a2ui_agent/tests/conformance/builder_suite.py) for the reference test harness).
 
-## **Links**
+Every conformance test runner must verify each case with two checks:
+1. **Golden equality**: Serialized envelope lists match golden JSON byte-for-byte.
+2. **A2UI schema validation**: Output passes the `a2ui_core` schema and integrity validator (`ValidationConfig`).
 
-- Module blueprint section: [`a2ui_agent.blueprint.md`](../modules/a2ui_agent.blueprint.md), section 3H.
-- Cross-language conformance suite: [`conformance/agent/builder/`](../../conformance/agent/builder/).
-- Protocol definition of the flat component model and message envelopes:
-  [`specification/v0_9_1/docs/a2ui_protocol.md`](../../specification/v0_9_1/docs/a2ui_protocol.md).
-- Catalog schema the generator consumes:
-  [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json).
+#### Local tests for non-obvious invariants
 
-## **Test Cases & Conformance**
+Because the golden suite tests only valid positive ASTs, each language implementation must include local unit tests for the following cases (see [`test_pydantic_builders.py`](../../agent_sdks/python/a2ui_agent/tests/test_pydantic_builders.py)):
 
-The cross-language suite in `conformance/agent/builder/` is the conformance
-surface for this feature. `builder.yaml` declares each case as a builder AST
-plus the golden output it must produce, so a binding in any language can be
-held to the same cases without restating them.
+1. **Negative strictness tests**:
+   - Constructing a component or item model with an undeclared property raises an error.
+   - Passing an invalid enum string fails during authoring, while deserializing the same payload with `OPEN_ENUM_CONTEXT` enabled succeeds.
+   - Passing an invalid primitive type to a `Dynamic*` property raises a validation error rather than coercing across union branches.
+   - Constructing `Action()` with neither or both branches raises an error.
+2. **ID reservation and DAG identity edge cases**:
+   - If an anonymous component appears before an explicit component declaring `id="root_Card_0"`, Pass 1 reserves `"root_Card_0"` so the anonymous component receives a different ID.
+   - Placing the same component instance into two slots emits the component dictionary once and writes the same ID into both slots.
+3. **Core synchronization tests**:
+   - Assert minimal serialized dictionary output for shared `a2ui_core` models (`FunctionCall(call="fn")` emits `{"call": "fn"}` without unauthored defaults).
+   - Assert that serialized output of `Action` and flattened `DynamicChildList` validates against `a2ui_core` wire models (`CoreAction`, `TemplateChildList`).
+4. **Catalog regeneration freshness**:
+   - Verify that running `dart/a2ui_cli` against `specification/<version>/catalogs/basic/catalog.json` produces output byte-for-byte identical to the committed catalog file.
 
-Every case is checked twice: builder output must equal the golden, and the
-golden must pass the A2UI validator. One assertion alone is not enough. A golden
-that is only diffed pins whatever the implementation emitted, bugs included,
-which is how a wrong action key, a wrong dynamic-child-list shape and an
-invented call-correlation property all survived review in the reference
-implementation. Regeneration is gated on the same validator, so an invalid
-payload cannot be recorded.
+---
 
-A conforming implementation must pass the declared cases, which cover primitive
-components and strict enums, nested single and multi-child containers,
-deterministic ID allocation with a root anchor, data bindings that preserve both
-the absolute and the relative path form, accessibility attributes, both action
-branches, collection-bound children, nested collection templates that address an
-inner list relative to the outer item scope, external references, the full
-surface lifecycle, and check rules.
+## Implementation steps
 
-Beyond the shared suite, an implementation should verify locally that
-constructing a component with an unknown property fails, that an invalid enum
-value is rejected while a lenient parse of the same value succeeds, and that the
-generated catalog module is byte-identical to fresh generator output.
+When implementing `typesafe_builder_api` in a new SDK language, proceed in this order:
 
-## **Implementation Steps**
-
-1. Implement the runtime: the child slot type and its serializer, the flatten
-   entry point with its scan and emit passes, the ID allocator, the external
-   component reference, and the enum leniency metadata and its parsing context.
-2. Implement the versioned protocol models by hand: bindings, function calls,
-   actions, check rules, accessibility attributes and the child list, each
-   declaring its own wire names.
-3. Implement the versioned envelope helpers, returning typed messages.
-4. Extend the A2UI CLI's emitter for the target language to satisfy R7, and
-   generate the catalog module from the catalog JSON schema.
-5. Wire the shared conformance suite to the new binding and run it, including
-   validator checks.
-6. Record the feature in the binding's codebase blueprint under
-   `implemented_features`.
+1. **Audit core and resolve language decisions**:
+   - Inspect `a2ui_core` models to verify that optional fields do not emit default values when unset.
+   - Decide on the traversal mechanism (Decision 1) and open enum strategy (Decision 4).
+2. **Implement core runtime (`builder/core`)**:
+   - Implement `BuilderBaseModel`, `ComponentBuilderNode`, and `ComponentRef`.
+   - Implement `IdAllocator`, the two-pass `flatten_component_tree` function, `OPEN_ENUM_CONTEXT`, and `ComponentTree`.
+3. **Implement versioned models (`builder/<version>`)**:
+   - Re-export shared `a2ui_core` models.
+   - Implement `Action`, `DynamicChildList`, and strict `Dynamic*` union aliases.
+   - Write local unit tests for negative validation, ID collisions, DAG deduplication, and core synchronization (Part 4).
+4. **Add emitter to `dart/a2ui_cli` and generate catalogs**:
+   - Implement the language emitter under `dart/a2ui_cli/lib/src/emitters/<lang>/`.
+   - Add CLI codegen conformance assertions in [`conformance/cli/codegen.yaml`](../../conformance/cli/codegen.yaml) and generate the `basic` catalog file.
+5. **Run cross-language conformance suite**:
+   - Implement a test runner for [`conformance/agent/builder/builder.yaml`](../../conformance/agent/builder/builder.yaml) verifying golden equality and schema validation.
+6. **Update codebase blueprint**:
+   - Add `typesafe_builder_api` under `implemented_features` in the codebase blueprint (`blueprints/codebases/<sdk_path>/codebase.blueprint.md`) and run `python3 blueprints/validate_blueprints.py`.
