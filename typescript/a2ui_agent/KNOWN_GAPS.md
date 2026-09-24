@@ -27,27 +27,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it blocks:** Legacy `v0.8` agents and alternative format use cases.
 - **Done looks like:** The `InferenceFormat` seam is populated with implementations for Express, Elemental, and Atom, and the `v0.8` conformance cases are enabled.
 
-### Streaming parser gaps against the canonical conformance suite
-
-- **What it is:** Eleven canonical conformance cases run as expected failures, registered with a reason each in `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Python passes all of them, so each is a real gap in this SDK.
-- **Why it exists:** The canonical streaming suite is 39 `v0.8` cases, 41 `v0.9` cases, and a single `v1.0` case. Until `v0.9` was enabled this package ran one canonical streaming case and relied on local hand-translated fixtures for everything else, which were too weak to catch these. The gaps are almost all version-independent; enabling `v0.9` made them visible rather than causing them.
-- **What it risks:** The parser emits components earlier than the protocol allows, dropping template-referenced children as orphans and yielding components whose required properties or children have not arrived yet. A renderer can receive a component it cannot yet draw.
-- **Done looks like:** `KNOWN_FAILURES` is empty. Because entries are expected failures rather than skips, fixing a gap turns its test red until the entry is removed.
-
-### No server-to-client envelope validation
-
-- **What it is:** Conformance cases declare `s2cSchema` and `commonTypesSchema`, and Python threads both into its own `A2uiCatalog` type and validates every message envelope against the s2c schema while streaming. This package builds on `web_core`'s `Catalog`, which models neither, so `tests/conformance/fixtures.ts` has nothing to hand them to and malformed envelopes pass straight through.
-- **Why it exists:** `web_core`'s `Catalog` is shaped for renderers, which receive envelopes rather than emit them.
-- **What it risks:** An agent can emit a `createSurface` that omits a required field or carries an unknown one, and nothing notices until the renderer rejects it.
-- **Done looks like:** The catalog abstraction carries the s2c and common types schemas, the streaming parser validates envelopes against them, and the two `No s2c envelope validation` entries leave `KNOWN_FAILURES`.
-
-### Conformance harness does not implement every action
-
-- **What it is:** The harness throws `Should not be executed` for the `generate_prompt` and `skill` actions, and hardcodes `progressiveKeys` instead of reading `customCuttableKeys` from the case. Three cases are registered as expected failures for this reason.
-- **Why it exists:** The harness was built for the `process_chunk` and `parse_full` actions that the `v1.0` cases use.
-- **What it risks:** Prompt generation has no canonical cross-language coverage in TypeScript, so it can drift from Python unnoticed.
-- **Done looks like:** The harness implements `generate_prompt` and honours `customCuttableKeys`, and the three harness entries leave `KNOWN_FAILURES`.
-
 ### `no-explicit-any` lint warnings
 
 - **What it is:** There are 34 eslint warnings for `no-explicit-any` in the codebase.
@@ -92,6 +71,20 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Tidy-up oversight in `web_core`.
 - **What it risks:** None; `Catalog.fromSchema` works and is actively used instead.
 - **Done looks like:** The export is properly wired in `web_core`, or the dead code is removed.
+
+### Catalog loader keeps a second copy of the common types map
+
+- **What it is:** `schema_loader.ts` resolves protocol `$ref`s through its own `COMMON_TYPE_SCHEMAS` table, a partial copy of the complete `CommonSchemas` map that `types/common-types.ts` already exports.
+- **Why it exists:** The two grew independently.
+- **What it risks:** The copy falls behind silently. It already has once: it lacked `Child`, so every v1.0 single-child reference resolved to nothing and the basic catalog lost its child references with no test noticing. That was fixed by adding the entry, not by removing the duplication, so the next new common type will hit the same wall.
+- **Done looks like:** The loader resolves against `CommonSchemas` directly and the local table is deleted.
+
+### Arrays of inline objects lose their child references
+
+- **What it is:** The catalog loader converts an array of inline anonymous objects to `z.array(z.record(z.unknown()))` rather than building the inner object schema. Any component reference inside those objects is invisible to reference analysis.
+- **Why it exists:** The loader handles named `$ref` item types but not inline `properties` on array items.
+- **What it risks:** `Tabs.tabs` is affected on both the v0.9 and v1.0 basic catalogs. `@a2ui/agent` compensates with a name-matching fallback in `src/utils/legacy_child_refs.ts`, which on the shipped catalogs claims exactly that one property. Every other consumer of the reference map gets no child reference for `Tabs` at all.
+- **Done looks like:** The loader builds a real object schema for inline array items, `Tabs.tabs` reports formal child references, and the fallback in `@a2ui/agent` can be deleted.
 
 ## 3. Specification & Blueprints
 
