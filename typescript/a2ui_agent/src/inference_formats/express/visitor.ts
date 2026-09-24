@@ -137,7 +137,7 @@ export type ExpressStatement = ExpressAssignStatement | ExpressExprStatement;
  * A syntax error tuple collected during lexing or parsing:
  * `[line, column, message, isLexer]`.
  */
-export type ExpressSyntaxError = [line: number, column: number, message: string, isLexer: boolean];
+export type ExpressErrorRecord = [line: number, column: number, message: string, isLexer: boolean];
 
 interface ExpressArgKeyword {
   type: 'kw';
@@ -194,7 +194,7 @@ export function unescapeString(val: string): string {
  * `[line, column, message, isLexer]`.
  */
 export class ExpressErrorListener extends BaseErrorListener {
-  readonly errors: ExpressSyntaxError[] = [];
+  readonly errors: ExpressErrorRecord[] = [];
 
   override syntaxError<S extends Token, T extends ATNSimulator>(
     recognizer: Recognizer<T>,
@@ -419,7 +419,7 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
  * Runs the parsing pipeline mirroring compiler.py:256-283.
  */
 export function parseExpress(source: string): {
-  errors: ExpressSyntaxError[];
+  errors: ExpressErrorRecord[];
   statements: ExpressStatement[];
 } {
   const inputStream = CharStream.fromString(source);
