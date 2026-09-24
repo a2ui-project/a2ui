@@ -212,7 +212,7 @@ export class RpcHandler {
     if (error) {
       const errCode = error.code ?? RpcErrorCode.UNKNOWN_ERROR;
       const errMsg = error.message ?? 'Agent function execution failed';
-      pending.reject(new A2uiRpcError(errCode, errMsg, functionCallId, error));
+      pending.reject(new A2uiRpcError(errMsg, errCode, functionCallId, error));
     } else {
       pending.resolve(value);
     }
@@ -235,14 +235,14 @@ export class RpcHandler {
   ): Promise<T> {
     if (this.isDisposed) {
       return Promise.reject(
-        new A2uiRpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'),
+        new A2uiRpcError('RpcHandler has been disposed.', RpcErrorCode.DISPOSED),
       );
     }
     if (!this.outboundListener) {
       return Promise.reject(
         new A2uiRpcError(
-          RpcErrorCode.NO_LISTENER,
           'Cannot call agent function without outboundListener configured.',
+          RpcErrorCode.NO_LISTENER,
         ),
       );
     }
@@ -250,8 +250,8 @@ export class RpcHandler {
     if (!call || !call.call) {
       return Promise.reject(
         new A2uiRpcError(
-          RpcErrorCode.INVALID_FUNCTION_CALL,
           'Missing or invalid function call name.',
+          RpcErrorCode.INVALID_FUNCTION_CALL,
         ),
       );
     }
@@ -263,8 +263,8 @@ export class RpcHandler {
     if (this.pendingAgentCalls.has(functionCallId)) {
       return Promise.reject(
         new A2uiRpcError(
-          RpcErrorCode.DUPLICATE,
           `A call with functionCallId '${functionCallId}' is already pending.`,
+          RpcErrorCode.DUPLICATE,
           functionCallId,
         ),
       );
@@ -289,8 +289,8 @@ export class RpcHandler {
     for (const [id, pending] of this.pendingAgentCalls.entries()) {
       pending.reject(
         new A2uiRpcError(
-          RpcErrorCode.CANCELLED,
           `RpcHandler disposed while call '${id}' was pending.`,
+          RpcErrorCode.CANCELLED,
           id,
         ),
       );
@@ -577,8 +577,8 @@ export class RpcHandler {
         cleanup();
         reject(
           new A2uiRpcError(
-            RpcErrorCode.TIMEOUT,
             `Agent function call '${callName}' timed out after ${timeoutMs}ms.`,
+            RpcErrorCode.TIMEOUT,
             functionCallId,
           ),
         );

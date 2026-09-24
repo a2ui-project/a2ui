@@ -216,21 +216,31 @@ export class A2uiRpcError extends A2uiError {
   /**
    * Initializes a new `A2uiRpcError` instance.
    *
-   * @param code Category code or string identifying the RPC error.
-   * @param message Human-readable error description.
+   * Supports both the blueprint-standard `(message, code, functionCallId?, details?)`
+   * parameter order and legacy `(code, message, functionCallId?, details?)` calls.
+   *
+   * @param messageOrCode Human-readable error description (or legacy `RpcErrorCode`).
+   * @param codeOrMessage Category code or string identifying the RPC error (or legacy message).
    * @param functionCallId Optional identifier of the failed function call.
    * @param details Optional structured error details.
    */
   constructor(
-    code: RpcErrorCode | string,
-    message: string,
+    messageOrCode: string,
+    codeOrMessage: RpcErrorCode | string = RpcErrorCode.UNKNOWN_ERROR,
     /** Identifier of the failed function call, if available. */
     public readonly functionCallId?: string,
     /** Structured error details or original error cause, if available. */
     public readonly details?: unknown,
   ) {
-    const resolvedCode = code || RpcErrorCode.UNKNOWN_ERROR;
-    super(`[${resolvedCode}] ${message}`, resolvedCode);
+    const isFirstArgKnownCode = Object.values(RpcErrorCode).includes(messageOrCode as RpcErrorCode);
+    const isSecondArgKnownCode = Object.values(RpcErrorCode).includes(
+      codeOrMessage as RpcErrorCode,
+    );
+    const [resolvedMessage, resolvedCode] =
+      isFirstArgKnownCode && !isSecondArgKnownCode
+        ? [String(codeOrMessage || ''), messageOrCode || RpcErrorCode.UNKNOWN_ERROR]
+        : [messageOrCode, codeOrMessage || RpcErrorCode.UNKNOWN_ERROR];
+    super(`[${resolvedCode}] ${resolvedMessage}`, resolvedCode);
     this.name = 'A2uiRpcError';
   }
 }

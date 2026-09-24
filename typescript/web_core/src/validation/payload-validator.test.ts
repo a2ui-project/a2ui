@@ -445,4 +445,25 @@ describe('PayloadValidator', () => {
       A2uiValidationError,
     );
   });
+
+  it('throws A2uiValidationError when validateFunction args exceed MAX_FUNCTION_CALL_ARGS (1000)', () => {
+    const cat = new Catalog(
+      'https://example.com/v10',
+      '1.0',
+      [],
+      [{name: 'upper', returnType: 'string', schema: z.object({}).passthrough()}],
+    );
+    const validator = new PayloadValidator(cat, STRICT_VALIDATION);
+    const oversizedArgs: Record<string, unknown> = {};
+    for (let i = 0; i <= 1000; i++) {
+      oversizedArgs[`arg_${i}`] = i;
+    }
+
+    assert.throws(
+      () => validator.validateFunction('upper', oversizedArgs),
+      (err: unknown) =>
+        err instanceof A2uiValidationError &&
+        err.message.includes('exceeds maximum allowed arguments count (1000)'),
+    );
+  });
 });

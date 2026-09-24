@@ -19,6 +19,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
+import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
 import type {ValidationConfig} from './integrity-checker.js';
 
@@ -201,6 +202,14 @@ export class PayloadValidator {
    */
   validateFunction(name: string, args?: Record<string, unknown>): Record<string, unknown> {
     this.assertFunctionIdentifiers(name, args);
+
+    if (args && typeof args === 'object' && !Array.isArray(args)) {
+      if (Object.keys(args).length > MAX_FUNCTION_CALL_ARGS) {
+        throw new A2uiValidationError(
+          `Function call '${name}' exceeds maximum allowed arguments count (${MAX_FUNCTION_CALL_ARGS})`,
+        );
+      }
+    }
 
     const fn =
       this.catalog.functions.get(name) ??

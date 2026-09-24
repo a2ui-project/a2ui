@@ -876,4 +876,24 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: normalized');
     assert.strictEqual(res.rendererFunctionResponse.error, undefined);
   });
+
+  it('supports both blueprint-standard (message, code) and legacy (code, message) in A2uiRpcError', () => {
+    const standardErr = new A2uiRpcError('Something failed', RpcErrorCode.TIMEOUT, 'call-1');
+    assert.strictEqual(standardErr.code, 'TIMEOUT');
+    assert.strictEqual(standardErr.message, '[TIMEOUT] Something failed');
+    assert.strictEqual(standardErr.functionCallId, 'call-1');
+
+    const legacyErr = new A2uiRpcError(RpcErrorCode.TIMEOUT, 'Something failed', 'call-1');
+    assert.strictEqual(legacyErr.code, 'TIMEOUT');
+    assert.strictEqual(legacyErr.message, '[TIMEOUT] Something failed');
+    assert.strictEqual(legacyErr.functionCallId, 'call-1');
+
+    const customCodeErr = new A2uiRpcError('Server blew up', 'SERVER_FAULT', 'call-2', {
+      status: 500,
+    });
+    assert.strictEqual(customCodeErr.code, 'SERVER_FAULT');
+    assert.strictEqual(customCodeErr.message, '[SERVER_FAULT] Server blew up');
+    assert.strictEqual(customCodeErr.functionCallId, 'call-2');
+    assert.deepStrictEqual(customCodeErr.details, {status: 500});
+  });
 });

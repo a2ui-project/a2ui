@@ -37,6 +37,8 @@ export interface ActionPayload {
    * resolved the call.
    */
   catalogId?: string;
+  /** Optional user-facing message explaining the action. */
+  userMessage?: string;
   [key: string]: unknown;
 }
 
@@ -218,6 +220,10 @@ export class SurfaceModel<
       // distinguish an explicit override from default-catalog resolution.
       if (typeof eventPayload.catalogId === 'string' && eventPayload.catalogId) {
         actionToDispatch.catalogId = eventPayload.catalogId;
+      }
+
+      if (eventPayload.userMessage !== undefined && eventPayload.userMessage !== null) {
+        actionToDispatch.userMessage = String(eventPayload.userMessage);
       }
 
       await this._onAction.emit(actionToDispatch);

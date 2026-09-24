@@ -178,4 +178,15 @@ describe('SurfaceModel', () => {
     const standaloneSurface = new SurfaceModel('s-standalone', catalog);
     assert.strictEqual(standaloneSurface.availableCatalogs.get(catalog.id), catalog);
   });
+
+  it('preserves userMessage (coerced to string) on emitted ActionPayload', async () => {
+    await surface.dispatchAction(
+      {event: {name: 'submit', userMessage: 'Submitted form', context: {ok: true}}},
+      'btn-1',
+    );
+    await surface.dispatchAction({event: {name: 'numericMsg', userMessage: 42}}, 'btn-2');
+    assert.strictEqual(actions.length, 2);
+    assert.strictEqual(actions[0].userMessage, 'Submitted form');
+    assert.strictEqual(actions[1].userMessage, '42');
+  });
 });
