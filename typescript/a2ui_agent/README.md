@@ -2,7 +2,40 @@
 
 A2UI Agent SDK for TypeScript and Node.js.
 
-This package targets the A2UI protocol **v1.0** only, and currently supports the **Direct JSON** inference format.
+This package targets the A2UI protocol **v0.9** and **v1.0**, and currently supports the **Direct JSON** inference format. The emitted protocol version is derived from the catalog.
+
+## Regenerating the Express parser
+
+The Express lexer, parser, and visitor in `src/inference_formats/express/generated/` are
+generated from the specification grammar at `specification/inference_formats/express/Express.g4`.
+The generated files are checked in, so building, testing, and using this package never runs the
+generator. Regenerate them only when the grammar changes.
+
+The generator is [antlr-ng](https://www.antlr-ng.org/introduction.html), a TypeScript port of the
+ANTLR 4.13.2 tool published on npm. It is a devDependency of this package, so `yarn install` is
+all the setup needed, with no Java. Its generated code targets the
+[`antlr4ng`](https://www.npmjs.com/package/antlr4ng) runtime, which is a runtime dependency. Both
+are pinned to exact versions, because `antlr-ng` pins the `antlr4ng` version it generates for.
+
+From the repository root, run:
+
+```sh
+yarn workspace @a2ui/agent generate:express
+```
+
+This runs
+`antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference_formats/express/generated ../../specification/inference_formats/express/Express.g4`,
+matching the Python SDK's options (a visitor and no listener).
+
+The Python SDK generates its parser with the official ANTLR 4.13.2 Java tool. The two SDKs parse
+identically because their serialized ATNs, the tables that drive every lexing and parsing
+decision, are identical. `tests/unit/inference_formats/express/generated_parser.test.ts` compares
+both ATNs against Python's checked-in parser and fails if either SDK is regenerated from a
+different grammar. When the grammar changes, regenerate both SDKs in the same change.
+
+The generated directory is excluded from ESLint and Prettier, so a regeneration diff shows only
+real grammar changes. When the grammar adds a parser rule, add a matching visitor override in
+both SDKs.
 
 ## Temporary shims
 
