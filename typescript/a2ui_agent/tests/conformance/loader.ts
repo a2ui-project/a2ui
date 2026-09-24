@@ -58,7 +58,23 @@ export const KNOWN_FAILURES = new Map<string, string>([]);
 
 const SUPPORTED_FORMATS = new Set(['direct_json']);
 
+/**
+ * Conformance actions this SDK has no implementation for. Their cases are skipped with the
+ * reason given, rather than falling through the harness and passing without running.
+ */
+const UNIMPLEMENTED_ACTIONS = new Map<string, string>([
+  ['from_format', 'skill generation is not implemented'],
+  ['core_syntax', 'skill generation is not implemented'],
+  ['from_catalog', 'skill generation is not implemented'],
+  ['skill_set', 'skill generation is not implemented'],
+]);
+
 export function classify(testCase: TestCase) {
+  const unimplemented = UNIMPLEMENTED_ACTIONS.get(testCase.action);
+  if (unimplemented) {
+    return {runnable: false, reason: unimplemented};
+  }
+
   let version = 'unversioned';
   if (testCase.args?.version) {
     version = testCase.args.version as string;

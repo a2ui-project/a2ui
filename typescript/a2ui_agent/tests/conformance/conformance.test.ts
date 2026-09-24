@@ -285,6 +285,8 @@ describe('Conformance Harness', () => {
         }
       } else if (action === 'skill') {
         throw new Error('Should not be executed');
+      } else {
+        throw new Error(`Unhandled conformance action: ${action}`);
       }
     };
 
