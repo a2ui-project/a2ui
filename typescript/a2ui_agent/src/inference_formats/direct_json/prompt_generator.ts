@@ -23,6 +23,8 @@ import {
   DEFAULT_WORKFLOW_RULES,
 } from '../../parser/constants.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {DEFAULT_PROTOCOL_VERSION} from '../../utils/protocol_version.js';
+import {getProtocolSchemas} from '../../utils/protocol_schemas.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 export class DirectJsonPromptGenerator extends PromptGenerator {
@@ -47,9 +49,28 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     const instructions = catalog.instructions || '';
     const prefix = instructions ? `${instructions}\n\n` : '';
 
-    const schemaJson = JSON.stringify(catalog.catalogSchema, null, 2);
+    // A failure to load the protocol schemas is not something to paper over. Emitting the
+    // block with an empty server-to-client schema would produce a prompt that looks valid
+    // and instructs the model to generate against nothing, which fails far from the cause.
+    const version = catalog.protocolVersion || DEFAULT_PROTOCOL_VERSION;
+    const schemas = getProtocolSchemas(version);
 
-    return `${prefix}${A2UI_SCHEMA_BLOCK_START}\n${schemaJson}\n${A2UI_SCHEMA_BLOCK_END}`;
+    const allSchemas: string[] = [A2UI_SCHEMA_BLOCK_START];
+
+    allSchemas.push(`### Server To Client Schema:\n${JSON.stringify(schemas.serverToClient)}`);
+
+    // Python emits this section only when the common types actually define something, so a
+    // version whose common types are empty produces no section rather than an empty one.
+    const defs = schemas.commonTypes.$defs;
+    if (typeof defs === 'object' && defs !== null && Object.keys(defs).length > 0) {
+      allSchemas.push(`### Common Types Schema:\n${JSON.stringify(schemas.commonTypes)}`);
+    }
+
+    allSchemas.push(`### Catalog Schema:\n${JSON.stringify(catalog.catalogSchema ?? {})}`);
+
+    allSchemas.push(A2UI_SCHEMA_BLOCK_END);
+
+    return `${prefix}${allSchemas.join('\n\n')}`;
   }
 
   protected renderExamples(catalog: SchemaCatalog, _validate: boolean): string {

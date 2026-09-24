@@ -39,8 +39,11 @@ describe('DirectJsonPromptGenerator', () => {
     const instructions = generator.generateCatalogInstructions(true);
     expect(instructions).toContain('---BEGIN A2UI JSON SCHEMA---');
     expect(instructions).toContain('---END A2UI JSON SCHEMA---');
+    expect(instructions).toContain('### Server To Client Schema:');
+    expect(instructions).toContain('### Common Types Schema:');
+    expect(instructions).toContain('### Catalog Schema:');
     // Ensure the schema json is present inside the block
-    expect(instructions).toContain('"components": {');
+    expect(instructions).toContain('"components":{');
   });
 
   it('generates empty catalog instructions if includeSchema is false', () => {
