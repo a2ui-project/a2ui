@@ -20,6 +20,8 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {z} from 'zod';
 import {Catalog} from './types.js';
+import {analyzeChildRefSchema} from './reference-map.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 
 describe('Catalog.fromSchema & schema_loader', () => {
   const basicCatalogPath = resolve(
@@ -161,6 +163,43 @@ describe('Catalog.fromSchema & schema_loader', () => {
     const shape = (input.schema as z.ZodObject<any>).shape;
     assert.ok(shape.checks);
     assert.ok(shape.label);
+  });
+
+  it('resolves the Child reference from common_types.json', () => {
+    const v10BasicCatalogPath = resolve(process.cwd(), '../../catalogs/basic/v1/catalog.json');
+    const v10BasicCatalogJson = JSON.parse(readFileSync(v10BasicCatalogPath, 'utf-8'));
+    const catalog = Catalog.fromSchema(v10BasicCatalogJson);
+
+    // The regression was not that the description stamp went missing, but that
+    // `analyzeChildRefSchema` stopped reporting these properties as child references at
+    // all, which silently emptied the reference map for v1.0. Assert the outcome, and the
+    // stamp only as a secondary detail.
+    const expectedChildProps: ReadonlyArray<readonly [string, string]> = [
+      ['Card', 'child'],
+      ['Button', 'child'],
+      ['Modal', 'trigger'],
+      ['Modal', 'content'],
+    ];
+
+    for (const [componentName, propName] of expectedChildProps) {
+      const component = catalog.components.get(componentName);
+      assert.ok(component, `${componentName} is missing from the v1.0 basic catalog`);
+
+      const shape = (component.schema as z.ZodObject<any>).shape;
+      const prop = shape[propName];
+      assert.ok(prop, `${componentName}.${propName} is missing`);
+
+      const analysis = analyzeChildRefSchema(prop, V10_CHILD_REF_OPTIONS);
+      assert.equal(
+        analysis.isChild,
+        true,
+        `${componentName}.${propName} is not recognised as a child reference`,
+      );
+      assert.ok(
+        prop.description?.includes('REF:common_types.json#/$defs/Child'),
+        `${componentName}.${propName} lost its REF description stamp`,
+      );
+    }
   });
 
   it('ignores an external reference that names no canonical protocol type', () => {
