@@ -17,6 +17,39 @@
 import {SchemaCatalog} from '../types.js';
 import {CatalogTransformer} from './base.js';
 import {Catalog} from '../internal/web_core.js';
+import {
+  hasCatalogDocument,
+  getCatalogDocument,
+  registerCatalogDocument,
+} from '../utils/catalog_document.js';
+
+/**
+ * Registers a pruned copy of the source catalog's JSON document for the
+ * pruned catalog, keeping only the allowed entries of one section.
+ *
+ * Does nothing if the source catalog has no registered document.
+ */
+function registerPrunedDocument(
+  source: SchemaCatalog,
+  pruned: SchemaCatalog,
+  section: 'components' | 'functions',
+  allowed: Set<string>,
+): void {
+  if (!hasCatalogDocument(source)) {
+    return;
+  }
+  const doc = getCatalogDocument(source);
+  const entries = doc[section];
+  const kept: Record<string, unknown> = {};
+  if (entries && typeof entries === 'object') {
+    for (const [name, schema] of Object.entries(entries as Record<string, unknown>)) {
+      if (allowed.has(name)) {
+        kept[name] = schema;
+      }
+    }
+  }
+  registerCatalogDocument(pruned, {...doc, [section]: kept});
+}
 
 /**
  * Prunes catalog component definitions to an allowlist of allowed components.
@@ -46,7 +79,7 @@ export class ComponentPruningTransformer implements CatalogTransformer {
     );
     const functions = Array.from(catalog.functions.values());
 
-    return new Catalog(
+    const result = new Catalog(
       catalog.id,
       prunedComponents,
       functions,
@@ -54,6 +87,10 @@ export class ComponentPruningTransformer implements CatalogTransformer {
       catalog.instructions,
       catalog.protocolVersion,
     );
+
+    registerPrunedDocument(catalog, result, 'components', this.allowedComponents);
+
+    return result;
   }
 }
 
@@ -85,7 +122,7 @@ export class FunctionPruningTransformer implements CatalogTransformer {
       this.allowedFunctions.has(f.name),
     );
 
-    return new Catalog(
+    const result = new Catalog(
       catalog.id,
       components,
       prunedFunctions,
@@ -93,5 +130,9 @@ export class FunctionPruningTransformer implements CatalogTransformer {
       catalog.instructions,
       catalog.protocolVersion,
     );
+
+    registerPrunedDocument(catalog, result, 'functions', this.allowedFunctions);
+
+    return result;
   }
 }
