@@ -136,7 +136,13 @@ export class PayloadValidator {
   private assertFunctionIdentifiers(name: string, args: unknown): void {
     this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`);
     if (args && typeof args === 'object' && !Array.isArray(args)) {
-      for (const argName of Object.keys(args)) {
+      const keys = Object.keys(args);
+      if (keys.length > MAX_FUNCTION_CALL_ARGS) {
+        throw new A2uiValidationError(
+          `Function call '${name}' exceeds maximum allowed arguments count (${MAX_FUNCTION_CALL_ARGS})`,
+        );
+      }
+      for (const argName of keys) {
         this.assertIdentifier(
           argName,
           `Function argument '${argName}' in function '${name}' must be a valid UAX #31 identifier`,
@@ -202,14 +208,6 @@ export class PayloadValidator {
    */
   validateFunction(name: string, args?: Record<string, unknown>): Record<string, unknown> {
     this.assertFunctionIdentifiers(name, args);
-
-    if (args && typeof args === 'object' && !Array.isArray(args)) {
-      if (Object.keys(args).length > MAX_FUNCTION_CALL_ARGS) {
-        throw new A2uiValidationError(
-          `Function call '${name}' exceeds maximum allowed arguments count (${MAX_FUNCTION_CALL_ARGS})`,
-        );
-      }
-    }
 
     const fn =
       this.catalog.functions.get(name) ??

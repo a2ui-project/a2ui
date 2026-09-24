@@ -454,11 +454,14 @@ describe('PayloadValidator', () => {
       [{name: 'upper', returnType: 'string', schema: z.object({}).passthrough()}],
     );
     const validator = new PayloadValidator(cat, STRICT_VALIDATION);
-    const oversizedArgs: Record<string, unknown> = {};
-    for (let i = 0; i <= 1000; i++) {
-      oversizedArgs[`arg_${i}`] = i;
-    }
+    const exactLimitArgs = Object.fromEntries(
+      Array.from({length: 1000}, (_, i) => [`arg_${i}`, 'val']),
+    );
+    const oversizedArgs = Object.fromEntries(
+      Array.from({length: 1001}, (_, i) => [`arg_${i}`, 'val']),
+    );
 
+    assert.doesNotThrow(() => validator.validateFunction('upper', exactLimitArgs));
     assert.throws(
       () => validator.validateFunction('upper', oversizedArgs),
       (err: unknown) =>

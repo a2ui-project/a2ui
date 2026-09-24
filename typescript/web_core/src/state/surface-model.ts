@@ -179,55 +179,45 @@ export class SurfaceModel<
    * @returns A promise that resolves once all registered listeners have processed the action.
    */
   async dispatchAction(payload: any, sourceComponentId: string): Promise<void> {
-    if (payload && typeof payload === 'object') {
-      let eventPayload: any = null;
-      if ('event' in payload && payload.event && typeof payload.event === 'object') {
-        eventPayload = payload.event;
-      } else if (
-        'functionCall' in payload &&
-        payload.functionCall &&
-        typeof payload.functionCall === 'object'
-      ) {
-        eventPayload = payload.functionCall;
-      } else if ('name' in payload || 'call' in payload) {
-        eventPayload = payload;
-      }
-
-      if (!eventPayload) {
-        return;
-      }
-
-      const name = eventPayload.name || eventPayload.call;
-      if (!name || typeof name !== 'string') {
-        return;
-      }
-
-      const rawContext = eventPayload.context ?? eventPayload.args;
-      const context =
-        rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)
-          ? (rawContext as Record<string, unknown>)
-          : {};
-
-      const actionToDispatch: ActionPayload = {
-        name,
-        surfaceId: this.id,
-        sourceComponentId,
-        timestamp: new Date().toISOString(),
-        context,
-      };
-
-      // Only set the key when the payload named a catalog, so listeners can
-      // distinguish an explicit override from default-catalog resolution.
-      if (typeof eventPayload.catalogId === 'string' && eventPayload.catalogId) {
-        actionToDispatch.catalogId = eventPayload.catalogId;
-      }
-
-      if (eventPayload.userMessage !== undefined && eventPayload.userMessage !== null) {
-        actionToDispatch.userMessage = String(eventPayload.userMessage);
-      }
-
-      await this._onAction.emit(actionToDispatch);
+    if (!payload || typeof payload !== 'object') {
+      return;
     }
+
+    const eventPayload = extractActionTarget(payload);
+    if (!eventPayload) {
+      return;
+    }
+
+    const name = eventPayload.name || eventPayload.call;
+    if (!name || typeof name !== 'string') {
+      return;
+    }
+
+    const rawContext = eventPayload.context ?? eventPayload.args;
+    const context =
+      rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)
+        ? (rawContext as Record<string, unknown>)
+        : {};
+
+    const actionToDispatch: ActionPayload = {
+      name,
+      surfaceId: this.id,
+      sourceComponentId,
+      timestamp: new Date().toISOString(),
+      context,
+    };
+
+    // Only set the key when the payload named a catalog, so listeners can
+    // distinguish an explicit override from default-catalog resolution.
+    if (typeof eventPayload.catalogId === 'string' && eventPayload.catalogId) {
+      actionToDispatch.catalogId = eventPayload.catalogId;
+    }
+
+    if (eventPayload.userMessage != null && typeof eventPayload.userMessage !== 'object') {
+      actionToDispatch.userMessage = String(eventPayload.userMessage);
+    }
+
+    await this._onAction.emit(actionToDispatch);
   }
 
   /**
@@ -266,4 +256,27 @@ export class SurfaceModel<
     this._onError.dispose();
     this._onWarning.dispose();
   }
+}
+
+/**
+ * Extracts the inner action target payload (`event`, `functionCall`, or direct action payload).
+ *
+ * @param payload Raw action payload object.
+ * @returns The unwrapped action object, or `null` if none is present.
+ */
+function extractActionTarget(payload: Record<string, any>): Record<string, any> | null {
+  if ('event' in payload && payload.event && typeof payload.event === 'object') {
+    return payload.event;
+  }
+  if (
+    'functionCall' in payload &&
+    payload.functionCall &&
+    typeof payload.functionCall === 'object'
+  ) {
+    return payload.functionCall;
+  }
+  if ('name' in payload || 'call' in payload) {
+    return payload;
+  }
+  return null;
 }

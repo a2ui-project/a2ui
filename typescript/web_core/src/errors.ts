@@ -209,21 +209,35 @@ export enum RpcErrorCode {
   NO_LISTENER = 'NO_LISTENER',
 }
 
+const KNOWN_RPC_ERROR_CODES: ReadonlySet<string> = new Set(Object.values(RpcErrorCode));
+
 /**
  * Error thrown when an A2UI RPC operation fails, times out, or is cancelled.
  */
 export class A2uiRpcError extends A2uiError {
   /**
-   * Initializes a new `A2uiRpcError` instance.
+   * Initializes a new `A2uiRpcError` instance using the blueprint-standard parameter order.
    *
-   * Supports both the blueprint-standard `(message, code, functionCallId?, details?)`
-   * parameter order and legacy `(code, message, functionCallId?, details?)` calls.
-   *
-   * @param messageOrCode Human-readable error description (or legacy `RpcErrorCode`).
-   * @param codeOrMessage Category code or string identifying the RPC error (or legacy message).
+   * @param message Human-readable error description.
+   * @param code Category code or string identifying the RPC error.
    * @param functionCallId Optional identifier of the failed function call.
    * @param details Optional structured error details.
    */
+  constructor(
+    message: string,
+    code?: RpcErrorCode | string,
+    functionCallId?: string,
+    details?: unknown,
+  );
+  /**
+   * Initializes a new `A2uiRpcError` instance using the `(code, message)` parameter order.
+   *
+   * @param code Category code identifying the RPC error.
+   * @param message Human-readable error description.
+   * @param functionCallId Optional identifier of the failed function call.
+   * @param details Optional structured error details.
+   */
+  constructor(code: RpcErrorCode, message: string, functionCallId?: string, details?: unknown);
   constructor(
     messageOrCode: string,
     codeOrMessage: RpcErrorCode | string = RpcErrorCode.UNKNOWN_ERROR,
@@ -232,15 +246,12 @@ export class A2uiRpcError extends A2uiError {
     /** Structured error details or original error cause, if available. */
     public readonly details?: unknown,
   ) {
-    const isFirstArgKnownCode = Object.values(RpcErrorCode).includes(messageOrCode as RpcErrorCode);
+    const isFirstArgKnownCode = KNOWN_RPC_ERROR_CODES.has(messageOrCode);
     const isSecondArgLikeMessage =
       typeof codeOrMessage === 'string' && (/[a-z\s]/.test(codeOrMessage) || codeOrMessage === '');
     const [resolvedMessage, resolvedCode] =
       isFirstArgKnownCode && isSecondArgLikeMessage
-        ? [
-            codeOrMessage !== undefined && codeOrMessage !== null ? String(codeOrMessage) : '',
-            messageOrCode || RpcErrorCode.UNKNOWN_ERROR,
-          ]
+        ? [codeOrMessage, messageOrCode]
         : [messageOrCode, codeOrMessage || RpcErrorCode.UNKNOWN_ERROR];
     super(`[${resolvedCode}] ${resolvedMessage}`, resolvedCode);
     this.name = 'A2uiRpcError';
