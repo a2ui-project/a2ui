@@ -65,10 +65,6 @@ export const KNOWN_FAILURES = new Map<string, string>([
   // where Python holds it back until it satisfies the catalog schema and its children
   // resolve.
   [
-    'test_sniff_partial_component_enforces_required_fields_v09',
-    'Yields before required props arrive',
-  ],
-  [
     'test_partial_children_lists_v09',
     'Yields with unresolved children when no placeholder type exists',
   ],
