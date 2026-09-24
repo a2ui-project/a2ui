@@ -237,3 +237,17 @@ export class ExpressSyntaxError extends ExpressParseError {
     this.isLexer = isLexer;
   }
 }
+
+/**
+ * Raised when a generated inline component ID collides with an existing component or variable ID.
+ */
+export class ExpressIdCollisionError extends ExpressValidationError {
+  readonly idName: string;
+  constructor(idName: string) {
+    super(
+      `Generated inline component ID '${idName}' collides with an existing component or variable ID.`,
+    );
+    this.name = 'ExpressIdCollisionError';
+    this.idName = idName;
+  }
+}

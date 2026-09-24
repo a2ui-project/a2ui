@@ -68,6 +68,20 @@ describe('ExpressFormat', () => {
     expect(() => parser.parseChunk('chunk')).toThrow('Streaming is not supported by ExpressParser');
   });
 
+  describe('Version handling', () => {
+    it('defaults to catalog version v0.9', () => {
+      const format = new ExpressFormat([catalog2]);
+      const parser = format.createParser();
+      expect((parser as unknown as {version: string}).version).toBe('v0.9');
+    });
+
+    it('throws A2uiCatalogError on explicit version mismatch', () => {
+      expect(() => new ExpressFormat([catalog2], {version: 'v1.0'})).toThrow(
+        /Requested protocol version 'v1.0' does not match catalog version 'v0.9'/,
+      );
+    });
+  });
+
   describe('ExpressFormatFactory', () => {
     it('creates an ExpressFormat instance with factory options', () => {
       const factory = new ExpressFormatFactory({surfaceId: 'factory_surface', version: 'v1.0'});

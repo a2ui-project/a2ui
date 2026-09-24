@@ -321,7 +321,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressValidationError for standalone function calls on v0.9', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v0.9');
+      const compiler = new ExpressCompiler(basicCatalog('v0.9'), 'v0.9');
       expect(() => compiler.compile('openUrl("https://example.com")')).toThrow(
         ExpressValidationError,
       );

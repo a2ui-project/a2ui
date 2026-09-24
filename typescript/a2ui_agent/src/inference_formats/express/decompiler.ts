@@ -131,24 +131,21 @@ export function isComponentReferenceProperty(propSchema: unknown): boolean {
 export function decompileString(val: string): string {
   const hasNewline = val.includes('\n') || val.includes('\r');
   const hasTab = val.includes('\t');
-  const hasQuote = val.includes('"');
   const hasBackslash = val.includes('\\');
 
-  // 1. Use triple-quotes for multi-line or strings containing double quotes
-  if ((hasQuote || hasNewline) && !val.endsWith('"')) {
-    if (!val.includes('"""')) {
-      // Use raw triple quotes if there are backslashes but no tabs
-      if (hasBackslash && !hasTab) {
-        return `r"""${val}"""`;
-      }
-      // Otherwise standard triple quotes
-      const escaped = val.replaceAll('\\', '\\\\').replaceAll('\t', '\\t');
-      return `"""${escaped}"""`;
+  // 1. Multi-line strings use triple-quotes
+  if (hasNewline && !val.endsWith('"') && !val.includes('"""')) {
+    // Use raw triple quotes if there are backslashes but no tabs
+    if (hasBackslash && !hasTab) {
+      return `r"""${val}"""`;
     }
+    // Otherwise standard triple quotes
+    const escaped = val.replaceAll('\\', '\\\\').replaceAll('\t', '\\t');
+    return `"""${escaped}"""`;
   }
 
   // 2. Use single-line raw string if it has backslashes but no quotes/tabs/newlines
-  if (hasBackslash && !hasNewline && !hasTab && !hasQuote) {
+  if (hasBackslash && !hasNewline && !hasTab && !val.includes('"')) {
     return `r"${val}"`;
   }
 
@@ -236,23 +233,32 @@ export class ExpressDecompiler {
       return `deleteSurface("${surfaceId}")`;
     }
 
-    // Handle updateDataModel action (known gap: standalone updateDataModel writes no surface line)
+    // Handle updateDataModel action
     if (
       'updateDataModel' in envelope &&
       envelope.updateDataModel &&
       typeof envelope.updateDataModel === 'object'
     ) {
       const valOp = envelope.updateDataModel as Record<string, unknown>;
+      const surfaceId = typeof valOp.surfaceId === 'string' ? valOp.surfaceId : '';
+      const rawPath = typeof valOp.path === 'string' ? valOp.path : '';
+      const basePath = rawPath.replace(/\/+$/, '');
       const dataVal = valOp.value ?? {};
       const dslLines: string[] = [];
+
+      if (surfaceId) {
+        dslLines.push(`surface("${surfaceId}")`);
+      }
+
       // Python tests `if data_val:`, so any truthy value is written, including a string
       // or a list, not only an object.
       if (isPythonTruthy(dataVal)) {
         const flattened = flattenDataModel(dataVal);
         flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-        for (const [path, val] of flattened) {
+        for (const [leafPath, val] of flattened) {
+          const combinedPath = basePath ? `${basePath}${leafPath}` : leafPath;
           const valStr = this.decompileValue(val, new Set(), false);
-          dslLines.push(`$${path} = ${valStr}`);
+          dslLines.push(`$${combinedPath} = ${valStr}`);
         }
       }
       return dslLines.join('\n');
@@ -536,9 +542,10 @@ export class ExpressDecompiler {
         const name = typeof evt.name === 'string' ? evt.name : '';
         const ctx = (evt.context ?? {}) as Record<string, unknown>;
         const ctxReprs: string[] = [];
+        const identRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
         for (const [k, v] of Object.entries(ctx)) {
-          // Python known gap: non-identifier map keys in Event context are written unquoted
-          ctxReprs.push(`${k}: ${this.decompileValue(v, compIds, false)}`);
+          const kRepr = identRegex.test(k) ? k : decompileString(k);
+          ctxReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, false)}`);
         }
         if (ctxReprs.length > 0) {
           return `Event("${name}", {${ctxReprs.join(', ')}})`;
