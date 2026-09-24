@@ -110,10 +110,17 @@ class A2uiRpcError(A2uiError):
     def __init__(
         self,
         message: str,
-        function_call_id: str | None = None,
         code: str = RpcErrorCode.UNKNOWN_ERROR.value,
+        function_call_id: str | None = None,
         details: list[A2uiErrorDetail] | None = None,
     ) -> None:
-        super().__init__(message, details=details)
-        self.code: str = code.value if isinstance(code, RpcErrorCode) else str(code)
+        code_str = code.value if isinstance(code, RpcErrorCode) else str(code)
+        msg_str = message.value if isinstance(message, RpcErrorCode) else str(message)
+        if (
+            msg_str in RpcErrorCode._value2member_map_
+            and code_str not in RpcErrorCode._value2member_map_
+        ):
+            msg_str, code_str = code_str, msg_str
+        super().__init__(msg_str, details=details)
+        self.code: str = code_str
         self.function_call_id: str | None = function_call_id

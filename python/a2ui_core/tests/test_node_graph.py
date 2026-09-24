@@ -824,3 +824,29 @@ props:
 
     node_graph.dispose()
     surface.dispose()
+
+
+def test_node_resolver_alias_and_exports():
+    from a2ui.core import ComponentNode as CoreComponentNode, NodeResolver as CoreNodeResolver
+    from a2ui.core.resolution import (
+        ComponentNode as ResComponentNode,
+        NodeGraph as ResNodeGraph,
+        NodeResolver as ResNodeResolver,
+    )
+    from a2ui.core.state import NodeResolver as StateNodeResolver
+
+    assert ResNodeResolver is ResNodeGraph
+    assert CoreNodeResolver is ResNodeResolver
+    assert StateNodeResolver is ResNodeResolver
+    assert CoreComponentNode is ResComponentNode
+
+    catalog = BasicCatalog()
+    surface = SurfaceModel("surf-resolver", catalog)
+    resolver = ResNodeResolver(surface)
+    surface.components_model.add_component(
+        ComponentModel("root", "Text", {"text": "Resolved"})
+    )
+    assert resolver.rootNode.value is not None
+    assert resolver.rootNode.value.props.value["text"] == "Resolved"
+    resolver.dispose()
+    surface.dispose()

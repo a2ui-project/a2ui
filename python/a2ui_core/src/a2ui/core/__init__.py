@@ -35,6 +35,11 @@ from a2ui.core.processing import (
     MessageProcessor as MessageProcessor,
     MessageProcessorOptions as MessageProcessorOptions,
 )
+from a2ui.core.resolution import (
+    ComponentNode as ComponentNode,
+    NodeGraph as NodeGraph,
+    NodeResolver as NodeResolver,
+)
 from a2ui.core.rpc import CallOptions as CallOptions, RpcHandler as RpcHandler
 from a2ui.core.state import DataModel as DataModel, SurfaceModel as SurfaceModel
 from a2ui.core.validation import (
@@ -59,10 +64,13 @@ __all__ = [
     "A2uiValidationError",
     "CallOptions",
     "Catalog",
+    "ComponentNode",
     "DataModel",
     "ExecutionContext",
     "MessageProcessor",
     "MessageProcessorOptions",
+    "NodeGraph",
+    "NodeResolver",
     "PayloadValidator",
     "RELAXED_VALIDATION",
     "RpcErrorCode",

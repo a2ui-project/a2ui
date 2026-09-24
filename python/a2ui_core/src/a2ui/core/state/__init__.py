@@ -17,12 +17,12 @@ from .component_model import (
     ComponentModel,
     is_v0_8_heuristic_child_prop_key,
 )
-from .component_node import ComponentNode
 from .data_model import DataModel
-from ..resolution.node_graph import NodeGraph
 from .surface_components_model import SurfaceComponentsModel
 from .surface_group_model import SurfaceGroupModel
 from .surface_model import SurfaceModel
+from ..resolution.component_node import ComponentNode
+from ..resolution.node_resolver import NodeGraph, NodeResolver
 from .validation_helpers import (
     analyze_topology,
     validate_component_integrity,
@@ -36,6 +36,7 @@ __all__ = [
     "DataModel",
     "EventSource",
     "NodeGraph",
+    "NodeResolver",
     "Signal",
     "SurfaceComponentsModel",
     "SurfaceGroupModel",

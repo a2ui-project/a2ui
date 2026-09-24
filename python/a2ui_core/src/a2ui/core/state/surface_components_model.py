@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import ItemsView, KeysView, Mapping, ValuesView
 from typing import Any
 from ..common.events import EventSource
 from ..exceptions import A2uiErrorDetail, A2uiStateError, A2uiValidationError
@@ -46,6 +47,35 @@ class SurfaceComponentsModel:
     def __contains__(self, component_id: str) -> bool:
         """Checks if a component with the specified ID exists in the model."""
         return component_id in self._components
+
+    def has(self, component_id: str) -> bool:
+        """Checks if a component with the specified ID exists in the model."""
+        return component_id in self._components
+
+    @property
+    def size(self) -> int:
+        """Returns total number of components."""
+        return len(self._components)
+
+    @property
+    def entries(self) -> ItemsView[str, ComponentModel]:
+        """Returns an items view of (component_id, ComponentModel) pairs."""
+        return self._components.items()
+
+    @property
+    def keys(self) -> KeysView[str]:
+        """Returns a keys view of component IDs."""
+        return self._components.keys()
+
+    @property
+    def values(self) -> ValuesView[ComponentModel]:
+        """Returns a values view of ComponentModel instances."""
+        return self._components.values()
+
+    @property
+    def components_map(self) -> Mapping[str, ComponentModel]:
+        """Returns a read-only mapping of component IDs to ComponentModel instances."""
+        return self._components
 
     def get(self, component_id: str) -> ComponentModel | None:
         return self._components.get(component_id)
@@ -86,6 +116,7 @@ class SurfaceComponentsModel:
         """Detects self-references, circular dependencies, and exceeds depth limits."""
         config = ValidationConfig(
             allow_missing_root=allow_missing_root,
+            allow_orphan_components=True,
             max_depth=max_depth,
         )
         return analyze_topology(
@@ -94,6 +125,28 @@ class SurfaceComponentsModel:
             config=config,
             max_depth=max_depth,
         )
+
+    def validate_topology(
+        self,
+        options: ValidationConfig | None = None,
+    ) -> None:
+        """Validates full graph topology (integrity, dangling references, orphans, cycles, and depth)."""
+        if not self._components:
+            return
+        cfg = options or ValidationConfig()
+        validate_component_integrity(self._components, root_id=cfg.root_id, config=cfg)
+        analyze_topology(self._components, root_id=cfg.root_id, config=cfg)
+
+    def validate_references(
+        self,
+        options: ValidationConfig | None = None,
+    ) -> list[A2uiValidationError]:
+        """Non-throwing wrapper over validate_topology returning a list of A2uiValidationError."""
+        try:
+            self.validate_topology(options)
+            return []
+        except A2uiValidationError as err:
+            return [err]
 
     def validate_components_update(
         self,

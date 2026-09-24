@@ -24,6 +24,8 @@ from .semver import (
     to_semver,
 )
 
+from .uax31 import assert_uax31_identifier, is_valid_uax31_identifier
+
 __all__ = [
     "Subscription",
     "EventSource",
@@ -36,4 +38,6 @@ __all__ = [
     "to_semver",
     "compare_semver",
     "is_at_least_version",
+    "is_valid_uax31_identifier",
+    "assert_uax31_identifier",
 ]

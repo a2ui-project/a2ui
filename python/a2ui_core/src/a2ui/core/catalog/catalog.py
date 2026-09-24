@@ -324,6 +324,10 @@ def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
     }
 
 
+from ..common.uax31 import (
+    assert_uax31_identifier as assert_uax31_identifier,
+    is_valid_uax31_identifier as is_valid_uax31_identifier,
+)
 from ..exceptions import A2uiCatalogError
 from .functions import (
     AllowedCallers,
@@ -334,14 +338,6 @@ from .functions import (
 )
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .reference_map import ComponentRefSpec, build_component_ref_map
-
-
-def is_valid_uax31_identifier(name: str) -> bool:
-    """Validates whether a string conforms to UAX #31 / system identifier syntax."""
-    if not name:
-        return False
-    test_name = name[1:] if name.startswith("@") else name
-    return test_name.isidentifier()
 
 
 def _extract_module_type_refs(modname: str, excluded: set[str]) -> set[str]:

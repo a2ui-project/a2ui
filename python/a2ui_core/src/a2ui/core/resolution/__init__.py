@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..state.component_node import ComponentNode
+from .component_node import ComponentNode
 from .component_context import ComponentContext
 from .data_context import DataContext, MissingDataBindingWarning
 from .generic_binder import GenericBinder
-from .node_graph import NodeGraph
+from .node_resolver import NodeGraph, NodeResolver
 from .resolved_binding import ResolvedBinding, WritableBinding, is_writable
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     "GenericBinder",
     "MissingDataBindingWarning",
     "NodeGraph",
+    "NodeResolver",
     "ResolvedBinding",
     "WritableBinding",
     "is_writable",

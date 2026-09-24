@@ -30,6 +30,7 @@ from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..processing.format_pydantic_error import format_validation_error
 from ..schema import ProtocolVersion
 from ..common.semver import is_at_least_version
+from ..common.uax31 import is_valid_uax31_identifier
 
 
 class ValidationConfig(BaseModel):
@@ -37,6 +38,7 @@ class ValidationConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    root_id: str = "root"
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
@@ -118,8 +120,6 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         comp_type = comp.get("component")
 
         if comp_id and isinstance(comp_id, str):
-            from ..catalog.catalog import is_valid_uax31_identifier
-
             ver = getattr(self.catalog, "protocol_version", None)
             if (
                 ver
@@ -363,8 +363,6 @@ class PayloadValidator(Generic[TComponent, TFunction]):
 
     def _validate_function_identifiers(self, name: str, args: Any) -> None:
         """Validates function name and argument identifiers against UAX #31 for v1.0+."""
-        from ..catalog.catalog import is_valid_uax31_identifier
-
         ver = getattr(self.catalog, "protocol_version", None)
         if not (ver and is_at_least_version(ver, ProtocolVersion.V1_0)):
             return

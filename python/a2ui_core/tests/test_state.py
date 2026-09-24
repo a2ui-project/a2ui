@@ -714,3 +714,63 @@ def test_component_node_parity_features():
 
     node.dispose()
     assert node.disposed is True
+
+
+def test_surface_components_model_collection_helpers_and_topology():
+    from a2ui.core.validation import ValidationConfig
+    from a2ui.core.exceptions import A2uiIntegrityError
+
+    cat = BasicCatalog()
+    scm = SurfaceComponentsModel(default_catalog=cat)
+
+    # Empty topology validation is a no-op
+    scm.validate_topology()
+    assert scm.validate_references() == []
+
+    root = ComponentModel("root", "Box", cat, {"child": "child1"})
+    child1 = ComponentModel("child1", "Text", cat, {"text": "hello"})
+    orphan = ComponentModel("orphan", "Text", cat, {"text": "orphan"})
+
+    scm.add_component(root)
+    scm.add_component(child1)
+    scm.add_component(orphan)
+
+    assert scm.has("root") is True
+    assert scm.has("missing") is False
+    assert scm.size == 3
+    assert set(scm.keys) == {"root", "child1", "orphan"}
+    assert set(scm.values) == {root, child1, orphan}
+    assert dict(scm.entries) == {"root": root, "child1": child1, "orphan": orphan}
+    assert scm.components_map["root"] is root
+
+    # detect_cycles isolates cycle/depth detection and allows orphans
+    visited = scm.detect_cycles(root_id="root")
+    assert visited == {"root", "child1"}
+
+    # validate_topology enforces orphan check by default
+    with pytest.raises(A2uiIntegrityError, match="orphan"):
+        scm.validate_topology()
+
+    # validate_references returns error list without raising
+    errs = scm.validate_references()
+    assert len(errs) == 1
+    assert "orphan" in str(errs[0])
+
+    # Relaxed orphan option passes
+    scm.validate_topology(ValidationConfig(allow_orphan_components=True))
+    assert scm.validate_references(ValidationConfig(allow_orphan_components=True)) == []
+
+
+def test_uax31_identifier_helpers():
+    from a2ui.core.common import assert_uax31_identifier, is_valid_uax31_identifier
+    from a2ui.core.exceptions import A2uiCatalogError
+
+    assert is_valid_uax31_identifier("validName_1") is True
+    assert is_valid_uax31_identifier("@index") is True
+    assert is_valid_uax31_identifier("123invalid") is False
+    assert is_valid_uax31_identifier("invalid-name") is False
+    assert is_valid_uax31_identifier("") is False
+
+    assert_uax31_identifier("validName_1", "component identifier")
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        assert_uax31_identifier("bad-fn!", "function identifier")

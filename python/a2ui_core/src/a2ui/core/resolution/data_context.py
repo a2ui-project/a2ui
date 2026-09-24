@@ -19,7 +19,7 @@ import inspect
 import warnings
 from typing import Any, Callable, Generic
 from ..catalog.catalog import Catalog, TComponent, TFunction
-from ..state import DataModel
+from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import PayloadValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
@@ -46,6 +46,26 @@ class DataContext(Generic[TComponent, TFunction]):
         self.data_model = surface.data_model
         self._index = index
         self.parent = parent
+        self._warned_paths: set[str] = (
+            parent._warned_paths if parent is not None else set()
+        )
+
+    def _emit_missing_data_binding_warning(self, resolved_path: str) -> None:
+        """Emits MissingDataBindingWarning and dispatches deduplicated surface warning."""
+        msg = (
+            "Preflight DataBinding Warning: The bound JSON Pointer"
+            f" '{resolved_path}' does not physically exist in the active"
+            " DataModel. Evaluating to None."
+        )
+        warnings.warn(msg, MissingDataBindingWarning, stacklevel=3)
+        if resolved_path not in self._warned_paths:
+            self._warned_paths.add(resolved_path)
+            if self.surface and hasattr(self.surface, "dispatch_warning"):
+                self.surface.dispatch_warning({
+                    "code": "MISSING_DATA_BINDING",
+                    "path": resolved_path,
+                    "message": msg,
+                })
 
     @property
     def locale(self) -> str | None:
@@ -121,13 +141,7 @@ class DataContext(Generic[TComponent, TFunction]):
             if hasattr(self.data_model, "has_path") and not self.data_model.has_path(
                 resolved_path
             ):
-                warnings.warn(
-                    "Preflight DataBinding Warning: The bound JSON Pointer"
-                    f" '{resolved_path}' does not physically exist in the active"
-                    " DataModel. Evaluating to None.",
-                    MissingDataBindingWarning,
-                    stacklevel=2,
-                )
+                self._emit_missing_data_binding_warning(resolved_path)
 
             return self.data_model.get(resolved_path)
 
@@ -214,13 +228,7 @@ class DataContext(Generic[TComponent, TFunction]):
         if paths and hasattr(self.data_model, "has_path"):
             for p in paths:
                 if not self.data_model.has_path(p):
-                    warnings.warn(
-                        f"Preflight DataBinding Warning: The bound JSON Pointer '{p}'"
-                        " does not physically exist in the active DataModel."
-                        " Evaluating to None.",
-                        MissingDataBindingWarning,
-                        stacklevel=2,
-                    )
+                    self._emit_missing_data_binding_warning(p)
 
         path_subs: list[Subscription] = []
         stream_sub: list[Any] = []  # Holds subscription to returned EventSource stream
@@ -293,9 +301,19 @@ class DataContext(Generic[TComponent, TFunction]):
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
     ) -> Any:
-        from ..exceptions import A2uiCatalogError
+        from ..exceptions import A2uiCatalogError, A2uiExpressionError
+        from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS
 
         try:
+            if (
+                isinstance(resolved_args, dict)
+                and len(resolved_args) > MAX_FUNCTION_CALL_ARGS
+            ):
+                raise A2uiExpressionError(
+                    f"Function call '{name}' exceeds maximum allowed arguments count"
+                    f" ({MAX_FUNCTION_CALL_ARGS})"
+                )
+
             target_catalog: Catalog[TComponent, TFunction] | None = None
             if catalog_id is not None:
                 target_catalog = self.surface.available_catalogs.get(catalog_id)
