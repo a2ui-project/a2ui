@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 from typing import Any
 import warnings
 
@@ -34,16 +35,17 @@ def warn_moved(old_module: str, new_module: str) -> None:
 def reexport_all(new_module: str, target_globals: dict[str, Any]) -> list[str]:
     """Copies public symbols from new_module into target_globals and returns __all__."""
     mod = importlib.import_module(new_module)
-    public_names: list[str] = list(
-        getattr(
-            mod,
-            "__all__",
-            [name for name in dir(mod) if not name.startswith("_")],
-        )
-    )
-    for name in dir(mod):
-        if not name.startswith("_"):
-            target_globals[name] = getattr(mod, name)
+    if hasattr(mod, "__all__"):
+        public_names: list[str] = list(mod.__all__)
+    else:
+        public_names = [
+            name
+            for name in dir(mod)
+            if not name.startswith("_") and not inspect.ismodule(getattr(mod, name))
+        ]
+        for name in list(target_globals):
+            if not name.startswith("_") and inspect.ismodule(target_globals[name]):
+                target_globals.pop(name, None)
     for name in public_names:
         target_globals[name] = getattr(mod, name)
     return public_names

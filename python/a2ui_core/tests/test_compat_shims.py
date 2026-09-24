@@ -142,18 +142,17 @@ def test_compat_shim_warns_and_reexports(old_module: str, new_module: str) -> No
     new_mod = importlib.import_module(new_module)
     old_mod = _import_fresh_with_deprecation_check(old_module, new_module)
 
-    public_names = set(
-        getattr(
-            new_mod,
-            "__all__",
-            [name for name in dir(new_mod) if not name.startswith("_")],
-        )
-    )
-    for name in dir(new_mod):
-        if not name.startswith("_") and not inspect.ismodule(getattr(new_mod, name)):
-            public_names.add(name)
+    if hasattr(new_mod, "__all__"):
+        public_names = set(new_mod.__all__)
+    else:
+        public_names = {
+            name
+            for name in dir(new_mod)
+            if not name.startswith("_") and not inspect.ismodule(getattr(new_mod, name))
+        }
 
     assert hasattr(old_mod, "__all__")
+    assert set(getattr(old_mod, "__all__")) >= public_names
     for name in public_names:
         assert hasattr(old_mod, name), f"{old_module} missing {name}"
         assert getattr(old_mod, name) is getattr(new_mod, name)
