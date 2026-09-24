@@ -1,0 +1,36 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "main_surface",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "main_surface",
+      "components": [
+        {
+          "component": "Text",
+          "id": "hero_card__hero_txt",
+          "text": "A2UI",
+          "variant": "body"
+        },
+        {
+          "component": "Card",
+          "id": "hero_card",
+          "child": "hero_card__hero_txt"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "main_surface",
+      "path": "/session/user",
+      "value": "Alice"
+    }
+  }
+]

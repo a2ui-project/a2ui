@@ -76,9 +76,12 @@ class FunctionCall(StrictBaseModel):
     return_type: Optional[
         Literal["string", "number", "boolean", "array", "object", "any", "void"]
     ] = Field(
+        None,
         alias="returnType",
-        description="The expected return type of the function call.",
-        default="boolean",
+        description=(
+            "The expected return type of the function call. Defaults to 'boolean' when"
+            " absent."
+        ),
     )
 
 
@@ -125,12 +128,12 @@ class AccessibilityAttributes(StrictBaseModel):
             " 'Silences notifications about this conversation'."
         ),
     )
-    live: Literal["off", "polite", "assertive"] = Field(
-        default="off",
+    live: Optional[Literal["off", "polite", "assertive"]] = Field(
+        None,
         description=(
             "Controls screen reader announcements for dynamic updates (WAI-ARIA"
             " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
-            " immediately for alerts."
+            " immediately for alerts. Defaults to 'off' when absent."
         ),
     )
     hidden: Optional[DynamicBoolean] = Field(

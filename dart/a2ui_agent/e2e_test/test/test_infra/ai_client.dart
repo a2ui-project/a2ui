@@ -18,7 +18,7 @@ import 'api_key.dart';
 
 /// Sends one-turn requests to a Gemini model through `package:dartantic_ai`.
 class AiClient {
-  AiClient({String modelName = 'gemini-3.8-flash'})
+  AiClient({String modelName = 'gemini-3.6-flash'})
     : _agent = dartantic.Agent.forProvider(
         dartantic.GoogleProvider(apiKey: apiKeyForEval()),
         chatModelName: modelName,
