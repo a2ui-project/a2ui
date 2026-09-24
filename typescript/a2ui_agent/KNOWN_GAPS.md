@@ -189,10 +189,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Express grammar rules name basic-catalog components
 
-- **What it is:** The fixed Express rules that head every Express prompt (`EXPRESS_RULES`, copied verbatim from Python) name catalog-specific things. Rule 15's example is `root = Card(...)`, the dates rule mentions `DateTimeInput`, and rule 14 refers to parameters named `action`. With a catalog that has no `Card`, the prompt still shows one. The prompt generator suite's `test_express_snippet_omits_a_pruned_component` fails for this reason and runs as an expected failure. Python's harness doesn't run that suite, so the failure is not visible there.
-- **Why it exists:** The rules text was written against the basic catalog. The port keeps it verbatim (`express_format.blueprint.md` §5.2 item 5) so that the generated base rules equal the conformance golden `express_base_rules.txt`.
+- **What it is:** The fixed Express rules that head every Express prompt in Python (`EXPRESS_RULES` in `prompt_generator.py`) name catalog-specific things. Rule 15's example is `root = Card(...)`, the dates rule mentions `DateTimeInput`, rule 11 uses `itemTemplate = Image($url)`, and rule 14 refers to parameters named `action`. With a catalog that has no `Card`, the prompt still shows one. Python fails `test_express_snippet_omits_a_pruned_component` for this reason (though Python's harness doesn't run that suite, so the failure is not visible there).
+- **TypeScript:** The rules have been rewritten to be catalog-agnostic (using generic placeholder components such as `ComponentA(...)` and generic descriptions for date-time properties and action parameters). TypeScript now passes `test_express_snippet_omits_a_pruned_component`.
+- **Contradiction in conformance suite:** The conformance suite contradicts itself: the skill golden `conformance/test_data/skills/express_base_rules.txt` still contains `Card(...)`, which the pruning conformance case `test_express_snippet_omits_a_pruned_component` forbids. The TypeScript unit test comparing base rules against `express_base_rules.txt` was adapted in favor of following the pruning case. Upstream needs to regenerate the golden when Python changes its rules.
+- **Why it exists in Python:** The rules text was written against the basic catalog.
 - **What it risks:** The model may be told to use components or properties that the negotiated catalog does not have. This conflicts with the repository rule that inference formats stay catalog-agnostic.
-- **Done looks like:** The rules use placeholder names or text derived from the catalog, the golden is regenerated, and both SDKs pass the pruning case.
+- **Done looks like:** Upstream Python rewrites its rules to be catalog-agnostic and regenerates the `express_base_rules.txt` golden.
 
 ### Python's Express decompiles a check without a condition as `?None`
 
@@ -207,3 +209,17 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The helper collects properties only from a component's own `properties` and from inline `allOf` entries. It reads `$ref`s only to detect `Checkable`, whose `checks` property it then appends by name. The v1.0 basic catalog inherits only `Checkable`, so it is not affected.
 - **What it risks:** An Express author targeting v0.9 cannot set `weight`.
 - **Done looks like:** Python's helper follows local `$defs` references, and the port follows.
+
+### Python's Express cannot decompile the restaurant finder's v0.9 examples
+
+- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile, in Python and in the port alike. Component ids such as `title-heading` are not Express identifiers, so the lexer stops at the `-`. `updateDataModel.path` is ignored, so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`. `createSurface` and `updateComponents` each write a `surface("default")` line, and a program with two `surface` lines fails with "Root target 'root' is not defined". `createSurface.theme` is dropped without notice.
+- **Why it exists:** The decompiler handles each message on its own and was written against v1.0, where one `createSurface` carries the components and the data model.
+- **What it risks:** Examples written for Direct JSON cannot be reused for Express as they are. The Node sample works around this with its own copies (underscore ids, one `updateDataModel` at `/`, no `weight`) and by dropping `createSurface` before decompiling.
+- **Done looks like:** The decompiler honours `updateDataModel.path`, writes one `surface` line per surface, and either rejects or rewrites ids that are not identifiers.
+
+### Python's Express leaves v0.9 JSON examples untranslated
+
+- **What it is:** When examples are given as text, the Express prompt generator rewrites each fenced `json` block as Express only if every message in it is a `createSurface`, `updateDataModel`, `deleteSurface` or `callFunction`. A v0.9 example always contains `updateComponents`, so the block is left as JSON in an Express prompt. The port does the same.
+- **Why it exists:** The key list matches v1.0, where components travel inside `createSurface`.
+- **What it risks:** A v0.9 Express prompt shows the model JSON examples while asking for Express. The Node sample avoids this by decompiling its examples itself and passing Express text.
+- **Done looks like:** `updateComponents` is added to the list, in Python first.

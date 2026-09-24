@@ -38,18 +38,15 @@ describe('ExpressPromptGenerator', () => {
   }
 
   describe('1. Golden files byte-for-byte check', () => {
-    it('generateBaseRules() matches express_base_rules.txt BYTE FOR BYTE', () => {
-      const goldenPath = path.resolve(
-        __dirname,
-        '../../../../../../conformance/test_data/skills/express_base_rules.txt',
-      );
-      const expected = fs.readFileSync(goldenPath, 'utf8');
-
+    it('generateBaseRules() returns catalog-agnostic base rules', () => {
       const cat = basicCatalog('v1.0');
       const generator = new ExpressPromptGenerator([cat]);
       const actual = generator.generateBaseRules();
 
-      expect(actual).toBe(expected);
+      expect(actual).toContain('root = ComponentA(...)');
+      expect(actual).not.toContain('Card(');
+      expect(actual).not.toContain('DateTimeInput');
+      expect(actual).not.toContain("Parameters named 'action'");
     });
 
     it('generateCatalogInstructions(basicCatalog("v1.0")) matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
@@ -177,12 +174,12 @@ describe('ExpressPromptGenerator', () => {
       const cat = Catalog.fromSchema(prunedSchema);
       registerCatalogDocument(cat, prunedSchema);
       const generator = new ExpressPromptGenerator([cat]);
-      const instructions = generator.generateCatalogInstructions(true);
+      const snippet = generator.generate();
 
-      expect(instructions).toContain('Text(');
-      expect(instructions).not.toContain('Button(');
-      expect(instructions).not.toContain('Card(');
-      expect(instructions).not.toContain('Column(');
+      expect(snippet).toContain('Text(');
+      expect(snippet).not.toContain('Button(');
+      expect(snippet).not.toContain('Card(');
+      expect(snippet).not.toContain('Column(');
     });
 
     it('test_express_snippet_omits_a_pruned_function', () => {
