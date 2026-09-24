@@ -21,7 +21,7 @@ import * as yaml from 'js-yaml';
 import {DirectJsonStreamProcessorImpl} from '../../../../src/inference_formats/direct_json/streaming.js';
 import {SchemaCatalog} from '../../../../src/types.js';
 import {Catalog, ComponentApi} from '../../../../src/internal/web_core.js';
-import {} from '../../../../src/errors.js';
+import {z} from 'zod';
 
 interface TestCase {
   name: string;
@@ -208,5 +208,96 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
     expect(placeholderComp).toBeDefined();
     expect(placeholderComp?.children).toEqual([]);
     expect(placeholderComp?.children).not.toHaveProperty('explicitList');
+  });
+});
+
+describe('Direct JSON Streaming required fields guard', () => {
+  test('withholds partial component when a required property has not arrived', () => {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [
+        {
+          name: 'AudioPlayer',
+          schema: z.object({
+            description: z.string().optional(),
+            url: z.string(),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    (processor as unknown as {refMap: unknown}).refMap = {
+      AudioPlayer: {singleRefs: new Set(), listRefs: new Set()},
+    };
+
+    // First chunk creates surface
+    processor.processChunk(
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1"}},',
+    );
+
+    // Second chunk streams AudioPlayer with only optional description, missing required url
+    const chunk2 =
+      '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "AudioPlayer", "description": "almost ready"';
+    const parts = processor.processChunk(chunk2);
+    const a2uiParts = parts.filter(p => p.type === 'a2ui');
+    const updateParts = a2uiParts
+      .flatMap(p => (Array.isArray(p.a2ui) ? p.a2ui : []))
+      .filter(m => typeof m === 'object' && m !== null && 'updateComponents' in m);
+
+    // Should NOT have emitted updateComponents yet because required prop "url" is missing
+    expect(updateParts).toHaveLength(0);
+  });
+
+  test('emits component once all required properties arrive', () => {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [
+        {
+          name: 'AudioPlayer',
+          schema: z.object({
+            description: z.string().optional(),
+            url: z.string(),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    (processor as unknown as {refMap: unknown}).refMap = {
+      AudioPlayer: {singleRefs: new Set(), listRefs: new Set()},
+    };
+
+    // First chunk creates surface
+    processor.processChunk(
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1"}},',
+    );
+
+    // Second chunk streams AudioPlayer missing required url
+    processor.processChunk(
+      '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "AudioPlayer", "description": "almost ready"',
+    );
+
+    // Third chunk delivers the required url and closes
+    const chunk3 = ', "url": "http://audio.mp3"}]}}]</a2ui-json>';
+    const parts = processor.processChunk(chunk3);
+    const a2uiParts = parts.filter(p => p.type === 'a2ui');
+    const updateParts = a2uiParts
+      .flatMap(p => (Array.isArray(p.a2ui) ? p.a2ui : []))
+      .filter(m => typeof m === 'object' && m !== null && 'updateComponents' in m) as Array<{
+      updateComponents: {components: Array<{id: string; component: string; url?: string}>};
+    }>;
+
+    expect(updateParts).toHaveLength(1);
+    const emittedComp = updateParts[0].updateComponents.components.find(c => c.id === 'root');
+    expect(emittedComp).toBeDefined();
+    expect(emittedComp?.component).toBe('AudioPlayer');
+    expect(emittedComp?.url).toBe('http://audio.mp3');
   });
 });
