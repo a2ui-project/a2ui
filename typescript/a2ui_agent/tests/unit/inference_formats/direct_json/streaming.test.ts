@@ -72,7 +72,10 @@ describe('Direct JSON Streaming Healer v1.0', () => {
       // Set up cuttable keys
       const progressiveKeys = ['text', 'literalString'];
 
-      const processor = new DirectJsonStreamProcessorImpl(catalog, {progressiveKeys});
+      const processor = new DirectJsonStreamProcessorImpl(catalog, {
+        progressiveKeys,
+        disableValidation: true,
+      });
 
       // Inject refMap because the mock catalog uses JSON schemas instead of Zod schemas
       const refMap: any = {};
@@ -144,7 +147,10 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
       'v0.9',
     );
 
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    // The input omits `version` on purpose: the assertion is that the emitted version comes
+    // from the catalog, which it could not prove if the input carried a version to echo.
+    // Real envelopes require `version`, so validation is off for this test only.
+    const processor = new DirectJsonStreamProcessorImpl(catalog, {disableValidation: true});
     (processor as unknown as {refMap: unknown}).refMap = {
       Row: {singleRefs: new Set(), listRefs: new Set(['children'])},
       Text: {singleRefs: new Set(), listRefs: new Set()},
@@ -152,7 +158,7 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
 
     // Test synthesized updateComponents partial message
     const compChunk =
-      '<a2ui-json>[{"createSurface": {"surfaceId": "s1"}}, {"updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text"}]}}]</a2ui-json>';
+      '<a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}}, {"updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text"}]}}]</a2ui-json>';
     const compParts = processor.processChunk(compChunk);
     const compA2uiParts = compParts.filter(p => p.type === 'a2ui');
     const updateComponentsPart = compA2uiParts
@@ -181,7 +187,7 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
       undefined,
       'v1.0',
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    const processor = new DirectJsonStreamProcessorImpl(catalog, {disableValidation: true});
     expect((processor as unknown as {placeholderComponent: unknown}).placeholderComponent).toEqual({
       component: 'Row',
       children: [],
@@ -236,7 +242,7 @@ describe('Direct JSON Streaming required fields guard', () => {
 
     // First chunk creates surface
     processor.processChunk(
-      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1"}},',
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}},',
     );
 
     // Second chunk streams AudioPlayer with only optional description, missing required url
@@ -276,7 +282,7 @@ describe('Direct JSON Streaming required fields guard', () => {
 
     // First chunk creates surface
     processor.processChunk(
-      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1"}},',
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}},',
     );
 
     // Second chunk streams AudioPlayer missing required url
@@ -602,7 +608,7 @@ describe('Direct JSON Streaming required fields guard', () => {
     // When streamed with childLabel referring to a nonexistent id, ContainerWithLabel should
     // NOT wait for childLabel or generate a placeholder for childLabel
     const chunk =
-      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "root": "root"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "ContainerWithLabel", "children": [], "childLabel": "non_existent_child"}]}}]</a2ui-json>';
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "ContainerWithLabel", "children": [], "childLabel": "non_existent_child"}]}}]</a2ui-json>';
     const parts = processor.processChunk(chunk);
     const updates = parts
       .filter(p => p.type === 'a2ui')

@@ -40,6 +40,7 @@ import {
   isLegacyFallbackChildListKey,
   isLegacyFallbackSingleChildKey,
 } from '../../utils/legacy_child_refs.js';
+import {validateEnvelope} from '../../utils/envelope_validation.js';
 
 export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor {
   private buffer = '';
@@ -702,6 +703,10 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     sid: string | null,
     messages: ResponsePart[],
   ): boolean {
+    if (!this.options?.disableValidation) {
+      validateEnvelope(obj, this.protocolVersion);
+    }
+
     if (MSG_TYPE_CREATE_SURFACE in obj) {
       this.addMsgType(MSG_TYPE_CREATE_SURFACE);
       const val = obj[MSG_TYPE_CREATE_SURFACE];
