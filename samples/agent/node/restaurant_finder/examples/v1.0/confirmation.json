@@ -1,0 +1,94 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "confirmation",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "confirmation",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "confirmation_column"
+        },
+        {
+          "id": "confirmation_column",
+          "component": "Column",
+          "children": [
+            "confirm_title",
+            "confirm_image",
+            "divider1",
+            "confirm_details",
+            "divider2",
+            "confirm_dietary",
+            "divider3",
+            "confirm_text"
+          ]
+        },
+        {
+          "id": "confirm_title",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "confirm_image",
+          "component": "Image",
+          "url": {
+            "path": "/imageUrl"
+          }
+        },
+        {
+          "id": "confirm_details",
+          "component": "Text",
+          "text": {
+            "path": "/bookingDetails"
+          }
+        },
+        {
+          "id": "confirm_dietary",
+          "component": "Text",
+          "text": {
+            "path": "/dietaryRequirements"
+          }
+        },
+        {
+          "id": "confirm_text",
+          "component": "Text",
+          "text": "We look forward to seeing you!"
+        },
+        {
+          "id": "divider1",
+          "component": "Divider"
+        },
+        {
+          "id": "divider2",
+          "component": "Divider"
+        },
+        {
+          "id": "divider3",
+          "component": "Divider"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "confirmation",
+      "path": "/",
+      "value": {
+        "title": "Booking at [RestaurantName]",
+        "bookingDetails": "[PartySize] people at [Time]",
+        "dietaryRequirements": "Dietary Requirements: [Requirements]",
+        "imageUrl": "[ImageUrl]"
+      }
+    }
+  }
+]

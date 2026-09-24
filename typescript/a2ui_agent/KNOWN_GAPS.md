@@ -201,14 +201,40 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** An Express author targeting v0.9 cannot set `weight`.
 - **Done looks like:** Python's helper follows local `$defs` references, and the port follows.
 
+### Python's Express cannot decompile the restaurant finder's v0.9 examples
+
+- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile, in Python and in the port alike. Component ids such as `title-heading` are not Express identifiers, so the lexer stops at the `-`. `updateDataModel.path` is ignored, so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`. `createSurface` and `updateComponents` each write a `surface("default")` line, and a program with two `surface` lines fails with "Root target 'root' is not defined". `createSurface.theme` is dropped without notice.
+- **Why it exists:** The decompiler handles each message on its own and was written against v1.0, where one `createSurface` carries the components and the data model.
+- **What it risks:** Examples written for Direct JSON cannot be reused for Express as they are. The Node sample works around this with its own copies (underscore ids, one `updateDataModel` at `/`, no `weight`) and by dropping `createSurface` before decompiling.
+- **Done looks like:** The decompiler honours `updateDataModel.path`, writes one `surface` line per surface, and either rejects or rewrites ids that are not identifiers.
+
+### Python's Express leaves v0.9 JSON examples untranslated
+
+- **What it is:** When examples are given as text, the Express prompt generator rewrites each fenced `json` block as Express only if every message in it is a `createSurface`, `updateDataModel`, `deleteSurface` or `callFunction`. A v0.9 example always contains `updateComponents`, so the block is left as JSON in an Express prompt. The port does the same.
+- **Why it exists:** The key list matches v1.0, where components travel inside `createSurface`.
+- **What it risks:** A v0.9 Express prompt shows the model JSON examples while asking for Express. The Node sample avoids this by decompiling its examples itself and passing Express text.
+- **Done looks like:** `updateComponents` is added to the list, in Python first.
+
 ## 5. Node Sample (`samples/agent/node/restaurant_finder`)
 
-### Only the first streamed message reaches the client (Sharp edge)
+### Only the first streamed message reaches the client (Resolved)
 
-- **What it is:** `@a2a-js/sdk` terminates the SSE stream on the first `message` event it sees (`dist/server/index.js:290` — `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample publishes one `message` per healed chunk, so with a live model only the first is delivered; the rest, and the terminal `completed`/`failed` status, are published to the bus but never reach the wire.
-- **Why it exists:** The A2A event contract treats a `Message` as a terminal response. Progressive output is expected to travel as non-final `status-update` events carrying a `status.message`, not as repeated top-level `message` events.
-- **What it risks:** Stub mode emits exactly one message, so the sample looks correct in the only mode that runs without an API key. The defect appears only against a real model, which is the harder case to notice. It also means the post-hoc validation failure is invisible to the client.
-- **Done looks like:** Progressive chunks are published as non-final `TaskStatusUpdateEvent`s with the payload in `status.message`, reserving a terminal event for the end of the turn.
+- **What it was:** `@a2a-js/sdk` ends the SSE stream at the first `message` event (`dist/server/index.js:290`: `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample published one `message` per chunk, so with a live model only the first reached the client.
+- **Resolution:** The sample now publishes each batch of parts as a non-final `working` status update carrying `status.message`, as the Python sample does, and ends the turn with one final status update.
+
+### The sample answers in A2UI when no A2UI extension is requested
+
+- **What it is:** Python's sample answers with plain text when the client does not request an A2UI extension. The Node sample logs a warning and answers in its configured A2UI version, so curl works without the `X-A2A-Extensions` header. A request for a different A2UI version fails the task with a message that says how to restart the agent.
+- **Why it exists:** Porting the text-only agent would double the sample for a path no sample client uses. Telling "none requested" from "another version requested" also needs a workaround: `DefaultRequestHandler` drops requested extensions the agent card does not advertise, so `index.ts` copies the header into `message.extensions`.
+- **What it risks:** A client that wants text gets A2UI.
+- **Done looks like:** A text-only mode, if a client needs one.
+
+### `input-required` turns end with `final: true`
+
+- **What it is:** Python marks only `completed` status updates as final. The Node sample also marks `input-required` as final.
+- **Why it exists:** `@a2a-js/sdk` keeps the SSE stream open until it sees a final status update, so a non-final `input-required` would leave streaming clients waiting.
+- **What it risks:** Nothing found so far. The multi-turn flow continues through `contextId`.
+- **Done looks like:** Nothing, unless the SDK changes.
 
 ### `@google/adk` cannot be used in this monorepo
 
