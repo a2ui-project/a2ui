@@ -36,6 +36,10 @@ import {
 } from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {A2uiIntegrityError, ParseError} from '../../errors.js';
+import {
+  isLegacyFallbackChildListKey,
+  isLegacyFallbackSingleChildKey,
+} from '../../utils/legacy_child_refs.js';
 
 export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor {
   private buffer = '';
@@ -77,6 +81,47 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   ) {
     this.cuttableKeys = new Set(options?.progressiveKeys ?? []);
     this.refMap = buildComponentRefMap(this.catalog, V10_CHILD_REF_OPTIONS);
+    this.applyLegacyChildRefFallbacks();
+  }
+
+  /**
+   * Applies Python a2ui_core-compatible fallback child reference heuristics ONLY when
+   * a component's schema produced no formal references (singleRefs or listRefs).
+   */
+  private applyLegacyChildRefFallbacks() {
+    if (!this.catalog.components || typeof this.catalog.components.values !== 'function') {
+      return;
+    }
+    for (const compApi of this.catalog.components.values()) {
+      const existing = this.refMap[compApi.name];
+      // Gate: if the catalog produced any formal refs for this component type, use ONLY those.
+      if (existing && (existing.singleRefs.size > 0 || existing.listRefs.size > 0)) {
+        continue;
+      }
+
+      const singleRefs = new Set<string>(existing?.singleRefs ?? []);
+      const listRefs = new Set<string>(existing?.listRefs ?? []);
+
+      const schema = compApi.schema as unknown;
+      if (
+        schema &&
+        typeof schema === 'object' &&
+        'shape' in schema &&
+        typeof (schema as {shape?: unknown}).shape === 'object' &&
+        (schema as {shape?: unknown}).shape !== null
+      ) {
+        const shape = (schema as {shape: Record<string, unknown>}).shape;
+        for (const key of Object.keys(shape)) {
+          if (isLegacyFallbackChildListKey(key)) {
+            listRefs.add(key);
+          } else if (isLegacyFallbackSingleChildKey(key)) {
+            singleRefs.add(key);
+          }
+        }
+      }
+
+      this.refMap[compApi.name] = {singleRefs, listRefs};
+    }
   }
 
   private get placeholderComponent() {
@@ -964,7 +1009,29 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
                 for (const v of vals) {
                   if (typeof v === 'string') {
                     if (!isCompleteSubtree(v, new Set(pathSeen))) return false;
+                  } else if (typeof v === 'object' && v !== null) {
+                    const vObj = v as Record<string, unknown>;
+                    if ('componentId' in vObj) {
+                      const cid = vObj.componentId;
+                      const path = vObj.path;
+                      if (typeof cid !== 'string' || !cid || typeof path !== 'string' || !path) {
+                        return false;
+                      }
+                      if (!isCompleteSubtree(cid, new Set(pathSeen))) return false;
+                    }
                   }
+                }
+              } else if (typeof vals === 'object' && vals !== null) {
+                const valsObj = vals as Record<string, unknown>;
+                if ('componentId' in valsObj) {
+                  const cid = valsObj.componentId;
+                  const path = valsObj.path;
+                  if (typeof cid !== 'string' || !cid || typeof path !== 'string' || !path) {
+                    return false;
+                  }
+                  if (!isCompleteSubtree(cid, new Set(pathSeen))) return false;
+                } else {
+                  return false;
                 }
               }
             }
@@ -972,6 +1039,27 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
               const v = compObj[field];
               if (typeof v === 'string') {
                 if (!isCompleteSubtree(v, new Set(pathSeen))) return false;
+              } else if (typeof v === 'object' && v !== null) {
+                const vObj = v as Record<string, unknown>;
+                if ('componentId' in vObj) {
+                  const cid = vObj.componentId;
+                  if (
+                    typeof cid !== 'string' ||
+                    !cid ||
+                    !isCompleteSubtree(cid, new Set(pathSeen))
+                  ) {
+                    return false;
+                  }
+                } else if ('child' in vObj) {
+                  const cid = vObj.child;
+                  if (
+                    typeof cid !== 'string' ||
+                    !cid ||
+                    !isCompleteSubtree(cid, new Set(pathSeen))
+                  ) {
+                    return false;
+                  }
+                }
               }
             }
           }
@@ -991,13 +1079,38 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
                 const vals = compObj[field];
                 if (Array.isArray(vals)) {
                   for (const v of vals) {
-                    if (typeof v === 'string') collectTree(v, collected);
+                    if (typeof v === 'string') {
+                      collectTree(v, collected);
+                    } else if (
+                      typeof v === 'object' &&
+                      v !== null &&
+                      'componentId' in v &&
+                      typeof (v as Record<string, unknown>).componentId === 'string'
+                    ) {
+                      collectTree((v as Record<string, unknown>).componentId as string, collected);
+                    }
                   }
+                } else if (
+                  typeof vals === 'object' &&
+                  vals !== null &&
+                  'componentId' in vals &&
+                  typeof (vals as Record<string, unknown>).componentId === 'string'
+                ) {
+                  collectTree((vals as Record<string, unknown>).componentId as string, collected);
                 }
               }
               for (const field of refs.singleRefs) {
                 const v = compObj[field];
-                if (typeof v === 'string') collectTree(v, collected);
+                if (typeof v === 'string') {
+                  collectTree(v, collected);
+                } else if (typeof v === 'object' && v !== null) {
+                  const vObj = v as Record<string, unknown>;
+                  if (typeof vObj.componentId === 'string') {
+                    collectTree(vObj.componentId, collected);
+                  } else if (typeof vObj.child === 'string') {
+                    collectTree(vObj.child, collected);
+                  }
+                }
               }
             }
           };

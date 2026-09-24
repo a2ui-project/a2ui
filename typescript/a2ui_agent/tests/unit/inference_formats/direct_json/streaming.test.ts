@@ -446,4 +446,174 @@ describe('Direct JSON Streaming required fields guard', () => {
     const s2Update = s2A2ui[0] as {updateComponents?: {surfaceId: string}};
     expect(s2Update.updateComponents?.surfaceId).toBe('surface2');
   });
+
+  test('holds back parent with unresolved children when placeholders cannot be used', () => {
+    const catalog = new Catalog(
+      'test_catalog',
+      [
+        {
+          name: 'Text',
+          schema: z.object({
+            component: z.literal('Text'),
+            text: z.string(),
+          }),
+        } as unknown as ComponentApi,
+        {
+          name: 'Container',
+          schema: z.object({
+            component: z.literal('Container'),
+            children: z.array(z.string()),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    processor.processChunk(
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}},',
+    );
+
+    const step1Parts = processor.processChunk(
+      '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Container", "children": ["c1", "c2"]}',
+    );
+    const step1Updates = step1Parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui || [])
+      .filter(m => 'updateComponents' in m);
+    expect(step1Updates).toHaveLength(0);
+
+    const step2Parts = processor.processChunk(
+      ', {"id": "c1", "component": "Text", "text": "Child 1"}]}}',
+    );
+    const step2Updates = step2Parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui || [])
+      .filter(m => 'updateComponents' in m);
+    expect(step2Updates).toHaveLength(0);
+  });
+
+  test('holds back partial template child missing path when placeholders cannot be used', () => {
+    const catalog = new Catalog(
+      'test_catalog',
+      [
+        {
+          name: 'Text',
+          schema: z.object({
+            component: z.literal('Text'),
+            text: z.string(),
+          }),
+        } as unknown as ComponentApi,
+        {
+          name: 'List',
+          schema: z.object({
+            component: z.literal('List'),
+            children: z.object({
+              componentId: z.string(),
+              path: z.string(),
+            }),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    processor.processChunk(
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}},',
+    );
+
+    const step1Parts = processor.processChunk(
+      '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "List", "children": {"componentId": "c1"',
+    );
+    const step1Updates = step1Parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui || [])
+      .filter(m => 'updateComponents' in m);
+    expect(step1Updates).toHaveLength(0);
+
+    const step2Parts = processor.processChunk(', "path": "/items"');
+    const step2Updates = step2Parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui || [])
+      .filter(m => 'updateComponents' in m);
+    expect(step2Updates).toHaveLength(0);
+
+    const step3Parts = processor.processChunk(
+      '}}, {"id": "c1", "component": "Text", "text": "Child 1"}]}} </a2ui-json>',
+    );
+    const step3Updates = step3Parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui || [])
+      .filter(m => 'updateComponents' in m);
+    expect(step3Updates).toHaveLength(1);
+    const firstUpdate = step3Updates[0] as {
+      updateComponents: {components: Array<{id: string}>};
+    };
+    const comps = firstUpdate.updateComponents.components;
+    expect(comps.map(c => c.id).sort()).toEqual(['c1', 'root']);
+  });
+
+  test('does not classify childLabel as a child reference when component defines formal child refs', () => {
+    // Custom component with formal child reference (ChildList) and a property named 'childLabel'
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      [
+        {
+          name: 'ContainerWithLabel',
+          schema: z.object({
+            children: z
+              .array(z.string().describe('REF:#/$defs/ComponentId'))
+              .describe('REF:#/$defs/ChildList'),
+            childLabel: z.string(),
+          }),
+        } as unknown as ComponentApi,
+        {
+          name: 'Text',
+          schema: z.object({
+            text: z.string(),
+          }),
+        } as unknown as ComponentApi,
+      ],
+      [],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    const refMap = (
+      processor as unknown as {
+        refMap: Record<string, {singleRefs: Set<string>; listRefs: Set<string>}>;
+      }
+    ).refMap;
+
+    expect(refMap['ContainerWithLabel']).toBeDefined();
+    // Formal list ref 'children' must be present
+    expect(refMap['ContainerWithLabel'].listRefs.has('children')).toBe(true);
+    // 'childLabel' must NOT be classified as singleRef or listRef
+    expect(refMap['ContainerWithLabel'].singleRefs.has('childLabel')).toBe(false);
+    expect(refMap['ContainerWithLabel'].listRefs.has('childLabel')).toBe(false);
+
+    // When streamed with childLabel referring to a nonexistent id, ContainerWithLabel should
+    // NOT wait for childLabel or generate a placeholder for childLabel
+    const chunk =
+      '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "root": "root"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "ContainerWithLabel", "children": [], "childLabel": "non_existent_child"}]}}]</a2ui-json>';
+    const parts = processor.processChunk(chunk);
+    const updates = parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui || [])
+      .filter(m => 'updateComponents' in m) as Array<{
+      updateComponents: {components: Array<{id: string; component?: string}>};
+    }>;
+
+    expect(updates).toHaveLength(1);
+    const yielded = updates[0].updateComponents.components;
+    // Only 'root' is yielded; no placeholder for 'non_existent_child' is generated
+    expect(yielded.map(c => c.id)).toEqual(['root']);
+  });
 });
