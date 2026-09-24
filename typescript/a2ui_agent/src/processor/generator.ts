@@ -34,7 +34,7 @@ export class A2uiGenerator {
 
   constructor(
     private readonly catalogs: CatalogConfig[],
-    private readonly examples?: Record<string, AgentToRendererMessage[]>,
+    private readonly examples?: Record<string, AgentToRendererMessage[] | string>,
     inferenceFormatFactory?: InferenceFormatFactory,
   ) {
     this.factory = inferenceFormatFactory || new DirectJsonFormatFactory();
@@ -54,6 +54,8 @@ export class A2uiGenerator {
 
     if (this.examples) {
       for (const msgs of Object.values(this.examples)) {
+        // Preformatted text examples are not parsed here.
+        if (typeof msgs === 'string') continue;
         for (const msg of msgs) {
           const components: {component?: string}[] = [];
           if ('createSurface' in msg && msg.createSurface?.components)

@@ -73,4 +73,10 @@ describe('DirectJsonPromptGenerator', () => {
     expect(prompt).toContain('<a2ui-json>');
     expect(prompt).toContain('"createSurface": {');
   });
+
+  it('inserts a preformatted string example verbatim', () => {
+    const text = '---BEGIN confirmation---\n[{"version": "v1.0"}]\n---END confirmation---';
+    const stringGenerator = new DirectJsonPromptGenerator([catalog], {[catalog.id]: text});
+    expect(stringGenerator.generateExamples()).toBe(text);
+  });
 });
