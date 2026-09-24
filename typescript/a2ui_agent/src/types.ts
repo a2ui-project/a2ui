@@ -19,6 +19,7 @@ import {Catalog, ComponentApi, FunctionApi, ProtocolVersion} from './internal/we
 import {A2uiCatalogError} from './errors.js';
 import {toWireProtocolVersion} from './utils/protocol_version.js';
 import {getBasicCatalogPath} from './utils/catalog_path.js';
+import {registerCatalogDocument} from './utils/catalog_document.js';
 
 export type {ProtocolVersion} from './internal/web_core.js';
 
@@ -94,6 +95,7 @@ export function basicCatalog(protocolVersion: ProtocolVersion = 'v1.0'): SchemaC
     );
   }
 
+  registerCatalogDocument(catalog, parsed);
   _basicCatalogMemoMap.set(version, catalog);
   return catalog;
 }
