@@ -17,6 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {z} from 'zod';
+import {z as z4} from 'zod/v4';
 import {
   GenericBinder,
   getSafeChildList,
@@ -404,6 +405,109 @@ describe('GenericBinder Checkable Trait', () => {
       assert.strictEqual(nestedBehavior.type, 'OBJECT');
       assert.strictEqual((nestedBehavior as any).shape.value.type, 'OBJECT');
       assert.strictEqual((nestedBehavior as any).shape.text.type, 'ARRAY');
+    });
+  });
+
+  describe('scrapeSchemaBehavior version-agnostic introspection (dual-zod)', () => {
+    // A host application may resolve `zod` to v4 and build its catalog schemas
+    // with it (def.type discriminators, plain `def.shape` objects,
+    // registry-backed descriptions). `zod/v4` in zod 3.25+ ships exactly those
+    // internals, so these tests mirror the common-types.ts schemas built with
+    // a zod 4 `z`.
+    const dynamicString4 = z4
+      .union([
+        z4.string(),
+        z4.object({'path': z4.string().describe('A JSON Pointer path.')}),
+        z4.object({'call': z4.string().describe('The function to call.')}),
+      ])
+      .describe('REF:common_types.json#/$defs/DynamicString|zod-4-built dynamic string');
+
+    const action4 = z4
+      .union([
+        z4.object({'event': z4.object({'name': z4.string()})}),
+        z4.object({'functionCall': z4.object({'call': z4.string()})}),
+      ])
+      .describe('REF:common_types.json#/$defs/Action');
+
+    const childList4 = z4.union([
+      z4.array(z4.string()),
+      z4.object({'componentId': z4.string(), 'path': z4.string()}),
+    ]);
+
+    it('should classify zod-4-built dynamic unions as DYNAMIC', () => {
+      const schema4 = z4.object({
+        value: dynamicString4,
+        min: dynamicString4.optional(),
+        label: z4.string(),
+        items: z4.array(dynamicString4),
+      });
+
+      const behavior = scrapeSchemaBehavior(schema4 as unknown as z.ZodTypeAny);
+      assert.strictEqual(behavior.type, 'OBJECT');
+      assert.strictEqual((behavior as any).shape.value.type, 'DYNAMIC');
+      // Optional wrapper must be unwrapped before classification
+      assert.strictEqual((behavior as any).shape.min.type, 'DYNAMIC');
+      // Plain zod-4 leaves stay STATIC; arrays recurse into their element
+      assert.strictEqual((behavior as any).shape.label.type, 'STATIC');
+      assert.strictEqual((behavior as any).shape.items.type, 'ARRAY');
+      assert.strictEqual((behavior as any).shape.items.element.type, 'DYNAMIC');
+    });
+
+    it('should classify zod-4-built action and child-list unions', () => {
+      const schema4 = z4.object({
+        onTap: action4,
+        children: childList4,
+      });
+
+      const behavior = scrapeSchemaBehavior(schema4 as unknown as z.ZodTypeAny);
+      assert.strictEqual(behavior.type, 'OBJECT');
+      assert.strictEqual((behavior as any).shape.onTap.type, 'ACTION');
+      assert.strictEqual((behavior as any).shape.children.type, 'STRUCTURAL');
+    });
+
+    it('should keep classifying zod-3-built schemas unchanged', () => {
+      // Guards against the version-agnostic helpers regressing the zod 3 path
+      const behavior = scrapeSchemaBehavior(
+        z.object({
+          value: CommonSchemas.DynamicString,
+          onTap: CommonSchemas.Action,
+          children: CommonSchemas.ChildList,
+        }),
+      );
+      assert.strictEqual(behavior.type, 'OBJECT');
+      assert.strictEqual((behavior as any).shape.value.type, 'DYNAMIC');
+      assert.strictEqual((behavior as any).shape.onTap.type, 'ACTION');
+      assert.strictEqual((behavior as any).shape.children.type, 'STRUCTURAL');
+    });
+
+    it('should throw a descriptive error for schema nodes with unrecognizable internals', () => {
+      // A node exposing neither zod 3 (`_def.typeName`) nor zod 4 (`def.type`)
+      // internals: previously scraped as STATIC, silently dropping bindings.
+      const alienNode = {_def: {}} as unknown as z.ZodTypeAny;
+      const schema = z.object({mystery: alienNode});
+
+      assert.throws(
+        () => scrapeSchemaBehavior(schema),
+        (err: Error) => {
+          return (
+            err.message.includes('mystery') &&
+            err.message.includes('_def.typeName') &&
+            err.message.includes('dual-zod')
+          );
+        },
+      );
+    });
+
+    it('should name the offending property path in the thrown error', () => {
+      const alienNode = {def: {}} as unknown as z.ZodTypeAny;
+      const schema = z.object({
+        outer: z.object({inner: alienNode}),
+      });
+
+      assert.throws(
+        () => scrapeSchemaBehavior(schema),
+        (err: Error) => err.message.includes('"(root).outer.inner"'),
+      );
     });
   });
 

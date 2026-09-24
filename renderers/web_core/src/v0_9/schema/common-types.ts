@@ -130,7 +130,9 @@ function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
 }
 
 export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
-  return (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef;
+  // `?.` so schema nodes without `_def` (e.g. built by an unknown zod major)
+  // flow to the schema scraper's descriptive error instead of crashing here.
+  return (schema._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
 }
 
 export interface RefSchemaOptions {
