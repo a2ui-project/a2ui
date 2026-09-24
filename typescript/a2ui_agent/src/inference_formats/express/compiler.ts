@@ -48,6 +48,9 @@ import {
   ExpressParseError,
   ExpressSyntaxError,
   ExpressUndefinedRootError,
+  ExpressUnknownComponentError,
+  ExpressUnknownFunctionError,
+  ExpressMissingRequiredPropertyError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
 } from './errors.js';
@@ -586,8 +589,16 @@ export class ExpressCompiler {
     const kwargs = callAst.kwargs ?? {};
 
     if (!this.helper.components.has(compName)) {
-      // Not a component, could be a standalone action/helper; skip writing as component
-      return null;
+      if (
+        compName === 'Event' ||
+        compName === '_template' ||
+        compName === 'surface' ||
+        compName === 'deleteSurface' ||
+        this.helper.functions.has(compName)
+      ) {
+        return null;
+      }
+      throw new ExpressUnknownComponentError(compName);
     }
 
     const properties = this.helper.getComponentProperties(compName);
@@ -700,6 +711,16 @@ export class ExpressCompiler {
         !('componentId' in mappedVal)
       ) {
         boundPaths.set(propName, mappedVal as ExpressPathValue);
+      }
+    }
+
+    const requiredProps = this.helper.getComponentRequired(compName);
+    for (const reqProp of requiredProps) {
+      if (reqProp === 'id' || reqProp === 'component') {
+        continue;
+      }
+      if (!seenProperties.has(reqProp)) {
+        throw new ExpressMissingRequiredPropertyError(compName, reqProp);
       }
     }
 
@@ -1031,10 +1052,7 @@ export class ExpressCompiler {
         }
 
         // Fallback for unknown functions
-        return {
-          call: fnName,
-          args: fnArgs.map(a => this._compileValue(a, rawSymbols, ctx, isAction)),
-        };
+        throw new ExpressUnknownFunctionError(fnName);
       }
 
       if (Array.isArray(val)) {

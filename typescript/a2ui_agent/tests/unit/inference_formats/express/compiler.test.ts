@@ -31,6 +31,9 @@ import {
   ExpressParseError,
   ExpressSyntaxError,
   ExpressUndefinedRootError,
+  ExpressUnknownComponentError,
+  ExpressMissingRequiredPropertyError,
+  ExpressUnknownFunctionError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
 } from '../../../../src/inference_formats/express/errors.js';
@@ -61,6 +64,9 @@ interface CorpusEntry {
 const errorClasses: Record<string, new (...args: never[]) => Error> = {
   ExpressUndefinedRootError,
   ExpressParseError,
+  ExpressUnknownComponentError,
+  ExpressMissingRequiredPropertyError,
+  ExpressUnknownFunctionError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
   ExpressForbiddenDatabindingError,
@@ -102,22 +108,36 @@ describe('ExpressCompiler', () => {
   };
 
   describe('1. PARITY CORPUS (57 cases evaluated against Python oracle)', () => {
-    // Regeneration command: python3 tests/unit/inference_formats/express/fixtures/generate_compiler_corpus.py
+    // See tests/unit/inference_formats/express/fixtures/README.md for generation instructions
     const corpusPath = path.join(FIXTURES_DIR, 'compiler_corpus.json');
     const corpus = JSON.parse(fs.readFileSync(corpusPath, 'utf8')) as CorpusEntry[];
+
+    const overridesPath = path.join(FIXTURES_DIR, 'conformance_overrides.json');
+    const overridesAll = JSON.parse(fs.readFileSync(overridesPath, 'utf8'));
+    const overrides = overridesAll['compiler_corpus.json'] || {};
+
+    it('every override names a case in compiler_corpus.json', () => {
+      const names = new Set(corpus.map(c => c.name));
+      for (const name of Object.keys(overrides)) {
+        expect(names.has(name), `override '${name}' matches no case`).toBe(true);
+      }
+    });
 
     for (const entry of corpus) {
       it(`matches oracle on: ${entry.name}`, () => {
         const cat = catalogs[entry.catalog];
         expect(cat, `Catalog ${entry.catalog} must be registered`).toBeDefined();
 
+        const override = overrides[entry.name];
+        const expected = override ? override.expected : entry.expected;
+
         const compiler = new ExpressCompiler(cat, entry.version);
-        if (entry.expected.status === 'success') {
+        if (expected.status === 'success') {
           const actual = compiler.compile(entry.input);
-          expect(actual).toEqual(entry.expected.messages);
+          expect(actual).toEqual(expected.messages);
         } else {
-          const expectedCls = errorClasses[entry.expected.error];
-          expect(expectedCls, `Unknown error class ${entry.expected.error}`).toBeDefined();
+          const expectedCls = errorClasses[expected.error];
+          expect(expectedCls, `Unknown error class ${expected.error}`).toBeDefined();
 
           expect(() => compiler.compile(entry.input)).toThrow(expectedCls);
           try {
@@ -127,9 +147,9 @@ describe('ExpressCompiler', () => {
             if (expectedCls === ExpressSyntaxError) {
               const synErr = err as ExpressSyntaxError;
               const pyStrMsg = `${synErr.message} (line ${synErr.line})`;
-              expect(pyStrMsg).toBe(entry.expected.message);
+              expect(pyStrMsg).toBe(expected.message);
             } else {
-              expect((err as Error).message).toBe(entry.expected.message);
+              expect((err as Error).message).toBe(expected.message);
             }
           }
         }
