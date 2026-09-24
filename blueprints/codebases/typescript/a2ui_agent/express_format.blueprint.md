@@ -464,7 +464,9 @@ which currently holds `direct_json` only.
 
 1. Inherit the catalog JSON access mechanism built for v0.9, and land the
    property-order comparison from section 4 as a permanent test, including the
-   `checks` placement on the six Checkable components.
+   `checks` placement on the six Checkable components. Done 2026-09-24 in `8d86513f`:
+   loaders register the parsed catalog JSON (`src/utils/catalog_document.ts`), and
+   the helper tables for both basic catalogs are pinned against Python's.
 2. Add codegen and check the generated lexer, parser, and visitor into the
    repository so a plain `yarn build` never runs the generator. Exclude the
    generated directory from eslint and prettier. Done 2026-09-23 with antlr-ng and
@@ -476,20 +478,26 @@ which currently holds `direct_json` only.
    `generated_parser.test.ts` keeps the ATN comparison permanent and smoke-tests a
    parse. ESLint already ignores `**/generated/**`; a package `.prettierignore`
    covers prettier. The README documents regeneration.
-3. Build `visitor.ts` and the AST types against grammar fixtures.
+3. Build `visitor.ts` and the AST types against grammar fixtures. Done 2026-09-24 in
+   `eac2f161`, with 60 snippets pinned against Python's visitor.
 4. Build `schema_helper.ts`, with the ordering test from step 1 kept as a permanent
-   regression test.
+   regression test. Done with step 1.
 5. Build `compiler.ts`, replacing each of the six hardcodings in section 5 with a
    schema-derived rule. The milestone is the 45 cases in
    `conformance/agent/express/compiler.yaml` once the suite reaches this branch, or
-   the single `parse_full` case until then.
+   the single `parse_full` case until then. Done 2026-09-24 in `51cdca61`. Against
+   the imported suite: 37 pass, 7 fail as Python's known gaps, and 1 is skipped as
+   in Python.
 6. Add `express` to `SUPPORTED_FORMATS` and add format dispatch to the harness,
-   which currently instantiates `DirectJsonParser` unconditionally.
+   which currently instantiates `DirectJsonParser` unconditionally. Done 2026-09-24 in
+   `923fc368`, together with main's four Express suites and a harness for them.
 7. Build `prompt_generator.ts` and `decompiler.ts` against
-   `express/prompt_generator.yaml` and `express/decompiler.yaml`.
+   `express/prompt_generator.yaml` and `express/decompiler.yaml`. Done 2026-09-24 in
+   `f4f315b3`; the parser and format followed in `dbbabbce`.
 8. Declare `supportsStreaming` false. Do not build Express streaming. Revisit only
    if streaming conformance cases appear for Express, which upstream has stated
-   they will not while the format does not stream.
+   they will not while the format does not stream. Done: `ExpressFormat` and
+   `ExpressParser` report false, and `parseChunk` throws.
 
 ---
 
