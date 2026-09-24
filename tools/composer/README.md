@@ -34,7 +34,7 @@ cd ../../renderers/markdown/markdown-it
 yarn install
 yarn build
 
-# Build web-core renderer
+# Build web-core renderer (from renderers/markdown/markdown-it, go up 4 levels to the repo root)
 cd ../../../../typescript/web_core
 yarn install
 yarn build

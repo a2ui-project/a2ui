@@ -17,6 +17,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from typing import Any
 
@@ -335,6 +336,14 @@ def generate_version_schemas(
         f.write(schema_init_code)
 
 
+def _version_tuple(dir_name: str) -> tuple[int, int]:
+    """Parses `(major, minor)` from a directory name such as `v1_0` or `v0_9_1`."""
+    match = re.fullmatch(r"v(\d+)_(\d+)(?:_\d+)*", dir_name)
+    if not match:
+        raise ValueError(f"Unrecognized version directory name: {dir_name}")
+    return int(match.group(1)), int(match.group(2))
+
+
 def generate_basic_catalog(
     version: str,
     spec_root: str | None = None,
@@ -354,13 +363,16 @@ def generate_basic_catalog(
         os.path.join(s_root, dir_name, "json/catalog.json"),
         os.path.join(s_root, dir_name, "standard_catalog_definition.json"),
     ]
-    if dir_name == "v1_0":
+    major, _ = _version_tuple(dir_name)
+    if major >= 1:
         # From v1.0 on, catalogs are versioned separately from the protocol and live
-        # in the top-level `catalogs/` directory.
-        possible_paths.insert(
-            0,
-            os.path.join(os.path.dirname(s_root), "catalogs/basic/v1/catalog.json"),
-        )
+        # in the top-level `catalogs/` directory. Fall back to the v1 catalog until
+        # a catalog for the new major version exists.
+        catalogs_root = os.path.join(os.path.dirname(s_root), "catalogs/basic")
+        possible_paths[:0] = [
+            os.path.join(catalogs_root, f"v{major}/catalog.json"),
+            os.path.join(catalogs_root, "v1/catalog.json"),
+        ]
     catalog_path = next((p for p in possible_paths if os.path.exists(p)), None)
     if not catalog_path:
         raise FileNotFoundError(

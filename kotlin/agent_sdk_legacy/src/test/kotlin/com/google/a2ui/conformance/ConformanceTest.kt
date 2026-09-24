@@ -222,7 +222,8 @@ class ConformanceTest {
     if (catalog != null && catalog.containsKey(KEY_CATALOG_SCHEMA)) {
       return catalog
     }
-    val version = (case[KEY_PROTOCOL_VERSION] ?: "v0.9").toString()
+    val rawVersion = (case[KEY_PROTOCOL_VERSION] ?: "v0.9").toString()
+    val version = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
     val specJsonDir =
       if (version == "v0.8") "../specification/v0_8/json" else "../specification/v0_9/json"
     val catalogPath = (case[KEY_CATALOG_PATHS] as? List<*>)?.firstOrNull() as? String

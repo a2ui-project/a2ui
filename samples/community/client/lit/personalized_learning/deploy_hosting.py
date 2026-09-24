@@ -114,7 +114,7 @@ def prepare_build_context(demo_dir: Path) -> Path:
     print("\nPreparing build context...")
 
     # demo_dir is samples/community/client/lit/personalized_learning.
-    repo_root = demo_dir.parents[4]
+    repo_root = demo_dir.resolve().parents[4]
     renderers_dir = repo_root / "renderers"
 
     # Copy web_core first (lit depends on it)
