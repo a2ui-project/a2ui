@@ -1,0 +1,33 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "TextField",
+          "id": "zip_field",
+          "checks": [
+            {
+              "condition": {
+                "call": "regex",
+                "args": {
+                  "value": {
+                    "path": "/user/zip"
+                  },
+                  "pattern": "^[0-9]{5}$"
+                }
+              },
+              "message": "ZIP code must be 5 digits"
+            }
+          ],
+          "label": "ZIP code",
+          "value": {
+            "path": "/user/zip"
+          },
+          "variant": "shortText"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "feed_container__post_title",
+          "text": {
+            "path": "title"
+          },
+          "variant": "body"
+        },
+        {
+          "component": "Card",
+          "id": "feed_container__post_card",
+          "child": "feed_container__post_title"
+        },
+        {
+          "component": "Column",
+          "id": "feed_container",
+          "children": {
+            "path": "/feed/posts",
+            "componentId": "feed_container__post_card"
+          },
+          "justify": "start",
+          "align": "stretch"
+        }
+      ]
+    }
+  }
+]

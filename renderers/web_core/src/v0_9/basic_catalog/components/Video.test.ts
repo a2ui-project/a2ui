@@ -21,26 +21,29 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
 } from '../../index.js';
-import type {A2uiVideoElement} from './Video.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Video Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Video.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiVideoElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -80,7 +83,7 @@ describe('Video Component', () => {
   });
 
   it('should render and attach url correctly', async () => {
-    const el = document.createElement('a2ui-video') as A2uiVideoElement;
+    const el = document.createElement('a2ui-video') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

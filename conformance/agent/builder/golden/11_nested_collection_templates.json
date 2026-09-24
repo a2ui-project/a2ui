@@ -1,0 +1,38 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "org_chart__employee_name",
+          "text": {
+            "path": "name"
+          },
+          "variant": "body"
+        },
+        {
+          "component": "Column",
+          "id": "org_chart__department_block",
+          "children": {
+            "path": "employees",
+            "componentId": "org_chart__employee_name"
+          },
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Column",
+          "id": "org_chart",
+          "children": {
+            "path": "/departments",
+            "componentId": "org_chart__department_block"
+          },
+          "justify": "start",
+          "align": "stretch"
+        }
+      ]
+    }
+  }
+]
