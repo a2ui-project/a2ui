@@ -3506,6 +3506,7 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li>Local <code>$ref</code> targets are restricted to referencing the catalog's top-level components or functions (e.g., <code>#/components/Text</code>, <code>#/functions/required</code>).</li>
 <li>External <code>$ref</code> targets MUST reference the standard types inside <code>common_types.json</code> using the relative target format (<code>common_types.json#/$defs/...</code>). Allowed <code>$ref</code> targets are limited to the following schemas:<ul>
 <li><code>ComponentId</code></li>
+<li><code>Child</code></li>
 <li><code>ChildList</code></li>
 <li><code>DynamicString</code></li>
 <li><code>DynamicNumber</code></li>
@@ -3516,6 +3517,8 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li><code>CheckRule</code></li>
 <li><code>Checkable</code></li>
 <li><code>Action</code></li>
+<li><code>DataBinding</code></li>
+<li><code>FunctionCall</code></li>
 </ul>
 </li>
 </ol>
