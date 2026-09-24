@@ -28,10 +28,13 @@ import {getProtocolSchemas} from '../../utils/protocol_schemas.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 export class DirectJsonPromptGenerator extends PromptGenerator {
-  private readonly examples?: Record<string, AgentToRendererMessage[]>;
+  private readonly examples?: Record<string, AgentToRendererMessage[] | string>;
   private readonly decompiler: DirectJsonDecompiler;
 
-  constructor(catalogs: SchemaCatalog[], examples?: Record<string, AgentToRendererMessage[]>) {
+  constructor(
+    catalogs: SchemaCatalog[],
+    examples?: Record<string, AgentToRendererMessage[] | string>,
+  ) {
     super(catalogs);
     this.examples = examples;
     this.decompiler = new DirectJsonDecompiler();
@@ -79,6 +82,11 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     }
 
     const exampleMessages = this.examples[catalog.id];
+    // A string is preformatted example text and goes into the prompt as is, the way
+    // Python's load_examples inserts the raw contents of each example file.
+    if (typeof exampleMessages === 'string') {
+      return exampleMessages;
+    }
 
     const decompiled = this.decompiler.decompile(exampleMessages);
     return this.decompiler.wrap([{type: 'a2ui', a2uiRaw: decompiled, isFinal: true}]);
