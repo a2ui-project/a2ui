@@ -21,6 +21,7 @@
  */
 
 import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {RawResponsePart} from '../../parser/response_part.js';
 import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/constants.js';
 import {SchemaCatalog} from '../../types.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
@@ -162,6 +163,24 @@ export class ExpressDecompiler {
   wrapDecompiledBlocks(blocks: string[]): string {
     const fullDsl = blocks.join('\n');
     return `${A2UI_INFERENCE_OPEN_TAG}\n${fullDsl}\n${A2UI_INFERENCE_CLOSE_TAG}`;
+  }
+
+  /**
+   * Wraps raw response parts, adding format tags around A2UI payload sections.
+   *
+   * @param blocks A list of raw response parts.
+   * @returns The formatted response string.
+   */
+  wrap(blocks: RawResponsePart[]): string {
+    let result = '';
+    for (const block of blocks) {
+      if (block.type === 'text') {
+        result += block.text + '\n';
+      } else if (block.type === 'a2ui') {
+        result += `${A2UI_INFERENCE_OPEN_TAG}\n${block.a2uiRaw}\n${A2UI_INFERENCE_CLOSE_TAG}\n`;
+      }
+    }
+    return result.trimEnd();
   }
 
   /**

@@ -181,7 +181,7 @@ function isAtLeastVersion(version: string, minVersion: string): boolean {
 /**
  * Formats an exception reproducing Python's `str(e)` for error wrapping (compiler.py:290).
  */
-function pyStr(e: unknown): string {
+export function pyStr(e: unknown): string {
   if (e instanceof ExpressSyntaxError) {
     return `${e.message} (line ${e.line})`;
   }

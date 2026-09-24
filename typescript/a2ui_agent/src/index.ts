@@ -32,6 +32,8 @@ export {
   A2uiRecursionError,
   ParseError,
   A2uiCompilationError,
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
   A2uiCatalogError,
 } from './errors.js';
 
@@ -79,6 +81,12 @@ export type {
 export {DirectJsonStreamProcessorImpl} from './inference_formats/direct_json/streaming.js';
 export {DirectJsonPromptGenerator} from './inference_formats/direct_json/prompt_generator.js';
 export {DirectJsonDecompiler} from './inference_formats/direct_json/decompiler.js';
+
+// Express inference format
+export {ExpressFormat, ExpressFormatFactory} from './inference_formats/express/format.js';
+export {ExpressParser} from './inference_formats/express/parser.js';
+export {ExpressPromptGenerator} from './inference_formats/express/prompt_generator.js';
+export {ExpressDecompiler} from './inference_formats/express/decompiler.js';
 
 // Facades
 export {A2uiGenerator} from './processor/generator.js';

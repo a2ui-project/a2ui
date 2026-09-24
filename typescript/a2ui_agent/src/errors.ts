@@ -86,6 +86,56 @@ export class A2uiCompilationError extends A2uiError {
 }
 
 /**
+ * Raised when a format block cannot be read at all.
+ *
+ * The block is malformed on its own terms: the notation's grammar rejects it,
+ * or it is missing a part the notation requires before it names anything for
+ * the catalog to check.
+ *
+ * Note: TypeScript has single inheritance, so this class cannot also extend ParseError.
+ */
+export class A2uiCompilationParseError extends A2uiCompilationError {
+  constructor(
+    message: string,
+    options: {
+      rawContent: string;
+      line?: number;
+      column?: number;
+      helpMessage?: string;
+      partialResults?: ResponsePart[];
+    },
+  ) {
+    super(message, options);
+    this.name = 'A2uiCompilationParseError';
+  }
+}
+
+/**
+ * Raised when a readable format block says something the catalog refuses.
+ *
+ * The block parses, so the failure is about what it names rather than how it
+ * is written: a property the component does not declare, a value outside a
+ * property's enum, a binding on a property that takes only a literal.
+ *
+ * Note: TypeScript has single inheritance, so this class cannot also extend A2uiValidationError.
+ */
+export class A2uiCompilationValidationError extends A2uiCompilationError {
+  constructor(
+    message: string,
+    options: {
+      rawContent: string;
+      line?: number;
+      column?: number;
+      helpMessage?: string;
+      partialResults?: ResponsePart[];
+    },
+  ) {
+    super(message, options);
+    this.name = 'A2uiCompilationValidationError';
+  }
+}
+
+/**
  * TEMPORARY — this belongs in `@a2ui/web_core`, not here.
  *
  * Local stand-in for catalog-related errors.
