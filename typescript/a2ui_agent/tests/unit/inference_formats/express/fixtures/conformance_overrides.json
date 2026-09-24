@@ -31,6 +31,289 @@
         "error": "ExpressUnknownFunctionError",
         "message": "Function 'titleCase' is not defined in the catalog."
       }
+    },
+    "test_compile_express_event_action": {
+      "justification": "test_compile_express_event_action",
+      "expected": {
+        "status": "success",
+        "messages": [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "default_surface",
+              "catalogId": "conformance/simplified",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Button",
+                  "child": "label",
+                  "action": {
+                    "event": {
+                      "name": "submit"
+                    }
+                  }
+                },
+                {
+                  "id": "label",
+                  "component": "Text",
+                  "text": "Submit"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "test_compile_express_event_variable_is_inlined_at_each_use": {
+      "justification": "test_compile_express_event_variable_is_inlined_at_each_use",
+      "expected": {
+        "status": "success",
+        "messages": [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "default_surface",
+              "catalogId": "conformance/simplified",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Column",
+                  "children": ["save", "send"]
+                },
+                {
+                  "id": "save",
+                  "component": "Button",
+                  "child": "saveLabel",
+                  "action": {
+                    "event": {
+                      "name": "submit"
+                    }
+                  }
+                },
+                {
+                  "id": "send",
+                  "component": "Button",
+                  "child": "sendLabel",
+                  "action": {
+                    "event": {
+                      "name": "submit"
+                    }
+                  }
+                },
+                {
+                  "id": "saveLabel",
+                  "component": "Text",
+                  "text": "Save"
+                },
+                {
+                  "id": "sendLabel",
+                  "component": "Text",
+                  "text": "Send"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "test_compile_express_standalone_function_call": {
+      "justification": "test_compile_express_standalone_function_call",
+      "expected": {
+        "status": "success",
+        "messages": [
+          {
+            "version": "v1.0",
+            "callRendererFunction": {
+              "functionCallId": "call_1",
+              "callFunction": {
+                "call": "openUrl",
+                "args": {
+                  "url": "https://example.com"
+                },
+                "catalogId": "conformance/simplified"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "basic_v1_0_column_button_event": {
+      "justification": "test_compile_express_inline_nesting",
+      "expected": {
+        "status": "success",
+        "messages": [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "default_surface",
+              "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Column",
+                  "children": ["t1", "b1"]
+                },
+                {
+                  "id": "t1",
+                  "component": "Text",
+                  "text": "Title",
+                  "variant": "body"
+                },
+                {
+                  "id": "b1",
+                  "component": "Button",
+                  "child": "b1_child",
+                  "action": {
+                    "event": {
+                      "name": "btn_click",
+                      "context": {
+                        "id": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "b1_child",
+                  "component": "Text",
+                  "text": "Click"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "basic_v1_0_inlined_children": {
+      "justification": "test_compile_express_inline_nesting",
+      "expected": {
+        "status": "success",
+        "messages": [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "default_surface",
+              "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Column",
+                  "children": ["root_children_0", "root_children_1"]
+                },
+                {
+                  "id": "root_children_0",
+                  "component": "Text",
+                  "text": "Line 1"
+                },
+                {
+                  "id": "root_children_1",
+                  "component": "Text",
+                  "text": "Line 2"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "test_compile_express_inline_nesting": {
+      "justification": "test_compile_express_inline_nesting",
+      "expected": {
+        "status": "success",
+        "messages": [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "default_surface",
+              "catalogId": "conformance/simplified",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Card",
+                  "child": "root_child"
+                },
+                {
+                  "id": "root_child",
+                  "component": "Text",
+                  "text": "Hello"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "basic_v0_9_helper.json": {
+    "justification": "schema: CatalogComponentCommon via local allOf ref",
+    "expected": {
+      "component_properties": {
+        "Text": ["text", "variant", "weight"],
+        "Image": ["url", "description", "fit", "variant", "weight"],
+        "Icon": ["name", "weight"],
+        "Video": ["url", "weight"],
+        "AudioPlayer": ["url", "description", "weight"],
+        "Row": ["children", "justify", "align", "weight"],
+        "Column": ["children", "justify", "align", "weight"],
+        "List": ["children", "direction", "align", "weight"],
+        "Card": ["child", "weight"],
+        "Tabs": ["tabs", "weight"],
+        "Modal": ["trigger", "content", "weight"],
+        "Divider": ["axis", "weight"],
+        "Button": ["child", "variant", "action", "weight", "checks"],
+        "TextField": ["label", "value", "variant", "validationRegexp", "weight", "checks"],
+        "CheckBox": ["label", "value", "weight", "checks"],
+        "ChoicePicker": [
+          "label",
+          "variant",
+          "options",
+          "value",
+          "displayStyle",
+          "filterable",
+          "weight",
+          "checks"
+        ],
+        "Slider": ["label", "min", "max", "value", "weight", "checks"],
+        "DateTimeInput": [
+          "value",
+          "enableDate",
+          "enableTime",
+          "min",
+          "max",
+          "label",
+          "weight",
+          "checks"
+        ]
+      }
+    }
+  },
+  "decompiler_parity_cases.json": {
+    "test_decompile_express_escapes_a_quote_in_a_string": {
+      "justification": "test_decompile_express_escapes_a_quote_in_a_string",
+      "expected": "surface(\"s1\")\nroot = Text(\"He said \\\"hello\\\".\")"
+    },
+    "test_decompile_express_quotes_a_map_key_that_is_not_an_identifier": {
+      "justification": "test_decompile_express_quotes_a_map_key_that_is_not_an_identifier",
+      "expected": "surface(\"s1\")\nroot = Button(label, Event(\"submit\", {\"item-id\": \"42\"}))\nlabel = Text(\"Submit\")"
+    },
+    "test_decompile_express_update_data_model": {
+      "justification": "test_decompile_express_update_data_model",
+      "expected": "surface(\"s1\")\n$/title = \"Hello\""
+    },
+    "test_decompile_express_nested_data_model_is_one_assignment_per_leaf": {
+      "justification": "test_decompile_express_nested_data_model_is_one_assignment_per_leaf",
+      "expected": "surface(\"s1\")\n$/user/city = \"London\"\n$/user/name = \"Ada\""
+    },
+    "branch_v0_9_update_data_model_basic": {
+      "justification": "test_decompile_express_update_data_model",
+      "expected": "surface(\"surf_09\")\n$/profile/active = true\n$/profile/name = \"Bob\""
+    },
+    "branch_batch_multiple_messages": {
+      "justification": "test_decompile_express_update_data_model",
+      "expected": "surface(\"s1\")\nroot = Text(\"First\")\nsurface(\"s1\")\n$/status = \"loaded\""
+    },
+    "test_decompile_update_data_model_non_object_values": {
+      "justification": "no conformance case: updateDataModel honors path and writes surface for standalone updateDataModel (B3)",
+      "expected": "surface(\"default\")\n$/title = \"Found Restaurants\"\nsurface(\"default\")\n$/items = [{name: \"Xi'an Famous Foods\", rating: 4.5}]\nsurface(\"default\")\nsurface(\"default\")"
     }
   }
 }

@@ -20,6 +20,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Re-sending the same `createSurface` in a new payload across multiple turns of a conversational session using the same processor instance will throw an `A2uiStateError`. Callers must manually recreate and recycle the `A2uiRequestProcessor` per _request_ (turn), not per session.
 - **Done looks like:** The request-scoped lifecycle is prominently documented, or the internal structure is changed to expose a clear `reset()` method.
 
+### Express version default differs from Python
+
+- **What it is:** In Python, the Express protocol version defaults to `v1.0` if not overridden.
+- **TypeScript:** The port defaults the Express protocol version to the negotiated catalog's own `protocolVersion` (via `toWireProtocolVersion`), and explicitly validates any given `version` option against the catalog's version, throwing `A2uiCatalogError` on mismatch.
+- **Done looks like:** Python aligns with the catalog-derived version default and validates mismatches.
+
 ### Partial protocol version support and unimplemented formats
 
 - **What it is:** The package supports `v1.0` and `v0.9`. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
@@ -180,11 +186,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 - **What it is:** Main's conformance suites for Express contain cases that Python's implementation fails. The TypeScript port previously followed Python and failed the same cases, but now follows the conformance suite and passes them. Python still fails the following cases:
   - compiler: inline components get `_inline_N` ids rather than `<parent id>_<property>`; an Event with no context compiles `context: {}`; a standalone call compiles to a top-level `functionCallId`/`callFunction`, which `agent_to_renderer.json` rejects, rather than to `callRendererFunction`; unknown components are dropped instead of failing the compile (`test_compile_express_unknown_component_is_a_validation_error`); missing required properties are not reported (`test_compile_express_missing_required_property_is_a_validation_error`); calls to unknown functions compile (`test_compile_express_unknown_function_is_a_validation_error`);
-  - decompiler: a standalone `updateComponents` has no root line and a standalone `updateDataModel` has no surface line, so both fail the round trip; a string holding a quote is written triple-quoted instead of escaped; `callRendererFunction` decompiles to an empty string; a map key that is not an identifier is written unquoted, which the grammar rejects;
+  - decompiler: a standalone `updateComponents` has no root line, failing the round trip; `callRendererFunction` decompiles to an empty string; a standalone `updateDataModel` has no surface line, so both `test_decompile_express_update_data_model` and `test_decompile_express_nested_data_model_is_one_assignment_per_leaf` fail; a string holding a quote is written triple-quoted instead of escaped (`test_decompile_express_escapes_a_quote_in_a_string`); a map key that is not an identifier is written unquoted, which the grammar rejects (`test_decompile_express_quotes_a_map_key_that_is_not_an_identifier`);
   - response parser: a component the catalog doesn't declare is dropped, so a response that should fail validation parses (`test_parse_response_express_validation_failure_surfaces`).
 - **Why it exists:** These are behaviours of main's Python compiler and decompiler.
 - **What it risks:** In Python, unknown components and missing required properties reach the renderer without a compile-time error, and decompiled output does not always compile back to the same messages.
-- **Differences from Python:** TypeScript passes the validation errors for unknown components, missing required properties, and unknown functions, as required by the conformance suite. TypeScript also passes seven response-parser cases that Python lists as gaps. Four `wrap` cases pass because TypeScript's `wrap` takes response parts, where Python's takes strings; two text-between-blocks cases pass because the shared TypeScript block lexer keeps text separate from payloads; and the unwrapped-body case passes because `parseResponse` accepts `wrapped`. Python skips `test_compile_express_surface_targeting_names_a_catalog` as unsupported, and so does TypeScript.
+- **Differences from Python:** TypeScript passes the validation errors for unknown components, missing required properties, and unknown functions, as required by the conformance suite. TypeScript also passes the decompiler cases for escaping quotes in strings, quoting non-identifier map keys, and outputting surface declarations for standalone `updateDataModel` assignments. TypeScript also passes seven response-parser cases that Python lists as gaps. Four `wrap` cases pass because TypeScript's `wrap` takes response parts, where Python's takes strings; two text-between-blocks cases pass because the shared TypeScript block lexer keeps text separate from payloads; and the unwrapped-body case passes because `parseResponse` accepts `wrapped`. Python skips `test_compile_express_surface_targeting_names_a_catalog` as unsupported, and so does TypeScript.
 - **Done looks like:** Python fixes each gap to match the conformance suite.
 
 ### Express grammar rules name basic-catalog components
@@ -205,21 +211,23 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Python's Express ignores common properties defined inside a v0.9 catalog
 
-- **What it is:** v0.9 basic catalog components get `weight` through a local `allOf` reference to `#/$defs/CatalogComponentCommon`. Python's schema helper does not follow that reference when listing a component's properties, so `weight` never appears in v0.9 Express signatures, and `Text("hi", weight=1)` fails with "Property 'weight' is not a valid property of component 'Text'". The port does the same.
-- **Why it exists:** The helper collects properties only from a component's own `properties` and from inline `allOf` entries. It reads `$ref`s only to detect `Checkable`, whose `checks` property it then appends by name. The v1.0 basic catalog inherits only `Checkable`, so it is not affected.
-- **What it risks:** An Express author targeting v0.9 cannot set `weight`.
-- **Done looks like:** Python's helper follows local `$defs` references, and the port follows.
+- **What it is:** v0.9 basic catalog components get `weight` through a local `allOf` reference to `#/$defs/CatalogComponentCommon`. Python's schema helper does not follow that reference when listing a component's properties, so `weight` never appears in v0.9 Express signatures, and `Text("hi", weight=1)` fails with "Property 'weight' is not a valid property of component 'Text'".
+- **TypeScript:** The port now resolves local `$defs` references, so `weight` and other common properties correctly appear in v0.9 component signatures, and `Text("hi", weight=1)` compiles successfully.
+- **Why it exists:** Python's helper collects properties only from a component's own `properties` and from inline `allOf` entries, missing local `$ref`s.
+- **Done looks like:** Python's helper follows local `$defs` references to match the TypeScript port.
 
 ### Python's Express cannot decompile the restaurant finder's v0.9 examples
 
-- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile, in Python and in the port alike. Component ids such as `title-heading` are not Express identifiers, so the lexer stops at the `-`. `updateDataModel.path` is ignored, so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`. `createSurface` and `updateComponents` each write a `surface("default")` line, and a program with two `surface` lines fails with "Root target 'root' is not defined". `createSurface.theme` is dropped without notice.
+- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile in Python. Component ids such as `title-heading` are not Express identifiers, so the lexer stops at the `-`. In Python, `updateDataModel.path` is ignored, so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`. `createSurface` and `updateComponents` each write a `surface("default")` line, and a program with two `surface` lines fails with "Root target 'root' is not defined". `createSurface.theme` is dropped without notice.
+- **TypeScript:** The TypeScript decompiler honours `updateDataModel.path` (mapping non-root paths to `$/path` leaf assignments), writes standalone `updateDataModel` surface lines, and quotes non-identifier map keys.
 - **Why it exists:** The decompiler handles each message on its own and was written against v1.0, where one `createSurface` carries the components and the data model.
 - **What it risks:** Examples written for Direct JSON cannot be reused for Express as they are. The Node sample works around this with its own copies (underscore ids, one `updateDataModel` at `/`, no `weight`) and by dropping `createSurface` before decompiling.
-- **Done looks like:** The decompiler honours `updateDataModel.path`, writes one `surface` line per surface, and either rejects or rewrites ids that are not identifiers.
+- **Done looks like:** Python's decompiler honours `updateDataModel.path`, writes one `surface` line per surface, and either rejects or rewrites ids that are not identifiers.
 
 ### Python's Express leaves v0.9 JSON examples untranslated
 
-- **What it is:** When examples are given as text, the Express prompt generator rewrites each fenced `json` block as Express only if every message in it is a `createSurface`, `updateDataModel`, `deleteSurface` or `callFunction`. A v0.9 example always contains `updateComponents`, so the block is left as JSON in an Express prompt. The port does the same.
-- **Why it exists:** The key list matches v1.0, where components travel inside `createSurface`.
-- **What it risks:** A v0.9 Express prompt shows the model JSON examples while asking for Express. The Node sample avoids this by decompiling its examples itself and passing Express text.
+- **What it is:** When examples are given as text, Python's Express prompt generator rewrites each fenced `json` block as Express only if every message in it is a `createSurface`, `updateDataModel`, `deleteSurface` or `callFunction`. A v0.9 example always contains `updateComponents`, so the block is left as JSON in an Express prompt.
+- **TypeScript:** The TypeScript prompt generator includes `updateComponents` in the list of recognized messages, correctly translating fenced v0.9 JSON example blocks to Express.
+- **Why it exists:** The key list in Python matches v1.0, where components travel inside `createSurface`.
+- **What it risks:** In Python, a v0.9 Express prompt shows the model JSON examples while asking for Express. The Node sample avoids this by decompiling its examples itself and passing Express text.
 - **Done looks like:** `updateComponents` is added to the list, in Python first.

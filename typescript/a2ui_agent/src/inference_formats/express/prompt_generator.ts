@@ -24,7 +24,7 @@
 import {PromptGenerator, PromptOptions} from '../../prompt/generator.js';
 import {SchemaCatalog} from '../../types.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
-import {DEFAULT_PROTOCOL_VERSION} from '../../utils/protocol_version.js';
+import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {A2uiCatalogError} from '../../errors.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
@@ -134,7 +134,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
   private getHelper(catalog: SchemaCatalog): CatalogSchemaHelper {
     let helper = this.helpers.get(catalog.id);
     if (!helper) {
-      const version = catalog.protocolVersion || DEFAULT_PROTOCOL_VERSION;
+      const version = toWireProtocolVersion(catalog.protocolVersion);
       helper = new CatalogSchemaHelper(catalog, version);
       this.helpers.set(catalog.id, helper);
     }
@@ -144,7 +144,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
   private getDecompiler(catalog: SchemaCatalog): ExpressDecompiler {
     let decompiler = this.decompilers.get(catalog.id);
     if (!decompiler) {
-      const version = catalog.protocolVersion || DEFAULT_PROTOCOL_VERSION;
+      const version = toWireProtocolVersion(catalog.protocolVersion);
       decompiler = new ExpressDecompiler(catalog, version);
       this.decompilers.set(catalog.id, decompiler);
     }
@@ -494,6 +494,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
           typeof msg !== 'object' ||
           !(
             'createSurface' in msg ||
+            'updateComponents' in msg ||
             'updateDataModel' in msg ||
             'deleteSurface' in msg ||
             'callFunction' in msg
