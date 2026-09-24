@@ -142,9 +142,8 @@ describe('Tabs Component', () => {
     element = el;
     document.body.appendChild(el);
 
-    assert.doesNotThrow(() => {
+    await asyncUpdate(el, () => {
       el.requestUpdate();
     });
-    await asyncUpdate(el, () => {});
   });
 });
