@@ -34,12 +34,34 @@ export class RawNumber {
 }
 
 /**
+ * Returns whether a JSON value is truthy under Python's rules, where empty strings,
+ * lists and objects, zero, `false` and `null` are all falsy.
+ *
+ * @param value The value to test.
+ * @returns True if Python would treat the value as truthy.
+ */
+export function isPythonTruthy(value: unknown): boolean {
+  if (value instanceof RawNumber) {
+    return Number(value.value) !== 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.keys(value).length > 0;
+  }
+  return Boolean(value);
+}
+
+/**
  * Flattens a nested dictionary dataModel structure into JSON Pointer path segments.
  *
- * @param dataDict The nested data object.
+ * A non-object value yields a single entry at the root path `''`.
+ *
+ * @param dataDict The nested data object, or any other JSON value.
  * @returns Array of [path, value] tuples.
  */
-export function flattenDataModel(dataDict: Record<string, unknown>): Array<[string, unknown]> {
+export function flattenDataModel(dataDict: unknown): Array<[string, unknown]> {
   const results: Array<[string, unknown]> = [];
 
   function recurse(current: unknown, path: string): void {
@@ -221,9 +243,11 @@ export class ExpressDecompiler {
       typeof envelope.updateDataModel === 'object'
     ) {
       const valOp = envelope.updateDataModel as Record<string, unknown>;
-      const dataVal = (valOp.value ?? {}) as Record<string, unknown>;
+      const dataVal = valOp.value ?? {};
       const dslLines: string[] = [];
-      if (dataVal && typeof dataVal === 'object') {
+      // Python tests `if data_val:`, so any truthy value is written, including a string
+      // or a list, not only an object.
+      if (isPythonTruthy(dataVal)) {
         const flattened = flattenDataModel(dataVal);
         flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
         for (const [path, val] of flattened) {
