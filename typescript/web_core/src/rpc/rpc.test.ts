@@ -895,5 +895,10 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(customCodeErr.message, '[SERVER_FAULT] Server blew up');
     assert.strictEqual(customCodeErr.functionCallId, 'call-2');
     assert.deepStrictEqual(customCodeErr.details, {status: 500});
+
+    const knownCodeMessageWithCustomCodeErr = new A2uiRpcError('TIMEOUT', 'SERVER_FAULT', 'call-2');
+    assert.strictEqual(knownCodeMessageWithCustomCodeErr.code, 'SERVER_FAULT');
+    assert.strictEqual(knownCodeMessageWithCustomCodeErr.message, '[SERVER_FAULT] TIMEOUT');
+    assert.strictEqual(knownCodeMessageWithCustomCodeErr.functionCallId, 'call-2');
   });
 });

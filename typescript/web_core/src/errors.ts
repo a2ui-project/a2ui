@@ -233,12 +233,14 @@ export class A2uiRpcError extends A2uiError {
     public readonly details?: unknown,
   ) {
     const isFirstArgKnownCode = Object.values(RpcErrorCode).includes(messageOrCode as RpcErrorCode);
-    const isSecondArgKnownCode = Object.values(RpcErrorCode).includes(
-      codeOrMessage as RpcErrorCode,
-    );
+    const isSecondArgLikeMessage =
+      typeof codeOrMessage === 'string' && (/[a-z\s]/.test(codeOrMessage) || codeOrMessage === '');
     const [resolvedMessage, resolvedCode] =
-      isFirstArgKnownCode && !isSecondArgKnownCode
-        ? [String(codeOrMessage || ''), messageOrCode || RpcErrorCode.UNKNOWN_ERROR]
+      isFirstArgKnownCode && isSecondArgLikeMessage
+        ? [
+            codeOrMessage !== undefined && codeOrMessage !== null ? String(codeOrMessage) : '',
+            messageOrCode || RpcErrorCode.UNKNOWN_ERROR,
+          ]
         : [messageOrCode, codeOrMessage || RpcErrorCode.UNKNOWN_ERROR];
     super(`[${resolvedCode}] ${resolvedMessage}`, resolvedCode);
     this.name = 'A2uiRpcError';
