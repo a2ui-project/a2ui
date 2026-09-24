@@ -78,7 +78,14 @@ class A2uiRecursionError(A2uiValidationError):
 class A2uiDataError(A2uiError):
     """Exception raised when accessing or mutating data model with invalid paths or types."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        path: str | None = None,
+        details: list[A2uiErrorDetail] | None = None,
+    ) -> None:
+        super().__init__(message, details=details)
+        self.path: str | None = path
 
 
 class A2uiExpressionError(A2uiError):

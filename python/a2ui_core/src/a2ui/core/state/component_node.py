@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable
+from typing import Any, Callable, Final
 from ..common.events import EventSource, Signal
+
+PLACEHOLDER_TYPE: Final[str] = "Placeholder"
 
 
 class ComponentNode:
@@ -61,7 +63,7 @@ class ComponentNode:
     @property
     def is_placeholder(self) -> bool:
         """Indicates whether this node is an unresolved placeholder."""
-        return self.type == "Placeholder"
+        return self.type == PLACEHOLDER_TYPE
 
     def __str__(self) -> str:
         return self.component_id
@@ -74,11 +76,11 @@ class ComponentNode:
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes this node and its children recursively to a standard dict layout."""
-        if self.type == "Placeholder":
+        if self.type == PLACEHOLDER_TYPE:
             return {
                 "instance_id": self.instance_id,
                 "component_id": self.component_id,
-                "type": "Placeholder",
+                "type": PLACEHOLDER_TYPE,
             }
 
         def serialize_value(v: Any) -> Any:
@@ -116,7 +118,3 @@ class ComponentNode:
             "type": self.type,
             "props": resolved_props,
         }
-
-    def to_debug_tree(self) -> dict[str, Any]:
-        """Serializes this node and its children recursively to a standard dict layout."""
-        return self.to_dict()

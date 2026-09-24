@@ -33,7 +33,7 @@ from ..catalog.catalog import TComponent, TFunction
 class SurfaceComponentsModel:
     """Manages the adjacency map of component configs in a surface."""
 
-    def __init__(self, default_catalog: Any = None) -> None:
+    def __init__(self, default_catalog: Catalog[Any, Any] | None = None) -> None:
         self.default_catalog = default_catalog
         self._components: dict[str, ComponentModel] = {}
         self.on_created = EventSource()
@@ -71,7 +71,15 @@ class SurfaceComponentsModel:
         comp = self.get(component_id)
         if not comp:
             return []
-        return list(comp.get_child_references(set(self._components.keys())))
+        fallback_cat = (
+            comp.catalog if isinstance(comp.catalog, Catalog) else self.default_catalog
+        )
+        return list(
+            comp.get_child_references(
+                set(self._components.keys()),
+                catalog=fallback_cat,
+            )
+        )
 
     def get_child_ids(self, component_id: str) -> list[str]:
         """Returns list of referenced child component IDs for a given component identifier."""
@@ -86,13 +94,13 @@ class SurfaceComponentsModel:
         """Detects self-references, circular dependencies, and exceeds depth limits."""
         config = ValidationConfig(
             allow_missing_root=allow_missing_root,
+            allow_orphan_components=True,
             max_depth=max_depth,
         )
         return analyze_topology(
             self._components,
             root_id=root_id,
             config=config,
-            max_depth=max_depth,
         )
 
     def validate_components_update(
@@ -159,7 +167,5 @@ class SurfaceComponentsModel:
         for component in list(self._components.values()):
             component.dispose()
         self._components.clear()
-        if hasattr(self.on_created, "dispose"):
-            self.on_created.dispose()
-        if hasattr(self.on_deleted, "dispose"):
-            self.on_deleted.dispose()
+        self.on_created.dispose()
+        self.on_deleted.dispose()

@@ -17,7 +17,7 @@ from .component_model import (
     ComponentModel,
     is_v0_8_heuristic_child_prop_key,
 )
-from .component_node import ComponentNode
+from .component_node import ComponentNode, PLACEHOLDER_TYPE
 from .data_model import DataModel
 from ..resolution.node_graph import NodeGraph
 from .surface_components_model import SurfaceComponentsModel
@@ -36,6 +36,7 @@ __all__ = [
     "DataModel",
     "EventSource",
     "NodeGraph",
+    "PLACEHOLDER_TYPE",
     "Signal",
     "SurfaceComponentsModel",
     "SurfaceGroupModel",

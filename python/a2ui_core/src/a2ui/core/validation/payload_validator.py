@@ -430,8 +430,6 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 ],
             )
 
-        self._validate_function_identifiers(name, norm_args)
-
         if len(norm_args) > MAX_FUNCTION_CALL_ARGS:
             raise A2uiValidationError(
                 f"Function call '{name}' exceeds maximum allowed arguments count"
@@ -447,6 +445,8 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                     )
                 ],
             )
+
+        self._validate_function_identifiers(name, norm_args)
 
         fn_def, fn_schema, base_schema = self._find_function_definition(name)
 

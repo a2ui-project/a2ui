@@ -163,7 +163,7 @@ class DataModel:
                 intermediate segment traverses a primitive.
         """
         if path is None:
-            raise A2uiDataError("Path cannot be null or undefined.")
+            raise A2uiDataError("Path cannot be null or undefined.", path=path)
 
         tokens = self._parse_pointer(path)
 
@@ -182,7 +182,8 @@ class DataModel:
             self._data = {}
         elif not isinstance(self._data, (dict, list)):
             raise A2uiDataError(
-                f"Cannot set path '{path}': the data model root is a primitive value."
+                f"Cannot set path '{path}': the data model root is a primitive value.",
+                path=path,
             )
 
         # Auto-vivification: traverse and construct intermediate dicts/lists
@@ -197,7 +198,8 @@ class DataModel:
                     if val is not None and not isinstance(val, (dict, list)):
                         raise A2uiDataError(
                             f"Cannot set path '{path}': segment '{token}' is a"
-                            " primitive value."
+                            " primitive value.",
+                            path=path,
                         )
                 else:
                     current[token] = [] if is_next_numeric else {}
@@ -208,13 +210,15 @@ class DataModel:
                 if not NUMERIC_PATTERN.match(token):
                     raise A2uiDataError(
                         f"Cannot use non-numeric segment '{token}' on an array in path"
-                        f" '{path}'."
+                        f" '{path}'.",
+                        path=path,
                     )
                 idx = int(token)
                 if idx > MAX_ARRAY_INDEX:
                     raise A2uiDataError(
                         f"Cannot set path '{path}': array index '{token}' exceeds"
-                        f" maximum supported index ({MAX_ARRAY_INDEX})."
+                        f" maximum supported index ({MAX_ARRAY_INDEX}).",
+                        path=path,
                     )
                 while len(current) <= idx:
                     current.append(None)
@@ -222,14 +226,17 @@ class DataModel:
                 if val is not None and not isinstance(val, (dict, list)):
                     raise A2uiDataError(
                         f"Cannot set path '{path}': segment '{token}' is a primitive"
-                        " value."
+                        " value.",
+                        path=path,
                     )
                 if current[idx] is None:
                     current[idx] = [] if is_next_numeric else {}
                 current = current[idx]
             else:
                 raise A2uiDataError(
-                    f"Cannot set path '{path}': segment '{token}' is a primitive value."
+                    f"Cannot set path '{path}': segment '{token}' is a primitive"
+                    " value.",
+                    path=path,
                 )
 
         # Set final leaf value
@@ -243,13 +250,15 @@ class DataModel:
             if not NUMERIC_PATTERN.match(last_token):
                 raise A2uiDataError(
                     f"Cannot use non-numeric segment '{last_token}' on an array in path"
-                    f" '{path}'."
+                    f" '{path}'.",
+                    path=path,
                 )
             idx = int(last_token)
             if idx > MAX_ARRAY_INDEX:
                 raise A2uiDataError(
                     f"Cannot set path '{path}': array index '{last_token}' exceeds"
-                    f" maximum supported index ({MAX_ARRAY_INDEX})."
+                    f" maximum supported index ({MAX_ARRAY_INDEX}).",
+                    path=path,
                 )
             if value is None:
                 # Deleting an index past the end of the list is a no-op.
@@ -263,7 +272,8 @@ class DataModel:
         else:
             raise A2uiDataError(
                 f"Cannot set path '{path}': segment '{last_token}' is a primitive"
-                " value."
+                " value.",
+                path=path,
             )
 
         # Trigger notification cascade

@@ -44,11 +44,8 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         catalogs: dict[str, Catalog[TComponent, TFunction]] = (
             dict(available_catalogs) if available_catalogs else {}
         )
-        cat_id = getattr(default_catalog, "catalog_id", None) or getattr(
-            default_catalog, "id", None
-        )
-        if cat_id and cat_id not in catalogs:
-            catalogs[cat_id] = default_catalog
+        if default_catalog.id and default_catalog.id not in catalogs:
+            catalogs[default_catalog.id] = default_catalog
         self.available_catalogs = catalogs
 
         self.theme = theme or {}
@@ -106,20 +103,28 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         if catalog_id and isinstance(catalog_id, str):
             action_event["catalogId"] = catalog_id
         user_message = event_dict.get("userMessage")
-        if user_message is not None:
-            action_event["userMessage"] = str(user_message)
+        if isinstance(user_message, str):
+            action_event["userMessage"] = user_message
 
         self.on_action.emit(action_event)
 
     def dispatch_error(self, error: dict[str, Any]) -> None:
         """Dispatches an error from this surface to listeners."""
-        err_payload = copy.deepcopy(error) if isinstance(error, dict) else {}
+        if not isinstance(error, dict):
+            raise TypeError(
+                f"Expected error payload to be a dict, got {type(error).__name__}"
+            )
+        err_payload = copy.deepcopy(error)
         err_payload["surfaceId"] = self.id
         self.on_error.emit(err_payload)
 
     def dispatch_warning(self, warning: dict[str, Any]) -> None:
         """Dispatches a non-fatal warning from this surface to listeners."""
-        warn_payload = copy.deepcopy(warning) if isinstance(warning, dict) else {}
+        if not isinstance(warning, dict):
+            raise TypeError(
+                f"Expected warning payload to be a dict, got {type(warning).__name__}"
+            )
+        warn_payload = copy.deepcopy(warning)
         warn_payload["surfaceId"] = self.id
         self.on_warning.emit(warn_payload)
 
@@ -145,9 +150,6 @@ class SurfaceModel(Generic[TComponent, TFunction]):
                     RuntimeWarning,
                     stacklevel=2,
                 )
-        if hasattr(self.on_action, "dispose") and callable(self.on_action.dispose):
-            self.on_action.dispose()
-        if hasattr(self.on_error, "dispose") and callable(self.on_error.dispose):
-            self.on_error.dispose()
-        if hasattr(self.on_warning, "dispose") and callable(self.on_warning.dispose):
-            self.on_warning.dispose()
+        self.on_action.dispose()
+        self.on_error.dispose()
+        self.on_warning.dispose()
