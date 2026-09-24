@@ -107,11 +107,6 @@ const KNOWN_FAILURES = new Map<string, string>([
     'test_parse_response_express_validation_failure_surfaces',
     'a component the catalog does not declare is dropped from the compiled surface instead of failing the parse',
   ],
-  // Prompt generator.
-  [
-    'test_express_snippet_omits_a_pruned_component',
-    'the static grammar rules in EXPRESS_RULES mention Card(...) under rule 15, so Card( is present even when pruned from the catalog',
-  ],
 ]);
 
 /**

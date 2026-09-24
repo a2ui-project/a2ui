@@ -55,7 +55,7 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    - Numbers: write as integers or decimals, e.g., 42
    - Booleans: write true or false
    - Null values: write null
-   - Dates & Times: Values for date-time inputs (e.g. in DateTimeInput) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
+   - Dates & Times: Values for date-time properties must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
 
 4. Lists: represent as arrays, e.g., [child1, child2].
 
@@ -77,18 +77,18 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 11. Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
     _template($/path/to/list, itemTemplate)
     And define the template component variable on another line, utilizing relative path references prefixed with $:
-    itemTemplate = Image($url)
+    itemTemplate = ComponentA($url)
 
 12. To delete a user interface surface, output the standalone \`deleteSurface(surfaceId)\` command (no variable assignment):
     deleteSurface("dashboard-surface-1")
 
 13. Static properties: Arguments annotated with '(static)' in the signatures below MUST be defined as literal values or arrays inline. You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
 
-14. Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
+14. Required actions: Action parameters (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
 
 15. Surface targeting: Output \`surface(surfaceId)\` to specify or target a user interface surface:
     surface("dashboard-surface-1")
-    root = Card(...)`;
+    root = ComponentA(...)`;
 
 function getSchemaEnum(propSchema: unknown): string[] | undefined {
   if (!propSchema || typeof propSchema !== 'object') {
@@ -187,7 +187,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
       !allowedMessages.includes('updateComponents')
     ) {
       rules = rules.replace(
-        /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)\n {4}root = Card\(\.\.\.\)/,
+        /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)\n {4}root = ComponentA\(\.\.\.\)/,
         '',
       );
     }
