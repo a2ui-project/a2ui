@@ -27,6 +27,8 @@ import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {SchemaCatalog} from '../../types.js';
 import {BlockLexer} from '../../parser/lexer.js';
 import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/constants.js';
+import {A2uiCatalogError} from '../../errors.js';
+import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {
   A2uiCompilationError,
   A2uiCompilationParseError,
@@ -77,18 +79,24 @@ export class ExpressParser extends Parser {
    * @param surfaceId Surface identifier for compiled messages.
    * @param version Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
    */
-  constructor(catalog: SchemaCatalog, surfaceId = 'main', version = 'v1.0') {
+  constructor(catalog: SchemaCatalog, surfaceId = 'main', version?: string) {
     super();
+    const catalogVersion = toWireProtocolVersion(catalog.protocolVersion);
+    if (version && version !== catalogVersion) {
+      throw new A2uiCatalogError(
+        `Requested protocol version '${version}' does not match catalog version '${catalogVersion}'`,
+      );
+    }
+    this.version = version ?? catalogVersion;
     this.catalog = catalog;
     this.surfaceId = surfaceId;
-    this.version = version;
     this.lexer = new BlockLexer(
       A2UI_INFERENCE_OPEN_TAG,
       A2UI_INFERENCE_CLOSE_TAG,
       new Set(["'", '"']),
       new Set(['#']),
     );
-    this.decompiler = new ExpressDecompiler(catalog, version);
+    this.decompiler = new ExpressDecompiler(catalog, this.version);
   }
 
   /**

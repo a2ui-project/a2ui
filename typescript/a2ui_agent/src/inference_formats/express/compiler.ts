@@ -29,6 +29,8 @@ import {type AgentToRendererMessage, normalizeVersionString} from '../../interna
 import {type SchemaCatalog} from '../../types.js';
 import {ExpressLexer} from './generated/ExpressLexer.js';
 import {ExpressParser} from './generated/ExpressParser.js';
+import {A2uiCatalogError} from '../../errors.js';
+import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {
   ExpressAstVisitor,
   ExpressErrorListener,
@@ -53,6 +55,7 @@ import {
   ExpressMissingRequiredPropertyError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
+  ExpressIdCollisionError,
 } from './errors.js';
 
 /**
@@ -237,6 +240,7 @@ function asAgentToRendererMessage(msg: Record<string, unknown>): AgentToRenderer
  */
 class CompileContext {
   extraComponents: Record<string, unknown>[] = [];
+  generatedIds: Set<string> = new Set();
   inlineCounter = 0;
   activeBoundPaths: Map<string, ExpressPathValue> = new Map();
 }
@@ -266,9 +270,15 @@ export class ExpressCompiler {
   readonly helper: CatalogSchemaHelper;
   readonly version: string;
 
-  constructor(catalog: SchemaCatalog, version = 'v1.0') {
-    this.helper = new CatalogSchemaHelper(catalog, version);
-    this.version = version;
+  constructor(catalog: SchemaCatalog, version?: string) {
+    const catalogVersion = toWireProtocolVersion(catalog.protocolVersion);
+    if (version && version !== catalogVersion) {
+      throw new A2uiCatalogError(
+        `Requested protocol version '${version}' does not match catalog version '${catalogVersion}'`,
+      );
+    }
+    this.version = version ?? catalogVersion;
+    this.helper = new CatalogSchemaHelper(catalog, this.version);
   }
 
   /**
@@ -455,10 +465,18 @@ export class ExpressCompiler {
       return [
         asAgentToRendererMessage({
           version: targetVersion,
-          functionCallId: `call_${ctx.inlineCounter}`,
-          [SurfaceOperation.CALL_FUNC]: {
-            call: compiledVal.call,
-            args: compiledVal.args ?? {},
+          callRendererFunction: {
+            functionCallId: `call_${ctx.inlineCounter}`,
+            callFunction: {
+              catalogId:
+                callScope?.catalogId ||
+                catalogId ||
+                (typeof this.helper.catalog.catalogId === 'string'
+                  ? this.helper.catalog.catalogId
+                  : 'https://a2ui.org/catalog.json'),
+              call: compiledVal.call as string,
+              args: (compiledVal.args as Record<string, unknown>) ?? {},
+            },
           },
         }),
       ];
@@ -671,7 +689,10 @@ export class ExpressCompiler {
       // Sanctioned departure §5.2 item 1: action slot via isActionSlot
       const isAction = isActionSlot(propSchema);
 
-      let mappedVal = this._compileValue(arg, rawSymbols, ctx, isAction);
+      let mappedVal = this._compileValue(arg, rawSymbols, ctx, isAction, {
+        parentId: varName,
+        property: propName,
+      });
 
       // Sanctioned departure §5.2 item 5: forbidden-binding check walking schema.
       // Gated like Python (compiler.py:547): a property whose schema admits a path
@@ -847,6 +868,7 @@ export class ExpressCompiler {
     rawSymbols: Record<string, unknown>,
     ctx: CompileContext,
     isAction = false,
+    inlineCtx?: {parentId: string; property: string; index?: number},
   ): unknown {
     if (val && typeof val === 'object') {
       if ('path' in val) {
@@ -946,7 +968,15 @@ export class ExpressCompiler {
         // 1. Is it an inline component constructor?
         if (this.helper.components.has(fnName)) {
           ctx.inlineCounter += 1;
-          const inlineId = `_inline_${ctx.inlineCounter}`;
+          const inlineId = inlineCtx
+            ? inlineCtx.index !== undefined
+              ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
+              : `${inlineCtx.parentId}_${inlineCtx.property}`
+            : `_inline_${ctx.inlineCounter}`;
+          if (inlineId in rawSymbols || ctx.generatedIds.has(inlineId)) {
+            throw new ExpressIdCollisionError(inlineId);
+          }
+          ctx.generatedIds.add(inlineId);
           const compiledInline = this._compileAstNode(inlineId, val, rawSymbols, ctx);
           if (compiledInline) {
             ctx.extraComponents.push(compiledInline);
@@ -975,8 +1005,16 @@ export class ExpressCompiler {
         if (fnName === 'Event') {
           const compiledEventName =
             fnArgs.length > 0 ? this._compileValue(fnArgs[0], rawSymbols, ctx, isAction) : '';
-          const rawContext =
-            fnArgs.length > 1 ? this._compileValue(fnArgs[1], rawSymbols, ctx, isAction) : {};
+
+          if (fnArgs.length <= 1) {
+            return {
+              event: {
+                name: compiledEventName,
+              },
+            };
+          }
+
+          const rawContext = this._compileValue(fnArgs[1], rawSymbols, ctx, isAction);
           const compiledContext: Record<string, unknown> = {};
           if (rawContext && typeof rawContext === 'object') {
             if (Array.isArray(rawContext)) {
@@ -1056,7 +1094,15 @@ export class ExpressCompiler {
       }
 
       if (Array.isArray(val)) {
-        return val.map(item => this._compileValue(item, rawSymbols, ctx, isAction));
+        return val.map((item, index) =>
+          this._compileValue(
+            item,
+            rawSymbols,
+            ctx,
+            isAction,
+            inlineCtx ? {...inlineCtx, index} : undefined,
+          ),
+        );
       }
 
       const dictRes: Record<string, unknown> = {};

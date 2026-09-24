@@ -160,12 +160,12 @@ describe('ExpressPromptGenerator', () => {
       const generator = new ExpressPromptGenerator([cat]);
       const actual = generator.generateCatalogInstructions(true, cat);
 
-      expect(actual).toContain('• AudioPlayer(url, description?)');
+      expect(actual).toContain('• AudioPlayer(url, description?, weight? (static))');
       expect(actual).toContain(
-        '• Button(child (component ID), variant? (static), action (static), checks? (static))',
+        '• Button(child (component ID), variant? (static), action (static), weight? (static), checks? (static))',
       );
       expect(actual).toContain(
-        '• TextField(label, value?, variant? (static), validationRegexp? (static), checks? (static))',
+        '• TextField(label, value?, variant? (static), validationRegexp? (static), weight? (static), checks? (static))',
       );
     });
   });
@@ -362,6 +362,38 @@ describe('ExpressPromptGenerator', () => {
     it('test_express_no_active_catalogs_is_an_error', () => {
       const generator = new ExpressPromptGenerator([]);
       expect(() => generator.generate()).toThrow(A2uiCatalogError);
+    });
+
+    it('B5: translates fenced json blocks containing updateComponents', () => {
+      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const generator = new ExpressPromptGenerator([cat]);
+      const rawMarkdown =
+        'Here is an example:\n' +
+        '```json\n' +
+        '[\n' +
+        '  {\n' +
+        '    "version": "v0.9",\n' +
+        '    "updateComponents": {\n' +
+        '      "surfaceId": "s1",\n' +
+        '      "components": [\n' +
+        '        {\n' +
+        '          "id": "root",\n' +
+        '          "component": "Text",\n' +
+        '          "text": "Hello"\n' +
+        '        }\n' +
+        '      ]\n' +
+        '    }\n' +
+        '  }\n' +
+        ']\n' +
+        '```\n' +
+        'Done.';
+
+      const transformed = generator.transformExamples(rawMarkdown, cat);
+      expect(transformed).not.toContain('```json');
+      expect(transformed).toContain('<a2ui>');
+      expect(transformed).toContain('surface("s1")');
+      expect(transformed).toContain('root = Text("Hello")');
+      expect(transformed).toContain('</a2ui>');
     });
   });
 });
