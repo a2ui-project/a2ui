@@ -14,11 +14,24 @@
 
 """Deprecated shim for a2ui.core.validating.integrity_checker."""
 
-from a2ui.core._compat import reexport_all as _reexport_all, warn_moved as _warn_moved
-from a2ui.core.state.validation_helpers import *
+from a2ui.core._compat import warn_moved as _warn_moved
+from a2ui.core.state.validation_helpers import (
+    MAX_FUNC_CALL_DEPTH,
+    MAX_GLOBAL_DEPTH,
+    RELAXED_PATH_PATTERN,
+    ROOT_ID,
+    validate_recursion_and_paths,
+)
 
 _warn_moved(
     "a2ui.core.validating.integrity_checker",
     "a2ui.core.state.validation_helpers",
 )
-__all__ = _reexport_all("a2ui.core.state.validation_helpers", globals())
+
+__all__ = [
+    "ROOT_ID",
+    "MAX_GLOBAL_DEPTH",
+    "MAX_FUNC_CALL_DEPTH",
+    "RELAXED_PATH_PATTERN",
+    "validate_recursion_and_paths",
+]

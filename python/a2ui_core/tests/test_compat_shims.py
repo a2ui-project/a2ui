@@ -23,7 +23,7 @@ import warnings
 
 import pytest
 
-SHIMMED_MODULES: list[tuple[str, str]] = [
+FULL_SHIMMED_MODULES: list[tuple[str, str]] = [
     ("a2ui.core.rendering", "a2ui.core.resolution"),
     (
         "a2ui.core.rendering.component_context",
@@ -73,24 +73,50 @@ SHIMMED_MODULES: list[tuple[str, str]] = [
         "a2ui.core.schema.server_to_client",
         "a2ui.core.schema.v0_9.server_to_client",
     ),
-    ("a2ui.core.validating", "a2ui.core.validation"),
+]
+
+SELECTIVE_VALIDATING_SHIMS: list[tuple[str, str, list[str], list[str]]] = [
+    (
+        "a2ui.core.validating",
+        "a2ui.core.validation",
+        [
+            "ValidationConfig",
+            "STRICT_VALIDATION",
+            "RELAXED_VALIDATION",
+            "validate_recursion_and_paths",
+        ],
+        [
+            "A2uiValidator",
+            "A2uiValidatorError",
+            "CatalogSchemaValidator",
+            "get_component_references",
+            "validate_component_integrity",
+            "analyze_topology",
+            "PayloadValidator",
+            "validate_composition_constraints",
+        ],
+    ),
     (
         "a2ui.core.validating.integrity_checker",
         "a2ui.core.state.validation_helpers",
-    ),
-    (
-        "a2ui.core.validating.topology_analyzer",
-        "a2ui.core.state.validation_helpers",
+        [
+            "ROOT_ID",
+            "MAX_GLOBAL_DEPTH",
+            "MAX_FUNC_CALL_DEPTH",
+            "RELAXED_PATH_PATTERN",
+            "validate_recursion_and_paths",
+        ],
+        [
+            "get_component_references",
+            "validate_component_integrity",
+            "analyze_topology",
+            "validate_composition_constraints",
+        ],
     ),
 ]
 
 
-@pytest.mark.parametrize(("old_module", "new_module"), SHIMMED_MODULES)
-def test_compat_shim_warns_and_reexports(old_module: str, new_module: str) -> None:
-    new_mod = importlib.import_module(new_module)
-
-    # Ensure parent package is already imported when testing a submodule so we
-    # isolate the warning emitted by `old_module` itself.
+def _import_fresh_with_deprecation_check(old_module: str, new_module: str) -> object:
     parent_pkg = old_module.rpartition(".")[0]
     if parent_pkg:
         with warnings.catch_warnings():
@@ -108,6 +134,13 @@ def test_compat_shim_warns_and_reexports(old_module: str, new_module: str) -> No
         if old_module in str(w.message) and new_module in str(w.message)
     ]
     assert len(matching_warnings) == 1
+    return old_mod
+
+
+@pytest.mark.parametrize(("old_module", "new_module"), FULL_SHIMMED_MODULES)
+def test_compat_shim_warns_and_reexports(old_module: str, new_module: str) -> None:
+    new_mod = importlib.import_module(new_module)
+    old_mod = _import_fresh_with_deprecation_check(old_module, new_module)
 
     public_names = set(
         getattr(
@@ -124,6 +157,30 @@ def test_compat_shim_warns_and_reexports(old_module: str, new_module: str) -> No
     for name in public_names:
         assert hasattr(old_mod, name), f"{old_module} missing {name}"
         assert getattr(old_mod, name) is getattr(new_mod, name)
+
+
+@pytest.mark.parametrize(
+    ("old_module", "new_module", "expected_exports", "excluded_names"),
+    SELECTIVE_VALIDATING_SHIMS,
+)
+def test_selective_validating_shims(
+    old_module: str,
+    new_module: str,
+    expected_exports: list[str],
+    excluded_names: list[str],
+) -> None:
+    new_mod = importlib.import_module(new_module)
+    old_mod = _import_fresh_with_deprecation_check(old_module, new_module)
+
+    assert getattr(old_mod, "__all__") == expected_exports
+    for name in expected_exports:
+        assert hasattr(old_mod, name), f"{old_module} missing {name}"
+        assert getattr(old_mod, name) is getattr(new_mod, name)
+
+    for excluded in excluded_names:
+        assert not hasattr(
+            old_mod, excluded
+        ), f"{old_module} should not export {excluded}"
 
 
 def test_schema_constants_and_client_to_server_aliases() -> None:
@@ -148,6 +205,7 @@ def test_schema_constants_and_client_to_server_aliases() -> None:
     [
         "a2ui.core.validating.validator",
         "a2ui.core.validating.catalog_schema_validator",
+        "a2ui.core.validating.topology_analyzer",
         "a2ui.core.state.node_graph",
         "a2ui.core.state.component_node",
         "a2ui.core.basic_catalog.locale_config",
@@ -159,12 +217,3 @@ def test_removed_modules_are_not_shimmed(removed_module: str) -> None:
         warnings.simplefilter("ignore", DeprecationWarning)
         with pytest.raises(ModuleNotFoundError):
             importlib.import_module(removed_module)
-
-
-def test_removed_validator_classes_not_on_validating_shim() -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        validating = importlib.import_module("a2ui.core.validating")
-
-    assert not hasattr(validating, "A2uiValidator")
-    assert not hasattr(validating, "CatalogSchemaValidator")

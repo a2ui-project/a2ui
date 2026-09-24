@@ -14,8 +14,19 @@
 
 """Deprecated shim for a2ui.core.validating (moved to a2ui.core.validation)."""
 
-from a2ui.core._compat import reexport_all as _reexport_all, warn_moved as _warn_moved
-from a2ui.core.validation import *
+from a2ui.core._compat import warn_moved as _warn_moved
+from a2ui.core.validation import (
+    RELAXED_VALIDATION,
+    STRICT_VALIDATION,
+    ValidationConfig,
+    validate_recursion_and_paths,
+)
 
 _warn_moved("a2ui.core.validating", "a2ui.core.validation")
-__all__ = _reexport_all("a2ui.core.validation", globals())
+
+__all__ = [
+    "ValidationConfig",
+    "STRICT_VALIDATION",
+    "RELAXED_VALIDATION",
+    "validate_recursion_and_paths",
+]
