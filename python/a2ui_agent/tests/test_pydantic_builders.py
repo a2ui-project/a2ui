@@ -25,7 +25,6 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from a2ui.builder.v0_9 import (
-    LENIENT_ENUM_CONTEXT,
     OPEN_ENUM_CONTEXT,
     AccessibilityAttributes,
     Action,
@@ -191,14 +190,14 @@ def test_lenient_context_accepts_forward_compatible_enum_values():
     with pytest.raises(ValidationError):
         Text.model_validate(payload)
 
-    parsed = Text.model_validate(payload, context=LENIENT_ENUM_CONTEXT)
+    parsed = Text.model_validate(payload, context=OPEN_ENUM_CONTEXT)
     assert parsed.variant == "displayLarge"
 
     # Known values are unaffected by the relaxation.
     assert (
         Text.model_validate(
             {"component": "Text", "text": "Hi", "variant": "h1"},
-            context=LENIENT_ENUM_CONTEXT,
+            context=OPEN_ENUM_CONTEXT,
         ).variant
         == "h1"
     )

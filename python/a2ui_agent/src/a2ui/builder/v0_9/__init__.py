@@ -15,7 +15,6 @@
 """A2UI Protocol v0.9 typesafe builder models and wire packaging helpers."""
 
 from ..core import (
-    LENIENT_ENUM_CONTEXT,
     OPEN_ENUM,
     OPEN_ENUM_CONTEXT,
     Child,
@@ -43,7 +42,6 @@ from .models import (
 )
 
 __all__ = [
-    "LENIENT_ENUM_CONTEXT",
     "OPEN_ENUM",
     "OPEN_ENUM_CONTEXT",
     "AccessibilityAttributes",

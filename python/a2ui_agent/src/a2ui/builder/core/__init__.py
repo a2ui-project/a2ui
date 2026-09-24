@@ -22,11 +22,10 @@ from .base_node import (
 from .child import Child
 from .flattener import flatten_component_tree
 from .id_allocator import IdAllocator
-from .open_enum import LENIENT_ENUM_CONTEXT, OPEN_ENUM, OPEN_ENUM_CONTEXT
+from .open_enum import OPEN_ENUM, OPEN_ENUM_CONTEXT
 from .tree import ComponentTree
 
 __all__ = [
-    "LENIENT_ENUM_CONTEXT",
     "OPEN_ENUM",
     "OPEN_ENUM_CONTEXT",
     "BuilderBaseModel",

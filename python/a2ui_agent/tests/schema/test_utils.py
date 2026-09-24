@@ -21,6 +21,8 @@ from a2ui.schema.catalog_provider import A2uiCatalogProvider, FileSystemCatalogP
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.utils import (
     find_repo_root,
+    get_basic_catalog_path,
+    get_basic_examples_dir,
     get_spec_dir,
     load_from_bundled_resource,
     wrap_as_json_array,
@@ -235,6 +237,39 @@ class TestSchemaUtils(unittest.TestCase):
             get_spec_dir("v1_0_0-dev_release").endswith("specification/v1_0")
         )
         self.assertTrue(get_spec_dir("1.0.0-alpha.1").endswith("specification/v1_0"))
+
+    def test_get_basic_catalog_path_versioning(self):
+        """Verifies get_basic_catalog_path selects canonical catalogs/ for >=v1_0 and spec dir for <v1_0."""
+        self.assertTrue(
+            get_basic_catalog_path("v1_0").endswith("catalogs/basic/v1/catalog.json")
+        )
+        self.assertTrue(
+            get_basic_catalog_path("1.0").endswith("catalogs/basic/v1/catalog.json")
+        )
+        self.assertTrue(
+            get_basic_catalog_path("v0_9").endswith(
+                "specification/v0_9/catalogs/basic/catalog.json"
+            )
+        )
+        self.assertTrue(
+            get_basic_catalog_path("v0_8").endswith(
+                "specification/v0_8/catalogs/basic/catalog.json"
+            )
+        )
+
+    def test_get_basic_examples_dir_versioning(self):
+        """Verifies get_basic_examples_dir selects canonical catalogs/ for >=v1_0 and spec dir for <v1_0."""
+        self.assertTrue(
+            get_basic_examples_dir("v1_0").endswith("catalogs/basic/v1/examples")
+        )
+        self.assertTrue(
+            get_basic_examples_dir("1.0").endswith("catalogs/basic/v1/examples")
+        )
+        self.assertTrue(
+            get_basic_examples_dir("v0_9").endswith(
+                "specification/v0_9/catalogs/basic/examples"
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Catalog enum validator: strict ``Literal`` during authoring, open ``str`` when ``LENIENT_ENUM_CONTEXT`` is set."""
+"""Catalog enum validator: strict ``Literal`` during authoring, open ``str`` when ``OPEN_ENUM_CONTEXT`` is set."""
 
 from __future__ import annotations
 
@@ -26,13 +26,9 @@ from pydantic import (
 )
 
 OPEN_ENUM_KEY = "a2ui.open_enums"
-LENIENT_ENUMS_KEY = OPEN_ENUM_KEY
 
 OPEN_ENUM_CONTEXT: Mapping[str, Any] = {OPEN_ENUM_KEY: True}
 """Pass as ``model_validate(..., context=OPEN_ENUM_CONTEXT)`` to accept unknown enum values."""
-
-LENIENT_ENUM_CONTEXT = OPEN_ENUM_CONTEXT
-"""Deprecated alias for ``OPEN_ENUM_CONTEXT``."""
 
 
 def _validate_open_enum(

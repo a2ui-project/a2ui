@@ -213,8 +213,8 @@ def discover_pending(limit: int = 200) -> list[dict]:
         return pending
 
     for release in releases:
-        tag = release.get("tagName", "")
-        body = release.get("body", "")
+        tag = release.get("tagName") or ""
+        body = release.get("body") or ""
         parsed = parse_tag(tag)
         if not parsed:
             continue

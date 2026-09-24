@@ -273,12 +273,12 @@ TextVariant = Annotated[Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]
 
 Authoring is unchanged by the metadata: a type checker strips `Annotated` and still sees the bare `Literal`, so `variant="primmary"` is rejected at edit time and again at runtime.
 
-Parsing has the opposite requirement. A client may send a value from a newer catalog revision, and rejecting or dropping it loses information the sender had. Passing `LENIENT_ENUM_CONTEXT` relaxes only that:
+Parsing has the opposite requirement. A client may send a value from a newer catalog revision, and rejecting or dropping it loses information the sender had. Passing `OPEN_ENUM_CONTEXT` relaxes only that:
 
 ```python
-from a2ui.builder.v0_9 import LENIENT_ENUM_CONTEXT
+from a2ui.builder.v0_9 import OPEN_ENUM_CONTEXT
 
-Text.model_validate(payload, context=LENIENT_ENUM_CONTEXT)
+Text.model_validate(payload, context=OPEN_ENUM_CONTEXT)
 ```
 
 Widening the annotation to `Literal[...] | str` would serve parsing by giving up authoring strictness for everyone. Separating the two modes by context keeps both.
