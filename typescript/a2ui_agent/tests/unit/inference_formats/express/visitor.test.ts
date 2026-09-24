@@ -26,7 +26,7 @@ import {ExpressParser} from '../../../../src/inference_formats/express/generated
 import {
   ExpressAstVisitor,
   type ExpressStatement,
-  type ExpressSyntaxError,
+  type ExpressErrorRecord,
   parseExpress,
   unescapeString,
 } from '../../../../src/inference_formats/express/visitor.js';
@@ -35,7 +35,7 @@ interface VisitorTestCase {
   name: string;
   source: string;
   expected: {
-    errors: ExpressSyntaxError[];
+    errors: ExpressErrorRecord[];
     statements: ExpressStatement[];
   };
 }
