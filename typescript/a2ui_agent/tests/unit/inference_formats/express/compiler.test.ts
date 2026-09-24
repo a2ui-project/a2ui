@@ -36,6 +36,7 @@ import {
   ExpressUnknownFunctionError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
+  ExpressIdCollisionError,
 } from '../../../../src/inference_formats/express/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -157,6 +158,26 @@ describe('ExpressCompiler', () => {
     }
   });
 
+  describe('Follow-up 2: ExpressIdCollisionError', () => {
+    it('throws ExpressIdCollisionError when an inline id collides with a declared variable', () => {
+      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const dsl = `
+root_child = Text("c2")
+root = Card(Text("c1"))
+`;
+      expect(() => compiler.compile(dsl)).toThrow(ExpressIdCollisionError);
+    });
+
+    it('throws ExpressIdCollisionError when inline array items collide with declared variables', () => {
+      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const dsl = `
+root_children_1 = Text("conflict")
+root = Column([Text("a"), Text("b")])
+`;
+      expect(() => compiler.compile(dsl)).toThrow(ExpressIdCollisionError);
+    });
+  });
+
   describe('2. Deliberate departures (§5.2 items 4 and 5)', () => {
     it('throws ExpressValidationError when checks are written on an uncheckable component (departure 4)', () => {
       // Oracle output: Python silently emits {"id": "root", "component": "Text", "text": "hi", "checks": [...]}
@@ -251,10 +272,23 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       }
     });
 
-    it('throws ExpressUndefinedRootError on empty block or missing root', () => {
+    it('throws ExpressUndefinedRootError on empty block', () => {
       const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
       expect(() => compiler.compile('')).toThrow(ExpressUndefinedRootError);
-      expect(() => compiler.compile('some_var = Text("Hi")')).toThrow(ExpressUndefinedRootError);
+    });
+
+    it('compiles block with component assignments but no root into updateComponents', () => {
+      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const messages = compiler.compile('some_var = Text("Hi")');
+      expect(messages).toEqual([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'default_surface',
+            components: [{id: 'some_var', component: 'Text', text: 'Hi'}],
+          },
+        },
+      ]);
     });
 
     it('throws ExpressUnknownPropertyError on unknown property', () => {
