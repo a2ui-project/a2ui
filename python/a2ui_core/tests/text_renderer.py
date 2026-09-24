@@ -80,7 +80,10 @@ class A2uiTextRenderer:
                     for k, val in props.items():
                         if isinstance(val, Signal):
                             sub_id = f"{node.instance_id}::prop::{k}"
-                            if self._node_signals.get(sub_id) is not val:
+                            if (
+                                self._node_signals.get(sub_id) is not val
+                                or sub_id not in self._node_subs
+                            ):
                                 old_sub = self._node_subs.pop(sub_id, None)
                                 if old_sub:
                                     try:

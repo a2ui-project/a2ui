@@ -549,3 +549,9 @@ def test_a2ui_rpc_error_constructor_parameter_order() -> None:
     assert str(err3) == "Operation cancelled"
     assert err3.code == "CANCELLED"
     assert err3.function_call_id == "call-2"
+
+    # Uppercase message matching a known code with a custom uppercase code is NOT swapped
+    err4 = A2uiRpcError("TIMEOUT", "SERVER_FAULT", "call-3")
+    assert str(err4) == "TIMEOUT"
+    assert err4.code == "SERVER_FAULT"
+    assert err4.function_call_id == "call-3"

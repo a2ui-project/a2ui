@@ -88,6 +88,7 @@ class A2uiExpressionError(A2uiError):
 
 
 import enum
+import re
 
 
 class RpcErrorCode(str, enum.Enum):
@@ -116,10 +117,9 @@ class A2uiRpcError(A2uiError):
     ) -> None:
         code_str = code.value if isinstance(code, RpcErrorCode) else str(code)
         msg_str = message.value if isinstance(message, RpcErrorCode) else str(message)
-        if (
-            msg_str in RpcErrorCode._value2member_map_
-            and code_str not in RpcErrorCode._value2member_map_
-        ):
+        is_first_known_code = msg_str in RpcErrorCode._value2member_map_
+        is_second_like_message = bool(re.search(r"[a-z\s]", code_str)) or code_str == ""
+        if is_first_known_code and is_second_like_message:
             msg_str, code_str = code_str, msg_str
         super().__init__(msg_str, details=details)
         self.code: str = code_str

@@ -850,3 +850,63 @@ def test_node_resolver_alias_and_exports():
     assert resolver.rootNode.value.props.value["text"] == "Resolved"
     resolver.dispose()
     surface.dispose()
+
+
+def test_template_child_list_reconciliation_and_reuse():
+    catalog = BasicCatalog()
+    surface = SurfaceModel("surf-reconcile", catalog)
+    surface.data_model.set("/items", [{"label": "A"}, {"label": "B"}])
+    surface.data_model.set("/title", "Initial Title")
+
+    root_comp = ComponentModel(
+        "root",
+        "Column",
+        {
+            "title": {"path": "/title"},
+            "children": {"componentId": "item_tpl", "path": "/items"},
+        },
+    )
+    item_tpl = ComponentModel("item_tpl", "Text", {"text": {"path": "label"}})
+    surface.components_model.add_component(root_comp)
+    surface.components_model.add_component(item_tpl)
+
+    resolver = NodeGraph(surface)
+    root_node = resolver.rootNode.value
+    assert root_node is not None
+    children_sig = root_node.props.value["children"]
+    assert isinstance(children_sig, Signal)
+    initial_nodes = list(children_sig.value)
+    assert len(initial_nodes) == 2
+    n0, n1 = initial_nodes[0], initial_nodes[1]
+    assert n0.disposed is False
+    assert n1.disposed is False
+
+    # 1. Updating an unrelated parent property preserves the template Signal and nodes
+    surface.data_model.set("/title", "Updated Title")
+    assert root_node.props.value["children"] is children_sig
+    assert children_sig.value == [n0, n1]
+    assert n0.disposed is False
+    assert n1.disposed is False
+
+    # 2. Growing the array reuses n0 and n1 and appends n2
+    surface.data_model.set("/items", [{"label": "A"}, {"label": "B"}, {"label": "C"}])
+    grown_nodes = list(children_sig.value)
+    assert len(grown_nodes) == 3
+    assert grown_nodes[0] is n0
+    assert grown_nodes[1] is n1
+    n2 = grown_nodes[2]
+    assert n0.disposed is False
+    assert n1.disposed is False
+    assert n2.disposed is False
+
+    # 3. Shrinking the array reuses n0 and disposes n1 and n2
+    surface.data_model.set("/items", [{"label": "A"}])
+    shrunk_nodes = list(children_sig.value)
+    assert len(shrunk_nodes) == 1
+    assert shrunk_nodes[0] is n0
+    assert n0.disposed is False
+    assert n1.disposed is True
+    assert n2.disposed is True
+
+    resolver.dispose()
+    surface.dispose()

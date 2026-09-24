@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -260,35 +260,101 @@ class NodeResolver(Generic[TComponent, TFunction]):
                         template_comp_id = val["componentId"]
                         template_path = data_context.resolve_path(val["path"])
 
+                        existing_def = child_nodes_by_prop.get(f"{list_ref}_def")
+                        if (
+                            existing_def == val
+                            and f"{list_ref}_signal" in child_nodes_by_prop
+                        ):
+                            sig = child_nodes_by_prop[f"{list_ref}_signal"]
+                            existing_nodes = child_nodes_by_prop.get(
+                                f"{list_ref}_nodes", []
+                            )
+                            if any(
+                                isinstance(n, ComponentNode) and n.disposed
+                                for n in existing_nodes
+                            ):
+                                refreshed_nodes = [
+                                    self.get_or_create_node(
+                                        template_comp_id, n.data_path
+                                    )
+                                    if isinstance(n, ComponentNode) and n.disposed
+                                    else n
+                                    for n in existing_nodes
+                                ]
+                                child_nodes_by_prop[f"{list_ref}_nodes"] = (
+                                    refreshed_nodes
+                                )
+                                sig.value = refreshed_nodes
+                            new_props[list_ref] = sig
+                            current_resolved[list_ref] = sig
+                            current_resolved[f"{list_ref}_signal"] = sig
+                            current_resolved[f"{list_ref}_def"] = val
+                            current_resolved[f"{list_ref}_nodes"] = (
+                                child_nodes_by_prop.get(f"{list_ref}_nodes", [])
+                            )
+                            continue
+
+                        current_resolved[f"{list_ref}_def"] = val
+
                         if list_ref in template_subs:
                             template_subs[list_ref].unsubscribe()
                             del template_subs[list_ref]
 
                         spawned_nodes_signal: Signal[list[ComponentNode]] = Signal([])
                         new_props[list_ref] = spawned_nodes_signal
+                        current_resolved[f"{list_ref}_signal"] = spawned_nodes_signal
 
-                        def on_array_changed(array_data: Any) -> None:
-                            old_spawned = child_nodes_by_prop.get(list_ref, [])
-                            if isinstance(old_spawned, list):
+                        def on_array_changed(
+                            array_data: Any,
+                            _list_ref: str = list_ref,
+                            _tpl_comp_id: str = template_comp_id,
+                            _tpl_path: str = template_path,
+                            _sig: Signal[list[ComponentNode]] = spawned_nodes_signal,
+                        ) -> None:
+                            old_spawned = child_nodes_by_prop.get(
+                                f"{_list_ref}_nodes", []
+                            )
+                            if not isinstance(old_spawned, list):
+                                old_spawned = []
+
+                            if not isinstance(array_data, list):
                                 for old_node in old_spawned:
                                     if isinstance(old_node, ComponentNode):
                                         old_node.dispose()
-
-                            if not isinstance(array_data, list):
-                                child_nodes_by_prop[list_ref] = []
-                                spawned_nodes_signal.value = []
+                                child_nodes_by_prop[f"{_list_ref}_nodes"] = []
+                                _sig.value = []
                                 return
+
+                            if len(old_spawned) > len(array_data):
+                                for old_node in old_spawned[len(array_data) :]:
+                                    if isinstance(old_node, ComponentNode):
+                                        old_node.dispose()
 
                             new_spawned = []
                             for i in range(len(array_data)):
-                                scoped_path = f"{template_path}/{i}"
-                                node_inst = self.get_or_create_node(
-                                    template_comp_id, scoped_path
-                                )
-                                new_spawned.append(node_inst)
+                                scoped_path = f"{_tpl_path}/{i}"
+                                if (
+                                    i < len(old_spawned)
+                                    and isinstance(old_spawned[i], ComponentNode)
+                                    and not old_spawned[i].disposed
+                                    and old_spawned[i].component_id == _tpl_comp_id
+                                    and old_spawned[i].data_path == scoped_path
+                                ):
+                                    new_spawned.append(old_spawned[i])
+                                else:
+                                    if (
+                                        i < len(old_spawned)
+                                        and isinstance(old_spawned[i], ComponentNode)
+                                        and not old_spawned[i].disposed
+                                    ):
+                                        old_spawned[i].dispose()
+                                    node_inst = self.get_or_create_node(
+                                        _tpl_comp_id, scoped_path
+                                    )
+                                    new_spawned.append(node_inst)
 
-                            child_nodes_by_prop[list_ref] = new_spawned
-                            spawned_nodes_signal.value = new_spawned
+                            child_nodes_by_prop[f"{_list_ref}_nodes"] = new_spawned
+                            _sig.value = new_spawned
 
                         sub = self.surface.data_model.subscribe(
                             template_path, on_array_changed
@@ -296,6 +362,9 @@ class NodeResolver(Generic[TComponent, TFunction]):
                         template_subs[list_ref] = sub
                         on_array_changed(sub.value)
                         current_resolved[list_ref] = spawned_nodes_signal
+                        current_resolved[f"{list_ref}_nodes"] = child_nodes_by_prop.get(
+                            f"{list_ref}_nodes", []
+                        )
 
             # Compare current_resolved with child_nodes_by_prop to dispose of no-longer-referenced nodes
 
@@ -307,8 +376,8 @@ class NodeResolver(Generic[TComponent, TFunction]):
                 removed_node.dispose()
 
             # Update child_nodes_by_prop
-            for k, v in current_resolved.items():
-                child_nodes_by_prop[k] = v
+            child_nodes_by_prop.clear()
+            child_nodes_by_prop.update(current_resolved)
 
             node.props.value = new_props
 
