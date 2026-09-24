@@ -17,7 +17,6 @@ import pytest
 
 from a2ui.core.state import (
     ComponentModel,
-    ComponentNode,
     DataModel,
     EventSource,
     Signal,
@@ -414,40 +413,6 @@ def test_signal_reactivity():
     assert emitted == [10, 20]
 
 
-def test_component_node_lifecycle():
-    sig = Signal({"text": "Initial"})
-    node = ComponentNode(
-        instance_id="inst_1",
-        component_id="comp_1",
-        node_type="Text",
-        data_path="/",
-        props=sig,
-    )
-    assert node.instance_id == "inst_1"
-    assert node.component_id == "comp_1"
-    assert node.type == "Text"
-    assert node.data_path == "/"
-    assert str(node) == "comp_1"
-    assert (
-        repr(node)
-        == "ComponentNode(instance_id='inst_1', component_id='comp_1', type='Text')"
-    )
-
-    cleanup_executed = []
-    node.add_cleanup(lambda: cleanup_executed.append(True))
-
-    destroyed = []
-    node.on_destroyed.subscribe(lambda _: destroyed.append(True))
-
-    node.dispose()
-    assert cleanup_executed == [True]
-    assert destroyed == [True]
-
-    # Double dispose is idempotent
-    node.dispose()
-    assert len(cleanup_executed) == 1
-
-
 def test_data_model_set_fluent_chaining():
     dm = DataModel()
     res = dm.set("/a", 1).set("/b", 2).delete("/a")
@@ -497,28 +462,6 @@ def test_data_model_stores_references_directly():
     assert dm.get("/arr") is arr
 
 
-def test_component_node_to_dict_excludes_nested_setters():
-    node = ComponentNode(
-        "inst_1",
-        "c1",
-        "Test",
-        "/",
-        Signal({
-            "header": {
-                "title": "My Title",
-                "setTitle": lambda v: None,
-            },
-            "setTitle": lambda v: None,
-        }),
-    )
-    serialized = node.to_dict()
-    assert serialized["props"] == {
-        "header": {
-            "title": "My Title",
-        }
-    }
-
-
 def test_exception_hierarchy_normalization():
     from a2ui.core.exceptions import (
         A2uiError,
@@ -555,7 +498,6 @@ def test_package_root_and_resolution_exports():
         assert hasattr(a2ui.core, name), f"Missing export {name} in a2ui.core"
 
     for name in [
-        "ComponentNode",
         "ResolvedBinding",
         "WritableBinding",
         "is_writable",
@@ -563,7 +505,6 @@ def test_package_root_and_resolution_exports():
         "DataContext",
         "GenericBinder",
         "MissingDataBindingWarning",
-        "NodeGraph",
     ]:
         assert hasattr(
             a2ui.core.resolution, name
@@ -704,16 +645,6 @@ def test_surface_components_model_parity_features():
         chain_scm.detect_cycles(root_id="root", max_depth=1)
     visited_chain = chain_scm.detect_cycles(root_id="root", max_depth=5)
     assert len(visited_chain) == 3
-
-
-def test_component_node_parity_features():
-    node = ComponentNode("inst_1", "c1", "Placeholder", "/", Signal({}))
-    assert node.is_placeholder is True
-    assert node.disposed is False
-    assert node.to_debug_tree()["type"] == "Placeholder"
-
-    node.dispose()
-    assert node.disposed is True
 
 
 def test_surface_components_model_collection_helpers_and_topology():
