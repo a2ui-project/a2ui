@@ -25,6 +25,7 @@ import {
   Subscription,
 } from '../../index.js';
 import {
+  A2uiLitElement,
   type A2uiWebComponentElement,
   registerUniversalElement,
   type WebComponentImplementation,
@@ -143,7 +144,7 @@ describe('Tabs Component', () => {
     document.body.appendChild(el);
 
     await asyncUpdate(el, () => {
-      el.requestUpdate();
+      (el as unknown as A2uiLitElement).requestUpdate();
     });
   });
 });
