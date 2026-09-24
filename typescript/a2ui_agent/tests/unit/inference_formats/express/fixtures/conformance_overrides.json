@@ -1,0 +1,36 @@
+{
+  "compiler_corpus.json": {
+    "test_compile_express_unknown_component_is_a_validation_error": {
+      "justification": "test_compile_express_unknown_component_is_a_validation_error",
+      "expected": {
+        "status": "error",
+        "error": "ExpressUnknownComponentError",
+        "message": "Component 'Sparkline' is not defined in the catalog."
+      }
+    },
+    "test_compile_express_surface_targeting_names_a_catalog": {
+      "justification": "test_compile_express_unknown_component_is_a_validation_error",
+      "expected": {
+        "status": "error",
+        "error": "ExpressUnknownComponentError",
+        "message": "Component 'Gauge' is not defined in the catalog."
+      }
+    },
+    "test_compile_express_missing_required_property_is_a_validation_error": {
+      "justification": "test_compile_express_missing_required_property_is_a_validation_error",
+      "expected": {
+        "status": "error",
+        "error": "ExpressMissingRequiredPropertyError",
+        "message": "Component 'Button' is missing required property 'action'."
+      }
+    },
+    "test_compile_express_unknown_function_is_a_validation_error": {
+      "justification": "test_compile_express_unknown_function_is_a_validation_error",
+      "expected": {
+        "status": "error",
+        "error": "ExpressUnknownFunctionError",
+        "message": "Function 'titleCase' is not defined in the catalog."
+      }
+    }
+  }
+}

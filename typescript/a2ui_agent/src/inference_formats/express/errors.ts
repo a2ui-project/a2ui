@@ -56,6 +56,34 @@ export class ExpressValidationError extends ExpressCompilerError {
 }
 
 /**
+ * Raised when a component is not defined in the catalog.
+ */
+export class ExpressUnknownComponentError extends ExpressValidationError {
+  readonly compName: string;
+
+  constructor(compName: string) {
+    super(`Component '${compName}' is not defined in the catalog.`);
+    this.name = 'ExpressUnknownComponentError';
+    this.compName = compName;
+  }
+}
+
+/**
+ * Raised when a component is missing a property its catalog schema requires.
+ */
+export class ExpressMissingRequiredPropertyError extends ExpressValidationError {
+  readonly compName: string;
+  readonly propName: string;
+
+  constructor(compName: string, propName: string) {
+    super(`Component '${compName}' is missing required property '${propName}'.`);
+    this.name = 'ExpressMissingRequiredPropertyError';
+    this.compName = compName;
+    this.propName = propName;
+  }
+}
+
+/**
  * Raised when a component argument is not a valid property in the catalog schema.
  */
 export class ExpressUnknownPropertyError extends ExpressValidationError {
@@ -91,6 +119,19 @@ export class ExpressDuplicatePropertyError extends ExpressValidationError {
     this.name = 'ExpressDuplicatePropertyError';
     this.compName = compName;
     this.propName = propName;
+  }
+}
+
+/**
+ * Raised when a function is not defined in the catalog.
+ */
+export class ExpressUnknownFunctionError extends ExpressValidationError {
+  readonly fnName: string;
+
+  constructor(fnName: string) {
+    super(`Function '${fnName}' is not defined in the catalog.`);
+    this.name = 'ExpressUnknownFunctionError';
+    this.fnName = fnName;
   }
 }
 
