@@ -14,11 +14,13 @@
 
 import '../primitives/errors.dart';
 
-/// Digits, an optional decimal point, and optional further digits.
+/// An optional sign, digits, an optional decimal point, optional further
+/// digits, and an optional exponent (`e` or `E`, an optional sign, digits).
 ///
 /// Every client implementation accepts a trailing point (`1.`) today and none
 /// accepts a second point (`1.2.3`), so the grammar is written to keep that.
-final RegExp _numberLiteral = RegExp(r'^\d+\.?\d*$');
+/// It matches the pattern used by the TypeScript and Python parsers.
+final RegExp _numberLiteral = RegExp(r'^[+-]?\d+\.?\d*(?:[eE][+-]?\d+)?$');
 
 /// A parser for A2UI expressions, supporting string interpolation
 /// and function calls.
@@ -144,7 +146,7 @@ class ExpressionParser {
     if (scanner.peek() == "'" || scanner.peek() == '"') {
       return _parseStringLiteral(scanner);
     }
-    if (_isDigit(scanner.peek())) {
+    if (_isNumberStart(scanner)) {
       return _parseNumberLiteral(scanner);
     }
     if (scanner.matchesKeyword('true')) return true;
@@ -244,12 +246,29 @@ class ExpressionParser {
     return result.toString();
   }
 
+  /// Whether the scanner is at the start of a number literal: a digit, or a
+  /// `-` or `+` sign immediately followed by a digit.
+  ///
+  /// The grammar has no arithmetic operators, so a sign here can only belong
+  /// to a literal. A `-` inside a path such as `a-1` never reaches this check,
+  /// because the path scanner consumes it as part of the token.
+  bool _isNumberStart(_Scanner scanner) {
+    final String c = scanner.peek();
+    if (_isDigit(c)) return true;
+    return (c == '-' || c == '+') && _isDigit(scanner.peek(1));
+  }
+
   num _parseNumberLiteral(_Scanner scanner) {
     final int start = scanner.pos;
-    while (!scanner.isAtEnd &&
-        (_isDigit(scanner.peek()) || scanner.peek() == '.')) {
+    if (scanner.peek() == '-' || scanner.peek() == '+') {
       scanner.advance();
     }
+    // Consume every dot, so `_numberLiteral` reports `1.2.3` as an invalid
+    // number literal rather than leaving `.3` as trailing characters.
+    while (_isDigit(scanner.peek()) || scanner.peek() == '.') {
+      scanner.advance();
+    }
+    _skipExponent(scanner);
     final String text = scanner.input.substring(start, scanner.pos);
     // The grammar is spelled out here rather than delegated to the platform's
     // number parser, so that every implementation accepts the same literals.
@@ -257,6 +276,23 @@ class ExpressionParser {
       throw A2uiExpressionError("Invalid number literal: '$text'");
     }
     return num.parse(text);
+  }
+
+  /// Consumes an exponent suffix (`e` or `E`, an optional sign, then digits)
+  /// if one is present.
+  ///
+  /// A malformed exponent such as `1e` or `1e+` is still consumed, so that
+  /// [_parseNumberLiteral] reports it as an invalid literal instead of leaving
+  /// trailing characters behind.
+  void _skipExponent(_Scanner scanner) {
+    if (scanner.peek() != 'e' && scanner.peek() != 'E') return;
+    scanner.advance();
+    if (scanner.peek() == '+' || scanner.peek() == '-') {
+      scanner.advance();
+    }
+    while (_isDigit(scanner.peek())) {
+      scanner.advance();
+    }
   }
 
   bool _isAlnum(String c) {

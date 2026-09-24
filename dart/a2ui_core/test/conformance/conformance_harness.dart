@@ -18,10 +18,12 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 String resolveConformancePath(String relativePath) {
-  final root = _conformanceRoot();
-  final inConformance = p.normalize(p.join(root, relativePath));
+  final String root = _conformanceRoot();
+  final String inConformance = p.normalize(p.join(root, relativePath));
   if (File(inConformance).existsSync()) return inConformance;
-  final inRepo = p.normalize(p.join(Directory(root).parent.path, relativePath));
+  final String inRepo = p.normalize(
+    p.join(Directory(root).parent.path, relativePath),
+  );
   if (File(inRepo).existsSync()) return inRepo;
   return inConformance;
 }
