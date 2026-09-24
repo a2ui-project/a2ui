@@ -25,12 +25,38 @@ import {RawResponsePart} from '../../parser/response_part.js';
 import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/constants.js';
 import {SchemaCatalog} from '../../types.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
+import {isExpressIdentifier} from './identifier.js';
+import {ExpressInvalidIdentifierError} from './errors.js';
 
 /**
  * Wrapper for numeric literals that must retain raw formatting (e.g. floats like 1500.0).
  */
 export class RawNumber {
   constructor(public readonly value: string) {}
+}
+
+/**
+ * The components and data model writes of one surface, gathered from one or more
+ * `createSurface`, `updateComponents` and `updateDataModel` messages so they decompile
+ * into a single Express block.
+ */
+interface SurfaceGroup {
+  surfaceId: string;
+  catalogId: string;
+  components: Array<Record<string, unknown>>;
+  dataAssignments: Array<{path: string; value: unknown}>;
+}
+
+/**
+ * Returns the value as a plain object, or undefined if it is not one.
+ *
+ * @param value The value to check.
+ * @returns The value typed as a record, or undefined.
+ */
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 /**
@@ -214,9 +240,58 @@ export class ExpressDecompiler {
     useKeywordArgs = false,
   ): string {
     if (Array.isArray(messages)) {
-      return messages
-        .filter(item => item && typeof item === 'object' && Object.keys(item).length > 0)
-        .map(item => this.decompile(item, useKeywordArgs))
+      // Messages for the same surface are merged into one block, placed where the
+      // surface first appears. Other messages keep their position.
+      const groups = new Map<string, SurfaceGroup>();
+      const order: Array<{group: SurfaceGroup} | {message: AgentToRendererMessage}> = [];
+
+      for (const msg of messages) {
+        const envelope = asRecord(msg);
+        if (!envelope || Object.keys(envelope).length === 0) {
+          continue;
+        }
+        const create = asRecord(envelope.createSurface);
+        const update = asRecord(envelope.updateComponents);
+        const data = asRecord(envelope.updateDataModel);
+        const op = create ?? update ?? data;
+        if (!op) {
+          order.push({message: msg});
+          continue;
+        }
+
+        const surfaceId = typeof op.surfaceId === 'string' ? op.surfaceId : 'default_surface';
+        let group = groups.get(surfaceId);
+        if (!group) {
+          group = {surfaceId, catalogId: '', components: [], dataAssignments: []};
+          groups.set(surfaceId, group);
+          order.push({group});
+        }
+        if (create) {
+          if (typeof create.catalogId === 'string') {
+            group.catalogId = create.catalogId;
+          }
+          if (Array.isArray(create.components)) {
+            group.components.push(...(create.components as Array<Record<string, unknown>>));
+          }
+          if (create.dataModel) {
+            group.dataAssignments.push({path: '', value: create.dataModel});
+          }
+        }
+        if (update && Array.isArray(update.components)) {
+          group.components.push(...(update.components as Array<Record<string, unknown>>));
+        }
+        if (data) {
+          const path = typeof data.path === 'string' ? data.path : '';
+          group.dataAssignments.push({path, value: data.value ?? {}});
+        }
+      }
+
+      return order
+        .map(item =>
+          'group' in item
+            ? this.decompileSurfaceGroup(item.group, useKeywordArgs)
+            : this.decompile(item.message, useKeywordArgs),
+        )
         .join('\n');
     }
 
@@ -264,13 +339,26 @@ export class ExpressDecompiler {
       return dslLines.join('\n');
     }
 
-    // Handle callFunction action
+    // Handle callFunction action (legacy) and callRendererFunction
+    let funcOp: Record<string, unknown> | null = null;
     if (
       'callFunction' in envelope &&
       envelope.callFunction &&
       typeof envelope.callFunction === 'object'
     ) {
-      const funcOp = envelope.callFunction as Record<string, unknown>;
+      funcOp = envelope.callFunction as Record<string, unknown>;
+    } else if (
+      'callRendererFunction' in envelope &&
+      envelope.callRendererFunction &&
+      typeof envelope.callRendererFunction === 'object'
+    ) {
+      const crf = envelope.callRendererFunction as Record<string, unknown>;
+      if (crf.callFunction && typeof crf.callFunction === 'object') {
+        funcOp = crf.callFunction as Record<string, unknown>;
+      }
+    }
+
+    if (funcOp) {
       const fnName = typeof funcOp.call === 'string' ? funcOp.call : '';
       const fnArgs = (funcOp.args ?? {}) as unknown;
       const argsList: string[] = [];
@@ -332,12 +420,29 @@ export class ExpressDecompiler {
       createSurface = envelope.updateComponents as Record<string, unknown>;
     }
 
-    const surfaceId = typeof createSurface.surfaceId === 'string' ? createSurface.surfaceId : '';
-    const catalogId = typeof createSurface.catalogId === 'string' ? createSurface.catalogId : '';
-    const components = Array.isArray(createSurface.components)
-      ? (createSurface.components as Array<Record<string, unknown>>)
-      : [];
-    const dataModel = (createSurface.dataModel ?? {}) as Record<string, unknown>;
+    const dataModel = createSurface.dataModel;
+    return this.decompileSurfaceGroup(
+      {
+        surfaceId: typeof createSurface.surfaceId === 'string' ? createSurface.surfaceId : '',
+        catalogId: typeof createSurface.catalogId === 'string' ? createSurface.catalogId : '',
+        components: Array.isArray(createSurface.components)
+          ? (createSurface.components as Array<Record<string, unknown>>)
+          : [],
+        dataAssignments: asRecord(dataModel) ? [{path: '', value: dataModel}] : [],
+      },
+      useKeywordArgs,
+    );
+  }
+
+  /**
+   * Decompiles the components and data model writes of one surface into an Express block.
+   *
+   * @param group The surface's components and data model writes.
+   * @param useKeywordArgs Whether to format component arguments as keyword parameters.
+   * @returns The decompiled A2UI Express DSL string.
+   */
+  private decompileSurfaceGroup(group: SurfaceGroup, useKeywordArgs: boolean): string {
+    const {surfaceId, catalogId, components} = group;
 
     let defaultCatalogId = 'https://a2ui.org/catalog.json';
     if (this.helper.catalog && typeof this.helper.catalog.catalogId === 'string') {
@@ -363,13 +468,18 @@ export class ExpressDecompiler {
       }
     }
 
-    // Decompile dataModel paths first
-    if (dataModel && typeof dataModel === 'object' && Object.keys(dataModel).length > 0) {
-      const flattened = flattenDataModel(dataModel);
+    // Data model writes come before components. Each write's leaves are prefixed with
+    // its base path.
+    for (const {path, value} of group.dataAssignments) {
+      if (!isPythonTruthy(value)) {
+        continue;
+      }
+      const basePath = path.replace(/\/+$/, '');
+      const flattened = flattenDataModel(value);
       flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-      for (const [path, val] of flattened) {
+      for (const [leafPath, val] of flattened) {
         const valStr = this.decompileValue(val, compIds);
-        dslLines.push(`$${path} = ${valStr}`);
+        dslLines.push(`$${basePath}${leafPath} = ${valStr}`);
       }
     }
 
@@ -378,6 +488,9 @@ export class ExpressDecompiler {
       const compName = typeof c.component === 'string' ? c.component : '';
       if (!this.helper.components.has(compName)) {
         continue;
+      }
+      if (compId && !isExpressIdentifier(compId)) {
+        throw new ExpressInvalidIdentifierError(compId);
       }
 
       const properties = this.helper.getComponentProperties(compName);
@@ -542,9 +655,8 @@ export class ExpressDecompiler {
         const name = typeof evt.name === 'string' ? evt.name : '';
         const ctx = (evt.context ?? {}) as Record<string, unknown>;
         const ctxReprs: string[] = [];
-        const identRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
         for (const [k, v] of Object.entries(ctx)) {
-          const kRepr = identRegex.test(k) ? k : decompileString(k);
+          const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
           ctxReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, false)}`);
         }
         if (ctxReprs.length > 0) {
@@ -612,10 +724,9 @@ export class ExpressDecompiler {
 
       // General dict
       const itemsReprs: string[] = [];
-      const identRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
       for (const [k, v] of Object.entries(obj)) {
         const itemIsRef = isRef || k === 'child' || k === 'componentId';
-        const kRepr = identRegex.test(k) ? k : decompileString(k);
+        const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
         itemsReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, itemIsRef)}`);
       }
       return `{${itemsReprs.join(', ')}}`;

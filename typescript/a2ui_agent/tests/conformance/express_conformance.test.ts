@@ -47,19 +47,7 @@ const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
  * Conformance cases that fail because TS follows Python's behavior.
  * Registered with test.fails and Python's reason.
  */
-const KNOWN_FAILURES = new Map<string, string>([
-  // Compiler, Express.
-  // Decompiler, Express.
-  [
-    'test_decompile_express_update_components',
-    'an updateComponents writes a block naming no root, which the compiler then rejects, so the round trip fails',
-  ],
-  [
-    'test_decompile_express_renderer_function_call',
-    'a callRendererFunction decompiles to the empty string',
-  ],
-  // Response parser.
-]);
+const KNOWN_FAILURES = new Map<string, string>([]);
 
 /**
  * Cases Python skips as UNSUPPORTED.

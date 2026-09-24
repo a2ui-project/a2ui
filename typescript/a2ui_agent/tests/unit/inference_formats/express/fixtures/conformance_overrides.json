@@ -309,11 +309,15 @@
     },
     "branch_batch_multiple_messages": {
       "justification": "test_decompile_express_update_data_model",
-      "expected": "surface(\"s1\")\nroot = Text(\"First\")\nsurface(\"s1\")\n$/status = \"loaded\""
+      "expected": "surface(\"s1\")\n$/status = \"loaded\"\nroot = Text(\"First\")"
     },
     "test_decompile_update_data_model_non_object_values": {
-      "justification": "no conformance case: updateDataModel honors path and writes surface for standalone updateDataModel (B3)",
-      "expected": "surface(\"default\")\n$/title = \"Found Restaurants\"\nsurface(\"default\")\n$/items = [{name: \"Xi'an Famous Foods\", rating: 4.5}]\nsurface(\"default\")\nsurface(\"default\")"
+      "justification": "B4: group messages by surface, removes redundant surface blocks",
+      "expected": "surface(\"default\")\n$/title = \"Found Restaurants\"\n$/items = [{name: \"Xi'an Famous Foods\", rating: 4.5}]"
+    },
+    "test_decompile_express_renderer_function_call": {
+      "justification": "A9: callRendererFunction decompiles to standalone call",
+      "expected": "openUrl(\"https://example.com\")"
     }
   }
 }
