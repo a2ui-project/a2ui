@@ -49,46 +49,14 @@ const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
  */
 const KNOWN_FAILURES = new Map<string, string>([
   // Compiler, Express.
-  [
-    'test_compile_express_inline_nesting',
-    'an inline component is hoisted out as `_inline_1` rather than `<parent id>_<property>`',
-  ],
-  [
-    'test_compile_express_event_action',
-    'an Event with no context compiles `context: {}` rather than leaving `context` out',
-  ],
-  [
-    'test_compile_express_event_variable_is_inlined_at_each_use',
-    'an Event with no context compiles `context: {}` rather than leaving `context` out',
-  ],
-  [
-    'test_compile_express_standalone_function_call',
-    'a standalone call compiles to `functionCallId`/`callFunction` at the top level, which agent_to_renderer.json rejects, rather than to `callRendererFunction`',
-  ],
   // Decompiler, Express.
   [
     'test_decompile_express_update_components',
     'an updateComponents writes a block naming no root, which the compiler then rejects, so the round trip fails',
   ],
   [
-    'test_decompile_express_update_data_model',
-    'a standalone updateDataModel writes no surface line, so the round trip lands on the default surface',
-  ],
-  [
-    'test_decompile_express_nested_data_model_is_one_assignment_per_leaf',
-    'a standalone updateDataModel writes no surface line, so the round trip lands on the default surface',
-  ],
-  [
-    'test_decompile_express_escapes_a_quote_in_a_string',
-    'a string holding a quote is written as a triple quoted string rather than with the quote escaped',
-  ],
-  [
     'test_decompile_express_renderer_function_call',
     'a callRendererFunction decompiles to the empty string',
-  ],
-  [
-    'test_decompile_express_quotes_a_map_key_that_is_not_an_identifier',
-    'a map key that is not an identifier is written unquoted, which the grammar does not admit',
   ],
   // Response parser.
 ]);

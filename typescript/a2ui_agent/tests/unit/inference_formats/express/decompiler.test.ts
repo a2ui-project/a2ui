@@ -22,6 +22,7 @@ import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core
 import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
+import {ExpressParser} from '../../../../src/inference_formats/express/parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -160,6 +161,78 @@ describe('ExpressDecompiler', () => {
       } as AgentToRendererMessage;
       const actual = decompiler.decompile(msg, true);
       expect(actual).toBe('surface("s1")\nroot = Text(text="Hello")');
+    });
+  });
+
+  describe('4. B3: honour updateDataModel.path with round trip', () => {
+    it('decompiles single leaf value at path and round-trips through compiler', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler(catalog, version);
+      const msg: AgentToRendererMessage = {
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 's1',
+          path: '/title',
+          value: 'x',
+        },
+      } as AgentToRendererMessage;
+
+      const notation = decompiler.decompile(msg);
+      expect(notation).toBe('surface("s1")\n$/title = "x"');
+
+      // Round trip check
+      const parser = new ExpressParser(catalog, 's1', version);
+      const recompiled = parser.compile(notation);
+      expect(recompiled).toEqual([
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 's1',
+            path: '/',
+            value: {
+              title: 'x',
+            },
+          },
+        },
+      ]);
+    });
+
+    it('decompiles nested values under non-root path to one assignment per leaf and round-trips', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler(catalog, version);
+      const msg: AgentToRendererMessage = {
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 's1',
+          path: '/user',
+          value: {
+            name: 'Ada',
+            city: 'London',
+          },
+        },
+      } as AgentToRendererMessage;
+
+      const notation = decompiler.decompile(msg);
+      expect(notation).toBe('surface("s1")\n$/user/city = "London"\n$/user/name = "Ada"');
+
+      // Round trip check
+      const parser = new ExpressParser(catalog, 's1', version);
+      const recompiled = parser.compile(notation);
+      expect(recompiled).toEqual([
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 's1',
+            path: '/',
+            value: {
+              user: {
+                city: 'London',
+                name: 'Ada',
+              },
+            },
+          },
+        },
+      ]);
     });
   });
 });
