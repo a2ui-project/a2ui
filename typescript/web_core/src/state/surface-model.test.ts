@@ -179,7 +179,7 @@ describe('SurfaceModel', () => {
     assert.strictEqual(standaloneSurface.availableCatalogs.get(catalog.id), catalog);
   });
 
-  it('preserves userMessage (coerced to string) on emitted ActionPayload and ignores object userMessage', async () => {
+  it('preserves string userMessage on emitted ActionPayload and ignores non-string userMessage', async () => {
     await surface.dispatchAction(
       {event: {name: 'submit', userMessage: 'Submitted form', context: {ok: true}}},
       'btn-1',
@@ -188,7 +188,7 @@ describe('SurfaceModel', () => {
     await surface.dispatchAction({event: {name: 'objMsg', userMessage: {nested: 'bad'}}}, 'btn-3');
     assert.strictEqual(actions.length, 3);
     assert.strictEqual(actions[0].userMessage, 'Submitted form');
-    assert.strictEqual(actions[1].userMessage, '42');
+    assert.strictEqual(actions[1].userMessage, undefined);
     assert.strictEqual(actions[2].userMessage, undefined);
   });
 });

@@ -213,8 +213,8 @@ export class SurfaceModel<
       actionToDispatch.catalogId = eventPayload.catalogId;
     }
 
-    if (eventPayload.userMessage != null && typeof eventPayload.userMessage !== 'object') {
-      actionToDispatch.userMessage = String(eventPayload.userMessage);
+    if (typeof eventPayload.userMessage === 'string') {
+      actionToDispatch.userMessage = eventPayload.userMessage;
     }
 
     await this._onAction.emit(actionToDispatch);
