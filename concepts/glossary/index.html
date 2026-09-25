@@ -1707,7 +1707,7 @@
 <p>In model-to-agent messages, a delimiter tag such as <code>&lt;a2ui-json&gt;</code> or <code>&lt;a2ui&gt;</code> that bounds an A2UI payload block inside the model's text output.</p>
 <p>A single model turn can mix conversational text and structured UI blocks, so A2UI tags mark where each UI block starts and ends.</p>
 <h3 id="inference-format">Inference format<a class="headerlink" href="#inference-format" title="Permanent link">¶</a></h3>
-<p>The format of the structured UI blocks in model-to-agent messages, for example JSON, <a href="https://github.com/a2ui-project/a2ui/tree/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express">Express DSL syntax</a>, or Elemental HTML tags.</p>
+<p>The format of the structured UI blocks in model-to-agent messages, for example JSON, <a href="https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent/src/a2ui/inference_formats/experimental/express">Express DSL syntax</a>, or Elemental HTML tags.</p>
 <h3 id="phases-of-parsing-of-model-to-agent-responses">Phases of parsing of model-to-agent responses<a class="headerlink" href="#phases-of-parsing-of-model-to-agent-responses" title="Permanent link">¶</a></h3>
 <p><strong>Tag unwrapping:</strong></p>
 <p>The first phase of response parsing (<code>unwrap</code>), where the parser scans the model response for opening and closing <strong>A2UI tags</strong>, and separates conversational text (e.g., <em>"Here is your summary:"</em>) from the enclosed raw UI blocks.</p>
@@ -1748,7 +1748,7 @@
 <li>
 <p><strong>Core library</strong>:</p>
 <p>Set of primitives needed to describe a catalog and to interact with the agent.</p>
-<p>For example, see the <a href="https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/README.md">JavaScript web core library</a>.</p>
+<p>For example, see the <a href="https://github.com/a2ui-project/a2ui/blob/main/typescript/web_core/README.md">JavaScript web core library</a>.</p>
 </li>
 <li>
 <p><strong>Catalog schema</strong>:</p>

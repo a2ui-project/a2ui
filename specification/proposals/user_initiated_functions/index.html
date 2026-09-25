@@ -1347,7 +1347,7 @@
 <p><strong>Blocks</strong> functions marked <code>requiresUserActivation: true</code>.</p>
 </li>
 <li>
-<p><strong>Agent Invocation Rejection</strong>: Functions declared with <code>callableFrom: "rendererOrAgent"</code> (or <code>"rendererOnly"</code>) that set <code>requiresUserActivation: true</code> MUST be rejected with a runtime security error if directly invoked by a server/agent message. Because direct backend agent calls execute without a physical client user activation context (<code>isExecutingAction = false</code>), they are prohibited from auto-executing user-activation-restricted functions.</p>
+<p><strong>Agent Invocation Rejection</strong>: Functions declared with <code>allowedCallers: "rendererOrAgent"</code> (or <code>"rendererOnly"</code>) that set <code>requiresUserActivation: true</code> MUST be rejected with a runtime security error if directly invoked by a server/agent message. Because direct backend agent calls execute without a physical client user activation context (<code>isExecutingAction = false</code>), they are prohibited from auto-executing user-activation-restricted functions.</p>
 </li>
 </ul>
 <h3 id="33-asynchronous-execution-boundaries">3.3 Asynchronous Execution Boundaries<a class="headerlink" href="#33-asynchronous-execution-boundaries" title="Permanent link">¶</a></h3>
