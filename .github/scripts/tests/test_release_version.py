@@ -254,7 +254,8 @@ class CoreConstraintTest(unittest.TestCase):
         upcoming = rv.bump_version(current, "minor")
         self.assertTrue(
             rv.satisfies(current, specifier) or rv.satisfies(upcoming, specifier),
-            f"neither current core {current} nor upcoming {upcoming} satisfies {specifier}",
+            f"neither current core {current} nor upcoming {upcoming} satisfies"
+            f" {specifier}",
         )
 
 
