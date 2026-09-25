@@ -1,5 +1,11 @@
 ## Unreleased
 
+- `Catalog.fromSchema` no longer drops properties mixed in through an external
+  `allOf` reference, so Checkable components in the basic catalogs now accept
+  `checks`.
+- (v1_0) `Catalog.fromSchema` resolves `common_types.json#/$defs/Child`, so
+  single-child properties such as `Card.child` are now recognised as child
+  references.
 - **BREAKING CHANGE**: The package directory moved from `renderers/web_core/` to `typescript/web_core/`.
 - **BREAKING CHANGE**: The root package export (`@a2ui/web_core`) now provides the shared core state, validation, catalog, expressions, RPC, and resolution APIs across protocol versions. Consumers using v0.8 protocol APIs should import from `@a2ui/web_core/v0_8`.
 - **BREAKING CHANGE**: The `Catalog` constructor now requires `protocolVersion` as its second parameter: `Catalog(id, protocolVersion, ...)`.
