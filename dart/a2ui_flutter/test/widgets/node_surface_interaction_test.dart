@@ -200,6 +200,42 @@ TextEditingController _fieldController(WidgetTester tester) =>
 core.AgentToRendererMessage _message(Map<String, Object?> body) =>
     core.AgentToRendererMessage.fromJson({'version': 'v0.9', ...body});
 
+/// A controller holding surface [_surfaceId] with [components], created
+/// through messages.
+SurfaceController _controllerWith(List<Map<String, Object?>> components) {
+  final controller = SurfaceController(catalogs: [_catalog]);
+  controller.handleMessage(
+    _message({
+      'createSurface': {'surfaceId': _surfaceId, 'catalogId': _catalogId},
+    }),
+  );
+  controller.handleMessage(
+    _message({
+      'updateComponents': {'surfaceId': _surfaceId, 'components': components},
+    }),
+  );
+  return controller;
+}
+
+/// The error payloads [controller] sends to the agent, as they arrive.
+List<String> _errorSubmissions(SurfaceController controller) {
+  final submitted = <String>[];
+  controller.onSubmit.listen((ChatMessage message) {
+    for (final UiInteractionPart part in message.parts.uiInteractionParts) {
+      if (part.interaction.contains('"error"')) {
+        submitted.add(part.interaction);
+      }
+    }
+  });
+  return submitted;
+}
+
+core.A2uiClientError _clientError(String message) => core.A2uiClientError(
+  code: 'UNKNOWN_COMPONENT_TYPE',
+  surfaceId: _surfaceId,
+  message: message,
+);
+
 void main() {
   setUp(() {
     _recordedCalls.clear();
@@ -515,11 +551,13 @@ void main() {
   });
 
   group('fallback states', () {
-    testWidgets('an unknown type renders the fallback and is reported once', (
+    testWidgets('an unknown type renders the fallback and is dispatched once', (
       WidgetTester tester,
     ) async {
       final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
       final errors = <Object>[];
+      final coreErrors = <core.A2uiClientError>[];
+      surface.onError.addListener(coreErrors.add);
       _add(surface, 'root', 'Column', {
         'children': ['known', 'mystery'],
       });
@@ -540,26 +578,26 @@ void main() {
         ),
       );
       expect(_nodeFor(tester, 'mystery').state, core.NodeState.unknownType);
-      expect(errors, [
-        isA<core.A2uiClientError>().having(
-          (core.A2uiClientError e) => e.code,
-          'code',
-          'UNKNOWN_COMPONENT_TYPE',
-        ),
+      expect(coreErrors.map((core.A2uiClientError e) => e.code), [
+        'UNKNOWN_COMPONENT_TYPE',
       ]);
+      expect(errors, isEmpty);
 
       // A rebuild of the parent reports nothing new.
       surface.componentsModel.get('known')!.properties = {'text': 'Again'};
       await tester.pumpAndSettle();
       expect(find.text('Again'), findsOneWidget);
-      expect(errors, hasLength(1));
+      expect(coreErrors, hasLength(1));
+      expect(errors, isEmpty);
     });
 
-    testWidgets('a cycle renders the fallback and is reported once', (
+    testWidgets('a cycle renders the fallback and is dispatched once', (
       WidgetTester tester,
     ) async {
       final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
       final errors = <Object>[];
+      final coreErrors = <core.A2uiClientError>[];
+      surface.onError.addListener(coreErrors.add);
       _add(surface, 'root', 'Column', {
         'children': ['label', 'loop'],
       });
@@ -579,13 +617,10 @@ void main() {
         }),
         hasLength(1),
       );
-      expect(errors, [
-        isA<core.A2uiClientError>().having(
-          (core.A2uiClientError e) => e.code,
-          'code',
-          'CYCLIC_REFERENCE',
-        ),
+      expect(coreErrors.map((core.A2uiClientError e) => e.code), [
+        'CYCLIC_REFERENCE',
       ]);
+      expect(errors, isEmpty);
     });
 
     testWidgets('a pending child renders empty, reports nothing, and is '
@@ -614,25 +649,35 @@ void main() {
       expect(errors, isEmpty);
     });
 
-    testWidgets('an expression error is not forwarded', (
+    testWidgets('an expression error is not sent to the agent', (
       WidgetTester tester,
     ) async {
-      final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
-      final errors = <Object>[];
+      final SurfaceController controller = _controllerWith([
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['expression'],
+        },
+      ]);
+      addTearDown(controller.dispose);
+      final List<String> submitted = _errorSubmissions(controller);
+      await tester.pump();
+      final core.SurfaceModel<core.ComponentApi> surface = controller
+          .liveSurfaceFor(_surfaceId)!;
       final coreErrors = <core.A2uiClientError>[];
       surface.onError.addListener(coreErrors.add);
-      _add(surface, 'root', 'Text', {
+      _add(surface, 'expression', 'Text', {
         'text': {'call': 'missingFunction', 'args': <String, Object?>{}},
       });
 
-      await tester.pumpWidget(_host(surface, [], errors: errors));
+      await tester.pumpWidget(_controllerApp(controller));
       await tester.pumpAndSettle();
 
       expect(
         coreErrors.map((core.A2uiClientError e) => e.code),
         contains('EXPRESSION_ERROR'),
       );
-      expect(errors, isEmpty);
+      expect(submitted, isEmpty);
     });
 
     testWidgets('unmounting stops forwarding the surface errors', (
@@ -693,6 +738,121 @@ void main() {
 
       expect(submitted, hasLength(2));
       expect(submitted.last, submitted.first);
+    });
+  });
+
+  group('error routing', () {
+    testWidgets('SurfaceController sends a surface diagnostic to the agent '
+        'and stops when the surface is deleted', (WidgetTester tester) async {
+      final SurfaceController controller = _controllerWith([
+        {'id': 'root', 'component': 'Text', 'text': 'Root'},
+      ]);
+      addTearDown(controller.dispose);
+      final List<String> submitted = _errorSubmissions(controller);
+      await tester.pump();
+      final core.SurfaceModel<core.ComponentApi> surface = controller
+          .liveSurfaceFor(_surfaceId)!;
+
+      await surface.dispatchError(_clientError('Before deletion.'));
+      await tester.pump();
+      expect(submitted, hasLength(1));
+
+      controller.handleMessage(
+        _message({
+          'deleteSurface': {'surfaceId': _surfaceId},
+        }),
+      );
+      await surface.dispatchError(_clientError('After deletion.'));
+      await tester.pump();
+      expect(submitted, hasLength(1));
+    });
+
+    testWidgets('two NodeSurfaces on one surface report a diagnostic once '
+        'per resolver', (WidgetTester tester) async {
+      final SurfaceController controller = _controllerWith([
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['known', 'mystery'],
+        },
+        {'id': 'known', 'component': 'Text', 'text': 'Known'},
+      ]);
+      addTearDown(controller.dispose);
+      final List<String> submitted = _errorSubmissions(controller);
+      await tester.pump();
+      expect(submitted, isEmpty);
+      final core.SurfaceModel<core.ComponentApi> surface = controller
+          .liveSurfaceFor(_surfaceId)!;
+      _add(surface, 'mystery', 'Mystery', {});
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _ControllerHost(
+                    controller: controller,
+                    surfaceId: _surfaceId,
+                  ),
+                  _ControllerHost(
+                    controller: controller,
+                    surfaceId: _surfaceId,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(FallbackWidget), findsNWidgets(2));
+      expect(submitted, hasLength(2));
+
+      _add(surface, 'mystery2', 'Mystery', {});
+      surface.componentsModel.get('root')!.properties = {
+        'children': ['known', 'mystery', 'mystery2'],
+      };
+      await tester.pumpAndSettle();
+      expect(find.byType(FallbackWidget), findsNWidgets(4));
+      expect(submitted, hasLength(4));
+    });
+
+    testWidgets('re-keying a NodeSurface reports only the fresh resolver\'s '
+        'diagnostic', (WidgetTester tester) async {
+      final SurfaceController controller = _controllerWith([
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['known', 'mystery'],
+        },
+        {'id': 'known', 'component': 'Text', 'text': 'Known'},
+      ]);
+      addTearDown(controller.dispose);
+      final List<String> submitted = _errorSubmissions(controller);
+      await tester.pump();
+      _add(controller.liveSurfaceFor(_surfaceId)!, 'mystery', 'Mystery', {});
+
+      Widget keyed(String key) => MaterialApp(
+        home: Material(
+          child: KeyedSubtree(
+            key: ValueKey<String>(key),
+            child: _ControllerHost(
+              controller: controller,
+              surfaceId: _surfaceId,
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(keyed('a'));
+      await tester.pumpAndSettle();
+      expect(submitted, hasLength(1));
+
+      await tester.pumpWidget(keyed('b'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FallbackWidget), findsOneWidget);
+      expect(submitted, hasLength(2));
     });
   });
 
@@ -832,18 +992,27 @@ void main() {
   });
 }
 
+/// An app hosting [controller]'s surface [_surfaceId].
+Widget _controllerApp(SurfaceController controller) => MaterialApp(
+  home: Material(
+    child: _ControllerHost(controller: controller, surfaceId: _surfaceId),
+  ),
+);
+
 /// Hosts a controller's surface the way the example app does under
 /// `--dart-define=nodes=true`.
 class _ControllerHost extends StatelessWidget {
   const _ControllerHost({
     required this.controller,
     required this.surfaceId,
-    required this.onError,
+    this.onError,
   });
 
   final SurfaceController controller;
   final String surfaceId;
-  final void Function(Object error) onError;
+
+  /// Receives NodeSurface's reports in place of the controller.
+  final void Function(Object error)? onError;
 
   @override
   Widget build(BuildContext context) {
@@ -861,7 +1030,9 @@ class _ControllerHost extends StatelessWidget {
           surface: surface,
           catalog: catalog,
           onEvent: surfaceContext.handleUiEvent,
-          reportError: (Object error, StackTrace? stackTrace) => onError(error),
+          reportError: onError == null
+              ? surfaceContext.reportError
+              : (Object error, StackTrace? stackTrace) => onError!(error),
         );
       },
     );

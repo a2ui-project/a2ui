@@ -41,6 +41,11 @@ import 'surface.dart';
 /// nodes reused). Child references the catalog schema does not mark, which
 /// the resolver leaves as id strings, are rendered by walking the raw
 /// definitions by id, as [Surface] does.
+///
+/// Unknown-type and cyclic nodes render a [FallbackWidget]. The resolver
+/// dispatches their diagnostics on the surface's `onError`, which this widget
+/// does not forward: `SurfaceController` forwards them for the surfaces it
+/// owns, and a host passing its own surface listens there.
 class NodeSurface extends StatefulWidget {
   /// Creates a [NodeSurface].
   const NodeSurface({
@@ -64,8 +69,7 @@ class NodeSurface extends StatefulWidget {
   /// A builder for the widget to display before the root component arrives.
   final WidgetBuilder? defaultBuilder;
 
-  /// Called when building a component fails and with each resolver
-  /// diagnostic other than an expression error. Defaults to logging.
+  /// Called when building a component fails. Defaults to logging.
   final void Function(Object error, StackTrace? stackTrace)? reportError;
 
   @override
@@ -75,7 +79,6 @@ class NodeSurface extends StatefulWidget {
 class _NodeSurfaceState extends State<NodeSurface> {
   late core.NodeResolver<core.ComponentApi> _resolver;
   late InMemoryDataModel _dataModel;
-  late core.SurfaceModel<core.ComponentApi> _attachedSurface;
 
   /// Component ids by the child tokens handed to catalog views. Layout views
   /// pass a child token back through `getComponent`; an instance id always
@@ -109,24 +112,13 @@ class _NodeSurfaceState extends State<NodeSurface> {
       'through the node layer',
     );
     _dataModel = InMemoryDataModel.wrap(widget.surface.dataModel);
-    // Listens before the resolver is built: it reports during construction.
-    _attachedSurface = widget.surface;
-    _attachedSurface.onError.addListener(_onCoreError);
     _resolver = core.NodeResolver<core.ComponentApi>(widget.surface);
   }
 
   void _detach() {
-    _attachedSurface.onError.removeListener(_onCoreError);
     _resolver.dispose();
     _dataModel.dispose();
     _componentIdByToken.clear();
-  }
-
-  /// Forwards the resolver's diagnostics to [NodeSurface.reportError].
-  /// Expression errors are not forwarded.
-  void _onCoreError(core.A2uiClientError error) {
-    if (error.code == 'EXPRESSION_ERROR') return;
-    _reportError(error, null);
   }
 
   @override

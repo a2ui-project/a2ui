@@ -44,8 +44,9 @@ import 'surface_registry.dart' as surface_reg;
 ///
 /// Wraps [core.MessageProcessor] and adds Flutter-side concerns: holding
 /// updates whose target surface does not exist yet and replaying them once it
-/// is created, catalog-schema validation, and a [SurfaceUpdate] stream for the
-/// widget layer.
+/// is created, catalog-schema validation, forwarding each core surface's
+/// diagnostics to [reportError], and a [SurfaceUpdate] stream for the widget
+/// layer.
 interface class SurfaceController implements SurfaceHost, A2uiMessageSink {
   SurfaceController({
     required this.catalogs,
@@ -314,6 +315,7 @@ interface class SurfaceController implements SurfaceHost, A2uiMessageSink {
       };
 
   void _onCoreSurfaceCreated(core.SurfaceModel<core.ComponentApi> surface) {
+    surface.onError.addListener(_onCoreSurfaceError);
     _registry.addSurface(surface);
     final List<core.AgentToRendererMessage>? pending = _pendingUpdates.remove(
       surface.id,
@@ -327,10 +329,22 @@ interface class SurfaceController implements SurfaceHost, A2uiMessageSink {
   }
 
   void _onCoreSurfaceDeleted(String surfaceId) {
+    _registry
+        .getLiveSurface(surfaceId)
+        ?.onError
+        .removeListener(_onCoreSurfaceError);
     _pendingUpdates.remove(surfaceId);
     _pendingUpdateTimers.remove(surfaceId)?.cancel();
     _liveDataModels.remove(surfaceId)?.dispose();
     _registry.removeSurface(surfaceId);
+  }
+
+  /// Reports each diagnostic a core surface dispatches, other than an
+  /// expression error.
+  void _onCoreSurfaceError(core.A2uiClientError error) {
+    // Skipped while coreCatalogFor registers no functions with the core.
+    if (error.code == 'EXPRESSION_ERROR') return;
+    reportError(error, null);
   }
 
   /// Reports an error to the AI service.
@@ -435,6 +449,12 @@ interface class SurfaceController implements SurfaceHost, A2uiMessageSink {
     _processor.groupModel.onSurfaceDeleted.removeListener(
       _onCoreSurfaceDeleted,
     );
+    for (final String surfaceId in _registry.surfaceOrder) {
+      _registry
+          .getLiveSurface(surfaceId)
+          ?.onError
+          .removeListener(_onCoreSurfaceError);
+    }
     _processor.groupModel.dispose();
     for (final DataModel model in _liveDataModels.values) {
       model.dispose();
