@@ -662,6 +662,48 @@ void unresolvedReferenceTests() {
 
 void snapshotOwnershipTests() {
   group('NodeResolver immutable snapshots', () {
+    test(
+      'an action listener cannot mutate the component or data model',
+      () async {
+        final TestSetup fixture = setup();
+        addTearDown(() {
+          fixture.resolver.dispose();
+          fixture.surface.dispose();
+        });
+        fixture.surface.dataModel.set('/profile', {'name': 'Ada'});
+        add(fixture.surface, 'root', 'Button', {
+          'label': 'Go',
+          'action': {
+            'event': {
+              'name': 'go',
+              'context': {
+                'nested': {'k': 'original'},
+                'profile': {'path': '/profile'},
+              },
+            },
+          },
+        });
+        fixture.surface.onAction.addListener((action) {
+          (action.context['nested'] as Map)['k'] = 'mutated';
+          (action.context['profile'] as Map)['name'] = 'mutated';
+        });
+
+        final action =
+            props(fixture.resolver.rootNode.value!)['action']
+                as Future<void> Function();
+        await action();
+
+        final Map<String, Object?> model = fixture.surface.componentsModel
+            .get('root')!
+            .properties;
+        expect(((model['action'] as Map)['event'] as Map)['context'], {
+          'nested': {'k': 'original'},
+          'profile': {'path': '/profile'},
+        });
+        expect(fixture.surface.dataModel.get('/profile'), {'name': 'Ada'});
+      },
+    );
+
     test('child lists and outer props stay unmodifiable after updates', () {
       final TestSetup fixture = setup();
       addTearDown(() {
