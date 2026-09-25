@@ -41,19 +41,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Small textual differences in prompts on old Node versions. The repository uses Node 22.
 - **Done looks like:** Nothing, unless the package has to support Node 20, in which case example numbers need a custom JSON reader.
 
-### Express error classes are not exported
-
-- **What it is:** `src/index.ts` exports `ExpressFormat`, `ExpressFormatFactory`, `ExpressParser`, `ExpressDecompiler` and `ExpressPromptGenerator`, but none of the Express error classes (`ExpressValidationError`, `ExpressUnknownComponentError`, `ExpressUnknownCatalogError` and the rest in `inference_formats/express/errors.ts`), and not the option types `ExpressFormatOptions` and `ExpressPromptOptions`, nor `RendererCapabilities`.
-- **Why it exists:** The public surface was written before the conformance work added most of these classes, and nothing outside the package needed them yet.
-- **What it risks:** A caller cannot `instanceof`-check an Express error to tell, say, an unknown component from a syntax error, and has to type options structurally. The facades wrap compile failures in `A2uiCompilationParseError` or `A2uiCompilationValidationError`, which are exported, so the common case is covered.
-- **Done looks like:** The error classes and option types are exported from `src/index.ts`, or a decision is recorded that only the wrapping errors are public.
-
 ### Express decompiler skips components its catalog doesn't declare
 
 - **What it is:** When `ExpressDecompiler` meets a component whose name is not in the catalog, it leaves it out of the output without an error (`decompiler.ts`, the `helper.components.has(compName)` check in `decompileSurfaceGroup`). Python does the same.
-- **Why it exists:** Ported from Python. The compiler now rejects unknown components, but the decompiler was not changed to match, and no conformance case covers it.
+- **Why it exists:** Ported from Python. The compiler now rejects unknown components, but the decompiler was not changed to match. No specification or conformance case says what the decompiler should do here: `specification/inference_formats/express/` holds only the grammar, the Express proposals don't mention it, and `conformance/agent/express/decompiler.yaml` has no case for it.
 - **What it risks:** An example that uses a component from another catalog, or a misspelled one, becomes a shorter Express example with no warning, and the model is shown something other than what the author wrote.
-- **Done looks like:** The decompiler throws for an unknown component, as the compiler does, and a conformance case pins it for both SDKs.
+- **Done looks like:** The decompiler throws for an unknown component, and a conformance case pins it for both SDKs, which likely means changing Python to throw too. Throwing is our reading of two things the suite does state: the `decompiler.yaml` header requires every decompiled case to recompile to the messages it started from, which a dropped component breaks, and `compiler.yaml` makes an unknown component a validation error (`test_compile_express_unknown_component_is_a_validation_error`).
 
 ### Express logs the catalog fallback with `console.warn`
 
