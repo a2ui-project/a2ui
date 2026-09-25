@@ -97,7 +97,7 @@ export async function main(args, mocks = {}) {
   // Resolve and validate
   const resolvedPackages = packagesToPublish.map(name => {
     const pkg = Object.values(graph)
-      .filter(p => /[\/\\](renderers|typescript)[\/\\]/.test(p.dir))
+      .filter(p => /[/\\](renderers|typescript)[/\\]/.test(p.dir))
       .find(p => p.name === name || p.name.endsWith('/' + name));
     if (!pkg) {
       throw new Error(`Package "${name}" not found in renderers or typescript directory.`);
