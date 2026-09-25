@@ -17,10 +17,15 @@
 import catalogJson from './catalog.json' with {type: 'json'};
 import {
   A2uiMessageType,
+  A2uiWebAppFrameSrcdoc,
+  A2uiWebAppFrameUrl,
+  ComponentContextFrameHost,
   configureSandbox,
   IFRAME_CATALOG_ID,
+  iframeCatalog,
   resetSandboxConfig,
   resolveSandboxUrl,
+  SandboxedFrameElement,
   WebAppFrameBridge,
 } from './index.js';
 
@@ -32,6 +37,19 @@ describe('@a2ui/catalog-iframe entry point', () => {
   it('exposes the $id of the bundled catalog schema', () => {
     expect(IFRAME_CATALOG_ID).toBe(catalogJson['$id']);
     expect(Object.keys(catalogJson['components'])).toEqual(['WebAppFrameUrl', 'WebAppFrameSrcdoc']);
+  });
+
+  it('exposes the catalog with its two components', () => {
+    expect(iframeCatalog.id).toBe(IFRAME_CATALOG_ID);
+    expect([...iframeCatalog.components.values()]).toEqual([
+      A2uiWebAppFrameUrl,
+      A2uiWebAppFrameSrcdoc,
+    ]);
+  });
+
+  it('exposes the base class and the host adapter for other frame components', () => {
+    expect(typeof SandboxedFrameElement).toBe('function');
+    expect(typeof ComponentContextFrameHost).toBe('function');
   });
 
   it('exposes the sandbox configuration and the bridge', () => {

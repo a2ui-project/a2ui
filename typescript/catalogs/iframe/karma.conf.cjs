@@ -19,9 +19,23 @@ module.exports = function (config) {
     basePath: '',
     frameworks: ['jasmine'],
     plugins: [require('karma-jasmine'), require('karma-chrome-launcher'), require('karma-esbuild')],
-    files: [{pattern: 'src/**/*.test.ts', watched: true}],
+    files: [
+      {pattern: 'src/**/*.test.ts', watched: true},
+      {pattern: 'tests/**/*.test.ts', watched: true},
+      // The real sandbox proxy, built into dist/sandbox/ by `build-sandbox`, and the fixture
+      // pages of the real-frame scenarios. Both are served, not included in the test bundle.
+      {pattern: 'dist/sandbox/**', included: false, served: true, watched: false},
+      {pattern: 'tests/fixtures/**', included: false, served: true, watched: false},
+    ],
+    // Serves the proxy at its default path and the fixtures next to it, so the tests load them
+    // the way a host application would.
+    proxies: {
+      '/a2ui-sandbox/': '/base/dist/sandbox/',
+      '/a2ui-fixtures/': '/base/tests/fixtures/',
+    },
     preprocessors: {
       'src/**/*.test.ts': ['esbuild'],
+      'tests/**/*.test.ts': ['esbuild'],
     },
     esbuild: {
       tsconfig: './tsconfig.test.json',
