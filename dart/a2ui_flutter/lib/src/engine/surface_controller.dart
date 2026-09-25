@@ -192,7 +192,9 @@ interface class SurfaceController implements SurfaceHost, A2uiMessageSink {
     }
 
     try {
-      _processor.processMessages([coreMessage]);
+      _processor.processMessages(
+        core.AgentToRendererMessagePayload.of(coreMessage),
+      );
     } on core.A2uiStateError catch (e) {
       genUiLogger.warning('State error from MessageProcessor: ${e.message}');
       reportError(
