@@ -29,8 +29,8 @@ The layers have separate responsibilities:
 ### **2. Nodes**
 
 - A `ComponentNode` is one resolved component instance at one position in the tree. One node exists per referencing position: two parents that reference the same component id hold two distinct nodes.
-- `instanceId` names the position and MUST be distinct among siblings. A position keeps its `instanceId` across updates; a template item's position is its index in the array, not a key in the item's data.
-- The node object at a position is replaced when the component there is replaced or changes type, and when a placeholder's component arrives; the replacement keeps the `instanceId`. A node whose position is gone is disposed, and disposing a node disposes its subtree.
+- `instanceId` names the position and MUST be distinct among siblings; a template item's position is its index in the array, not a key in the item's data.
+- The node object at a position is replaced when the component definition there changes type, and when a placeholder's component arrives; the replacement keeps the `instanceId`. A node whose position is gone is disposed, and disposing a node disposes its subtree.
 - `props` is a reactive map keyed by the component's schema property names. It holds a `ResolvedBinding` for each dynamic property, a `NodeAction` for each action, child nodes for each child reference, and the literal value otherwise. It reflects the current component definition.
 - `dataPath` is the data scope the node resolves relative paths against.
 
