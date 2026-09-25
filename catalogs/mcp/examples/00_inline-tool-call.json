@@ -1,0 +1,28 @@
+{
+  "name": "Inline MCP App with tool calls",
+  "description": "An inline McpApp that renders a feedback form and calls the submit_feedback MCP tool, which the host dispatches as an A2UI action because the tool is declared in allowedTools.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-mcp-app-tool-call",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-mcp-app-tool-call",
+        "components": [
+          {
+            "id": "root",
+            "component": "McpApp",
+            "title": "Feedback form",
+            "allowedTools": ["submit_feedback"],
+            "htmlContent": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\" />\n    <style>\n      body { font-family: sans-serif; margin: 16px; }\n      label { display: block; margin-bottom: 8px; }\n    </style>\n  </head>\n  <body>\n    <label>Rating <input id=\"rating\" type=\"number\" min=\"1\" max=\"5\" value=\"5\" /></label>\n    <label>Comment <input id=\"comment\" type=\"text\" value=\"Great answer\" /></label>\n    <button id=\"send\">Send feedback</button>\n    <p id=\"status\"></p>\n    <script>\n      // Minimal JSON-RPC bridge over postMessage, as expected by the MCP Apps sandbox proxy.\n      var nextId = 1;\n      var pending = {};\n\n      function sendRequest(method, params) {\n        var id = nextId++;\n        return new Promise(function (resolve, reject) {\n          pending[id] = { resolve: resolve, reject: reject };\n          window.parent.postMessage({ jsonrpc: '2.0', id: id, method: method, params: params }, '*');\n        });\n      }\n\n      function sendNotification(method, params) {\n        window.parent.postMessage({ jsonrpc: '2.0', method: method, params: params }, '*');\n      }\n\n      window.addEventListener('message', function (event) {\n        var data = event.data || {};\n        if (data.method === 'ping' && data.id !== undefined) {\n          window.parent.postMessage({ jsonrpc: '2.0', id: data.id, result: {} }, '*');\n        } else if (data.id !== undefined && pending[data.id]) {\n          var request = pending[data.id];\n          delete pending[data.id];\n          if (data.error) request.reject(new Error(data.error.message));\n          else request.resolve(data.result);\n        }\n      });\n\n      document.getElementById('send').addEventListener('click', function () {\n        // submit_feedback is listed in allowedTools, so the host dispatches this call as an\n        // A2UI action named submit_feedback with the arguments as its context.\n        sendRequest('tools/call', {\n          name: 'submit_feedback',\n          arguments: {\n            rating: Number(document.getElementById('rating').value),\n            comment: document.getElementById('comment').value\n          }\n        }).then(function () {\n          document.getElementById('status').textContent = 'Thanks for the feedback.';\n        }).catch(function (err) {\n          document.getElementById('status').textContent = 'Rejected: ' + err.message;\n        });\n      });\n\n      sendRequest('ui/initialize', {\n        appInfo: { name: 'Feedback form', version: '1.0.0' },\n        appCapabilities: { availableDisplayModes: ['inline'] },\n        protocolVersion: '2026-01-26'\n      }).then(function () {\n        sendNotification('ui/notifications/initialized', {});\n        sendNotification('ui/notifications/size-changed', { height: 180 });\n      });\n    </script>\n  </body>\n</html>\n"
+          }
+        ]
+      }
+    }
+  ]
+}

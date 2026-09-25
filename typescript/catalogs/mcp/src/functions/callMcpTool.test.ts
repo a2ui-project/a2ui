@@ -687,6 +687,32 @@ describe('callMcpTool', () => {
       assert.deepStrictEqual(valid, {name: 'read_resource', arguments: {uri: 'a2ui://form'}});
     });
 
+    it('publishes the McpApp component with allowlists shaped as declared', () => {
+      const schemaCatalog = Catalog.fromSchema(mcpCatalogJson);
+      const mcpApp = schemaCatalog.components.get('McpApp');
+      assert.ok(mcpApp, 'McpApp is not published');
+
+      const props = {
+        htmlContent: '<!doctype html><p>Score pad</p>',
+        title: 'Score pad',
+        allowedTools: ['save_score'],
+        allowedFunctions: {formatCurrency: {type: 'object'}},
+        data: {paths: {player: '/player'}},
+      };
+      assert.deepStrictEqual(mcpApp.schema.parse(props), props);
+
+      // allowedTools stays a list of names; allowedFunctions maps each name to
+      // the JSON Schema of its arguments, so the list form is rejected.
+      assert.strictEqual(
+        mcpApp.schema.safeParse({...props, allowedFunctions: ['formatCurrency']}).success,
+        false,
+      );
+      assert.strictEqual(
+        mcpApp.schema.safeParse({...props, allowedTools: {save_score: {}}}).success,
+        false,
+      );
+    });
+
     it('declares exactly the supported arguments in the published schema', () => {
       const args = (mcpCatalogJson as any).functions.callMcpTool.properties.args;
       assert.deepStrictEqual(Object.keys(args.properties), ['name', 'arguments']);
