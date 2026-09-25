@@ -194,17 +194,21 @@ describe('SurfaceModel', () => {
     assert.strictEqual(actions[3].userMessage, undefined);
   });
 
-  it('throws TypeError if 3rd argument is not an Array, Map, or undefined/null', () => {
+  it('throws TypeError if 3rd argument is not a Map or undefined/null', () => {
     assert.throws(() => new SurfaceModel('surface-err', catalog, {primaryColor: 'red'} as any), {
+      name: 'TypeError',
+      message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,
+    });
+    assert.throws(() => new SurfaceModel('surface-err', catalog, [catalog] as any), {
       name: 'TypeError',
       message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,
     });
   });
 
-  it('accepts an Array or undefined/null for availableCatalogs in constructor', () => {
+  it('accepts a Map or undefined/null for availableCatalogs in constructor', () => {
     const other = new Catalog<ComponentApi>('other-catalog', '1.0', []);
-    const surfaceWithArray = new SurfaceModel('s-arr', catalog, [other]);
-    assert.strictEqual(surfaceWithArray.availableCatalogs.get('other-catalog'), other);
+    const surfaceWithMap = new SurfaceModel('s-map', catalog, new Map([['other-catalog', other]]));
+    assert.strictEqual(surfaceWithMap.availableCatalogs.get('other-catalog'), other);
 
     const surfaceWithNull = new SurfaceModel('s-null', catalog, null);
     assert.strictEqual(surfaceWithNull.availableCatalogs.get(catalog.id), catalog);

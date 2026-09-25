@@ -141,12 +141,7 @@ export class SurfaceModel<
      * catalog explicitly.
      */
     readonly defaultCatalog: Catalog<T, F>,
-    availableCatalogs:
-      | ReadonlyMap<string, Catalog<T, F>>
-      | Catalog<T, F>[]
-      | [string, Catalog<T, F>][]
-      | null
-      | undefined = new Map(),
+    availableCatalogs: ReadonlyMap<string, Catalog<T, F>> | null | undefined = new Map(),
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
     dataModel?: DataModel,
@@ -156,33 +151,13 @@ export class SurfaceModel<
     if (
       availableCatalogs !== undefined &&
       availableCatalogs !== null &&
-      !(availableCatalogs instanceof Map) &&
-      !Array.isArray(availableCatalogs)
+      !(availableCatalogs instanceof Map)
     ) {
       throw new TypeError(
-        'availableCatalogs must be a Map, an Array, or undefined/null. Note that availableCatalogs is now the 3rd argument to SurfaceModel and theme is the 4th argument.',
+        'availableCatalogs must be a Map, or undefined/null. Note that availableCatalogs is now the 3rd argument to SurfaceModel and theme is the 4th argument.',
       );
     }
-    let catalogs: Map<string, Catalog<T, F>>;
-    if (availableCatalogs instanceof Map) {
-      catalogs = new Map(availableCatalogs);
-    } else if (Array.isArray(availableCatalogs)) {
-      catalogs = new Map();
-      for (const item of availableCatalogs) {
-        if (Array.isArray(item) && item.length === 2 && typeof item[0] === 'string') {
-          if (item[1]) {
-            catalogs.set(item[0], item[1]);
-          }
-        } else if (item && typeof item === 'object' && 'id' in item) {
-          const id = (item as any).id;
-          if (typeof id === 'string' && id) {
-            catalogs.set(id, item as Catalog<T, F>);
-          }
-        }
-      }
-    } else {
-      catalogs = new Map();
-    }
+    const catalogs = new Map(availableCatalogs ?? []);
     if (defaultCatalog?.id && !catalogs.has(defaultCatalog.id)) {
       catalogs.set(defaultCatalog.id, defaultCatalog);
     }
