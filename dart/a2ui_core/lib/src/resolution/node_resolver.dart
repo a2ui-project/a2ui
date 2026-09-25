@@ -690,13 +690,26 @@ class NodeResolver<T extends ComponentApi> {
       final int occurrence = (occurrences[occurrenceKey] ?? 0) + 1;
       occurrences[occurrenceKey] = occurrence;
       final _EdgeKey edgeKey = (record.node, slot, componentId, dataPath);
-      final MutableComponentNode<T> child = _childNode(
-        componentId,
-        dataPath,
-        edgeKey,
-        record.node,
-        occurrence,
-      );
+      final MutableComponentNode<T> child;
+      try {
+        child = _childNode(
+          componentId,
+          dataPath,
+          edgeKey,
+          record.node,
+          occurrence,
+        );
+      } catch (_) {
+        // Children created earlier in this pass have no owner until the
+        // edges commit.
+        for (final MapEntry<_EdgeKey, MutableComponentNode<T>> edge
+            in newEdges.entries) {
+          if (!identical(record.childEdges[edge.key], edge.value)) {
+            _disposeNode(edge.value);
+          }
+        }
+        rethrow;
+      }
       newEdges[edgeKey] = child;
       return child;
     }

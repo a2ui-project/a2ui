@@ -877,6 +877,40 @@ void materializationFailureTests() {
         reason: 'a healthy root and leaf, with no leftovers from the failure',
       );
     });
+
+    test('a throw partway through a child list disposes the siblings '
+        'created before it', () {
+      final TestSetup fixture = setupWithPoisonedLeaf();
+      add(fixture.surface, 'ok', 'Text', {'text': 'ok'});
+      add(fixture.surface, 'extra', 'Text', {'text': 'extra'});
+
+      expect(
+        () => add(fixture.surface, 'root', 'Column', {
+          'children': ['ok', 'leaf'],
+        }),
+        throwsA(isA<TypeError>()),
+      );
+      expect(fixture.resolver.activeNodeCount, 0);
+
+      fixture.surface.componentsModel.removeComponent('root');
+      add(fixture.surface, 'root', 'Column', {
+        'children': ['ok'],
+      });
+      expect(fixture.resolver.activeNodeCount, 2);
+
+      expect(
+        () => fixture.surface.componentsModel.get('root')!.properties = {
+          'children': ['ok', 'extra', 'leaf'],
+        },
+        throwsA(anything),
+      );
+      expect(
+        fixture.resolver.activeNodeCount,
+        2,
+        reason: 'the failed update keeps the committed tree and nothing else',
+      );
+      expect(fixture.resolver.rootNode.peek()?.componentId, 'root');
+    });
   });
 }
 
