@@ -22,6 +22,10 @@ export {type SchemaCatalog, type ProtocolVersion, basicCatalog} from './types.js
 // able to name it.
 export type {AgentToRendererMessage} from './internal/web_core.js';
 
+// The renderer capabilities a request is negotiated against. Re-exported because
+// `A2uiGenerator.createProcessor` and `resolveCatalogs` take it.
+export type {RendererCapabilities} from './internal/web_core.js';
+
 export {
   A2uiError,
   A2uiValidationError,
@@ -83,10 +87,36 @@ export {DirectJsonPromptGenerator} from './inference_formats/direct_json/prompt_
 export {DirectJsonDecompiler} from './inference_formats/direct_json/decompiler.js';
 
 // Express inference format
-export {ExpressFormat, ExpressFormatFactory} from './inference_formats/express/format.js';
+export {
+  type ExpressFormatOptions,
+  ExpressFormat,
+  ExpressFormatFactory,
+} from './inference_formats/express/format.js';
 export {ExpressParser} from './inference_formats/express/parser.js';
-export {ExpressPromptGenerator} from './inference_formats/express/prompt_generator.js';
+export {
+  type ExpressPromptOptions,
+  ExpressPromptGenerator,
+} from './inference_formats/express/prompt_generator.js';
 export {ExpressDecompiler} from './inference_formats/express/decompiler.js';
+export {
+  ExpressCompilerError,
+  ExpressParseError,
+  ExpressSyntaxError,
+  ExpressUndefinedRootError,
+  ExpressUndefinedChildError,
+  ExpressValidationError,
+  ExpressUnknownComponentError,
+  ExpressUnknownPropertyError,
+  ExpressMissingRequiredPropertyError,
+  ExpressDuplicatePropertyError,
+  ExpressUnknownFunctionError,
+  ExpressInvalidParamError,
+  ExpressDuplicateParamError,
+  ExpressForbiddenDatabindingError,
+  ExpressIdCollisionError,
+  ExpressInvalidIdentifierError,
+  ExpressUnknownCatalogError,
+} from './inference_formats/express/errors.js';
 
 // Facades
 export {A2uiGenerator} from './processor/generator.js';
