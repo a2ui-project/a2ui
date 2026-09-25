@@ -37,14 +37,14 @@ The layers have separate responsibilities:
 ### **3. Bindings**
 
 - Every dynamic property (a property whose schema is one of the `Dynamic*` common types) resolves to one `ResolvedBinding`: the current value plus, if and only if the payload bound a data path, a write capability.
-- A write lands at the node's data scope.
+- A write lands at the bound path, resolved against the node's data scope.
 - A binding is a snapshot: a changed value arrives as a new binding through the node's `props`.
 
 ### **4. Children**
 
 - A property whose schema references the shared `ComponentId` definition (single child) or `ChildList` definition (explicit id list or data-driven template) is a child reference.
 - A single reference resolves to one child node; an explicit list and a template alike resolve to one list of child nodes.
-- A template spawns one node per array item, at the data scope `<template path>/<index>` relative to the parent's scope.
+- A template resolves its path against the parent's scope and spawns one node per array item, at the data scope `<template path>/<index>`.
 
 ### **5. Actions**
 
@@ -59,7 +59,7 @@ The layers have separate responsibilities:
 ### **7. Placeholders**
 
 - A partly streamed surface still resolves to a tree: a reference to a component the surface does not currently hold resolves to a placeholder node with state `pending`. When the component arrives, a resolved node replaces the placeholder at the same position.
-- A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats one of the node's own ancestors resolves to one with state `cyclic`. The resolver reports `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` to the surface.
+- A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats an ancestor's component id at the same data scope resolves to one with state `cyclic`. The resolver dispatches `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` to the surface.
 
 ---
 
@@ -137,7 +137,7 @@ interface ResolvedBinding<T> {
 
 /** A binding whose payload bound a data path. */
 interface WritableBinding<T> extends ResolvedBinding<T> {
-  /** Writes through to the bound path at the node's data scope. */
+  /** Writes to the bound path, resolved against the node's data scope. */
   set(value: T): void;
 }
 
@@ -156,7 +156,7 @@ class NodeResolver<C extends ComponentApi> {
 ### **Changes to existing core contracts**
 
 1. **Dynamic properties become bindings.** Node props hold a `ResolvedBinding` per dynamic property in place of a value plus a setter.
-2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. A node's action closure executes a `functionCall` payload itself, in its data scope, and emits nothing.
+2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. A node's `NodeAction` executes a `functionCall` payload itself, in its data scope, and emits nothing.
 
 ### **Changes to the framework adapter contract**
 
@@ -164,7 +164,7 @@ A node-based adapter reads children from the resolver instead of calling the `bu
 
 1. **Owns one resolver per surface.** It constructs a `NodeResolver` when the surface mounts, renders from its `rootNode`, and disposes the resolver when the surface unmounts.
 2. **Subscribes per node.** Each node's `props` is subscribed separately.
-3. **Renders pending nodes as placeholders.** The adapter supplies the view for pending nodes.
+3. **Renders placeholders.** The adapter supplies the view for any node whose `state` is not `resolved`.
 4. **Unwraps bindings at the control boundary.** A control reads a binding's value and writes through its `set`.
 
 ---
