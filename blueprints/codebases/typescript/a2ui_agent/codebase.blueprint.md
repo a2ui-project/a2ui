@@ -54,7 +54,7 @@ Where the port follows Python even though conformance disagrees, `typescript/a2u
 
 ### **Test Posture**
 
-- **Overall**: 603 tests: 552 pass, 51 are skipped, none fail, and there are no expected failures.
+- **Overall**: 604 tests: 553 pass, 51 are skipped, none fail, and there are no expected failures.
 - **Main conformance runner**: 131 cases, 80 pass and 51 are skipped. Its `KNOWN_FAILURES` list (`tests/conformance/loader.ts`) is empty. Cases are skipped by the protocol version, format or action they declare, not by name: 45 declare `v0.8`, one each uses Elemental and Atom, and 4 are skill generation cases (`UNIMPLEMENTED_ACTIONS`). None is skipped for a defect. An action the runner does not handle fails the test instead of passing without assertions.
 - **Express conformance runner**: 86 cases, all pass. Its `KNOWN_FAILURES` and `UNSUPPORTED` lists are empty. That includes the cases Python fails and the multi-catalog case Python marks unsupported; `KNOWN_GAPS.md` lists them so Python issues can be filed.
 - **Unit tests**: 386 pass. Express parity fixtures for the visitor, compiler, decompiler and schema helper were generated from main's Python and are checked in under `tests/unit/inference_formats/express/fixtures/`. Where the conformance suite requires different output, `conformance_overrides.json` in the same directory replaces the expected value, and a test checks that every override names an existing fixture case.
