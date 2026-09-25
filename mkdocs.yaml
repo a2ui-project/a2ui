@@ -59,6 +59,7 @@ nav:
       - Renderer Development: guides/renderer-development.md
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
       - Authoring Custom Components: guides/authoring-components.md
+      - Iframe and MCP Catalogs: guides/iframe-and-mcp-catalogs.md
       - Theming & Styling: guides/theming.md
       - A2UI + MCP:
           - A2UI over MCP: guides/a2ui_over_mcp.md
