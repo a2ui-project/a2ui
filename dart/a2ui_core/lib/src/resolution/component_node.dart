@@ -18,7 +18,7 @@ import '../core/catalog.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 import '../rendering/binder.dart' show ChildNode;
-import '../rendering/resolved_binding.dart';
+import 'resolved_binding.dart';
 
 final _log = Logger('a2ui_core.resolution');
 

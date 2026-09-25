@@ -20,7 +20,7 @@ import '../core/component_model.dart';
 import '../core/contexts.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
-import 'resolved_binding.dart';
+import '../resolution/resolved_binding.dart';
 
 /// Represents the intended runtime behavior of a property parsed from
 /// its schema.
