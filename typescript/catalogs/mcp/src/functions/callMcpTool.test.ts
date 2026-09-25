@@ -29,7 +29,7 @@ import {
   DATA_FUNCTION_APIS,
   MCP_CATALOG_ID,
   createMcpCatalogFunctions,
-} from '../index.js';
+} from '../functions.js';
 import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,

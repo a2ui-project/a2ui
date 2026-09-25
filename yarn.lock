@@ -157,16 +157,31 @@ __metadata:
   resolution: "@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp"
   dependencies:
     "@a2ui/web_core": "workspace:*"
-    "@modelcontextprotocol/sdk": "npm:^1.0.1"
+    "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
+    "@modelcontextprotocol/sdk": "npm:^1.29.0"
+    "@types/jasmine": "npm:^6.0.0"
     "@types/jmespath": "npm:^0.15.2"
     "@types/node": "npm:^25.9.3"
+    ajv: "npm:^8.17.1"
+    esbuild: "npm:^0.28.1"
     eslint: "npm:^10.4.1"
+    gts: "npm:^7.0.0"
+    jasmine-core: "npm:^6.3.0"
     jmespath: "npm:^0.16.0"
+    karma: "npm:^6.4.4"
+    karma-chrome-launcher: "npm:^3.2.0"
+    karma-esbuild: "npm:^2.3.0"
+    karma-jasmine: "npm:^5.1.0"
+    lit: "npm:^3.3.3"
     prettier: "npm:^3.8.4"
     re2js: "npm:^2.8.6"
     tsx: "npm:^4.22.4"
     typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
+  peerDependencies:
+    "@a2ui/web_core": "workspace:*"
+    lit: ^3.3.3
   languageName: unknown
   linkType: soft
 
@@ -5038,9 +5053,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@modelcontextprotocol/sdk@npm:^1.0.1":
-  version: 1.30.0
-  resolution: "@modelcontextprotocol/sdk@npm:1.30.0"
+"@modelcontextprotocol/sdk@npm:^1.29.0":
+  version: 1.30.1
+  resolution: "@modelcontextprotocol/sdk@npm:1.30.1"
   dependencies:
     "@hono/node-server": "npm:^1.19.9 || ^2.0.5"
     ajv: "npm:^8.17.1"
@@ -5067,7 +5082,7 @@ __metadata:
       optional: true
     zod:
       optional: false
-  checksum: 10c0/6d12d5c88048b42b0d64906222f804eecbfc0aae02fc42a200d2438f037276cc7863510a8ce649e82c96d5972f62a58bfbdedf79624b0558a607738f5e58b97e
+  checksum: 10c0/68e21e5d584f54948d3ccccb780530fdb21e83a0e69e867ae0d18499afa715c12e6e0bd666e33fd98c8b8528bc03631422e90f659f30cff8b35147efd6ec6894
   languageName: node
   linkType: hard
 

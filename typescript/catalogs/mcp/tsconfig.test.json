@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+
+  /* Type-checks the whole source tree, tests included, plus the real-frame scenarios and the
+     fixture application under tests/. The browser tests use the Jasmine globals and the catalog
+     function tests use node:test, so both type sets are loaded. Used by `test:types`, by the Karma
+     esbuild preprocessor and by ESLint; the library build uses tsconfig.json, which leaves the
+     tests and the sandbox bundle entry point out. */
+  "compilerOptions": {
+    "noEmit": true,
+    "forceConsistentCasingInFileNames": true,
+    "target": "es2021",
+    "module": "esnext",
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "types": ["jasmine", "node"],
+    "skipLibCheck": true,
+    "useDefineForClassFields": false,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*.ts", "src/catalog.json", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "tests/fixtures/generated"]
+}
