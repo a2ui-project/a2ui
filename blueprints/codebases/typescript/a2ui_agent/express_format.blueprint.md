@@ -109,7 +109,7 @@ skipped positional and compiles to `null`. `$/path` is an absolute data binding 
 `$name` a relative one. Beyond component construction the format carries data model
 assignment, validation checks such as `?required`, `Event(...)` for server events,
 `_template(...)` for list templating, `surface(...)` for surface targeting,
-`deleteSurface(...)`, and bare function calls that compile to `callFunction`.
+`deleteSurface(...)`, and bare function calls that compile to a `callRendererFunction` message.
 
 Against Direct JSON the differences that matter are that the model writes no
 property keys and no message envelope. The compiler recovers both: property names
@@ -348,10 +348,14 @@ tests for the TS schema helper should repeat these checks.
      that the component doesn't declare (verified: `Text("hi", _, _, [?required])`
      compiles to `Text` with `checks` and empty args).
 
-5. **Prompt text.** `EXPRESS_RULES` names `DateTimeInput` and an `action` parameter.
-   It is ported **verbatim**, because the skill conformance cases compare the
-   generated files byte-for-byte against `conformance/test_data/skills/`. It stays a
-   known leak, to be raised upstream rather than fixed here.
+5. **Prompt text.** `EXPRESS_RULES` names no catalog component. Python's rules name
+   `Card`, `Image` and `DateTimeInput`; the TS rules use placeholders such as
+   `ComponentA` and a generic dates rule. This follows the conformance case
+   `test_express_snippet_omits_a_pruned_component`, which prunes `Card` and expects no
+   mention of it. The golden `conformance/test_data/skills/express_base_rules.txt` still
+   contains `Card`, so the suite contradicts itself. The unit test compares the TS
+   rules with the golden after four named substitutions, byte for byte, so any other
+   drift still fails. `KNOWN_GAPS.md` records the contradiction.
 
 6. **One databinding predicate.** Python's two copies answer different questions, and
    neither is written structurally. The TS port uses one predicate, `admitsPath`: a
@@ -458,6 +462,11 @@ gains nothing, since the code has to be written either way.
 The gate to open remains `SUPPORTED_FORMATS` at `tests/conformance/loader.ts:43`,
 which currently holds `direct_json` only.
 
+Status on 2026-09-24: the 86 Express cases now run from `conformance/agent/express/`
+in `tests/conformance/express_conformance.test.ts`, and all 86 pass. Where they
+disagree with main's Python, TypeScript follows the suite; `KNOWN_GAPS.md` lists
+each case Python still fails.
+
 ---
 
 ## 7. Implementation steps
@@ -519,14 +528,19 @@ before a second format arrives. Python already separates `A2UI_OPEN_TAG` from
 
 `createFormat` takes an array of catalogs but `DirectJsonFormat.createParser` uses
 only `catalogs[0]`, and Python's Express is single-catalog by construction, while
-`PromptGenerator` is already multi-catalog. Decided 2026-09-23: Express takes
-exactly one catalog, matching Python, and throws when given more than one rather
-than silently using the first. Within that catalog, names resolve first-match-wins in
-Python's order (`compiler.py:713-776`): catalog components, then the built-ins
-`_template` and `Event`, then catalog functions. A function sharing a component's
-name, or a function named `Event` or `_template`, is unreachable without error, as
-in Python. Up-front collision detection at catalog load, and multi-catalog support
-with collision rules, are deferred.
+`PromptGenerator` is already multi-catalog. Decided 2026-09-23 that Express would
+take exactly one catalog, matching Python. Superseded 2026-09-24 by the rule to
+follow the conformance suite: Express takes several catalogs, and the case
+`test_compile_express_surface_targeting_names_a_catalog` passes. A block's
+`surface(...)` line names its catalog, and every name in the block is looked up only
+in that catalog, which is how names shared across catalogs are resolved. A block
+that names no catalog uses the first one and logs a warning when several are active;
+an unknown catalog id throws `ExpressUnknownCatalogError`. Within one catalog, names
+resolve first-match-wins in Python's order (`compiler.py:713-776`): catalog
+components, then the built-ins `_template` and `Event`, then catalog functions. A
+function sharing a component's name, or a function named `Event` or `_template`, is
+unreachable without error, as in Python. Up-front collision detection at catalog
+load is deferred.
 
 Python surfaces a compilation error carrying line, column, help text, and partial
 results, plus seven Express-specific error classes. TypeScript has `ParseError` and
@@ -555,8 +569,10 @@ match Python, which is stateless. Each `compile` call is independent. Every scop
 that assigns `root` emits `createSurface` (on v0.9 followed by `updateComponents`,
 and `updateDataModel` when data paths are assigned; on v1.0 a single
 `createSurface` carrying `components` and optional `dataModel`). A scope with data
-path assignments but no `root` emits only `updateDataModel`; one with neither raises
-`ExpressUndefinedRootError`. `updateComponents` is never emitted on its own.
+path assignments but no `root` emits only `updateDataModel`. A scope that assigns
+components but no `root` emits `updateComponents` for them, without a `catalogId`,
+as the conformance round-trip cases require (Python raises instead); a scope with no
+components and no data paths raises `ExpressUndefinedRootError`.
 
 The specification also describes an error-recovery pipeline whose later steps send
 broken lines to a fast model for correction. Python implements only the first step.
