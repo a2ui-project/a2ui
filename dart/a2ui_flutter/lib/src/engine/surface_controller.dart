@@ -379,6 +379,11 @@ interface class SurfaceController implements SurfaceHost, A2uiMessageSink {
       errorCode = 'FUNCTION_EXECUTION_FAILED';
       message = error.message;
       functionName = error.functionName;
+    } else if (error is core.A2uiClientError) {
+      errorCode = error.code;
+      message = error.message;
+      surfaceId = error.surfaceId;
+      path = error.path;
     }
 
     return {

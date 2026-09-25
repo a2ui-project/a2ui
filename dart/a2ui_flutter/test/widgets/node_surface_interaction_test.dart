@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:a2ui_core/a2ui_core.dart' as core;
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 // coreCatalogFor is internal; this test exercises the same wiring
@@ -229,6 +231,13 @@ List<String> _errorSubmissions(SurfaceController controller) {
   });
   return submitted;
 }
+
+/// The `error` objects of [submissions].
+List<Map<String, Object?>> _errorBodies(List<String> submissions) => [
+  for (final String submission in submissions)
+    (jsonDecode(submission) as Map<String, Object?>)['error']!
+        as Map<String, Object?>,
+];
 
 core.A2uiClientError _clientError(String message) => core.A2uiClientError(
   code: 'UNKNOWN_COMPONENT_TYPE',
@@ -709,8 +718,8 @@ void main() {
       surface.dispose();
     });
 
-    testWidgets('an unknown type reaches the agent under NodeSurface as under '
-        'Surface', (WidgetTester tester) async {
+    testWidgets('an unknown type reaches the agent under NodeSurface with its '
+        'code, and under Surface', (WidgetTester tester) async {
       final SurfaceController controller = _controllerWith([
         {
           'id': 'root',
@@ -730,7 +739,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(FallbackWidget), findsOneWidget);
       expect(submitted, hasLength(1));
-      final String fromNodeSurface = submitted.single;
+      final Map<String, Object?> fromNodeSurface = _errorBodies(
+        submitted,
+      ).single;
+      expect(fromNodeSurface['code'], 'UNKNOWN_COMPONENT_TYPE');
+      expect(fromNodeSurface['surfaceId'], _surfaceId);
+      expect(fromNodeSurface['message'], contains('Mystery'));
 
       controller.registry.notifyUpdated(surface);
       await tester.pumpWidget(
@@ -742,9 +756,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(FallbackWidget), findsOneWidget);
-      final List<String> fromSurface = submitted.skip(1).toList();
-      expect(fromSurface, isNotEmpty);
-      expect(fromSurface, everyElement(fromNodeSurface));
+      expect(submitted.skip(1), isNotEmpty);
     });
   });
 
@@ -762,7 +774,13 @@ void main() {
 
       await surface.dispatchError(_clientError('Before deletion.'));
       await tester.pump();
-      expect(submitted, hasLength(1));
+      expect(_errorBodies(submitted), [
+        {
+          'code': 'UNKNOWN_COMPONENT_TYPE',
+          'surfaceId': _surfaceId,
+          'message': 'Before deletion.',
+        },
+      ]);
 
       controller.handleMessage(
         _message({
@@ -823,6 +841,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(FallbackWidget), findsNWidgets(4));
       expect(submitted, hasLength(4));
+      final List<Map<String, Object?>> bodies = _errorBodies(submitted);
+      expect(
+        bodies.map((Map<String, Object?> body) => body['code']),
+        everyElement('UNKNOWN_COMPONENT_TYPE'),
+      );
+      expect(
+        bodies.map((Map<String, Object?> body) => body['surfaceId']),
+        everyElement(_surfaceId),
+      );
+      expect(bodies[0]['message'], contains("'mystery'"));
+      expect(bodies[2]['message'], contains("'mystery2'"));
     });
 
     testWidgets('re-keying a NodeSurface reports only the fresh resolver\'s '
@@ -860,6 +889,84 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(FallbackWidget), findsOneWidget);
       expect(submitted, hasLength(2));
+      expect(
+        _errorBodies(submitted).map((Map<String, Object?> body) {
+          return (body['code'], body['surfaceId']);
+        }),
+        everyElement(('UNKNOWN_COMPONENT_TYPE', _surfaceId)),
+      );
+    });
+  });
+
+  group('core diagnostics', () {
+    for (final (String code, String message) in [
+      ('UNKNOWN_COMPONENT_TYPE', "Component 'mystery' has unknown type."),
+      ('CYCLIC_REFERENCE', "Component 'loop' references itself."),
+    ]) {
+      testWidgets('$code dispatched on a controller surface reaches the '
+          'agent with its code, surface id and message', (
+        WidgetTester tester,
+      ) async {
+        final SurfaceController controller = _controllerWith([
+          {'id': 'root', 'component': 'Text', 'text': 'Root'},
+        ]);
+        addTearDown(controller.dispose);
+        final List<String> submitted = _errorSubmissions(controller);
+        await tester.pump();
+
+        await controller
+            .liveSurfaceFor(_surfaceId)!
+            .dispatchError(
+              core.A2uiClientError(
+                code: code,
+                surfaceId: _surfaceId,
+                message: message,
+              ),
+            );
+        await tester.pump();
+
+        expect(submitted.map(jsonDecode), [
+          {
+            'version': 'v0.9',
+            'error': {
+              'code': code,
+              'surfaceId': _surfaceId,
+              'message': message,
+            },
+          },
+        ]);
+      });
+    }
+
+    testWidgets('a core diagnostic that names a path reaches the agent with '
+        'it', (WidgetTester tester) async {
+      final SurfaceController controller = _controllerWith([
+        {'id': 'root', 'component': 'Text', 'text': 'Root'},
+      ]);
+      addTearDown(controller.dispose);
+      final List<String> submitted = _errorSubmissions(controller);
+      await tester.pump();
+
+      await controller
+          .liveSurfaceFor(_surfaceId)!
+          .dispatchError(
+            core.A2uiClientError(
+              code: 'VALIDATION_FAILED',
+              surfaceId: _surfaceId,
+              message: 'Text needs text.',
+              path: '/components/0/text',
+            ),
+          );
+      await tester.pump();
+
+      expect(_errorBodies(submitted), [
+        {
+          'code': 'VALIDATION_FAILED',
+          'surfaceId': _surfaceId,
+          'path': '/components/0/text',
+          'message': 'Text needs text.',
+        },
+      ]);
     });
   });
 
@@ -922,6 +1029,11 @@ void main() {
       expect(find.text('second'), findsOneWidget);
       expect(find.byType(FallbackWidget), findsOneWidget);
       expect(submitted, hasLength(1));
+      expect(_errorBodies(submitted).single, <String, Object?>{
+        'code': 'UNKNOWN_COMPONENT_TYPE',
+        'surfaceId': 'second',
+        'message': contains('Mystery'),
+      });
 
       _add(first, 'mystery', 'Mystery', {});
       first.componentsModel.get('root')!.properties = {
