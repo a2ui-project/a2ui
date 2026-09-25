@@ -52,12 +52,7 @@ const KNOWN_FAILURES = new Map<string, string>([]);
 /**
  * Cases Python skips as UNSUPPORTED.
  */
-const UNSUPPORTED = new Map<string, string>([
-  [
-    'test_compile_express_surface_targeting_names_a_catalog',
-    'a parser holds one catalog, so a block targeting a second catalog by id cannot be compiled',
-  ],
-]);
+const UNSUPPORTED = new Map<string, string>();
 
 function assertThrows(fn: () => void, expectError: Record<string, unknown> | string): void {
   if (typeof expectError === 'string') {
@@ -133,9 +128,20 @@ function deletePointer(payload: unknown, pointer: string): void {
 }
 
 async function getParser(args: Record<string, unknown> = {}): Promise<ExpressParser> {
-  const catalogPath = (args.catalog as string) || DEFAULT_CATALOG;
-  const config = await createFileCatalogConfig(catalogPath);
-  return new ExpressParser(config.catalog, CONFORMANCE_SURFACE_ID, 'v1.0');
+  const catalogPaths: string[] = [];
+  if (Array.isArray(args.catalogs)) {
+    catalogPaths.push(...(args.catalogs as string[]));
+  } else if (typeof args.catalog === 'string') {
+    catalogPaths.push(args.catalog);
+  } else {
+    catalogPaths.push(DEFAULT_CATALOG);
+  }
+
+  const catalogs = await Promise.all(
+    catalogPaths.map(async p => (await createFileCatalogConfig(p)).catalog),
+  );
+
+  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID, 'v1.0');
 }
 
 function assertRawPartsMatch(

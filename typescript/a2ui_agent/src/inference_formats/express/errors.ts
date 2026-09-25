@@ -260,8 +260,24 @@ export class ExpressInvalidIdentifierError extends ExpressValidationError {
   constructor(id: string) {
     super(
       `Cannot decompile component id '${id}' because it is not a valid Express identifier.`,
-      'Express identifiers must start with a letter or underscore, contain only alphanumeric characters and underscores, and cannot be a reserved keyword (true, false, null).',
+      'Express identifiers must start with a letter or underscore, contain only alphanumeric characters and underscores, and cannot be a reserved word (true, false, null or _).',
     );
     this.name = 'ExpressInvalidIdentifierError';
+  }
+}
+
+/**
+ * Raised when a `surface(...)` line names a catalog that is not one of the active
+ * catalogs.
+ */
+export class ExpressUnknownCatalogError extends ExpressValidationError {
+  readonly catalogId: string;
+
+  constructor(catalogId: string, activeCatalogIds: string[]) {
+    super(
+      `Catalog '${catalogId}' is not one of the active catalogs: ${activeCatalogIds.map(id => `'${id}'`).join(', ')}.`,
+    );
+    this.name = 'ExpressUnknownCatalogError';
+    this.catalogId = catalogId;
   }
 }

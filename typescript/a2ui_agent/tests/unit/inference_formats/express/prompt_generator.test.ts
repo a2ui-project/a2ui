@@ -20,6 +20,7 @@ import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
 import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core.js';
 import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
+
 import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference_formats/express/prompt_generator.js';
@@ -395,5 +396,14 @@ describe('ExpressPromptGenerator', () => {
       expect(transformed).toContain('root = Text("Hello")');
       expect(transformed).toContain('</a2ui>');
     });
+  });
+
+  it('prompt lists both catalogs', () => {
+    const c1 = basicCatalog('v1.0');
+    const c2 = basicCatalog('v0.9');
+    const generator = new ExpressPromptGenerator([c1, c2]);
+    const instructions = generator.generateCatalogInstructions();
+    expect(instructions).toContain(`# Catalog: ${c1.id}`);
+    expect(instructions).toContain(`# Catalog: ${c2.id}`);
   });
 });

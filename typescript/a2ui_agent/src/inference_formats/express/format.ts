@@ -21,8 +21,7 @@
 import {InferenceFormat, InferenceFormatFactory} from '../../inference_format/base.js';
 import {SchemaCatalog} from '../../types.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
-import {A2uiCatalogError} from '../../errors.js';
-import {toWireProtocolVersion} from '../../utils/protocol_version.js';
+import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {Parser} from '../../parser/parser.js';
 import {ExpressParser} from './parser.js';
 import {ExpressPromptGenerator} from './prompt_generator.js';
@@ -39,30 +38,20 @@ export interface ExpressFormatOptions {
 export class ExpressFormat implements InferenceFormat {
   readonly promptGenerator: ExpressPromptGenerator;
   readonly supportsStreaming = false;
-  private readonly catalog: SchemaCatalog;
+  private readonly catalogs: SchemaCatalog[];
   private readonly surfaceId: string;
   private readonly version: string;
 
   constructor(catalogs: SchemaCatalog[], options: ExpressFormatOptions = {}) {
-    if (catalogs.length !== 1) {
-      throw new A2uiCatalogError(`Express takes exactly one catalog, got ${catalogs.length}.`);
-    }
-    this.catalog = catalogs[0];
+    this.catalogs = toCatalogList(catalogs);
     this.surfaceId = options.surfaceId ?? 'main';
+    this.version = resolveExpressVersion(this.catalogs, options.version);
 
-    const catalogVersion = toWireProtocolVersion(this.catalog.protocolVersion);
-    if (options.version && options.version !== catalogVersion) {
-      throw new A2uiCatalogError(
-        `Requested protocol version '${options.version}' does not match catalog version '${catalogVersion}'`,
-      );
-    }
-    this.version = options.version ?? catalogVersion;
-
-    this.promptGenerator = new ExpressPromptGenerator(catalogs, options.examples);
+    this.promptGenerator = new ExpressPromptGenerator(this.catalogs, options.examples);
   }
 
   createParser(): Parser {
-    return new ExpressParser(this.catalog, this.surfaceId, this.version);
+    return new ExpressParser(this.catalogs, this.surfaceId, this.version);
   }
 }
 

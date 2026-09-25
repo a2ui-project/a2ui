@@ -27,8 +27,7 @@ import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {SchemaCatalog} from '../../types.js';
 import {BlockLexer} from '../../parser/lexer.js';
 import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/constants.js';
-import {A2uiCatalogError} from '../../errors.js';
-import {toWireProtocolVersion} from '../../utils/protocol_version.js';
+import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {
   A2uiCompilationError,
   A2uiCompilationParseError,
@@ -66,29 +65,23 @@ function compilationErrorClass(error: ExpressCompilerError): new (
  * Concrete parser implementation for A2UI Express DSL responses.
  */
 export class ExpressParser extends Parser {
-  readonly catalog: SchemaCatalog;
+  readonly catalogs: SchemaCatalog[];
   readonly surfaceId: string;
   readonly version: string;
   private readonly lexer: BlockLexer;
   private readonly decompiler: ExpressDecompiler;
 
   /**
-   * Initializes the Express parser with a catalog schema and target version.
+   * Initializes the Express parser with catalog schemas and target version.
    *
-   * @param catalog The component catalog for schema lookup.
+   * @param catalogs The component catalog, or several. A `surface(...)` line picks one by id.
    * @param surfaceId Surface identifier for compiled messages.
    * @param version Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
    */
-  constructor(catalog: SchemaCatalog, surfaceId = 'main', version?: string) {
+  constructor(catalogs: SchemaCatalog | SchemaCatalog[], surfaceId = 'main', version?: string) {
     super();
-    const catalogVersion = toWireProtocolVersion(catalog.protocolVersion);
-    if (version && version !== catalogVersion) {
-      throw new A2uiCatalogError(
-        `Requested protocol version '${version}' does not match catalog version '${catalogVersion}'`,
-      );
-    }
-    this.version = version ?? catalogVersion;
-    this.catalog = catalog;
+    this.catalogs = toCatalogList(catalogs);
+    this.version = resolveExpressVersion(this.catalogs, version);
     this.surfaceId = surfaceId;
     this.lexer = new BlockLexer(
       A2UI_INFERENCE_OPEN_TAG,
@@ -96,7 +89,7 @@ export class ExpressParser extends Parser {
       new Set(["'", '"']),
       new Set(['#']),
     );
-    this.decompiler = new ExpressDecompiler(catalog, this.version);
+    this.decompiler = new ExpressDecompiler(this.catalogs, this.version);
   }
 
   /**
@@ -118,7 +111,7 @@ export class ExpressParser extends Parser {
    * Compiles raw Express DSL into structured A2UI messages.
    */
   compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
-    const compiler = new ExpressCompiler(this.catalog, this.version);
+    const compiler = new ExpressCompiler(this.catalogs, this.version);
     try {
       return compiler.compile(formatContent, this.surfaceId, '', isFinal);
     } catch (e) {
