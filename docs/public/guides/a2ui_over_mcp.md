@@ -490,7 +490,7 @@ selected_catalog = schema_manager.get_selected_catalog()
 selected_catalog.validator.validate(a2ui_payload)
 ```
 
-See the full [Agent Development Guide](agent-development.md) for details on schema management, dynamic catalogs, and streaming.
+See the full [Building A2UI Agents with ADK](adk.md) guide for details on schema management, dynamic catalogs, and streaming.
 
 ## Next Steps
 

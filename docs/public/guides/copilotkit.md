@@ -1,10 +1,6 @@
-# Use A2UI with Any Agent Framework & Harness
+# Building A2UI Agents with CopilotKit
 
-A2UI is a declarative UI format. [AG-UI](https://ag-ui.com/) is the transport
-that carries A2UI messages between an agent and an app. Use this guide to add
-A2UI to an AG-UI app or harness backed by ADK, LangGraph, Mastra, Strands,
-CrewAI, Google Chat, Slack, or any other agent framework or service that
-supports AG-UI.
+A2UI is a declarative UI format. [AG-UI](https://ag-ui.com/) and [CopilotKit](https://www.copilotkit.ai/) provide the transport and runtime that carry A2UI messages between an agent and an app. Use this guide to add A2UI to an app or harness backed by ADK, LangGraph, Mastra, Strands, CrewAI, Google Chat, Slack, or any other agent framework or service that supports AG-UI.
 
 <style>
   .agui-demo-video {
