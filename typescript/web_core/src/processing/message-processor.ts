@@ -25,7 +25,7 @@ import {Subscription} from '../common/events.js';
 
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
-import {toCanonicalVersion} from '../common/semver.js';
+import {compareSemVer, toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
   InternalCreateSurfaceOp,
@@ -108,10 +108,10 @@ export interface ExecutionContext {
  * Options for generating renderer capabilities.
  */
 export interface CapabilitiesOptions {
+  /** Protocol versions to generate capabilities for. Required; must contain at least one version. */
+  versions: ProtocolVersion[];
   /** Whether full definitions of all catalogs will be included inline. */
   includeInlineCatalogs?: boolean;
-  /** Protocol version to generate capabilities for. Defaults to the processor's configured version. */
-  version?: ProtocolVersion;
   /** Base schema `$ref` to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
   componentEnvelopeRef?: string;
 }
@@ -143,7 +143,6 @@ export {formatZodIssue};
  */
 export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
-  readonly version: ProtocolVersion;
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
   private readonly validationConfig?: ValidationConfig;
@@ -161,7 +160,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     options?: MessageProcessorOptions,
   ) {
     this.model = new SurfaceGroupModel<T>();
-    this.version = options?.version ?? 'v0.9';
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.rpc = new RpcHandler({
       catalogs: this.catalogs,
@@ -213,37 +211,43 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param options Configuration for capability generation.
    * @returns The capabilities object.
    */
-  getRendererCapabilities(options?: CapabilitiesOptions): RendererCapabilities {
-    // `version` can be used to fine-tune the returned capabilities.
-    const version = options?.version ?? this.version;
-    const versionCaps: Record<string, any> = {
-      supportedCatalogIds: this.catalogs.map(c => c.id),
-    };
+  getRendererCapabilities(options: CapabilitiesOptions): RendererCapabilities {
+    if (!options?.versions || options.versions.length === 0) {
+      throw new A2uiValidationError(
+        'At least one protocol version must be provided in CapabilitiesOptions to generate renderer capabilities.',
+      );
+    }
+    const versions = options.versions;
+    const result: Record<string, any> = {};
 
-    const inlineCatalogs = options?.includeInlineCatalogs
-      ? this.catalogs.map(c => {
-          if (toCanonicalVersion(version) === '1.0') {
-            return generateCatalogSchema(c, {
-              componentEnvelopeRef: options?.componentEnvelopeRef,
-              protocolVersion: version,
-            });
-          }
-          return this.generateLegacyInlineCatalog(
-            c,
-            options?.componentEnvelopeRef ?? 'common_types.json#/$defs/ComponentCommon',
-          );
-        })
-      : undefined;
+    for (const ver of versions) {
+      const versionCaps: Record<string, any> = {
+        supportedCatalogIds: this.catalogs.map(c => c.id),
+      };
 
-    if (inlineCatalogs) {
-      versionCaps.inlineCatalogs = inlineCatalogs;
+      const inlineCatalogs = options?.includeInlineCatalogs
+        ? this.catalogs.map(c => {
+            if (compareSemVer(ver, '1.0') >= 0) {
+              return generateCatalogSchema(c, {
+                componentEnvelopeRef: options?.componentEnvelopeRef,
+                protocolVersion: ver,
+              });
+            }
+            return this.generateLegacyInlineCatalog(
+              c,
+              options?.componentEnvelopeRef ?? 'common_types.json#/$defs/ComponentCommon',
+            );
+          })
+        : undefined;
+
+      if (inlineCatalogs) {
+        versionCaps.inlineCatalogs = inlineCatalogs;
+      }
+
+      result[ver] = versionCaps;
     }
 
-    return {
-      supportedCatalogIds: this.catalogs.map(c => c.id),
-      ...(inlineCatalogs ? {inlineCatalogs} : {}),
-      [version]: versionCaps,
-    };
+    return result as RendererCapabilities;
   }
 
   /**
@@ -253,7 +257,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param options Configuration for capability generation.
    * @returns The capabilities object.
    */
-  getClientCapabilities(options?: CapabilitiesOptions): RendererCapabilities {
+  getClientCapabilities(options: CapabilitiesOptions): RendererCapabilities {
     return this.getRendererCapabilities(options);
   }
 
@@ -301,26 +305,65 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Serializes active surface data models configured for client-to-agent reporting.
    *
-   * @param version Protocol version to embed in the payload envelope.
-   * @returns Serialized data model payload, or undefined if no surfaces stream data models.
+   * If version is provided, returns data models only for surfaces compatible with that version.
+   * If version is omitted:
+   *   - Automatically derives the protocol version from the active surface(s) with sendDataModel.
+   *   - If active surfaces have conflicting protocol versions, throws A2uiValidationError.
+   *
+   * @param version Optional target protocol version to filter surfaces.
+   * @returns Serialized data model payload, or undefined if no matching surfaces exist.
    */
-  getRendererDataModel(
-    version: ProtocolVersion = this.version,
-  ): Record<string, unknown> | undefined {
-    const surfaces: Record<string, unknown> = {};
-
-    for (const surface of this.model.surfacesMap.values()) {
-      if (surface.sendDataModel) {
-        surfaces[surface.id] = surface.dataModel.get('/');
-      }
-    }
-
-    if (Object.keys(surfaces).length === 0) {
+  getRendererDataModel(version?: ProtocolVersion): Record<string, unknown> | undefined {
+    const enabledSurfaces = Array.from(this.model.surfacesMap.values()).filter(
+      s => s.sendDataModel,
+    );
+    if (enabledSurfaces.length === 0) {
       return undefined;
     }
 
+    if (version !== undefined) {
+      const surfaces: Record<string, unknown> = {};
+      for (const surface of enabledSurfaces) {
+        const catVer = surface.defaultCatalog?.protocolVersion;
+        if (!catVer || isCatalogVersionCompatible(catVer, version)) {
+          surfaces[surface.id] = surface.dataModel.get('/');
+        }
+      }
+      if (Object.keys(surfaces).length === 0) {
+        return undefined;
+      }
+      return {
+        version,
+        surfaces,
+      };
+    }
+
+    const versionsSet = new Set<ProtocolVersion>();
+    for (const surface of enabledSurfaces) {
+      if (surface.defaultCatalog?.protocolVersion) {
+        const canonical = toCanonicalVersion(surface.defaultCatalog.protocolVersion);
+        const canonicalVer = (
+          canonical ? `v${canonical}` : surface.defaultCatalog.protocolVersion
+        ) as ProtocolVersion;
+        versionsSet.add(canonicalVer);
+      }
+    }
+
+    if (versionsSet.size > 1) {
+      throw new A2uiValidationError(
+        `Multiple protocol versions detected among active surfaces: ${Array.from(versionsSet).sort().join(', ')}. ` +
+          'Specify a target protocol version in getRendererDataModel(version).',
+      );
+    }
+
+    const verStr =
+      versionsSet.size === 1 ? (versionsSet.values().next().value as ProtocolVersion) : 'v1.0';
+    const surfaces: Record<string, unknown> = {};
+    for (const surface of enabledSurfaces) {
+      surfaces[surface.id] = surface.dataModel.get('/');
+    }
     return {
-      version,
+      version: verStr,
       surfaces,
     };
   }
@@ -329,10 +372,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Aggregates active client/renderer data models.
    *
    * @deprecated Use `getRendererDataModel` instead.
-   * @param version Protocol version to format data models for.
-   * @returns Serialized data model payload, or undefined if no surfaces stream data models.
+   * @param version Optional target protocol version to format data models for.
+   * @returns Serialized data model payload, or undefined if no matching surfaces exist.
    */
-  getClientDataModel(version: ProtocolVersion = this.version): Record<string, unknown> | undefined {
+  getClientDataModel(version?: ProtocolVersion): Record<string, unknown> | undefined {
     return this.getRendererDataModel(version);
   }
 
@@ -494,7 +537,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         break;
       case 'agentFunctionResponse':
         this.rpc.handleAgentFunctionResponse({
-          version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
+          version: (op.version ?? 'v1.0') as 'v1.0',
           agentFunctionResponse: {
             functionCallId: op.functionCallId,
             value: op.value,
@@ -557,7 +600,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
+        version: (op.version ?? 'v1.0') as 'v1.0',
         callRendererFunction: {
           functionCallId: op.functionCallId,
           callFunction: {
@@ -584,7 +627,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
+        version: (op.version ?? 'v1.0') as 'v1.0',
         callRendererFunction: {
           functionCallId: op.functionCallId,
           callFunction: {
@@ -610,7 +653,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }
 
-    const msgVersion = op.version ?? this.version;
+    const msgVersion = op.version;
     if (
       catalog.protocolVersion &&
       msgVersion &&
