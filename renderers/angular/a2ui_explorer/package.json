@@ -24,7 +24,7 @@
     "build:deps": {
       "dependencies": [
         "generate-examples",
-        "../../web_core:build",
+        "../../../typescript/web_core:build",
         "../../markdown/markdown-it:build",
         "../:build"
       ]
@@ -76,7 +76,7 @@
   },
   "dependencies": {
     "@a2ui/angular": "workspace:*",
-    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/markdown-it": "*",
     "@a2ui/web_core": "workspace:*",
     "@angular/common": "^21.2.5",
     "@angular/core": "^21.2.5",

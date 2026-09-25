@@ -28,6 +28,7 @@ export class DemoCatalog extends AngularCatalog {
   constructor() {
     super(
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+      '0.9',
       [...BASIC_COMPONENTS, customSliderComponentDeclaration],
       BASIC_FUNCTIONS,
     );

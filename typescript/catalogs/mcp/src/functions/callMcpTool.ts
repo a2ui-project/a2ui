@@ -24,7 +24,7 @@
  * const catalogs: Catalog<any>[] = [];
  * const processor = new MessageProcessor(catalogs);
  * const functions = createMcpCatalogFunctions(getMcpClientForTool, processor);
- * catalogs.push(new Catalog(MCP_CATALOG_ID, [], functions));
+ * catalogs.push(new Catalog(MCP_CATALOG_ID, '0.9', [], functions));
  * ```
  *
  * ## Supported MCP UI Responses
@@ -264,13 +264,13 @@ export function createCallMcpToolImplementation(
         const resourceMessages = await readA2uiResource(client, uri);
         // Skip recreating surfaces that already exist to avoid throwing A2uiStateError.
         if (!createsExistingSurface(resourceMessages, processor)) {
-          processor.processMessages(resourceMessages);
+          processor.processMessages(resourceMessages.map(ensureMessageVersion));
         }
       }
 
       const messages = extractA2uiMessages(result.content);
       if (messages.length > 0) {
-        processor.processMessages(messages);
+        processor.processMessages(messages.map(ensureMessageVersion));
       }
 
       return result;
@@ -370,4 +370,22 @@ function createsExistingSurface(
     const surfaceId = (message as CreateSurfaceMessage).createSurface?.surfaceId;
     return !!surfaceId && !!processor.model.getSurface(surfaceId);
   });
+}
+
+/**
+ * Ensures an A2UI message carries a version identifier before processing,
+ * defaulting to 'v0.9' for MCP v0.9 catalog payloads when not explicitly provided.
+ */
+export function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
+  if (
+    typeof message === 'object' &&
+    message !== null &&
+    (!('version' in message) || (message as unknown as Record<string, unknown>).version == null)
+  ) {
+    return {
+      ...(message as unknown as Record<string, unknown>),
+      version: 'v0.9',
+    } as A2uiMessage;
+  }
+  return message;
 }

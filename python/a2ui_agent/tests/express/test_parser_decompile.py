@@ -1,0 +1,215 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests focusing on the Python A2UI Express Decompiler.
+
+Data-driven input/output decompilation behavior is comprehensively covered by
+the platform-agnostic conformance suite in `conformance/agent/express/decompiler.yaml`
+(run via `tests/conformance/test_conformance.py`).
+
+These unit tests specifically cover Python language-specific aspects that
+conformance suites leave to the SDK implementation:
+- String quoting, multi-line formatting, and raw string escaping choices
+- Internal schema-driven child reference helper reflection
+- Tag detection (`has_format_content`) and tag unwrapping
+"""
+
+import json
+import os
+import unittest
+from a2ui.core.catalog import Catalog
+from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema.constants import VERSION_1_0
+
+from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats.experimental.express.parser import ExpressParser
+
+from a2ui.schema.utils import find_repo_root, get_spec_dir
+
+REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
+SPEC_DIR = get_spec_dir("v1_0")
+CATALOGS_DIR = os.path.join(REPO_ROOT, "catalogs", "basic")
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
+
+
+class TestExpressParser(unittest.TestCase):
+    """Test suite covering the Express decompiler and value formatting."""
+
+    def setUp(self):
+        """Initializes standard test paths and schema helpers."""
+        self.catalog_path = CATALOG_PATH
+        with open(self.catalog_path, "r", encoding="utf-8") as f:
+            catalog_dict = json.load(f)
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+
+    def test_string_quoting_and_escaping(self):
+        """Verifies parsing, compilation, and decompilation of various string quoting forms."""
+        compiler = ExpressCompiler(self.catalog)
+        decompiler = ExpressParser(self.catalog)
+
+        def get_compiled_text(dsl_body: str) -> str:
+            dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
+            res = compiler.compile(dsl)[0]
+            return res["createSurface"]["components"][1]["text"]
+
+        # 1. Standard Single-Quoted Strings & Escaping
+        self.assertEqual(get_compiled_text('"hello"'), "hello")
+        self.assertEqual(get_compiled_text('"hello \\"world\\""'), 'hello "world"')
+        self.assertEqual(get_compiled_text('"hello \\n world"'), "hello \n world")
+        self.assertEqual(get_compiled_text('"hello \\t world"'), "hello \t world")
+        self.assertEqual(get_compiled_text('"hello \\\\ world"'), "hello \\ world")
+        self.assertEqual(get_compiled_text('"hello \\x world"'), "hello \\x world")
+
+        # 2. Standard Triple-Quoted Strings
+        self.assertEqual(get_compiled_text('"""hello"""'), "hello")
+        self.assertEqual(get_compiled_text('"""hello\nworld"""'), "hello\nworld")
+        self.assertEqual(
+            get_compiled_text('"""hello \\"world\\" """'), 'hello "world" '
+        )
+
+        # 3. Raw Strings (Single Quoted)
+        self.assertEqual(get_compiled_text('r"hello\\nworld"'), "hello\\nworld")
+        self.assertEqual(
+            get_compiled_text('r"C:\\path\\to\\file"'), "C:\\path\\to\\file"
+        )
+
+        # 4. Raw Strings (Triple Quoted)
+        self.assertEqual(get_compiled_text('r"""hello\\nworld"""'), "hello\\nworld")
+        self.assertEqual(get_compiled_text('r"""hello "world" """'), 'hello "world" ')
+
+        # 5. Decompiler Formatting Choices
+        envelope_quote = compiler.compile('root = Text("hello \\"world\\"")')
+        decompiled_quote = decompiler.decompile(envelope_quote)
+        self.assertIn('root = Text("hello \\"world\\"")', decompiled_quote)
+
+        envelope_nl = compiler.compile('root = Text("hello \\n world")')
+        decompiled_nl = decompiler.decompile(envelope_nl)
+        self.assertIn('root = Text("""hello \n world""")', decompiled_nl)
+
+        envelope_cr = compiler.compile('root = Text("hello \\r \\"")')
+        decompiled_cr = decompiler.decompile(envelope_cr)
+        self.assertIn('root = Text("hello \\r \\"")', decompiled_cr)
+
+        envelope_raw = compiler.compile('root = Text("C:\\\\path\\\\to\\\\file")')
+        decompiled_raw = decompiler.decompile(envelope_raw)
+        self.assertIn('root = Text(r"C:\\path\\to\\file")', decompiled_raw)
+
+        # 6. Additional Edge Cases
+        self.assertEqual(get_compiled_text('""'), "")
+        self.assertEqual(get_compiled_text('""""""'), "")
+        self.assertEqual(get_compiled_text('r""'), "")
+        self.assertEqual(get_compiled_text('r""""""'), "")
+
+        # Raw string ending in a backslash
+        self.assertEqual(get_compiled_text('r"hello\\"'), "hello\\")
+        self.assertEqual(get_compiled_text('r"""hello\\"""'), "hello\\")
+
+        # Uppercase R prefix
+        self.assertEqual(get_compiled_text('R"hello\\nworld"'), "hello\\nworld")
+        self.assertEqual(get_compiled_text('R"""hello\\nworld"""'), "hello\\nworld")
+
+        # Standard string ending in a backslash (unterminated quote syntax error)
+        with self.assertRaises(SyntaxError):
+            compiler.compile('root = Text("hello\\")')
+
+        # Standard string with unescaped nested quote
+        with self.assertRaises(ValueError):
+            compiler.compile('root = Text("hello "world"")')
+
+        # Unescaped nested parentheses in multi-line strings
+        self.assertEqual(
+            get_compiled_text('"""hello ) world\nline 2"""'), "hello ) world\nline 2"
+        )
+
+        # 7. Streaming Compatibility and Tolerance (is_final=False)
+        incomplete_dsl = '$/foo = 123\n$/bar = """unclosed string...\n'
+        with self.assertRaises(SyntaxError):
+            compiler.compile(incomplete_dsl)
+
+        res_partial = compiler.compile(incomplete_dsl, is_final=False)
+        self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
+        self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
+
+    def test_schema_driven_child_reference_helper(self):
+        """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
+        from a2ui.inference_formats.experimental.express.decompiler import (
+            _is_component_reference_property,
+        )
+
+        # Case A: Direct ref to ComponentId
+        direct_ref = {
+            "$ref": (
+                "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId"
+            )
+        }
+        self.assertTrue(_is_component_reference_property(direct_ref))
+
+        # Case B: Array of ComponentId refs
+        array_ref = {
+            "type": "array",
+            "items": {
+                "$ref": (
+                    "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId"
+                )
+            },
+        }
+        self.assertTrue(_is_component_reference_property(array_ref))
+
+        # Case C: Direct ref to ChildList
+        child_list_ref = {
+            "$ref": (
+                "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
+            )
+        }
+        self.assertTrue(_is_component_reference_property(child_list_ref))
+
+        # Case D: Nested inside oneOf/anyOf/allOf
+        nested_ref = {
+            "oneOf": [
+                {"type": "string"},
+                {
+                    "$ref": (
+                        "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId"
+                    )
+                },
+            ]
+        }
+        self.assertTrue(_is_component_reference_property(nested_ref))
+
+        # Case E: Non-ref static type
+        static_type = {"type": "string"}
+        self.assertFalse(_is_component_reference_property(static_type))
+
+    def test_has_format_content_and_unwrap_tags(self):
+        """Test has_format_content checks and unwrap tag tokenization."""
+        parser = ExpressParser(self.catalog)
+        self.assertTrue(
+            parser.has_format_content("<a2ui>root = Text('Hi')</a2ui>", complete=True)
+        )
+        self.assertFalse(
+            parser.has_format_content("<a2ui>root = Text('Hi')", complete=True)
+        )
+        self.assertTrue(
+            parser.has_format_content("<a2ui>root = Text('Hi')", complete=False)
+        )
+
+        content = "Intro\n<a2ui>\nroot = Text('Hi')\n</a2ui>\nOutro"
+        parts = parser.unwrap(content)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].text, "Intro")
+        self.assertIn("root = Text('Hi')", parts[0].a2ui_raw)
+
+
+if __name__ == "__main__":
+    unittest.main()

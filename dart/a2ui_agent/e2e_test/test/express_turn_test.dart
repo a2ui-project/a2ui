@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// ignore_for_file: avoid_print
+
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'test_infra/ai_client.dart';
 import 'test_infra/renderer_catalog.dart';
-
-const String _notImplemented =
-    'A2uiRequestProcessor.promptSnippet and parseResponse are not implemented.';
 
 void main() {
   // Follows the steps of `a2ui_agent/example/a2ui_agent_example.dart`.
@@ -46,6 +45,8 @@ void main() {
         'Show a login form with email and password fields and a "Sign in" '
         'button.',
       );
+
+      print('LLM output:\n$llmOutput');
 
       // 4. Parse the response.
       final List<ResponsePart> parts = processor.parseResponse(llmOutput);
@@ -76,7 +77,6 @@ void main() {
         containsAll(<String>['TextField', 'Button']),
       );
     },
-    skip: _notImplemented,
     timeout: const Timeout(Duration(minutes: 2)),
   );
 }

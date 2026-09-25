@@ -22,7 +22,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Ensure rate limiter connections limit (matches max_tasks=10)
 os.environ["INSPECT_MAX_CONNECTIONS"] = "10"
@@ -101,7 +101,7 @@ def regenerate_master_index(target_dir: str) -> None:
             notes = "-"
             status = "-"
 
-            meta_data: Dict[str, Any] = {}
+            meta_data: dict[str, Any] = {}
             meta_metrics = None
             detected_format = fmt_name if fmt_name != "default" else "-"
             if os.path.exists(meta_path):
@@ -117,6 +117,9 @@ def regenerate_master_index(target_dir: str) -> None:
                 except Exception as e:
                     print(f"Warning: Failed to parse {meta_path}: {e}", file=sys.stderr)
 
+            # Runs archived before the "model" key existed were all on
+            # gemini-3.8-flash. This fallback labels those historical runs, so it
+            # stays on 3.8 even though new runs default to gemini-3.6-flash.
             model_name = meta_data.get("model", "google/gemini-3.8-flash")
             thinking_budget = meta_data.get("thinking_budget")
             budget_str = (
@@ -201,7 +204,7 @@ def regenerate_master_index(target_dir: str) -> None:
     print(f"Regenerated master index: {master_index_file}")
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Executes the orchestrator CLI for running and analyzing format optimizations.
 
     Args:
@@ -220,7 +223,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="google/gemini-3.8-flash",
+        default="google/gemini-3.6-flash",
         help="Evaluation model name",
     )
     parser.add_argument(

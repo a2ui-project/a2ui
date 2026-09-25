@@ -397,7 +397,9 @@ export async function main(args, mocks = {}) {
 
   // Resolve short names to full names
   const resolvedPackages = packagesToPublish.map(name => {
-    const pkg = Object.values(graph).find(p => p.name === name || p.name.endsWith('/' + name));
+    const pkg = Object.values(graph).find(
+      p => p.name && (p.name === name || p.name.endsWith('/' + name)),
+    );
     if (!pkg) {
       throw new Error(`Package "${name}" not found in workspace.`);
     }

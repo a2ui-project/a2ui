@@ -88,6 +88,36 @@ void main() {
       expect(catalog.functions['greet']!.returnType, A2uiReturnType.string);
     });
 
+    test('rejects inline function without a valid name', () {
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'inline',
+          'functions': [
+            {'returnType': 'string'},
+          ],
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'inline',
+          'functions': [
+            {'name': '', 'returnType': 'string'},
+          ],
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'inline',
+          'functions': [
+            {'name': 123, 'returnType': 'string'},
+          ],
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
     test('defaults an undeclared function return type to any', () {
       final SchemaCatalog catalog = Catalog.fromJson({
         'catalogId': 'c',

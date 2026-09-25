@@ -3,8 +3,8 @@ revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version >= '3.15' and sys_platform != 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version == '3.14.*' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform != 'win32'",
@@ -60,7 +60,7 @@ http-server = [
 
 [[package]]
 name = "a2ui-agent-sdk"
-source = { editable = "agent_sdks/python/a2ui_agent" }
+source = { editable = "python/a2ui_agent" }
 dependencies = [
     { name = "a2a-sdk" },
     { name = "a2ui-core" },
@@ -85,7 +85,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", specifier = ">=0.3.0,<0.4.0" },
-    { name = "a2ui-core", editable = "agent_sdks/python/a2ui_core" },
+    { name = "a2ui-core", editable = "python/a2ui_core" },
     { name = "antlr4-python3-runtime", specifier = ">=4.13.0,<4.14.0" },
     { name = "google-adk", specifier = ">=1.28.1" },
     { name = "google-genai", specifier = ">=1.27.0" },
@@ -123,7 +123,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "anyio", specifier = ">=4.5" },
     { name = "mcp" },
 ]
@@ -154,8 +154,9 @@ requires-dist = [
 
 [[package]]
 name = "a2ui-core"
-source = { editable = "agent_sdks/python/a2ui_core" }
+source = { editable = "python/a2ui_core" }
 dependencies = [
+    { name = "babel" },
     { name = "jsonschema" },
     { name = "pydantic" },
     { name = "referencing" },
@@ -168,6 +169,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "babel", specifier = ">=2.14.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "referencing", specifier = ">=0.37.0" },
@@ -198,7 +200,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "fastapi", specifier = ">=0.123.10" },
     { name = "google-adk", specifier = ">=1.28.1" },
@@ -228,7 +230,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "inspect-ai", specifier = ">=0.3.217" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "openai", specifier = ">=1.0.0" },
@@ -342,7 +344,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "anyio", specifier = ">=4.5" },
     { name = "click", specifier = ">=8.2.0" },
     { name = "httpx", specifier = ">=0.27" },
@@ -375,7 +377,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "google-adk", specifier = ">=1.28.1" },
     { name = "google-genai", specifier = ">=1.27.0" },
@@ -786,6 +788,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/36/98/7d93f30d029643c0275dbc0bd6d5a6f670661ee6c9a94d93af7ab4887600/authlib-1.7.2.tar.gz", hash = "sha256:2cea25fefcd4e7173bdf1372c0afc265c8034b23a8cd5dcb6a9164b826c64231", size = 176511, upload-time = "2026-05-06T08:10:23.116Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/95/adcb68e20c34162e9135f370d6e31737719c2b6f94bc953fe7ed1f10fe21/authlib-1.7.2-py2.py3-none-any.whl", hash = "sha256:3e1faedc9d87e7d56a164eca3ccb6ace0d61b94abe83e92242f8dc8bba9b4a9f", size = 259548, upload-time = "2026-05-06T08:10:21.436Z" },
+]
+
+[[package]]
+name = "babel"
+version = "2.18.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/b2/51899539b6ceeeb420d40ed3cd4b7a40519404f9baf3d4ac99dc413a834b/babel-2.18.0.tar.gz", hash = "sha256:b80b99a14bd085fcacfa15c9165f651fbb3406e66cc603abf11c5750937c992d", size = 9959554, upload-time = "2026-02-01T12:30:56.078Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/f5/21d2de20e8b8b0408f0681956ca2c69f1320a3848ac50e6e7f39c6159675/babel-2.18.0-py3-none-any.whl", hash = "sha256:e2b422b277c2b9a9630c1d7903c2a00d0830c409c59ac8cae9081c92f1aeba35", size = 10196845, upload-time = "2026-02-01T12:30:53.445Z" },
 ]
 
 [[package]]
@@ -1328,7 +1339,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -1437,7 +1448,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0,<0.4.0" },
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "anyio" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "google-adk", specifier = ">=1.28.1" },
@@ -2727,7 +2738,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0,<0.4.0" },
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "anyio" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "google-adk", specifier = ">=1.28.1" },
@@ -3304,8 +3315,8 @@ version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version >= '3.15' and sys_platform != 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version == '3.14.*' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform != 'win32'",
@@ -3435,7 +3446,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "google-adk", specifier = ">=2.3.0" },
     { name = "google-genai", specifier = ">=1.27.0" },
@@ -4410,7 +4421,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
-    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "google-adk", specifier = ">=1.28.1" },
     { name = "google-genai", specifier = ">=1.27.0" },
@@ -4551,8 +4562,8 @@ version = "2026.6.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version >= '3.15' and sys_platform != 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version == '3.14.*' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform != 'win32'",
@@ -4734,8 +4745,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "python_full_version < '3.13' or sys_platform != 'win32'" },
-    { name = "jeepney", marker = "python_full_version < '3.13' or sys_platform != 'win32'" },
+    { name = "cryptography" },
+    { name = "jeepney" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -5516,7 +5527,7 @@ name = "zipfile-zstd"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zstandard", marker = "python_full_version < '3.14'" },
+    { name = "zstandard" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f7/2a/2e0941bc0058d10ab37d8c578b94a19f611f6ae54f124140f2fb451f0932/zipfile-zstd-0.0.4.tar.gz", hash = "sha256:c1498e15b7922a3d1af0ea55df8b11b2af4e8f7e0e80e414e25d66899f7def89", size = 4603, upload-time = "2021-12-08T07:38:16.245Z" }
 wheels = [

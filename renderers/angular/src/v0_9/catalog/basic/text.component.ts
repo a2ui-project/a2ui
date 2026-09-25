@@ -145,7 +145,9 @@ export class TextComponent extends BasicCatalogComponent<typeof TextApi> {
   ]);
 
   readonly variant = computed(() => this.props()['variant']?.value() || 'body');
-  readonly text = computed(() => this.props()['text']?.value() || '');
+  // Dynamic bindings (e.g. `{ path: 'quantity' }`) can resolve to non-string values;
+  // coerce to string before markdown rendering.
+  readonly text = computed(() => this.props()['text']?.value()?.toString() ?? '');
 
   readonly isNonMarkdownVariant = computed(() => {
     return TextComponent.NON_MARKDOWN_VARIANTS.has(this.variant());

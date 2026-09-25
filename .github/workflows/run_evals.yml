@@ -21,13 +21,13 @@ on:
       - "eval/**"
       - "specification/v0_9/**"
       - ".github/workflows/run_evals.yml"
-      - "agent_sdks/python/**"
+      - "python/**"
   pull_request:
     paths:
       - "eval/**"
       - "specification/v0_9/**"
       - ".github/workflows/run_evals.yml"
-      - "agent_sdks/python/**"
+      - "python/**"
   # Run evals on schedule, in order to:
   # - catch regressions introduced by changes in environment
   # - have more data for observing dynamics of performance degradation

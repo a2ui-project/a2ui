@@ -78,6 +78,10 @@ void main() {
 
     for (final entry in cases) {
       final testCase = entry as Map<String, Object?>;
+      final action = testCase['action'] as String?;
+      if (action != null && action != 'parse_expression_template') {
+        continue;
+      }
       final name = testCase['name'] as String;
       final input = testCase['input'] as String;
       final Object? expectError = testCase['expect_error'];

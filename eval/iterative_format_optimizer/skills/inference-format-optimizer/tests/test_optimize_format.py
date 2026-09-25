@@ -17,7 +17,7 @@
 import json
 import os
 import sys
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
@@ -41,7 +41,7 @@ from optimize_format import (  # type: ignore[import-not-found]
 
 
 def test_extract_metrics_from_log_empty() -> None:
-    log_data: Dict[str, Any] = {}
+    log_data: dict[str, Any] = {}
     metrics = extract_metrics_from_log(log_data)
     assert metrics["overall_accuracy"] == 0.0
     assert metrics["algo_accuracy"] == 0.0
@@ -52,7 +52,7 @@ def test_extract_metrics_from_log_empty() -> None:
 
 
 def test_extract_metrics_from_log_valid() -> None:
-    log_data: Dict[str, Any] = {
+    log_data: dict[str, Any] = {
         "results": {
             "scores": [
                 {
@@ -95,7 +95,7 @@ def test_extract_metrics_from_log_valid() -> None:
 
 
 def test_extract_metrics_from_log_no_metadata_latency() -> None:
-    log_data: Dict[str, Any] = {
+    log_data: dict[str, Any] = {
         "samples": [{
             "id": 1,
             "events": [{
@@ -129,14 +129,14 @@ def test_run_unit_tests_failed(mock_run: MagicMock) -> None:
 @patch("subprocess.run")
 def test_run_evaluation_success(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(returncode=0)
-    success = run_evaluation("atom", "google/gemini-3.8-flash", None, False, "dir")
+    success = run_evaluation("atom", "google/gemini-3.6-flash", None, False, "dir")
     assert success is True
 
 
 @patch("subprocess.run")
 def test_run_evaluation_failed(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(returncode=1)
-    success = run_evaluation("atom", "google/gemini-3.8-flash", ["p1"], True, "dir")
+    success = run_evaluation("atom", "google/gemini-3.6-flash", ["p1"], True, "dir")
     assert success is False
 
 
@@ -155,7 +155,7 @@ def test_get_git_diff(mock_run: MagicMock) -> None:
 
 
 def test_generate_optimization_report() -> None:
-    log_data: Dict[str, Any] = {
+    log_data: dict[str, Any] = {
         "results": {
             "scores": [
                 {
@@ -187,7 +187,7 @@ def test_generate_optimization_report() -> None:
     }
 
     pytest_results = {"success": True, "stdout": "", "stderr": ""}
-    baseline_data: Dict[str, Any] = {
+    baseline_data: dict[str, Any] = {
         "results": {
             "scores": [
                 {
@@ -209,7 +209,7 @@ def test_generate_optimization_report() -> None:
         baseline_data=baseline_data,
         git_diff="git diff logic",
         format_name="atom",
-        model="google/gemini-3.8-flash",
+        model="google/gemini-3.6-flash",
     )
 
     assert "# Inference Format Optimization Report" in report
@@ -220,7 +220,7 @@ def test_generate_optimization_report() -> None:
 
 
 def test_generate_optimization_report_pytest_failed() -> None:
-    log_data: Dict[str, Any] = {"samples": []}
+    log_data: dict[str, Any] = {"samples": []}
     pytest_results = {"success": False, "stdout": "test fail", "stderr": ""}
     report = generate_optimization_report(
         log_data=log_data,
@@ -228,7 +228,7 @@ def test_generate_optimization_report_pytest_failed() -> None:
         baseline_data=None,
         git_diff="",
         format_name="atom",
-        model="google/gemini-3.8-flash",
+        model="google/gemini-3.6-flash",
     )
     assert "❌ Pytest Unit Test Failures" in report
     assert "test fail" in report

@@ -28,7 +28,6 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import List, Optional
 
 # Configuration: Relative glob patterns for files and directories ignored
 # during license header scanning and processing.
@@ -43,6 +42,11 @@ IGNORE_PATTERNS = [
     "**/.venv/**",
     "**/node_modules/**",
     "**/build/**",
+    "**/dist/**",
+    "**/.wireit/**",
+    "**/.next/**",
+    "**/.playwright/**",
+    "**/next-env.d.ts",
     "**/.dart_tool/**",
     "**/generated/**",
     "**/third_party/**",
@@ -81,7 +85,7 @@ def should_ignore(rel_path: str) -> bool:
 
 
 def is_generated_file(content: str) -> bool:
-    """Checks if a file contains a generated code header in its first 10 lines.
+    """Checks if a file contains a generated code header in its first 20 lines.
 
     Args:
         content: The text content of the file.
@@ -89,7 +93,7 @@ def is_generated_file(content: str) -> bool:
     Returns:
         True if the file contains markers indicating it was generated, False otherwise.
     """
-    lines = content.splitlines()[:10]
+    lines = content.splitlines()[:20]
     pattern = re.compile(r"generated.*(file|code)|auto-generated", re.IGNORECASE)
     return any(pattern.search(line) for line in lines)
 
@@ -135,7 +139,7 @@ def strip_incorrect_headers(content: str) -> str:
     return content
 
 
-def find_addlicense() -> Optional[str]:
+def find_addlicense() -> str | None:
     """Locates the addlicense executable binary.
 
     Checks PATH first, then falls back to the user's Go bin directory
@@ -222,7 +226,7 @@ def run_addlicense(addlicense_bin: str, check_mode: bool, repo_root: str) -> boo
     return res.returncode == 0
 
 
-def get_tracked_files(repo_root: str) -> List[str]:
+def get_tracked_files(repo_root: str) -> list[str]:
     """Retrieves all git-tracked files in the repository.
 
     Args:
@@ -241,7 +245,7 @@ def get_tracked_files(repo_root: str) -> List[str]:
     return [os.path.join(repo_root, f) for f in res.stdout.splitlines()]
 
 
-def process_files(repo_root: str, check_mode: bool) -> List[str]:
+def process_files(repo_root: str, check_mode: bool) -> list[str]:
     """Scans and fixes or checks copyright years and Apache URL schemes.
 
     addlicense only adds missing headers to un-headared files; it skips
@@ -372,7 +376,7 @@ def process_files(repo_root: str, check_mode: bool) -> List[str]:
     return errors
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Main CLI entrypoint for license checking and fixing.
 
     Args:

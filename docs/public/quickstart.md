@@ -257,7 +257,7 @@ Want to see what the code looks like? Check out:
 === "Lit"
 
     - **Client Code**: `samples/client/lit/` — The Lit web client with A2UI renderer
-    - **A2UI Renderers**: `renderers/lit/` (Lit) and `renderers/web_core/` (framework-agnostic core)
+    - **A2UI Renderers**: `renderers/lit/` (Lit) and `typescript/web_core/` (framework-agnostic core)
 
 === "Flutter"
 

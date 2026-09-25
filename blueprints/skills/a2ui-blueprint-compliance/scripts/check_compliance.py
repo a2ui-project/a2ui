@@ -25,7 +25,6 @@ import sys
 import subprocess
 import glob
 from datetime import datetime
-from typing import List, Optional
 
 # Add blueprints directory to path so we can import validate_blueprints
 sys.path.insert(
@@ -37,7 +36,7 @@ sys.path.insert(
 from validate_blueprints import parse_frontmatter
 
 
-def run_cmd(args: List[str], cwd: Optional[str] = None) -> Optional[str]:
+def run_cmd(args: list[str], cwd: str | None = None) -> str | None:
     """Runs a shell command and returns output, or None on error."""
     try:
         result = subprocess.run(
@@ -54,7 +53,7 @@ def run_cmd(args: List[str], cwd: Optional[str] = None) -> Optional[str]:
         return None
 
 
-def get_latest_commit(file_path: str, cwd: Optional[str] = None) -> Optional[str]:
+def get_latest_commit(file_path: str, cwd: str | None = None) -> str | None:
     """Gets the latest commit hash for a specific file."""
     return run_cmd(
         ["git", "log", "-n", "1", "--pretty=format:%H", "--", file_path], cwd=cwd
@@ -62,8 +61,8 @@ def get_latest_commit(file_path: str, cwd: Optional[str] = None) -> Optional[str
 
 
 def get_commits_since(
-    file_path: str, since_commit: Optional[str] = None, cwd: Optional[str] = None
-) -> List[str]:
+    file_path: str, since_commit: str | None = None, cwd: str | None = None
+) -> list[str]:
     """Gets commits for a file since a specific hash. If since_commit is None, returns all commits."""
     if since_commit:
         # Check if the commit exists in the history of the file first

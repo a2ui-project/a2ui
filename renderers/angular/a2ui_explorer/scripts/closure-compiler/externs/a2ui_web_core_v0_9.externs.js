@@ -27,14 +27,14 @@
  */
 
 /**
- * Externs for `CreateSurfaceMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `CreateSurfaceMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
 function CreateSurfaceMessageExterns() {}
 /** @type {?} */ CreateSurfaceMessageExterns.prototype.createSurface;
 /**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/processing/message-processor.ts`, `renderers/web_core/src/v0_9/state/surface-model.ts`, and component actions).
+ * Note: Accessed via dot notation (`typescript/web_core/src/v0_9/processing/message-processor.ts`, `typescript/web_core/src/v0_9/state/surface-model.ts`, and component actions).
  * Also corresponds to `DeleteSurfaceMessage.surfaceId` and `Action.surfaceId`.
  * @type {?}
  */
@@ -44,7 +44,7 @@ CreateSurfaceMessageExterns.prototype.surfaceId;
 /** @type {?} */ CreateSurfaceMessageExterns.prototype.sendDataModel;
 
 /**
- * Externs for `UpdateComponentsMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `UpdateComponentsMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
@@ -53,7 +53,7 @@ function UpdateComponentsMessageExterns() {}
 /** @type {?} */ UpdateComponentsMessageExterns.prototype.components;
 
 /**
- * Externs for `AnyComponent` interface and component layout schemas (`renderers/web_core/src/v0_9/schema/common-types.ts`).
+ * Externs for `AnyComponent` interface and component layout schemas (`typescript/web_core/src/v0_9/schema/common-types.ts`).
  * @record
  * @struct
  */
@@ -62,16 +62,50 @@ function AnyComponentExterns() {}
 /** @type {?} */ AnyComponentExterns.prototype.component;
 /** @type {?} */ AnyComponentExterns.prototype.children;
 /** @type {?} */ AnyComponentExterns.prototype.child;
+/** @type {?} */ AnyComponentExterns.prototype.text;
+/** @type {?} */ AnyComponentExterns.prototype.variant;
+/** @type {?} */ AnyComponentExterns.prototype.url;
+/** @type {?} */ AnyComponentExterns.prototype.fit;
+/** @type {?} */ AnyComponentExterns.prototype.altText;
+/** @type {?} */ AnyComponentExterns.prototype.description;
+/** @type {?} */ AnyComponentExterns.prototype.name;
+/** @type {?} */ AnyComponentExterns.prototype.svgPath;
+/** @type {?} */ AnyComponentExterns.prototype.justify;
+/** @type {?} */ AnyComponentExterns.prototype.align;
+/** @type {?} */ AnyComponentExterns.prototype.distribution;
+/** @type {?} */ AnyComponentExterns.prototype.direction;
+/** @type {?} */ AnyComponentExterns.prototype.listStyle;
+/** @type {?} */ AnyComponentExterns.prototype.axis;
+/** @type {?} */ AnyComponentExterns.prototype.tabs;
+/** @type {?} */ AnyComponentExterns.prototype.title;
+/** @type {?} */ AnyComponentExterns.prototype.weight;
+/** @type {?} */ AnyComponentExterns.prototype.label;
+/** @type {?} */ AnyComponentExterns.prototype.value;
+/** @type {?} */ AnyComponentExterns.prototype.textFieldType;
+/** @type {?} */ AnyComponentExterns.prototype.obscured;
+/** @type {?} */ AnyComponentExterns.prototype.options;
+/** @type {?} */ AnyComponentExterns.prototype.selections;
+/** @type {?} */ AnyComponentExterns.prototype.action;
+/** @type {?} */ AnyComponentExterns.prototype.trigger;
+/** @type {?} */ AnyComponentExterns.prototype.content;
+/** @type {?} */ AnyComponentExterns.prototype.min;
+/** @type {?} */ AnyComponentExterns.prototype.max;
+/** @type {?} */ AnyComponentExterns.prototype.minValue;
+/** @type {?} */ AnyComponentExterns.prototype.maxValue;
+/** @type {?} */ AnyComponentExterns.prototype.step;
+/** @type {?} */ AnyComponentExterns.prototype.enableDate;
+/** @type {?} */ AnyComponentExterns.prototype.enableTime;
+/** @type {?} */ AnyComponentExterns.prototype.accessibility;
 
 /**
- * Externs for `UpdateDataModelMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `UpdateDataModelMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
 function UpdateDataModelMessageExterns() {}
 /** @type {?} */ UpdateDataModelMessageExterns.prototype.updateDataModel;
 /**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/processing/message-processor.ts` and `renderers/web_core/src/v0_9/rendering/generic-binder.ts`).
+ * Note: Accessed via dot notation (`typescript/web_core/src/v0_9/processing/message-processor.ts` and `typescript/web_core/src/v0_9/rendering/generic-binder.ts`).
  * Also corresponds to `ChildList.path`.
  * @type {?}
  */
@@ -79,7 +113,7 @@ UpdateDataModelMessageExterns.prototype.path;
 /** @type {?} */ UpdateDataModelMessageExterns.prototype.value;
 
 /**
- * Externs for `DeleteSurfaceMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `DeleteSurfaceMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
@@ -87,7 +121,7 @@ function DeleteSurfaceMessageExterns() {}
 /** @type {?} */ DeleteSurfaceMessageExterns.prototype.deleteSurface;
 
 /**
- * Externs for `Action` and `A2uiClientAction` interfaces (`renderers/web_core/src/v0_9/schema/common-types.ts`, `renderers/web_core/src/v0_9/schema/client-to-server.ts`).
+ * Externs for `Action` and `A2uiClientAction` interfaces (`typescript/web_core/src/v0_9/schema/common-types.ts`, `typescript/web_core/src/v0_9/schema/client-to-server.ts`).
  * @record
  * @struct
  */
@@ -99,7 +133,7 @@ function ActionExterns() {}
 /** @type {?} */ ActionExterns.prototype.sourceComponentId;
 
 /**
- * Externs for `FunctionCall` interface (`renderers/web_core/src/v0_9/schema/common-types.ts`).
+ * Externs for `FunctionCall` interface (`typescript/web_core/src/v0_9/schema/common-types.ts`).
  * @record
  * @struct
  */
@@ -108,21 +142,22 @@ function FunctionCallExterns() {}
 /** @type {?} */ FunctionCallExterns.prototype.call;
 /** @type {?} */ FunctionCallExterns.prototype.args;
 /** @type {?} */ FunctionCallExterns.prototype.returnType;
+/** @type {?} */ FunctionCallExterns.prototype.schema;
 
 /**
- * Externs for `ChildList` interface (`renderers/web_core/src/v0_9/schema/common-types.ts`).
+ * Externs for `ChildList` interface (`typescript/web_core/src/v0_9/schema/common-types.ts`).
  * @record
  * @struct
  */
 function ChildListExterns() {}
 /**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/rendering/generic-binder.ts`).
+ * Note: Accessed via dot notation (`typescript/web_core/src/v0_9/rendering/generic-binder.ts`).
  * @type {?}
  */
 ChildListExterns.prototype.componentId;
 
 /**
- * Externs for `Signal` and EventSource reactive interfaces (`renderers/web_core/src/v0_9/reactivity/signals.ts`, `renderers/web_core/src/v0_9/common/events.ts`).
+ * Externs for `Signal` and EventSource reactive interfaces (`typescript/web_core/src/v0_9/reactivity/signals.ts`, `typescript/web_core/src/v0_9/common/events.ts`).
  * @record
  * @struct
  */
@@ -131,7 +166,7 @@ function SignalExterns() {}
 /** @type {?} */ SignalExterns.prototype.subscribe;
 
 /**
- * Externs for `AndApi` and `OrApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `AndApi` and `OrApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
@@ -139,7 +174,7 @@ function AndApiExterns() {}
 /** @type {?} */ AndApiExterns.prototype.values;
 
 /**
- * Externs for `FormatDateApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `FormatDateApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
@@ -147,7 +182,7 @@ function FormatDateApiExterns() {}
 /** @type {?} */ FormatDateApiExterns.prototype.format;
 
 /**
- * Externs for `FormatCurrencyApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `FormatCurrencyApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
@@ -155,7 +190,7 @@ function FormatCurrencyApiExterns() {}
 /** @type {?} */ FormatCurrencyApiExterns.prototype.currency;
 
 /**
- * Externs for `PluralizeApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `PluralizeApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
@@ -190,6 +225,47 @@ function LocaleOptionsExterns() {}
 /** @type {?} */ LocaleOptionsExterns.prototype.width;
 /** @type {?} */ LocaleOptionsExterns.prototype.abbreviated;
 /** @type {?} */ LocaleOptionsExterns.prototype.wide;
+
+/**
+ * Externs for VersionAdapter and VersionAdapterFactory interfaces.
+ * @record
+ * @struct
+ */
+function VersionAdapterExterns() {}
+/** @type {?} */ VersionAdapterExterns.prototype.extractSurfaceProperties;
+/** @type {?} */ VersionAdapterExterns.prototype.extractInitialState;
+/** @type {?} */ VersionAdapterExterns.prototype.extractMessageType;
+/** @type {?} */ VersionAdapterExterns.prototype.resolveFromPayload;
+/** @type {?} */ VersionAdapterExterns.prototype.getAdapter;
+
+/**
+ * Externs for state models (`ComponentModel`, `SurfaceModel`, `ComponentContext`, etc.).
+ * @record
+ * @struct
+ */
+function StateModelExterns() {}
+/** @type {?} */ StateModelExterns.prototype.properties;
+/** @type {?} */ StateModelExterns.prototype.componentModel;
+/** @type {?} */ StateModelExterns.prototype.dataContext;
+/** @type {?} */ StateModelExterns.prototype.componentsModel;
+/** @type {?} */ StateModelExterns.prototype.dataModel;
+/** @type {?} */ StateModelExterns.prototype.surfacesMap;
+/** @type {?} */ StateModelExterns.prototype.surfaceComponents;
+/** @type {?} */ StateModelExterns.prototype.onUpdated;
+/** @type {?} */ StateModelExterns.prototype.onCreated;
+/** @type {?} */ StateModelExterns.prototype.onDeleted;
+/** @type {?} */ StateModelExterns.prototype.onAction;
+/** @type {?} */ StateModelExterns.prototype.onError;
+/** @type {?} */ StateModelExterns.prototype.onSurfaceCreated;
+/** @type {?} */ StateModelExterns.prototype.onSurfaceDeleted;
+/** @type {?} */ StateModelExterns.prototype.resolveSignal;
+/** @type {?} */ StateModelExterns.prototype.dispatchAction;
+/** @type {?} */ StateModelExterns.prototype.processMessages;
+/** @type {?} */ StateModelExterns.prototype.addComponent;
+/** @type {?} */ StateModelExterns.prototype.removeComponent;
+/** @type {?} */ StateModelExterns.prototype.addSurface;
+/** @type {?} */ StateModelExterns.prototype.deleteSurface;
+/** @type {?} */ StateModelExterns.prototype.getSurface;
 
 /**
  * Externs for `Surface`, `SurfaceModel`, `ComponentContext`, `DataContext`, and `Catalog` interfaces.

@@ -33,6 +33,7 @@ import {
 import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,
+  ensureMessageVersion,
   extractA2uiMessages,
   parseA2uiMessages,
   readUiResourceUris,
@@ -144,7 +145,8 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
 const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '/') => {
   const mockSurface = {
     dataModel: model,
-    catalog: {invoker: catalog.invoker},
+    defaultCatalog: {invoker: catalog.invoker},
+    availableCatalogs: new Map(),
     dispatchError: () => {},
   } as any;
   return new DataContext(mockSurface, path);
@@ -157,6 +159,7 @@ describe('callMcpTool', () => {
   const catalogFor = (client: FakeClient) =>
     new Catalog<any>(
       MCP_CATALOG_ID,
+      '0.9',
       [],
       [createCallMcpToolImplementation(() => asClient(client), processor)],
     );
@@ -176,7 +179,7 @@ describe('callMcpTool', () => {
 
   beforeEach(() => {
     processor = new MessageProcessor<any>(
-      [new Catalog(SURFACE_CATALOG_ID, [], [])],
+      [new Catalog(SURFACE_CATALOG_ID, '0.9', [], [])],
       async () => {},
     );
   });
@@ -263,6 +266,7 @@ describe('callMcpTool', () => {
       const clock = createFakeClient();
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [
           createCallMcpToolImplementation(
@@ -283,6 +287,7 @@ describe('callMcpTool', () => {
       const client = createFakeClient();
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [createCallMcpToolImplementation(async () => asClient(client), processor)],
       );
@@ -296,6 +301,7 @@ describe('callMcpTool', () => {
     it('throws A2uiExpressionError when the client cannot be resolved', async () => {
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [
           createCallMcpToolImplementation(() => {
@@ -321,6 +327,7 @@ describe('callMcpTool', () => {
     it('throws A2uiExpressionError when resolver returns null or undefined', async () => {
       const catalog = new Catalog<any>(
         MCP_CATALOG_ID,
+        '0.9',
         [],
         [createCallMcpToolImplementation(() => undefined, processor)],
       );
@@ -652,7 +659,7 @@ describe('callMcpTool', () => {
     it('passes literal objects that merely contain a path property through untouched', async () => {
       const client = createFakeClient();
       const impl = createCallMcpToolImplementation(() => asClient(client), processor);
-      const catalog = new Catalog('test-literal-objects', [], [impl]);
+      const catalog = new Catalog('test-literal-objects', '0.9', [], [impl]);
       const dataModel = new DataModel({docs: 'SHOULD_NOT_RESOLVE', city: 'Paris'});
       const context = createTestDataContext(dataModel, catalog);
 
@@ -674,7 +681,9 @@ describe('callMcpTool', () => {
 
   describe('catalog.json Schema Verification', () => {
     it('loads schema into a valid Catalog using Catalog.fromSchema', () => {
-      const schemaCatalog = Catalog.fromSchema(mcpCatalogJson);
+      // v0.9 catalog JSONs predate the `protocolVersion` field, so the loader
+      // needs it supplied.
+      const schemaCatalog = Catalog.fromSchema(mcpCatalogJson, '0.9');
       assert.strictEqual(schemaCatalog.id, MCP_CATALOG_ID);
       assert.strictEqual(schemaCatalog.functions.has('callMcpTool'), true);
 
@@ -747,7 +756,7 @@ describe('callMcpTool', () => {
       const client = createFakeClient();
       const mcpCatalog = catalogFor(client);
       processor = new MessageProcessor(
-        [new Catalog(SURFACE_CATALOG_ID, [], []), mcpCatalog],
+        [new Catalog(SURFACE_CATALOG_ID, '0.9', [], []), mcpCatalog],
         async () => {},
       );
 
@@ -925,6 +934,47 @@ describe('message decoding', () => {
           ),
         /Resource a2ui:\/\/t declares application\/a2ui\+json but does not hold valid JSON\./,
       );
+    });
+  });
+
+  describe('ensureMessageVersion', () => {
+    it('sets version to v0.9 when version property is missing', () => {
+      const msg = {createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg), {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+    });
+
+    it('sets version to v0.9 when version is null or undefined', () => {
+      const msgNull = {version: null, createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msgNull), {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+
+      const msgUndefined = {
+        version: undefined,
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      } as any;
+      assert.deepStrictEqual(ensureMessageVersion(msgUndefined), {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+    });
+
+    it('preserves existing explicit version', () => {
+      const msg1 = {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg1), msg1);
+
+      const msg09 = {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg09), msg09);
+    });
+
+    it('returns primitive or non-object values as-is', () => {
+      assert.strictEqual(ensureMessageVersion(null as any), null);
+      assert.strictEqual(ensureMessageVersion(undefined as any), undefined);
+      assert.strictEqual(ensureMessageVersion('test' as any), 'test');
     });
   });
 });

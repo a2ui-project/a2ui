@@ -74,7 +74,7 @@ consistency against authoritative specifications:
    rules for pointer resolution, auto-vivification, and sparse array semantics.
 3. **Framework adapter blueprint** (`blueprints/modules/a2ui_framework_adapter.blueprint.md`):
    Component instantiation, dynamic child lists, and lifecycle subscription rules.
-4. **Reference implementation** (`renderers/web_core/`): Canonical TypeScript implementation
+4. **Reference implementation** (`typescript/web_core/`): Canonical TypeScript implementation
    for cross-checking edge-case semantics.
 
 ---

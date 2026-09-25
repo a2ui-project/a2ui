@@ -168,4 +168,17 @@ class StreamingParserTest {
     val hugeChunk = String(CharArray(5 * 1024 * 1024 + 1) { ' ' })
     assertFailsWith<IllegalArgumentException> { parser.processChunk(hugeChunk) }
   }
+
+  @Test
+  fun tokenizesLongNormalTextBeforeAndAfterTagsLinearly() {
+    val lexer = BlockLexer(openTag = "<a2ui-json>", closeTag = "</a2ui-json>")
+    val normalPrefix = "Some long conversational text before the block. ".repeat(50)
+    val normalSuffix = "Some long conversational text after the block. ".repeat(50)
+    val content = "$normalPrefix<a2ui-json>{\"type\": \"test\"}</a2ui-json>$normalSuffix"
+    val parts = lexer.tokenize(content)
+    assertEquals(2, parts.size)
+    assertEquals(normalPrefix.trim(), parts[0].text)
+    assertEquals("{\"type\": \"test\"}", parts[0].a2uiRaw)
+    assertEquals(normalSuffix.trim(), parts[1].text)
+  }
 }

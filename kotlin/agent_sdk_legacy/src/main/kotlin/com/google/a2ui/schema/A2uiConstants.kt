@@ -45,10 +45,12 @@ object A2uiConstants {
   const val VERSION_0_9 = "0.9"
   const val VERSION_0_9_1 = "0.9.1"
 
-  const val A2UI_OPEN_TAG = "<a2ui-json>"
-  const val A2UI_CLOSE_TAG = "</a2ui-json>"
-  const val A2UI_INFERENCE_OPEN_TAG = "<a2ui>"
-  const val A2UI_INFERENCE_CLOSE_TAG = "</a2ui>"
+  const val A2UI_JSON_TAG_NAME = "a2ui-json"
+  const val A2UI_OPEN_TAG = "<$A2UI_JSON_TAG_NAME>"
+  const val A2UI_CLOSE_TAG = "</$A2UI_JSON_TAG_NAME>"
+  const val A2UI_INFERENCE_TAG_NAME = "a2ui"
+  const val A2UI_INFERENCE_OPEN_TAG = "<$A2UI_INFERENCE_TAG_NAME>"
+  const val A2UI_INFERENCE_CLOSE_TAG = "</$A2UI_INFERENCE_TAG_NAME>"
 
   const val A2UI_SCHEMA_BLOCK_START = "---BEGIN A2UI JSON SCHEMA---"
   const val A2UI_SCHEMA_BLOCK_END = "---END A2UI JSON SCHEMA---"
