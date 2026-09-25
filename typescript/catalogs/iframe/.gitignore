@@ -1,0 +1,7 @@
+# Copied from catalogs/iframe/catalog.json by scripts/copy-catalog.js
+src/catalog.json
+# Copied from typescript/catalogs/shared by scripts/copy-shared.js
+src/shared/
+dist/
+.wireit/
+*.tsbuildinfo
