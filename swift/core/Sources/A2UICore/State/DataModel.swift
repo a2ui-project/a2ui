@@ -68,13 +68,17 @@ public final class DataModel: ObservableObject {
   ///   - path: The path (e.g., `/user/name`).
   ///   - value: The value to set, or `nil` to remove.
   public func set(_ path: String, value: JSONValue?) {
-    objectWillChange.send()
     var current = dataSubject.value
+    let effectiveValue = (value == .null) ? nil : value
     if path.isEmpty || path == "/" {
-      current = value ?? .object([:])
+      current = effectiveValue ?? .object([:])
     } else {
-      current[path] = value
+      if effectiveValue == nil && current[path] == nil {
+        return
+      }
+      current[path] = effectiveValue
     }
+    objectWillChange.send()
     dataSubject.send(current)
   }
 }

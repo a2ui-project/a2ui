@@ -34,8 +34,21 @@ public final class SurfaceViewModel: ObservableObject {
 
   /// The primary default catalog associated with this surface, if available.
   public var catalog: AnyCatalog {
-    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
-      return catalog
+    if let defaultCatalogID {
+      if let catalog = catalogs[defaultCatalogID] {
+        return catalog
+      }
+      if let catalog = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(defaultCatalogID)/catalog.json")
+          && $0.isAtLeastV10
+      }) {
+        return catalog
+      }
+      if let catalog = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(defaultCatalogID)/catalog.json")
+      }) {
+        return catalog
+      }
     }
     return catalogs.values.first ?? Catalog(id: "empty", components: [])
   }

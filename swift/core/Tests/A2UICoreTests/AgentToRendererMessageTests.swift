@@ -17,7 +17,7 @@ import Foundation
 import OrderedJSON
 import Testing
 
-struct ServerToClientMessageTests {
+struct AgentToRendererMessageTests {
 
   // MARK: - Decoding
 
@@ -33,7 +33,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     let msg = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: json
+      AgentToRendererMessage.self, from: json
     )
     if case .createSurface(let create) = msg {
       #expect(create.surfaceID == "s1")
@@ -57,7 +57,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     let msg = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: json
+      AgentToRendererMessage.self, from: json
     )
     if case .createSurface(let create) = msg {
       #expect(create.shouldSendDataModel == true)
@@ -78,7 +78,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     let msg = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: json
+      AgentToRendererMessage.self, from: json
     )
     if case .updateComponents(let update) = msg {
       #expect(update.surfaceID == "s1")
@@ -102,7 +102,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     let msg = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: json
+      AgentToRendererMessage.self, from: json
     )
     if case .updateDataModel(let update) = msg {
       #expect(update.surfaceID == "s1")
@@ -125,7 +125,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     let msg = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: json
+      AgentToRendererMessage.self, from: json
     )
     if case .updateDataModel(let update) = msg {
       #expect(update.path == "/")
@@ -143,7 +143,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     let msg = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: json
+      AgentToRendererMessage.self, from: json
     )
     if case .deleteSurface(let delete) = msg {
       #expect(delete.surfaceID == "s1")
@@ -155,7 +155,7 @@ struct ServerToClientMessageTests {
   @Test func decodeRejectsEmptyMessage() throws {
     let json = try #require("{}".data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
     }
   }
 
@@ -166,7 +166,7 @@ struct ServerToClientMessageTests {
       """.data(using: .utf8)
     )
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
     }
   }
 
@@ -179,7 +179,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
     }
   }
 
@@ -192,7 +192,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     let msg = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: json
+      AgentToRendererMessage.self, from: json
     )
     if case .createSurface(let create) = msg {
       #expect(create.surfaceID == "s1")
@@ -215,7 +215,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
     }
   }
 
@@ -235,7 +235,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
     }
   }
 
@@ -251,7 +251,7 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
     }
   }
 
@@ -263,14 +263,14 @@ struct ServerToClientMessageTests {
       }
       """.data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
     }
   }
 
   // MARK: - Encoding Round-Trip
 
   @Test func encodeDecodeRoundTripCreateSurface() throws {
-    let original = ServerToClientMessage.createSurface(
+    let original = AgentToRendererMessage.createSurface(
       CreateSurfaceMessage(
         surfaceID: "s1",
         catalogID: "default",
@@ -280,13 +280,13 @@ struct ServerToClientMessageTests {
     )
     let data = try JSONEncoder().encode(original)
     let decoded = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: data
+      AgentToRendererMessage.self, from: data
     )
     #expect(decoded == original)
   }
 
   @Test func encodeDecodeRoundTripUpdateComponents() throws {
-    let original = ServerToClientMessage.updateComponents(
+    let original = AgentToRendererMessage.updateComponents(
       UpdateComponentsMessage(
         surfaceID: "s1",
         components: [
@@ -297,28 +297,232 @@ struct ServerToClientMessageTests {
     )
     let data = try JSONEncoder().encode(original)
     let decoded = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: data
+      AgentToRendererMessage.self, from: data
     )
     #expect(decoded == original)
   }
 
   @Test func encodeDecodeRoundTripDeleteSurface() throws {
-    let original = ServerToClientMessage.deleteSurface(
+    let original = AgentToRendererMessage.deleteSurface(
       DeleteSurfaceMessage(surfaceID: "s1")
     )
     let data = try JSONEncoder().encode(original)
     let decoded = try JSONDecoder().decode(
-      ServerToClientMessage.self, from: data
+      AgentToRendererMessage.self, from: data
     )
     #expect(decoded == original)
   }
 
-  @Test func encodeAlwaysIncludesVersionV091() throws {
-    let original = ServerToClientMessage.deleteSurface(
+  @Test func encodeAlwaysIncludesVersionV10() throws {
+    let original = AgentToRendererMessage.deleteSurface(
       DeleteSurfaceMessage(surfaceID: "s1")
     )
     let data = try JSONEncoder().encode(original)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v0.9.1\""))
+    #expect(json.contains("\"version\":\"v1.0\""))
+  }
+
+  // MARK: - v1.0 Message Tests
+
+  @Test func decodeV10CreateSurfaceInline() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "components": [
+            { "id": "root", "component": "Text", "text": "Hello" }
+          ],
+          "dataModel": {
+            "name": "Alice"
+          }
+        }
+      }
+      """.data(using: .utf8))
+    let msg = try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+    if case .createSurface(let create) = msg {
+      #expect(create.surfaceID == "s1")
+      #expect(create.catalogID == nil)
+      #expect(create.components?.count == 1)
+      #expect(create.dataModel?["name"] == .string("Alice"))
+    } else {
+      Issue.record("Expected .createSurface")
+    }
+  }
+
+  @Test func decodeV10CallRendererFunction() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v1.0",
+        "callRendererFunction": {
+          "functionCallId": "call_123",
+          "callFunction": {
+            "call": "validateEmail",
+            "catalogId": "basic",
+            "args": { "email": "test@example.com" }
+          }
+        }
+      }
+      """.data(using: .utf8))
+    let msg = try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+    if case .callRendererFunction(let call) = msg {
+      #expect(call.functionCallID == "call_123")
+      #expect(call.callFunction.call == "validateEmail")
+      #expect(call.callFunction.catalogID == "basic")
+      #expect(call.callFunction.args?["email"] == .string("test@example.com"))
+    } else {
+      Issue.record("Expected .callRendererFunction")
+    }
+  }
+
+  @Test func decodeV10AgentFunctionResponse() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v1.0",
+        "agentFunctionResponse": {
+          "functionCallId": "call_456",
+          "value": 42
+        }
+      }
+      """.data(using: .utf8))
+    let msg = try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+    if case .agentFunctionResponse(let resp) = msg {
+      #expect(resp.functionCallID == "call_456")
+      #expect(resp.value == .number(42))
+      #expect(resp.error == nil)
+    } else {
+      Issue.record("Expected .agentFunctionResponse")
+    }
+  }
+
+  @Test func protocolVersionDecoding() throws {
+    for version in ["v0.9", "v0.9.1", "v1.0"] {
+      let json = try #require(
+        """
+        {
+          "version": "\(version)",
+          "deleteSurface": { "surfaceId": "s1" }
+        }
+        """.data(using: .utf8)
+      )
+      let msg = try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+      if case .deleteSurface(let del) = msg {
+        #expect(del.surfaceID == "s1")
+      } else {
+        Issue.record("Expected .deleteSurface for version \(version)")
+      }
+    }
+
+    for invalid in ["v0.8", "v2.0", "0.9", "0.9.1", "1.0", "0.8", "invalid"] {
+      let json = try #require(
+        """
+        {
+          "version": "\(invalid)",
+          "deleteSurface": { "surfaceId": "s1" }
+        }
+        """.data(using: .utf8)
+      )
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+      }
+    }
+  }
+
+  @Test func deprecatedServerToClientMessageTypealias() {
+    let msg: ServerToClientMessage = .deleteSurface(DeleteSurfaceMessage(surfaceID: "surf1"))
+    if case .deleteSurface(let del) = msg {
+      #expect(del.surfaceID == "surf1")
+    } else {
+      Issue.record("Expected .deleteSurface")
+    }
+  }
+
+  @Test func validatorRejectsUnrecognizedAction() throws {
+    let validator = A2UIValidator()
+    let payload = JSONValue.object([
+      "version": .string("v1.0"),
+      "unknownAction": .object([:]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validate(payload: payload)
+    }
+  }
+
+  @Test func validatorValidatesCallRendererFunction() throws {
+    let validator = A2UIValidator()
+
+    // Valid v1.0 callRendererFunction
+    let validPayload = JSONValue.object([
+      "version": .string("v1.0"),
+      "callRendererFunction": .object([
+        "functionCallId": .string("call_1"),
+        "callFunction": .object([
+          "call": .string("myFunc"),
+          "catalogId": .string("cat1"),
+        ]),
+      ]),
+    ])
+    try validator.validate(payload: validPayload)
+
+    // Invalid in v0.9.1
+    let v09Payload = JSONValue.object([
+      "version": .string("v0.9.1"),
+      "callRendererFunction": .object([
+        "functionCallId": .string("call_1"),
+        "callFunction": .object([
+          "call": .string("myFunc"),
+          "catalogId": .string("cat1"),
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validate(payload: v09Payload)
+    }
+  }
+
+  @Test func validatorValidatesAgentFunctionResponse() throws {
+    let validator = A2UIValidator()
+
+    // Valid with value
+    let validVal = JSONValue.object([
+      "version": .string("v1.0"),
+      "agentFunctionResponse": .object([
+        "functionCallId": .string("call_1"),
+        "value": .string("res"),
+      ]),
+    ])
+    try validator.validate(payload: validVal)
+
+    // Valid with error
+    let validErr = JSONValue.object([
+      "version": .string("v1.0"),
+      "agentFunctionResponse": .object([
+        "functionCallId": .string("call_1"),
+        "error": .object([
+          "code": .string("ERR"),
+          "message": .string("fail"),
+        ]),
+      ]),
+    ])
+    try validator.validate(payload: validErr)
+
+    // Invalid: both value and error
+    let both = JSONValue.object([
+      "version": .string("v1.0"),
+      "agentFunctionResponse": .object([
+        "functionCallId": .string("call_1"),
+        "value": .string("res"),
+        "error": .object([
+          "code": .string("ERR"),
+          "message": .string("fail"),
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validate(payload: both)
+    }
   }
 }

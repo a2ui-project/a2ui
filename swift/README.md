@@ -3,8 +3,9 @@
 This directory contains the official native Apple client implementation for A2UI
 (Agent-to-User Interface), supporting iOS, macOS, iPadOS, tvOS, visionOS, and watchOS.
 
-For the platform-agnostic protocol specification and guidelines, see
-[specification/v0_9_1/docs/a2ui_protocol.md](../specification/v0_9_1/docs/a2ui_protocol.md).
+For the platform-agnostic protocol specifications and guidelines, see
+[specification/v0_9_1/docs/a2ui_protocol.md](../specification/v0_9_1/docs/a2ui_protocol.md) and
+[specification/v1_0/docs/a2ui_protocol.md](../specification/v1_0/docs/a2ui_protocol.md).
 
 ---
 

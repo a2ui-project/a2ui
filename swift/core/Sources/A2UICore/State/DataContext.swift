@@ -21,6 +21,7 @@ import OrderedJSON
 public final class DataContext {
   public let path: String
   public let dataModel: DataModel
+  public let index: Int?
 
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
@@ -28,11 +29,13 @@ public final class DataContext {
   public init(
     dataModel: DataModel,
     path: String,
-    functionHandler: FunctionHandler
+    functionHandler: FunctionHandler,
+    index: Int? = nil
   ) {
     self.dataModel = dataModel
     self.path = path
     self.functionHandler = functionHandler
+    self.index = index
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -42,14 +45,15 @@ public final class DataContext {
     dataModel.set(absPath, value: value)
   }
 
-  public func nested(relativePath: String) -> DataContext? {
+  public func nested(relativePath: String, index: Int? = nil) -> DataContext? {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
     return DataContext(
       dataModel: dataModel,
       path: absPath,
-      functionHandler: handler
+      functionHandler: handler,
+      index: index ?? self.index
     )
   }
 
@@ -66,14 +70,24 @@ public final class DataContext {
         return dataModel.get(absPath) ?? .null
       } else if let callName = dict["call"]?.stringValue {
         let catalogID = dict["catalogId"]?.stringValue
-        guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
+        guard !(callName == "@index" && catalogID != nil) else {
+          return .null
+        }
+        guard
+          let function = functionHandler?.function(named: callName, catalogID: catalogID)
+            ?? (callName == "@index" ? IndexFunction() : nil)
+        else {
           return .null
         }
 
         var resolvedArgs: [String: JSONValue] = [:]
         if let argsObj = dict["args"]?.dictionaryValue {
           for (argKey, argVal) in argsObj {
-            resolvedArgs[argKey] = resolveDynamicValue(argVal)
+            if let arr = argVal.arrayValue {
+              resolvedArgs[argKey] = .array(arr.map { resolveDynamicValue($0) })
+            } else {
+              resolvedArgs[argKey] = resolveDynamicValue(argVal)
+            }
           }
         }
 

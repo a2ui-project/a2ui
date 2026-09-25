@@ -14,9 +14,13 @@
 
 /// Represents a structured validation failure.
 public struct ValidationFailedError: Error, Equatable, Codable, Sendable {
-  public static let errorCode = "VALIDATION_FAILED"
+  public enum Code: String, Codable, Sendable, CaseIterable {
+    case validationFailed = "VALIDATION_FAILED"
+    case unallowedParent = "UNALLOWED_PARENT"
+    case unallowedChild = "UNALLOWED_CHILD"
+  }
 
-  public let code: String = errorCode
+  public let code: Code
   public let surfaceID: String
   public let path: String
   public let message: String
@@ -28,24 +32,15 @@ public struct ValidationFailedError: Error, Equatable, Codable, Sendable {
     case message
   }
 
-  public init(surfaceID: String, path: String, message: String) {
+  public init(
+    code: Code = .validationFailed,
+    surfaceID: String,
+    path: String,
+    message: String
+  ) {
+    self.code = code
     self.surfaceID = surfaceID
     self.path = path
     self.message = message
-  }
-
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    let decodedCode = try container.decode(String.self, forKey: .code)
-    guard decodedCode == Self.errorCode else {
-      throw DecodingError.dataCorruptedError(
-        forKey: .code,
-        in: container,
-        debugDescription: "Invalid error code: \(decodedCode)"
-      )
-    }
-    surfaceID = try container.decode(String.self, forKey: .surfaceID)
-    path = try container.decode(String.self, forKey: .path)
-    message = try container.decode(String.self, forKey: .message)
   }
 }

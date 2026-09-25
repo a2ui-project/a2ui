@@ -14,33 +14,55 @@
 
 import A2UICore
 import A2UIJSON
+import BasicCatalog
 import Foundation
 import JSONSchema
 import OrderedJSON
 import Testing
 
 struct ValidatorConformanceTests {
-  @Test func validatorConformance() throws {
-    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/validator_v0_9.yaml")
+  @Test func validatorV09Conformance() throws {
+    try runValidatorSuite(filename: "core/validator_v0_9.yaml", defaultTargetVersion: "v0.9.1")
+  }
+
+  @Test func validatorV10Conformance() throws {
+    try runValidatorSuite(filename: "core/validator_v1_0.yaml", defaultTargetVersion: "v1.0")
+  }
+
+  @Test func compositionConstraintsConformance() throws {
+    try runValidatorSuite(
+      filename: "core/composition_constraints.yaml",
+      defaultTargetVersion: "v1.0"
+    )
+  }
+
+  private func runValidatorSuite(filename: String, defaultTargetVersion: String) throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: filename)
     let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
 
-    // Filter to v0.9 and v0.9.1 test cases
-    let v09TestCases = testCases.filter { testCase in
+    let filteredTestCases = testCases.filter { testCase in
       if let version = testCase.catalogConfiguration?["version"]?.stringValue {
-        return version == "0.9" || version == "0.9.1"
+        return version == "0.9" || version == "0.9.1" || version == "1.0" || version == "v1.0"
       }
-      return testCase.name.contains("0_9") || testCase.name.contains("v09")
+      return !testCase.name.contains("0_8") && !testCase.name.contains("v08")
     }
 
-    #expect(!v09TestCases.isEmpty, "Should find v0.9 / v0.9.1 test cases in validator_v0_9.yaml")
+    #expect(!filteredTestCases.isEmpty, "Should find test cases in \(filename)")
 
-    for testCase in v09TestCases {
+    for testCase in filteredTestCases {
+      let isV10 =
+        defaultTargetVersion == "v1.0"
+        || testCase.catalogConfiguration?["protocolVersion"]?.stringValue == "v1.0"
+        || testCase.name.contains("1_0")
+        || testCase.name.contains("v10")
+      let targetVersion = isV10 ? "v1.0" : "v0.9.1"
+
       let validationConfiguration = ValidationConfig(
         allowOrphanComponents: testCase.name.contains("orphans_allowed"),
         allowDanglingReferences: testCase.name.contains("incremental"),
         allowMissingRoot: testCase.name.contains("no_root")
           || testCase.name.contains("incremental"),
-        targetVersion: "v0.9.1"
+        targetVersion: targetVersion
       )
 
       var catalogs: [AnyCatalog] = []
@@ -48,6 +70,19 @@ struct ValidatorConformanceTests {
         from: testCase.catalogConfiguration
       ) {
         catalogs.append(catalog)
+      } else {
+        let baseCatalog = isV10 ? BasicCatalog.v10Catalog : BasicCatalog.v09Catalog
+        catalogs.append(baseCatalog)
+        for aliasId in ["basic", "test-catalog", "https://a2ui.org/basic-catalog"] {
+          catalogs.append(
+            Catalog(
+              id: aliasId,
+              protocolVersion: baseCatalog.protocolVersion,
+              components: Array(baseCatalog.components.values),
+              functions: Array(baseCatalog.functions.values)
+            ).eraseToAnyCatalog()
+          )
+        }
       }
 
       let validator = A2UIValidator(catalogs: catalogs, config: validationConfiguration)
@@ -55,7 +90,8 @@ struct ValidatorConformanceTests {
       for (stepIndex, step) in testCase.steps.enumerated() {
         guard let payload = step.payload else { continue }
 
-        if let expectedError = step.expectError {
+        let expectedError = step.expectError ?? testCase.expectError
+        if let expectedError {
           var caughtError: Error?
           do {
             try validator.validate(payload: payload)

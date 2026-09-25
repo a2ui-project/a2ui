@@ -25,7 +25,7 @@ struct StressTests {
 
   private let parser = MessageParser()
 
-  private func parse(_ json: String) throws -> ServerToClientMessage {
+  private func parse(_ json: String) throws -> AgentToRendererMessage {
     try parser.parse(jsonString: json)
   }
 
@@ -90,7 +90,7 @@ struct StressTests {
       "children": .array(childIDs),
     ])
 
-    let updateMsg = ServerToClientMessage.updateComponents(
+    let updateMsg = AgentToRendererMessage.updateComponents(
       UpdateComponentsMessage(surfaceID: "s1", components: components)
     )
     processor.process(message: updateMsg)
