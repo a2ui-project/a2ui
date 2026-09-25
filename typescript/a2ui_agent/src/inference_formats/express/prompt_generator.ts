@@ -145,7 +145,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     let decompiler = this.decompilers.get(catalog.id);
     if (!decompiler) {
       const version = toWireProtocolVersion(catalog.protocolVersion);
-      decompiler = new ExpressDecompiler(catalog, version);
+      decompiler = new ExpressDecompiler([catalog], version);
       this.decompilers.set(catalog.id, decompiler);
     }
     return decompiler;

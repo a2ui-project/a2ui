@@ -9,11 +9,11 @@
       }
     },
     "test_compile_express_surface_targeting_names_a_catalog": {
-      "justification": "test_compile_express_unknown_component_is_a_validation_error",
+      "justification": "test_compile_express_surface_targeting_names_a_catalog",
       "expected": {
         "status": "error",
-        "error": "ExpressUnknownComponentError",
-        "message": "Component 'Gauge' is not defined in the catalog."
+        "error": "ExpressUnknownCatalogError",
+        "message": "Catalog 'conformance/custom' is not one of the active catalogs: 'conformance/simplified'."
       }
     },
     "test_compile_express_missing_required_property_is_a_validation_error": {
