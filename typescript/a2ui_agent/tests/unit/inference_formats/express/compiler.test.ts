@@ -17,12 +17,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {Catalog} from '../../../../src/internal/web_core.js';
 import {basicCatalog, type SchemaCatalog} from '../../../../src/types.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
+import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressCompiler} from '../../../../src/inference_formats/express/compiler.js';
+import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
 import {
   ExpressDuplicateParamError,
   ExpressDuplicatePropertyError,
@@ -37,6 +39,7 @@ import {
   ExpressUnknownPropertyError,
   ExpressValidationError,
   ExpressIdCollisionError,
+  ExpressUnknownCatalogError,
 } from '../../../../src/inference_formats/express/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -75,6 +78,7 @@ const errorClasses: Record<string, new (...args: never[]) => Error> = {
   ExpressDuplicatePropertyError,
   ExpressInvalidParamError,
   ExpressDuplicateParamError,
+  ExpressUnknownCatalogError,
 };
 
 describe('ExpressCompiler', () => {
@@ -132,7 +136,7 @@ describe('ExpressCompiler', () => {
         const override = overrides[entry.name];
         const expected = override ? override.expected : entry.expected;
 
-        const compiler = new ExpressCompiler(cat, entry.version);
+        const compiler = new ExpressCompiler([cat], entry.version);
         if (expected.status === 'success') {
           const actual = compiler.compile(entry.input);
           expect(actual).toEqual(expected.messages);
@@ -160,7 +164,7 @@ describe('ExpressCompiler', () => {
 
   describe('Follow-up 2: ExpressIdCollisionError', () => {
     it('throws ExpressIdCollisionError when an inline id collides with a declared variable', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       const dsl = `
 root_child = Text("c2")
 root = Card(Text("c1"))
@@ -169,7 +173,7 @@ root = Card(Text("c1"))
     });
 
     it('throws ExpressIdCollisionError when inline array items collide with declared variables', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       const dsl = `
 root_children_1 = Text("conflict")
 root = Column([Text("a"), Text("b")])
@@ -183,7 +187,7 @@ root = Column([Text("a"), Text("b")])
       // Oracle output: Python silently emits {"id": "root", "component": "Text", "text": "hi", "checks": [...]}
       // TS divergence rationale (plan §5.2 item 4 / KNOWN_GAPS): Writing checks on a component that does not
       // declare a check-rule property violates the schema. TS explicitly rejects this.
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       const dsl = 'root = Text("hi", [?required])';
 
       expect(() => compiler.compile(dsl)).toThrow(ExpressValidationError);
@@ -204,7 +208,7 @@ root = Column([Text("a"), Text("b")])
       // and throws ExpressForbiddenDatabindingError('Tabs', 'tabs'), rejecting dynamic title inside tab item.
       // TS divergence rationale (plan §5.2 item 5): TS walks alongside the schema positionally.
       // Tabs.tabs items have title of type DynamicString, which admits path, so Tabs([{title: $/t, child: c}]) is valid.
-      const compiler = new ExpressCompiler(basicCatalogV10, 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       const dsl = `
 root = Tabs([{title: $/tab_title, child: c}])
 c = Text("Content")
@@ -222,7 +226,7 @@ c = Text("Content")
 
     it('rejects databinding when nested item schema does NOT admit path (departure 5)', () => {
       // In Tabs.tabs items, 'child' is ComponentId (static string), which does NOT admit path.
-      const compiler = new ExpressCompiler(basicCatalogV10, 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       const dsl = `
 root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 `;
@@ -239,7 +243,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
   describe('3. Specific error cases (§Wave 2a item 3)', () => {
     it('throws ExpressSyntaxError on lexer error', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('root = @Text("Hello")')).toThrow(ExpressSyntaxError);
       try {
         compiler.compile('root = @Text("Hello")');
@@ -254,7 +258,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressParseError wrapping ExpressSyntaxError on parser error', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('root = Text(')).toThrow(ExpressParseError);
       try {
         compiler.compile('root = Text(');
@@ -273,12 +277,12 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressUndefinedRootError on empty block', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('')).toThrow(ExpressUndefinedRootError);
     });
 
     it('compiles block with component assignments but no root into updateComponents', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       const messages = compiler.compile('some_var = Text("Hi")');
       expect(messages).toEqual([
         {
@@ -292,21 +296,21 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressUnknownPropertyError on unknown property', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('root = Text("hi", unknownProp="val")')).toThrow(
         ExpressUnknownPropertyError,
       );
     });
 
     it('throws ExpressDuplicatePropertyError on duplicate property', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('root = Text("hi", text="duplicate")')).toThrow(
         ExpressDuplicatePropertyError,
       );
     });
 
     it('throws ExpressInvalidParamError on invalid function argument keyword', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() =>
         compiler.compile(
           'root = Button(Text("hi"), action=openUrl("https://example.com", badArg=1))',
@@ -315,7 +319,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressDuplicateParamError on duplicate function argument', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() =>
         compiler.compile(
           'root = Button(Text("hi"), action=openUrl("https://example.com", url="https://other.com"))',
@@ -324,7 +328,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressValidationError on enum violation with exact Python formatting', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('root = Text("hi", "invalid_variant")')).toThrow(
         ExpressValidationError,
       );
@@ -339,14 +343,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressForbiddenDatabindingError on static property receiving data binding', () => {
-      const compiler = new ExpressCompiler(customCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([customCatalog], 'v1.0');
       expect(() => compiler.compile('root = Chart([1, 2], $/caption)')).toThrow(
         ExpressForbiddenDatabindingError,
       );
     });
 
     it('suppresses syntax errors and returns empty statements when isFinal is false (sanctioned swallow)', () => {
-      const compiler = new ExpressCompiler(simplifiedCatalog, 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       // When isFinal=false, syntax error in incomplete input is swallowed and statements becomes []
       // With no statements, scopes is [] which raises ExpressUndefinedRootError
       expect(() => compiler.compile('root = Text(', 'default_surface', '', false)).toThrow(
@@ -355,10 +359,110 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressValidationError for standalone function calls on v0.9', () => {
-      const compiler = new ExpressCompiler(basicCatalog('v0.9'), 'v0.9');
+      const compiler = new ExpressCompiler([basicCatalog('v0.9')], 'v0.9');
       expect(() => compiler.compile('openUrl("https://example.com")')).toThrow(
         ExpressValidationError,
       );
+    });
+  });
+
+  describe('Multiple Catalogs', () => {
+    // A second catalog that also defines `Text`, with a different property, so a
+    // test can tell which catalog a block compiled against.
+    const labelsDoc: Record<string, unknown> = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      catalogId: 'test/labels',
+      protocolVersion: '1.0',
+      components: {
+        Text: {
+          type: 'object',
+          properties: {component: {const: 'Text'}, label: {type: 'string'}},
+          required: ['component', 'label'],
+        },
+      },
+      functions: {},
+    };
+    const labelsCatalog = Catalog.fromSchema(labelsDoc);
+    registerCatalogDocument(labelsCatalog, labelsDoc);
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function createSurfaceOf(message: unknown): Record<string, unknown> {
+      return (message as {createSurface: Record<string, unknown>}).createSurface;
+    }
+
+    it('looks components up only in the catalog the surface line names', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10, labelsCatalog]);
+      const messages = compiler.compile(
+        `surface("s1", catalogId="${basicCatalogV10.id}")\nroot = Text("hello")\n` +
+          'surface("s2", catalogId="test/labels")\nroot = Text("hello")',
+      );
+      expect(messages.map(createSurfaceOf)).toEqual([
+        {
+          surfaceId: 's1',
+          catalogId: basicCatalogV10.id,
+          components: [{id: 'root', component: 'Text', text: 'hello'}],
+        },
+        {
+          surfaceId: 's2',
+          catalogId: 'test/labels',
+          components: [{id: 'root', component: 'Text', label: 'hello'}],
+        },
+      ]);
+    });
+
+    it('rejects a component from another active catalog', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10, customCatalog]);
+      expect(() =>
+        compiler.compile(`surface("s1", catalogId="${basicCatalogV10.id}")\nroot = Gauge(30)`),
+      ).toThrow(ExpressUnknownComponentError);
+    });
+
+    it('throws ExpressUnknownCatalogError for a catalog that is not active', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10]);
+      expect(() =>
+        compiler.compile('surface("main", catalogId="unknown")\nroot = Text("hi")'),
+      ).toThrow(ExpressUnknownCatalogError);
+    });
+
+    it('uses the first catalog and warns when a block names none', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const compiler = new ExpressCompiler([basicCatalogV10, labelsCatalog]);
+      const messages = compiler.compile('root = Text("hi")');
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0][0]).toContain(`'${basicCatalogV10.id}'`);
+      expect(createSurfaceOf(messages[0]).catalogId).toBe(basicCatalogV10.id);
+    });
+
+    it('does not warn with a single catalog', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      new ExpressCompiler(basicCatalogV10).compile('root = Text("hi")');
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('decompiles each message with the catalog it names', () => {
+      const decompiler = new ExpressDecompiler([basicCatalogV10, labelsCatalog], 'v1.0');
+      const dsl = decompiler.decompile({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's2',
+          catalogId: 'test/labels',
+          components: [{id: 'root', component: 'Text', label: 'hello'}],
+        },
+      });
+      expect(dsl).toBe('surface("s2", catalogId="test/labels")\nroot = Text("hello")');
+    });
+
+    it('refuses to decompile messages for a catalog it does not have', () => {
+      const decompiler = new ExpressDecompiler(basicCatalogV10, 'v1.0');
+      expect(() =>
+        decompiler.decompile({
+          version: 'v1.0',
+          createSurface: {surfaceId: 's', catalogId: 'test/labels', components: []},
+        }),
+      ).toThrow(A2uiCatalogError);
     });
   });
 });
