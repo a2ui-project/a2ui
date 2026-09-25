@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: The package directory moved from `renderers/web_core/` to `typescript/web_core/`.
+- **BREAKING CHANGE**: The root package export (`@a2ui/web_core`) now provides the shared core state, validation, catalog, expressions, RPC, and resolution APIs across protocol versions. Consumers using v0.8 protocol APIs should import from `@a2ui/web_core/v0_8`.
+- **BREAKING CHANGE**: The `Catalog` constructor now requires `protocolVersion` as its second parameter: `Catalog(id, protocolVersion, ...)`.
+- **BREAKING CHANGE**: The `SurfaceModel` constructor now accepts `availableCatalogs` as its third positional argument, moving `theme` to the fourth argument (`SurfaceModel(id, defaultCatalog, availableCatalogs, theme, ...)`). Passing an invalid third argument (such as a `Theme` object) throws a `TypeError`.
+- `SurfaceModel.catalog` is deprecated in favor of `SurfaceModel.defaultCatalog`. The `catalog` property remains as a compatibility getter.
+- **BREAKING CHANGE**: `FunctionInvoker` function arguments are now typed `unknown` instead of `any`, requiring explicit validation or schema parsing.
+- **BREAKING CHANGE**: Removed non-spec math and comparison functions from the v0.9 basic catalog: `add`, `subtract`, `multiply`, `divide`, `equals`, `notEquals`, `greaterThan`, `lessThan`, `contains`, `startsWith`, and `endsWith`. Applications requiring these operations must register them in a custom catalog.
+- Add `PayloadValidator` (`@a2ui/web_core/validation`) for single-catalog component and function schema validation.
+- Add `A2uiRpcError` and `RpcErrorCode` (`@a2ui/web_core/rpc`) for structured RPC error responses.
+- Re-export `DataBindingType` and `FunctionCallType` (from `types/common-types.js`) and `MAX_FUNCTION_CALL_ARGS` (from `types/helpers.js`) from `@a2ui/web_core/v0_9`.
 - Factor out basic catalog function implementations shared between v0.9 and v1.0
   into a common module (`src/common/basic_functions.ts`). Both versions now
   share implementation logic for logical operations, string formatting, number

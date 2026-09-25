@@ -1,5 +1,42 @@
 ## Unreleased
 
+- **BREAKING**: Module paths and validation interfaces moved or changed in v0.2.0. Deprecation shims are provided for renamed public module paths; importing them emits a `DeprecationWarning` naming the new path. These shims will be removed in `v0.3.0`.
+
+  **Shimmed Modules (Deprecated; removal in v0.3.0):**
+
+  | Old Path (`v0.1.x`)                                                                  | New Path (`v0.2.0`)                                                                       | Notes                                                |
+  | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+  | `a2ui.core.basic_catalog.{components,function_apis,function_impls,styles}`           | `a2ui.core.basic_catalog.v0_9.{components,function_apis,function_impls,styles}`           | Re-exports v0.9 basic catalog symbols                |
+  | `a2ui.core.basic_catalog.expression_parser`                                          | `a2ui.core.expressions.expression_parser`                                                 | Re-exports `ExpressionParser`, `Scanner`, and limits |
+  | `a2ui.core.schema.{client_capabilities,client_to_server,constants,server_to_client}` | `a2ui.core.schema.v0_9.{client_capabilities,client_to_server,constants,server_to_client}` | Also aliases `A2uiClientError*` and `SPEC_VERSION*`  |
+
+  **Unshimmed Internal Modules & Renames:**
+
+  Internal modules were moved without shims; callers should import from the new paths directly:
+
+  - `a2ui.core.rendering` (and `.component_context`, `.data_context`, `.generic_binder`): moved to `a2ui.core.resolution` (and matching submodules).
+  - `a2ui.core.validating` (and `.integrity_checker`, `.topology_analyzer`): moved to `a2ui.core.validation` (and `a2ui.core.state.validation_helpers`).
+  - `validate_component_integrity`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> None`.
+  - `analyze_topology`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> set[str]`.
+
+  **Removed Modules and APIs:**
+
+  | Removed (`v0.1.x`)                                                                               | Replacement (`v0.2.0`)                                                             |
+  | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+  | `a2ui.core.validating.validator` (`A2uiValidator`, `A2uiValidatorError`)                         | `a2ui.core.validation.PayloadValidator`                                            |
+  | `a2ui.core.validating.catalog_schema_validator` (`CatalogSchemaValidator`, `extract_ref_fields`) | `a2ui.core.catalog.reference_map` (`ComponentRefSpec`, `build_component_ref_map`)  |
+  | `a2ui.core.validating.integrity_checker.get_component_references`                                | `ComponentRefSpec.extract_child_references`, `ComponentModel.get_child_references` |
+  | `a2ui.core.state.{node_graph,component_node}` (`NodeGraph`, `ComponentNode`)                     | Removed                                                                            |
+  | `a2ui.core.basic_catalog.locale_config`                                                          | `a2ui.core.basic_catalog.locale_formatting` (Babel/CLDR)                           |
+  | `a2ui.core.basic_catalog.operator_apis`                                                          | `a2ui.core.basic_catalog.v1_0.operator_apis`                                       |
+  | `get_client_capabilities`, `get_client_data_model`                                               | Removed                                                                            |
+  | `SPEC_VERSION`                                                                                   | `PROTOCOL_VERSION` (in `a2ui.core.schema.v0_9.constants`)                          |
+  | `A2uiClientErrorMessage`                                                                         | `A2uiRendererErrorMessage`                                                         |
+  | `Catalog(spec_version=)`                                                                         | `Catalog(protocol_version=)`                                                       |
+  | `MessageProcessor(strict_mode=)`                                                                 | `MessageProcessor(options=)`                                                       |
+
+- **BREAKING**: `DataModel` stores data values by reference instead of making deep copies. Callers that mutate nested objects after setting them in `DataModel` will update internal state directly.
+- **BREAKING**: `A2uiRpcError` argument order is now `(message, code, ...)`.
 - **BREAKING**: `DataModel.set` now raises `A2uiDataError` instead of resetting the root when attempting to traverse or set a subpath under a primitive root value.
 - **BREAKING**: `SurfaceComponentsModel.add_component` now raises `A2uiStateError` if a component with the same ID already exists in the model.
 - **BREAKING**: pending RPC requests on `RpcHandler.dispose()` are now rejected with error code `CANCELLED` (previously `DISPOSED`).

@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **BREAKING**: Validation modules `a2ui.validation.*` and `a2ui.schema.validator` are removed. Use `A2uiCatalog.validate_components` for component tree validation.
+- **BREAKING**: `A2uiCatalog.validator` now returns a single-catalog `PayloadValidator` instance (from `a2ui.core.validation`) instead of `A2uiValidator`. `PayloadValidator` does not provide an envelope-walking `.validate()` method; call `A2uiCatalog.validate_components` or `PayloadValidator.validate_component()` / `PayloadValidator.validate_function()`.
+- **BREAKING**: `A2uiTemplateManager` is removed.
+- **BREAKING**: Package dependency updated to require `a2ui-core>=0.2.0,<0.3.0`.
+- Add type-safe Python Builder API under `a2ui.builder` for constructing A2UI component trees as nested objects and serializing them into protocol messages (#2425).
 - `A2uiCatalog.core_catalog` now passes its `common_types_schema` through to
   `Catalog.from_json`, so a catalog that references the shared types across
   documents resolves them from that document instead of leaving the references

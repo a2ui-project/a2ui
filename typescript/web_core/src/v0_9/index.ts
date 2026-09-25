@@ -35,6 +35,8 @@ export * from '../state/surface-group-model.js';
 export * from '../state/surface-model.js';
 export * from '../errors.js';
 export type {ResolvedChildRef} from '../resolution/index.js';
+export type {DataBindingType, FunctionCallType} from '../types/common-types.js';
+export {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 export * from './basic_catalog/index.js';
 export * from '../validation/integrity-checker.js';
 export {

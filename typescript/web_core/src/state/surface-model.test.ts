@@ -193,4 +193,23 @@ describe('SurfaceModel', () => {
     assert.strictEqual(actions[2].userMessage, undefined);
     assert.strictEqual(actions[3].userMessage, undefined);
   });
+
+  it('throws TypeError if 3rd argument is not an Array, Map, or undefined/null', () => {
+    assert.throws(() => new SurfaceModel('surface-err', catalog, {primaryColor: 'red'} as any), {
+      name: 'TypeError',
+      message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,
+    });
+  });
+
+  it('accepts an Array or undefined/null for availableCatalogs in constructor', () => {
+    const other = new Catalog<ComponentApi>('other-catalog', '1.0', []);
+    const surfaceWithArray = new SurfaceModel('s-arr', catalog, [other]);
+    assert.strictEqual(surfaceWithArray.availableCatalogs.get('other-catalog'), other);
+
+    const surfaceWithNull = new SurfaceModel('s-null', catalog, null);
+    assert.strictEqual(surfaceWithNull.availableCatalogs.get(catalog.id), catalog);
+
+    const surfaceWithUndefined = new SurfaceModel('s-undef', catalog, undefined);
+    assert.strictEqual(surfaceWithUndefined.availableCatalogs.get(catalog.id), catalog);
+  });
 });
