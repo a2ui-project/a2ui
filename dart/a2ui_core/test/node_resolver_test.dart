@@ -706,6 +706,43 @@ void snapshotOwnershipTests() {
       },
     );
 
+    test('an action context keeps a nested map with non-string keys', () async {
+      final TestSetup fixture = setup();
+      addTearDown(() {
+        fixture.resolver.dispose();
+        fixture.surface.dispose();
+      });
+      final original = <int, String>{1: 'a'};
+      fixture.surface.dataModel.set('/weird', original);
+      add(fixture.surface, 'root', 'Button', {
+        'label': 'Go',
+        'action': {
+          'event': {
+            'name': 'go',
+            'context': {
+              'w': {'path': '/weird'},
+            },
+          },
+        },
+      });
+      final contexts = <Map<String, dynamic>>[];
+      fixture.surface.onAction.addListener(
+        (action) => contexts.add(action.context),
+      );
+
+      final action =
+          props(fixture.resolver.rootNode.value!)['action']
+              as Future<void> Function();
+      await action();
+
+      expect(contexts, [
+        {
+          'w': {1: 'a'},
+        },
+      ]);
+      expect(identical(contexts.single['w'], original), isFalse);
+    });
+
     test('child lists and outer props stay unmodifiable after updates', () {
       final TestSetup fixture = setup();
       addTearDown(() {
