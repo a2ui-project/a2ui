@@ -976,5 +976,66 @@ describe('message decoding', () => {
       assert.strictEqual(ensureMessageVersion(undefined as any), undefined);
       assert.strictEqual(ensureMessageVersion('test' as any), 'test');
     });
+
+    it('sets the given default version when version property is missing', () => {
+      const msg = {createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg, 'v1.0'), {
+        version: 'v1.0',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+
+      const msg09 = {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg09, 'v1.0'), msg09);
+    });
+  });
+});
+
+describe('createCallMcpToolImplementation defaultVersion option', () => {
+  /** Processes every message through a processor that records the versions it receives. */
+  const invokeWith = async (options?: {defaultVersion: string}) => {
+    const versions: unknown[] = [];
+    const processor = {
+      processMessages(messages: unknown[]) {
+        versions.push(...messages.map(message => (message as {version: unknown}).version));
+      },
+      model: {getSurface: () => undefined},
+    } as unknown as MessageProcessor<any>;
+    const client = createFakeClient({
+      result: {
+        content: [
+          {
+            type: 'resource',
+            resource: {
+              uri: 'a2ui://inline',
+              mimeType: A2UI_MIME_TYPE,
+              text: JSON.stringify([
+                {updateDataModel: {surfaceId: 's', value: {}}},
+                {version: 'v0.9', updateDataModel: {surfaceId: 's', value: {}}},
+              ]),
+            },
+          },
+        ],
+      },
+    });
+    const catalog = new Catalog<any>(
+      MCP_CATALOG_ID,
+      '0.9',
+      [],
+      [createCallMcpToolImplementation(() => asClient(client), processor, options)],
+    );
+    await catalog.invoker(
+      'callMcpTool',
+      {name: 'tool'},
+      createTestDataContext(new DataModel({}), catalog),
+    );
+    return versions;
+  };
+
+  it('stamps v0.9 on messages without a version by default', async () => {
+    assert.deepStrictEqual(await invokeWith(), ['v0.9', 'v0.9']);
+  });
+
+  it('stamps the given version on messages without one and keeps explicit versions', async () => {
+    assert.deepStrictEqual(await invokeWith({defaultVersion: 'v1.0'}), ['v1.0', 'v0.9']);
   });
 });

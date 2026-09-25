@@ -13,7 +13,7 @@
     "target": "es2021",
     "module": "esnext",
     "lib": ["es2023", "DOM", "DOM.Iterable"],
-    "types": ["node"],
+    "types": [],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
     "rootDir": "src",
@@ -32,6 +32,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/catalog.json"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts", "src/catalog.json", "src/v1_0/catalog.json"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/**/testing/**",
+    "src/shared/sandbox/sandbox_main.ts"
+  ]
 }
