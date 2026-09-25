@@ -955,6 +955,84 @@ void materializationFailureTests() {
       );
       expect(fixture.resolver.rootNode.peek()?.componentId, 'root');
     });
+
+    test('disposing an aborted cyclic sibling keeps the retained '
+        "placeholder's diagnostic reservation", () {
+      final TestSetup fixture = setupWithPoisonedLeaf();
+      final errors = <String>[];
+      fixture.surface.onError.addListener((error) => errors.add(error.code));
+      add(fixture.surface, 'root', 'Column', {
+        'children': ['root'],
+      });
+      final ComponentNode root = fixture.resolver.rootNode.value!;
+      final ComponentNode first = child(root, 'children', 0);
+      expect(first.state, NodeState.cyclic);
+      expect(errors, ['CYCLIC_REFERENCE']);
+      expect(fixture.resolver.activeNodeCount, 2);
+
+      expect(
+        () => fixture.surface.componentsModel.get('root')!.properties = {
+          'children': ['root', 'root', 'leaf'],
+        },
+        throwsA(anything),
+      );
+      expect(fixture.resolver.activeNodeCount, 2);
+      expect(errors, ['CYCLIC_REFERENCE']);
+
+      fixture.surface.componentsModel.get('root')!.properties = {
+        'children': ['root', 'root'],
+      };
+      expect(identical(child(root, 'children', 0), first), isTrue);
+      expect(child(root, 'children', 1).state, NodeState.cyclic);
+      expect(fixture.resolver.activeNodeCount, 3);
+      expect(
+        errors,
+        ['CYCLIC_REFERENCE'],
+        reason:
+            'the first placeholder never left the tree, so its condition '
+            'is not reported again',
+      );
+    });
+
+    test('a failed update keeps the identity of a committed child whose '
+        'same-edge replacement was aborted', () {
+      final TestSetup fixture = setupWithPoisonedLeaf();
+      add(fixture.surface, 'ok', 'Text', {'text': 'ok'});
+      add(fixture.surface, 'extra', 'Text', {'text': 'extra'});
+      add(fixture.surface, 'root', 'Column', {
+        'children': ['ok', 'ok'],
+      });
+      final ComponentNode root = fixture.resolver.rootNode.value!;
+      final ComponentNode second = child(root, 'children', 1);
+      var destroyed = 0;
+      second.onDestroyed.addListener((_) => destroyed++);
+      final emissions = EmissionCounter(root.props);
+      addTearDown(emissions.dispose);
+      expect(fixture.resolver.activeNodeCount, 3);
+
+      expect(
+        () => fixture.surface.componentsModel.get('root')!.properties = {
+          'children': ['extra', 'ok', 'leaf'],
+        },
+        throwsA(anything),
+      );
+      expect(fixture.resolver.activeNodeCount, 3);
+      expect(second.disposed, isFalse);
+      expect(destroyed, 0);
+      expect(emissions.count, 0);
+
+      fixture.surface.componentsModel.get('root')!.properties = {
+        'children': ['ok', 'ok'],
+      };
+      expect(
+        identical(child(root, 'children', 1), second),
+        isTrue,
+        reason: 'the published tree did not change, so neither does the node',
+      );
+      expect(destroyed, 0);
+      expect(emissions.count, 0);
+      expect(fixture.resolver.activeNodeCount, 3);
+    });
   });
 }
 

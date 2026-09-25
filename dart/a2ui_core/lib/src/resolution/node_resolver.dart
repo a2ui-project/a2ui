@@ -701,11 +701,20 @@ class NodeResolver<T extends ComponentApi> {
         );
       } catch (_) {
         // Children created earlier in this pass have no owner until the
-        // edges commit.
+        // edges commit. Their diagnostic entries stay: a retained sibling
+        // can share one, and _runUpdate releases what this pass queued.
         for (final MapEntry<_EdgeKey, MutableComponentNode<T>> edge
             in newEdges.entries) {
           if (!identical(record.childEdges[edge.key], edge.value)) {
-            _disposeNode(edge.value);
+            _disposeNode(edge.value, releaseDiagnostics: false);
+          }
+        }
+        // A replacement registered on a committed child's edge, including
+        // the one that just threw, took over its cache entry.
+        for (final _EdgeKey key in newEdges.keys.followedBy([edgeKey])) {
+          final MutableComponentNode<T>? committed = record.childEdges[key];
+          if (committed != null && !committed.disposed) {
+            _nodesByEdge[key] = committed;
           }
         }
         rethrow;
@@ -855,7 +864,12 @@ class NodeResolver<T extends ComponentApi> {
   }
 
   /// Disposes a node and, through parent-scoped ownership, its subtree.
-  void _disposeNode(MutableComponentNode<T> node) {
+  /// [releaseDiagnostics] is false for a node that never committed, whose
+  /// cyclic diagnostic entries may still belong to committed nodes.
+  void _disposeNode(
+    MutableComponentNode<T> node, {
+    bool releaseDiagnostics = true,
+  }) {
     if (node.disposed) {
       return;
     }
@@ -888,7 +902,7 @@ class NodeResolver<T extends ComponentApi> {
         }
       }
     }
-    if (node.state == NodeState.cyclic) {
+    if (releaseDiagnostics && node.state == NodeState.cyclic) {
       // Replacements are committed before retired nodes are disposed. A new
       // cyclic stand-in on this same edge still represents the old condition;
       // retiring its predecessor must not erase the replacement's key.
@@ -902,7 +916,7 @@ class NodeResolver<T extends ComponentApi> {
       }
     }
     for (final child in children) {
-      _disposeNode(child);
+      _disposeNode(child, releaseDiagnostics: releaseDiagnostics);
     }
     node.dispose();
   }
