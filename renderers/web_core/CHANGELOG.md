@@ -5,6 +5,7 @@
 - (v0_9) Add `A2uiWebComponentElement`, the DOM contract for an A2UI custom element: an `HTMLElement` that accepts a `context` property. [#2596](https://github.com/a2ui-project/a2ui/pull/2596)
 - **BREAKING CHANGE**: (v0_9) Move Universal Web Component symbols (`A2uiLitElement`, `A2uiController`, `renderA2uiNode`, `WebComponentImplementation`, `ResolvedChildList`, `A2uiChildRef`, `ResolvedChildRef`) from root `@a2ui/web_core/v0_9` to `@a2ui/web_core/v0_9/universal`. Recommended migration: update import paths from `@a2ui/web_core/v0_9` to `@a2ui/web_core/v0_9/universal`. [#2488](https://github.com/a2ui-project/a2ui/pull/2488)
 - (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
+- (v0_9) Negative and exponent number literals are now parsed as numbers. `${-1}` used to bind to the path `-1`, because `-` is a valid path character, and `${round(value: -1)}` handed the function a path where the author wrote a number. Exponents were rejected outright. A number starts only on a digit, or on `-` followed by a digit, so `${a-b}` and `${-a}` remain paths. A literal whose exponent overflows to infinity is rejected rather than returned, for the same reason `NaN` is: JSON cannot carry it and no renderer can show it. ([#2575](https://github.com/a2ui-project/a2ui/pull/2575))
 
 ## 0.11.0
 

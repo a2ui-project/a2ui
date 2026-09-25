@@ -3,6 +3,12 @@
 - Add SemVer parsing and comparison utilities (`SemVer`, `compare_semver`, `is_at_least_version`, `normalize_version_string`, `parse_semver`, `to_canonical_version`, `to_semver`) in `a2ui.core.common.semver`.
 - Add `A2uiProtocolVersion` and `ProtocolVersion` enum in `a2ui.core.schema`.
 - Remove `A2uiCompileError` from `a2ui_core` exception hierarchy.
+- Negative and exponent number literals are now parsed as numbers. `${-1}` used to
+  bind to the path `-1`, because `-` is a valid path character, and
+  `${round(value: -1)}` handed the function a path where the author wrote a number.
+  Exponents were rejected outright. A number starts only on a digit, or on `-`
+  followed by a digit, so `${a-b}` and `${-a}` remain paths. A literal whose
+  exponent overflows to infinity is rejected rather than returned (#2575).
 
 ## 0.1.1
 
