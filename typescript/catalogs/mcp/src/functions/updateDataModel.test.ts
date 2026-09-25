@@ -25,7 +25,7 @@ import {
   type FunctionImplementation,
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
-import {DATA_FUNCTIONS} from '../index.js';
+import {DATA_FUNCTIONS} from '../functions.js';
 
 const AsyncSourceImplementation: FunctionImplementation = createFunctionImplementation(
   {
