@@ -24,6 +24,13 @@ class CatalogSchemaHelper {
 
   final SchemaCatalog catalog;
 
+  /// Checks a compiled component against its schema in [catalog].
+  late final PayloadValidator<ComponentApi, FunctionApi> validator =
+      PayloadValidator(
+        catalog: catalog,
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
+
   final Map<String, _ComponentSignature> _components = {};
 
   bool isComponent(String name) => catalog.components.containsKey(name);

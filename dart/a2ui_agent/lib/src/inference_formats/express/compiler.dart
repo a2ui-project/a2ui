@@ -26,9 +26,9 @@ const String defaultSurfaceId = 'default_surface';
 /// messages shaped for v0.9: a surface is created by `createSurface` followed
 /// by `updateComponents`, and its initial data by `updateDataModel`.
 class ExpressCompiler {
-  /// [catalogs] is never empty; the first one is the default for a surface
-  /// that does not name its catalog.
-  ExpressCompiler(this.catalogs) : assert(catalogs.isNotEmpty);
+  /// The first of [catalogs] is the default for a surface that does not name
+  /// its catalog.
+  ExpressCompiler(this.catalogs);
 
   final List<SchemaCatalog> catalogs;
 
@@ -39,10 +39,14 @@ class ExpressCompiler {
 
   /// Compiles the content of one block, without its sentinel tags.
   ///
-  /// Throws [A2uiParseError] if [source] is not valid Express, and
-  /// [A2uiValidationError] if it names anything the catalogs do not declare
-  /// or uses something v0.9 has no message for.
+  /// Throws [A2uiParseError] if [source] is not valid Express,
+  /// [A2uiValidationError] if it names anything the catalogs do not declare,
+  /// a component does not match its schema, or the block uses something v0.9
+  /// has no message for, and [A2uiCatalogError] if there are no [catalogs].
   List<AgentToRendererMessage> compile(String source) {
+    if (catalogs.isEmpty) {
+      throw A2uiCatalogError('Compiling Express needs at least one catalog.');
+    }
     final List<ExpressStatement> statements = parseExpress(source);
     if (statements.isEmpty) {
       throw A2uiParseError(
@@ -250,6 +254,7 @@ class _SurfaceCompiler {
         throw A2uiValidationError("'root' must be assigned a component.");
       }
     }
+    components.forEach(helper.validator.validateComponent);
 
     return [
       _envelope('createSurface', {

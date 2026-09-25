@@ -12,33 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The tag that opens an Express block.
-const String expressOpenTag = '<a2ui>';
+import 'package:a2ui_core/a2ui_core.dart';
 
-/// The tag that closes an Express block.
-const String expressCloseTag = '</a2ui>';
+import '../../parser/parser.dart';
+import '../../parser/response_part.dart';
+import 'compiler.dart';
 
-/// One slice of an LLM response: conversational text, or the content of an
-/// Express block.
-sealed class RawPart {
-  const RawPart();
-}
-
-final class RawText extends RawPart {
-  final String text;
-
-  const RawText(this.text);
-}
-
-final class RawBlock extends RawPart {
-  final String source;
-
-  /// Whether the block was closed, rather than cut off by the end of the
-  /// response.
-  final bool isFinal;
-
-  const RawBlock(this.source, {required this.isFinal});
-}
+/// The tag that opens a direct JSON payload, which this parser does not read.
+const String _directJsonOpenTag = '<a2ui-json>';
 
 // The open tag may carry attributes, but `<a2ui-json>` is another format's.
 final RegExp _openTag = RegExp(r'<a2ui(?:\s[^>]*)?>', caseSensitive: false);
@@ -46,35 +27,62 @@ final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
 final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
 final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 
-/// Splits [content] into text and Express blocks, in the order the model
-/// wrote them.
-///
-/// A close tag inside a string or a comment does not end a block. Text is
-/// trimmed and dropped when empty, and markdown fences a model wraps around a
-/// block are removed. See `conformance/agent/express/response_parser.yaml`.
-List<RawPart> unwrapExpress(String content) {
-  final parts = <RawPart>[];
-  var i = 0;
-  while (true) {
-    final Match? open = _openTag.allMatches(content, i).firstOrNull;
-    if (open == null) break;
-    _addText(parts, content.substring(i, open.start));
-    final int start = open.end;
-    final int? end = _blockEnd(content, start);
-    if (end == null) {
-      parts.add(RawBlock(_clean(content.substring(start)), isFinal: false));
-      return parts;
+/// Reads Express blocks from an LLM response and compiles them into v0.9
+/// messages.
+class ExpressParser extends Parser {
+  /// The first of [catalogs] is the default for a surface that does not name
+  /// its catalog.
+  ExpressParser(List<SchemaCatalog> catalogs)
+    : _compiler = ExpressCompiler(catalogs);
+
+  final ExpressCompiler _compiler;
+
+  /// Splits [content] into text and Express blocks, in the order the model
+  /// wrote them.
+  ///
+  /// A close tag inside a string or a comment does not end a block. Text is
+  /// trimmed and dropped when empty, and markdown fences a model wraps around
+  /// a block are removed. See `conformance/agent/express/response_parser.yaml`.
+  ///
+  /// Throws [A2uiParseError] if [content] carries a direct JSON payload.
+  @override
+  List<RawResponsePart> unwrap(String content) {
+    if (content.contains(_directJsonOpenTag)) {
+      throw A2uiParseError(
+        'The response carries a direct JSON payload ($_directJsonOpenTag); '
+        'this parser reads only the Express format.',
+        rawContent: content,
+      );
     }
-    parts.add(RawBlock(_clean(content.substring(start, end)), isFinal: true));
-    i = _closeTag.matchAsPrefix(content, end)!.end;
+    final parts = <RawResponsePart>[];
+    var i = 0;
+    while (true) {
+      final Match? open = _openTag.allMatches(content, i).firstOrNull;
+      if (open == null) break;
+      _addText(parts, content.substring(i, open.start));
+      final int start = open.end;
+      final int? end = _blockEnd(content, start);
+      if (end == null) {
+        parts.add(
+          RawA2uiPart(_clean(content.substring(start)), isFinal: false),
+        );
+        return parts;
+      }
+      parts.add(RawA2uiPart(_clean(content.substring(start, end))));
+      i = _closeTag.matchAsPrefix(content, end)!.end;
+    }
+    _addText(parts, content.substring(i));
+    return parts;
   }
-  _addText(parts, content.substring(i));
-  return parts;
+
+  @override
+  List<AgentToRendererMessage> compile(String formatContent) =>
+      _compiler.compile(formatContent);
 }
 
-void _addText(List<RawPart> parts, String text) {
+void _addText(List<RawResponsePart> parts, String text) {
   final String cleaned = _clean(text);
-  if (cleaned.isNotEmpty) parts.add(RawText(cleaned));
+  if (cleaned.isNotEmpty) parts.add(TextPart(cleaned));
 }
 
 String _clean(String text) => text

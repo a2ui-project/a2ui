@@ -26,6 +26,7 @@ Not supported yet:
 - Standalone function calls such as `openUrl("...")` on a line of their own,
   since v0.9 has no message for them.
 - Catalog transformers and prompt examples.
+- Decompiling messages into Express, and `Parser.wrap`.
 - Function descriptions in the prompt, since `a2ui_core`'s `FunctionApi` does
   not keep them.
 
@@ -47,6 +48,12 @@ final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
 ## Tests
+
+[test/conformance](test/conformance) runs the shared suites under
+[conformance/agent/express](../../conformance/agent/express). They are written
+against v1.0, so the harness lifts the v0.9 messages this package emits into
+the v1.0 shape before comparing. Cases for what is not implemented yet are
+skipped with the reason.
 
 [e2e_test](e2e_test) runs the example turn against a real Gemini model. It
 needs an API key, so it lives in a separate package and runs in a separate

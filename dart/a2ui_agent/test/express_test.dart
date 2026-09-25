@@ -21,8 +21,10 @@ import 'package:test/test.dart';
 
 /// Express prompting and parsing against the published v0.9 basic catalog.
 ///
-/// The cases follow `conformance/agent/express/`, with the messages shaped
-/// for v0.9.
+/// The rules shared by every SDK are covered by the conformance suites, run
+/// by `conformance/express_conformance_test.dart`. The cases here cover what
+/// those suites do not: the v0.9 message shapes, decisions of this SDK, and
+/// the checks `A2uiRequestProcessor` runs across blocks.
 void main() {
   final SchemaCatalog basic = Catalog.fromJson(
     jsonDecode(
@@ -140,31 +142,6 @@ c = Text("""Say "hi" """)
       );
     });
 
-    test('bindings, templates and function calls', () {
-      expect(
-        components(r'''
-root = List(_template($/names, row))
-row = Text(formatString("Hi, ${name}"), "h3")
-'''),
-        [
-          {
-            'id': 'root',
-            'component': 'List',
-            'children': {'componentId': 'row', 'path': '/names'},
-          },
-          {
-            'id': 'row',
-            'component': 'Text',
-            'text': {
-              'call': 'formatString',
-              'args': {'value': r'Hi, ${name}'},
-            },
-            'variant': 'h3',
-          },
-        ],
-      );
-    });
-
     test('checks on the bound value, with and without messages', () {
       final List<Object?> compiled = components(r'''
 root = TextField("Zip", $/zip, checks=[?required, ?regex(r"^[0-9]{5}$", "Five digits"), ?length(5, 5)])
@@ -201,39 +178,6 @@ root = TextField("Zip", $/zip, checks=[?required, ?regex(r"^[0-9]{5}$", "Five di
           'message': 'Length check failed.',
         },
       ]);
-    });
-
-    test('events and local function calls as actions', () {
-      final List<Object?> compiled = components(r'''
-submit = Event("submit", {id: $/id})
-root = Row([save, docs])
-save = Button(Text("Save"), "primary", submit)
-docs = Button(Text("Docs"), action=openUrl("https://a2ui.org"))
-''');
-      expect((compiled[1]! as Map)['action'], {
-        'event': {
-          'name': 'submit',
-          'context': {
-            'id': {'path': '/id'},
-          },
-        },
-      });
-      expect((compiled[3]! as Map)['action'], {
-        'functionCall': {
-          'call': 'openUrl',
-          'args': {'url': 'https://a2ui.org'},
-        },
-      });
-    });
-
-    test('an event without context', () {
-      expect(
-        (components('root = Button(Text("Go"), _, Event("go"))').first!
-            as Map)['action'],
-        {
-          'event': {'name': 'go'},
-        },
-      );
     });
 
     test('data assignments into updateDataModel', () {
@@ -275,31 +219,10 @@ root = Text($/user/name)
         },
       );
     });
-
-    test('comments, semicolons, trailing commas and wrapped lines', () {
-      expect(
-        components('''
-# A heading.
-root = Column([a, b,],); a = Text("A") // first
-/* second */ b = Text(
-  "B",
-)
-'''),
-        [
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': ['a', 'b'],
-          },
-          {'id': 'a', 'component': 'Text', 'text': 'A'},
-          {'id': 'b', 'component': 'Text', 'text': 'B'},
-        ],
-      );
-    });
   });
 
   group('parses a response', () {
-    test('into text and blocks, in order', () {
+    test('checking each block against the surfaces earlier blocks built', () {
       final List<ResponsePart> parts = processor().parseResponse('''
 Here it is.
 ```
@@ -326,11 +249,6 @@ surface("s1")
       expect((parts[4] as A2uiPart).a2ui.single, isA<DeleteSurfaceMessage>());
     });
 
-    test('without tags as text', () {
-      final List<ResponsePart> parts = processor().parseResponse('Which city?');
-      expect((parts.single as TextPart).text, 'Which city?');
-    });
-
     test('with a surface built from another catalog', () {
       final List<ResponsePart> parts = processor([basic, custom]).parseResponse(
         '<a2ui>surface("g", "${custom.id}"); root = Gauge(0.5)</a2ui>',
@@ -346,29 +264,6 @@ surface("s1")
 
   group('rejects', () {
     final cases = <String, (String, Matcher)>{
-      'an empty block': ('', throwsError<A2uiParseError>()),
-      'a syntax error': ('root = Text("Hello"', throwsError<A2uiParseError>()),
-      'an empty argument': ('root = Text(,)', throwsError<A2uiParseError>()),
-      'an unexpected character': (
-        'root = @Text("Hello")',
-        throwsError<A2uiParseError>(),
-      ),
-      'a template without a component': (
-        r'root = List(_template($/items))',
-        throwsError<A2uiParseError>(),
-      ),
-      'an unknown component': (
-        'root = Sparkline([1, 2])',
-        throwsError<A2uiValidationError>(),
-      ),
-      'an unknown function': (
-        'root = Text(titleCase("x"))',
-        throwsError<A2uiValidationError>(),
-      ),
-      'an undeclared property': (
-        'root = Text("x", tooltip="y")',
-        throwsError<A2uiValidationError>(),
-      ),
       'a property given twice': (
         'root = Text("x", "h1", variant="h2")',
         throwsError<A2uiValidationError>(),
@@ -379,18 +274,6 @@ surface("s1")
       ),
       'too many arguments': (
         'root = Card(a, b); a = Text("A"); b = Text("B")',
-        throwsError<A2uiValidationError>(),
-      ),
-      'a missing required property': (
-        'root = Button(Text("Save"))',
-        throwsError<A2uiValidationError>(),
-      ),
-      'a value outside an enum': (
-        'root = Text("x", "headline")',
-        throwsError<A2uiValidationError>(),
-      ),
-      'a binding on a static property': (
-        r'root = Text("x", $/variant)',
         throwsError<A2uiValidationError>(),
       ),
       'an unassigned variable': (
@@ -425,12 +308,8 @@ surface("s1")
   });
 
   group('promptSnippet', () {
-    test('teaches the tags and the catalog signatures', () {
+    test('annotates the catalog signatures', () {
       final String snippet = processor().promptSnippet;
-      expect(snippet, contains('<a2ui>'));
-      expect(snippet, contains('</a2ui>'));
-      expect(snippet, isNot(contains('<a2ui-json>')));
-      expect(snippet, contains('deleteSurface('));
       expect(
         snippet,
         contains(

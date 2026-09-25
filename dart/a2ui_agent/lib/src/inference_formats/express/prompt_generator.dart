@@ -14,37 +14,46 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../prompt/generator.dart';
 import 'schema_helper.dart';
 
 /// Renders the system prompt snippet teaching a model to write Express for
 /// [catalogs].
-///
-/// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
-/// nothing the model could be told to write.
-String generateExpressPrompt(List<SchemaCatalog> catalogs) {
-  if (catalogs.isEmpty) {
-    throw A2uiCatalogError('An Express prompt needs at least one catalog.');
-  }
-  final buffer = StringBuffer(_rules);
-  if (catalogs.length == 1) {
-    buffer
-      ..write('\n\n')
-      ..write(_catalogSection(CatalogSchemaHelper(catalogs.single), '##'));
+class ExpressPromptGenerator extends PromptGenerator {
+  /// The first of [catalogs] is the default for a surface that does not name
+  /// its catalog.
+  ExpressPromptGenerator(this.catalogs);
+
+  final List<SchemaCatalog> catalogs;
+
+  /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
+  /// nothing the model could be told to write.
+  @override
+  String generate() {
+    if (catalogs.isEmpty) {
+      throw A2uiCatalogError('An Express prompt needs at least one catalog.');
+    }
+    final buffer = StringBuffer(_rules);
+    if (catalogs.length == 1) {
+      buffer
+        ..write('\n\n')
+        ..write(_catalogSection(CatalogSchemaHelper(catalogs.single), '##'));
+      return buffer.toString();
+    }
+    buffer.write(
+      '\n\n## Catalogs\n\n'
+      'Components and functions come from the catalogs below. A surface uses '
+      'one catalog. The first catalog, `${catalogs.first.id}`, is the default. '
+      'To build a surface from another catalog, name it in the surface line, '
+      'e.g. surface("my-surface", "${catalogs.last.id}").',
+    );
+    for (final SchemaCatalog catalog in catalogs) {
+      buffer
+        ..write('\n\n## Catalog `${catalog.id}`\n\n')
+        ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));
+    }
     return buffer.toString();
   }
-  buffer.write(
-    '\n\n## Catalogs\n\n'
-    'Components and functions come from the catalogs below. A surface uses '
-    'one catalog. The first catalog, `${catalogs.first.id}`, is the default. '
-    'To build a surface from another catalog, name it in the surface line, '
-    'e.g. surface("my-surface", "${catalogs.last.id}").',
-  );
-  for (final catalog in catalogs) {
-    buffer
-      ..write('\n\n## Catalog `${catalog.id}`\n\n')
-      ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));
-  }
-  return buffer.toString();
 }
 
 String _catalogSection(CatalogSchemaHelper helper, String heading) =>

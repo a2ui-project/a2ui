@@ -6,6 +6,10 @@
   to protocol v0.9: `A2uiGenerator`, `A2uiRequestProcessor`, `CatalogConfig`,
   `InferenceFormatFactory`, `ExpressFormatFactory` and the `ResponsePart`
   types.
+- `InferenceFormatFactory.createFormat` binds a format to the active catalogs
+  as an `InferenceFormat`, which provides a `PromptGenerator` and a `Parser`.
+  `A2uiRequestProcessor` works through it rather than through Express
+  directly.
 - `A2uiRequestProcessor.promptSnippet` describes the Express syntax and the
   active catalogs' components and functions as positional signatures.
 - `A2uiRequestProcessor.parseResponse` compiles each Express block into v0.9
