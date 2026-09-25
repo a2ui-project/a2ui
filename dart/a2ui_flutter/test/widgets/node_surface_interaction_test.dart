@@ -155,13 +155,17 @@ core.SurfaceModel<core.ComponentApi> _createSurface() =>
 
 Widget _host(
   core.SurfaceModel<core.ComponentApi> surface,
-  List<UiEvent> events,
-) => MaterialApp(
+  List<UiEvent> events, {
+  List<Object>? errors,
+}) => MaterialApp(
   home: Material(
     child: NodeSurface(
       surface: surface,
       catalog: _catalog,
       onEvent: events.add,
+      reportError: errors == null
+          ? null
+          : (Object error, StackTrace? stackTrace) => errors.add(error),
     ),
   ),
 );
@@ -507,6 +511,188 @@ void main() {
       // The parent's props re-emit with the upgraded node, so the Column and
       // every sibling's catalog builder run once more.
       expect(_probeBuilderCalls, {'first': 2, 'last': 2, 'late': 1});
+    });
+  });
+
+  group('fallback states', () {
+    testWidgets('an unknown type renders the fallback and is reported once', (
+      WidgetTester tester,
+    ) async {
+      final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
+      final errors = <Object>[];
+      _add(surface, 'root', 'Column', {
+        'children': ['known', 'mystery'],
+      });
+      _add(surface, 'known', 'Text', {'text': 'Known'});
+      _add(surface, 'mystery', 'Mystery', {'text': 'Hidden'});
+
+      await tester.pumpWidget(_host(surface, [], errors: errors));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Known'), findsOneWidget);
+      expect(find.byType(FallbackWidget), findsOneWidget);
+      expect(
+        tester.widget<FallbackWidget>(find.byType(FallbackWidget)).error,
+        isA<CatalogItemNotFoundException>().having(
+          (CatalogItemNotFoundException e) => e.widgetType,
+          'widgetType',
+          'Mystery',
+        ),
+      );
+      expect(_nodeFor(tester, 'mystery').state, core.NodeState.unknownType);
+      expect(errors, [
+        isA<core.A2uiClientError>().having(
+          (core.A2uiClientError e) => e.code,
+          'code',
+          'UNKNOWN_COMPONENT_TYPE',
+        ),
+      ]);
+
+      // A rebuild of the parent reports nothing new.
+      surface.componentsModel.get('known')!.properties = {'text': 'Again'};
+      await tester.pumpAndSettle();
+      expect(find.text('Again'), findsOneWidget);
+      expect(errors, hasLength(1));
+    });
+
+    testWidgets('a cycle renders the fallback and is reported once', (
+      WidgetTester tester,
+    ) async {
+      final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
+      final errors = <Object>[];
+      _add(surface, 'root', 'Column', {
+        'children': ['label', 'loop'],
+      });
+      _add(surface, 'label', 'Text', {'text': 'Label'});
+      _add(surface, 'loop', 'Column', {
+        'children': ['root'],
+      });
+
+      await tester.pumpWidget(_host(surface, [], errors: errors));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Label'), findsOneWidget);
+      expect(find.byType(FallbackWidget), findsOneWidget);
+      expect(
+        _mountedNodes(tester).where((core.ComponentNode node) {
+          return node.state == core.NodeState.cyclic;
+        }),
+        hasLength(1),
+      );
+      expect(errors, [
+        isA<core.A2uiClientError>().having(
+          (core.A2uiClientError e) => e.code,
+          'code',
+          'CYCLIC_REFERENCE',
+        ),
+      ]);
+    });
+
+    testWidgets('a pending child renders empty, reports nothing, and is '
+        'replaced when its definition arrives', (WidgetTester tester) async {
+      final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
+      final errors = <Object>[];
+      _add(surface, 'root', 'Column', {
+        'children': ['first', 'late'],
+      });
+      _add(surface, 'first', 'Text', {'text': 'First'});
+
+      await tester.pumpWidget(_host(surface, [], errors: errors));
+      await tester.pumpAndSettle();
+
+      expect(find.text('First'), findsOneWidget);
+      expect(find.byType(FallbackWidget), findsNothing);
+      expect(_nodeFor(tester, 'late').state, core.NodeState.pending);
+      expect(errors, isEmpty);
+
+      _add(surface, 'late', 'Text', {'text': 'Late'});
+      await tester.pumpAndSettle();
+
+      expect(find.text('Late'), findsOneWidget);
+      expect(_nodeFor(tester, 'late').state, core.NodeState.resolved);
+      expect(find.byType(FallbackWidget), findsNothing);
+      expect(errors, isEmpty);
+    });
+
+    testWidgets('an expression error is not forwarded', (
+      WidgetTester tester,
+    ) async {
+      final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
+      final errors = <Object>[];
+      final coreErrors = <core.A2uiClientError>[];
+      surface.onError.addListener(coreErrors.add);
+      _add(surface, 'root', 'Text', {
+        'text': {'call': 'missingFunction', 'args': <String, Object?>{}},
+      });
+
+      await tester.pumpWidget(_host(surface, [], errors: errors));
+      await tester.pumpAndSettle();
+
+      expect(
+        coreErrors.map((core.A2uiClientError e) => e.code),
+        contains('EXPRESSION_ERROR'),
+      );
+      expect(errors, isEmpty);
+    });
+
+    testWidgets('unmounting stops forwarding the surface errors', (
+      WidgetTester tester,
+    ) async {
+      final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
+      final errors = <Object>[];
+      _add(surface, 'root', 'Text', {'text': 'Root'});
+
+      await tester.pumpWidget(_host(surface, [], errors: errors));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+
+      await surface.dispatchError(
+        core.A2uiClientError(
+          code: 'UNKNOWN_COMPONENT_TYPE',
+          surfaceId: _surfaceId,
+          message: 'After unmount.',
+        ),
+      );
+      _add(surface, 'mystery', 'Mystery', {});
+      surface.componentsModel.get('root')!.properties = {'text': 'Changed'};
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(errors, isEmpty);
+      surface.dispose();
+    });
+
+    testWidgets('a forwarded unknown-type error reaches the agent as '
+        "Surface's does", (WidgetTester tester) async {
+      final controller = SurfaceController(catalogs: [_catalog]);
+      addTearDown(controller.dispose);
+      final submitted = <String>[];
+      controller.onSubmit.listen((ChatMessage message) {
+        submitted.addAll(
+          message.parts.uiInteractionParts.map(
+            (UiInteractionPart part) => part.interaction,
+          ),
+        );
+      });
+
+      // What Surface reports for an unknown type, then what NodeSurface
+      // forwards from the resolver.
+      controller.reportError(
+        const CatalogItemNotFoundException('Mystery', catalogId: _catalogId),
+        null,
+      );
+      controller.reportError(
+        core.A2uiClientError(
+          code: 'UNKNOWN_COMPONENT_TYPE',
+          surfaceId: _surfaceId,
+          message: "Component 'mystery' has type 'Mystery'.",
+        ),
+        null,
+      );
+      await tester.pump();
+
+      expect(submitted, hasLength(2));
+      expect(submitted.last, submitted.first);
     });
   });
 
