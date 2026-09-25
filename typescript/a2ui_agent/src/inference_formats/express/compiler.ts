@@ -29,8 +29,7 @@ import {type AgentToRendererMessage, normalizeVersionString} from '../../interna
 import {type SchemaCatalog} from '../../types.js';
 import {ExpressLexer} from './generated/ExpressLexer.js';
 import {ExpressParser} from './generated/ExpressParser.js';
-import {A2uiCatalogError} from '../../errors.js';
-import {toWireProtocolVersion} from '../../utils/protocol_version.js';
+import {buildSchemaHelpers, resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {
   ExpressAstVisitor,
   ExpressErrorListener,
@@ -56,6 +55,7 @@ import {
   ExpressUnknownPropertyError,
   ExpressValidationError,
   ExpressIdCollisionError,
+  ExpressUnknownCatalogError,
 } from './errors.js';
 
 /**
@@ -243,6 +243,7 @@ class CompileContext {
   generatedIds: Set<string> = new Set();
   inlineCounter = 0;
   activeBoundPaths: Map<string, ExpressPathValue> = new Map();
+  helper!: CatalogSchemaHelper;
 }
 
 /**
@@ -267,18 +268,46 @@ class SurfaceScope {
  * an adjacency list component tree, and constructs valid A2UI JSON payloads.
  */
 export class ExpressCompiler {
-  readonly helper: CatalogSchemaHelper;
+  readonly helpers: Map<string, CatalogSchemaHelper>;
+  readonly catalogs: SchemaCatalog[];
   readonly version: string;
 
-  constructor(catalog: SchemaCatalog, version?: string) {
-    const catalogVersion = toWireProtocolVersion(catalog.protocolVersion);
-    if (version && version !== catalogVersion) {
-      throw new A2uiCatalogError(
-        `Requested protocol version '${version}' does not match catalog version '${catalogVersion}'`,
-      );
+  /**
+   * @param catalogs The active catalog, or several. A `surface(...)` line picks one by id.
+   * @param version The protocol version to emit. Defaults to the catalogs' version.
+   */
+  constructor(catalogs: SchemaCatalog | SchemaCatalog[], version?: string) {
+    this.catalogs = toCatalogList(catalogs);
+    this.version = resolveExpressVersion(this.catalogs, version);
+    this.helpers = buildSchemaHelpers(this.catalogs, this.version);
+  }
+
+  /**
+   * Picks the catalog a block compiles against.
+   *
+   * A block that names no catalog uses the first one. With several active catalogs
+   * that choice may be wrong, so it is logged.
+   *
+   * @param catalogId The catalog id the block names, or an empty string.
+   * @returns The catalog id and its schema helper.
+   * @throws ExpressUnknownCatalogError if the id is not an active catalog.
+   */
+  private resolveScopeCatalog(catalogId: string): [string, CatalogSchemaHelper] {
+    let id = catalogId;
+    if (!id) {
+      id = this.catalogs[0].id;
+      if (this.catalogs.length > 1) {
+        console.warn(
+          `Express block names no catalog; using the first active catalog, '${id}'. ` +
+            'Name one with surface("<id>", catalogId="<catalog>").',
+        );
+      }
     }
-    this.version = version ?? catalogVersion;
-    this.helper = new CatalogSchemaHelper(catalog, this.version);
+    const helper = this.helpers.get(id);
+    if (!helper) {
+      throw new ExpressUnknownCatalogError(id, [...this.helpers.keys()]);
+    }
+    return [id, helper];
   }
 
   /**
@@ -457,6 +486,10 @@ export class ExpressCompiler {
       const [firstCall, callScope] = standaloneFunctionCalls[0];
       ctx.inlineCounter += 1;
       const rawSyms = callScope ? callScope.rawSymbols : {};
+
+      const [callCatId, helper] = this.resolveScopeCatalog(callScope?.catalogId || catalogId);
+      ctx.helper = helper;
+
       const compiledVal = this._compileValue(firstCall, rawSyms, ctx, false) as Record<
         string,
         unknown
@@ -468,12 +501,7 @@ export class ExpressCompiler {
           callRendererFunction: {
             functionCallId: `call_${ctx.inlineCounter}`,
             callFunction: {
-              catalogId:
-                callScope?.catalogId ||
-                catalogId ||
-                (typeof this.helper.catalog.catalogId === 'string'
-                  ? this.helper.catalog.catalogId
-                  : 'https://a2ui.org/catalog.json'),
+              catalogId: callCatId,
               call: compiledVal.call as string,
               args: (compiledVal.args as Record<string, unknown>) ?? {},
             },
@@ -490,12 +518,8 @@ export class ExpressCompiler {
 
     for (const scope of scopes) {
       const scopeSurfId = scope.surfaceId;
-      const scopeCatId =
-        scope.catalogId ||
-        catalogId ||
-        (typeof this.helper.catalog.catalogId === 'string'
-          ? this.helper.catalog.catalogId
-          : 'https://a2ui.org/catalog.json');
+      const [scopeCatId, helper] = this.resolveScopeCatalog(scope.catalogId || catalogId);
+      ctx.helper = helper;
 
       // Compile data model paths (compiler.py:401-405)
       const dataModel: Record<string, unknown> = {};
@@ -624,27 +648,27 @@ export class ExpressCompiler {
     const args = callAst.args ?? [];
     const kwargs = callAst.kwargs ?? {};
 
-    if (!this.helper.components.has(compName)) {
+    if (!ctx.helper.components.has(compName)) {
       if (
         compName === 'Event' ||
         compName === '_template' ||
         compName === 'surface' ||
         compName === 'deleteSurface' ||
-        this.helper.functions.has(compName)
+        ctx.helper.functions.has(compName)
       ) {
         return null;
       }
       throw new ExpressUnknownComponentError(compName);
     }
 
-    const properties = this.helper.getComponentProperties(compName);
+    const properties = ctx.helper.getComponentProperties(compName);
     const compDict: Record<string, unknown> = {
       id: varName,
       component: compName,
     };
 
     // Sanctioned departure §5.2 item 4: check-rule property
-    const checkPropName = this.helper.getCheckRuleProperty(compName);
+    const checkPropName = ctx.helper.getCheckRuleProperty(compName);
     const nonCheckProperties = checkPropName
       ? properties.filter(p => p !== checkPropName)
       : properties;
@@ -703,7 +727,7 @@ export class ExpressCompiler {
         continue;
       }
 
-      const propSchema = this.helper.getPropertySchema(compName, propName);
+      const propSchema = ctx.helper.getPropertySchema(compName, propName);
       // Sanctioned departure §5.2 item 1: action slot via isActionSlot
       const isAction = isActionSlot(propSchema);
 
@@ -715,12 +739,12 @@ export class ExpressCompiler {
       // Sanctioned departure §5.2 item 5: forbidden-binding check walking schema.
       // Gated like Python (compiler.py:547): a property whose schema admits a path
       // as a whole is not inspected further.
-      if (propSchema && !this.helper.admitsPath(propSchema)) {
-        this._checkDataBindings(compName, propName, mappedVal, propSchema);
+      if (propSchema && !ctx.helper.admitsPath(propSchema)) {
+        this._checkDataBindings(compName, propName, mappedVal, propSchema, ctx.helper);
       }
 
       // Sanctioned departure §5.2 item 2: option-object coercion
-      if (propSchema && !this.helper.admitsPath(propSchema)) {
+      if (propSchema && !ctx.helper.admitsPath(propSchema)) {
         if (Array.isArray(mappedVal) && expectsOptionObjects(propSchema)) {
           mappedVal = mappedVal.map(opt =>
             typeof opt === 'string' ? {label: opt, value: opt} : opt,
@@ -729,7 +753,7 @@ export class ExpressCompiler {
       }
 
       // Enum validation (compiler.py:557-565)
-      const enumVals = this.helper.getPropertyEnum(compName, propName);
+      const enumVals = ctx.helper.getPropertyEnum(compName, propName);
       if (enumVals && typeof mappedVal === 'string') {
         if (!enumVals.includes(mappedVal)) {
           const pyListStr = `[${enumVals.map(e => `'${e}'`).join(', ')}]`;
@@ -753,7 +777,7 @@ export class ExpressCompiler {
       }
     }
 
-    const requiredProps = this.helper.getComponentRequired(compName);
+    const requiredProps = ctx.helper.getComponentRequired(compName);
     for (const reqProp of requiredProps) {
       if (reqProp === 'id' || reqProp === 'component') {
         continue;
@@ -783,7 +807,7 @@ export class ExpressCompiler {
           const checkArgs = rc.args ?? [];
           const compiledArgs: Record<string, unknown> = {};
 
-          const checkProps = this.helper.getFunctionProperties(checkName);
+          const checkProps = ctx.helper.getFunctionProperties(checkName);
           let messageVal = `${checkName.charAt(0).toUpperCase() + checkName.slice(1)} check failed`;
 
           const explicitArgs = [...checkArgs];
@@ -814,7 +838,7 @@ export class ExpressCompiler {
             const propTargetIdx = cIdx + startPropIdx;
             if (propTargetIdx < checkProps.length) {
               const propName = checkProps[propTargetIdx];
-              const propSchema = this.helper.getFunctionPropertySchema(checkName, propName);
+              const propSchema = ctx.helper.getFunctionPropertySchema(checkName, propName);
               let isMessage = false;
               if (typeof cArg === 'string' && propSchema) {
                 const expectedType = propSchema.type;
@@ -901,7 +925,7 @@ export class ExpressCompiler {
             symbolVal &&
             typeof symbolVal === 'object' &&
             'call' in symbolVal &&
-            this.helper.components.has((symbolVal as ExpressCallValue).call)
+            ctx.helper.components.has((symbolVal as ExpressCallValue).call)
           ) {
             return refName;
           }
@@ -916,7 +940,7 @@ export class ExpressCompiler {
         const checkArgs = checkVal.args ?? [];
 
         const compiledArgs: Record<string, unknown> = {};
-        const checkProps = this.helper.getFunctionProperties(checkName);
+        const checkProps = ctx.helper.getFunctionProperties(checkName);
 
         const explicitArgs = [...checkArgs];
         let isValueInjected = false;
@@ -945,7 +969,7 @@ export class ExpressCompiler {
           const propTargetIdx = cIdx + startPropIdx;
           if (propTargetIdx < checkProps.length) {
             const propName = checkProps[propTargetIdx];
-            const propSchema = this.helper.getFunctionPropertySchema(checkName, propName);
+            const propSchema = ctx.helper.getFunctionPropertySchema(checkName, propName);
             let isMessage = false;
             if (typeof cArg === 'string' && propSchema) {
               const expectedType = propSchema.type;
@@ -984,7 +1008,7 @@ export class ExpressCompiler {
         const fnKwargs = callVal.kwargs ?? {};
 
         // 1. Is it an inline component constructor?
-        if (this.helper.components.has(fnName)) {
+        if (ctx.helper.components.has(fnName)) {
           ctx.inlineCounter += 1;
           const inlineId = inlineCtx
             ? inlineCtx.index !== undefined
@@ -1055,8 +1079,8 @@ export class ExpressCompiler {
         }
 
         // 4. Is it a regular catalog function?
-        if (this.helper.functions.has(fnName)) {
-          const fnProps = this.helper.getFunctionProperties(fnName);
+        if (ctx.helper.functions.has(fnName)) {
+          const fnProps = ctx.helper.getFunctionProperties(fnName);
           const compiledArgs: Record<string, unknown> = {};
           for (let idx = 0; idx < fnArgs.length; idx++) {
             const arg = fnArgs[idx];
@@ -1147,16 +1171,17 @@ export class ExpressCompiler {
     topLevelPropName: string,
     val: unknown,
     schema: unknown,
+    helper: CatalogSchemaHelper,
   ): void {
     const walk = (v: unknown, s: unknown): void => {
       if (isDirectBinding(v)) {
-        if (s && !this.helper.admitsPath(s)) {
+        if (s && !helper.admitsPath(s)) {
           throw new ExpressForbiddenDatabindingError(compName, topLevelPropName);
         }
         return;
       }
       if (Array.isArray(v)) {
-        const itemSchema = s ? this.helper.resolveSubschema(s, 'items') : undefined;
+        const itemSchema = s ? helper.resolveSubschema(s, 'items') : undefined;
         for (const item of v) {
           walk(item, itemSchema);
         }
@@ -1168,7 +1193,7 @@ export class ExpressCompiler {
           return;
         }
         for (const [k, subVal] of Object.entries(obj)) {
-          const propSchema = s ? this.helper.resolveSubschema(s, k) : undefined;
+          const propSchema = s ? helper.resolveSubschema(s, k) : undefined;
           walk(subVal, propSchema);
         }
       }
