@@ -21,9 +21,9 @@ import {Catalog, V10RendererCapabilities} from '../../../src/internal/web_core.j
 import {A2uiCatalogError} from '../../../src/errors.js';
 
 describe('resolveCatalogs', () => {
-  const catBasic = new Catalog('id_basic', [], []);
-  const catCustom1 = new Catalog('id_custom1', [], []);
-  const catCustom2 = new Catalog('id_custom2', [], []);
+  const catBasic = new Catalog('id_basic', 'v1.0', [], []);
+  const catCustom1 = new Catalog('id_custom1', 'v1.0', [], []);
+  const catCustom2 = new Catalog('id_custom2', 'v1.0', [], []);
 
   const configBasic = new CatalogConfig(catBasic);
   const configCustom1 = new CatalogConfig(catCustom1);

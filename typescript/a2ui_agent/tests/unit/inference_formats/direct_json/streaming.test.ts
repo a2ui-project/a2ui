@@ -24,11 +24,9 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
   test('synthesised partial messages carry protocolVersion from catalog instead of hardcoded v1.0', () => {
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v0.9',
       [{name: 'Row', schema: {}} as ComponentApi, {name: 'Text', schema: {}} as ComponentApi],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
 
     // The input omits `version` on purpose: the assertion is that the emitted version comes
@@ -65,11 +63,9 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
   test('placeholder component uses empty array for children instead of explicitList', () => {
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v1.0',
       [{name: 'Row', schema: {}} as ComponentApi, {name: 'Card', schema: {}} as ComponentApi],
       [],
-      undefined,
-      undefined,
-      'v1.0',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog, {disableValidation: true});
     expect((processor as unknown as {placeholderComponent: unknown}).placeholderComponent).toEqual({
@@ -105,6 +101,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   test('withholds partial component when a required property has not arrived', () => {
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v0.9',
       [
         {
           name: 'AudioPlayer',
@@ -115,9 +112,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog);
     (processor as unknown as {refMap: unknown}).refMap = {
@@ -145,6 +139,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   test('emits component once all required properties arrive', () => {
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v0.9',
       [
         {
           name: 'AudioPlayer',
@@ -155,9 +150,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog);
     (processor as unknown as {refMap: unknown}).refMap = {
@@ -194,6 +186,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   test('direct self-edge raises Self-reference detected', () => {
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v0.9',
       [
         {
           name: 'Card',
@@ -203,9 +196,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog);
     (processor as unknown as {refMap: unknown}).refMap = {
@@ -233,6 +223,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   test('two-node cycle raises Circular reference detected without Self-reference', () => {
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v0.9',
       [
         {
           name: 'Card',
@@ -242,9 +233,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog);
     (processor as unknown as {refMap: unknown}).refMap = {
@@ -272,6 +260,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   test('interleaved surfaces update correct surfaceId during streaming', () => {
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v0.9',
       [
         {
           name: 'Card',
@@ -293,9 +282,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog);
     (processor as unknown as {refMap: unknown}).refMap = {
@@ -340,6 +326,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   test('holds back parent with unresolved children when placeholders cannot be used', () => {
     const catalog = new Catalog(
       'test_catalog',
+      'v0.9',
       [
         {
           name: 'Text',
@@ -357,9 +344,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog);
     processor.processChunk(
@@ -388,6 +372,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   test('holds back partial template child missing path when placeholders cannot be used', () => {
     const catalog = new Catalog(
       'test_catalog',
+      'v0.9',
       [
         {
           name: 'Text',
@@ -408,9 +393,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
     const processor = new DirectJsonStreamProcessorImpl(catalog);
     processor.processChunk(
@@ -452,6 +434,7 @@ describe('Direct JSON Streaming required fields guard', () => {
     // Custom component with formal child reference (ChildList) and a property named 'childLabel'
     const catalog: SchemaCatalog = new Catalog(
       'https://test.com/catalog.json',
+      'v0.9',
       [
         {
           name: 'ContainerWithLabel',
@@ -470,9 +453,6 @@ describe('Direct JSON Streaming required fields guard', () => {
         } as unknown as ComponentApi,
       ],
       [],
-      undefined,
-      undefined,
-      'v0.9',
     );
 
     const processor = new DirectJsonStreamProcessorImpl(catalog);

@@ -41,7 +41,7 @@ describe('Pruning Transformers', () => {
   };
 
   it('ComponentPruningTransformer correctly prunes components and is immutable', () => {
-    const catalog = new Catalog('test', [compA, compB], [funcX, funcY]);
+    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
 
     // Access getters to memoize their state on the original catalog
     const originalSchema = catalog.catalogSchema;
@@ -75,7 +75,7 @@ describe('Pruning Transformers', () => {
   });
 
   it('FunctionPruningTransformer correctly prunes functions and is immutable', () => {
-    const catalog = new Catalog('test', [compA, compB], [funcX, funcY]);
+    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
 
     const originalSchema = catalog.catalogSchema;
 

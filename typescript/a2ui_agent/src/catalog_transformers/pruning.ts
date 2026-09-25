@@ -81,11 +81,11 @@ export class ComponentPruningTransformer implements CatalogTransformer {
 
     const result = new Catalog(
       catalog.id,
+      catalog.protocolVersion,
       prunedComponents,
       functions,
       catalog.themeSchema,
       catalog.instructions,
-      catalog.protocolVersion,
     );
 
     registerPrunedDocument(catalog, result, 'components', this.allowedComponents);
@@ -124,11 +124,11 @@ export class FunctionPruningTransformer implements CatalogTransformer {
 
     const result = new Catalog(
       catalog.id,
+      catalog.protocolVersion,
       components,
       prunedFunctions,
       catalog.themeSchema,
       catalog.instructions,
-      catalog.protocolVersion,
     );
 
     registerPrunedDocument(catalog, result, 'functions', this.allowedFunctions);

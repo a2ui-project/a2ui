@@ -27,6 +27,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it blocks:** Legacy `v0.8` agents and alternative format use cases.
 - **Done looks like:** The `InferenceFormat` seam is populated with implementations for Express, Elemental, and Atom, and the `v0.8` conformance cases are enabled.
 
+### The per-format conformance suites are not run
+
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser, streaming parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there, as Python's does. The suites added for the blueprint interface are not run: `agent/direct_json/*.yaml`, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/request_processor.yaml` and `agent/builder/`.
+- **Why it exists:** Those suites arrived with the merge, after this harness was written.
+- **What it risks:** Behaviour they pin can drift in this package without a failing test.
+- **Done looks like:** The harness runs the new suites and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
+
 ### `no-explicit-any` lint warnings
 
 - **What it is:** There are 26 eslint warnings for `no-explicit-any` in the codebase.
@@ -120,7 +127,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### `v1.0` has a single canonical streaming case
 
-- **What it is:** `conformance/agent/streaming_parser.yaml` holds 41 `v0.9` streaming cases and one `v1.0` case. The `v1.0` streaming path is therefore covered by the `v0.9` cases, on the basis that the parser is version-independent in everything they exercise.
+- **What it is:** `conformance/agent/legacy/streaming_parser.yaml` holds 41 `v0.9` streaming cases and one `v1.0` case. The `v1.0` streaming path is therefore covered by the `v0.9` cases, on the basis that the parser is version-independent in everything they exercise.
 - **Why it exists:** Upstream has not written a `v1.0` streaming suite. The local hand-translations that stood in for one have been retired, because 19 of their 20 cases duplicated a canonical `v0.9` case.
 - **What it risks:** Any streaming behaviour that differs between versions is untested. Today the known differences are small: the server-to-client file is named differently, and `v1.0` adds the `callRendererFunction` and `agentFunctionResponse` messages, which envelope validation accepts but no streaming case sends.
 - **Done looks like:** Upstream publishes `v1.0` streaming cases in `conformance/agent/`, and they run here.
