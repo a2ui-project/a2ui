@@ -18,6 +18,7 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
+import re
 from typing import Any, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
@@ -71,8 +72,8 @@ def _decompile_string(val: str) -> str:
     has_quote = '"' in val
     has_backslash = "\\" in val
 
-    # 1. Use triple-quotes for multi-line or strings containing double quotes
-    if (has_quote or has_newline) and not val.endswith('"'):
+    # 1. Use triple-quotes for multi-line
+    if has_newline and not val.endswith('"'):
         if '"""' not in val:
             # Use raw triple quotes if there are backslashes but no tabs
             if has_backslash and not has_tab:
@@ -158,8 +159,11 @@ class _ExpressDecompiler:
         # Handle updateDataModel action
         if SurfaceOperation.UPDATE_DATA in envelope_json:
             val_op = envelope_json[SurfaceOperation.UPDATE_DATA]
+            surface_id = val_op.get("surfaceId", "")
             data_val = val_op.get("value", {})
             dsl_lines = []
+            if surface_id and surface_id != "default_surface":
+                dsl_lines.append(f'surface("{surface_id}")')
             if data_val:
                 for path, val in sorted(_flatten_data_model(data_val)):
                     val_str = self._decompile_value(val, set(), False)
@@ -167,9 +171,18 @@ class _ExpressDecompiler:
             dsl_body = "\n".join(dsl_lines)
             return dsl_body
 
-        # Handle callFunction action
-        if SurfaceOperation.CALL_FUNC in envelope_json:
-            func_op = envelope_json[SurfaceOperation.CALL_FUNC]
+        # Handle callFunction or callRendererFunction action
+        if (
+            "callRendererFunction" in envelope_json
+            or SurfaceOperation.CALL_FUNC in envelope_json
+        ):
+            func_op = envelope_json.get("callRendererFunction")
+            if isinstance(func_op, dict) and "callFunction" in func_op:
+                func_op = func_op["callFunction"]
+            else:
+                func_op = envelope_json.get(SurfaceOperation.CALL_FUNC)
+            if not isinstance(func_op, dict):
+                func_op = {}
             fn_name = func_op.get("call", "")
             fn_args = func_op.get("args", {})
             args_list = []
@@ -372,8 +385,13 @@ class _ExpressDecompiler:
                 ctx = evt.get("context", {})
                 ctx_reprs = []
                 for k, v in ctx.items():
+                    k_repr = (
+                        k
+                        if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", k)
+                        else _decompile_string(k)
+                    )
                     ctx_reprs.append(
-                        f"{k}: {self._decompile_value(v, comp_ids, False)}"
+                        f"{k_repr}: {self._decompile_value(v, comp_ids, False)}"
                     )
                 if ctx_reprs:
                     return f'Event("{name}", {{{", ".join(ctx_reprs)}}})'
@@ -427,8 +445,6 @@ class _ExpressDecompiler:
                 return f"{name}({', '.join(args_reprs)})"
 
             # General dict
-            import re
-
             items_reprs = []
             for k, v in val.items():
                 item_is_ref = is_ref or k in ("child", "componentId")

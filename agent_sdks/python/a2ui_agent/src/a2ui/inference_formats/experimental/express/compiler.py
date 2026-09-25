@@ -175,9 +175,15 @@ class _CompileContext:
 class _SurfaceScope:
     """Holds symbols and data path assignments for a target surface scope."""
 
-    def __init__(self, surface_id: str, catalog_id: Optional[str] = None):
+    def __init__(
+        self,
+        surface_id: str,
+        catalog_id: Optional[str] = None,
+        has_surface_directive: bool = False,
+    ):
         self.surface_id = surface_id
         self.catalog_id = catalog_id
+        self.has_surface_directive = has_surface_directive
         self.raw_symbols: dict[str, Any] = {}
         self.data_path_assignments: dict[str, Any] = {}
 
@@ -327,7 +333,9 @@ class ExpressCompiler:
                     )
 
                     current_scope = _SurfaceScope(
-                        surface_id=target_surf, catalog_id=target_cat
+                        surface_id=target_surf,
+                        catalog_id=target_cat,
+                        has_surface_directive=True,
                     )
                     scopes.append(current_scope)
                 elif (
@@ -375,12 +383,33 @@ class ExpressCompiler:
                 first_call, raw_syms, ctx, is_action=False
             )
 
+            if not isinstance(compiled_val, dict) or "call" not in compiled_val:
+                raise ExpressValidationError(
+                    "Standalone statement did not compile to a valid function call:"
+                    f" {compiled_val}"
+                )
+            call_func_obj = {
+                "call": compiled_val["call"],
+                "args": compiled_val.get("args", {}),
+            }
+            scope_cat_id = (
+                call_scope.catalog_id
+                if call_scope and call_scope.catalog_id
+                else (
+                    catalog_id
+                    or self.helper.catalog.get(
+                        "catalogId", "https://a2ui.org/catalog.json"
+                    )
+                )
+            )
+            if scope_cat_id:
+                call_func_obj = {"catalogId": scope_cat_id, **call_func_obj}
+
             return [{
                 "version": target_version,
-                "functionCallId": f"call_{ctx.inline_counter}",
-                SurfaceOperation.CALL_FUNC: {
-                    "call": compiled_val.get("call"),
-                    "args": compiled_val.get("args", {}),
+                "callRendererFunction": {
+                    "functionCallId": f"call_{ctx.inline_counter}",
+                    "callFunction": call_func_obj,
                 },
             }]
 
@@ -403,19 +432,6 @@ class ExpressCompiler:
                 compiled_val = self._compile_value(ast_val, scope.raw_symbols, ctx)
                 _set_nested_path(data_model, path_name, compiled_val)
 
-            if "root" not in scope.raw_symbols:
-                if scope.data_path_assignments:
-                    result_messages.append({
-                        "version": target_version,
-                        SurfaceOperation.UPDATE_DATA: {
-                            "surfaceId": scope_surf_id,
-                            "path": "/",
-                            "value": data_model,
-                        },
-                    })
-                    continue
-                raise ExpressUndefinedRootError("root")
-
             compiled_components = []
             for var_name, ast in scope.raw_symbols.items():
                 comp_dict = self._compile_ast_node(
@@ -423,9 +439,42 @@ class ExpressCompiler:
                 )
                 if comp_dict:
                     compiled_components.append(comp_dict)
+                    compiled_components.extend(ctx.extra_components)
+                    ctx.extra_components = []
 
-            compiled_components.extend(ctx.extra_components)
-            ctx.extra_components = []
+            if "root" not in scope.raw_symbols:
+                if not compiled_components:
+                    if scope.data_path_assignments:
+                        result_messages.append({
+                            "version": target_version,
+                            SurfaceOperation.UPDATE_DATA: {
+                                "surfaceId": scope_surf_id,
+                                "path": "/",
+                                "value": data_model,
+                            },
+                        })
+                        continue
+                    raise ExpressUndefinedRootError("root")
+                elif scope.has_surface_directive:
+                    result_messages.append({
+                        "version": target_version,
+                        SurfaceOperation.UPDATE_COMPONENTS: {
+                            "surfaceId": scope_surf_id,
+                            "components": compiled_components,
+                        },
+                    })
+                    if data_model:
+                        result_messages.append({
+                            "version": target_version,
+                            SurfaceOperation.UPDATE_DATA: {
+                                "surfaceId": scope_surf_id,
+                                "path": "/",
+                                "value": data_model,
+                            },
+                        })
+                    continue
+                else:
+                    raise ExpressUndefinedRootError("root")
 
             if is_at_least_version(target_version, ProtocolVersion.V1_0):
                 envelope = {
@@ -490,8 +539,14 @@ class ExpressCompiler:
         kwargs = ast.get("kwargs", {})
 
         if comp_name not in self.helper.components:
-            # Not a component, could be a standalone action/helper; skip writing as component
-            return None
+            if comp_name in self.helper.functions or comp_name in (
+                "Event",
+                "_template",
+            ):
+                return None
+            raise ExpressValidationError(
+                f"Unknown component '{comp_name}' not defined in catalog."
+            )
 
         properties = self.helper.get_component_properties(comp_name)
         comp_dict = {"id": var_name, "component": comp_name}
@@ -542,6 +597,8 @@ class ExpressCompiler:
                 raw_symbols,
                 ctx,
                 is_action=(prop_name in ["action", "submitAction"]),
+                parent_id=var_name,
+                parent_prop=prop_name,
             )
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
@@ -639,10 +696,22 @@ class ExpressCompiler:
                 comp_dict["checks"] = compiled_checks
 
         ctx.active_value_path = None
+        for req_prop in self.helper.get_component_required(comp_name):
+            if req_prop not in comp_dict and req_prop != "checks":
+                raise ExpressValidationError(
+                    f"Component '{comp_name}' missing required property '{req_prop}'."
+                )
         return {k: v for k, v in comp_dict.items() if v is not None}
 
     def _compile_value(
-        self, val: Any, raw_symbols: dict, ctx: _CompileContext, is_action: bool = False
+        self,
+        val: Any,
+        raw_symbols: dict,
+        ctx: _CompileContext,
+        is_action: bool = False,
+        parent_id: Optional[str] = None,
+        parent_prop: Optional[str] = None,
+        list_index: Optional[int] = None,
     ) -> Any:
         """Compiles an individual AST node value into valid A2UI equivalents.
 
@@ -651,6 +720,9 @@ class ExpressCompiler:
             raw_symbols: The parsed global variable symbol table.
             ctx: The active compiler execution context.
             is_action: Whether this value lies inside a component Action field.
+            parent_id: The parent component ID if compiling a component property.
+            parent_prop: The parent component property name.
+            list_index: The index within an array property if applicable.
 
         Returns:
             The semantically correct A2UI JSON structure.
@@ -721,13 +793,25 @@ class ExpressCompiler:
 
                 # Is it an inline component constructor?
                 if fn_name in self.helper.components:
-                    ctx.inline_counter += 1
-                    inline_id = f"_inline_{ctx.inline_counter}"
+                    if parent_id and parent_prop:
+                        if list_index is not None:
+                            inline_id = f"{parent_id}_{parent_prop}_{list_index}"
+                        else:
+                            inline_id = f"{parent_id}_{parent_prop}"
+                    else:
+                        ctx.inline_counter += 1
+                        inline_id = f"_inline_{ctx.inline_counter}"
+
+                    prev_extras = ctx.extra_components
+                    ctx.extra_components = []
                     compiled_inline = self._compile_ast_node(
                         inline_id, val, raw_symbols, ctx
                     )
+                    child_extras = ctx.extra_components
+                    ctx.extra_components = prev_extras
                     if compiled_inline:
                         ctx.extra_components.append(compiled_inline)
+                        ctx.extra_components.extend(child_extras)
                     return inline_id
 
                 # Is it a reserved Template signature?
@@ -769,12 +853,10 @@ class ExpressCompiler:
                         for item in raw_context:
                             if isinstance(item, dict):
                                 compiled_context.update(item)
-                    return {
-                        "event": {
-                            "name": compiled_event_name,
-                            "context": compiled_context,
-                        }
-                    }
+                    event_dict = {"name": compiled_event_name}
+                    if compiled_context:
+                        event_dict["context"] = compiled_context
+                    return {"event": event_dict}
 
                 # Is it a regular catalog function?
                 if fn_name in self.helper.functions:
@@ -812,14 +894,10 @@ class ExpressCompiler:
                     res_expr = {"call": fn_name, "args": compiled_args}
                     return res_expr
 
-                # Fallback
-                return {
-                    "call": fn_name,
-                    "args": [
-                        self._compile_value(a, raw_symbols, ctx, is_action)
-                        for a in fn_args
-                    ],
-                }
+                # Fallback: unknown function not declared in catalog
+                raise ExpressValidationError(
+                    f"Unknown function '{fn_name}' not defined in catalog."
+                )
 
             return {
                 k: self._compile_value(v, raw_symbols, ctx, is_action)
@@ -829,8 +907,16 @@ class ExpressCompiler:
         if isinstance(val, list):
             # If this is a list of elements, compile each element
             compiled_list = []
-            for item in val:
-                comp_item = self._compile_value(item, raw_symbols, ctx, is_action)
+            for idx, item in enumerate(val):
+                comp_item = self._compile_value(
+                    item,
+                    raw_symbols,
+                    ctx,
+                    is_action,
+                    parent_id=parent_id,
+                    parent_prop=parent_prop,
+                    list_index=idx,
+                )
                 compiled_list.append(comp_item)
             return compiled_list
 

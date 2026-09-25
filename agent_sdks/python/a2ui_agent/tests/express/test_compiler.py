@@ -77,7 +77,7 @@ text1 = Text("Hello Thread 1")
 """
         dsl_2 = """
 root = Column([button2])
-button2 = Button(btnLabel)
+button2 = Button(btnLabel, action=Event("click"))
 btnLabel = Text("Click Thread 2")
 """
 

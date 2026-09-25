@@ -465,61 +465,16 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
+#
+# NOTE ON REMAINING GAPS (Category B):
+# The remaining gaps below are response parser and wrapping architectural
+# gaps (affecting both Express and Direct JSON). They depend on agent SDK
+# structural changes: migrating the Python SDK from its legacy response parser
+# interface (which bundles preceding text and payload into a single part) to
+# the module blueprint Parser contract (blueprints/modules/a2ui_agent.blueprint.md),
+# where responses are decomposed into sequences of disjoint [TextPart, A2uiPart, ...]
+# parts and wrap() consumes structured ResponsePart objects.
 KNOWN_GAPS = {
-    # Compiler, Express.
-    "test_compile_express_inline_nesting": (
-        "an inline component is hoisted out as `_inline_1` rather than"
-        " `<parent id>_<property>`"
-    ),
-    "test_compile_express_event_action": (
-        "an Event with no context compiles `context: {}` rather than leaving"
-        " `context` out"
-    ),
-    "test_compile_express_event_variable_is_inlined_at_each_use": (
-        "an Event with no context compiles `context: {}` rather than leaving"
-        " `context` out"
-    ),
-    "test_compile_express_standalone_function_call": (
-        "a standalone call compiles to `functionCallId`/`callFunction` at the"
-        " top level, which agent_to_renderer.json rejects, rather than to"
-        " `callRendererFunction`"
-    ),
-    "test_compile_express_unknown_component_is_a_validation_error": (
-        "a component the catalog does not declare is dropped from the compiled"
-        " surface instead of failing the compile"
-    ),
-    "test_compile_express_missing_required_property_is_a_validation_error": (
-        "a component missing a property its catalog requires compiles without"
-        " it instead of failing the compile"
-    ),
-    "test_compile_express_unknown_function_is_a_validation_error": (
-        "a call to a function the catalog does not declare compiles instead of"
-        " failing the compile"
-    ),
-    # Decompiler, Express.
-    "test_decompile_express_update_components": (
-        "an updateComponents writes a block naming no root, which the compiler"
-        " then rejects, so the round trip fails"
-    ),
-    "test_decompile_express_update_data_model": (
-        "a standalone updateDataModel writes no surface line, so the round trip"
-        " lands on the default surface"
-    ),
-    "test_decompile_express_nested_data_model_is_one_assignment_per_leaf": (
-        "a standalone updateDataModel writes no surface line, so the round trip"
-        " lands on the default surface"
-    ),
-    "test_decompile_express_escapes_a_quote_in_a_string": (
-        "a string holding a quote is written as a triple quoted string rather"
-        " than with the quote escaped"
-    ),
-    "test_decompile_express_renderer_function_call": (
-        "a callRendererFunction decompiles to the empty string"
-    ),
-    "test_decompile_express_quotes_a_map_key_that_is_not_an_identifier": (
-        "a map key that is not an identifier is written unquoted, which the"
-        " grammar does not admit"
-    ),
     # Response parser. A part carries text and payload together, where the
     # suites fix one or the other per part, so every case with text beside a
     # block comes back short.
@@ -596,10 +551,6 @@ KNOWN_GAPS = {
     "test_parse_response_unwrapped_compiles_the_whole_body": (
         "parse_response takes no `wrapped` argument, so a response the case"
         " declares unwrapped cannot be handed to the compiler whole"
-    ),
-    "test_parse_response_express_validation_failure_surfaces": (
-        "a component the catalog does not declare is dropped from the compiled"
-        " surface instead of failing the parse"
     ),
 }
 
