@@ -16,12 +16,25 @@
 
 from typing import TYPE_CHECKING
 
+from a2ui.core import (
+    A2uiError,
+    A2uiErrorDetail,
+    A2uiParseError,
+    A2uiValidationError,
+)
+
 if TYPE_CHECKING:
     from a2ui.parser.response_part import ResponsePart
 
 
-class A2uiCompilationError(Exception):
-    """Exception raised when compiling/parsing an A2UI format block fails."""
+class A2uiCompilationError(A2uiError):
+    """Exception raised when compiling/parsing an A2UI format block fails.
+
+    A failure that can be attributed to a category is raised as one of the two
+    subclasses below, so that a caller can tell a block the format could not
+    read from one the catalog refused. A failure that fits neither is raised as
+    this class.
+    """
 
     def __init__(
         self,
@@ -31,8 +44,9 @@ class A2uiCompilationError(Exception):
         column: int | None = None,
         help_message: str | None = None,
         partial_results: list["ResponsePart"] | None = None,
+        details: list[A2uiErrorDetail] | None = None,
     ):
-        super().__init__(message)
+        super().__init__(message, details=details)
         self.raw_content = raw_content
         self.line = line
         self.column = column
@@ -49,3 +63,21 @@ class A2uiCompilationError(Exception):
         if self.help_message:
             parts.append(f"Help: {self.help_message}")
         return " - ".join(parts)
+
+
+class A2uiCompilationParseError(A2uiCompilationError, A2uiParseError):
+    """Raised when a format block cannot be read at all.
+
+    The block is malformed on its own terms: the notation's grammar rejects it,
+    or it is missing a part the notation requires before it names anything for
+    the catalog to check.
+    """
+
+
+class A2uiCompilationValidationError(A2uiCompilationError, A2uiValidationError):
+    """Raised when a readable format block says something the catalog refuses.
+
+    The block parses, so the failure is about what it names rather than how it
+    is written: a property the component does not declare, a value outside a
+    property's enum, a binding on a property that takes only a literal.
+    """

@@ -242,9 +242,11 @@ ProcessorSetup setupProcessor([
     catalogs: [effectiveCatalog],
     protocolVersion: A2uiProtocolVersion.v0_9,
   );
-  processor.processMessages([
-    CreateSurfaceMessage(surfaceId: 'surf-1', catalogId: effectiveCatalog.id),
-  ]);
+  processor.processMessages(
+    AgentToRendererMessagePayload.of(
+      CreateSurfaceMessage(surfaceId: 'surf-1', catalogId: effectiveCatalog.id),
+    ),
+  );
   final SurfaceModel<ComponentApi> surface = processor.groupModel.getSurface(
     'surf-1',
   )!;

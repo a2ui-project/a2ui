@@ -17,30 +17,28 @@
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../index.js';
 import {
-  ComponentContext,
-  MessageProcessor,
-  Catalog,
-  ComponentApi,
-  SurfaceModel,
-} from '../../index.js';
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 import {setMarkdownRenderer} from '../directives/markdown.js';
-import type {A2uiBasicTextElement} from './Text.js';
 
 describe('Text Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Text.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiBasicTextElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -89,7 +87,7 @@ describe('Text Component', () => {
   });
 
   it('should render static text content', async () => {
-    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    const el = document.createElement('a2ui-basic-text') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -104,7 +102,7 @@ describe('Text Component', () => {
   });
 
   it('should render reactive dynamic text content', async () => {
-    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    const el = document.createElement('a2ui-basic-text') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -127,7 +125,7 @@ describe('Text Component', () => {
   it('should render formatted markdown when a markdown renderer is configured', async () => {
     setMarkdownRenderer(async text => `<strong>${text}</strong>`);
 
-    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    const el = document.createElement('a2ui-basic-text') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -146,7 +144,7 @@ describe('Text Component', () => {
   });
 
   it('should apply caption variant styling structure', async () => {
-    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    const el = document.createElement('a2ui-basic-text') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

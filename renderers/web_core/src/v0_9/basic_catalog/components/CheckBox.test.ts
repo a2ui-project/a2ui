@@ -17,28 +17,26 @@
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../index.js';
 import {
-  ComponentContext,
-  MessageProcessor,
-  Catalog,
-  ComponentApi,
-  SurfaceModel,
-} from '../../index.js';
-import type {A2uiCheckBoxElement} from './CheckBox.js';
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('CheckBox Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
     // Ensure component is registered
-    await import('./CheckBox.js');
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
 
   beforeEach(() => {
@@ -76,7 +74,7 @@ describe('CheckBox Component', () => {
   });
 
   it('should render label and reflect true and false checked state', async () => {
-    const el = document.createElement('a2ui-checkbox') as A2uiCheckBoxElement;
+    const el = document.createElement('a2ui-checkbox') as A2uiWebComponentElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'checkbox_invalid');
@@ -145,7 +143,7 @@ describe('CheckBox Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-checkbox') as A2uiCheckBoxElement;
+    const el = document.createElement('a2ui-checkbox') as A2uiWebComponentElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'cb_bound');
@@ -167,7 +165,7 @@ describe('CheckBox Component', () => {
   });
 
   it('should render validation error in CheckBox', async () => {
-    const el = document.createElement('a2ui-checkbox') as A2uiCheckBoxElement;
+    const el = document.createElement('a2ui-checkbox') as A2uiWebComponentElement;
     document.body.appendChild(el);
 
     const context = new ComponentContext(surface, 'checkbox_invalid');

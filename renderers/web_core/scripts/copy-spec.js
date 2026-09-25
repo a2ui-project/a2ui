@@ -18,16 +18,25 @@
  * Cross-platform script to copy JSON schemas.
  * Uses Node.js fs/path modules for Windows/Unix compatibility.
  */
-import {mkdirSync, cpSync, readdirSync, existsSync} from 'node:fs';
+import {mkdirSync, cpSync, readdirSync, existsSync, statSync} from 'node:fs';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
 
-function copySchemas(version) {
-  const srcJsonDir = join(rootDir, '..', '..', 'specification', version, 'json');
-  const srcCatalogsDir = join(rootDir, '..', '..', 'specification', version, 'catalogs');
+const repoRoot = join(rootDir, '..', '..');
+
+/**
+ * Copies the JSON schemas for a protocol version into `src/<version>/schemas`.
+ *
+ * @param version The protocol version directory name (e.g. `v1_0`).
+ * @param catalogs A map from catalog name to the directory holding that
+ *   catalog, or `undefined` when the version ships no standalone catalogs.
+ *   Each catalog is copied to `src/<version>/schemas/catalogs/<name>`.
+ */
+function copySchemas(version, catalogs) {
+  const srcJsonDir = join(repoRoot, 'specification', version, 'json');
   const destDir = join(rootDir, 'src', version, 'schemas');
 
   mkdirSync(destDir, {recursive: true});
@@ -38,11 +47,27 @@ function copySchemas(version) {
       .forEach(file => cpSync(join(srcJsonDir, file), join(destDir, file)));
   }
 
-  if (version !== 'v0_8') {
-    cpSync(srcCatalogsDir, join(destDir, 'catalogs'), {recursive: true});
+  for (const [name, srcDir] of Object.entries(catalogs ?? {})) {
+    cpSync(srcDir, join(destDir, 'catalogs', name), {
+      recursive: true,
+      // Catalog directories may also hold documentation; only the JSON is a
+      // build input.
+      filter: src => statSync(src).isDirectory() || src.endsWith('.json'),
+    });
   }
 }
 
+const v0_9Catalogs = join(repoRoot, 'specification', 'v0_9', 'catalogs');
+
 copySchemas('v0_8');
-copySchemas('v0_9');
-copySchemas('v1_0');
+copySchemas(
+  'v0_9',
+  Object.fromEntries(
+    readdirSync(v0_9Catalogs, {withFileTypes: true})
+      .filter(entry => entry.isDirectory())
+      .map(entry => [entry.name, join(v0_9Catalogs, entry.name)]),
+  ),
+);
+// Catalogs are versioned independently of the protocol and live under the
+// top-level catalogs/ directory (see catalogs/README.md).
+copySchemas('v1_0', {basic: join(repoRoot, 'catalogs', 'basic', 'v1')});

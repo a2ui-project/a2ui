@@ -162,7 +162,7 @@ MessageProcessor<ComponentApi> newProcessorWithSurface() {
 }
 
 /// Parses a payload's envelopes, which needs no catalog.
-List<AgentToRendererMessage> parse(List<Map<String, Object?>> payload) =>
+AgentToRendererMessagePayload parse(List<Map<String, Object?>> payload) =>
     AgentToRendererMessage.parseAll(
       payload,
       protocolVersion: A2uiProtocolVersion.v0_9,
@@ -187,8 +187,11 @@ void main() {
           newValidator();
 
       expect(validator.checkVersion(createSurface()), A2uiProtocolVersion.v0_9);
-      expect(parse([createSurface()]), hasLength(1));
-      expect(parse([createSurface()]).single, isA<CreateSurfaceMessage>());
+      expect(parse([createSurface()]).messages, hasLength(1));
+      expect(
+        parse([createSurface()]).messages.single,
+        isA<CreateSurfaceMessage>(),
+      );
     });
 
     test('rejects payloads declaring another protocol version', () {
@@ -376,7 +379,7 @@ void main() {
   group('MessageProcessor.processMessages', () {
     test('accepts a well formed component graph', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
@@ -386,7 +389,7 @@ void main() {
 
     test('rejects duplicate component ids', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([text('root', 'a'), text('root', 'b')]),
       ]);
@@ -405,7 +408,7 @@ void main() {
 
     test('a child reference that names no component fails the payload', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'missing')]),
       ]);
@@ -426,7 +429,7 @@ void main() {
 
     test('a surface with no root component fails the payload', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
       ]);
@@ -446,7 +449,7 @@ void main() {
 
     test('a surface with an unreachable component is incomplete', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           card('root', 'label'),
@@ -546,7 +549,7 @@ void main() {
 
     test('rejects a self reference', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'root')]),
       ]);
@@ -567,7 +570,7 @@ void main() {
 
     test('rejects a cycle in the component graph', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'b'), card('b', 'root')]),
       ]);
@@ -593,7 +596,7 @@ void main() {
       }
       components.add(text('c$chain', 'leaf'));
 
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents(components),
       ]);
@@ -612,7 +615,7 @@ void main() {
 
     test('follows a static child list', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> valid = parse([
+      final AgentToRendererMessagePayload valid = parse([
         createSurface(),
         updateComponents([
           {
@@ -627,7 +630,7 @@ void main() {
       expect(() => processor.processMessages(valid), returnsNormally);
 
       final MessageProcessor<ComponentApi> second = newProcessor();
-      final List<AgentToRendererMessage> dangling = parse([
+      final AgentToRendererMessagePayload dangling = parse([
         createSurface(),
         updateComponents([
           {
@@ -646,7 +649,7 @@ void main() {
 
     test('follows a child list template', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -660,7 +663,7 @@ void main() {
       expect(() => processor.processMessages(messages), returnsNormally);
 
       final MessageProcessor<ComponentApi> second = newProcessor();
-      final List<AgentToRendererMessage> dangling = parse([
+      final AgentToRendererMessagePayload dangling = parse([
         createSurface(),
         updateComponents([
           {
@@ -678,7 +681,7 @@ void main() {
 
     test('follows references nested in an array of objects', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -709,7 +712,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       // `text` is a plain string, so 'root' inside it is not a reference and
       // must not read as a self-reference.
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([text('root', 'root')]),
       ]);
@@ -776,7 +779,7 @@ void main() {
     test('rejects a malformed data model path', () {
       final MessageProcessor<ComponentApi> processor =
           newProcessorWithSurface();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         {
           'version': 'v0.9',
           'updateDataModel': {'surfaceId': 's1', 'path': 'a~2b', 'value': 1},
@@ -805,7 +808,7 @@ void main() {
           'args': {'inner': call},
         };
       }
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         updateComponents([
           {'id': 'root', 'component': 'Text', 'text': call},
         ]),
@@ -827,7 +830,7 @@ void main() {
       test('allow a missing root and references to existing components', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<AgentToRendererMessage> messages = parse([
+        final AgentToRendererMessagePayload messages = parse([
           updateComponents([card('panel', 'alreadyOnTheClient')]),
         ]);
 
@@ -837,7 +840,7 @@ void main() {
       test('still reject duplicate ids', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<AgentToRendererMessage> messages = parse([
+        final AgentToRendererMessagePayload messages = parse([
           updateComponents([text('a', 'one'), text('a', 'two')]),
         ]);
 
@@ -850,7 +853,7 @@ void main() {
       test('still reject a self reference', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<AgentToRendererMessage> messages = parse([
+        final AgentToRendererMessagePayload messages = parse([
           updateComponents([card('a', 'a')]),
         ]);
 
@@ -863,7 +866,7 @@ void main() {
       test('still reject a cycle', () {
         final MessageProcessor<ComponentApi> processor =
             newProcessorWithSurface();
-        final List<AgentToRendererMessage> messages = parse([
+        final AgentToRendererMessagePayload messages = parse([
           updateComponents([card('a', 'b'), card('b', 'a')]),
         ]);
 
@@ -876,7 +879,7 @@ void main() {
 
     test('accumulates components across updates to the same surface', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'label')]),
         updateComponents([text('label', 'Hello')]),
@@ -896,7 +899,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = newProcessor(
         validationConfig: const ValidationConfig(allowOrphanComponents: true),
       );
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'a'), text('a')]),
         updateComponents([card('root', 'b'), text('b')]),
@@ -907,7 +910,7 @@ void main() {
 
     test('drops the components of a surface deleted in the same payload', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'missing')]),
         {
@@ -925,7 +928,7 @@ void main() {
       // About the schema, not the graph: the payload declares one component
       // and no root, which the strict default would reject on its own.
       final MessageProcessor<ComponentApi> processor = newStreamingProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
       ]);
@@ -935,7 +938,7 @@ void main() {
 
     test('rejects a component missing a required property', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           {'id': 'label', 'component': 'Text'},
@@ -950,7 +953,7 @@ void main() {
 
     test('rejects a property of the wrong type', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           {'id': 'label', 'component': 'Text', 'text': 42},
@@ -965,7 +968,7 @@ void main() {
 
     test('rejects a component the catalog does not declare', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           {'id': 'label', 'component': 'Nonexistent'},
@@ -986,7 +989,7 @@ void main() {
 
     test('rejects a surface created against an unsupported catalog', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         {
           'version': 'v0.9',
           'createSurface': {
@@ -1006,7 +1009,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = newProcessor(
         withCommonTypes: true,
       );
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -1031,7 +1034,7 @@ void main() {
       // component `row` it names is never declared, so the graph checks are
       // relaxed to leave the schema question on its own.
       final MessageProcessor<ComponentApi> processor = newStreamingProcessor();
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
           {
@@ -1265,12 +1268,12 @@ void main() {
     test('applies a valid payload', () async {
       final MessageProcessor<ComponentApi> processor = newProcessor();
 
-      final List<AgentToRendererMessage> messages = parse([
+      final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
-      expect(messages, hasLength(2));
-      expect(messages.first, isA<CreateSurfaceMessage>());
+      expect(messages.messages, hasLength(2));
+      expect(messages.messages.first, isA<CreateSurfaceMessage>());
 
       expect(() => processor.processMessages(messages), returnsNormally);
     });

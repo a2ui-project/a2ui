@@ -1,0 +1,177 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Catalog transformers: the rules an agent applies to a catalog before the
+# catalog reaches a prompt or a validator.
+#
+# A case names a pristine catalog document and the transformers to apply, and
+# states what the resulting catalog declares. The `components` and `functions`
+# lists are exhaustive, so a case that names two components is also saying the
+# other two are gone.
+#
+# Keeping everything is said by applying no transformer. An allowlist is
+# therefore read literally: an empty one keeps nothing, and a name the catalog
+# never declared is ignored rather than rejected, because an agent that
+# allowlists a component for a catalog that does not have it has asked for
+# nothing, not for an error.
+#
+# Every case here is written against v1.0. A case states no version of its own:
+# the version it runs under is the one its catalog document declares, or the one
+# `args` hands the implementation.
+
+# --- Component pruning ---
+
+- name: test_component_pruning_keeps_allowlist
+  description: Pruning to an allowlist keeps those components and drops the rest.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: ["Text", "Card"]
+  expect:
+    components: ["Text", "Card"]
+
+- name: test_component_pruning_ignores_unknown_name
+  description: A name the catalog does not declare is ignored rather than rejected.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: ["Text", "Sparkline"]
+  expect:
+    components: ["Text"]
+
+- name: test_component_pruning_repeated_name
+  description: An allowlist that repeats a name behaves as the set of its names.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: ["Text", "Text"]
+  expect:
+    components: ["Text"]
+
+- name: test_component_pruning_empty_allowlist_keeps_nothing
+  description: An empty allowlist leaves no components, since keeping everything is said by applying no transformer.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: []
+  expect:
+    components: []
+    functions: ["required", "formatString", "openUrl"]
+
+- name: test_component_pruning_leaves_functions_alone
+  description: Pruning components does not touch the function definitions.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: ["Text"]
+  expect:
+    components: ["Text"]
+    functions: ["required", "formatString", "openUrl"]
+
+# --- Function pruning ---
+
+- name: test_function_pruning_keeps_allowlist
+  description: Pruning to an allowlist keeps those functions and drops the rest.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - function_pruning: ["required"]
+  expect:
+    functions: ["required"]
+
+- name: test_function_pruning_empty_allowlist_keeps_nothing
+  description: An empty function allowlist leaves no functions, and the components are untouched.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - function_pruning: []
+  expect:
+    components: ["Text", "Button", "Card", "Column"]
+    functions: []
+
+- name: test_function_pruning_unknown_name
+  description: A function the catalog does not declare is ignored, as with components.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - function_pruning: ["required", "geolocate"]
+  expect:
+    functions: ["required"]
+
+- name: test_function_pruning_on_catalog_without_functions
+  description: Pruning functions on a catalog that declares none succeeds and leaves the components alone.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/catalog_without_id.json"
+    transformers:
+      - function_pruning: ["required"]
+  expect:
+    components: ["Text"]
+    functions: []
+
+# --- Sequencing ---
+
+- name: test_transformers_apply_in_sequence
+  description: Several transformers apply one after another, each seeing the previous result.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: ["Text", "Card", "Column"]
+      - component_pruning: ["Text", "Button"]
+  expect:
+    components: ["Text"]
+
+- name: test_transformer_order_does_not_change_the_result
+  description: Pruning components then functions leaves the same catalog as pruning functions then components.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - function_pruning: ["required"]
+      - component_pruning: ["Text"]
+  expect:
+    components: ["Text"]
+    functions: ["required"]
+
+- name: test_no_transformers_keeps_the_whole_catalog
+  description: A catalog registered without transformers reaches the prompt whole.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect:
+    components: ["Text", "Button", "Card", "Column"]
+    functions: ["required", "formatString", "openUrl"]
+
+# --- What survives a transform ---
+
+- name: test_transform_preserves_catalog_identity
+  description: A transformed catalog keeps the id and protocol version of the document it came from.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: ["Text"]
+  expect:
+    catalog_id: "conformance/simplified"
+    protocol_version: "v1.0"
+    components: ["Text"]

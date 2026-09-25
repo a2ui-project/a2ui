@@ -134,13 +134,15 @@ void _seedReferencedSurfaces(
   };
   if (referenced.isEmpty) return;
 
-  processor.processMessages([
-    for (final String id in referenced)
-      CreateSurfaceMessage(
-        surfaceId: id,
-        catalogId: processor.catalogs.single.id,
-      ),
-  ]);
+  processor.processMessages(
+    AgentToRendererMessagePayload([
+      for (final String id in referenced)
+        CreateSurfaceMessage(
+          surfaceId: id,
+          catalogId: processor.catalogs.single.id,
+        ),
+    ]),
+  );
 }
 
 /// The steps a case runs, whether it declares one payload or several.
@@ -211,7 +213,6 @@ Matcher _categoryMatches(String? category) => switch (category) {
   'CatalogError' => isA<A2uiCatalogError>(),
   'IntegrityError' => isA<A2uiIntegrityError>(),
   'RecursionError' => isA<A2uiRecursionError>(),
-  'CompileError' => isA<A2uiCompileError>(),
   'DataError' => isA<A2uiDataError>(),
   'StateError' => isA<A2uiStateError>(),
   _ => isA<A2uiError>(),

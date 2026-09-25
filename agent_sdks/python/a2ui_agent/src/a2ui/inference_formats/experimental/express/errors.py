@@ -31,7 +31,23 @@ class ExpressCompilerError(ValueError):
         self.help_message = help_message
 
 
-class ExpressUnknownPropertyError(ExpressCompilerError):
+class ExpressParseError(ExpressCompilerError):
+    """Base class for blocks the compiler cannot read.
+
+    The block is malformed on its own terms, so the compiler never reaches the
+    point of asking the catalog about anything it names.
+    """
+
+
+class ExpressValidationError(ExpressCompilerError):
+    """Base class for readable blocks the catalog refuses.
+
+    The block parses; what it names or the value it gives is what the catalog
+    does not admit.
+    """
+
+
+class ExpressUnknownPropertyError(ExpressValidationError):
     """Raised when a component argument is not a valid property in the catalog schema."""
 
     def __init__(self, comp_name: str, prop_name: str, valid_props: List[str]):
@@ -58,7 +74,7 @@ class ExpressUnknownPropertyError(ExpressCompilerError):
         self.valid_props = valid_props
 
 
-class ExpressDuplicatePropertyError(ExpressCompilerError):
+class ExpressDuplicatePropertyError(ExpressValidationError):
     """Raised when a property is provided multiple times for a single component instance."""
 
     def __init__(self, comp_name: str, prop_name: str):
@@ -81,7 +97,7 @@ class ExpressDuplicatePropertyError(ExpressCompilerError):
         self.prop_name = prop_name
 
 
-class ExpressInvalidParamError(ExpressCompilerError):
+class ExpressInvalidParamError(ExpressValidationError):
     """Raised when a function argument is not a valid parameter in the function schema."""
 
     def __init__(self, fn_name: str, param_name: str, valid_params: List[str]):
@@ -107,7 +123,7 @@ class ExpressInvalidParamError(ExpressCompilerError):
         self.valid_params = valid_params
 
 
-class ExpressDuplicateParamError(ExpressCompilerError):
+class ExpressDuplicateParamError(ExpressValidationError):
     """Raised when a function parameter is provided multiple times."""
 
     def __init__(self, fn_name: str, param_name: str):
@@ -130,7 +146,7 @@ class ExpressDuplicateParamError(ExpressCompilerError):
         self.param_name = param_name
 
 
-class ExpressForbiddenDatabindingError(ExpressCompilerError):
+class ExpressForbiddenDatabindingError(ExpressValidationError):
     """Raised when dynamic databinding ($path) is used on a property that forbids databinding."""
 
     def __init__(self, comp_name: str, prop_name: str):
@@ -153,7 +169,7 @@ class ExpressForbiddenDatabindingError(ExpressCompilerError):
         self.prop_name = prop_name
 
 
-class ExpressUndefinedRootError(ExpressCompilerError):
+class ExpressUndefinedRootError(ExpressParseError):
     """Raised when a root component reference is missing from the DSL."""
 
     def __init__(self, root_target: str):
@@ -170,7 +186,7 @@ class ExpressUndefinedRootError(ExpressCompilerError):
         self.root_target = root_target
 
 
-class ExpressUndefinedChildError(ExpressCompilerError):
+class ExpressUndefinedChildError(ExpressParseError):
     """Raised when a child component variable reference is missing from the DSL."""
 
     def __init__(self, child_id: str):
@@ -183,5 +199,5 @@ class ExpressUndefinedChildError(ExpressCompilerError):
         help_msg = (
             f"Ensure component reference '{child_id}' is defined in your Express DSL."
         )
-        super().__init__(msg, help_message=help_message)
+        super().__init__(msg, help_message=help_msg)
         self.child_id = child_id

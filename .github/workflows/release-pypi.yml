@@ -1,0 +1,510 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Releases the Python SDKs to PyPI through the OSS Exit Gate.
+#
+# The path of this file is part of the Exit Gate's authorization config. It is
+# registered as a builder identity in the a2ui project:
+#
+#   builders: "github_workflow:a2ui-project/a2ui/.github/workflows/release-pypi.yml@refs/heads/main"
+#
+# Google Cloud matches that string exactly against the `workflow_ref` claim in
+# this workflow's OIDC token, with no wildcard support. Two consequences:
+#
+#  1. Renaming or moving this file breaks releases until the internal config is
+#     updated to match.
+#  2. This workflow cannot be triggered by a tag push. The claim embeds the
+#     triggering ref, so a tag-triggered run presents `@refs/tags/...` and is
+#     refused. That is why the release is dispatched from `main` and creates the
+#     tag itself, rather than being started by one.
+#
+# This workflow never pushes to `main`. The "Restrict Default Branch" ruleset
+# requires a pull request and lists no bypass actors, so a direct push is
+# refused, and being refused mid-run would strand artifacts in the Artifact
+# Registry. Only tags are pushed, which no ruleset covers. The changelog edit
+# that accompanies a release is prepared on a branch at the end, for a
+# maintainer to open as an ordinary pull request.
+#
+# Because of that, tags point at a commit that is already on `main`, which is
+# what keeps `git describe --match` in python_ci.yml working.
+#
+# Security note: builds and tests run in an unprivileged `build` job with
+# default `contents: read` permissions. Third-party dependencies and build
+# backends never execute in the `release` job, which isolates `id-token: write`
+# and `contents: write` exclusively to trusted staging, tagging, and publishing
+# steps.
+#
+# See docs/contributing/release.md for the operator-facing description.
+
+name: Release Python SDKs
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to release
+        required: true
+        type: choice
+        options:
+          - a2ui-core
+          - a2ui-agent-sdk
+          - both
+      bump:
+        description: Version bump
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: Stage in Artifact Registry without publishing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# Releases must not overlap. Two runs staging different versions of the same
+# package would race on the Artifact Registry and the manifest bucket.
+#
+# The group is deliberately not keyed by the `package` input: `both` and
+# `a2ui-core` would then land in different groups and be free to run at the same
+# time, which is exactly the collision this is meant to prevent. Releases are
+# manual and infrequent, so serialising all of them costs nothing.
+concurrency:
+  group: release-pypi
+  cancel-in-progress: false
+
+env:
+  EXIT_GATE_PROJECT: oss-exit-gate-prod
+  EXIT_GATE_AR_LOCATION: us
+  EXIT_GATE_AR_REPOSITORY: a2ui--pypi
+  EXIT_GATE_AR_URL: https://us-python.pkg.dev/oss-exit-gate-prod/a2ui--pypi
+  EXIT_GATE_MANIFEST_PREFIX: gs://oss-exit-gate-prod-projects-bucket/a2ui/pypi/manifests
+  WIF_PROVIDER: projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github
+
+jobs:
+  build:
+    name: Build and verify distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Require the main branch
+        if: github.ref != 'refs/heads/main'
+        env:
+          TRIGGER_REF: ${{ github.ref }}
+        run: |
+          echo "::error::Releases must run from main. The OSS Exit Gate only" \
+            "trusts this workflow at refs/heads/main, so a run from" \
+            "$TRIGGER_REF cannot authenticate."
+          exit 1
+
+      # Full history and tags: the version of each package is derived from its
+      # tag series, and a shallow checkout would silently build the
+      # fallback-version configured in pyproject.toml instead.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-python
+
+      - name: Confirm release tags are visible
+        run: |
+          set -euo pipefail
+          for glob in 'python/a2ui-core/v*' 'python/a2ui-agent-sdk/v*'; do
+            if ! git describe --tags --match "$glob" >/dev/null 2>&1; then
+              echo "::error::No tag matching $glob is reachable. Versions would" \
+                "fall back instead of being derived from tags."
+              exit 1
+            fi
+          done
+
+      # The plan is computed from the tags that exist now, before this run
+      # creates any. Reversing these two steps would bump twice.
+      - name: Build the release plan
+        id: plan
+        env:
+          PACKAGE: ${{ inputs.package }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          python3 .github/scripts/release_version.py plan \
+            --package "$PACKAGE" \
+            --bump "$BUMP" \
+            --output release-plan.json
+
+      # Also rejects an empty `## Unreleased` section, which is what stops a
+      # release that would have nothing to say for itself.
+      - name: Preflight checks
+        run: |
+          set -euo pipefail
+          jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
+            while read -r name version; do
+              python3 .github/scripts/release_version.py check \
+                --package "$name" --version "$version"
+            done
+
+      - name: Confirm the versions are new to PyPI
+        run: |
+          set -euo pipefail
+          jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
+            while read -r name version; do
+              url="https://pypi.org/pypi/${name}/${version}/json"
+              # Retry rather than let one flaky lookup fail a release. A hard
+              # curl failure still aborts, so the guard cannot pass by accident.
+              code=$(curl -sS --retry 3 --retry-connrefused \
+                -o /dev/null -w '%{http_code}' "$url")
+              if [ "$code" = "200" ]; then
+                echo "::error::${name} ${version} is already on PyPI."
+                exit 1
+              fi
+              echo "${name} ${version} is not on PyPI yet (HTTP ${code})."
+            done
+
+      # Tags are created on the checked-out commit, which is already on `main`,
+      # and are not pushed yet. Because this job has only `contents: read`,
+      # these tags exist only on the local runner filesystem for hatch-vcs.
+      - name: Tag locally
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          jq -r '.[] | "\(.tag)\t\(.pypi_name) \(.version)"' release-plan.json |
+            while IFS=$'\t' read -r tag message; do
+              git tag -a "$tag" -m "$message"
+            done
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Run tests
+        run: uv run pytest
+
+      - name: Build distributions
+        run: |
+          set -euo pipefail
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            rm -rf "${directory}/dist"
+            (cd "$directory" && uv build --out-dir dist)
+          done
+
+      # Reads the version back out of every artifact. This is what catches a
+      # build that missed the tags and used the fallback version.
+      - name: Verify the built artifacts
+        run: |
+          python3 .github/scripts/release_artifacts.py \
+            --plan release-plan.json --repo-root . verify
+
+      # twine lives in the `release` dependency group, which is not synced
+      # here, so it runs in a throwaway environment like the upload step.
+      - name: Check distribution metadata
+        run: |
+          set -euo pipefail
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            uv run --isolated --with twine twine check "${directory}"/dist/*
+          done
+
+      # Stage artifacts in a directory tree mirroring the repo root so downloading
+      # with path: . in downstream jobs drops the plan at ./release-plan.json and
+      # built packages into their respective dist/ directories.
+      - name: Stage built artifacts for hand-off
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts
+          cp release-plan.json .artifacts/
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            mkdir -p ".artifacts/${directory}/dist"
+            cp "${directory}"/dist/* ".artifacts/${directory}/dist/"
+          done
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-artifacts
+          path: .artifacts
+          retention-days: 7
+
+  release:
+    name: Stage and publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-python
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: .
+
+      # Verify that the downloaded artifacts match the plan before touching GCP.
+      - name: Verify the transferred artifacts
+        run: |
+          python3 .github/scripts/release_artifacts.py \
+            --plan release-plan.json --repo-root . verify
+
+      # Tags are created on the checked-out commit, which is already on `main`,
+      # so git push --atomic can push them once staging succeeds.
+      - name: Tag locally
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          jq -r '.[] | "\(.tag)\t\(.pypi_name) \(.version)"' release-plan.json |
+            while IFS=$'\t' read -r tag message; do
+              git tag -a "$tag" -m "$message"
+            done
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+
+      # Staging is ordered core first, which is the order the plan emits, so a
+      # new a2ui-core is in place before the a2ui-agent-sdk that requires it.
+      - name: Stage in the Exit Gate Artifact Registry
+        run: |
+          set -euo pipefail
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            uv run --isolated \
+              --with twine \
+              --with keyrings.google-artifactregistry-auth \
+              twine upload --repository-url "${EXIT_GATE_AR_URL}" \
+              "${directory}"/dist/*
+          done
+
+      # always(), because cleanup is needed on dry runs and on failed publish
+      # runs: with `package: both`, core can land and agent-sdk fail, and
+      # leaving core behind blocks subsequent release attempts because Artifact
+      # Registry rejects uploading duplicate versions.
+      - name: Discard the staged artifacts
+        if: ${{ always() && (inputs.dry_run || failure()) }}
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
+            while read -r name version; do
+              # A version that never uploaded is the normal case on a partial
+              # failure, so a missing one is not an error here.
+              if ! gcloud artifacts versions describe "$version" \
+                --package="$name" \
+                --repository="${EXIT_GATE_AR_REPOSITORY}" \
+                --location="${EXIT_GATE_AR_LOCATION}" \
+                --project="${EXIT_GATE_PROJECT}" >/dev/null 2>&1; then
+                echo "${name} ${version} was never staged, nothing to remove."
+                continue
+              fi
+              gcloud artifacts versions delete "$version" \
+                --package="$name" \
+                --repository="${EXIT_GATE_AR_REPOSITORY}" \
+                --location="${EXIT_GATE_AR_LOCATION}" \
+                --project="${EXIT_GATE_PROJECT}" \
+                --quiet
+            done
+          if [ "${DRY_RUN}" = "true" ]; then
+            {
+              echo "### Dry run"
+              echo
+              echo "Staged and then removed the following. No tag was pushed and"
+              echo "nothing was published."
+              echo
+              jq -r '.[] | "* \(.pypi_name) \(.version) (\(.tag))"' release-plan.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### Staging failed — cleaned up"
+              echo
+              echo "A failure occurred during staging. Cleaned up any staged"
+              echo "artifacts from the Exit Gate Artifact Registry. No tags were pushed"
+              echo "and nothing was published."
+              echo
+              jq -r '.[] | "* \(.pypi_name) \(.version) (\(.tag))"' release-plan.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Past this point the artifacts are staged and the release is going
+      # ahead, so the tags become permanent. Only tags are pushed: `main` is
+      # covered by a ruleset that requires a pull request, and the changelog
+      # edit goes through that route at the end of the job.
+      #
+      # --atomic, so a `both` release cannot end up with a2ui-core tagged and
+      # a2ui-agent-sdk not. Recovering from that by hand means working out which
+      # half landed while artifacts are already staged.
+      - name: Push the tags
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          readarray -t refs < <(jq -r '.[] | "refs/tags/\(.tag)"' release-plan.json)
+          git push --atomic origin "${refs[@]}"
+
+      - name: Write the publishing manifest
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python3 .github/scripts/release_artifacts.py \
+            --plan release-plan.json manifest --output manifest.json
+
+      - name: Trigger the Exit Gate
+        if: ${{ !inputs.dry_run }}
+        env:
+          MANIFEST_NAME: manifest-${{ github.run_id }}-${{ github.run_attempt }}.json
+        run: |
+          set -euo pipefail
+          gcloud storage cp manifest.json \
+            "${EXIT_GATE_MANIFEST_PREFIX}/${MANIFEST_NAME}"
+          {
+            echo "### Publishing triggered"
+            echo
+            echo "Manifest: \`${MANIFEST_NAME}\`"
+            echo
+            echo '```json'
+            cat manifest.json
+            echo '```'
+            echo
+            echo "The Exit Gate emails the outcome to the address in the"
+            echo "project config. Publication usually lands within minutes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Creating the releases through the script keeps the wording, and the
+      # pending marker the backstop searches for, in a single place.
+      - name: Create the GitHub releases
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/confirm_pypi.py create \
+            --plan release-plan.json --repo-root .
+
+      # The confirm job needs the plan, and job outputs are awkward for release
+      # notes that contain newlines and backticks.
+      - name: Hand the plan to downstream jobs
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-plan
+          path: release-plan.json
+          retention-days: 7
+
+  confirm:
+    name: Confirm publication on PyPI
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-plan
+
+      # The Exit Gate has no status API or webhook, only notification emails,
+      # so publication is confirmed by polling PyPI directly. A timeout here is
+      # not a failure: publishing may simply be slow, and the scheduled
+      # release-verify-pypi workflow picks it up afterwards.
+      - name: Wait for PyPI and link the releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/confirm_pypi.py wait \
+            --plan release-plan.json \
+            --timeout-seconds 1200
+
+  # The changelog edit cannot be pushed to `main` (see the header), so it goes
+  # out as an ordinary pull request. This job prepares the branch but stops
+  # short of opening the pull request, and that is deliberate.
+  #
+  # GitHub does not start workflow runs for events caused by `GITHUB_TOKEN`, so
+  # a pull request opened here would never get `format-check`, `static-checks`,
+  # `ci-*` or `build_and_deploy`. The `Restrict Default Branch` ruleset requires
+  # all of them and allows no bypass, so that pull request could never be
+  # merged — and until it merged, the entries would stay under `## Unreleased`
+  # and every later release would repeat them. An automated pull request nobody
+  # can merge is worse than none.
+  #
+  # Pushing the branch has no such problem, because nothing needs to trigger on
+  # the push. A maintainer then opens the pull request from the link in the job
+  # summary, and because a person opened it, CI runs normally.
+  #
+  # Separate job because it is housekeeping: the packages are already published
+  # by this point, and a failure here must not stop `confirm` from linking the
+  # GitHub releases.
+  changelog:
+    name: Prepare the changelog update
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-plan
+
+      - name: Push the changelog branch
+        env:
+          BRANCH: release/changelog-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          jq -r '.[] | "\(.pypi_name)\t\(.version)"' release-plan.json |
+            while IFS=$'\t' read -r name version; do
+              python3 .github/scripts/release_version.py cut-changelog \
+                --package "$name" --version "$version" --write
+            done
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          # Only the changelogs: release-plan.json is downloaded into the
+          # workspace and must not end up in the commit.
+          jq -r '.[].directory' release-plan.json | while read -r directory; do
+            git add "${directory}/CHANGELOG.md"
+          done
+
+          released=$(jq -r '[.[] | "\(.pypi_name) \(.version)"] | join(", ")' \
+            release-plan.json)
+          git commit -m "chore(release): changelog for ${released}"
+          git push origin "HEAD:refs/heads/${BRANCH}"
+
+          compare="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${BRANCH}?expand=1"
+          {
+            echo "### Changelog branch ready"
+            echo
+            echo "[Open the pull request](${compare})"
+            echo
+            echo "Merge it before the next release. Until it lands, the entries"
+            echo "stay under \`## Unreleased\` and the next release repeats them"
+            echo "in its notes."
+          } >> "$GITHUB_STEP_SUMMARY"

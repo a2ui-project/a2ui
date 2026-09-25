@@ -17,30 +17,27 @@
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../index.js';
 import {
-  ComponentContext,
-  MessageProcessor,
-  Catalog,
-  ComponentApi,
-  SurfaceModel,
-} from '../../index.js';
-import type {A2uiBasicRowElement} from './Row.js';
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Row Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Row.js');
-    await import('./Text.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiBasicRowElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -89,7 +86,7 @@ describe('Row Component', () => {
   });
 
   it('should render children and apply flex alignment styles', async () => {
-    const el = document.createElement('a2ui-basic-row') as A2uiBasicRowElement;
+    const el = document.createElement('a2ui-basic-row') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -131,7 +128,7 @@ describe('Row Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-basic-row') as A2uiBasicRowElement;
+    const el = document.createElement('a2ui-basic-row') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

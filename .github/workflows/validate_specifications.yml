@@ -19,11 +19,15 @@ on:
     branches: [main]
     paths:
       - "specification/**/json/**"
+      - "specification/**/catalogs/**"
+      - "catalogs/**"
       - ".github/workflows/validate_specifications.yml"
       - "specification/scripts/validate.py"
   pull_request:
     paths:
       - "specification/**/json/**"
+      - "specification/**/catalogs/**"
+      - "catalogs/**"
       - ".github/workflows/validate_specifications.yml"
       - "specification/scripts/validate.py"
 

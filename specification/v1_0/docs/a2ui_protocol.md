@@ -566,6 +566,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
    - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
+     - `Child`
      - `ChildList`
      - `DynamicString`
      - `DynamicNumber`
@@ -576,6 +577,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `CheckRule`
      - `Checkable`
      - `Action`
+     - `DataBinding`
+     - `FunctionCall`
 
    > [!NOTE]
    > **Catalog Evolution and Protocol Compatibility**
@@ -1551,7 +1554,7 @@ Renderers and client SDKs expose surface and component metadata using uniform ac
 [`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`agent_to_renderer.json`]: ../json/agent_to_renderer.json
 [`catalog_definition.json`]: ../json/catalog_definition.json
-[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
+[`catalogs/basic/catalog.json`]: ../../../catalogs/basic/v1/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
 [`renderer_data_model.json`]: ../json/renderer_data_model.json

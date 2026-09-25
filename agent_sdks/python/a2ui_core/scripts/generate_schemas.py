@@ -177,14 +177,24 @@ def compile_properties_to_pydantic(
             pattern_val = prop_desc["pattern"]
             field_opts.append(f'pattern="{pattern_val}"')
 
+        # Document JSON Schema ``default`` annotations in the field description
+        # rather than setting a Pydantic default (which would emit unset values
+        # on serialization). ``const`` remains a real field default.
         has_default = False
-        if "default" in prop_desc:
-            has_default = True
-            default_val = prop_desc["default"]
-            if isinstance(default_val, str):
-                field_opts.append(f'default="{default_val}"')
-            else:
-                field_opts.append(f"default={default_val}")
+        if "default" in prop_desc and "const" not in prop_desc:
+            raw_default = prop_desc["default"]
+            documented_default = (
+                f"'{raw_default}'"
+                if isinstance(raw_default, str)
+                else json.dumps(raw_default)
+            )
+            field_opts = [o for o in field_opts if not o.startswith("description=")]
+            annotated = (
+                f"{description} Defaults to {documented_default} when absent."
+                if description
+                else f"Defaults to {documented_default} when absent."
+            )
+            field_opts.insert(0, f'description="{annotated}"')
         elif "const" in prop_desc:
             has_default = True
             default_val = prop_desc["const"]

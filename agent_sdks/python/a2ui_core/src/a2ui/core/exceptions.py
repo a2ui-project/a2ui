@@ -67,9 +67,3 @@ class A2uiRecursionError(A2uiError):
     """Exception raised when recursive or traversal limits are exceeded."""
 
     pass
-
-
-class A2uiCompileError(A2uiError):
-    """Exception raised when compiling or translating alternative UI formats/DSLs."""
-
-    pass

@@ -127,6 +127,130 @@ def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"
     return True
 
 
+def validate_example_icons(catalog_path, example_files):
+    """Validates that any icon referenced in example files exists in the basic catalog."""
+    if not os.path.exists(catalog_path):
+        return True
+
+    with open(catalog_path, "r") as f:
+        catalog = json.load(f)
+
+    valid_icons = set()
+    icon_def = catalog.get("components", {}).get("Icon", {})
+    if "allOf" in icon_def:
+        for item in icon_def["allOf"]:
+            props = item.get("properties", {})
+            if "name" in props:
+                for branch in props["name"].get("oneOf", []):
+                    if "enum" in branch:
+                        valid_icons.update(branch["enum"])
+    elif "properties" in icon_def:
+        props = icon_def["properties"]
+        if "name" in props:
+            for branch in props["name"].get("oneOf", []):
+                if "enum" in branch:
+                    valid_icons.update(branch["enum"])
+
+    if not valid_icons:
+        return True
+
+    def resolve_path(data, path_str):
+        parts = [p for p in path_str.strip("/").split("/") if p]
+        cur = data
+        for p in parts:
+            if isinstance(cur, dict) and p in cur:
+                cur = cur[p]
+            elif isinstance(cur, list) and p.isdigit() and int(p) < len(cur):
+                cur = cur[int(p)]
+            else:
+                return None
+        return cur
+
+    all_valid = True
+    for example_file in sorted(example_files):
+        with open(example_file, "r") as f:
+            try:
+                data = json.load(f)
+            except Exception:
+                continue
+
+        messages = data if isinstance(data, list) else data.get("messages", [data])
+        data_models = [
+            m["updateDataModel"].get("value", {})
+            for m in messages
+            if isinstance(m, dict) and "updateDataModel" in m
+        ]
+
+        def check_element(elem):
+            nonlocal all_valid
+            if isinstance(elem, dict):
+                if elem.get("component") == "Icon":
+                    name = elem.get("name")
+                    if isinstance(name, str):
+                        if name not in valid_icons:
+                            print(
+                                f"  [FAIL] {os.path.basename(example_file)}: Invalid"
+                                f" icon '{name}'. Must be defined in catalog."
+                            )
+                            all_valid = False
+                    elif isinstance(name, dict) and "path" in name:
+                        path_str = name["path"]
+                        resolved_val = None
+                        for dm in data_models:
+                            val = resolve_path(dm, path_str)
+                            if val is not None:
+                                resolved_val = val
+                                break
+                        if resolved_val is None:
+                            key = path_str.strip("/").split("/")[-1]
+
+                            def deep_find(d):
+                                if isinstance(d, dict):
+                                    for k, v in d.items():
+                                        if k == key and isinstance(v, str):
+                                            return v
+                                        res = deep_find(v)
+                                        if res is not None:
+                                            return res
+                                elif isinstance(d, list):
+                                    for x in d:
+                                        res = deep_find(x)
+                                        if res is not None:
+                                            return res
+                                return None
+
+                            for dm in data_models:
+                                resolved_val = deep_find(dm)
+                                if resolved_val is not None:
+                                    break
+
+                        if (
+                            isinstance(resolved_val, str)
+                            and resolved_val not in valid_icons
+                        ):
+                            print(
+                                f"  [FAIL] {os.path.basename(example_file)}: Bound icon"
+                                f" '{path_str}' resolved to invalid icon"
+                                f" '{resolved_val}'."
+                            )
+                            all_valid = False
+
+                for v in elem.values():
+                    check_element(v)
+            elif isinstance(elem, list):
+                for item in elem:
+                    check_element(item)
+
+        check_element(messages)
+
+    if all_valid:
+        print(
+            f"  Validating example icons against {os.path.basename(catalog_path)}..."
+            " [PASS]"
+        )
+    return all_valid
+
+
 def compare_schemas(subset_path, standard_path):
     """Compares that subset schema is a subset of standard schema.
 
@@ -252,6 +376,7 @@ def main():
         },
         "v0_9": {
             "root_schema": "specification/v0_9/json/server_to_client.json",
+            "catalog": "specification/v0_9/catalogs/basic/catalog.json",
             "refs": [
                 "specification/v0_9/json/common_types.json",
                 "specification/v0_9/catalogs/basic/catalog.json",
@@ -260,11 +385,12 @@ def main():
         },
         "v1_0": {
             "root_schema": "specification/v1_0/json/agent_to_renderer.json",
+            "catalog": "specification/v1_0/catalogs/basic/catalog.json",
             "refs": [
                 "specification/v1_0/json/common_types.json",
-                "specification/v1_0/catalogs/basic/catalog.json",
+                "catalogs/basic/v1/catalog.json",
             ],
-            "examples": "specification/v1_0/catalogs/basic/examples/*.json",
+            "examples": "catalogs/basic/v1/examples/*.json",
         },
     }
 
@@ -306,6 +432,11 @@ def main():
         if "subset_schema" in config:
             subset_path = os.path.join(repo_root, config["subset_schema"])
             if not compare_schemas(subset_path, root_schema):
+                overall_success = False
+
+        if "catalog" in config:
+            catalog_path = os.path.join(repo_root, config["catalog"])
+            if not validate_example_icons(catalog_path, example_files):
                 overall_success = False
 
         if not example_files:

@@ -25,6 +25,8 @@ from a2ui.core.validating import (
     get_component_references,
     ValidationConfig,
     CatalogSchemaValidator,
+    STRICT_VALIDATION,
+    RELAXED_VALIDATION,
 )
 from a2ui.core.basic_catalog import BasicCatalog
 
@@ -457,3 +459,48 @@ def test_validator_config_parameter():
         validator.validate(catalog, payload, config=strict_config)
 
     validator.validate(catalog, payload, config=relaxed_config)
+
+
+def test_relaxed_validation_allows_missing_root():
+    catalog = CatalogSchemaValidator.from_catalog(BasicCatalog())
+    validator = A2uiValidator()
+
+    components_no_root = [
+        {"id": "c1", "component": "Text", "text": "No root here"},
+    ]
+
+    # In strict validation, missing root raises an error
+    with pytest.raises(A2uiValidatorError, match="Missing root component"):
+        validator.validate_components(
+            catalog, components_no_root, config=STRICT_VALIDATION
+        )
+
+    # In relaxed validation, missing root is allowed
+    validator.validate_components(
+        catalog, components_no_root, config=RELAXED_VALIDATION
+    )
+
+    # In full message validation containing createSurface:
+    payload_with_create_surface = [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": "https://a2ui.org/catalog",
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": components_no_root,
+            },
+        },
+    ]
+
+    with pytest.raises(A2uiValidatorError, match="Missing root component"):
+        validator.validate(
+            catalog, payload_with_create_surface, config=STRICT_VALIDATION
+        )
+
+    validator.validate(catalog, payload_with_create_surface, config=RELAXED_VALIDATION)

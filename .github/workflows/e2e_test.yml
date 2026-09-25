@@ -15,6 +15,7 @@
 name: E2E Tests
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "0 0 * * *" # daily
 

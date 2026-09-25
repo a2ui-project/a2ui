@@ -20,6 +20,7 @@ on:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
+      - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
@@ -31,6 +32,7 @@ on:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
+      - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
@@ -53,7 +55,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # a2ui_core and a2ui_agent derive their versions from git tags, so
+          # the tags have to be present. Without this the build silently falls
+          # back to the version pinned in pyproject.toml and CI would never
+          # exercise the real versioning path.
+          fetch-depth: 0
       - uses: ./.github/actions/setup-python
+      - name: Verify SDK version tags are reachable
+        run: |
+          set -euo pipefail
+          for glob in 'python/a2ui-core/v*' 'python/a2ui-agent-sdk/v*'; do
+            if ! git describe --tags --match "$glob" >/dev/null 2>&1; then
+              echo "::error::No tag matching $glob is reachable, so package" \
+                "versions would fall back instead of coming from tags."
+              exit 1
+            fi
+            echo "$glob -> $(git describe --tags --match "$glob")"
+          done
       - name: Install Dependencies
         run: uv sync --all-packages
       - name: Check Formatting

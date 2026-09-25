@@ -21,26 +21,29 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
 } from '../../index.js';
-import type {A2uiIconElement} from './Icon.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Icon Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Icon.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiIconElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -87,7 +90,7 @@ describe('Icon Component', () => {
   });
 
   it('should render plain material icon <i> with correct classes and name override', async () => {
-    const el = document.createElement('a2ui-icon') as A2uiIconElement;
+    const el = document.createElement('a2ui-icon') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -105,7 +108,7 @@ describe('Icon Component', () => {
   });
 
   it('should render svg icon with svgPath', async () => {
-    const el = document.createElement('a2ui-icon') as A2uiIconElement;
+    const el = document.createElement('a2ui-icon') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

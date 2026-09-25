@@ -49,6 +49,6 @@ describe('Example: Workout Summary', () => {
 
   it('should render icon', async () => {
     expect(querySelectorAllDeep(surface, 'a2ui-icon')[0] as HTMLElement).toBeTruthy();
-    expect(textContent).toContain('directions_run');
+    expect(textContent).toContain('favorite');
   });
 });

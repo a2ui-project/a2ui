@@ -30,11 +30,38 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
+# Version is derived from the `python/a2ui-core/v*` git tags. Do not hand-edit a
+# version anywhere in this package; cut a release instead (see
+# docs/contributing/release.md).
+#
+# `fallback-version` is what a checkout without tags (for example a CI job using
+# actions/checkout at the default fetch-depth of 1) resolves to. It is pinned to
+# the last released version rather than something like 0.0.0 so that the
+# a2ui-agent-sdk `a2ui-core>=...` constraint still resolves in such a checkout.
+# The release workflow asserts that the built version matches the version it
+# computed from the tags, so a tagless release build cannot slip through.
 [tool.hatch.version]
-path = "src/a2ui/core/version.py"
+source = "vcs"
+fallback-version = "0.1.1"
+
+[tool.hatch.version.raw-options]
+root = "../../.."
+tag_regex = '^python/a2ui-core/v(?P<version>.+)$'
+# PyPI rejects local version segments (the `+g<hash>` that setuptools-scm adds
+# by default), so they are stripped here.
+local_scheme = "no-local-version"
+git_describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "python/a2ui-core/v*",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a2ui"]

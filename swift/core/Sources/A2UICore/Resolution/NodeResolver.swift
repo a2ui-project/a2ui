@@ -47,15 +47,15 @@ public final class NodeResolver: Sendable {
     surfaceID: String,
     catalogs: [String: AnyCatalog],
     defaultCatalogID: String? = nil,
-    componentsModel: SurfaceComponentsModel = SurfaceComponentsModel(),
-    dataModel: DataModel = DataModel(),
+    componentsModel: SurfaceComponentsModel? = nil,
+    dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
     self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
-    self.componentsModel = componentsModel
-    self.dataModel = dataModel
+    self.componentsModel = componentsModel ?? SurfaceComponentsModel()
+    self.dataModel = dataModel ?? DataModel()
     self.actionHandler = actionHandler
   }
 
@@ -77,8 +77,8 @@ public final class NodeResolver: Sendable {
     surfaceID: String,
     catalogs: [any CatalogProtocol],
     defaultCatalogID: String? = nil,
-    componentsModel: SurfaceComponentsModel = SurfaceComponentsModel(),
-    dataModel: DataModel = DataModel(),
+    componentsModel: SurfaceComponentsModel? = nil,
+    dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }

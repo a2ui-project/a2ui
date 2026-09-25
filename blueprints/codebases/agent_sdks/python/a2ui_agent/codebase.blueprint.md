@@ -4,6 +4,7 @@ associated_module: a2ui_agent
 module_blueprint_commit: null
 implemented_features:
   - skill_generator
+  - typesafe_builder_api
 local_development:
   test_command: 'uv run pytest'
   lint_command: 'uv run pyink --check .'
@@ -20,6 +21,7 @@ The reference Python implementation of the A2UI Agent SDK (`a2ui_agent`).
 - **Response Parsing**: Employs format-specific `Parser` engines to unwrap sentinel-tagged content, tokenize LLM responses into conversational text and raw payload blocks, and compile format expressions into standard A2UI payload messages.
 - **Validation**: Structural layout and schema validation are delegated directly to core `a2ui.core.validating.A2uiValidator` to enforce contract compliance across all inference formats.
 - **Framework Independence**: The SDK is completely agent-framework agnostic. It provides pure Python primitives and processor facades without hardcoded dependencies on specific agent frameworks like ADK or LangChain.
+- **Typesafe Builder API**: `a2ui.builder` is the authoring counterpart to the inference formats, letting application code construct A2UI directly against native types. It splits into a hand-written runtime (`core/` for child-slot flattening and ID allocation, `<version>/` for protocol models) and `<version>/catalogs/`, which is generated from the catalog JSON schema by the Dart CLI and never edited by hand.
 
 ## **Local Technical Decisions & Overrides**
 

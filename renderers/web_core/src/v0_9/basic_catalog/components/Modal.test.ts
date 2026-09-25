@@ -21,27 +21,29 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
 } from '../../index.js';
-import type {A2uiLitModal} from './Modal.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('Modal Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./Modal.js');
-    await import('./Text.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiLitModal | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -84,7 +86,7 @@ describe('Modal Component', () => {
   });
 
   it('should render trigger initially and open modal on click to render content', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -113,7 +115,7 @@ describe('Modal Component', () => {
   });
 
   it('should close when clicking the close button', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -136,7 +138,7 @@ describe('Modal Component', () => {
   });
 
   it('should close when clicking the outside backdrop', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -158,7 +160,7 @@ describe('Modal Component', () => {
   });
 
   it('should not close when clicking inside', async () => {
-    const el = document.createElement('a2ui-modal') as A2uiLitModal;
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

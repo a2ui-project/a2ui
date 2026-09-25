@@ -22,7 +22,6 @@ from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
 from a2ui.skill import SkillGenerator
 
-
 # Locate standard basic catalog in repository
 SPEC_DIR = os.path.abspath(
     os.path.join(
@@ -36,7 +35,19 @@ SPEC_DIR = os.path.abspath(
         "v1_0",
     )
 )
-CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
+CATALOGS_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "..",
+        "..",
+        "catalogs",
+        "basic",
+    )
+)
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 
 
 class TestSkillGenerator(unittest.TestCase):

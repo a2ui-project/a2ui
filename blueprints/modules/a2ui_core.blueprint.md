@@ -1367,11 +1367,6 @@ export class A2uiParseError extends A2uiError {
   /* name = 'A2uiParseError' */
 }
 
-/** Raised when a source syntax (e.g. the EXPRESS DSL) cannot be compiled to A2UI messages. */
-export class A2uiCompileError extends A2uiError {
-  /* name = 'A2uiCompileError' */
-}
-
 /** Raised when a bound expression cannot be evaluated. */
 export class A2uiExpressionError extends A2uiError {
   /* name = 'A2uiExpressionError' */

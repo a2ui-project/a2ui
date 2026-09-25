@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Update internal Web Component imports to consume `@a2ui/web_core/v0_9/universal`. To upgrade to this version of `@a2ui/lit`, apps must also update to the latest version of `@a2ui/web_core`. [#2488](https://github.com/a2ui-project/a2ui/pull/2488)
+
 ## 0.11.0
 
 - **BREAKING CHANGE**: (v0_9) Move universal basic catalog component implementations (`A2uiText`, `A2uiButton`, `A2uiCard`, etc.) to `@a2ui/web_core/v0_9/basic_catalog`. To upgrade to this version of `@a2ui/lit`, apps should also update to the latest version of `@a2ui/web_core`. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)

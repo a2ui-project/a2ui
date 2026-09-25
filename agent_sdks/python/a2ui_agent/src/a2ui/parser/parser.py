@@ -17,6 +17,7 @@
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Any
+from a2ui.core import A2uiError
 from .response_part import ResponsePart
 
 
@@ -51,12 +52,16 @@ class Parser(ABC):
             if part.a2ui_raw is not None:
                 try:
                     part.a2ui_json = self.compile(part.a2ui_raw, is_final=part.is_final)
+                except A2uiError as e:
+                    # The compiler already said what kind of failure this is.
+                    # Re-raising it as something else would throw that away, so
+                    # it travels out as it came, carrying the parts that were
+                    # read before it.
+                    setattr(e, "partial_results", parsed_so_far)
+                    raise
                 except Exception as e:
                     from a2ui.parser.errors import A2uiCompilationError
 
-                    if isinstance(e, A2uiCompilationError):
-                        e.partial_results = parsed_so_far
-                        raise e
                     raise A2uiCompilationError(
                         message=str(e),
                         raw_content=part.a2ui_raw,

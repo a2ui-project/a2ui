@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/catalog_without_id.json",
+  "title": "Conformance Catalog Without An Id",
+  "description": "A catalog document that states neither catalogId nor protocolVersion. Loading it succeeds only when the provider supplies both, which is how v0.8 era documents are read.",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "type": "string" }
+      },
+      "required": ["component", "text"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{ "$ref": "#/components/Text" }]
+    }
+  }
+}

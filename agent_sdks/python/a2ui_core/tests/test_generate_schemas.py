@@ -118,15 +118,37 @@ def test_compile_properties_to_pydantic():
     assert len(lines) == 1
     assert lines[0] == "    title: Optional[str] = Field(None)"
 
-    # Default values
+    # Schema defaults are documented in description rather than set as field defaults
     props = {
         "num": {"type": "integer", "default": 42},
         "text": {"type": "string", "default": "hello"},
     }
     lines = generate_schemas.compile_properties_to_pydantic(props, [])
     assert len(lines) == 2
-    assert "    num: Optional[int] = Field(default=42)" in lines
-    assert '    text: Optional[str] = Field(default="hello")' in lines
+    assert (
+        '    num: Optional[int] = Field(None, description="Defaults to 42 when'
+        ' absent.")'
+        in lines
+    )
+    assert (
+        "    text: Optional[str] = Field(None, description=\"Defaults to 'hello'"
+        ' when absent.")'
+        in lines
+    )
+
+    # Appends default note to existing description
+    props = {"num": {"type": "integer", "description": "A count.", "default": 42}}
+    lines = generate_schemas.compile_properties_to_pydantic(props, [])
+    assert (
+        '    num: Optional[int] = Field(None, description="A count. Defaults to 42'
+        ' when absent.")'
+        in lines
+    )
+
+    # ``const`` values remain real field defaults
+    props = {"kind": {"const": "widget"}}
+    lines = generate_schemas.compile_properties_to_pydantic(props, [])
+    assert "    kind: Optional[Literal['widget']] = Field(default=\"widget\")" in lines
 
     # Ignores component keyword in properties
     props = {"component": {"type": "string"}}

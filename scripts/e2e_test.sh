@@ -26,6 +26,12 @@
 # To run script locally, you need to set API key as an environment variable.
 # Example: export GEMINI_API_KEY=your_api_key
 
-cd "$(dirname "$0")/../samples/client/flutter/restaurant_finder/e2e_test"
+set -e
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+cd "$REPO_ROOT/samples/client/flutter/restaurant_finder/e2e_test"
 # Parallel tests are disabled to avoid conflicts on environment. 
 flutter test --concurrency=1 --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY"
+
+cd "$REPO_ROOT/dart/a2ui_agent/e2e_test"
+dart test

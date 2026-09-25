@@ -24,17 +24,17 @@ import {defineConfig} from 'vitest/config';
 const MCP_PROXY_URL = process.env['A2UI_MCP_URL'] ?? 'http://127.0.0.1:8787';
 
 /**
- * Source alias for `@a2ui/mcp-catalog`.
+ * Source alias for `@a2ui/catalog-mcp`.
  *
  * TODO(https://github.com/a2ui-project/a2ui/issues/1698): Replace this alias
- * with a standard package dependency once `@a2ui/mcp-catalog` is published to npm.
+ * with a standard package dependency once `@a2ui/catalog-mcp` is published to npm.
  */
 const a2uiMcpCatalogEntry = fileURLToPath(
-  new URL('../../../../../catalogs/mcp/v0_9/src/index.ts', import.meta.url),
+  new URL('../../../../../typescript/catalogs/mcp/src/index.ts', import.meta.url),
 );
 
 /**
- * Resolves dependencies imported by `@a2ui/mcp-catalog` against this sample's
+ * Resolves dependencies imported by `@a2ui/catalog-mcp` against this sample's
  * `node_modules` so Vite bundles a single shared copy of each package.
  */
 const a2uiMcpCatalogDependencies = [
@@ -58,7 +58,7 @@ export default defineConfig({
   resolve: {
     dedupe: ['lit'],
     alias: [
-      {find: exactly('@a2ui/mcp-catalog'), replacement: a2uiMcpCatalogEntry},
+      {find: exactly('@a2ui/catalog-mcp'), replacement: a2uiMcpCatalogEntry},
       ...a2uiMcpCatalogDependencies,
     ],
   },

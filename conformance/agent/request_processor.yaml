@@ -1,0 +1,347 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Building the two objects an agent works through: the inference format, which
+# a factory binds to a set of catalogs, and the request processor, which an
+# agent's generator hands back once a renderer has said what it can render.
+#
+# A `create_format` case names a format and the catalogs to bind, and states
+# what the format's prompt generator says and what its parsers do. A
+# `create_processor` case names the catalogs the agent registered, the
+# renderer's capabilities, and optionally the examples and a format override,
+# and states which catalogs came out active and what the prompt snippet says.
+# The catalogs a case names are pristine documents together with the
+# transformers the agent registered alongside them, matching the CatalogConfig
+# the blueprint describes.
+#
+# A response the case wants read is written in `then_parse`, beside `expect`
+# rather than inside it, because parsing is a call made on the processor and not
+# a property read off it. The pair of cases at the end of this file is the only
+# use of it: one shows that a response using the negotiated catalog parses, the
+# other that a response reaching past it does not. Parsing as such belongs to
+# the per-format `response_parser.yaml`, `compiler.yaml` and `decompiler.yaml`
+# suites, which need no negotiation to state their rules.
+#
+# Capability negotiation requires the renderer to declare its capabilities:
+# create_processor cannot be called without them. A request with a present but
+# empty `supportedCatalogIds` and no inline catalogs is a `CatalogError`, because
+# the renderer has said it can render nothing. Active catalogs come back in the
+# renderer's preference order rather than the agent's registration order, so
+# the renderer's first choice is the first catalog the model reads about.
+#
+# Resolved catalogs are the transformed ones. A pruning transformer is
+# therefore visible twice: in the prompt snippet, and in what the processor
+# will accept when it parses a response.
+#
+# Creating a processor does not change the generator. The generator holds
+# pristine catalogs for the life of the agent, and one renderer's negotiation
+# cannot affect the next renderer's.
+#
+# Examples are checked against the active catalogs when the processor is
+# created, not when a response is parsed. An example that uses a component the
+# active catalogs do not declare is a `ValidationError` raised at creation
+# time, which is where an agent author can act on it.
+#
+# `create_parser` hands back a fresh parser each call. The `probe_chunks`
+# stream is fed to one parser and then to a second parser from the same
+# format; the second has to produce what the first did, which it can only do
+# if the two share no buffer.
+#
+# Sentinel tags are the format's own: `<a2ui-json>` for direct JSON and
+# `<a2ui>` for Express, per the Express specification under
+# `specification/proposals/express/`.
+#
+# Prompt assertions are substrings, never whole texts, because the wording
+# around a catalog is an implementation's own. The version a case runs under is
+# the one its catalog document declares; these rules do not vary by version, so
+# they are written once against v1.0.
+
+# --- Creating a format ---
+
+- name: test_format_binds_catalogs_to_its_prompt_generator
+  description: A format built by the factory carries a prompt generator that describes the catalogs it was bound to.
+  action: create_format
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect:
+    prompt_snippet_contains: ["Text", "Button", "Card", "Column", "<a2ui-json>"]
+
+- name: test_format_binds_the_transformed_catalogs
+  description: The factory binds the transformed catalogs, so a component the agent pruned is missing from the format's prompt.
+  action: create_format
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text", "Card"]
+  expect:
+    prompt_snippet_contains: ["Text", "Card"]
+    prompt_snippet_absent: ["Button", "Column"]
+
+- name: test_express_format_binds_catalogs_to_its_prompt_generator
+  description: The Express factory produces a format whose prompt uses the Express tags and positional signatures.
+  action: create_format
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect:
+    prompt_snippet_contains: ["<a2ui>", "Text(", "Button("]
+    prompt_snippet_absent: ["<a2ui-json>"]
+
+- name: test_format_renders_examples_in_its_prompt
+  description: Examples handed to the factory reach the prompt the format generates.
+  action: create_format
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+  expect:
+    prompt_snippet_contains: ["Hello", "s1"]
+
+- name: test_create_parser_returns_a_fresh_parser
+  description: Two calls return two parsers rather than one shared instance, so two turns can be parsed at once.
+  action: create_format
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect:
+    parsers_are_distinct: true
+
+- name: test_parser_state_is_not_shared_between_parsers
+  description: A parser built after another has consumed a half finished payload yields the same parts from that stream, so the two hold separate buffers.
+  action: create_format
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    probe_chunks:
+      - '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", '
+      - '"catalogId": "conformance/simplified"}}]</a2ui-json>'
+  expect:
+    parsers_are_distinct: true
+    parser_state_isolated: true
+
+# --- Negotiating the active catalogs ---
+
+- name: test_capabilities_select_the_active_catalogs
+  description: A renderer that names one of the agent's catalogs gets a processor bound to that one.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/custom"]
+  expect:
+    active_catalog_ids: ["conformance/custom"]
+
+- name: test_absent_capabilities_is_an_error
+  description: A request that carries no capabilities fails, because create_processor requires renderer capabilities to negotiate against.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  expect_error:
+    category: CatalogError
+
+- name: test_active_catalogs_follow_the_renderer_preference_order
+  description: The active catalogs come back in the order the renderer listed them, not the order the agent registered them.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/custom", "conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/custom", "conformance/simplified"]
+
+- name: test_empty_supported_catalog_ids_is_an_error
+  description: A renderer that declares an empty list and no inline catalogs has said it can render nothing, which no processor can serve.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: []
+  expect_error:
+    category: CatalogError
+
+- name: test_creating_a_processor_leaves_the_generator_alone
+  description: The generator holds the same catalogs after a negotiation as before, so one renderer's session cannot narrow the next renderer's.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/custom"]
+  expect:
+    active_catalog_ids: ["conformance/custom"]
+    generator_catalogs_unchanged: true
+
+# --- What the processor tells the model ---
+
+- name: test_prompt_snippet_describes_the_active_catalogs
+  description: The snippet describes what was negotiated, so a catalog the renderer did not ask for is never offered to the model.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/custom"]
+  expect:
+    active_catalog_ids: ["conformance/custom"]
+    prompt_snippet_contains: ["Chart", "Gauge", "percent"]
+    prompt_snippet_absent: ["Button", "Column"]
+
+- name: test_prompt_snippet_describes_the_transformed_catalogs
+  description: A transformer the agent registered is visible in the prompt the processor renders, since the resolved catalogs are the transformed ones.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text"]
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    prompt_snippet_contains: ["Text"]
+    prompt_snippet_absent: ["Button", "Card", "Column"]
+
+- name: test_processor_holds_the_transformed_catalog
+  description: The catalog the processor holds is the pruned one, which is what its validator will check a payload against.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text"]
+          - function_pruning: ["formatString"]
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text"]
+        functions: ["formatString"]
+
+- name: test_format_override_replaces_the_generator_format
+  description: A format passed when the processor is created takes the place of the generator's own, for that processor only.
+  action: create_processor
+  args:
+    format: direct_json
+    format_override: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    prompt_snippet_contains: ["<a2ui>", "Text("]
+    prompt_snippet_absent: ["<a2ui-json>"]
+
+# --- Examples against the active catalogs ---
+
+- name: test_example_using_an_unknown_component_fails_at_creation
+  description: An example that uses a component the active catalogs do not declare fails when the processor is created, not when a response is parsed.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+    examples:
+      - "test_data/examples/chart_series.json"
+  expect_error:
+    category: ValidationError
+
+# --- Parsing a turn through the processor ---
+
+- name: test_processor_parses_a_response_within_the_active_catalogs
+  description: A response using the negotiated catalog parses into the text the model wrote and the messages it emitted, in that order. This case is the counterweight to the one below, which a processor that rejected every response would also pass.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+  then_parse:
+    input: 'Here is a greeting.<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+    expect:
+      - text: "Here is a greeting."
+      - a2ui:
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s1"
+              catalogId: "conformance/simplified"
+          - version: "v1.0"
+            updateComponents:
+              surfaceId: "s1"
+              components:
+                - id: "root"
+                  component: "Text"
+                  text: "Hello"
+
+- name: test_response_outside_the_active_catalogs_is_rejected
+  description: A response naming a component the negotiated catalogs do not declare fails validation, even though the agent registered a catalog that declares it. Only a processor can state this, since the rule is about what negotiation left active.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+  then_parse:
+    input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Chart", "values": [1, 2, 3]}]}}]</a2ui-json>'
+    expect_error:
+      category: ValidationError

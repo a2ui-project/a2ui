@@ -21,27 +21,29 @@ import {
   ComponentContext,
   MessageProcessor,
   Catalog,
-  ComponentApi,
   SurfaceModel,
   Subscription,
 } from '../../index.js';
-import type {A2uiListElement} from './List.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../universal/index.js';
 
 describe('List Component', () => {
-  let basicCatalog: Catalog<ComponentApi>;
+  let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
-    await import('./List.js');
-    await import('./Text.js');
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
   after(teardownTestDom);
 
-  let processor: MessageProcessor<ComponentApi>;
+  let processor: MessageProcessor<WebComponentImplementation>;
   let surface: SurfaceModel;
-  let element: A2uiListElement | null = null;
+  let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
@@ -92,7 +94,7 @@ describe('List Component', () => {
   });
 
   it('should render children in list container', async () => {
-    const el = document.createElement('a2ui-list') as A2uiListElement;
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -132,7 +134,7 @@ describe('List Component', () => {
       },
     ]);
 
-    const el = document.createElement('a2ui-list') as A2uiListElement;
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 

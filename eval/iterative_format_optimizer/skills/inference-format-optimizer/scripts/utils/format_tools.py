@@ -44,7 +44,7 @@ def _load_basic_catalog() -> Any:
     Returns:
         The loaded catalog instance for basic components.
     """
-    cat_path = str(REPO_ROOT / "specification/v1_0/catalogs/basic/catalog.json")
+    cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
     cat_cfg = CatalogConfig.from_path("basic", cat_path)
     direct_json_format = DirectJsonFormat(
         version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}

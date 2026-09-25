@@ -27,12 +27,12 @@ from a2ui.inference_formats.experimental.elemental.compiler import (
     _escape_nested_script_tags,
 )
 
-SPEC_DIR = os.path.abspath(
+CATALOGS_DIR = os.path.abspath(
     os.path.join(
-        os.path.dirname(__file__), "..", "..", "..", "..", "..", "specification", "v1_0"
+        os.path.dirname(__file__), "..", "..", "..", "..", "..", "catalogs", "basic"
     )
 )
-CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
+CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 
 
 class TestElementalCompiler(unittest.TestCase):

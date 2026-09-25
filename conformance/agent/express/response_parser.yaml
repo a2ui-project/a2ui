@@ -1,0 +1,314 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Express response parsing: turning what a model emitted into ordered text and
+# raw payload blocks, and writing those parts back out.
+#
+# `unwrap` tokenizes a response into raw parts. `wrap` writes
+# raw parts back out as a model would have emitted them. `parse_response`
+# unwraps a whole response and compiles each block it finds, so it is the entry
+# point an agent actually calls.
+#
+# Compiling a block into messages is `agent/express/compiler.yaml`, and writing
+# messages back into Express is `agent/express/decompiler.yaml`. The blueprint's
+# `Parser` declares all five calls as one interface, so the suites are split by
+# call rather than by interface: a case in this file is about where a payload
+# begins and ends, and a case in those two about what the payload means.
+#
+# An Express payload sits between `<a2ui>` tags, per the Express specification
+# under `specification/proposals/express/`.
+#
+# A part carries either text or a payload, never both. Text that precedes a
+# payload is its own list item, which is the union the parser returns.
+#
+# This suite fixes several things the blueprint leaves open. They are decisions
+# rather than readings of the spec, so they are stated here rather than left
+# for a reader to infer from the cases:
+#
+# - A response with no sentinel tags unwraps to a single text part, and is not
+#   an error. The other reading is reached through `parse_response` with
+#   `wrapped: false`, which hands the whole body to the compiler.
+# - An empty response unwraps to no parts at all.
+# - A text run is trimmed of leading and trailing whitespace, and a run left
+#   empty by that is dropped. The whitespace between two blocks is not a part.
+#
+# The `parse_response` cases compile as well as unwrap, so a compilation failure
+# surfaces through them. `ParseError` is for payload text the format cannot
+# read and `ValidationError` for a payload that reads but names something the
+# catalog does not declare; `compiler.yaml` states the rule in full.
+#
+# The direct JSON counterpart of this suite is
+# `agent/direct_json/response_parser.yaml`. The two are deliberately parallel:
+# a rule that holds for both formats has a case in each, written against that
+# format's own notation. Streaming is the exception. There is no Express
+# streaming suite, because the Express parser does not implement `parse_chunk`:
+# an Express block resolves references across its whole body, so a partial
+# block names components that are not yet defined. An Express agent buffers a
+# response and parses it whole, through the cases here. If Express does gain
+# streaming, its suite belongs beside
+# `agent/direct_json/response_streaming.yaml`.
+#
+# The catalogs under test live in `args`, and every case here is written against
+# v1.0. A case states no version of its own: the version it runs under is the
+# one its catalog document declares.
+
+# --- Unwrapping a response ---
+
+- name: test_unwrap_express_text_between_blocks
+  description: Express blocks sit between a2ui tags and are ordered against the text the same way.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Here is a greeting.
+    <a2ui>
+    root = Text("Hello")
+    </a2ui>
+    And here is a second one.
+    <a2ui>
+    root = Text("Hello again")
+    </a2ui>
+  expect:
+    - text: "Here is a greeting."
+    - a2ui_raw: 'root = Text("Hello")'
+    - text: "And here is a second one."
+    - a2ui_raw: 'root = Text("Hello again")'
+
+- name: test_unwrap_express_block_with_no_surrounding_text
+  description: A response that is only a block yields only a payload part.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_response_without_tags_is_one_text_part
+  description: An Express response with no tags is conversational text, as it is for direct JSON.
+  action: unwrap
+  args:
+    format: express
+  input: "I need the city name before I can draw the forecast."
+  expect:
+    - text: "I need the city name before I can draw the forecast."
+
+- name: test_unwrap_express_empty_response_has_no_parts
+  description: An empty response yields no parts, not an empty text part.
+  action: unwrap
+  args:
+    format: express
+  input: ""
+  expect: []
+
+- name: test_unwrap_express_unterminated_block_is_not_final
+  description: An Express block the model left open states that it is not closed.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    root = Card(body)
+    body = Text("Hello")
+  expect:
+    - a2ui_raw: |-
+        root = Card(body)
+        body = Text("Hello")
+      is_final: false
+
+- name: test_unwrap_express_close_tag_inside_a_string_does_not_end_the_block
+  description: A close tag inside an Express string literal is part of the payload.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    root = Text("</a2ui>")
+    </a2ui>
+  expect:
+    - a2ui_raw: 'root = Text("</a2ui>")'
+
+- name: test_unwrap_express_markdown_fence_inside_block_stripped
+  description: A markdown fence the model carried over from the prompt examples is removed with the surrounding whitespace.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    ```
+    root = Text("Hello")
+    ```
+    </a2ui>
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_attributes_on_open_tag_tolerated
+  description: An open tag that carries attributes still opens a block.
+  action: unwrap
+  args:
+    format: express
+  input: '<a2ui version="v1.0">root = Text("Hello")</a2ui>'
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_whitespace_only_text_run_dropped
+  description: The blank line between two blocks is not a text part.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    root = Text("Hello")
+    </a2ui>
+
+    <a2ui>
+    root = Text("Hello again")
+    </a2ui>
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+    - a2ui_raw: 'root = Text("Hello again")'
+
+# --- Writing parts back out ---
+
+- name: test_wrap_express_text_only_parts_are_the_text
+  description: A part that carries no payload writes out as its text, with no a2ui tags added.
+  action: wrap
+  args:
+    format: express
+  parts:
+    - text: "I need the city name before I can draw the forecast."
+  expect_output: "I need the city name before I can draw the forecast."
+
+- name: test_wrap_express_no_parts_is_an_empty_string
+  description: An empty part list writes out as an empty string rather than a pair of empty tags.
+  action: wrap
+  args:
+    format: express
+  parts: []
+  expect_output: ""
+
+- name: test_wrap_express_restores_tags_and_order
+  description: Express parts are written back inside a2ui tags, in order.
+  action: wrap
+  args:
+    format: express
+  parts:
+    - text: "Here is the greeting."
+    - a2ui_raw: 'root = Text("Hello")'
+  expect_contains:
+    - "<a2ui>"
+    - 'root = Text("Hello")'
+    - "</a2ui>"
+  expect_round_trip: true
+
+- name: test_wrap_express_tags_sit_on_their_own_lines
+  description: The exact spelling the case above only samples, fixed here because a model shown an example learns its spacing too, and a tag sharing a line with the payload is harder to read back.
+  action: wrap
+  args:
+    format: express
+  parts:
+    - text: "Here is the greeting."
+    - a2ui_raw: 'root = Text("Hello")'
+  expect_output: |-
+    Here is the greeting.
+    <a2ui>
+    root = Text("Hello")
+    </a2ui>
+
+- name: test_wrap_express_multiline_payload_is_not_reflowed
+  description: A payload of several statements is written out line for line, since Express is newline separated and a wrapper that joined or reindented the lines would change what the block means.
+  action: wrap
+  args:
+    format: express
+  parts:
+    - a2ui_raw: |-
+        surface("dashboard")
+        root = Card(body)
+        body = Text("Hello")
+  expect_output: |-
+    <a2ui>
+    surface("dashboard")
+    root = Card(body)
+    body = Text("Hello")
+    </a2ui>
+  expect_round_trip: true
+
+# --- Parsing a whole response ---
+
+- name: test_parse_response_express_two_blocks
+  description: Two Express blocks in one response compile separately and keep their place against the text.
+  action: parse_response
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    First the greeting.
+    <a2ui>
+    surface("s1")
+    root = Text("Hello")
+    </a2ui>
+    Then I take it away.
+    <a2ui>
+    deleteSurface("s1")
+    </a2ui>
+  expect:
+    - text: "First the greeting."
+    - a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello"
+    - text: "Then I take it away."
+    - a2ui:
+        - version: "v1.0"
+          deleteSurface:
+            surfaceId: "s1"
+
+- name: test_parse_response_express_unwrapped_compiles_the_whole_body
+  description: An unwrapped Express response is compiled whole.
+  action: parse_response
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    wrapped: false
+  input: 'root = Text("Hello")'
+  expect:
+    - a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "default_surface"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello"
+
+- name: test_parse_response_express_validation_failure_surfaces
+  description: An Express block naming a component the catalog does not declare fails the parse as a validation error.
+  action: parse_response
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <a2ui>
+    root = Sparkline([1, 2, 3])
+    </a2ui>
+  expect_error:
+    category: "ValidationError"

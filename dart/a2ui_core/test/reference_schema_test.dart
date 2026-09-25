@@ -434,9 +434,11 @@ void main() {
             catalogs: [catalog],
             protocolVersion: A2uiProtocolVersion.v0_9,
           );
-          processor.processMessages([
-            CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
-          ]);
+          processor.processMessages(
+            AgentToRendererMessagePayload.of(
+              CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+            ),
+          );
           final SurfaceModel<ComponentApi> surface = processor.groupModel
               .getSurface('s')!;
           final resolver = NodeResolver<ComponentApi>(surface);
@@ -498,9 +500,11 @@ void main() {
         catalogs: [catalog],
         protocolVersion: A2uiProtocolVersion.v0_9,
       );
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload.of(
+          CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+        ),
+      );
       final SurfaceModel<ComponentApi> surface = processor.groupModel
           .getSurface('s')!;
       final resolver = NodeResolver<ComponentApi>(surface);

@@ -1,0 +1,58 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Backstop for release-pypi.yml.
+#
+# The OSS Exit Gate publishes asynchronously and reports the outcome only by
+# email, so a release run waits a fixed 20 minutes for the version to appear on
+# PyPI and then gives up. When publishing takes longer than that, the GitHub
+# release is left saying that publishing is in progress.
+#
+# This finds those releases and finishes the job. It needs no Google
+# credentials, because it only reads PyPI.
+
+name: Confirm PyPI publication
+
+on:
+  schedule:
+    # Hourly. Publishing normally completes in minutes, so this exists for the
+    # unusual case rather than the common one.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-verify-pypi
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    name: Link published versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Confirm any pending releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/confirm_pypi.py backfill \
+            --timeout-seconds 60

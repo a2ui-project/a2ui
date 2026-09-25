@@ -69,9 +69,11 @@ void main() {
         catalogs: [catalog],
         protocolVersion: A2uiProtocolVersion.v0_9,
       );
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload.of(
+          CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+        ),
+      );
       surface = processor.groupModel.getSurface('s')!;
       resolver = NodeResolver(surface);
       addTearDown(() {
