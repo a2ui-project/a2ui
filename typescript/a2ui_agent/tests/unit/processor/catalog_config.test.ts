@@ -25,20 +25,20 @@ describe('CatalogConfig', () => {
     vi.restoreAllMocks();
   });
 
-  const baseCatalog = new Catalog('base', [], []);
+  const baseCatalog = new Catalog('base', 'v1.0', [], []);
 
   it('transformedCatalog applies transformers in order', () => {
     const log: string[] = [];
     const t1: CatalogTransformer = {
       transform: () => {
         log.push('t1');
-        return new Catalog('t1_applied', [], []);
+        return new Catalog('t1_applied', 'v1.0', [], []);
       },
     };
     const t2: CatalogTransformer = {
       transform: () => {
         log.push('t2');
-        return new Catalog('t2_applied', [], []);
+        return new Catalog('t2_applied', 'v1.0', [], []);
       },
     };
 
@@ -54,7 +54,7 @@ describe('CatalogConfig', () => {
     const t1: CatalogTransformer = {
       transform: () => {
         callCount++;
-        return new Catalog('t1_applied', [], []);
+        return new Catalog('t1_applied', 'v1.0', [], []);
       },
     };
 

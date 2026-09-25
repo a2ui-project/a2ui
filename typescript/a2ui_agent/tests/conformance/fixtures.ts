@@ -109,11 +109,11 @@ export class RemoveStrictValidationTransformer implements CatalogTransformer {
     const functions = Array.from(catalog.functions.values());
     return new Catalog(
       catalog.id,
+      catalog.protocolVersion,
       newComponents,
       functions,
       catalog.themeSchema,
       catalog.instructions,
-      catalog.protocolVersion,
     );
   }
 }
