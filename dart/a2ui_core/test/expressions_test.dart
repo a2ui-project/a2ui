@@ -108,6 +108,35 @@ void main() {
         expect(parser.parseExpression('-foo'), {'path': '-foo'});
       });
 
+      test('parse leading-dot literals', () {
+        expect(parser.parseExpression('.5'), 0.5);
+        expect(parser.parseExpression('-.5'), -0.5);
+        expect(parser.parseExpression('+.5'), 0.5);
+        expect(parser.parseExpression('.5e2'), 50);
+        expect(parser.parseExpression('-.5E-1'), -0.05);
+        expect(parser.parseExpression('f(a: -.5, b: .25)'), {
+          'call': 'f',
+          'args': {'a': -0.5, 'b': 0.25},
+          'returnType': 'any',
+        });
+      });
+
+      test('keep paths that start with or contain a dot unchanged', () {
+        for (final expr in ['.foo', './x', '-.', '.e5', 'a.5', '/items/.5']) {
+          expect(parser.parseExpression(expr), {'path': expr}, reason: expr);
+        }
+      });
+
+      test('reject malformed leading-dot literals', () {
+        for (final expr in ['.5.5', '-.5e', '.5e+']) {
+          expect(
+            () => parser.parseExpression(expr),
+            throwsA(isA<A2uiExpressionError>()),
+            reason: expr,
+          );
+        }
+      });
+
       test('reject a malformed exponent', () {
         for (final expr in ['1e', '1e+', '1E-']) {
           expect(

@@ -267,6 +267,60 @@
     category: "ParseError"
     message: "Invalid number literal"
 
+- name: test_expr_leading_dot_decimal_literal
+  description: A decimal literal may omit the digits before the decimal point.
+  action: parse_expression_template
+  input: "${.5}"
+  expect: [0.5]
+
+- name: test_expr_negative_leading_dot_decimal_literal
+  description: A leading-dot decimal literal may carry a minus sign.
+  action: parse_expression_template
+  input: "${-.5}"
+  expect: [-0.5]
+
+- name: test_expr_positive_leading_dot_decimal_literal
+  description: A leading-dot decimal literal may carry a plus sign.
+  action: parse_expression_template
+  input: "${+.5}"
+  expect: [0.5]
+
+- name: test_expr_leading_dot_exponential_notation
+  description: A leading-dot decimal literal may carry an exponent.
+  action: parse_expression_template
+  input: "${.5e2}"
+  expect: [50]
+
+- name: test_expr_function_call_leading_dot_args
+  description: Function arguments may be signed leading-dot decimal literals.
+  action: parse_expression_template
+  input: "${scale(by: -.5, offset: .25)}"
+  expect: [{call: "scale", args: {by: -0.5, offset: 0.25}, returnType: "any"}]
+
+- name: test_expr_leading_dot_path_is_not_a_number
+  description: >
+    A leading dot starts a number only when a digit follows it. Otherwise the
+    token stays a path, as does a sign followed by a dot and no digit.
+  action: parse_expression_template
+  input: "${.foo} ${-.}"
+  expect: [{path: ".foo"}, " ", {path: "-."}]
+
+- name: test_expr_error_leading_dot_number_two_points
+  description: A leading-dot number literal with a second decimal point is rejected.
+  action: parse_expression_template
+  input: "${.5.5}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
+
+- name: test_expr_error_leading_dot_number_empty_exponent
+  description: A signed leading-dot number literal with an empty exponent is rejected.
+  action: parse_expression_template
+  input: "${-.5e}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
+
 - name: test_expression_parser_string_interpolation_multiple_bindings
   description: Verifies ${/path} interpolation across multiple variables and static text.
   catalog:

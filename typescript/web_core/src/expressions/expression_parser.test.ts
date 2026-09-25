@@ -179,6 +179,34 @@ describe('ExpressionParser', () => {
     assert.strictEqual(parser.parseExpression('+0.'), 0);
   });
 
+  it('parses leading-dot numeric literals', () => {
+    assert.strictEqual(parser.parseExpression('.5'), 0.5);
+    assert.strictEqual(parser.parseExpression('-.5'), -0.5);
+    assert.strictEqual(parser.parseExpression('+.5'), 0.5);
+    assert.strictEqual(parser.parseExpression('.5e2'), 50);
+    assert.strictEqual(parser.parseExpression('-.5E-1'), -0.05);
+    assert.deepStrictEqual(parser.parseExpression('f(a: -.5, b: .25)'), {
+      call: 'f',
+      args: {a: -0.5, b: 0.25},
+      returnType: 'any',
+    });
+  });
+
+  it('keeps paths that start with or contain a dot unchanged', () => {
+    assert.deepStrictEqual(parser.parseExpression('.foo'), {path: '.foo'});
+    assert.deepStrictEqual(parser.parseExpression('./x'), {path: './x'});
+    assert.deepStrictEqual(parser.parseExpression('-.'), {path: '-.'});
+    assert.deepStrictEqual(parser.parseExpression('.e5'), {path: '.e5'});
+    assert.deepStrictEqual(parser.parseExpression('a.5'), {path: 'a.5'});
+    assert.deepStrictEqual(parser.parseExpression('/items/.5'), {path: '/items/.5'});
+  });
+
+  it('rejects malformed leading-dot numeric literals', () => {
+    for (const expr of ['.5.5', '-.5e', '.5e+']) {
+      assert.throws(() => parser.parseExpression(expr), /Invalid number literal/, expr);
+    }
+  });
+
   it('rejects numbers with multiple decimal dots', () => {
     assert.throws(() => {
       parser.parseExpression('1.2.3');

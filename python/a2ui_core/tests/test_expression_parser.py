@@ -164,6 +164,30 @@ def test_parses_valid_numeric_literals_including_trailing_point(parser):
     assert parser.parse_expression("+0.") == 0.0
 
 
+def test_parses_leading_dot_numeric_literals(parser):
+    assert parser.parse_expression(".5") == 0.5
+    assert parser.parse_expression("-.5") == -0.5
+    assert parser.parse_expression("+.5") == 0.5
+    assert parser.parse_expression(".5e2") == 50.0
+    assert parser.parse_expression("-.5E-1") == -0.05
+    assert parser.parse_expression("f(a: -.5, b: .25)") == {
+        "call": "f",
+        "args": {"a": -0.5, "b": 0.25},
+        "returnType": "any",
+    }
+
+
+@pytest.mark.parametrize("expr", [".foo", "./x", "-.", ".e5", "a.5", "/items/.5"])
+def test_keeps_paths_that_start_with_or_contain_a_dot_unchanged(parser, expr):
+    assert parser.parse_expression(expr) == {"path": expr}
+
+
+@pytest.mark.parametrize("expr", [".5.5", "-.5e", ".5e+"])
+def test_rejects_malformed_leading_dot_numeric_literals(parser, expr):
+    with pytest.raises(A2uiExpressionError, match="Invalid number literal"):
+        parser.parse_expression(expr)
+
+
 def test_rejects_numbers_with_multiple_decimal_dots(parser):
     from a2ui.core.exceptions import A2uiExpressionError
 

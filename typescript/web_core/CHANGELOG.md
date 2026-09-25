@@ -10,6 +10,9 @@
 - Add `PayloadValidator` (`@a2ui/web_core/validation`) for single-catalog component and function schema validation.
 - Add `A2uiRpcError` and `RpcErrorCode` (`@a2ui/web_core/rpc`) for structured RPC error responses.
 - Re-export `DataBindingType` and `FunctionCallType` (from `types/common-types.js`) and `MAX_FUNCTION_CALL_ARGS` (from `types/helpers.js`) from `@a2ui/web_core/v0_9`.
+- `ExpressionParser` accepts number literals with a leading decimal point
+  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
+  and `./x` are still paths.
 - Factor out basic catalog function implementations shared between v0.9 and v1.0
   into a common module (`src/common/basic_functions.ts`). Both versions now
   share implementation logic for logical operations, string formatting, number
