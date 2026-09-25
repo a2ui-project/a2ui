@@ -524,6 +524,7 @@ Object? _snapshotBindingValue(Object? value) {
   if (value is List) {
     return List<Object?>.unmodifiable(value.map(_snapshotBindingValue));
   }
+  // Keeps the Map<String, Object?> type, which the untyped branch would lose.
   if (value is Map<String, Object?>) {
     return UnmodifiableMapView(
       value.map((key, item) => MapEntry(key, _snapshotBindingValue(item))),
