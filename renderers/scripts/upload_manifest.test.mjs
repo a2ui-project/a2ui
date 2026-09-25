@@ -127,4 +127,3 @@ describe('upload_manifest script integration test', () => {
     assert.strictEqual(manifest.publishing_groups[0].packages[0].name, 'web_core');
   });
 });
-

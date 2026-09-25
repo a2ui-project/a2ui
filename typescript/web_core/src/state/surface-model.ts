@@ -170,9 +170,14 @@ export class SurfaceModel<
       catalogs = new Map();
       for (const item of availableCatalogs) {
         if (Array.isArray(item) && item.length === 2 && typeof item[0] === 'string') {
-          catalogs.set(item[0], item[1]);
+          if (item[1]) {
+            catalogs.set(item[0], item[1]);
+          }
         } else if (item && typeof item === 'object' && 'id' in item) {
-          catalogs.set((item as any).id, item as Catalog<T, F>);
+          const id = (item as any).id;
+          if (typeof id === 'string' && id) {
+            catalogs.set(id, item as Catalog<T, F>);
+          }
         }
       }
     } else {
