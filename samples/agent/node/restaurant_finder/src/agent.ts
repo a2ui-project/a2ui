@@ -30,6 +30,7 @@ import {AgentExecutor, RequestContext, ExecutionEventBus} from '@a2a-js/sdk/serv
 import {GoogleGenAI, FunctionCall, PartListUnion, Chat} from '@google/genai';
 import {
   A2uiGenerator,
+  type AgentToRendererMessage,
   A2uiRequestProcessor,
   basicCatalog,
   CatalogConfig,
@@ -212,15 +213,14 @@ export function loadAndValidateExamples(
       }
       exampleBlocks[basename] = rawContent;
     } else {
-      const messages = JSON.parse(rawContent) as Array<Record<string, unknown>>;
-      const withoutCreateSurface = messages.filter(m => !('createSurface' in m));
-      const decompiled = decompiler!.decompile(withoutCreateSurface as never);
+      const messages = JSON.parse(rawContent) as AgentToRendererMessage[];
+      const decompiled = decompiler!.decompile(messages);
       const wrapped = decompiler!.wrapDecompiledBlocks([decompiled]);
 
       try {
         const proc = tempGen.createProcessor(
           {supportedCatalogIds: [catalog.id]},
-          new ExpressFormatFactory({surfaceId: 'default', version: config.version}),
+          new ExpressFormatFactory({surfaceId: 'default'}),
         );
         proc.parseResponse(wrapped);
       } catch (e) {
@@ -310,7 +310,7 @@ export class RestaurantExecutor implements AgentExecutor {
       this.generator = new A2uiGenerator(
         [basicConf],
         examplesMap,
-        new ExpressFormatFactory({surfaceId: 'default', version: this.config.version}),
+        new ExpressFormatFactory({surfaceId: 'default'}),
       );
     } else {
       this.generator = new A2uiGenerator([basicConf], examplesMap);
@@ -321,7 +321,7 @@ export class RestaurantExecutor implements AgentExecutor {
     if (this.config.format === 'express') {
       return this.generator.createProcessor(
         {supportedCatalogIds: [this.catalog.id]},
-        new ExpressFormatFactory({surfaceId: 'default', version: this.config.version}),
+        new ExpressFormatFactory({surfaceId: 'default'}),
       );
     }
     return this.generator.createProcessor({supportedCatalogIds: [this.catalog.id]});
