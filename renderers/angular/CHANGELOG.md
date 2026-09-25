@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) **BREAKING CHANGE**: Removed automatic dynamic import of `@a2ui/markdown-it` from `DefaultMarkdownRenderer` and dropped `@a2ui/markdown-it` from peer dependencies. Applications requiring markdown rendering should now configure it explicitly by providing `provideMarkdownRenderer(renderMarkdown)` from `@a2ui/markdown-it` in their application providers. [#2533](https://github.com/a2ui-project/a2ui/pull/2533)
+
 ## 0.10.7
 
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` now combines the surface id, component id, and data context path instead of using the surface-scoped component id alone, and checkboxes no longer receive a `name`. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)
