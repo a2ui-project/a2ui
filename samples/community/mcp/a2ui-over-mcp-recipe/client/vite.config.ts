@@ -19,7 +19,10 @@ import {defineConfig} from 'vitest/config';
 import {fileURLToPath} from 'node:url';
 
 /**
- * Entry point of the shared A2UI MCP catalog (`@a2ui/catalog-mcp`).
+ * Entry point of the shared A2UI MCP catalog (`@a2ui/catalog-mcp`): its functions
+ * entry point, `@a2ui/catalog-mcp/functions`, since this sample only calls tools
+ * and the package's main entry also carries the `McpApp` component and its
+ * dependencies.
  *
  * TODO(https://github.com/a2ui-project/a2ui/issues/1698): drop this alias and
  * declare `@a2ui/catalog-mcp` as a normal dependency once the catalog is
@@ -30,7 +33,7 @@ import {fileURLToPath} from 'node:url';
  * real name.
  */
 const a2uiMcpCatalogEntry = fileURLToPath(
-  new URL('../../../../../typescript/catalogs/mcp/src/index.ts', import.meta.url),
+  new URL('../../../../../typescript/catalogs/mcp/src/functions.ts', import.meta.url),
 );
 
 /**

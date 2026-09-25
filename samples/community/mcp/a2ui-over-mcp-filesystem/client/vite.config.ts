@@ -24,13 +24,15 @@ import {defineConfig} from 'vitest/config';
 const MCP_PROXY_URL = process.env['A2UI_MCP_URL'] ?? 'http://127.0.0.1:8787';
 
 /**
- * Source alias for `@a2ui/catalog-mcp`.
+ * Source alias for `@a2ui/catalog-mcp`, pointed at the catalog's functions entry
+ * point (`@a2ui/catalog-mcp/functions`): this sample only calls tools, and the
+ * package's main entry also carries the `McpApp` component and its dependencies.
  *
  * TODO(https://github.com/a2ui-project/a2ui/issues/1698): Replace this alias
  * with a standard package dependency once `@a2ui/catalog-mcp` is published to npm.
  */
 const a2uiMcpCatalogEntry = fileURLToPath(
-  new URL('../../../../../typescript/catalogs/mcp/src/index.ts', import.meta.url),
+  new URL('../../../../../typescript/catalogs/mcp/src/functions.ts', import.meta.url),
 );
 
 /**

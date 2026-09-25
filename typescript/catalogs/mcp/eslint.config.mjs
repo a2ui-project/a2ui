@@ -16,4 +16,15 @@
 
 import preset from '../../../eslint.preset.mjs';
 
-export default [...preset];
+export default [
+  ...preset,
+  {
+    files: ['**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        // The library project leaves tests out; the test project covers the whole tree.
+        project: ['./tsconfig.json', './tsconfig.test.json'],
+      },
+    },
+  },
+];
