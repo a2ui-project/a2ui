@@ -17,7 +17,7 @@ This reference defines the required structure, writing guidelines, and standard 
 1. **Focus on Intent ("Why") over Mechanics ("How")**: Explain what problem in the compliance report is being solved and why the specific code/doc change addresses it.
 2. **Factual, Plain Language**: Avoid hyperbolic prose or filler. State changes concisely and objectively.
 3. **Markdown Formatting**:
-   - Use backticks for file paths, CLI commands, variable names, and symbols (e.g. `agent_sdks/python/a2ui_agent`).
+   - Use backticks for file paths, CLI commands, variable names, and symbols (e.g. `python/a2ui_agent`).
    - Include references to the compliance report issue (e.g., `Addresses #2178`).
    - Quote hashtag references with backticks if they are not meant to be GitHub issue links.
 

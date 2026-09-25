@@ -18,7 +18,7 @@ yarn build:all
 
 For more details on building the renderers, see:
 
-- [Web Core README](../../web_core/README.md)
+- [Web Core README](../../../typescript/web_core/README.md)
 - [Lit Renderer README](../README.md)
 
 ## Getting Started

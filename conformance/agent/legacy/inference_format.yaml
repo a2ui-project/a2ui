@@ -1,0 +1,467 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# --- Catalog Selection Tests ---
+
+- name: test_select_catalog_default
+  description: If supported_catalog_ids is not provided, return the first supported catalog.
+  action: select_catalog
+  args:
+    supportedCatalogs:
+      - catalogId: id_basic
+        components: {}
+      - catalogId: id_custom1
+        components: {}
+      - catalogId: id_custom2
+        components: {}
+    clientCapabilities: {}
+  expectSelected: id_basic
+
+- name: test_select_catalog_intersection
+  description: Find the intersection, return any catalog that matches.
+  action: select_catalog
+  args:
+    supportedCatalogs:
+      - catalogId: id_basic
+        components: {}
+      - catalogId: id_custom1
+        components: {}
+      - catalogId: id_custom2
+        components: {}
+    clientCapabilities:
+      supportedCatalogIds: ["id_custom2", "id_custom1"]
+  expectSelected: id_custom2
+
+- name: test_select_catalog_priority
+  description: Priority is determined by the order in supported_catalog_ids.
+  action: select_catalog
+  args:
+    supportedCatalogs:
+      - catalogId: id_basic
+        components: {}
+      - catalogId: id_custom1
+        components: {}
+      - catalogId: id_custom2
+        components: {}
+    clientCapabilities:
+      supportedCatalogIds: ["id_custom1", "id_custom2"]
+  expectSelected: id_custom1
+
+- name: test_select_catalog_no_match
+  description: Raise error if supported list is non-empty but no match exists.
+  action: select_catalog
+  args:
+    supportedCatalogs:
+      - catalogId: id_basic
+        components: {}
+      - catalogId: id_custom1
+        components: {}
+    clientCapabilities:
+      supportedCatalogIds: ["id_not_exists"]
+  expectError:
+    category: "CatalogError"
+    message: "No client-supported catalog found"
+
+- name: test_select_catalog_inline
+  description: Inline catalog loading (merges onto base).
+  action: select_catalog
+  args:
+    acceptsInlineCatalogs: true
+    supportedCatalogs:
+      - catalogId: id_basic
+        components:
+          Text: {}
+    clientCapabilities:
+      inlineCatalogs:
+        - catalogId: id_inline
+          components:
+            Button: {}
+  expect:
+    catalogId: id_basic
+    components:
+      Text: {}
+      Button: {}
+
+- name: test_select_catalog_inline_not_accepted
+  description: Inline catalog loading should fail if not accepted.
+  action: select_catalog
+  args:
+    acceptsInlineCatalogs: false
+    supportedCatalogs:
+      - catalogId: id_basic
+    clientCapabilities:
+      inlineCatalogs:
+        - catalogId: id_inline
+  expectError:
+    category: "CatalogError"
+    message: "the agent does not accept inline catalogs"
+
+- name: test_select_catalog_multiple_inline
+  description: Tests that multiple inline catalogs are merged.
+  action: select_catalog
+  args:
+    acceptsInlineCatalogs: true
+    supportedCatalogs:
+      - catalogId: id_basic
+        components:
+          Text: {}
+    clientCapabilities:
+      inlineCatalogs:
+        - catalogId: id_basic
+          components:
+            Button: {}
+        - catalogId: id_basic
+          components:
+            Icon: {}
+  expect:
+    catalogId: id_basic
+    components:
+      Text: {}
+      Button: {}
+      Icon: {}
+
+- name: test_select_catalog_no_match_with_inline
+  description: Fallback to default catalog when no match in supported list but inline is present.
+  action: select_catalog
+  args:
+    acceptsInlineCatalogs: true
+    supportedCatalogs:
+      - catalogId: id_basic
+        components:
+          Text: {}
+      - catalogId: id_custom1
+        components: {}
+    clientCapabilities:
+      supportedCatalogIds: ["id_not_exists"]
+      inlineCatalogs:
+        - catalogId: id_basic
+          components:
+            Button: {}
+  expect:
+    catalogId: id_basic
+    components:
+      Text: {}
+      Button: {}
+
+# --- Manager Modifier Tests ---
+
+- name: test_manager_with_modifiers
+  description: Tests that A2uiSchemaManager applies modifiers during loading.
+  catalogConfigs:
+    - name: test_strict
+      path: "test_data/load_examples/schema_with_strict/catalog.json"
+  modifiers: ["remove_strict_validation"]
+  action: load_catalog
+  expect:
+    catalogId: "test_strict"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+
+- name: test_manager_no_modifiers
+  description: Tests that A2uiSchemaManager works fine without modifiers.
+  catalogConfigs:
+    - name: test_strict
+      path: "test_data/load_examples/schema_with_strict/catalog.json"
+  action: load_catalog
+  expect:
+    catalogId: "test_strict"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+        additionalProperties: false
+
+# --- Prompt Generation Tests ---
+
+- name: test_generate_system_prompt_minimal
+  description: Tests prompt generation with minimal arguments.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    roleDescription: "Just Role"
+  expectContains:
+    - "Just Role"
+    - "## Workflow Description:"
+    - "The generated response MUST follow these rules:"
+
+- name: test_generate_system_prompt_custom_workflow
+  description: Tests appending custom workflow rules.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    roleDescription: "Role"
+    workflowDescription: "Custom Rule Content"
+  expectContains:
+    - "Role"
+    - "## Workflow Description:"
+    - "The generated response MUST follow these rules:"
+    - "Custom Rule Content"
+
+- name: test_generate_system_prompt_full
+  description: Tests full prompt generation with all descriptions.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    roleDescription: "Role"
+    workflowDescription: "Workflow"
+    uiDescription: "Render UI."
+  expectContains:
+    - "Role"
+    - "## Workflow Description:"
+    - "Workflow"
+    - "## UI Description:"
+    - "Render UI."
+
+- name: test_generate_system_prompt_with_schema
+  description: Tests prompt generation with schema included.
+  action: generate_prompt
+  args:
+    version: "0.9"
+    roleDescription: "Role"
+    includeSchema: true
+  expectContains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Catalog Schema:"
+    - "---END A2UI JSON SCHEMA---"
+
+- name: test_generate_system_prompt_with_examples
+  description: Tests prompt generation with examples included.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    roleDescription: "Role"
+    includeExamples: true
+    examplesPath: "test_data/load_examples/basic"
+  expectContains:
+    - "Role"
+    - "### Examples:"
+    - "---BEGIN example1---"
+    - "---END example1---"
+    - "---BEGIN example2---"
+    - "---END example2---"
+
+- name: test_generate_system_prompt_with_inline_catalog
+  description: Tests inline catalog handling in prompt generation.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    roleDescription: "Role"
+    includeSchema: true
+    acceptsInlineCatalogs: true
+    clientUiCapabilities:
+      inlineCatalogs:
+        - catalogId: id_inline
+          components:
+            Button: {}
+  expectContains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Catalog Schema:"
+    - '"Button": {}'
+    - "---END A2UI JSON SCHEMA---"
+
+- name: test_schema_manager_init_custom_catalog
+  description: Tests that A2uiSchemaManager can load a custom catalog from path.
+  action: load_catalog
+  catalogConfigs:
+    - name: standard
+      path: "test_data/schema_manager/catalog.json"
+    - name: Custom
+      path: "test_data/schema_manager/custom_catalog.json"
+  expect:
+    supportedCatalogIds: ["basic", "Custom"]
+
+- name: test_generate_system_prompt_v0_9_common_types
+  description: Tests v0.9 prompt generation with common types included.
+  action: generate_prompt
+  args:
+    version: "0.9"
+    roleDescription: "Role"
+    includeSchema: true
+  expectContains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Common Types Schema:"
+    - "### Catalog Schema:"
+    - "---END A2UI JSON SCHEMA---"
+
+- name: test_generate_system_prompt_full_with_caps
+  description: Tests full prompt generation with capabilities and allowed components.
+  action: generate_prompt
+  args:
+    version: "0.8"
+    roleDescription: "Role"
+    includeSchema: true
+    clientUiCapabilities:
+      supportedCatalogIds: ["https://a2ui.org/specification/v0_8/standard_catalog_definition.json"]
+
+    allowedComponents: ["Text"]
+  expectContains:
+    - "Role"
+    - "---BEGIN A2UI JSON SCHEMA---"
+    - "### Server To Client Schema:"
+    - "### Catalog Schema:"
+    - '"Text": {'
+    - "---END A2UI JSON SCHEMA---"
+
+- name: test_agent_v1_0_direct_json_envelope_parsing
+  description: Verifies parsing Direct JSON v1.0 payload envelopes wrapped in <a2ui-json> sentinel tags.
+  catalog:
+    protocolVersion: "v1.0"
+    catalogSchema:
+      catalogId: "basic"
+  disableValidation: true
+  action: process_chunk
+  steps:
+    - input: |-
+        Here is the requested user interface:
+        <a2ui-json>
+        [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "main",
+              "catalogId": "basic",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Text",
+                  "text": "Welcome to A2UI v1.0"
+                }
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect:
+        - text: "Here is the requested user interface:\n"
+          a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "basic"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Welcome to A2UI v1.0"
+
+- name: test_express_compile_basic_column_and_text
+  description: Compiles Express Pythonic DSL into standard v1.0 createSurface payload.
+  catalog:
+    protocolVersion: "v1.0"
+  action: parse_full
+  format: express
+  input: |
+    <a2ui>
+    root = Column([helloText])
+    helloText = Text("Welcome to Express")
+    </a2ui>
+  expect:
+    - text: ""
+      a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "helloText"
+              - id: "helloText"
+                component: "Text"
+                text: "Welcome to Express"
+
+- name: test_elemental_compile_html_template_and_actions
+  description: Compiles Elemental HTML DSL with button action and text child into standard v1.0 createSurface payload.
+  catalog:
+    protocolVersion: "v1.0"
+  action: parse_full
+  format: elemental
+  input: |
+    <a2ui>
+    <body id="main">
+      <ui-button id="btn_1" onclick="{Event('submit')}">
+        <ui-text id="text_1" text="Submit" />
+      </ui-button>
+    </body>
+    </a2ui>
+  expect:
+    - text: ""
+      a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "text_1"
+                component: "Text"
+                text: "Submit"
+              - id: "btn_1"
+                component: "Button"
+                child: "text_1"
+                action:
+                  event:
+                    name: "submit"
+                    context: {}
+
+- name: test_atom_compile_s_expressions_and_data_model
+  description: Compiles Atom S-expression DSL into standard v1.0 createSurface payload with data model and components.
+  catalog:
+    protocolVersion: "v1.0"
+  action: parse_full
+  format: atom
+  input: |
+    <a2ui>
+    (data $/title "Atom Card")
+    (Column
+      (Text $/title)
+      (Button :action (Event "submit") (Text "Save")))
+    </a2ui>
+  expect:
+    - text: ""
+      a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              title: "Atom Card"
+            components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "node_0"
+                  - "node_1"
+              - id: "node_1"
+                component: "Button"
+                child: "node_2"
+                action:
+                  event:
+                    name: "submit"
+              - id: "node_2"
+                component: "Text"
+                text: "Save"
+              - id: "node_0"
+                component: "Text"
+                text:
+                  path: "/title"

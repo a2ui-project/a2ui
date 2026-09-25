@@ -27,7 +27,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any
 
 # Load environment variables from .env file for local development
 # In Agent Engine, these will be set by the deployment environment
@@ -99,7 +99,7 @@ SURFACE_ID = _IMPORTED_SURFACE_ID if _HAS_EXTERNAL_MODULES else "learningContent
 
 
 # Context cache with TTL for performance
-_CONTEXT_CACHE: dict[str, Tuple[str, float]] = {}
+_CONTEXT_CACHE: dict[str, tuple[str, float]] = {}
 _CONTEXT_CACHE_TTL = 300  # 5 minutes
 
 
@@ -157,7 +157,7 @@ def _safe_get_combined_context() -> str:
     )
 
 
-def _safe_load_context_file(filename: str) -> Optional[str]:
+def _safe_load_context_file(filename: str) -> str | None:
     """
     Load a single context file. Uses context_loader which handles
     local files and GCS fallback.
@@ -185,7 +185,7 @@ def _safe_get_system_prompt(format_type: str, context: str) -> str:
 
 async def generate_flashcards(
     tool_context: ToolContext,
-    topic: Optional[str] = None,
+    topic: str | None = None,
 ) -> dict[str, Any]:
     """
     Generate personalized flashcard content as A2UI JSON.
@@ -257,7 +257,7 @@ Use the following textbook content as the authoritative source for creating flas
 
 async def generate_quiz(
     tool_context: ToolContext,
-    topic: Optional[str] = None,
+    topic: str | None = None,
 ) -> dict[str, Any]:
     """
     Generate personalized quiz questions as A2UI JSON.

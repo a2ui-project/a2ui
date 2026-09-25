@@ -101,6 +101,11 @@ describe('v0.9 Angular Renderer Integration', () => {
               id: 'button-id',
               component: 'Button',
               child: 'button-text-id',
+              action: {
+                event: {
+                  name: 'click',
+                },
+              },
             },
             {
               id: 'button-text-id',
@@ -352,5 +357,22 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
     expect(textEl).toBeTruthy();
     expect(textEl.textContent).toContain('Hello from v0.9.1!');
+  });
+
+  it('should validate theme on createSurface and reject CSS injection', () => {
+    const invalidThemeMessage: A2uiMessage = {
+      version: 'v0.9',
+      createSurface: {
+        surfaceId: 'malicious-surface',
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        theme: {
+          primaryColor: 'url(https://attacker.example/beacon)',
+        },
+      },
+    };
+
+    expect(() => {
+      rendererService.processMessages([invalidThemeMessage]);
+    }).toThrow();
   });
 });

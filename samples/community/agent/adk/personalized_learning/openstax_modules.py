@@ -30,7 +30,6 @@ https://openstax.org/books/biology-ap-courses/pages/{chapter-slug}
 """
 
 import re
-from typing import Optional
 
 # Base URL for OpenStax textbook
 OPENSTAX_BASE_URL = "https://openstax.org/books/biology-ap-courses/pages"

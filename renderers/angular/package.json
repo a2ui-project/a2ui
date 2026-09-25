@@ -1,6 +1,6 @@
 {
   "name": "@a2ui/angular",
-  "version": "0.10.6",
+  "version": "0.10.7",
   "license": "Apache-2.0",
   "homepage": "https://a2ui.org/",
   "repository": {
@@ -101,7 +101,7 @@
     "build": {
       "command": "ng build lib && node ../scripts/prepare-publish.mjs --source ./dist/package.json --skip-path-adjustment",
       "dependencies": [
-        "../../renderers/web_core:build",
+        "../../typescript/web_core:build",
         "../../renderers/markdown/markdown-it:build"
       ],
       "files": [

@@ -71,8 +71,8 @@ For each iteration, perform the following steps:
 ### Step 2: Implement and Verify Code
 
 1. Implement changes in:
-   - System prompts and format rules: `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/{format}/prompt_generator.py` (or prompt template files).
-   - Parser, compiler, or decompiler code: under `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/{format}/`.
+   - System prompts and format rules: `python/a2ui_agent/src/a2ui/inference_formats/experimental/{format}/prompt_generator.py` (or prompt template files).
+   - Parser, compiler, or decompiler code: under `python/a2ui_agent/src/a2ui/inference_formats/experimental/{format}/`.
 2. **Catalog Agnosticism Constraint (Strict Non-Negotiable)**:
    - All compilers, decompilers, prompt generators, and system prompt instruction templates MUST remain 100% catalog-agnostic.
    - **NO Hardcoded Component or Property Names in Code**: Compilers and decompilers MUST NOT hardcode specific component names (e.g. `Card`, `Column`, `Row`, `List`, `Button`) or catalog-specific property names (e.g. `children`, `child`, `trigger`, `content`, `template`, `items`) in parsing/compilation decision trees.
@@ -81,12 +81,12 @@ For each iteration, perform the following steps:
    - **Synthetic Catalog Verification**: All compiler/decompiler/prompt changes MUST pass the fuzzed synthetic catalog unit test (`test_fuzzed_synthetic_catalog_agnosticism`) to prove they function on custom or fuzzed catalogs.
 3. Run pytest conformance unit tests locally first:
    ```bash
-   uv run pytest agent_sdks/python/a2ui_agent/tests/
+   uv run pytest python/a2ui_agent/tests/
    ```
 4. If unit tests fail, classify the failure:
    - **Prompt-Only Regression**: If only prompt/template files were modified and unit tests fail, it is a prompt regression. You **MUST** immediately revert the prompt modification.
    - **Parser/Compiler Regression**: A change broke existing valid compiler behavior. You **must** fix the compiler code or revert the change.
-   - **Format Capability Evolution**: The compiler was deliberately modified to support new/updated syntax, causing old tests to fail. You **must** update the unit tests under `agent_sdks/python/a2ui_agent/tests/{format}/` to match and cover the new capability.
+   - **Format Capability Evolution**: The compiler was deliberately modified to support new/updated syntax, causing old tests to fail. You **must** update the unit tests under `python/a2ui_agent/tests/{format}/` to match and cover the new capability.
 
 ### Step 3: Run the Evaluation
 

@@ -20,7 +20,7 @@ from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from a2ui.basic_catalog.provider import BasicCatalog
-from typing import Dict, Any
+from typing import Any
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST be a a2ui UI"

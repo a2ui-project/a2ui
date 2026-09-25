@@ -34,7 +34,7 @@ Each subagent MUST execute the following 5-step sequence inside its worktree:
 1. **Implement Hypothesis**: Edit target compiler (`compiler.py`), prompt generator (`prompt_generator.py`), or parser (`parser.py`).
 2. **Run Pytest Unit Tests**:
    ```bash
-   PYTHONPATH=agent_sdks/python/a2ui_agent/src:agent_sdks/python/a2ui_core/src /usr/local/google/home/gspencer/code/a2ui/iterative_optimization/.venv/bin/python -m pytest agent_sdks/python/a2ui_agent/tests/<format>/
+   PYTHONPATH=python/a2ui_agent/src:python/a2ui_core/src /usr/local/google/home/gspencer/code/a2ui/iterative_optimization/.venv/bin/python -m pytest python/a2ui_agent/tests/<format>/
    ```
 3. **Run Evaluation Benchmark**:
    ```bash

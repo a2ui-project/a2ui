@@ -23,17 +23,22 @@ import type {A2uiSurface} from '../surface/a2ui-surface.js';
 
 import {z} from 'zod';
 
-// A mock custom component API
+// A mock custom component API. The element is never instantiated by these
+// tests; it only satisfies the WebComponentImplementation contract. It cannot
+// extend HTMLElement because the JSDOM globals are only installed in `before`.
+const CustomWidgetElement = class {} as unknown as CustomElementConstructor;
+
 const CustomWidgetApi = {
   name: 'CustomWidget',
   tagName: 'a2ui-customwidget',
+  element: CustomWidgetElement,
   schema: z.object({
     label: z.string().optional(),
   }),
 }; // satisfies LitComponentApi
 
 // A custom catalog wrapping the component
-const customCatalog = new Catalog<LitComponentApi>('custom-catalog-v1', [CustomWidgetApi]);
+const customCatalog = new Catalog<LitComponentApi>('custom-catalog-v1', '0.9', [CustomWidgetApi]);
 
 /**
  * Verifies that:
@@ -160,9 +165,13 @@ describe('Custom Catalogs Integration', () => {
     });
 
     // Validates that the minimal catalog surface spawned the classic a2ui-text node
-    assert.ok((el1.renderRoot as HTMLElement).querySelector('a2ui-basic-text'));
+    assert.ok(
+      el1.renderRoot?.querySelector('a2ui-basic-text') ?? el1.querySelector('a2ui-basic-text'),
+    );
 
     // Validates that the custom catalog surface dynamically spawned the custom node tag `<a2ui-customwidget>`
-    assert.ok((el2.renderRoot as HTMLElement).querySelector('a2ui-customwidget'));
+    assert.ok(
+      el2.renderRoot?.querySelector('a2ui-customwidget') ?? el2.querySelector('a2ui-customwidget'),
+    );
   });
 });

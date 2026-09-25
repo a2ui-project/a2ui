@@ -25,17 +25,22 @@ describe('Icon Component', () => {
   let component: Icon;
   let fixture: ComponentFixture<Icon>;
   let mockTheme: Theme;
+  let mockDataModelValue: unknown = null;
 
   beforeEach(async () => {
     mockTheme = new Theme();
     mockTheme.components = {Icon: 'icon-class'} as any;
+    mockDataModelValue = null;
 
     await TestBed.configureTestingModule({
       imports: [Icon],
       providers: [
         {
           provide: MessageProcessor,
-          useValue: {resolvePrimitive: (p: any) => p?.literalString || p},
+          useValue: {
+            resolvePrimitive: (p: any) => p?.literalString || p,
+            getData: (_comp: unknown, _path: string, _surfaceId: unknown) => mockDataModelValue,
+          },
         },
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},
@@ -95,5 +100,67 @@ describe('Icon Component', () => {
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
     expect(spanEl).toBeTruthy();
     expect(spanEl.nativeElement.textContent).toBe('arrow_forward');
+  });
+
+  it('should NOT render anything and NOT throw if name resolves to an array from DataModel', () => {
+    mockDataModelValue = [1, 2, 3];
+    fixture.componentRef.setInput('name', {path: '/bad_array'});
+    expect(() => fixture.detectChanges()).not.toThrow();
+
+    const spanEl = fixture.debugElement.query(By.css('.g-icon'));
+    expect(spanEl).toBeFalsy();
+
+    const sectionEl = fixture.debugElement.query(By.css('section'));
+    expect(sectionEl).toBeFalsy();
+  });
+
+  it('should NOT render anything and NOT throw if name resolves to an object from DataModel', () => {
+    mockDataModelValue = {malicious: true};
+    fixture.componentRef.setInput('name', {path: '/bad_object'});
+    expect(() => fixture.detectChanges()).not.toThrow();
+
+    const spanEl = fixture.debugElement.query(By.css('.g-icon'));
+    expect(spanEl).toBeFalsy();
+
+    const sectionEl = fixture.debugElement.query(By.css('section'));
+    expect(sectionEl).toBeFalsy();
+  });
+
+  it('should NOT render anything and NOT throw if name resolves to a number from DataModel', () => {
+    mockDataModelValue = 12345;
+    fixture.componentRef.setInput('name', {path: '/bad_number'});
+    expect(() => fixture.detectChanges()).not.toThrow();
+
+    const spanEl = fixture.debugElement.query(By.css('.g-icon'));
+    expect(spanEl).toBeFalsy();
+
+    const sectionEl = fixture.debugElement.query(By.css('section'));
+    expect(sectionEl).toBeFalsy();
+  });
+
+  it('should NOT render anything and NOT throw if name resolves to a boolean from DataModel', () => {
+    mockDataModelValue = true;
+    fixture.componentRef.setInput('name', {path: '/bad_bool'});
+    expect(() => fixture.detectChanges()).not.toThrow();
+
+    const spanEl = fixture.debugElement.query(By.css('.g-icon'));
+    expect(spanEl).toBeFalsy();
+
+    const sectionEl = fixture.debugElement.query(By.css('section'));
+    expect(sectionEl).toBeFalsy();
+  });
+
+  it('should render icon name if name resolves to a valid string from DataModel', () => {
+    mockDataModelValue = 'starBorder';
+    fixture.componentRef.setInput('name', {path: '/valid_icon'});
+    fixture.detectChanges();
+
+    const spanEl = fixture.debugElement.query(By.css('.g-icon'));
+    expect(spanEl).toBeTruthy();
+    expect(spanEl.nativeElement.textContent).toBe('star_border');
+
+    const sectionEl = fixture.debugElement.query(By.css('section'));
+    expect(sectionEl).toBeTruthy();
+    expect(sectionEl.nativeElement.className).toBe('icon-class');
   });
 });

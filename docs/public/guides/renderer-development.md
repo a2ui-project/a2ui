@@ -8,7 +8,7 @@ This document outlines the required features for a new renderer implementation o
 
 ## Web Renderers: Use `@a2ui/web_core` (`web_core`)
 
-If you're building a renderer for the web (React, Vue, Svelte, etc.), you don't need to implement message processing, state management, or schema validation from scratch. The **[`@a2ui/web_core`](../../../renderers/web_core)** package (`web_core`) provides all the framework-agnostic logic that the maintained Lit, Angular, and React renderers share.
+If you're building a renderer for the web (React, Vue, Svelte, etc.), you don't need to implement message processing, state management, or schema validation from scratch. The **[`@a2ui/web_core`](../../../typescript/web_core)** package (`web_core`) provides all the framework-agnostic logic that the maintained Lit, Angular, and React renderers share.
 
 ### What `web_core` provides
 

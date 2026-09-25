@@ -48,6 +48,49 @@ struct DataModelPointerConformanceTests {
     #expect(list?[2] == .string("c"))
   }
 
+  @Test func primitiveInTheWaySurvives() {
+    let dataModel = DataModel(
+      initial: .object(["user": .object(["name": .string("Alice")])])
+    )
+
+    dataModel.set("/user/name/first", value: .string("Bob"))
+
+    #expect(dataModel.get("/user/name")?.stringValue == "Alice")
+    #expect(dataModel.get("/user/name/first") == nil)
+  }
+
+  @Test func primitiveListElementSurvives() {
+    let dataModel = DataModel(
+      initial: .object(["items": .array([.string("a"), .string("b")])])
+    )
+
+    dataModel.set("/items/0/foo", value: .string("bar"))
+
+    #expect(dataModel.get("/items")?.arrayValue == [.string("a"), .string("b")])
+  }
+
+  @Test func nonNumericKeyLeavesTheListAlone() {
+    let dataModel = DataModel(
+      initial: .object(["items": .array([.string("a"), .string("b")])])
+    )
+
+    dataModel.set("/items/foo", value: .string("bar"))
+    dataModel.set("/items/foo/bar", value: .string("value"))
+
+    // Neither write replaces the array.
+    #expect(dataModel.get("/items")?.arrayValue == [.string("a"), .string("b")])
+  }
+
+  @Test func nullIsStillFilledIn() {
+    let dataModel = DataModel(initial: .object(["slot": .null]))
+
+    dataModel.set("/slot/name", value: .string("Alice"))
+
+    // Null is absence, not a value someone put there, so it is still grown
+    // into a container.
+    #expect(dataModel.get("/slot/name")?.stringValue == "Alice")
+  }
+
   @Test func rootReplacement() {
     let dataModel = DataModel(initial: .object(["a": .integer(1)]))
 

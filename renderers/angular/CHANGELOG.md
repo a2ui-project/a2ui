@@ -1,6 +1,20 @@
 ## Unreleased
 
+- (v0_9) Support markdown in universal basic catalog:
+  - When `useUniversalComponents` is enabled, `A2uiRendererService` bridges `MarkdownRenderer` from Angular DI to `@a2ui/web_core`'s global markdown renderer.
+  - **BREAKING CHANGE**: Removed export of `MarkdownRendererOptions` from `@a2ui/angular/v0_9`. Consumers should now import `MarkdownRendererOptions` directly from `@a2ui/web_core/v0_9`. Additionally, `provideMarkdownRenderer` now accepts `MarkdownRenderer` from `@a2ui/web_core/v0_9` (where `tagClassMap` is typed as `Record<string, string[]>`). [#2604](https://github.com/a2ui-project/a2ui/pull/2604)
+- (v0_9) Support universal Web Components in the v0.9 renderer:
+  - Add the `useUniversalComponents` option to `RendererConfiguration`.
+  - `AngularCatalog` now also accepts plain `WebComponentImplementation` entries (universal Web Components) next to native Angular components; they render when `useUniversalComponents` is enabled. `AngularComponentImplementation` is unchanged.
+  - Entries from `createComponentImplementation` now also carry a Custom Element (`tagName`, `element`): the one of a `WebComponentImplementation` API, or the Angular component wrapped into an `a2ui-ng-<name>` element. Universal container components can always render them as children, and the renderer mounts the element when `useUniversalComponents` is enabled (detected with `isWebComponentImplementation`).
+  - Update `A2uiRendererService` and `ComponentHostComponent` to render either universal Web Components or native Angular components depending on `useUniversalComponents`. [#2273](https://github.com/a2ui-project/a2ui/pull/2273)
+
+## 0.10.7
+
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` now combines the surface id, component id, and data context path instead of using the surface-scoped component id alone, and checkboxes no longer receive a `name`. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)
+
+## 0.10.6
+
 - (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
 
 ## 0.10.5

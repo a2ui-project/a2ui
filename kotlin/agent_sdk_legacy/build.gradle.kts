@@ -118,4 +118,8 @@ tasks.generateGrammarSource {
   outputDirectory = file("${layout.buildDirectory.get()}/generated/sources/antlr/main/com/google/a2ui/inference_formats/experimental/express/generated")
 }
 
+tasks.matching { it.name.startsWith("ktfmt") }.configureEach {
+  mustRunAfter(tasks.withType<AntlrTask>())
+}
+
 

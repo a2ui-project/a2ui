@@ -19,20 +19,116 @@ import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
+import 'package:a2ui_core/src/primitives/protocol_version.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
+import 'package:a2ui_core/src/validation/validation_config.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('MessageProcessor catalog scope', () {
+    Catalog<ComponentApi, FunctionImplementation> namedCatalog(
+      String id,
+      String component,
+    ) => Catalog<ComponentApi, FunctionImplementation>(
+      id: id,
+      components: [
+        ComponentApi(
+          name: component,
+          schema: Schema.object(
+            properties: {
+              'id': Schema.string(),
+              'component': Schema.string(),
+              'a': Schema.string(),
+            },
+            required: ['component', 'a'],
+            additionalProperties: false,
+          ),
+        ),
+      ],
+    );
+
+    late MessageProcessor<ComponentApi> processor;
+
+    setUp(() {
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
+          CreateSurfaceMessage(surfaceId: 's2', catalogId: 'cat2'),
+        ]),
+      );
+    });
+
+    void update(String surfaceId, String component) =>
+        processor.processMessages(
+          AgentToRendererMessagePayload([
+            UpdateComponentsMessage(
+              surfaceId: surfaceId,
+              components: [
+                {'id': 'root', 'component': component, 'a': 'x'},
+              ],
+            ),
+          ]),
+        );
+
+    test('checks each surface against the catalog it was created with', () {
+      // A processor supports several catalogs at once, but a component belongs
+      // to exactly one. Each surface is checked against its own catalog, not
+      // against the union of everything the processor supports.
+      expect(() => update('s1', 'Alpha'), returnsNormally);
+      expect(() => update('s2', 'Beta'), returnsNormally);
+    });
+
+    test('rejects a component from another surface\'s catalog', () {
+      expect(() => update('s1', 'Beta'), throwsA(isA<A2uiValidationError>()));
+      expect(() => update('s2', 'Alpha'), throwsA(isA<A2uiValidationError>()));
+    });
+
+    test('builds one validator per catalog and reuses it', () {
+      final Catalog<ComponentApi, FunctionImplementation> cat1 =
+          processor.catalogs.first;
+      expect(processor.validatorFor(cat1).catalog.id, 'cat1');
+      expect(
+        processor.validatorFor(cat1),
+        same(processor.validatorFor(cat1)),
+        reason: 'resolved component schemas are cached on the validator',
+      );
+      expect(
+        processor.validatorFor(processor.catalogs.last).catalog.id,
+        'cat2',
+      );
+    });
+  });
+
   group('MessageProcessor', () {
     late MinimalCatalog catalog;
     late MessageProcessor processor;
 
     setUp(() {
       catalog = MinimalCatalog();
-      processor = MessageProcessor(catalogs: [catalog]);
+      processor = MessageProcessor(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
     });
 
     group('component graph checks', () {
+      /// A processor for a surface that arrives across several payloads.
+      ///
+      /// The root and the reachable set answer for the surface one payload
+      /// leaves behind, so an instalment of a render fails the strict default.
+      /// These cases are about what a later batch is checked against, so they
+      /// relax the checks that span payloads; see [ValidationConfig].
+      MessageProcessor streaming() => MessageProcessor(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: ValidationConfig.relaxed,
+      );
+
       List<Map<String, Object?>> update(
         List<Map<String, Object?>> components,
       ) => [
@@ -46,16 +142,21 @@ void main() {
         },
       ];
 
-      test('rejects a reference to a component that does not exist', () {
+      test('reports a reference to no component once the payload ends', () {
+        // The reference may be satisfied by a later message of the payload, so
+        // it is the surface the payload leaves behind that must hold together.
         expect(
-          () => processor.processPayload(
-            update([
-              {
-                'id': 'root',
-                'component': 'Column',
-                'children': ['missing'],
-              },
-            ]),
+          () => processor.processMessages(
+            AgentToRendererMessage.parseAll(
+              update([
+                {
+                  'id': 'root',
+                  'component': 'Column',
+                  'children': ['missing'],
+                },
+              ]),
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
           ),
           throwsA(isA<A2uiIntegrityError>()),
         );
@@ -63,94 +164,113 @@ void main() {
 
       test('rejects duplicate ids within one batch', () {
         expect(
-          () => processor.processPayload(
-            update([
-              {'id': 'a', 'component': 'Text', 'text': 'one'},
-              {'id': 'a', 'component': 'Text', 'text': 'two'},
-            ]),
+          () => processor.processMessages(
+            AgentToRendererMessage.parseAll(
+              update([
+                {'id': 'a', 'component': 'Text', 'text': 'one'},
+                {'id': 'a', 'component': 'Text', 'text': 'two'},
+              ]),
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
           ),
           throwsA(isA<A2uiIntegrityError>()),
         );
       });
 
       test('accepts a reference to a component the surface already holds', () {
+        final MessageProcessor processor = streaming();
         // The payload-scoped validator cannot make this call: it waves the
-        // second batch through because it cannot see the first.
-        processor.processPayload(
-          update([
-            {'id': 'a', 'component': 'Text', 'text': 'held'},
-          ]),
+        //second batch through because it cannot see the first.
+        processor.processMessages(
+          AgentToRendererMessage.parseAll(
+            update([
+              {'id': 'a', 'component': 'Text', 'text': 'held'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
         expect(
-          () => processor.processMessages([
-            UpdateComponentsMessage(
-              surfaceId: 's1',
-              components: [
-                {
-                  'id': 'root',
-                  'component': 'Column',
-                  'children': ['a'],
-                },
-              ],
-            ),
-          ]),
+          () => processor.processMessages(
+            AgentToRendererMessagePayload([
+              UpdateComponentsMessage(
+                surfaceId: 's1',
+                components: [
+                  {
+                    'id': 'root',
+                    'component': 'Column',
+                    'children': ['a'],
+                  },
+                ],
+              ),
+            ]),
+          ),
           returnsNormally,
         );
       });
 
       test('rejects a cycle closed through an existing component', () {
-        processor.processPayload(
-          update([
-            {
-              'id': 'a',
-              'component': 'Column',
-              'children': ['b'],
-            },
-            {'id': 'b', 'component': 'Text', 'text': 'leaf'},
-          ]),
+        final MessageProcessor processor = streaming();
+        processor.processMessages(
+          AgentToRendererMessage.parseAll(
+            update([
+              {
+                'id': 'a',
+                'component': 'Column',
+                'children': ['b'],
+              },
+              {'id': 'b', 'component': 'Text', 'text': 'leaf'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
         // Retyping `b` as a Column pointing back at `a` closes the loop only
         // when the existing components are taken into account.
         expect(
-          () => processor.processMessages([
-            UpdateComponentsMessage(
-              surfaceId: 's1',
-              components: [
-                {
-                  'id': 'b',
-                  'component': 'Column',
-                  'children': ['a'],
-                },
-              ],
-            ),
-          ]),
+          () => processor.processMessages(
+            AgentToRendererMessagePayload([
+              UpdateComponentsMessage(
+                surfaceId: 's1',
+                components: [
+                  {
+                    'id': 'b',
+                    'component': 'Column',
+                    'children': ['a'],
+                  },
+                ],
+              ),
+            ]),
+          ),
           throwsA(isA<A2uiRecursionError>()),
         );
       });
 
       test('leaves the surface unchanged when the graph check fails', () {
-        processor.processPayload(
-          update([
-            {'id': 'a', 'component': 'Text', 'text': 'held'},
-          ]),
+        final MessageProcessor processor = streaming();
+        processor.processMessages(
+          AgentToRendererMessage.parseAll(
+            update([
+              {'id': 'a', 'component': 'Text', 'text': 'held'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
+        // A duplicate id is settled by the batch alone, so it is rejected as
+        // the batch arrives and nothing in it is applied.
         expect(
-          () => processor.processMessages([
-            UpdateComponentsMessage(
-              surfaceId: 's1',
-              components: [
-                {'id': 'b', 'component': 'Text', 'text': 'new'},
-                {
-                  'id': 'c',
-                  'component': 'Column',
-                  'children': ['nowhere'],
-                },
-              ],
-            ),
-          ]),
+          () => processor.processMessages(
+            AgentToRendererMessagePayload([
+              UpdateComponentsMessage(
+                surfaceId: 's1',
+                components: [
+                  {'id': 'b', 'component': 'Text', 'text': 'new'},
+                  {'id': 'b', 'component': 'Text', 'text': 'again'},
+                ],
+              ),
+            ]),
+          ),
           throwsA(isA<A2uiIntegrityError>()),
         );
         final SurfaceModel surface = processor.groupModel.getSurface('s1')!;
@@ -159,45 +279,120 @@ void main() {
       });
     });
 
-    test('processPayload rejects a malformed envelope before processing', () {
+    test('processMessages rejects a malformed envelope before processing', () {
       expect(
-        () => processor.processPayload([
-          {
-            'version': 'v1.0',
-            'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
-          },
-        ]),
+        () => processor.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v1.0',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(processor.groupModel.getSurface('s1'), isNull);
     });
 
-    test('processPayload parses and processes a valid payload', () {
-      final List<A2uiMessage> messages = processor.processPayload([
-        {
-          'version': 'v0.9',
-          'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
-        },
-      ]);
+    test('processMessages rejects an envelope mixing update types', () {
+      // An envelope carries exactly one update type. Two of them name no
+      // single surface, so the message cannot be matched to the catalog its
+      // components must be checked against.
+      expect(
+        () => processor.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+              'updateComponents': {
+                'surfaceId': 's2',
+                'components': <Object?>[],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('exactly one of'),
+          ),
+        ),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
+    });
 
-      expect(messages, hasLength(1));
+    test('processMessages applies a payload built from raw JSON', () {
+      // What a transport hands over: decoded JSON in the wrapper shape, not
+      // messages that have been through the models yet. Parsing it is the
+      // payload type's job, so a transport normalizes nothing itself.
+      processor.processMessages(
+        AgentToRendererMessagePayload.fromJson({
+          'messages': [
+            {
+              'version': 'v0.9',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+            },
+            {
+              'version': 'v0.9',
+              'updateDataModel': {
+                'surfaceId': 's1',
+                'path': '/greeting',
+                'value': 'hello',
+              },
+            },
+          ],
+        }, protocolVersion: A2uiProtocolVersion.v0_9),
+      );
+
+      final SurfaceModel<ComponentApi> surface = processor.groupModel
+          .getSurface('s1')!;
+      expect(surface.dataModel.get('/greeting'), 'hello');
+    });
+
+    test('processMessages applies a lone message', () {
+      processor.processMessages(
+        AgentToRendererMessagePayload.of(
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        ),
+      );
+
+      expect(processor.groupModel.getSurface('s1'), isNotNull);
+    });
+
+    test('processMessages applies a parsed payload', () {
+      final AgentToRendererMessagePayload payload =
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9);
+      expect(payload.messages, hasLength(1));
+
+      processor.processMessages(payload);
+
       expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 
     test('rejects a component the catalog does not declare', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        ]),
+      );
 
       expect(
-        () => processor.processMessages([
-          UpdateComponentsMessage(
-            surfaceId: 's1',
-            components: [
-              {'id': 'a', 'component': 'NoSuchComponent'},
-            ],
-          ),
-        ]),
+        () => processor.processMessages(
+          AgentToRendererMessagePayload([
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'a', 'component': 'NoSuchComponent'},
+              ],
+            ),
+          ]),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
       // The rejected batch left the surface untouched.
@@ -208,55 +403,65 @@ void main() {
     });
 
     test('rejects a component that does not match its schema', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        ]),
+      );
 
       expect(
-        () => processor.processMessages([
-          // `Text` requires `text`.
-          UpdateComponentsMessage(
-            surfaceId: 's1',
-            components: [
-              {'id': 'a', 'component': 'Text'},
-            ],
-          ),
-        ]),
+        () => processor.processMessages(
+          AgentToRendererMessagePayload([
+            // `Text` requires `text`.
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'a', 'component': 'Text'},
+              ],
+            ),
+          ]),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('rejects a theme that does not match the catalog theme schema', () {
       expect(
-        () => processor.processMessages([
-          // `primaryColor` must match `^#[0-9a-fA-F]{6}$`.
-          CreateSurfaceMessage(
-            surfaceId: 's1',
-            catalogId: catalog.id,
-            theme: {'primaryColor': 'blue'},
-          ),
-        ]),
+        () => processor.processMessages(
+          AgentToRendererMessagePayload([
+            // `primaryColor` must match `^#[0-9a-fA-F]{6}$`.
+            CreateSurfaceMessage(
+              surfaceId: 's1',
+              catalogId: catalog.id,
+              theme: {'primaryColor': 'blue'},
+            ),
+          ]),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(processor.groupModel.getSurface('s1'), isNull);
     });
 
     test('accepts a theme that matches the catalog theme schema', () {
-      processor.processMessages([
-        CreateSurfaceMessage(
-          surfaceId: 's1',
-          catalogId: catalog.id,
-          theme: {'primaryColor': '#00ff00'},
-        ),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            surfaceId: 's1',
+            catalogId: catalog.id,
+            theme: {'primaryColor': '#00ff00'},
+          ),
+        ]),
+      );
 
       expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 
     test('creates surface', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        ]),
+      );
 
       final SurfaceModel<ComponentApi>? surface = processor.groupModel
           .getSurface('s1');
@@ -266,15 +471,17 @@ void main() {
     });
 
     test('updates components', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-        UpdateComponentsMessage(
-          surfaceId: 's1',
-          components: [
-            {'id': 'root', 'component': 'Text', 'text': 'Hello'},
-          ],
-        ),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+            ],
+          ),
+        ]),
+      );
 
       final SurfaceModel<ComponentApi>? surface = processor.groupModel
           .getSurface('s1');
@@ -285,14 +492,16 @@ void main() {
     });
 
     test('updates data model', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-        UpdateDataModelMessage(
-          surfaceId: 's1',
-          path: '/user/name',
-          value: 'Alice',
-        ),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          UpdateDataModelMessage(
+            surfaceId: 's1',
+            path: '/user/name',
+            value: 'Alice',
+          ),
+        ]),
+      );
 
       final SurfaceModel<ComponentApi>? surface = processor.groupModel
           .getSurface('s1');
@@ -300,10 +509,12 @@ void main() {
     });
 
     test('deletes surface', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-        DeleteSurfaceMessage(surfaceId: 's1'),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          DeleteSurfaceMessage(surfaceId: 's1'),
+        ]),
+      );
 
       expect(processor.groupModel.getSurface('s1'), isNull);
     });
@@ -340,20 +551,26 @@ void main() {
     });
 
     test('aggregates client data model', () {
-      processor.processMessages([
-        CreateSurfaceMessage(
-          surfaceId: 's1',
-          catalogId: catalog.id,
-          sendDataModel: true,
-        ),
-        UpdateDataModelMessage(surfaceId: 's1', path: '/foo', value: 'bar'),
-        CreateSurfaceMessage(
-          surfaceId: 's2',
-          catalogId: catalog.id,
-          sendDataModel: false,
-        ),
-        UpdateDataModelMessage(surfaceId: 's2', path: '/secret', value: 'baz'),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            surfaceId: 's1',
+            catalogId: catalog.id,
+            sendDataModel: true,
+          ),
+          UpdateDataModelMessage(surfaceId: 's1', path: '/foo', value: 'bar'),
+          CreateSurfaceMessage(
+            surfaceId: 's2',
+            catalogId: catalog.id,
+            sendDataModel: false,
+          ),
+          UpdateDataModelMessage(
+            surfaceId: 's2',
+            path: '/secret',
+            value: 'baz',
+          ),
+        ]),
+      );
 
       final Map<String, dynamic>? dataModel = processor.getClientDataModel();
       expect(dataModel, isNotNull);
@@ -363,16 +580,26 @@ void main() {
       expect(surfaces?['s1'], {'foo': 'bar'});
     });
     test('applies a fully valid batch of components', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-        UpdateComponentsMessage(
-          surfaceId: 's1',
-          components: [
-            {'id': 'root', 'component': 'Text', 'text': 'first'},
-            {'id': 'second', 'component': 'Text', 'text': 'second'},
-          ],
-        ),
-      ]);
+      // `Text` takes no children, so `second` can only ever be unreachable.
+      // The subject here is that both components land on the surface, so the
+      // reachability check is relaxed rather than the batch reshaped.
+      final MessageProcessor processor = MessageProcessor(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: const ValidationConfig(allowOrphanComponents: true),
+      );
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'component': 'Text', 'text': 'first'},
+              {'id': 'second', 'component': 'Text', 'text': 'second'},
+            ],
+          ),
+        ]),
+      );
 
       final SurfaceModel<ComponentApi>? surface = processor.groupModel
           .getSurface('s1');
@@ -382,22 +609,26 @@ void main() {
 
     test('rejects a batch with a component missing an id without mutating '
         'the surface', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        ]),
+      );
       final SurfaceModel<ComponentApi> surface = processor.groupModel
           .getSurface('s1')!;
 
       expect(
-        () => processor.processMessages([
-          UpdateComponentsMessage(
-            surfaceId: 's1',
-            components: [
-              {'id': 'root', 'component': 'Text', 'text': 'valid'},
-              {'component': 'Text', 'text': 'no id'},
-            ],
-          ),
-        ]),
+        () => processor.processMessages(
+          AgentToRendererMessagePayload([
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'root', 'component': 'Text', 'text': 'valid'},
+                {'component': 'Text', 'text': 'no id'},
+              ],
+            ),
+          ]),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
 
@@ -407,22 +638,26 @@ void main() {
 
     test('rejects a batch that creates a component without a type without '
         'mutating the surface', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        ]),
+      );
       final SurfaceModel<ComponentApi> surface = processor.groupModel
           .getSurface('s1')!;
 
       expect(
-        () => processor.processMessages([
-          UpdateComponentsMessage(
-            surfaceId: 's1',
-            components: [
-              {'id': 'root', 'component': 'Text', 'text': 'valid'},
-              {'id': 'typeless', 'text': 'no component type'},
-            ],
-          ),
-        ]),
+        () => processor.processMessages(
+          AgentToRendererMessagePayload([
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'root', 'component': 'Text', 'text': 'valid'},
+                {'id': 'typeless', 'text': 'no component type'},
+              ],
+            ),
+          ]),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
 
@@ -431,28 +666,32 @@ void main() {
 
     test('leaves previously applied components untouched when a later batch '
         'is rejected', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-        UpdateComponentsMessage(
-          surfaceId: 's1',
-          components: [
-            {'id': 'root', 'component': 'Text', 'text': 'original'},
-          ],
-        ),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'component': 'Text', 'text': 'original'},
+            ],
+          ),
+        ]),
+      );
       final SurfaceModel<ComponentApi> surface = processor.groupModel
           .getSurface('s1')!;
 
       expect(
-        () => processor.processMessages([
-          UpdateComponentsMessage(
-            surfaceId: 's1',
-            components: [
-              {'id': 'root', 'component': 'Text', 'text': 'updated'},
-              {'component': 'Text', 'text': 'no id'},
-            ],
-          ),
-        ]),
+        () => processor.processMessages(
+          AgentToRendererMessagePayload([
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'root', 'component': 'Text', 'text': 'updated'},
+                {'component': 'Text', 'text': 'no id'},
+              ],
+            ),
+          ]),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
 
@@ -464,21 +703,23 @@ void main() {
 
     test('updating an existing component without repeating its type is '
         'allowed', () {
-      processor.processMessages([
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-        UpdateComponentsMessage(
-          surfaceId: 's1',
-          components: [
-            {'id': 'root', 'component': 'Text', 'text': 'original'},
-          ],
-        ),
-        UpdateComponentsMessage(
-          surfaceId: 's1',
-          components: [
-            {'id': 'root', 'text': 'updated'},
-          ],
-        ),
-      ]);
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'component': 'Text', 'text': 'original'},
+            ],
+          ),
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'text': 'updated'},
+            ],
+          ),
+        ]),
+      );
 
       final SurfaceModel<ComponentApi>? surface = processor.groupModel
           .getSurface('s1');

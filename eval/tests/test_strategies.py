@@ -114,7 +114,7 @@ async def test_a2ui_express_solvers() -> None:
     from inspect_ai.solver import TaskState
     from a2ui_eval.shared.utils import GIT_ROOT
 
-    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+    catalog_file = GIT_ROOT / "catalogs/basic/v1/catalog.json"
 
     # 1. Test Prompt Solver
     prompt_solver = format_system_prompt("express", version="1.0")
@@ -177,7 +177,7 @@ async def test_a2ui_elemental_solvers() -> None:
     from inspect_ai.solver import TaskState
     from a2ui_eval.shared.utils import GIT_ROOT
 
-    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+    catalog_file = GIT_ROOT / "catalogs/basic/v1/catalog.json"
 
     # 1. Test Prompt Solver
     prompt_solver = format_system_prompt("elemental", version="1.0")
@@ -210,8 +210,8 @@ async def test_a2ui_elemental_solvers() -> None:
                     message=ChatMessageAssistant(
                         content=(
                             '<a2ui><body id="main"><link rel="catalog"'
-                            ' href="https://a2ui.org/catalog"><ui-text id="root"'
-                            ' text="Hello"></ui-text></body></a2ui>'
+                            ' href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"><ui-text'
+                            ' id="root" text="Hello"></ui-text></body></a2ui>'
                         )
                     )
                 )
@@ -229,7 +229,7 @@ async def test_a2ui_elemental_solvers() -> None:
 async def test_a2ui_atom_solvers() -> None:
     from a2ui_eval.shared.utils import GIT_ROOT
 
-    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+    catalog_file = GIT_ROOT / "catalogs/basic/v1/catalog.json"
 
     from a2ui_eval.strategies.format import (
         format_system_prompt,
@@ -283,7 +283,7 @@ async def test_format_system_prompt_with_domain_prompt() -> None:
     from a2ui_eval.strategies.format import format_system_prompt, _get_strategy, _parse_and_validate_in_process, compile_format_payload
     from a2ui.schema.catalog import CatalogConfig
 
-    catalog_file = GIT_ROOT / "specification/v1_0/catalogs/basic/catalog.json"
+    catalog_file = GIT_ROOT / "catalogs/basic/v1/catalog.json"
     catalog_config = CatalogConfig.from_path("basic_catalog", str(catalog_file))
 
     # Test unknown format raises ValueError

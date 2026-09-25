@@ -17,10 +17,16 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-/// Resolves a case's path against the `conformance/` directory, for example
-/// `../specification/v0_9_1/catalogs/basic/catalog.json`.
-String resolveConformancePath(String relativePath) =>
-    p.normalize(p.join(_conformanceRoot(), relativePath));
+String resolveConformancePath(String relativePath) {
+  final String root = _conformanceRoot();
+  final String inConformance = p.normalize(p.join(root, relativePath));
+  if (File(inConformance).existsSync()) return inConformance;
+  final String inRepo = p.normalize(
+    p.join(Directory(root).parent.path, relativePath),
+  );
+  if (File(inRepo).existsSync()) return inRepo;
+  return inConformance;
+}
 
 String _conformanceRoot() {
   // Walk up, so the harness works from the package directory and the
@@ -79,7 +85,16 @@ Object? normalizeYaml(Object? node) {
 
 /// The protocol version a case targets, or null when it declares none.
 String? caseVersion(Map<String, Object?> testCase) {
+  final Object? topVersion = testCase['protocolVersion'];
+  if (topVersion is String) {
+    return topVersion.startsWith('v') ? topVersion.substring(1) : topVersion;
+  }
   final Object? catalog = testCase['catalog'];
-  if (catalog is Map<String, Object?>) return catalog['version'] as String?;
+  if (catalog is Map<String, Object?>) {
+    final Object? catVersion = catalog['version'] ?? catalog['protocolVersion'];
+    if (catVersion is String) {
+      return catVersion.startsWith('v') ? catVersion.substring(1) : catVersion;
+    }
+  }
   return null;
 }

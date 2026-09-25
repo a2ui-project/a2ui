@@ -24,6 +24,7 @@ workspace:
   - samples/client/flutter/restaurant_finder/app
   - samples/client/flutter/restaurant_finder/e2e_test
   - dart/a2ui_agent
+  - dart/a2ui_agent/e2e_test
   - dart/a2ui_core
 
 flutter:

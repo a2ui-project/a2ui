@@ -113,10 +113,12 @@ def prepare_build_context(demo_dir: Path) -> Path:
     """
     print("\nPreparing build context...")
 
-    renderers_dir = demo_dir.parent.parent / "renderers"
+    # demo_dir is samples/community/client/lit/personalized_learning.
+    repo_root = demo_dir.resolve().parents[4]
+    renderers_dir = repo_root / "renderers"
 
     # Copy web_core first (lit depends on it)
-    web_core_source = renderers_dir / "web_core"
+    web_core_source = repo_root / "typescript" / "web_core"
     web_core_dest = demo_dir / "a2ui-web-core"
 
     if not web_core_source.exists():
@@ -157,7 +159,7 @@ def prepare_build_context(demo_dir: Path) -> Path:
     if lit_package_json.exists():
         content = lit_package_json.read_text()
         content = content.replace(
-            '"@a2ui/web_core": "file:../web_core"',
+            '"@a2ui/web_core": "workspace:*"',
             '"@a2ui/web_core": "file:../a2ui-web-core"',
         )
         lit_package_json.write_text(content)

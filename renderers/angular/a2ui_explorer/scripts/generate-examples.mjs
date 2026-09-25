@@ -135,9 +135,9 @@ async function main() {
 
 import { Example, Example_08 } from '../types';
 
-export const EXAMPLES_V08: Example_08[] = ${JSON.stringify(examplesV08, null, 2)};
+export const EXAMPLES_V08: Example_08[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV08))});
 
-export const EXAMPLES_V09: Example[] = ${JSON.stringify(examplesV09, null, 2)};
+export const EXAMPLES_V09: Example[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV09))});
 
 // Defaults to v0.9
 export const EXAMPLES: Example[] = EXAMPLES_V09;
