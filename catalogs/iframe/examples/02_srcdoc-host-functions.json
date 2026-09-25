@@ -1,0 +1,86 @@
+{
+  "name": "Srcdoc app with host functions",
+  "description": "A WebAppFrameSrcdoc app that formats a bound price by calling the host's formatCurrency function, which it declares in allowedFunctions.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-iframe-host-functions",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/iframe/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-iframe-host-functions",
+        "value": {
+          "cart": {
+            "total": 1234.5,
+            "currency": "EUR"
+          }
+        }
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-iframe-host-functions",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["title", "raw_total", "price_app"],
+            "align": "stretch"
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "Cart total",
+            "variant": "h2"
+          },
+          {
+            "id": "raw_total",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "Raw total: ${/cart/total} ${/cart/currency}"
+              },
+              "returnType": "string"
+            }
+          },
+          {
+            "id": "price_app",
+            "component": "WebAppFrameSrcdoc",
+            "height": 120,
+            "data": {
+              "paths": {
+                "total": "/cart/total",
+                "currency": "/cart/currency"
+              }
+            },
+            "allowedFunctions": {
+              "formatCurrency": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "decimals": {
+                    "type": "integer"
+                  }
+                },
+                "required": ["value", "currency"],
+                "additionalProperties": false
+              }
+            },
+            "htmlContent": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\" />\n    <style>\n      body { font-family: sans-serif; margin: 16px; }\n    </style>\n  </head>\n  <body>\n    <p id=\"formatted\">Waiting for the host...</p>\n    <script>\n      var port = null;\n      var state = { total: 0, currency: 'USD' };\n      var nextCallId = 1;\n\n      // formatCurrency is listed in allowedFunctions, so the host evaluates it with the\n      // surface catalog and answers with a2ui_function_result.\n      function requestFormat() {\n        if (!port) return;\n        port.postMessage({\n          type: 'a2ui_function_call',\n          call: 'formatCurrency',\n          callId: 'format-' + nextCallId++,\n          args: { value: state.total, currency: state.currency, decimals: 2 }\n        });\n      }\n\n      function onPortMessage(event) {\n        var msg = event.data || {};\n        if (msg.type === 'a2ui_data_model_update' && msg.key in state) {\n          state[msg.key] = msg.value;\n          requestFormat();\n        } else if (msg.type === 'a2ui_function_result' && msg.call === 'formatCurrency') {\n          document.getElementById('formatted').textContent =\n            msg.status === 'success'\n              ? 'Formatted total: ' + msg.result\n              : 'Formatting failed: ' + (msg.error && msg.error.message);\n        }\n      }\n\n      window.addEventListener('message', function (event) {\n        if (event.source !== window.parent) return;\n        var msg = event.data || {};\n        if (msg.type !== 'a2ui_app_frame_init' || !event.ports || !event.ports[0]) return;\n        port = event.ports[0];\n        port.onmessage = onPortMessage;\n        var initial = (msg.value && msg.value.initialData) || {};\n        if (typeof initial.total === 'number') state.total = initial.total;\n        if (typeof initial.currency === 'string') state.currency = initial.currency;\n        requestFormat();\n      });\n\n      window.parent.postMessage({ type: 'a2ui_app_frame_ready' }, '*');\n    </script>\n  </body>\n</html>\n"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import copy
 import os
 import json
 import subprocess
@@ -251,6 +252,33 @@ def validate_example_icons(catalog_path, example_files):
     return all_valid
 
 
+def merge_catalogs(catalogs):
+    """Merges several catalog schemas into one document.
+
+    The first catalog is the primary one and its top-level keys win. The
+    components, functions and $defs of the other catalogs are added when the
+    primary catalog does not define them, and the anyComponent and anyFunction
+    unions are concatenated so the examples can mix the components and
+    functions of every catalog of a surface.
+    """
+    merged = copy.deepcopy(catalogs[0])
+    for catalog in catalogs[1:]:
+        for section in ("components", "functions", "$defs"):
+            for name, definition in catalog.get(section, {}).items():
+                merged.setdefault(section, {}).setdefault(name, definition)
+        for union in ("anyComponent", "anyFunction"):
+            branches = list(merged.get("$defs", {}).get(union, {}).get("oneOf", []))
+            seen = {json.dumps(branch, sort_keys=True) for branch in branches}
+            for branch in catalog.get("$defs", {}).get(union, {}).get("oneOf", []):
+                key = json.dumps(branch, sort_keys=True)
+                if key not in seen:
+                    seen.add(key)
+                    branches.append(branch)
+            if branches:
+                merged.setdefault("$defs", {})[union] = {"oneOf": branches}
+    return merged
+
+
 def compare_schemas(subset_path, standard_path):
     """Compares that subset schema is a subset of standard schema.
 
@@ -392,6 +420,31 @@ def main():
             ],
             "examples": "catalogs/basic/v1/examples/*.json",
         },
+        # The iframe and MCP catalogs extend a surface that also uses the basic
+        # catalog, so their examples are validated against the union of the
+        # two catalogs.
+        "iframe": {
+            "protocol_version": "v0_9",
+            "root_schema": "specification/v0_9/json/server_to_client.json",
+            "catalog": "specification/v0_9/catalogs/basic/catalog.json",
+            "refs": [
+                "specification/v0_9/json/common_types.json",
+                "catalogs/iframe/catalog.json",
+                "specification/v0_9/catalogs/basic/catalog.json",
+            ],
+            "examples": "catalogs/iframe/examples/*.json",
+        },
+        "mcp": {
+            "protocol_version": "v0_9",
+            "root_schema": "specification/v0_9/json/server_to_client.json",
+            "catalog": "specification/v0_9/catalogs/basic/catalog.json",
+            "refs": [
+                "specification/v0_9/json/common_types.json",
+                "catalogs/mcp/catalog.json",
+                "specification/v0_9/catalogs/basic/catalog.json",
+            ],
+            "examples": "catalogs/mcp/examples/*.json",
+        },
     }
 
     for version, config in configs.items():
@@ -409,22 +462,28 @@ def main():
             continue
 
         refs = []
+        catalogs = []
         for ref in config["refs"]:
             ref_path = os.path.join(repo_root, ref)
             if ref.endswith("catalog.json"):
-                # catalog needs aliasing to catalog.json as expected by server_to_client.json
                 with open(ref_path, "r") as f:
-                    catalog = json.load(f)
-                if "$id" in catalog:
-                    catalog["$id"] = (
-                        f"https://a2ui.org/specification/{version}/catalog.json"
-                    )
-                alias_path = os.path.join(version_temp_dir, "catalog.json")
-                with open(alias_path, "w") as f:
-                    json.dump(catalog, f)
-                refs.append(alias_path)
+                    catalogs.append(json.load(f))
             else:
                 refs.append(ref_path)
+
+        if catalogs:
+            # The catalogs need aliasing to a single catalog.json, as expected by
+            # server_to_client.json and common_types.json of the protocol version.
+            protocol_version = config.get("protocol_version", version)
+            catalog = merge_catalogs(catalogs)
+            if "$id" in catalog:
+                catalog["$id"] = (
+                    f"https://a2ui.org/specification/{protocol_version}/catalog.json"
+                )
+            alias_path = os.path.join(version_temp_dir, "catalog.json")
+            with open(alias_path, "w") as f:
+                json.dump(catalog, f)
+            refs.append(alias_path)
 
         example_pattern = os.path.join(repo_root, config["examples"])
         example_files = glob.glob(example_pattern)
