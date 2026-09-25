@@ -24,19 +24,6 @@ import warnings
 import pytest
 
 FULL_SHIMMED_MODULES: list[tuple[str, str]] = [
-    ("a2ui.core.rendering", "a2ui.core.resolution"),
-    (
-        "a2ui.core.rendering.component_context",
-        "a2ui.core.resolution.component_context",
-    ),
-    (
-        "a2ui.core.rendering.data_context",
-        "a2ui.core.resolution.data_context",
-    ),
-    (
-        "a2ui.core.rendering.generic_binder",
-        "a2ui.core.resolution.generic_binder",
-    ),
     (
         "a2ui.core.basic_catalog.components",
         "a2ui.core.basic_catalog.v0_9.components",
@@ -72,46 +59,6 @@ FULL_SHIMMED_MODULES: list[tuple[str, str]] = [
     (
         "a2ui.core.schema.server_to_client",
         "a2ui.core.schema.v0_9.server_to_client",
-    ),
-]
-
-SELECTIVE_VALIDATING_SHIMS: list[tuple[str, str, list[str], list[str]]] = [
-    (
-        "a2ui.core.validating",
-        "a2ui.core.validation",
-        [
-            "ValidationConfig",
-            "STRICT_VALIDATION",
-            "RELAXED_VALIDATION",
-            "validate_recursion_and_paths",
-        ],
-        [
-            "A2uiValidator",
-            "A2uiValidatorError",
-            "CatalogSchemaValidator",
-            "get_component_references",
-            "validate_component_integrity",
-            "analyze_topology",
-            "PayloadValidator",
-            "validate_composition_constraints",
-        ],
-    ),
-    (
-        "a2ui.core.validating.integrity_checker",
-        "a2ui.core.state.validation_helpers",
-        [
-            "ROOT_ID",
-            "MAX_GLOBAL_DEPTH",
-            "MAX_FUNC_CALL_DEPTH",
-            "RELAXED_PATH_PATTERN",
-            "validate_recursion_and_paths",
-        ],
-        [
-            "get_component_references",
-            "validate_component_integrity",
-            "analyze_topology",
-            "validate_composition_constraints",
-        ],
     ),
 ]
 
@@ -158,30 +105,6 @@ def test_compat_shim_warns_and_reexports(old_module: str, new_module: str) -> No
         assert getattr(old_mod, name) is getattr(new_mod, name)
 
 
-@pytest.mark.parametrize(
-    ("old_module", "new_module", "expected_exports", "excluded_names"),
-    SELECTIVE_VALIDATING_SHIMS,
-)
-def test_selective_validating_shims(
-    old_module: str,
-    new_module: str,
-    expected_exports: list[str],
-    excluded_names: list[str],
-) -> None:
-    new_mod = importlib.import_module(new_module)
-    old_mod = _import_fresh_with_deprecation_check(old_module, new_module)
-
-    assert getattr(old_mod, "__all__") == expected_exports
-    for name in expected_exports:
-        assert hasattr(old_mod, name), f"{old_module} missing {name}"
-        assert getattr(old_mod, name) is getattr(new_mod, name)
-
-    for excluded in excluded_names:
-        assert not hasattr(
-            old_mod, excluded
-        ), f"{old_module} should not export {excluded}"
-
-
 def test_schema_constants_and_client_to_server_aliases() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
@@ -202,8 +125,14 @@ def test_schema_constants_and_client_to_server_aliases() -> None:
 @pytest.mark.parametrize(
     "removed_module",
     [
+        "a2ui.core.rendering",
+        "a2ui.core.rendering.component_context",
+        "a2ui.core.rendering.data_context",
+        "a2ui.core.rendering.generic_binder",
+        "a2ui.core.validating",
         "a2ui.core.validating.validator",
         "a2ui.core.validating.catalog_schema_validator",
+        "a2ui.core.validating.integrity_checker",
         "a2ui.core.validating.topology_analyzer",
         "a2ui.core.state.node_graph",
         "a2ui.core.state.component_node",
