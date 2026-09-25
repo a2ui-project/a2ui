@@ -380,6 +380,43 @@ void main() {
       expect(events, isEmpty);
       expect(coreActions, isEmpty);
     });
+
+    testWidgets('an action from a template row resolves relative paths in '
+        'its row scope', (WidgetTester tester) async {
+      final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
+      final events = <UiEvent>[];
+      surface.dataModel.set('/items', <Object?>[
+        {'name': 'A', 'id': 1},
+        {'name': 'B', 'id': 2},
+      ]);
+      _add(surface, 'root', 'List', {
+        'children': {'componentId': 'pick', 'path': '/items'},
+      });
+      _add(surface, 'pick', 'Button', {
+        'child': 'pickLabel',
+        'action': {
+          'event': {
+            'name': 'pick',
+            'context': {
+              'id': {'path': 'id'},
+            },
+          },
+        },
+      });
+      _add(surface, 'pickLabel', 'Text', {
+        'text': {'path': 'name'},
+      });
+
+      await tester.pumpWidget(_host(surface, events));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('B'));
+      await tester.pumpAndSettle();
+
+      expect(events, hasLength(1));
+      final pick = UserActionEvent.fromMap(events.single.toMap());
+      expect(pick.sourceComponentId, 'pick');
+      expect(pick.context, {'id': 2});
+    });
   });
 
   group('template list', () {
