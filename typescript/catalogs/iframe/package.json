@@ -1,0 +1,182 @@
+{
+  "name": "@a2ui/catalog-iframe",
+  "version": "0.1.0",
+  "description": "A2UI iframe catalog: sandboxed web app frames with the a2ui_* host bridge",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/catalogs/iframe",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "iframe",
+    "sandbox",
+    "catalog",
+    "ai",
+    "agent",
+    "ui"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./catalog.json": "./dist/catalog.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "copy-catalog": "wireit",
+    "copy-shared": "wireit",
+    "build-sandbox": "wireit",
+    "build:tsc": "wireit",
+    "build": "wireit",
+    "test:types": "wireit",
+    "test": "wireit",
+    "test:watch": "karma start karma.conf.cjs --single-run=false --auto-watch=true",
+    "lint": "wireit",
+    "lint:fix": "yarn copy-catalog && yarn copy-shared && eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "wireit",
+    "publish:package": "yarn build && node ../../../renderers/scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public"
+  },
+  "wireit": {
+    "copy-catalog": {
+      "command": "node scripts/copy-catalog.js",
+      "files": [
+        "../../../catalogs/iframe/catalog.json",
+        "scripts/copy-catalog.js"
+      ],
+      "output": [
+        "src/catalog.json"
+      ]
+    },
+    "copy-shared": {
+      "command": "node scripts/copy-shared.js",
+      "files": [
+        "../shared/**",
+        "scripts/copy-shared.js"
+      ],
+      "output": [
+        "src/shared/**"
+      ]
+    },
+    "build-sandbox": {
+      "command": "node scripts/build-sandbox.mjs",
+      "dependencies": [
+        "copy-shared"
+      ],
+      "files": [
+        "src/shared/sandbox/sandbox.ts",
+        "src/shared/sandbox/sandbox_main.ts",
+        "src/shared/sandbox/*.html",
+        "scripts/build-sandbox.mjs"
+      ],
+      "output": [
+        "dist/sandbox/**"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "copy-catalog",
+        "copy-shared"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/**",
+        "!dist/sandbox/**"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "build": {
+      "dependencies": [
+        "build:tsc",
+        "build-sandbox"
+      ]
+    },
+    "test:types": {
+      "command": "tsc -p tsconfig.test.json --pretty",
+      "dependencies": [
+        "copy-catalog",
+        "copy-shared"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tsconfig.json",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
+    "test": {
+      "command": "karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "build",
+        "test:types"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "karma.conf.cjs",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
+    "lint": {
+      "command": "eslint .",
+      "dependencies": [
+        "copy-catalog",
+        "copy-shared"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "scripts/**",
+        "*.mjs",
+        "*.cjs",
+        "tsconfig.json",
+        "tsconfig.test.json",
+        "../../../eslint.preset.mjs"
+      ],
+      "output": []
+    },
+    "clean": {
+      "command": "rm -rf dist src/catalog.json src/shared .wireit .tsbuildinfo"
+    }
+  },
+  "author": "Google",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/jasmine": "^6.0.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "jasmine-core": "^6.3.0",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-esbuild": "^2.3.0",
+    "karma-jasmine": "^5.1.0",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2"
+  }
+}
