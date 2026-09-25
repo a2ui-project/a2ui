@@ -29,7 +29,8 @@ The layers have separate responsibilities:
 ### **2. Nodes**
 
 - A `ComponentNode` is one resolved component instance at one position in the tree. One node exists per referencing position: two parents that reference the same component id hold two distinct nodes.
-- `instanceId` names the position and MUST be distinct among siblings. A node at an unchanged position keeps its identity across updates; a node whose position is gone is disposed, and disposing a node disposes its subtree.
+- `instanceId` names the position and MUST be distinct among siblings. A position keeps its `instanceId` across updates; a template item's position is its index in the array, not a key in the item's data.
+- The node object at a position is replaced when the component there is replaced or changes type, and when a placeholder's component arrives; the replacement keeps the `instanceId`. A node whose position is gone is disposed, and disposing a node disposes its subtree.
 - `props` is a reactive map keyed by the component's schema property names. It holds a `ResolvedBinding` for each dynamic property, a `NodeAction` for each action, child nodes for each child reference, and the literal value otherwise. It reflects the current component definition.
 - `dataPath` is the data scope the node resolves relative paths against.
 
@@ -58,6 +59,7 @@ The layers have separate responsibilities:
 ### **7. Placeholders**
 
 - A partly streamed surface still resolves to a tree: a reference to a component the surface does not currently hold resolves to a placeholder node with state `pending`. When the component arrives, a resolved node replaces the placeholder at the same position.
+- A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats one of the node's own ancestors resolves to one with state `cyclic`. The resolver reports `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` to the surface.
 
 ---
 
@@ -99,8 +101,8 @@ Calling `set("Grace")` on the first node's `value` binding updates `/people/0/na
 The blocks below use the core blueprint's notation. Names are normative; parameter spelling follows each language.
 
 ```typescript
-/** Whether a node is resolved or stands in for a component the surface does not hold yet. */
-type NodeState = 'resolved' | 'pending';
+/** Whether a node is resolved or stands in for a component the surface cannot resolve at that position. */
+type NodeState = 'resolved' | 'pending' | 'unknown-type' | 'cyclic';
 
 /** Resolved node properties, keyed by the component's schema property names. */
 type NodeProps = Record<string, unknown>;
@@ -113,8 +115,8 @@ interface ComponentNode<C extends ComponentApi> {
   readonly instanceId: string;
   /** The component id from the payload. */
   readonly componentId: string;
-  /** The declared component type; absent while pending. */
-  readonly type?: string;
+  /** The declared component type; `'Placeholder'` for a pending or cyclic node. */
+  readonly type: string;
   /** The data scope this node resolves relative paths against, e.g. '/items/0'. */
   readonly dataPath: string;
   readonly state: NodeState;
@@ -124,6 +126,8 @@ interface ComponentNode<C extends ComponentApi> {
   readonly props: Signal<NodeProps>;
   /** Fires once, when this node is disposed. */
   readonly onDestroyed: EventSource<void>;
+  /** Registers work to run when this node is disposed. */
+  addCleanup(cleanup: () => void): void;
 }
 
 /** One dynamic property's current value. */
@@ -152,7 +156,7 @@ class NodeResolver<C extends ComponentApi> {
 ### **Changes to existing core contracts**
 
 1. **Dynamic properties become bindings.** Node props hold a `ResolvedBinding` per dynamic property in place of a value plus a setter.
-2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. The binder's action closure executes a `functionCall` payload itself, in its data scope, and emits nothing.
+2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. A node's action closure executes a `functionCall` payload itself, in its data scope, and emits nothing.
 
 ### **Changes to the framework adapter contract**
 
