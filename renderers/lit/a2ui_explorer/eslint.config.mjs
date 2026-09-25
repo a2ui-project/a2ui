@@ -16,4 +16,10 @@
 
 import preset from '../../../eslint.preset.mjs';
 
-export default [...preset];
+export default [
+  ...preset,
+  {
+    // The sandbox proxy asset copied from @a2ui/catalog-iframe by scripts/copy-sandbox.mjs.
+    ignores: ['public/a2ui-sandbox/**'],
+  },
+];

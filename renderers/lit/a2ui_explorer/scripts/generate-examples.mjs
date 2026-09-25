@@ -17,15 +17,22 @@
 import fs from 'fs';
 import path from 'path';
 
-const SPEC_EXAMPLES_DIR = path.resolve(
-  import.meta.dirname,
-  '../../../../specification/v0_9/catalogs/basic/examples',
-);
+const REPO_ROOT = path.resolve(import.meta.dirname, '../../../..');
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
 /**
- * Generates a static TypeScript module bundle that imports all the basic catalog
- * example JSON files.
+ * The example directories the explorer lists, in this order. `catalog` is the label the explorer
+ * shows next to the examples of a directory; `dir` is relative to the repository root.
+ */
+const EXAMPLE_SOURCES = [
+  {catalog: 'basic', dir: 'specification/v0_9/catalogs/basic/examples'},
+  {catalog: 'iframe', dir: 'catalogs/iframe/examples'},
+  {catalog: 'mcp', dir: 'catalogs/mcp/examples'},
+];
+
+/**
+ * Generates a static TypeScript module bundle that imports all the example JSON
+ * files of the basic, iframe and MCP catalogs.
  *
  * This allows the Lit explorer application and integration tests to resolve the
  * spec files dynamically at runtime without relying on Vite-specific APIs like
@@ -33,27 +40,32 @@ const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-li
  * (such as the esbuild preprocessor in our Karma test runner).
  */
 function generateExamplesBundle() {
-  if (!fs.existsSync(SPEC_EXAMPLES_DIR)) {
-    console.error(`Specification directory not found: ${SPEC_EXAMPLES_DIR}`);
-    process.exit(1);
-  }
-
-  const files = fs
-    .readdirSync(SPEC_EXAMPLES_DIR)
-    .filter(file => file.endsWith('.json'))
-    .sort();
-
   const imports = [];
   const entries = [];
 
-  files.forEach((file, index) => {
-    // Relative path from src/generated/examples-list.ts to the specification examples folder
-    const relativePath = `../../../../../specification/v0_9/catalogs/basic/examples/${file}`;
-    const variableName = `example_${index}`;
+  for (const {catalog, dir} of EXAMPLE_SOURCES) {
+    const examplesDir = path.join(REPO_ROOT, dir);
+    if (!fs.existsSync(examplesDir)) {
+      console.error(`Examples directory not found: ${examplesDir}`);
+      process.exit(1);
+    }
 
-    imports.push(`import ${variableName} from '${relativePath}';`);
-    entries.push(`  '${file}': { default: ${variableName} }`);
-  });
+    const files = fs
+      .readdirSync(examplesDir)
+      .filter(file => file.endsWith('.json'))
+      .sort();
+
+    files.forEach((file, index) => {
+      // Relative path from src/generated/examples-list.ts to the examples folder
+      const relativePath = `../../../../../${dir}/${file}`;
+      const variableName = `${catalog}_${index}`;
+
+      imports.push(`import ${variableName} from '${relativePath}';`);
+      entries.push(
+        `  {catalog: '${catalog}', filename: '${file}', module: {default: ${variableName}}}`,
+      );
+    });
+  }
 
   const content = `/**
  * Generated file. Do not edit directly.
@@ -62,7 +74,7 @@ function generateExamplesBundle() {
  *   yarn generate-examples
  *
  * Run this command whenever you add, remove, or rename example JSON files
- * in the specification directory.
+ * in the catalog examples directories.
  */
 
 import {A2uiMessage} from '@a2ui/web_core/v0_9';
@@ -89,10 +101,20 @@ export interface ExampleModule {
   default: ExampleData | A2uiMessage[];
 }
 
+/** An example JSON file together with the catalog it belongs to. */
+export interface ExampleEntry {
+  /** Label of the catalog whose examples directory the file was read from. */
+  catalog: string;
+  /** Name of the JSON file. */
+  filename: string;
+  module: ExampleModule;
+}
+
 // Cast is required because JSON imports infer 'version' as 'string' instead of literal '"v0.9"'.
-export const exampleModules: Record<string, ExampleModule> = {
-${entries.join(',\n')}
-} as Record<string, ExampleModule>;
+/** Every example, grouped by catalog and sorted by filename within a catalog. */
+export const exampleEntries: ExampleEntry[] = [
+${entries.join(',\n')},
+] as ExampleEntry[];
 `;
 
   const outDir = path.dirname(OUT_FILE);

@@ -2,3 +2,5 @@ node_modules
 dist
 public/specs
 src/generated/
+# Copied from @a2ui/catalog-iframe by scripts/copy-sandbox.mjs
+public/a2ui-sandbox/

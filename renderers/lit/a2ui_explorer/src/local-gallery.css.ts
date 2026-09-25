@@ -101,6 +101,16 @@ export const appStyles = css`
     overflow-y: auto;
   }
 
+  .nav-group {
+    margin: 0;
+    padding: 12px 16px 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+  }
+
   .nav-item {
     padding: 16px;
     cursor: pointer;

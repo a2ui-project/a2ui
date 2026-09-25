@@ -16,7 +16,7 @@
 
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
-import {ExampleData, ExampleModule, exampleModules} from './generated/examples-list';
+import {ExampleData, exampleEntries} from './generated/examples-list';
 
 /**
  * Represents a demo item loaded from an example JSON file.
@@ -27,6 +27,8 @@ export interface DemoItem {
   id: string;
   /** Human-readable title derived from the filename. */
   title: string;
+  /** Label of the catalog the example belongs to (`basic`, `iframe` or `mcp`). */
+  catalog: string;
   /** The original filename of the example. */
   filename: string;
   /** Description of the example, or a fallback source string. */
@@ -38,16 +40,17 @@ export interface DemoItem {
 /**
  * Loads and returns the list of all available demo items to be displayed in the gallery.
  *
+ * The items keep the order of the generated list: grouped by catalog, and sorted by filename
+ * within a catalog.
+ *
  * @returns An array of DemoItem objects.
  */
 export function getDemoItems(): DemoItem[] {
   const items: DemoItem[] = [];
 
-  const sortedEntries = getSortedExampleEntries();
-
-  for (const [filename, data] of sortedEntries) {
+  for (const {catalog, filename, module} of exampleEntries) {
     try {
-      const jsonData = data.default;
+      const jsonData = module.default;
 
       const [messages, description] = extractMessagesAndDescription(jsonData, filename);
 
@@ -56,6 +59,7 @@ export function getDemoItems(): DemoItem[] {
       items.push({
         id: surfaceId,
         title: filenameToTitle(filename),
+        catalog,
         filename,
         description,
         messages,
@@ -102,17 +106,6 @@ function ensureCreateSurfaceMessage(filename: string, messages: A2uiMessage[]): 
   }
 
   return surfaceId;
-}
-
-/**
- * Dynamically imports all example JSON files from the specification folder
- * and returns them as an array of entries sorted by their file path.
- *
- * @returns An array of tuples where the first element is the file path and the
- * second is the ExampleModule.
- */
-function getSortedExampleEntries(): [string, ExampleModule][] {
-  return Object.entries(exampleModules).sort((a, b) => a[0].localeCompare(b[0]));
 }
 
 /**
