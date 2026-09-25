@@ -583,10 +583,17 @@ void main() {
       ]);
       expect(errors, isEmpty);
 
-      // A rebuild of the parent reports nothing new.
-      surface.componentsModel.get('known')!.properties = {'text': 'Again'};
+      // A parent props change that keeps the unknown-type child reports
+      // nothing new.
+      final core.ComponentNode mystery = _nodeFor(tester, 'mystery');
+      _add(surface, 'extra', 'Text', {'text': 'Extra'});
+      surface.componentsModel.get('root')!.properties = {
+        'children': ['known', 'mystery', 'extra'],
+      };
       await tester.pumpAndSettle();
-      expect(find.text('Again'), findsOneWidget);
+      expect(find.text('Extra'), findsOneWidget);
+      expect(_nodeFor(tester, 'mystery'), same(mystery));
+      expect(find.byType(FallbackWidget), findsOneWidget);
       expect(coreErrors, hasLength(1));
       expect(errors, isEmpty);
     });
@@ -680,7 +687,7 @@ void main() {
       expect(submitted, isEmpty);
     });
 
-    testWidgets('unmounting stops forwarding the surface errors', (
+    testWidgets('NodeSurface does not forward the surface errors', (
       WidgetTester tester,
     ) async {
       final core.SurfaceModel<core.ComponentApi> surface = _createSurface();
@@ -689,17 +696,12 @@ void main() {
 
       await tester.pumpWidget(_host(surface, [], errors: errors));
       await tester.pumpAndSettle();
-      await tester.pumpWidget(const SizedBox());
+      await surface.dispatchError(_clientError('While mounted.'));
+      await tester.pump();
+      expect(errors, isEmpty);
 
-      await surface.dispatchError(
-        core.A2uiClientError(
-          code: 'UNKNOWN_COMPONENT_TYPE',
-          surfaceId: _surfaceId,
-          message: 'After unmount.',
-        ),
-      );
-      _add(surface, 'mystery', 'Mystery', {});
-      surface.componentsModel.get('root')!.properties = {'text': 'Changed'};
+      await tester.pumpWidget(const SizedBox());
+      await surface.dispatchError(_clientError('After unmount.'));
       await tester.pump();
 
       expect(tester.takeException(), isNull);
@@ -707,37 +709,42 @@ void main() {
       surface.dispose();
     });
 
-    testWidgets('a forwarded unknown-type error reaches the agent as '
-        "Surface's does", (WidgetTester tester) async {
-      final controller = SurfaceController(catalogs: [_catalog]);
+    testWidgets('an unknown type reaches the agent under NodeSurface as under '
+        'Surface', (WidgetTester tester) async {
+      final SurfaceController controller = _controllerWith([
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['mystery'],
+        },
+      ]);
       addTearDown(controller.dispose);
-      final submitted = <String>[];
-      controller.onSubmit.listen((ChatMessage message) {
-        submitted.addAll(
-          message.parts.uiInteractionParts.map(
-            (UiInteractionPart part) => part.interaction,
-          ),
-        );
-      });
-
-      // What Surface reports for an unknown type, then what NodeSurface
-      // forwards from the resolver.
-      controller.reportError(
-        const CatalogItemNotFoundException('Mystery', catalogId: _catalogId),
-        null,
-      );
-      controller.reportError(
-        core.A2uiClientError(
-          code: 'UNKNOWN_COMPONENT_TYPE',
-          surfaceId: _surfaceId,
-          message: "Component 'mystery' has type 'Mystery'.",
-        ),
-        null,
-      );
+      final List<String> submitted = _errorSubmissions(controller);
       await tester.pump();
+      final core.SurfaceModel<core.ComponentApi> surface = controller
+          .liveSurfaceFor(_surfaceId)!;
+      // Added past the controller, which rejects an unknown type.
+      _add(surface, 'mystery', 'Mystery', {});
 
-      expect(submitted, hasLength(2));
-      expect(submitted.last, submitted.first);
+      await tester.pumpWidget(_controllerApp(controller));
+      await tester.pumpAndSettle();
+      expect(find.byType(FallbackWidget), findsOneWidget);
+      expect(submitted, hasLength(1));
+      final String fromNodeSurface = submitted.single;
+
+      controller.registry.notifyUpdated(surface);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: Surface(surfaceContext: controller.contextFor(_surfaceId)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(FallbackWidget), findsOneWidget);
+      final List<String> fromSurface = submitted.skip(1).toList();
+      expect(fromSurface, isNotEmpty);
+      expect(fromSurface, everyElement(fromNodeSurface));
     });
   });
 
@@ -853,6 +860,75 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(FallbackWidget), findsOneWidget);
       expect(submitted, hasLength(2));
+    });
+  });
+
+  group('surface swap', () {
+    testWidgets('swapping the surface reports the new surface once and '
+        'stops resolving the old one', (WidgetTester tester) async {
+      final controller = SurfaceController(catalogs: [_catalog]);
+      addTearDown(controller.dispose);
+      final List<String> submitted = _errorSubmissions(controller);
+      for (final id in ['first', 'second']) {
+        controller.handleMessage(
+          _message({
+            'createSurface': {'surfaceId': id, 'catalogId': _catalogId},
+          }),
+        );
+        controller.handleMessage(
+          _message({
+            'updateComponents': {
+              'surfaceId': id,
+              'components': [
+                {
+                  'id': 'root',
+                  'component': 'Column',
+                  'children': ['label'],
+                },
+                {'id': 'label', 'component': 'Text', 'text': id},
+              ],
+            },
+          }),
+        );
+      }
+      await tester.pump();
+      final core.SurfaceModel<core.ComponentApi> first = controller
+          .liveSurfaceFor('first')!;
+      final core.SurfaceModel<core.ComponentApi> second = controller
+          .liveSurfaceFor('second')!;
+      _add(second, 'mystery', 'Mystery', {});
+      second.componentsModel.get('root')!.properties = {
+        'children': ['label', 'mystery'],
+      };
+
+      Widget app(core.SurfaceModel<core.ComponentApi> surface) => MaterialApp(
+        home: Material(
+          child: NodeSurface(
+            surface: surface,
+            catalog: _catalog,
+            onEvent: (_) {},
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(app(first));
+      await tester.pumpAndSettle();
+      expect(find.text('first'), findsOneWidget);
+      expect(submitted, isEmpty);
+
+      await tester.pumpWidget(app(second));
+      await tester.pumpAndSettle();
+      expect(find.text('first'), findsNothing);
+      expect(find.text('second'), findsOneWidget);
+      expect(find.byType(FallbackWidget), findsOneWidget);
+      expect(submitted, hasLength(1));
+
+      _add(first, 'mystery', 'Mystery', {});
+      first.componentsModel.get('root')!.properties = {
+        'children': ['label', 'mystery'],
+      };
+      await tester.pumpAndSettle();
+      expect(submitted, hasLength(1));
     });
   });
 
