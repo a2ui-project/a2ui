@@ -1,6 +1,26 @@
 {
   "name": "@a2ui/catalog-mcp",
-  "private": true,
+  "version": "0.1.0",
+  "description": "A2UI MCP catalog: callMcpTool, data transformation functions and the sandboxed McpApp component",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/catalogs/mcp",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "mcp",
+    "mcp-apps",
+    "sandbox",
+    "catalog",
+    "ai",
+    "agent",
+    "ui"
+  ],
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -10,34 +30,215 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./functions": {
+      "types": "./dist/functions.d.ts",
+      "default": "./dist/functions.js"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "default": "./dist/components/index.js"
+    },
     "./catalog.json": "./dist/catalog.json"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "copy-catalog": "node scripts/copy-catalog.js",
-    "build": "yarn copy-catalog && tsc -b --pretty",
-    "clean": "rm -rf dist src/catalog.json",
+    "copy-catalog": "wireit",
+    "copy-shared": "wireit",
+    "build-sandbox": "wireit",
+    "build:tsc": "wireit",
+    "build": "wireit",
+    "build:test-fixtures": "wireit",
+    "test:types": "wireit",
+    "test:node": "wireit",
+    "test:karma": "wireit",
+    "test": "wireit",
+    "test:watch": "karma start karma.conf.cjs --single-run=false --auto-watch=true",
+    "lint": "wireit",
+    "lint:fix": "yarn copy-catalog && yarn copy-shared && eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "yarn copy-catalog && node --import tsx --test 'src/**/*.test.ts'",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "clean": "wireit",
+    "publish:package": "yarn build && node ../../../renderers/scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public"
   },
+  "wireit": {
+    "copy-catalog": {
+      "command": "node scripts/copy-catalog.js",
+      "files": [
+        "../../../catalogs/mcp/catalog.json",
+        "scripts/copy-catalog.js"
+      ],
+      "output": [
+        "src/catalog.json"
+      ]
+    },
+    "copy-shared": {
+      "command": "node scripts/copy-shared.js",
+      "files": [
+        "../shared/**",
+        "scripts/copy-shared.js"
+      ],
+      "output": [
+        "src/shared/**"
+      ]
+    },
+    "build-sandbox": {
+      "command": "node scripts/build-sandbox.mjs",
+      "dependencies": [
+        "copy-shared"
+      ],
+      "files": [
+        "src/shared/sandbox/sandbox.ts",
+        "src/shared/sandbox/sandbox_main.ts",
+        "src/shared/sandbox/*.html",
+        "scripts/build-sandbox.mjs"
+      ],
+      "output": [
+        "dist/sandbox/**"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../../renderers/web_core:build",
+        "copy-catalog",
+        "copy-shared"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/**",
+        "!dist/sandbox/**"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "build": {
+      "dependencies": [
+        "build:tsc",
+        "build-sandbox"
+      ]
+    },
+    "build:test-fixtures": {
+      "command": "node scripts/build-test-fixtures.mjs",
+      "files": [
+        "tests/fixtures/apps/*.ts",
+        "scripts/build-test-fixtures.mjs"
+      ],
+      "output": [
+        "tests/fixtures/generated/**"
+      ]
+    },
+    "test:types": {
+      "command": "tsc -p tsconfig.test.json --pretty",
+      "dependencies": [
+        "build:tsc"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**/*.ts",
+        "../../../catalogs/mcp/examples/*.json",
+        "tsconfig.json",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
+    "test:node": {
+      "command": "node --import tsx --test 'src/functions/**/*.test.ts' src/dynamic-values.test.ts src/functions.test.ts",
+      "dependencies": [
+        "build:tsc"
+      ],
+      "files": [
+        "src/functions/**",
+        "src/dynamic-values.ts",
+        "src/dynamic-values.test.ts",
+        "src/functions.ts",
+        "src/functions.test.ts",
+        "src/catalog.json"
+      ],
+      "output": []
+    },
+    "test:karma": {
+      "command": "karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "build",
+        "build:test-fixtures",
+        "test:types"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**",
+        "../../../catalogs/mcp/examples/*.json",
+        "karma.conf.cjs",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
+    "test": {
+      "dependencies": [
+        "test:node",
+        "test:karma"
+      ]
+    },
+    "lint": {
+      "command": "eslint .",
+      "dependencies": [
+        "../../../renderers/web_core:build",
+        "build:tsc"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**/*.ts",
+        "scripts/**",
+        "*.mjs",
+        "*.cjs",
+        "tsconfig.json",
+        "tsconfig.test.json",
+        "../../../eslint.preset.mjs"
+      ],
+      "output": []
+    },
+    "clean": {
+      "command": "rm -rf dist src/catalog.json src/shared tests/fixtures/generated .wireit .tsbuildinfo"
+    }
+  },
+  "author": "Google",
+  "license": "Apache-2.0",
   "dependencies": {
-    "@a2ui/web_core": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.1",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.17.1",
     "jmespath": "^0.16.0",
     "re2js": "^2.8.6",
     "zod": "^3.25.76"
   },
+  "peerDependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "lit": "^3.3.3"
+  },
   "devDependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "@types/jasmine": "^6.0.0",
     "@types/jmespath": "^0.15.2",
     "@types/node": "^25.9.3",
+    "esbuild": "^0.28.1",
     "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "jasmine-core": "^6.3.0",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-esbuild": "^2.3.0",
+    "karma-jasmine": "^5.1.0",
+    "lit": "^3.3.3",
     "prettier": "^3.8.4",
     "tsx": "^4.22.4",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2"
   }
 }
