@@ -20,3 +20,4 @@ from a2ui.core.exceptions import A2uiValidationError as A2uiValidationError
 from a2ui.core.exceptions import A2uiCatalogError as A2uiCatalogError
 from a2ui.core.exceptions import A2uiIntegrityError as A2uiIntegrityError
 from a2ui.core.exceptions import A2uiRecursionError as A2uiRecursionError
+from a2ui.core.exceptions import A2uiDataError as A2uiDataError

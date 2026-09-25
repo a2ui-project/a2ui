@@ -67,3 +67,13 @@ class A2uiRecursionError(A2uiError):
     """Exception raised when recursive or traversal limits are exceeded."""
 
     pass
+
+
+class A2uiDataError(A2uiError):
+    """Exception raised when a JSON Pointer write cannot be applied.
+
+    The `DataError` category of `conformance/core/data_model.yaml`, matching
+    `A2uiDataError` in the Dart client and `A2uiDataError` in `web_core`.
+    """
+
+    pass
