@@ -94,7 +94,7 @@ describe('ExpressDecompiler', () => {
     for (const c of cases) {
       it(`matches oracle for ${c.name}`, () => {
         const {catalog, version} = getCatalogInfo(c.catalog);
-        const decompiler = new ExpressDecompiler(catalog, version);
+        const decompiler = new ExpressDecompiler([catalog], version);
         const actual = decompiler.decompile(c.messages);
 
         const override = overrides[c.name];
@@ -108,7 +108,7 @@ describe('ExpressDecompiler', () => {
   describe('2. wrapDecompiledBlocks', () => {
     it('wraps blocks in sentinel tags', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const blocks = ['surface("s1")', 'root = Text("Hello")'];
       const wrapped = decompiler.wrapDecompiledBlocks(blocks);
       expect(wrapped).toBe('<a2ui>\nsurface("s1")\nroot = Text("Hello")\n</a2ui>');
@@ -116,7 +116,7 @@ describe('ExpressDecompiler', () => {
 
     it('joins multiple blocks with newlines inside sentinel tags', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const blocks = ['surface("s1")', 'root = Text("Hello")', '$/key = 42'];
       const wrapped = decompiler.wrapDecompiledBlocks(blocks);
       expect(wrapped).toBe('<a2ui>\nsurface("s1")\nroot = Text("Hello")\n$/key = 42\n</a2ui>');
@@ -126,7 +126,7 @@ describe('ExpressDecompiler', () => {
   describe('3. Single message input and edge cases', () => {
     it('accepts a single message object instead of array', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const msg: AgentToRendererMessage = {
         version: 'v1.0',
         deleteSurface: {
@@ -139,13 +139,13 @@ describe('ExpressDecompiler', () => {
 
     it('returns empty string for empty message list', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       expect(decompiler.decompile([])).toBe('');
     });
 
     it('supports useKeywordArgs = true', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const msg: AgentToRendererMessage = {
         version: 'v1.0',
         createSurface: {
@@ -168,7 +168,7 @@ describe('ExpressDecompiler', () => {
   describe('Follow-up 3: Map keys that are grammar keywords are quoted on decompile', () => {
     it('quotes true, false, null as dictionary keys', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const msg = {
         createSurface: {
           surfaceId: 'default_surface',
@@ -201,7 +201,7 @@ describe('ExpressDecompiler', () => {
   describe('B6: decompiling a component id that is not an Express identifier throws', () => {
     it('throws ExpressInvalidIdentifierError when component id contains hyphen', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const msg = {
         createSurface: {
           surfaceId: 'default_surface',
@@ -219,7 +219,7 @@ describe('ExpressDecompiler', () => {
 
     it('throws ExpressInvalidIdentifierError when component id is a reserved keyword', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const msg = {
         createSurface: {
           surfaceId: 'default_surface',
@@ -239,7 +239,7 @@ describe('ExpressDecompiler', () => {
   describe('4. B3: honour updateDataModel.path with round trip', () => {
     it('decompiles single leaf value at path and round-trips through compiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const msg: AgentToRendererMessage = {
         version: 'v1.0',
         updateDataModel: {
@@ -253,7 +253,7 @@ describe('ExpressDecompiler', () => {
       expect(notation).toBe('surface("s1")\n$/title = "x"');
 
       // Round trip check
-      const parser = new ExpressParser(catalog, 's1', version);
+      const parser = new ExpressParser([catalog], 's1', version);
       const recompiled = parser.compile(notation);
       expect(recompiled).toEqual([
         {
@@ -271,7 +271,7 @@ describe('ExpressDecompiler', () => {
 
     it('decompiles nested values under non-root path to one assignment per leaf and round-trips', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler(catalog, version);
+      const decompiler = new ExpressDecompiler([catalog], version);
       const msg: AgentToRendererMessage = {
         version: 'v1.0',
         updateDataModel: {
@@ -288,7 +288,7 @@ describe('ExpressDecompiler', () => {
       expect(notation).toBe('surface("s1")\n$/user/city = "London"\n$/user/name = "Ada"');
 
       // Round trip check
-      const parser = new ExpressParser(catalog, 's1', version);
+      const parser = new ExpressParser([catalog], 's1', version);
       const recompiled = parser.compile(notation);
       expect(recompiled).toEqual([
         {

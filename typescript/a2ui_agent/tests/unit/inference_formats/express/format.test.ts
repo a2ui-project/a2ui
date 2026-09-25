@@ -30,13 +30,13 @@ describe('ExpressFormat', () => {
 
   it('throws A2uiCatalogError when no catalogs are provided', () => {
     expect(() => new ExpressFormat([])).toThrow(A2uiCatalogError);
-    expect(() => new ExpressFormat([])).toThrow('Express takes exactly one catalog, got 0.');
+    expect(() => new ExpressFormat([])).toThrow('Express requires at least one catalog.');
   });
 
-  it('throws A2uiCatalogError when multiple catalogs are provided', () => {
+  it('throws A2uiCatalogError when catalogs have different protocol versions', () => {
     expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(A2uiCatalogError);
     expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(
-      'Express takes exactly one catalog, got 2.',
+      `Express catalogs must share one protocol version, but '${catalog1.id}' is 'v1.0' and '${catalog2.id}' is 'v0.9'.`,
     );
   });
 
@@ -58,7 +58,7 @@ describe('ExpressFormat', () => {
     expect(parser).toBeInstanceOf(ExpressParser);
     expect((parser as ExpressParser).surfaceId).toBe('custom_surface');
     expect((parser as ExpressParser).version).toBe('v1.0');
-    expect((parser as ExpressParser).catalog).toBe(catalog1);
+    expect((parser as ExpressParser).catalogs[0]).toBe(catalog1);
   });
 
   it('createParser result has supportsStreaming false and parseChunk throws', () => {

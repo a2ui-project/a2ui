@@ -27,6 +27,8 @@ import {SchemaCatalog} from '../../types.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
 import {isExpressIdentifier} from './identifier.js';
 import {ExpressInvalidIdentifierError} from './errors.js';
+import {A2uiCatalogError} from '../../errors.js';
+import {buildSchemaHelpers, toCatalogList} from './catalogs.js';
 
 /**
  * Wrapper for numeric literals that must retain raw formatting (e.g. floats like 1500.0).
@@ -189,14 +191,42 @@ export function decompileString(val: string): string {
  * Converts standard A2UI wire JSON trees back into A2UI Express syntax.
  */
 export class ExpressDecompiler {
-  readonly helper: CatalogSchemaHelper;
-  readonly catalog: SchemaCatalog;
+  readonly helpers: Map<string, CatalogSchemaHelper>;
+  readonly catalogs: SchemaCatalog[];
   readonly protocolVersion: string;
 
-  constructor(catalog: SchemaCatalog, protocolVersion: string) {
-    this.catalog = catalog;
+  /**
+   * @param catalogs The catalog, or several. Messages are decompiled with the catalog
+   *     their `catalogId` names, or the first one if they name none.
+   * @param protocolVersion The protocol version of the messages.
+   */
+  constructor(catalogs: SchemaCatalog | SchemaCatalog[], protocolVersion: string) {
+    this.catalogs = toCatalogList(catalogs);
     this.protocolVersion = protocolVersion;
-    this.helper = new CatalogSchemaHelper(catalog, protocolVersion);
+    this.helpers = buildSchemaHelpers(this.catalogs, protocolVersion);
+  }
+
+  /** The id of the first catalog, which a surface line may leave out. */
+  private get defaultCatalogId(): string {
+    return this.catalogs[0].id;
+  }
+
+  /**
+   * Returns the schema helper for a catalog id.
+   *
+   * @param catalogId The catalog a message names, or an empty string for the first one.
+   * @returns The catalog's schema helper.
+   * @throws A2uiCatalogError if the id is not one of the decompiler's catalogs, since
+   *     decompiling against another catalog's schema would write wrong DSL.
+   */
+  private helperFor(catalogId: string): CatalogSchemaHelper {
+    const helper = this.helpers.get(catalogId || this.defaultCatalogId);
+    if (!helper) {
+      throw new A2uiCatalogError(
+        `Cannot decompile messages for catalog '${catalogId}'; the decompiler has ${[...this.helpers.keys()].map(id => `'${id}'`).join(', ')}.`,
+      );
+    }
+    return helper;
   }
 
   /**
@@ -297,6 +327,31 @@ export class ExpressDecompiler {
 
     const envelope = messages as unknown as Record<string, unknown>;
 
+    let catalogId = '';
+    if (
+      'createSurface' in envelope &&
+      envelope.createSurface &&
+      typeof envelope.createSurface === 'object'
+    ) {
+      const cs = envelope.createSurface as Record<string, unknown>;
+      if (typeof cs.catalogId === 'string') {
+        catalogId = cs.catalogId;
+      }
+    } else if (
+      'callRendererFunction' in envelope &&
+      envelope.callRendererFunction &&
+      typeof envelope.callRendererFunction === 'object'
+    ) {
+      const crf = envelope.callRendererFunction as Record<string, unknown>;
+      if (crf.callFunction && typeof crf.callFunction === 'object') {
+        const cf = crf.callFunction as Record<string, unknown>;
+        if (typeof cf.catalogId === 'string') {
+          catalogId = cf.catalogId;
+        }
+      }
+    }
+    const helper = this.helperFor(catalogId);
+
     // Handle deleteSurface action
     if (
       'deleteSurface' in envelope &&
@@ -332,7 +387,7 @@ export class ExpressDecompiler {
         flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
         for (const [leafPath, val] of flattened) {
           const combinedPath = basePath ? `${basePath}${leafPath}` : leafPath;
-          const valStr = this.decompileValue(val, new Set(), false);
+          const valStr = this.decompileValue(val, new Set(), false, helper);
           dslLines.push(`$${combinedPath} = ${valStr}`);
         }
       }
@@ -362,13 +417,13 @@ export class ExpressDecompiler {
       const fnName = typeof funcOp.call === 'string' ? funcOp.call : '';
       const fnArgs = (funcOp.args ?? {}) as unknown;
       const argsList: string[] = [];
-      if (this.helper.functions.has(fnName)) {
-        const fnProps = this.helper.getFunctionProperties(fnName);
+      if (helper.functions.has(fnName)) {
+        const fnProps = helper.getFunctionProperties(fnName);
         if (fnArgs && typeof fnArgs === 'object' && !Array.isArray(fnArgs)) {
           const argsDict = fnArgs as Record<string, unknown>;
           for (const propName of fnProps) {
             if (propName in argsDict) {
-              const valStr = this.decompileValue(argsDict[propName], new Set(), false);
+              const valStr = this.decompileValue(argsDict[propName], new Set(), false, helper);
               argsList.push(valStr);
             } else {
               argsList.push('_');
@@ -377,7 +432,7 @@ export class ExpressDecompiler {
         } else if (Array.isArray(fnArgs)) {
           for (let idx = 0; idx < fnProps.length; idx++) {
             if (idx < fnArgs.length) {
-              const valStr = this.decompileValue(fnArgs[idx], new Set(), false);
+              const valStr = this.decompileValue(fnArgs[idx], new Set(), false, helper);
               argsList.push(valStr);
             } else {
               argsList.push('_');
@@ -387,12 +442,12 @@ export class ExpressDecompiler {
       } else {
         if (fnArgs && typeof fnArgs === 'object' && !Array.isArray(fnArgs)) {
           for (const v of Object.values(fnArgs as Record<string, unknown>)) {
-            const valStr = this.decompileValue(v, new Set(), false);
+            const valStr = this.decompileValue(v, new Set(), false, helper);
             argsList.push(valStr);
           }
         } else if (Array.isArray(fnArgs)) {
           for (const v of fnArgs) {
-            const valStr = this.decompileValue(v, new Set(), false);
+            const valStr = this.decompileValue(v, new Set(), false, helper);
             argsList.push(valStr);
           }
         }
@@ -444,12 +499,8 @@ export class ExpressDecompiler {
   private decompileSurfaceGroup(group: SurfaceGroup, useKeywordArgs: boolean): string {
     const {surfaceId, catalogId, components} = group;
 
-    let defaultCatalogId = 'https://a2ui.org/catalog.json';
-    if (this.helper.catalog && typeof this.helper.catalog.catalogId === 'string') {
-      defaultCatalogId = this.helper.catalog.catalogId;
-    } else if (this.catalog && this.catalog.id) {
-      defaultCatalogId = this.catalog.id;
-    }
+    const helper = this.helperFor(catalogId);
+    const defaultCatalogId = this.defaultCatalogId;
 
     const dslLines: string[] = [];
     if (surfaceId && surfaceId !== 'default_surface') {
@@ -478,7 +529,7 @@ export class ExpressDecompiler {
       const flattened = flattenDataModel(value);
       flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
       for (const [leafPath, val] of flattened) {
-        const valStr = this.decompileValue(val, compIds);
+        const valStr = this.decompileValue(val, compIds, false, helper);
         dslLines.push(`$${basePath}${leafPath} = ${valStr}`);
       }
     }
@@ -486,16 +537,16 @@ export class ExpressDecompiler {
     for (const c of components) {
       const compId = typeof c.id === 'string' ? c.id : '';
       const compName = typeof c.component === 'string' ? c.component : '';
-      if (!this.helper.components.has(compName)) {
+      if (!helper.components.has(compName)) {
         continue;
       }
       if (compId && !isExpressIdentifier(compId)) {
         throw new ExpressInvalidIdentifierError(compId);
       }
 
-      const properties = this.helper.getComponentProperties(compName);
+      const properties = helper.getComponentProperties(compName);
       const argsReprs: string[] = [];
-      const checkProp = this.helper.getCheckRuleProperty(compName);
+      const checkProp = helper.getCheckRuleProperty(compName);
 
       for (const propName of properties) {
         if (checkProp && propName === checkProp) {
@@ -515,8 +566,7 @@ export class ExpressDecompiler {
             const checkName = typeof condition.call === 'string' ? condition.call : 'None';
             const checkArgs = (condition.args ?? {}) as Record<string, unknown>;
 
-            const checkProps =
-              checkName !== 'None' ? this.helper.getFunctionProperties(checkName) : [];
+            const checkProps = checkName !== 'None' ? helper.getFunctionProperties(checkName) : [];
             const explicitArgsReprs: string[] = [];
 
             // If first property is value (or matching component prop), skip it (plan §5.2 item 3)
@@ -528,7 +578,7 @@ export class ExpressDecompiler {
             for (let idx = startIdx; idx < checkProps.length; idx++) {
               const p = checkProps[idx];
               if (p in checkArgs) {
-                explicitArgsReprs.push(this.decompileValue(checkArgs[p], compIds));
+                explicitArgsReprs.push(this.decompileValue(checkArgs[p], compIds, false, helper));
               }
             }
 
@@ -558,9 +608,9 @@ export class ExpressDecompiler {
         // Map other regular properties
         if (propName in c) {
           const val = c[propName];
-          const pSchema = this.helper.getPropertySchema(compName, propName);
+          const pSchema = helper.getPropertySchema(compName, propName);
           const isPropRef = isComponentReferenceProperty(pSchema);
-          const valStr = this.decompileValue(val, compIds, isPropRef);
+          const valStr = this.decompileValue(val, compIds, isPropRef, helper);
           if (useKeywordArgs) {
             argsReprs.push(`${propName}=${valStr}`);
           } else {
@@ -602,9 +652,15 @@ export class ExpressDecompiler {
    * @param val The JSON-serialized property value structure.
    * @param compIds A set of all component IDs registered in the surface context.
    * @param isRef Whether this value is a component reference.
+   * @param helper The schema helper of the value's catalog. Defaults to the first catalog.
    * @returns A plain-text representation of the value.
    */
-  decompileValue(val: unknown, compIds: Set<string>, isRef = false): string {
+  decompileValue(
+    val: unknown,
+    compIds: Set<string>,
+    isRef = false,
+    helper: CatalogSchemaHelper = this.helperFor(''),
+  ): string {
     if (val instanceof RawNumber) {
       return val.value;
     }
@@ -630,7 +686,7 @@ export class ExpressDecompiler {
     }
 
     if (Array.isArray(val)) {
-      const listReprs = val.map(item => this.decompileValue(item, compIds, isRef));
+      const listReprs = val.map(item => this.decompileValue(item, compIds, isRef, helper));
       return `[${listReprs.join(', ')}]`;
     }
 
@@ -639,7 +695,7 @@ export class ExpressDecompiler {
 
       if ('path' in obj && typeof obj.path === 'string') {
         if ('componentId' in obj && typeof obj.componentId === 'string') {
-          const pathRepr = this.decompileValue({path: obj.path}, compIds, false);
+          const pathRepr = this.decompileValue({path: obj.path}, compIds, false, helper);
           const compIdRepr = obj.componentId;
           return `_template(${pathRepr}, ${compIdRepr})`;
         }
@@ -657,7 +713,7 @@ export class ExpressDecompiler {
         const ctxReprs: string[] = [];
         for (const [k, v] of Object.entries(ctx)) {
           const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
-          ctxReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, false)}`);
+          ctxReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, false, helper)}`);
         }
         if (ctxReprs.length > 0) {
           return `Event("${name}", {${ctxReprs.join(', ')}})`;
@@ -670,11 +726,11 @@ export class ExpressDecompiler {
         const name = typeof fn.call === 'string' ? fn.call : '';
         const args = (fn.args ?? {}) as Record<string, unknown>;
 
-        const fnProps = this.helper.getFunctionProperties(name);
+        const fnProps = helper.getFunctionProperties(name);
         const argsReprs: string[] = [];
         for (const p of fnProps) {
           if (p in args) {
-            argsReprs.push(this.decompileValue(args[p], compIds, false));
+            argsReprs.push(this.decompileValue(args[p], compIds, false, helper));
           } else {
             argsReprs.push('_');
           }
@@ -689,8 +745,8 @@ export class ExpressDecompiler {
         const name = obj.call;
         const args = (obj.args ?? {}) as unknown;
         const argsReprs: string[] = [];
-        if (this.helper.functions.has(name)) {
-          const fnProps = this.helper.getFunctionProperties(name);
+        if (helper.functions.has(name)) {
+          const fnProps = helper.getFunctionProperties(name);
           for (const p of fnProps) {
             if (
               args &&
@@ -699,7 +755,7 @@ export class ExpressDecompiler {
               p in (args as Record<string, unknown>)
             ) {
               argsReprs.push(
-                this.decompileValue((args as Record<string, unknown>)[p], compIds, false),
+                this.decompileValue((args as Record<string, unknown>)[p], compIds, false, helper),
               );
             } else {
               argsReprs.push('_');
@@ -708,11 +764,11 @@ export class ExpressDecompiler {
         } else {
           if (Array.isArray(args)) {
             for (const v of args) {
-              argsReprs.push(this.decompileValue(v, compIds, false));
+              argsReprs.push(this.decompileValue(v, compIds, false, helper));
             }
           } else if (args && typeof args === 'object') {
             for (const v of Object.values(args as Record<string, unknown>)) {
-              argsReprs.push(this.decompileValue(v, compIds, false));
+              argsReprs.push(this.decompileValue(v, compIds, false, helper));
             }
           }
         }
@@ -727,7 +783,7 @@ export class ExpressDecompiler {
       for (const [k, v] of Object.entries(obj)) {
         const itemIsRef = isRef || k === 'child' || k === 'componentId';
         const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
-        itemsReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, itemIsRef)}`);
+        itemsReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, itemIsRef, helper)}`);
       }
       return `{${itemsReprs.join(', ')}}`;
     }
