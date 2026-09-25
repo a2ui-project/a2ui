@@ -20,12 +20,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Re-sending the same `createSurface` in a new payload across multiple turns of a conversational session using the same processor instance will throw an `A2uiStateError`. Callers must manually recreate and recycle the `A2uiRequestProcessor` per _request_ (turn), not per session.
 - **Done looks like:** The request-scoped lifecycle is prominently documented, or the internal structure is changed to expose a clear `reset()` method.
 
-### Express version default differs from Python
-
-- **What it is:** In Python, the Express protocol version defaults to `v1.0` if not overridden.
-- **TypeScript:** The port defaults the Express protocol version to the negotiated catalog's own `protocolVersion` (via `toWireProtocolVersion`), and explicitly validates any given `version` option against the catalog's version, throwing `A2uiCatalogError` on mismatch.
-- **Done looks like:** Python aligns with the catalog-derived version default and validates mismatches.
-
 ### Partial protocol version support and unimplemented formats
 
 - **What it is:** The package supports `v1.0` and `v0.9`. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
@@ -47,10 +41,31 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Small textual differences in prompts on old Node versions. The repository uses Node 22.
 - **Done looks like:** Nothing, unless the package has to support Node 20, in which case example numbers need a custom JSON reader.
 
+### Express error classes are not exported
+
+- **What it is:** `src/index.ts` exports `ExpressFormat`, `ExpressFormatFactory`, `ExpressParser`, `ExpressDecompiler` and `ExpressPromptGenerator`, but none of the Express error classes (`ExpressValidationError`, `ExpressUnknownComponentError`, `ExpressUnknownCatalogError` and the rest in `inference_formats/express/errors.ts`), and not the option types `ExpressFormatOptions` and `ExpressPromptOptions`, nor `RendererCapabilities`.
+- **Why it exists:** The public surface was written before the conformance work added most of these classes, and nothing outside the package needed them yet.
+- **What it risks:** A caller cannot `instanceof`-check an Express error to tell, say, an unknown component from a syntax error, and has to type options structurally. The facades wrap compile failures in `A2uiCompilationParseError` or `A2uiCompilationValidationError`, which are exported, so the common case is covered.
+- **Done looks like:** The error classes and option types are exported from `src/index.ts`, or a decision is recorded that only the wrapping errors are public.
+
+### Express decompiler skips components its catalog doesn't declare
+
+- **What it is:** When `ExpressDecompiler` meets a component whose name is not in the catalog, it leaves it out of the output without an error (`decompiler.ts`, the `helper.components.has(compName)` check in `decompileSurfaceGroup`). Python does the same.
+- **Why it exists:** Ported from Python. The compiler now rejects unknown components, but the decompiler was not changed to match, and no conformance case covers it.
+- **What it risks:** An example that uses a component from another catalog, or a misspelled one, becomes a shorter Express example with no warning, and the model is shown something other than what the author wrote.
+- **Done looks like:** The decompiler throws for an unknown component, as the compiler does, and a conformance case pins it for both SDKs.
+
+### Express logs the catalog fallback with `console.warn`
+
+- **What it is:** When several catalogs are active and an Express block names none, the compiler uses the first catalog and calls `console.warn`. The package has no logger, so callers cannot route or silence the message.
+- **Why it exists:** The user asked that the fallback be visible. `console.warn` is the only channel the package has.
+- **What it risks:** Noise in server logs for agents that deliberately rely on the first catalog.
+- **Done looks like:** A logging hook on the processor or format, if a caller needs one.
+
 ### `no-explicit-any` lint warnings
 
-- **What it is:** There are 26 eslint warnings for `no-explicit-any` in the codebase.
-- **Why it exists:** These are heavily concentrated in the streaming healer (`streaming.ts`), where partial JSON chunks are genuinely untyped before being repaired and compiled.
+- **What it is:** There are 26 eslint warnings for `no-explicit-any`: 24 in the Direct JSON streaming healer (`streaming.ts`) and 2 in `tests/conformance/conformance.test.ts`. The Express code has none.
+- **Why it exists:** In the streaming healer, partial JSON chunks are untyped before they are repaired and compiled.
 - **What it risks:** Mild technical debt.
 - **Done looks like:** The partial JSON trees are given a more rigorous generic recursive type, or `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
 
@@ -122,12 +137,19 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Downstream consumers might receive a truncated but validly healed JSON object and render it as a completed response without throwing an error, leading to silent UI truncation.
 - **Done looks like:** The specification amends the schema or blueprints to carry a termination signal on compiled parts.
 
-### `codebase.blueprint.md` overclaims Python's implementation
+### Python's codebase blueprint describes facades that have not landed
 
-- **What it is:** The `blueprints/codebases/python/a2ui_agent/codebase.blueprint.md` asserts that Python implements `A2uiGenerator` and `A2uiRequestProcessor`. It does not.
-- **Why it exists:** Stale documentation. The design document knows they do not exist, but the codebase blueprint is out of sync.
-- **What it risks:** Confuses cross-language portability efforts.
-- **Done looks like:** The Python codebase blueprint is updated to reflect its true state.
+- **What it is:** `blueprints/codebases/python/a2ui_agent/codebase.blueprint.md` lists `A2uiGenerator` and `A2uiRequestProcessor` as part of the Python SDK. They are v1.0 work that has not landed in Python yet.
+- **Why it exists:** The blueprint describes where the SDK is going, ahead of the code.
+- **What it risks:** Someone porting from Python looks for a reference implementation that is not there yet. The TypeScript facades were written from the specification alone.
+- **Done looks like:** The Python facades land, or the Python blueprint marks them as planned.
+
+### Behaviours TypeScript enforces that no conformance case pins
+
+- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling a component id that is not an Express identifier, such as `title-heading` or `true` (`ExpressInvalidIdentifierError`); a `surface(...)` line naming a catalog that is not active (`ExpressUnknownCatalogError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs with different protocol versions (`A2uiCatalogError`). A block that names no catalog while several are active uses the first one and logs a warning.
+- **Why it exists:** Each was decided while making TypeScript follow the suite: throwing is preferred to silently producing wrong output.
+- **What it risks:** Python may choose differently, and nothing would catch the drift.
+- **Done looks like:** Conformance cases pin each behaviour, so both SDKs are held to it.
 
 ### Basic catalog instructions missing programmatically
 
@@ -175,16 +197,24 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **TypeScript:** When a property's schema doesn't admit a path as a whole, the port walks the written value alongside the schema and checks each path against the schema where it appears. A property that admits a path as a whole is not inspected further, as in Python. See `express_format.blueprint.md` §5.2 item 6. This is a deliberate difference from Python.
 - **Done looks like:** Python checks bindings positionally, and a conformance case pins the behaviour for both SDKs.
 
-### Python's Express implementation fails known conformance gaps
+### Python's Express fails conformance cases that TypeScript passes
 
-- **What it is:** Main's conformance suites for Express contain cases that Python's implementation fails. The TypeScript port previously followed Python and failed the same cases, but now follows the conformance suite and passes them. Python still fails the following cases:
-  - compiler: inline components get `_inline_N` ids rather than `<parent id>_<property>`; an Event with no context compiles `context: {}`; a standalone call compiles to a top-level `functionCallId`/`callFunction`, which `agent_to_renderer.json` rejects, rather than to `callRendererFunction`; unknown components are dropped instead of failing the compile (`test_compile_express_unknown_component_is_a_validation_error`); missing required properties are not reported (`test_compile_express_missing_required_property_is_a_validation_error`); calls to unknown functions compile (`test_compile_express_unknown_function_is_a_validation_error`);
-  - decompiler: a standalone `updateComponents` has no root line, failing the round trip; `callRendererFunction` decompiles to an empty string; a standalone `updateDataModel` has no surface line, so both `test_decompile_express_update_data_model` and `test_decompile_express_nested_data_model_is_one_assignment_per_leaf` fail; a string holding a quote is written triple-quoted instead of escaped (`test_decompile_express_escapes_a_quote_in_a_string`); a map key that is not an identifier is written unquoted, which the grammar rejects (`test_decompile_express_quotes_a_map_key_that_is_not_an_identifier`);
-  - response parser: a component the catalog doesn't declare is dropped, so a response that should fail validation parses (`test_parse_response_express_validation_failure_surfaces`).
-- **Why it exists:** These are behaviours of main's Python compiler and decompiler.
-- **What it risks:** In Python, unknown components and missing required properties reach the renderer without a compile-time error, and decompiled output does not always compile back to the same messages.
-- **Differences from Python:** TypeScript passes the validation errors for unknown components, missing required properties, and unknown functions, as required by the conformance suite. TypeScript also passes the decompiler cases for escaping quotes in strings, quoting non-identifier map keys, and outputting surface declarations for standalone `updateDataModel` assignments. TypeScript also passes seven response-parser cases that Python lists as gaps. Four `wrap` cases pass because TypeScript's `wrap` takes response parts, where Python's takes strings; two text-between-blocks cases pass because the shared TypeScript block lexer keeps text separate from payloads; and the unwrapped-body case passes because `parseResponse` accepts `wrapped`. Python skips `test_compile_express_surface_targeting_names_a_catalog` as unsupported, because its `ExpressFormat` (`format.py`), `ExpressParser` (`parser.py`) and `ExpressCompiler` (`compiler.py`) each take a single `catalog`, and the compiler looks every name up in that one catalog's `self.helper`, whatever the `surface(...)` line names. TypeScript passes the case: it takes several catalogs, looks names up only in the catalog a block names, throws `ExpressUnknownCatalogError` for a catalog that is not active, and uses the first catalog with a `console.warn` when a block names none.
-- **Done looks like:** Python fixes each gap to match the conformance suite.
+- **What it is:** Main's Express suites under `conformance/agent/express/` contain cases Python fails. TypeScript used to follow Python and fail them too; it now follows the suite and passes all 86. Each group below could be filed as a Python issue.
+  - Validation, in `compiler.py`: a component the catalog doesn't declare is dropped instead of failing (`test_compile_express_unknown_component_is_a_validation_error`, and through the response parser `test_parse_response_express_validation_failure_surfaces`); a call to an undeclared function compiles (`test_compile_express_unknown_function_is_a_validation_error`); a missing required property is not reported (`test_compile_express_missing_required_property_is_a_validation_error`).
+  - Output shapes, in `compiler.py`: inline components get `_inline_N` ids instead of `<parent>_<property>`, or `<parent>_<property>_<index>` in arrays, emitted after the parent (`test_compile_express_inline_nesting`); an `Event` with no context compiles to `context: {}` instead of no `context` key (`test_compile_express_event_action`, `test_compile_express_event_variable_is_inlined_at_each_use`); a standalone function call compiles to a top-level `functionCallId`/`callFunction`, which `agent_to_renderer.json` rejects, instead of a `callRendererFunction` message (`test_compile_express_standalone_function_call`); a block that assigns components but no `root` raises "Root target 'root' is not defined" instead of compiling to `updateComponents`, which the round trip in `test_decompile_express_update_components` needs.
+  - Decompilation, in `decompiler.py`: a standalone `updateComponents` writes no `surface` line and does not round-trip (`test_decompile_express_update_components`); `callRendererFunction` decompiles to an empty string (`test_decompile_express_renderer_function_call`); a standalone `updateDataModel` writes no `surface` line (`test_decompile_express_update_data_model`, `test_decompile_express_nested_data_model_is_one_assignment_per_leaf`); a string holding a quote is written triple-quoted instead of escaped (`test_decompile_express_escapes_a_quote_in_a_string`); a map key that is not an identifier is written unquoted, which the grammar rejects (`test_decompile_express_quotes_a_map_key_that_is_not_an_identifier`).
+  - Several catalogs: Python marks `test_compile_express_surface_targeting_names_a_catalog` unsupported, because its `ExpressFormat` (`format.py`), `ExpressParser` (`parser.py`) and `ExpressCompiler` (`compiler.py`) each take a single `catalog`, and the compiler looks every name up in that catalog's `self.helper`, whatever the `surface(...)` line names. TypeScript takes several catalogs and looks names up only in the catalog a block names.
+- **Why it exists:** These are behaviours of main's Python compiler and decompiler, written before the suite.
+- **What it risks:** In Python, unknown components and missing required properties reach the renderer without a compile-time error, some compiled messages fail the protocol schema, and decompiled examples do not always compile back to the same messages.
+- **Also passing in TypeScript only, for API reasons:** seven response-parser cases that Python's harness lists as gaps. Four `wrap` cases pass because TypeScript's `wrap` takes response parts where Python's takes strings, two text-between-blocks cases pass because the shared block lexer keeps text apart from payloads, and the unwrapped-body case passes because `parseResponse` accepts `wrapped`.
+- **Done looks like:** Python passes these cases. `tests/unit/inference_formats/express/fixtures/conformance_overrides.json` lists every place TypeScript's output now differs from Python's recorded output; it can be emptied as Python catches up and the parity fixtures are regenerated.
+
+### Python's Express defaults to v1.0 whatever the catalog
+
+- **What it is:** Python's `ExpressFormat`, `ExpressParser` and `ExpressCompiler` default `version` to `"v1.0"`, so Express with a v0.9 catalog emits v1.0 messages unless the caller passes `version="v0.9"`, and a mismatched explicit version is not reported.
+- **TypeScript:** The version defaults to the catalogs' own protocol version (`toWireProtocolVersion`), all active catalogs must share it, and an explicit `version` that differs throws `A2uiCatalogError`.
+- **What it risks:** In Python, a v0.9 agent that forgets the argument sends messages its renderer rejects.
+- **Done looks like:** Python derives the default from the catalog and rejects a mismatch.
 
 ### Express grammar rules name basic-catalog components
 
@@ -214,7 +244,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile in Python. Component ids such as `title-heading` are not Express identifiers, so the lexer stops at the `-`. In Python, `updateDataModel.path` is ignored, so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`. `createSurface` and `updateComponents` each write a `surface("default")` line, and a program with two `surface` lines fails with "Root target 'root' is not defined". `createSurface.theme` is dropped without notice.
 - **TypeScript:** The TypeScript decompiler honours `updateDataModel.path` (mapping non-root paths to `$/path` leaf assignments), groups messages per surface to emit a single `surface` block, decompiles standalone `updateComponents` into blocks without a `root`, quotes keyword dictionary keys, and throws `ExpressInvalidIdentifierError` on invalid component ids like `title-heading` or `true`. The TS compiler now successfully compiles blocks with component assignments but no `root` target into `updateComponents`. Python still fails all these cases.
 - **Why it exists:** The decompiler handles each message on its own and was written against v1.0, where one `createSurface` carries the components and the data model.
-- **What it risks:** Examples written for Direct JSON cannot be reused for Express as they are. The Node sample works around this with its own copies (underscore ids, one `updateDataModel` at `/`, no `weight`) and by dropping `createSurface` before decompiling.
+- **What it risks:** Examples written for Direct JSON cannot be reused for Express as they are. In TypeScript the only remaining obstacle is ids that are not identifiers, which now throw instead of producing broken text; the Node sample keeps its own copies of the examples with underscore ids for that reason. It no longer drops `createSurface` before decompiling.
 - **Done looks like:** Python's decompiler honours `updateDataModel.path`, writes one `surface` line per surface, and either rejects or rewrites ids that are not identifiers.
 
 ### Python's Express leaves v0.9 JSON examples untranslated
@@ -222,7 +252,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** When examples are given as text, Python's Express prompt generator rewrites each fenced `json` block as Express only if every message in it is a `createSurface`, `updateDataModel`, `deleteSurface` or `callFunction`. A v0.9 example always contains `updateComponents`, so the block is left as JSON in an Express prompt.
 - **TypeScript:** The TypeScript prompt generator includes `updateComponents` in the list of recognized messages, correctly translating fenced v0.9 JSON example blocks to Express.
 - **Why it exists:** The key list in Python matches v1.0, where components travel inside `createSurface`.
-- **What it risks:** In Python, a v0.9 Express prompt shows the model JSON examples while asking for Express. The Node sample avoids this by decompiling its examples itself and passing Express text.
+- **What it risks:** In Python, a v0.9 Express prompt shows the model JSON examples while asking for Express.
 - **Done looks like:** `updateComponents` is added to the list, in Python first.
 
 ## 5. Node Sample (`samples/agent/node/restaurant_finder`)
