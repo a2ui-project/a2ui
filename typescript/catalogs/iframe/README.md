@@ -5,26 +5,141 @@ application or an external web app, inside a sandboxed frame that talks to the h
 the `a2ui_*` message protocol defined in the
 [WebApp iframe component specification](../../../catalogs/iframe/web_app_frame_specification.md).
 
-This release contains the building blocks the frame components are made of:
+The package contains:
 
+- `iframeCatalog`, with the two universal components of the catalog, `WebAppFrameUrl` and
+  `WebAppFrameSrcdoc`;
 - the sandbox proxy asset (`sandbox/` in the published package) and the configuration of where the
   host serves it;
 - `WebAppFrameBridge`, the host side of the protocol: `MessagePort` handshake, two-way data model
   sync for `data.paths`, `allowedEvents`, `allowedFunctions` and `mutableData` allowlists with JSON
   Schema validation, function calls, resize requests and host context updates;
-- the zod schemas of the wire messages and the `FrameHost` interface a renderer adapts its component
-  context to.
-
-The `WebAppFrameUrl` and `WebAppFrameSrcdoc` components that use them are added in a following
-release, together with the catalog registration.
+- `SandboxedFrameElement` and `ComponentContextFrameHost`, the base class and the host adapter the
+  components are built on, for catalogs that add their own sandboxed frame components.
 
 ## Installation
 
 ```bash
-npm install @a2ui/catalog-iframe
+npm install @a2ui/catalog-iframe @a2ui/web_core lit
 ```
 
-The package depends on `zod` and `ajv` and expects a browser environment.
+`@a2ui/web_core` and `lit` are peer dependencies: the components are universal components built on
+`A2uiLitElement` from `@a2ui/web_core/v0_9/universal`. The package also depends on `zod` and `ajv`
+and expects a browser environment.
+
+## Usage
+
+The components are custom elements that any renderer able to host universal components can render.
+Today that is the Lit renderer, `@a2ui/lit`. Register the catalog with the `MessageProcessor` next
+to the catalogs you already use, and serve the sandbox asset (next section):
+
+```ts
+import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {basicCatalog} from '@a2ui/lit/v0_9';
+import {iframeCatalog} from '@a2ui/catalog-iframe';
+
+const processor = new MessageProcessor([basicCatalog, iframeCatalog]);
+```
+
+A surface is bound to one catalog: the `catalogId` of its `createSurface` message selects one of
+the registered catalogs, and only that catalog's components and functions are available in it.
+Surfaces that mix frames with basic components, as the
+[catalog examples](../../../catalogs/iframe/examples) do,
+therefore use a catalog that carries both sets under the iframe catalog id:
+
+```ts
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {basicCatalog} from '@a2ui/lit/v0_9';
+import {IFRAME_CATALOG_ID, iframeCatalog} from '@a2ui/catalog-iframe';
+
+const catalog = new Catalog(
+  IFRAME_CATALOG_ID,
+  [...basicCatalog.components.values(), ...iframeCatalog.components.values()],
+  [...basicCatalog.functions.values()],
+);
+const processor = new MessageProcessor([catalog]);
+```
+
+The `Catalog` type parameter is `WebComponentImplementation` from `@a2ui/web_core/v0_9/universal`
+when the compiler cannot infer it.
+
+## Components
+
+Both components render one `<iframe>` in their light DOM that loads the sandbox proxy; the proxy
+runs the content in an inner frame with `sandbox="allow-scripts allow-forms allow-modals"`, never
+`allow-same-origin`. The proxy frame is titled with the component's `accessibility.label` when it
+has one, or "Embedded web application". They share these properties:
+
+| Property                  | Type                                | Purpose                                                                                                 |
+| ------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `height`                  | `DynamicNumber`                     | Height of the frame in CSS pixels. Without it, the element is 500px tall; see Styling.                  |
+| `config`                  | object                              | Static configuration handed to the application in the `a2ui_app_frame_init` handshake.                  |
+| `data.paths`              | map of key to JSON pointer          | Data model paths the application can read; their values are sent initially and whenever they change.    |
+| `mutableData`             | map of key to JSON Schema           | The subset of `data.paths` keys the application may write, each with the schema its value must satisfy. |
+| `allowedEvents`           | map of action name to JSON Schema   | Actions the application may dispatch, each with the schema of its payload. Anything else is dropped.    |
+| `allowedFunctions`        | map of function name to JSON Schema | Catalog functions the application may call, each with the schema of its arguments.                      |
+| `disableSchemaValidation` | boolean                             | Skips the JSON Schema checks; the allowlists still apply. For trusted first-party applications only.    |
+| `accessibility`           | `AccessibilityAttributes`           | `label` becomes the accessible name of the frame.                                                       |
+
+`WebAppFrameSrcdoc` adds `htmlContent`, the HTML string to render, optionally prefixed with
+`url_encoded:` when it was `encodeURIComponent`-encoded for transport. The host removes any
+`Content-Security-Policy` meta tag from the markup, injects a strict one (no network, no form
+submission, no nested frames) and a script that turns hyperlink clicks into `open_url` actions
+instead of navigations. An empty value loads nothing.
+
+`WebAppFrameUrl` adds `url`, a `DynamicString` with the `http` or `https` URL of the application.
+The host appends its own origin as the `origin` query parameter so the application can address its
+messages to it; other schemes load nothing and are reported once with `console.warn`.
+
+A message that renders the counter example (`catalogs/iframe/examples/00_srcdoc-shared-counter.json`,
+markup shortened):
+
+```json
+{
+  "version": "v0.9",
+  "updateComponents": {
+    "surfaceId": "gallery-iframe-shared-counter",
+    "components": [
+      {
+        "id": "counter_app",
+        "component": "WebAppFrameSrcdoc",
+        "height": 160,
+        "data": {"paths": {"count": "/counter/count", "label": "/counter/label"}},
+        "mutableData": {"count": {"type": "integer", "minimum": 0}},
+        "allowedEvents": {
+          "counter_saved": {
+            "type": "object",
+            "properties": {"count": {"type": "integer"}},
+            "required": ["count"],
+            "additionalProperties": false
+          }
+        },
+        "htmlContent": "<!doctype html><html><body><p id=\"status\"></p><script>...</script></body></html>"
+      }
+    ]
+  }
+}
+```
+
+The application inside receives `{count: 0, label: "clicks"}` in the handshake, writes `count` back
+through `a2ui_data_model_change`, and dispatches `counter_saved`, which reaches the host as an
+action of the `counter_app` component. Property changes are applied live: a new `htmlContent` or
+`url` reloads the content and reconnects the bridge, a new `height` resizes the element.
+
+### Styling
+
+The components are styled through CSS custom properties, which can be set on any ancestor:
+
+| Property                               | Default                                                              | Purpose                                |
+| -------------------------------------- | -------------------------------------------------------------------- | -------------------------------------- |
+| `--a2ui-sandboxed-frame-height`        | `500px`                                                              | Height used when `height` is absent.   |
+| `--a2ui-sandboxed-frame-border`        | `var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)` | Border around the frame.               |
+| `--a2ui-sandboxed-frame-border-radius` | `var(--a2ui-border-radius, 8px)`                                     | Corner radius.                         |
+| `--a2ui-sandboxed-frame-background`    | `#fff`                                                               | Background behind transparent content. |
+
+An application that asks for a size through `a2ui_size_changed` resizes the frame and the element
+within the limits of the bridge (100px to 2000px high); the next `height` property change takes
+over again.
 
 ## Sandbox asset
 
@@ -91,10 +206,11 @@ at it and list the host origin in the proxy page, which then keeps the self-test
 
 ## Host bridge
 
-`WebAppFrameBridge` connects one frame to the surface that renders it. It takes the frame element,
-a `FrameHost` (five functions: read, write and subscribe to a data model path, invoke a catalog
-function, dispatch an action), the origin the proxy is served from, and a function that returns the
-component's current properties:
+The components own their bridge; this section is for hosts that embed a frame without the
+components. `WebAppFrameBridge` connects one frame to the surface that renders it. It takes the
+frame element, a `FrameHost` (five functions: read, write and subscribe to a data model path,
+invoke a catalog function, dispatch an action), the origin the proxy is served from, and a function
+that returns the component's current properties:
 
 ```ts
 import {resolveSandboxUrl, sendSandboxResourceReady, WebAppFrameBridge} from '@a2ui/catalog-iframe';
@@ -127,6 +243,53 @@ Every message from the frame is checked for prototype pollution keys, nesting de
 against the wire schema, matched against the allowlist of its kind and validated against the JSON
 Schema listed there, in that order. Anything that fails is dropped with a `console.warn`; function
 calls get an error reply (`NOT_ALLOWED`, `VALIDATION_ERROR` or `EXECUTION_ERROR`).
+
+## Writing another sandboxed frame component
+
+`SandboxedFrameElement` is the base class of both components. It renders the proxy frame, applies
+the `height` property, listens for the proxy's ready signal, sends the resource once the proxy is
+listening, reconnects the bridge when the context or the content changes, and tears everything down
+when the element leaves the document. A subclass provides the proxy page and protocol to use, the
+resource its properties describe, its height and title, and the bridge connection:
+
+```ts
+import {
+  ComponentContextFrameHost,
+  frameHeightFromProp,
+  frameTitleFromProps,
+  SandboxedFrameElement,
+} from '@a2ui/catalog-iframe';
+
+class MyFrameElement extends SandboxedFrameElement<typeof MyFrameApi> {
+  protected readonly api = MyFrameApi;
+  protected readonly sandboxMode = 'html' as const;
+  protected readonly sandboxProtocol = 'a2ui' as const;
+
+  protected resolveResource() {
+    return {html: this.controller.props.markup};
+  }
+  protected resolveHeight() {
+    return frameHeightFromProp(this.controller.props.height);
+  }
+  protected resolveTitle() {
+    return frameTitleFromProps(this.controller.props.accessibility, 'My frame');
+  }
+  protected connectFrame(frame: HTMLIFrameElement, sandboxOrigin: string) {
+    const bridge = new MyBridge({
+      frame,
+      sandboxOrigin,
+      host: new ComponentContextFrameHost(this.context),
+    });
+    bridge.start();
+    return () => bridge.dispose();
+  }
+}
+```
+
+`ComponentContextFrameHost` is the `FrameHost` over a universal component's `ComponentContext`:
+data paths go through the component's data context, functions through the surface catalog, and
+actions are dispatched as events of the component. Bridges that do not apply resize requests
+themselves can call the protected `requestFrameSize(width, height)` of the base class.
 
 ## Development
 

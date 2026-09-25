@@ -130,6 +130,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-iframe@workspace:typescript/catalogs/iframe"
   dependencies:
+    "@a2ui/web_core": "workspace:*"
     "@types/jasmine": "npm:^6.0.0"
     ajv: "npm:^8.17.1"
     esbuild: "npm:^0.28.1"
@@ -140,10 +141,14 @@ __metadata:
     karma-chrome-launcher: "npm:^3.2.0"
     karma-esbuild: "npm:^2.3.0"
     karma-jasmine: "npm:^5.1.0"
+    lit: "npm:^3.3.3"
     prettier: "npm:^3.8.4"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
+  peerDependencies:
+    "@a2ui/web_core": "workspace:*"
+    lit: ^3.3.3
   languageName: unknown
   linkType: soft
 

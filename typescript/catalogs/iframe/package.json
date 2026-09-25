@@ -89,6 +89,7 @@
     "build:tsc": {
       "command": "tsc -b --pretty",
       "dependencies": [
+        "../../../renderers/web_core:build",
         "copy-catalog",
         "copy-shared"
       ],
@@ -112,12 +113,15 @@
     "test:types": {
       "command": "tsc -p tsconfig.test.json --pretty",
       "dependencies": [
+        "../../../renderers/web_core:build",
         "copy-catalog",
         "copy-shared"
       ],
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**",
+        "../../../catalogs/iframe/examples/*.json",
         "tsconfig.json",
         "tsconfig.test.json"
       ],
@@ -132,6 +136,8 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**",
+        "../../../catalogs/iframe/examples/*.json",
         "karma.conf.cjs",
         "tsconfig.test.json"
       ],
@@ -140,12 +146,14 @@
     "lint": {
       "command": "eslint .",
       "dependencies": [
+        "../../../renderers/web_core:build",
         "copy-catalog",
         "copy-shared"
       ],
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**",
         "scripts/**",
         "*.mjs",
         "*.cjs",
@@ -165,7 +173,12 @@
     "ajv": "^8.17.1",
     "zod": "^3.25.76"
   },
+  "peerDependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "lit": "^3.3.3"
+  },
   "devDependencies": {
+    "@a2ui/web_core": "workspace:*",
     "@types/jasmine": "^6.0.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.4.1",
@@ -175,6 +188,7 @@
     "karma-chrome-launcher": "^3.2.0",
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
+    "lit": "^3.3.3",
     "prettier": "^3.8.4",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
