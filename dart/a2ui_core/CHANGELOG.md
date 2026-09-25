@@ -5,46 +5,36 @@
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
 - **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
   are no longer exported. Renderers read components through `NodeResolver` and
-  `ComponentNode`.
-- **Breaking:** `GenericBinder` resolves dynamic properties to `ResolvedBinding`
-  values instead of raw values, and no longer synthesizes `set<Property>`
-  setter entries; writes go through `WritableBinding.set`. Omitted and
-  explicit-null dynamic properties are read-only bindings of null within
-  existing objects and arrays; absent or null non-dynamic containers are
-  unchanged. Path bindings to missing data remain writable.
+  `ComponentNode`, whose props carry dynamic properties as `ResolvedBinding`
+  values instead of raw values, with no synthesized `set<Property>` setter
+  entries. A property bound to a data path is a `WritableBinding`, even when the
+  path holds no data; writes go through `WritableBinding.set`, and
+  `WritableBinding.path` is the path as authored.
 - **Breaking:** `SurfaceModel.dispatchAction` no longer executes `functionCall`
-  payloads; catalog functions run during action resolution instead, and only
-  `event` payloads emit an action.
-- **Breaking:** when an expression-error reporter is supplied, a missing or
-  failing catalog function during data resolution no longer throws to the
-  caller; the bound value resolves to null and the reporter receives the error.
-  `ComponentContext` supplies a reporter, which by default emits an
-  `EXPRESSION_ERROR` client error on the surface.
-- Added: `DataContext` and `ComponentContext` accept an optional
-  `ExpressionErrorReporter` through `onError`. A standalone `DataContext`
-  without a reporter lets invocation errors propagate.
+  payloads and emits an action only for `event` payloads. A node's action runs
+  its function call itself.
+- Added: `DataContext` accepts an optional `ExpressionErrorReporter` through
+  `onError`. With a reporter, a missing or failing catalog function resolves to
+  null and the reporter receives the error; without one, the error propagates.
 - Added: `NodeResolver(surface)` builds a reactive tree of read-only
   `ComponentNode`s with resolved child references, scoped templates, dynamic
   bindings, callable actions, and placeholder states for unresolved nodes.
   It owns node subscriptions and cleanup; consumers dispose the resolver
   before its surface. Node props and container-valued bindings are detached,
   recursively unmodifiable snapshots.
-- `WritableBinding.path` exposes the binding's write destination.
+- Node bindings report a missing or failing catalog function as an
+  `EXPRESSION_ERROR` client error on the surface and resolve to null.
 - Validation and node resolution recognize wire/local `$ref` pointers and
   `REF:` description markers. Resolution additionally recognizes unmarked
-  structural `ChildList` schemas (`ReferenceSchemaReader.structuralChildLists`),
-  which validation deliberately ignores so a batch is never rejected on that
-  guess. Resolution mounts top-level child references and lists, including
-  single-reference fields within arrays of objects.
+  structural `ChildList` schemas, which validation deliberately ignores so a
+  batch is never rejected on that guess. Resolution mounts top-level child
+  references and lists, including single-reference fields within arrays of
+  objects.
 - A `ChildList` expands to at most `maxDynamicChildListSize` (10,000) items,
   matching the TypeScript core's `MAX_DYNAMIC_CHILD_LIST_SIZE`.
 - Changed: `ChildNode` descriptors compare by component id and data scope
   and serialize as plain JSON in node props. Nested `ChildList` values remain
   scoped descriptors rather than mounted nodes.
-- Fixed: `GenericBinder.resolvedProps` publishes one complete snapshot per
-  component update instead of intermediate per-property updates.
-- Fixed: disposing a `GenericBinder` stops its bindings from reacting to later
-  data writes. A disposed binder cannot be reconnected.
 - Fixed: `DataContext.resolveListenable` resolves array and map payloads per
   entry and tracks nested bindings reactively; previously a container holding
   bindings (such as a function argument list or a nested `{path}` value) was
