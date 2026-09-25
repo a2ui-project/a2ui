@@ -126,7 +126,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/catalog-iframe@workspace:typescript/catalogs/iframe":
+"@a2ui/catalog-iframe@workspace:*, @a2ui/catalog-iframe@workspace:typescript/catalogs/iframe":
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-iframe@workspace:typescript/catalogs/iframe"
   dependencies:
@@ -152,7 +152,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp":
+"@a2ui/catalog-mcp@workspace:*, @a2ui/catalog-mcp@workspace:typescript/catalogs/mcp":
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp"
   dependencies:
@@ -228,6 +228,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/lit-explorer@workspace:renderers/lit/a2ui_explorer"
   dependencies:
+    "@a2ui/catalog-iframe": "workspace:*"
+    "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
