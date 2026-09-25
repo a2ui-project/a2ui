@@ -25,6 +25,7 @@ import {
   Subscription,
 } from '../../index.js';
 import {
+  A2uiLitElement,
   type A2uiWebComponentElement,
   registerUniversalElement,
   type WebComponentImplementation,
@@ -135,5 +136,15 @@ describe('Tabs Component', () => {
     assert.notStrictEqual(content, null);
     assert.strictEqual(content?.textContent?.includes('Content 2'), true);
     assert.strictEqual(content?.textContent?.includes('Content 1'), false);
+  });
+
+  it('should not throw if update cycle occurs before context is assigned', async () => {
+    const el = document.createElement('a2ui-tabs') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, () => {
+      (el as unknown as A2uiLitElement).requestUpdate();
+    });
   });
 });

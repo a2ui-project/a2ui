@@ -70,14 +70,14 @@ class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
 
   override willUpdate(changedProperties: any) {
     super.willUpdate(changedProperties);
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (props?.tabs && this.activeIndex >= props.tabs.length) {
       this.activeIndex = 0;
     }
   }
 
   override render() {
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (!props || !props.tabs) return nothing;
 
     return html`
