@@ -17,9 +17,10 @@
 import {LitElement, html, nothing} from 'lit';
 import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor, A2uiMessage, A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {basicCatalog, Context} from '@a2ui/lit/v0_9';
+import {Catalog, MessageProcessor, A2uiMessage, A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {basicCatalog, Context, LitComponentApi} from '@a2ui/lit/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {createDemoCatalogs} from './demo-catalogs';
 import {getDemoItems, DemoItem} from './examples';
 import {appStyles} from './local-gallery.css';
 
@@ -40,7 +41,11 @@ export class LocalGallery extends LitElement {
   @provide({context: Context.markdown})
   private markdownRenderer = renderMarkdown;
 
-  private processor = new MessageProcessor([basicCatalog], (action: A2uiClientAction) => {
+  // The processor keeps a reference to this array and looks a catalog up by id when a surface is
+  // created, so the catalogs that need the processor itself are pushed once it exists.
+  private readonly catalogs: Catalog<LitComponentApi>[] = [basicCatalog];
+
+  private processor = new MessageProcessor(this.catalogs, (action: A2uiClientAction) => {
     this.log(`Action dispatched: ${action.surfaceId}`, action);
     this.actionLog.push(action);
   });
@@ -48,6 +53,11 @@ export class LocalGallery extends LitElement {
   private dataModelSubscription?: {unsubscribe: () => void};
 
   static styles = [appStyles];
+
+  constructor() {
+    super();
+    this.catalogs.push(...createDemoCatalogs(this.processor));
+  }
 
   private getLocalStorage(key: string): string | null {
     try {
@@ -295,7 +305,7 @@ export class LocalGallery extends LitElement {
       <header>
         <div>
           <h1>A2UI Explorer</h1>
-          <p class="subtitle">v0.9 Basic Catalog</p>
+          <p class="subtitle">v0.9 basic, iframe and MCP catalogs</p>
         </div>
       </header>
       <main>
@@ -325,6 +335,9 @@ export class LocalGallery extends LitElement {
           <div class="nav-list">
             ${this.demoItems.map(
               (item, i) => html`
+                ${i === 0 || this.demoItems[i - 1].catalog !== item.catalog
+                  ? html`<h4 class="nav-group">${item.catalog} catalog</h4>`
+                  : nothing}
                 <div
                   class="nav-item ${i === this.activeItemIndex ? 'active' : ''}"
                   @click=${() => this.selectItem(i)}

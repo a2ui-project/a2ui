@@ -25,7 +25,8 @@ export default defineConfig({
   },
   server: {
     fs: {
-      allow: ['../', '../../../specification'],
+      // The example JSON files are imported from the specification and catalogs directories.
+      allow: ['../', '../../../specification', '../../../catalogs'],
     },
   },
 });

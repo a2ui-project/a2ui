@@ -6,12 +6,13 @@
   "type": "module",
   "scripts": {
     "generate-examples": "node scripts/generate-examples.mjs",
-    "dev": "yarn generate-examples && vite",
+    "copy-sandbox": "wireit",
+    "dev": "yarn generate-examples && yarn copy-sandbox && vite",
     "build": "wireit",
     "test": "wireit",
     "test:vite-compilation": "wireit",
-    "test:watch": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true",
-    "test:debug": "yarn generate-examples && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
+    "test:watch": "yarn generate-examples && yarn copy-sandbox && karma start karma.conf.cjs --single-run=false --auto-watch=true",
+    "test:debug": "yarn generate-examples && yarn copy-sandbox && karma start karma.conf.cjs --single-run=false --auto-watch=true --browsers Chrome",
     "test:ci": "wireit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -20,12 +21,27 @@
     "format:check": "prettier --ignore-path ../../../.prettierignore --check ."
   },
   "wireit": {
+    "copy-sandbox": {
+      "command": "node scripts/copy-sandbox.mjs",
+      "dependencies": [
+        "../../../typescript/catalogs/iframe:build"
+      ],
+      "files": [
+        "scripts/copy-sandbox.mjs"
+      ],
+      "output": [
+        "public/a2ui-sandbox/**"
+      ]
+    },
     "build": {
       "command": "yarn generate-examples && tsc && vite build",
       "dependencies": [
         "../../web_core:build",
         "../../markdown/markdown-it:build",
-        "../:build"
+        "../:build",
+        "../../../typescript/catalogs/iframe:build",
+        "../../../typescript/catalogs/mcp:build",
+        "copy-sandbox"
       ]
     },
     "test": {
@@ -47,10 +63,12 @@
       ]
     },
     "clean": {
-      "command": "rm -rf dist .tsbuildinfo .wireit"
+      "command": "rm -rf dist public/a2ui-sandbox .tsbuildinfo .wireit"
     }
   },
   "dependencies": {
+    "@a2ui/catalog-iframe": "workspace:*",
+    "@a2ui/catalog-mcp": "workspace:*",
     "@a2ui/lit": "workspace:*",
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
