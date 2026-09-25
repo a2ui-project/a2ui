@@ -30,7 +30,7 @@ import {
 
 describe('catalog_document registry', () => {
   it('registers and retrieves catalog source JSON document', () => {
-    const catalog = new Catalog('custom_id', [], []);
+    const catalog = new Catalog('custom_id', 'v1.0', [], []);
     expect(hasCatalogDocument(catalog)).toBe(false);
 
     const doc = {catalogId: 'custom_id', components: {Text: {type: 'object'}}};
@@ -41,7 +41,7 @@ describe('catalog_document registry', () => {
   });
 
   it('throws A2uiCatalogError with exact message when no document registered', () => {
-    const catalog = new Catalog('unregistered_catalog_id', [], []);
+    const catalog = new Catalog('unregistered_catalog_id', 'v1.0', [], []);
     expect(() => getCatalogDocument(catalog)).toThrow(A2uiCatalogError);
     expect(() => getCatalogDocument(catalog)).toThrow(
       "Catalog 'unregistered_catalog_id' has no source JSON document registered. Express reads component schemas from the catalog JSON, so the catalog must be loaded through @a2ui/agent (basicCatalog, a catalog provider, or CatalogConfig).",
@@ -98,7 +98,7 @@ describe('catalog_document registry', () => {
   });
 
   it('pruning works without registering document if input catalog has no document', () => {
-    const bareCatalog = new Catalog('bare', [], []);
+    const bareCatalog = new Catalog('bare', 'v1.0', [], []);
     expect(hasCatalogDocument(bareCatalog)).toBe(false);
 
     const transformer = new ComponentPruningTransformer(['Text']);
