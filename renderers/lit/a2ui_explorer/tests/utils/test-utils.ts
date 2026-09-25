@@ -23,7 +23,8 @@ import {ReactiveElement} from 'lit';
  *
  * @param filename The exact filename of the A2UI JSON example (e.g.,
  *                 "02_email-compose.json") as defined in the specification
- *                 catalogs directory.
+ *                 catalogs directory, optionally prefixed with the catalog label
+ *                 of its examples directory (e.g., "iframe/01_url-frame.json").
  *
  * @returns A promise that resolves to the <local-gallery> element after the
  * example has been loaded and rendered.
@@ -37,7 +38,9 @@ export async function loadExample(filename: string): Promise<LocalGallery> {
   document.body.appendChild(gallery);
   await gallery.updateComplete;
 
-  const index = gallery.demoItems.findIndex(item => item.filename === filename);
+  const index = gallery.demoItems.findIndex(
+    item => item.filename === filename || `${item.catalog}/${item.filename}` === filename,
+  );
   if (index === -1) {
     // Avoid polluting the DOM when an example is not found.
     gallery.remove();
@@ -133,6 +136,19 @@ export function getSurface(root: Element): HTMLElement {
     throw new Error('a2ui-surface not found in root element');
   }
   return surface as HTMLElement;
+}
+
+/**
+ * Polls until the predicate holds, failing the spec with `what` after about five seconds.
+ *
+ * Used to wait for effects that arrive through the browser rather than through Lit's update
+ * cycle, such as a message from an embedded frame.
+ */
+export async function waitFor(predicate: () => boolean, what: string): Promise<void> {
+  for (let attempt = 0; attempt < 500 && !predicate(); attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  expect(predicate()).withContext(what).toBeTrue();
 }
 
 /**

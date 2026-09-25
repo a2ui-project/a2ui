@@ -21,7 +21,16 @@ module.exports = function (config) {
     basePath: '',
     frameworks: ['jasmine'],
     plugins: [require('karma-jasmine'), require('karma-chrome-launcher'), require('karma-esbuild')],
-    files: [{pattern: 'tests/**/*.test.ts', watched: true}],
+    files: [
+      {pattern: 'tests/**/*.test.ts', watched: true},
+      // The sandbox proxy the iframe and MCP catalog components load, copied from
+      // @a2ui/catalog-iframe by scripts/copy-sandbox.mjs. Served, not included in the test bundle.
+      {pattern: 'public/a2ui-sandbox/**', included: false, served: true, watched: false},
+    ],
+    // Serves the proxy at its default path, /a2ui-sandbox/, the way the Vite server does.
+    proxies: {
+      '/a2ui-sandbox/': '/base/public/a2ui-sandbox/',
+    },
     preprocessors: {
       'tests/**/*.test.ts': ['esbuild'],
     },
@@ -39,6 +48,9 @@ module.exports = function (config) {
       },
     },
     reporters: ['progress'],
+    // The MCP Apps transport inside McpApp logs every message at debug level; keep console.log
+    // (the example count) and anything more severe.
+    browserConsoleLogOptions: {level: 'log', terminal: true},
     port: 9876,
     colors: true,
     logLevel: config.LOG_INFO,
