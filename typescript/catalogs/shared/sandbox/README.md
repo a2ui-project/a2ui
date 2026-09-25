@@ -16,14 +16,16 @@ Each package bundles `sandbox_main.ts` with esbuild (`scripts/build-sandbox.mjs`
 
 ## Host-side helpers
 
-| File                         | Role                                                                                                                 |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `frame_host.ts`              | `FrameHost`: what a bridge needs from the component that renders the frame (data paths, catalog functions, actions). |
-| `sandbox_config.ts`          | Where the host serves the proxy pages: `configureSandbox`, `resolveSandboxUrl`.                                      |
-| `sandbox_bootstrap.ts`       | Host side of the proxy handshake: proxy-ready in, resource-ready out, with source window and origin checks.          |
-| `security.ts`                | Checks on every payload that crosses the frame boundary: prototype pollution keys, nesting depth, serialized size.   |
-| `data_model_sync.ts`         | Two-way sync of the `data.paths` bindings between the surface data model and the frame, with echo suppression.       |
-| `frame_sizing.ts`            | Clamped and throttled resize requests from the app, and the container dimensions reported back to it.                |
-| `testing/fake_frame_host.ts` | `FakeFrameHost` for bridge tests.                                                                                    |
+| File                              | Role                                                                                                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frame_host.ts`                   | `FrameHost`: what a bridge needs from the component that renders the frame (data paths, catalog functions, actions).                                                |
+| `sandbox_config.ts`               | Where the host serves the proxy pages: `configureSandbox`, `resolveSandboxUrl`.                                                                                     |
+| `sandbox_bootstrap.ts`            | Host side of the proxy handshake: proxy-ready in, resource-ready out, with source window and origin checks.                                                         |
+| `security.ts`                     | Checks on every payload that crosses the frame boundary: prototype pollution keys, nesting depth, serialized size.                                                  |
+| `data_model_sync.ts`              | Two-way sync of the `data.paths` bindings between the surface data model and the frame, with echo suppression.                                                      |
+| `frame_sizing.ts`                 | Clamped and throttled resize requests from the app, and the container dimensions reported back to it.                                                               |
+| `sandboxed_frame_element.ts`      | Base class of the frame components: renders the proxy frame, applies `height`, runs the handshake and owns the bridge lifecycle across context and content changes. |
+| `component_context_frame_host.ts` | `ComponentContextFrameHost`: the `FrameHost` over a universal component's `ComponentContext`.                                                                       |
+| `testing/fake_frame_host.ts`      | `FakeFrameHost` for bridge tests.                                                                                                                                   |
 
 Tests (`*.test.ts`) sit next to each file and run in the Karma suite of every package that copies this directory.
