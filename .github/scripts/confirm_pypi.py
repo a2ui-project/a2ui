@@ -180,6 +180,21 @@ def parse_tag(tag: str) -> tuple[str, str] | None:
     return match["name"], match["version"]
 
 
+def get_release_body(tag: str) -> str:
+    """Fetches the release notes body for a given release tag."""
+    try:
+        result = subprocess.run(
+            ["gh", "release", "view", tag, "--json", "body"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        data = json.loads(result.stdout)
+        return data.get("body") or ""
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        return ""
+
+
 def discover_pending(limit: int = 200) -> list[dict]:
     """Finds GitHub releases still waiting on PyPI.
 
@@ -199,7 +214,7 @@ def discover_pending(limit: int = 200) -> list[dict]:
             "--limit",
             str(limit),
             "--json",
-            "tagName,body",
+            "tagName",
         ],
         capture_output=True,
         text=True,
@@ -214,11 +229,11 @@ def discover_pending(limit: int = 200) -> list[dict]:
 
     for release in releases:
         tag = release.get("tagName") or ""
-        body = release.get("body") or ""
         parsed = parse_tag(tag)
         if not parsed:
             continue
         name, version = parsed
+        body = get_release_body(tag)
         if PENDING_MARKER not in body:
             continue
         # Keep the original changelog entries, which sit above the separator.
