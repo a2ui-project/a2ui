@@ -213,9 +213,10 @@ class ConformanceTest {
    * Returns the catalog configuration that [buildCatalog] expects for [case].
    *
    * Legacy cases carry a full `catalog` configuration with `catalogSchema`. The split validator
-   * suites instead set a top-level `protocolVersion`, and either `catalogPaths` (repository-relative
-   * catalog files) or an inline `catalog` with `catalogId` and `components`. For those, the server
-   * to client and common types schemas come from the matching `specification/` directory.
+   * suites instead set a top-level `protocolVersion`, and either `catalogPaths`
+   * (repository-relative catalog files) or an inline `catalog` with `catalogId` and `components`.
+   * For those, the server to client and common types schemas come from the matching
+   * `specification/` directory.
    */
   private fun catalogConfigFor(case: Map<*, *>): Map<*, *> {
     val catalog = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
@@ -836,7 +837,8 @@ class ConformanceTest {
     private const val URL_PREFIX_V08 = "https://a2ui.org/specification/v0_8/"
     private const val VERSION_0_8_STR = "0.8"
     private const val TEST_CATALOG_NAME = "test_catalog"
-    private val VALIDATOR_YAML_FILES = listOf("core/validator_v0_8.yaml", "core/validator_v0_9.yaml")
+    private val VALIDATOR_YAML_FILES =
+      listOf("core/validator_v0_8.yaml", "core/validator_v0_9.yaml")
     private const val CATALOG_YAML_FILE = "core/catalog.yaml"
     private const val SCHEMA_MANAGER_YAML_FILE = "agent/legacy/inference_format.yaml"
     private const val PARSER_YAML_FILE = "agent/legacy/parser.yaml"
