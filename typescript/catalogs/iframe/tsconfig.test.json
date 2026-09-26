@@ -1,9 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
 
-  /* Type-checks the whole source tree, tests included, with the Jasmine globals. Used by
-     `test:types`, by the Karma esbuild preprocessor and by ESLint; the library build uses
-     tsconfig.json, which leaves the tests and the sandbox bundle entry point out. */
+  /* Type-checks the whole source tree, tests included, with the Jasmine globals, plus the
+     real-frame scenarios under tests/. Used by `test:types`, by the Karma esbuild preprocessor and
+     by ESLint; the library build uses tsconfig.json, which leaves the tests and the sandbox bundle
+     entry point out. */
   "compilerOptions": {
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,7 +14,6 @@
     "types": ["jasmine"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
-    "rootDir": "src",
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -26,6 +26,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/catalog.json"],
+  "include": ["src/**/*.ts", "src/catalog.json", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
