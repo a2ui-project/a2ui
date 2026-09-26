@@ -108,6 +108,7 @@ export class ComponentHostComponent {
   private propsSub?: Subscription;
   private createSub?: Subscription;
   private surfaceSub?: Subscription;
+  private deleteSub?: Subscription;
 
   constructor() {
     effect(() => {
@@ -175,7 +176,7 @@ export class ComponentHostComponent {
 
       const sub = surface.componentsModel.onCreated.subscribe(comp => {
         if (comp.id === id) {
-          this.initializeComponent(surface, comp, id, basePath);
+          this.initializeComponent(surface, comp, id, basePath, surfaceId);
           sub.unsubscribe();
         }
       });
@@ -183,7 +184,7 @@ export class ComponentHostComponent {
       return;
     }
 
-    this.initializeComponent(surface, componentModel, id, basePath);
+    this.initializeComponent(surface, componentModel, id, basePath, surfaceId);
   }
 
   private initializeComponent(
@@ -191,7 +192,20 @@ export class ComponentHostComponent {
     componentModel: ComponentModel,
     id: string,
     basePath: string,
+    surfaceId: string,
   ): void {
+    // MessageProcessor handles a change of component type (or catalog) by removing this id's
+    // ComponentModel and adding a new one, so the onUpdated subscription below never sees it.
+    // Re-run setup when this id's model is replaced. The identity check matters: setupComponent
+    // subscribes a fresh listener to the same emitter while it is still iterating its listeners,
+    // and without the check that listener would receive the same event and loop indefinitely.
+    // Subscribe before the catalog lookup so an unknown type can still be replaced later.
+    this.deleteSub = surface.componentsModel.onDeleted.subscribe(deletedId => {
+      if (deletedId === id && surface.componentsModel.get(id) !== componentModel) {
+        this.ngZone.run(() => this.setupComponent({id, basePath}, surfaceId));
+      }
+    });
+
     // Resolve component from the surface's catalog
     const catalog = surface.defaultCatalog;
     const componentImpl = catalog.components.get(componentModel.type);
@@ -288,6 +302,8 @@ export class ComponentHostComponent {
     this.createSub = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
+    this.deleteSub?.unsubscribe();
+    this.deleteSub = undefined;
 
     this.componentType.set(null);
     this.props.set({});
