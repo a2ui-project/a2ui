@@ -173,8 +173,10 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
   describe('4. admitsPath against express_catalog_instructions.txt (static) labels', () => {
     it('reproduces golden (static) labels for all 75 properties (51 static, 24 non-static)', () => {
-      const instructionsPath =
-        '/work/google/a2ui/conformance/test_data/skills/express_catalog_instructions.txt';
+      const instructionsPath = path.resolve(
+        __dirname,
+        '../../../../../../conformance/test_data/skills/express_catalog_instructions.txt',
+      );
       const content = fs.readFileSync(instructionsPath, 'utf8');
 
       const cat = basicCatalog('v1.0');
