@@ -1138,13 +1138,13 @@ void main() {
     Map<String, Object?> alpha({String? catalogId}) => {
       'id': 'root',
       'component': 'Alpha',
-      'catalogId': ?catalogId,
+      if (catalogId != null) 'catalogId': catalogId,
       'a': 'x',
     };
     Map<String, Object?> beta({String? catalogId}) => {
       'id': 'root',
       'component': 'Beta',
-      'catalogId': ?catalogId,
+      if (catalogId != null) 'catalogId': catalogId,
       'a': 'x',
     };
     final Map<String, Object?> bogus = {

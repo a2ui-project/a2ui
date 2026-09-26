@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
 - `ExpressionParser` accepts signed number literals (`-42`, `+1`, `-3.5`) and
   exponent notation (`1e5`, `1E5`, `1.5e-3`, `2.5E+4`), including as
