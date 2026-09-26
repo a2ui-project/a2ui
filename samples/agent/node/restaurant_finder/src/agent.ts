@@ -119,6 +119,11 @@ export function resolveLlmMode(env: NodeJS.ProcessEnv = process.env): LlmMode {
   );
 }
 
+/** Returns the Gemini model to call, from `MODEL_NAME` or the sample's default. */
+export function resolveModelName(env: NodeJS.ProcessEnv = process.env): string {
+  return env.MODEL_NAME?.trim() || 'gemini-2.5-flash';
+}
+
 /** Builds the AgentCard matching the Python sample and configured A2UI version. */
 export function buildAgentCard(config: SampleConfig, port = 10002): AgentCard {
   const catalogId = basicCatalog(config.version).id;
@@ -256,16 +261,14 @@ export function convertResponsePartToA2aParts(part: ResponsePart, mimeType: stri
 }
 
 /**
- * LRU cache for DirectJsonStreamProcessorImpl instances keyed by contextId.
+ * Per-conversation state keyed by contextId, dropping the least recently used entry once
+ * `maxEntries` is exceeded so a long-running server does not grow without bound.
  */
-class ParserLruCache {
-  private readonly map = new Map<string, DirectJsonStreamProcessorImpl>();
+class LruCache<V> {
+  private readonly map = new Map<string, V>();
   constructor(private readonly maxEntries = 1000) {}
 
-  getOrCreate(
-    contextId: string,
-    factory: () => DirectJsonStreamProcessorImpl,
-  ): DirectJsonStreamProcessorImpl {
+  getOrCreate(contextId: string, factory: () => V): V {
     const existing = this.map.get(contextId);
     if (existing) {
       this.map.delete(contextId);
@@ -288,17 +291,27 @@ export class RestaurantExecutor implements AgentExecutor {
   private readonly catalog = basicCatalog(this.config.version);
   private readonly generator: A2uiGenerator;
   private readonly loadedExamples: LoadedExamples;
-  private readonly parserCache = new ParserLruCache(1000);
-  private readonly sessionChats = new Map<string, Chat>();
+  private readonly parserCache = new LruCache<DirectJsonStreamProcessorImpl>(1000);
+  private readonly sessionChats = new LruCache<Chat>(1000);
   private readonly mimeType: string;
+  /** The Gemini client and model name, set only in live mode. */
+  private readonly model?: {client: GoogleGenAI; name: string};
 
   constructor(
     public readonly config: SampleConfig = resolveSampleConfig(),
     public readonly port: number = 10002,
     private readonly pythonSampleDir: string = resolvePythonSampleDir(),
+    llmMode: LlmMode = resolveLlmMode(),
   ) {
     verifyPythonSampleAssets(this.pythonSampleDir);
     this.loadedExamples = loadAndValidateExamples(this.config);
+
+    if (llmMode === 'live') {
+      this.model = {
+        client: new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY}),
+        name: resolveModelName(),
+      };
+    }
 
     this.mimeType =
       this.config.version === 'v0.9' ? 'application/json+a2ui' : 'application/a2ui+json';
@@ -327,7 +340,57 @@ export class RestaurantExecutor implements AgentExecutor {
     return this.generator.createProcessor({supportedCatalogIds: [this.catalog.id]});
   }
 
+  /**
+   * Publishes a final `failed` status for this task.
+   *
+   * The A2A SDK publishes its own failure when `execute` rejects, but in a stream it
+   * labels a first turn's failure with a new random task id, which the client cannot
+   * match to the task this executor already announced.
+   */
+  private publishFailure(
+    eventBus: ExecutionEventBus,
+    taskId: string,
+    contextId: string,
+    text: string,
+  ): void {
+    const failMessage: Message = {
+      kind: 'message',
+      messageId: crypto.randomUUID(),
+      role: 'agent',
+      taskId,
+      contextId,
+      parts: [{kind: 'text', text}],
+    };
+    const failEvent: TaskStatusUpdateEvent = {
+      kind: 'status-update',
+      taskId,
+      contextId,
+      status: {
+        state: 'failed',
+        timestamp: new Date().toISOString(),
+        message: failMessage,
+      },
+      final: true,
+    };
+    eventBus.publish(failEvent);
+  }
+
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
+    try {
+      await this.run(requestContext, eventBus);
+    } catch (e) {
+      console.error(`Task ${requestContext.taskId} failed:`, e);
+      const detail = e instanceof Error ? e.message : String(e);
+      this.publishFailure(
+        eventBus,
+        requestContext.taskId,
+        requestContext.contextId,
+        `The agent could not answer this request: ${detail}`,
+      );
+    }
+  }
+
+  private async run(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const {taskId, contextId, userMessage, task} = requestContext;
 
     if (!task) {
@@ -370,31 +433,12 @@ export class RestaurantExecutor implements AgentExecutor {
         console.warn(
           `Client requested A2UI extensions [${requestedA2uiUris.join(', ')}], but this agent is configured for ${configuredUri}. Failing task.`,
         );
-        const failMessage: Message = {
-          kind: 'message',
-          messageId: crypto.randomUUID(),
-          role: 'agent',
+        this.publishFailure(
+          eventBus,
           taskId,
           contextId,
-          parts: [
-            {
-              kind: 'text',
-              text: `This agent serves A2UI ${this.config.version} (format: ${this.config.format}). The client requested [${requestedA2uiUris.join(', ')}]. Start the agent with A2UI_VERSION=${requestedA2uiUris[0].split('/').pop()} to serve that version.`,
-            },
-          ],
-        };
-        const failEvent: TaskStatusUpdateEvent = {
-          kind: 'status-update',
-          taskId,
-          contextId,
-          status: {
-            state: 'failed',
-            timestamp: new Date().toISOString(),
-            message: failMessage,
-          },
-          final: true,
-        };
-        eventBus.publish(failEvent);
+          `This agent serves A2UI ${this.config.version} (format: ${this.config.format}). The client requested [${requestedA2uiUris.join(', ')}]. Start the agent with A2UI_VERSION=${requestedA2uiUris[0].split('/').pop()} to serve that version.`,
+        );
         return;
       }
     } else {
@@ -497,11 +541,10 @@ export class RestaurantExecutor implements AgentExecutor {
       eventBus.publish(intermediateEvent);
     };
 
-    const isStub = resolveLlmMode() === 'stub';
     let partsStreamed = false;
     let finalParts: Part[] = [];
 
-    if (isStub) {
+    if (!this.model) {
       console.log('Using stub LLM response...');
       const stubKey =
         actionName === 'book_restaurant'
@@ -556,8 +599,7 @@ export class RestaurantExecutor implements AgentExecutor {
       }
     } else {
       // Live model execution
-      const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-      const modelName = process.env.MODEL_NAME?.trim() || 'gemini-2.5-flash';
+      const {client: ai, name: modelName} = this.model;
 
       const initialProcessor = this.createProcessor();
       const systemInstruction = initialProcessor.generatePrompt({
@@ -567,17 +609,15 @@ export class RestaurantExecutor implements AgentExecutor {
         includeExamples: true,
       });
 
-      let chat = this.sessionChats.get(contextId);
-      if (!chat) {
-        chat = ai.chats.create({
+      const chat = this.sessionChats.getOrCreate(contextId, () =>
+        ai.chats.create({
           model: modelName,
           config: {
             systemInstruction,
             tools: [{functionDeclarations: [getRestaurantsDeclaration]}],
           },
-        });
-        this.sessionChats.set(contextId, chat);
-      }
+        }),
+      );
 
       const streamProcessor =
         this.config.format === 'direct_json'

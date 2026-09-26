@@ -23,7 +23,13 @@ import {
   restHandler,
   UserBuilder,
 } from '@a2a-js/sdk/server/express';
-import {RestaurantExecutor, buildAgentCard, resolveLlmMode, resolveSampleConfig} from './agent.js';
+import {
+  RestaurantExecutor,
+  buildAgentCard,
+  resolveLlmMode,
+  resolveModelName,
+  resolveSampleConfig,
+} from './agent.js';
 import {resolvePythonSampleDir, verifyPythonSampleAssets} from './tools.js';
 
 export function main() {
@@ -41,13 +47,13 @@ export function main() {
   }
 
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 10002;
-  const modelName = process.env.MODEL_NAME?.trim() || 'gemini-2.5-flash';
+  const modelName = resolveModelName();
 
   let agentExecutor: RestaurantExecutor;
   let agentCard;
   try {
     agentCard = buildAgentCard(config, PORT);
-    agentExecutor = new RestaurantExecutor(config, PORT, pythonDir);
+    agentExecutor = new RestaurantExecutor(config, PORT, pythonDir, mode);
   } catch (e) {
     console.error(`Configuration error: ${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
