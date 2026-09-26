@@ -55,6 +55,40 @@ describe('Public Barrel Exports', () => {
     expect(a2uiAgent.resolveCatalogs).toBeDefined();
   });
 
+  it('exports the Express format and its error classes', () => {
+    expect(a2uiAgent.ExpressFormat).toBeDefined();
+    expect(a2uiAgent.ExpressFormatFactory).toBeDefined();
+    expect(a2uiAgent.ExpressParser).toBeDefined();
+    expect(a2uiAgent.ExpressPromptGenerator).toBeDefined();
+    expect(a2uiAgent.ExpressDecompiler).toBeDefined();
+
+    // Every Express error must be catchable by name. They all derive from
+    // ExpressCompilerError, which is an A2uiError, so a generic handler still
+    // sees them.
+    expect(a2uiAgent.ExpressCompilerError.prototype).toBeInstanceOf(a2uiAgent.A2uiError);
+    const subclasses = [
+      a2uiAgent.ExpressParseError,
+      a2uiAgent.ExpressSyntaxError,
+      a2uiAgent.ExpressUndefinedRootError,
+      a2uiAgent.ExpressUndefinedChildError,
+      a2uiAgent.ExpressValidationError,
+      a2uiAgent.ExpressUnknownComponentError,
+      a2uiAgent.ExpressUnknownPropertyError,
+      a2uiAgent.ExpressMissingRequiredPropertyError,
+      a2uiAgent.ExpressDuplicatePropertyError,
+      a2uiAgent.ExpressUnknownFunctionError,
+      a2uiAgent.ExpressInvalidParamError,
+      a2uiAgent.ExpressDuplicateParamError,
+      a2uiAgent.ExpressForbiddenDatabindingError,
+      a2uiAgent.ExpressIdCollisionError,
+      a2uiAgent.ExpressInvalidIdentifierError,
+      a2uiAgent.ExpressUnknownCatalogError,
+    ];
+    for (const errorClass of subclasses) {
+      expect(errorClass.prototype).toBeInstanceOf(a2uiAgent.ExpressCompilerError);
+    }
+  });
+
   it('does not leak internal namespace symbols', () => {
     // A private import shouldn't leak from the barrel.
     // Basic spot check for internal/web_core.ts items not directly requested:

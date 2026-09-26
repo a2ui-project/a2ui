@@ -56,7 +56,7 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v1.0']);
  */
 export const KNOWN_FAILURES = new Map<string, string>([]);
 
-const SUPPORTED_FORMATS = new Set(['direct_json']);
+const SUPPORTED_FORMATS = new Set(['direct_json', 'express']);
 
 /**
  * Conformance actions this SDK has no implementation for. Their cases are skipped with the
