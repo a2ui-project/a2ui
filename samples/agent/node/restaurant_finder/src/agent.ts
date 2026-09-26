@@ -121,7 +121,7 @@ export function resolveLlmMode(env: NodeJS.ProcessEnv = process.env): LlmMode {
 
 /** Returns the Gemini model to call, from `MODEL_NAME` or the sample's default. */
 export function resolveModelName(env: NodeJS.ProcessEnv = process.env): string {
-  return env.MODEL_NAME?.trim() || 'gemini-2.5-flash';
+  return env.MODEL_NAME?.trim() || 'gemini-3.6-flash';
 }
 
 /** Builds the AgentCard matching the Python sample and configured A2UI version. */
