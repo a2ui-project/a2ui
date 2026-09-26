@@ -79,7 +79,7 @@ describe('A2uiGenerator', () => {
 
     const generator = new A2uiGenerator([config], examples);
 
-    expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiCatalogError);
+    expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(/MagicUnicorn/);
   });
 
