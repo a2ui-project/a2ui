@@ -27,6 +27,7 @@ conformance/test_data/**
 renderers/angular/a2ui_explorer/src/app/generated/**
 renderers/lit/a2ui_explorer/src/generated/**
 renderers/react/a2ui_explorer/src/generated/**
+typescript/a2ui_agent/src/inference_formats/express/generated/**
 .next
 **/.next
 

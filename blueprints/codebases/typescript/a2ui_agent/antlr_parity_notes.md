@@ -102,13 +102,13 @@ This was the largest divergence under the official JavaScript runtime, whose
 `defaultResult`, `aggregateResult`, or `shouldVisitNextChild`. `antlr4ng` follows the
 Java and Python design instead.
 
-| | Python 4.13.2 | `antlr4ng` 3.0.16 |
-| --- | --- | --- |
-| No children | `defaultResult()`, which is `None` | `defaultResult()`, which is `null` |
-| With children | the last child's result | the last child's result |
-| `defaultResult` | present, overridable | present, `protected` |
-| `aggregateResult` | present, returns `nextResult` | present, returns `nextResult` |
-| `shouldVisitNextChild` | present, returns `True` | present, returns `true` |
+|                        | Python 4.13.2                      | `antlr4ng` 3.0.16                  |
+| ---------------------- | ---------------------------------- | ---------------------------------- |
+| No children            | `defaultResult()`, which is `None` | `defaultResult()`, which is `null` |
+| With children          | the last child's result            | the last child's result            |
+| `defaultResult`        | present, overridable               | present, `protected`               |
+| `aggregateResult`      | present, returns `nextResult`      | present, returns `nextResult`      |
+| `shouldVisitNextChild` | present, returns `True`            | present, returns `true`            |
 
 The grammar has 16 parser rules and
 [visitor.py](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py)
@@ -249,16 +249,16 @@ ignores `**/generated/**`, and the package's `.prettierignore` covers Prettier.
 
 ## Reviewer checklist for a grammar change
 
-* Did a parser rule get added? Both visitors need an override, or the two languages
+- Did a parser rule get added? Both visitors need an override, or the two languages
   will disagree about what the rule returns.
-* Did a lexer rule change its character class? Check whether it moved from ASCII-only
+- Did a lexer rule change its character class? Check whether it moved from ASCII-only
   to something wider.
-* Did an ignored token move from `-> skip` to a hidden channel? `getText()` results
+- Did an ignored token move from `-> skip` to a hidden channel? `getText()` results
   change.
-* Did `NUMBER` gain an exponent or a larger range? Revisit the integer and float
+- Did `NUMBER` gain an exponent or a larger range? Revisit the integer and float
   split.
-* Did a string delimiter become non-ASCII? Revisit the slicing in the visitors.
-* Were both SDKs regenerated in the same change? The TypeScript ATN parity test fails
+- Did a string delimiter become non-ASCII? Revisit the slicing in the visitors.
+- Were both SDKs regenerated in the same change? The TypeScript ATN parity test fails
   until they are.
 
 ---
