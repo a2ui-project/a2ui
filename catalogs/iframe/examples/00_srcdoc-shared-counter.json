@@ -1,0 +1,94 @@
+{
+  "name": "Srcdoc shared counter",
+  "description": "A WebAppFrameSrcdoc app that shares a counter with sibling basic components through two-way data binding and reports the saved count as an action.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-iframe-shared-counter",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/iframe/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-iframe-shared-counter",
+        "value": {
+          "counter": {
+            "count": 0,
+            "label": "clicks"
+          }
+        }
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-iframe-shared-counter",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["title", "host_view", "label_field", "counter_app"],
+            "align": "stretch"
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "Shared counter",
+            "variant": "h2"
+          },
+          {
+            "id": "host_view",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "Host view: ${/counter/count} ${/counter/label}"
+              },
+              "returnType": "string"
+            }
+          },
+          {
+            "id": "label_field",
+            "component": "TextField",
+            "label": "Counter label",
+            "value": {
+              "path": "/counter/label"
+            }
+          },
+          {
+            "id": "counter_app",
+            "component": "WebAppFrameSrcdoc",
+            "height": 160,
+            "data": {
+              "paths": {
+                "count": "/counter/count",
+                "label": "/counter/label"
+              }
+            },
+            "mutableData": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "allowedEvents": {
+              "counter_saved": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  }
+                },
+                "required": ["count"],
+                "additionalProperties": false
+              }
+            },
+            "htmlContent": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\" />\n    <style>\n      body { font-family: sans-serif; margin: 16px; }\n      button { margin-right: 8px; }\n    </style>\n  </head>\n  <body>\n    <p id=\"status\">Waiting for the host...</p>\n    <button id=\"add\" disabled>Add one</button>\n    <button id=\"save\" disabled>Save count</button>\n    <script>\n      var port = null;\n      var state = { count: 0, label: '' };\n\n      function render() {\n        document.getElementById('status').textContent = state.count + ' ' + state.label;\n        if (port) {\n          port.postMessage({ type: 'a2ui_size_changed', height: document.body.scrollHeight + 32 });\n        }\n      }\n\n      function onPortMessage(event) {\n        var msg = event.data || {};\n        if (msg.type === 'a2ui_data_model_update' && msg.key in state) {\n          state[msg.key] = msg.value;\n          render();\n        }\n      }\n\n      // Only the handshake travels over the ambient window channel. Everything after it uses\n      // the MessagePort transferred with a2ui_app_frame_init.\n      window.addEventListener('message', function (event) {\n        if (event.source !== window.parent) return;\n        var msg = event.data || {};\n        if (msg.type !== 'a2ui_app_frame_init' || !event.ports || !event.ports[0]) return;\n        port = event.ports[0];\n        port.onmessage = onPortMessage;\n        var initial = (msg.value && msg.value.initialData) || {};\n        if (typeof initial.count === 'number') state.count = initial.count;\n        if (typeof initial.label === 'string') state.label = initial.label;\n        document.getElementById('add').disabled = false;\n        document.getElementById('save').disabled = false;\n        render();\n      });\n\n      document.getElementById('add').addEventListener('click', function () {\n        state.count += 1;\n        render();\n        // \"count\" is listed in mutableData, so the host writes it back to /counter/count.\n        port.postMessage({ type: 'a2ui_data_model_change', key: 'count', value: state.count });\n      });\n\n      document.getElementById('save').addEventListener('click', function () {\n        // \"counter_saved\" is listed in allowedEvents, so the host forwards it to the agent.\n        port.postMessage({ type: 'a2ui_action', action: 'counter_saved', data: { count: state.count } });\n      });\n\n      window.parent.postMessage({ type: 'a2ui_app_frame_ready' }, '*');\n    </script>\n  </body>\n</html>\n"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "name": "URL frame",
+  "description": "A WebAppFrameUrl component that loads an external web application, passes it static configuration and bound data, and authorizes one action.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-iframe-url-frame",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/iframe/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-iframe-url-frame",
+        "value": {
+          "orders": [
+            {
+              "id": "A-1001",
+              "status": "shipped"
+            },
+            {
+              "id": "A-1002",
+              "status": "processing"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-iframe-url-frame",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["title", "caption", "order_tracker"],
+            "align": "stretch"
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "Order tracker",
+            "variant": "h2"
+          },
+          {
+            "id": "caption",
+            "component": "Text",
+            "text": "The tracker below is served from its own origin and runs in a sandboxed iframe.",
+            "variant": "caption"
+          },
+          {
+            "id": "order_tracker",
+            "component": "WebAppFrameUrl",
+            "url": "https://example.com/a2ui-apps/order-tracker/",
+            "height": 400,
+            "config": {
+              "theme": "light",
+              "locale": "en-US"
+            },
+            "data": {
+              "paths": {
+                "orders": "/orders"
+              }
+            },
+            "allowedEvents": {
+              "order_selected": {
+                "type": "object",
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["orderId"],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

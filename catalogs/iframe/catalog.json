@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/catalogs/iframe/catalog.json",
+  "title": "A2UI iframe catalog",
+  "description": "A2UI catalog for embedding sandboxed web applications in a surface. `WebAppFrameUrl` loads an external URL and `WebAppFrameSrcdoc` renders inline HTML. Both components exchange `a2ui_*` messages with the host over a dedicated MessagePort to dispatch actions, keep bound data in sync in both directions, call host functions and request frame resizes. See web_app_frame_specification.md for the protocol and the security controls.",
+  "catalogId": "https://a2ui.org/specification/v0_9/catalogs/iframe/catalog.json",
+  "components": {
+    "WebAppFrameUrl": {
+      "type": "object",
+      "description": "Renders an external web application, loaded from an http or https URL, in a sandboxed iframe. The remote server is responsible for the application's Content Security Policy; the host only accepts messages that come from the URL's origin.",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/WebAppFrameCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "WebAppFrameUrl"
+            },
+            "url": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The external URL to load inside the iframe. Only http and https URLs are loaded. The host appends its own origin as the `origin` query parameter so the application can address its messages to the host."
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "WebAppFrameSrcdoc": {
+      "type": "object",
+      "description": "Renders inline HTML, such as a model-generated application, in a sandboxed iframe with no network access. The host injects a strict Content Security Policy into the markup before rendering it.",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/WebAppFrameCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "WebAppFrameSrcdoc"
+            },
+            "htmlContent": {
+              "type": "string",
+              "description": "The raw HTML string to render via srcdoc. A value prefixed with `url_encoded:` is decoded with decodeURIComponent before rendering."
+            }
+          },
+          "required": ["component", "htmlContent"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "JsonSchema": {
+      "type": "object",
+      "description": "A JSON Schema. The host validates the matching payload against it before acting on the message; an empty object accepts any value."
+    },
+    "AllowedEvents": {
+      "type": "object",
+      "description": "A map of authorized action names to JSON Schemas describing the expected `data` payload. The host silently drops an `a2ui_action` message whose action is not listed or whose data fails validation.",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonSchema"
+      }
+    },
+    "AllowedFunctions": {
+      "type": "object",
+      "description": "A map of authorized host client function names to JSON Schemas describing their expected arguments. The host rejects an `a2ui_function_call` message whose function is not listed or whose arguments fail validation. The functions must exist in the surface's catalog.",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonSchema"
+      }
+    },
+    "MutableData": {
+      "type": "object",
+      "description": "A map of state keys, as declared in `data.paths`, that the embedded application is authorized to mutate in the parent data model, each mapped to a JSON Schema describing the allowed values. The host drops an `a2ui_data_model_change` message whose key is not listed or whose value fails validation.",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonSchema"
+      }
+    },
+    "Config": {
+      "type": "object",
+      "description": "A dictionary of static key-value initialization properties passed to the embedded application once, in the `a2ui_app_frame_init` handshake, without reactive data model binding."
+    },
+    "DataPaths": {
+      "type": "object",
+      "description": "Data binding configuration for the component.",
+      "properties": {
+        "paths": {
+          "type": "object",
+          "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model. The host sends the current value of every path in the handshake and pushes an `a2ui_data_model_update` message whenever one changes.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["paths"],
+      "additionalProperties": false
+    },
+    "WebAppFrameCommon": {
+      "type": "object",
+      "properties": {
+        "height": {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+          "description": "The height of the iframe in pixels."
+        },
+        "config": {
+          "$ref": "#/$defs/Config"
+        },
+        "data": {
+          "$ref": "#/$defs/DataPaths"
+        },
+        "allowedEvents": {
+          "$ref": "#/$defs/AllowedEvents"
+        },
+        "allowedFunctions": {
+          "$ref": "#/$defs/AllowedFunctions"
+        },
+        "mutableData": {
+          "$ref": "#/$defs/MutableData"
+        },
+        "disableSchemaValidation": {
+          "type": "boolean",
+          "description": "If true, the host skips the JSON Schema validation of `allowedEvents`, `allowedFunctions` and `mutableData` payloads and forwards them as they arrive. Origin checks and the allowlists still apply. Reserve it for trusted first-party applications; the agent backend must not set it for untrusted content.",
+          "default": false
+        }
+      }
+    },
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/WebAppFrameUrl"
+        },
+        {
+          "$ref": "#/components/WebAppFrameSrcdoc"
+        }
+      ]
+    },
+    "anyFunction": {
+      "description": "This catalog declares no functions, so no function call validates against it.",
+      "not": {}
+    }
+  }
+}

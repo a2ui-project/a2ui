@@ -114,6 +114,14 @@ jobs:
           mkdir -p docs/public/specification/v1_0/catalogs/basic
           cp catalogs/basic/v1/catalog.json docs/public/specification/v1_0/catalogs/basic/
           cp -R catalogs/basic/v1/examples docs/public/specification/v1_0/catalogs/basic/
+          # The iframe and MCP catalogs target protocol v0.9. The MCP catalog
+          # $id ends in mcp_catalog.json, so the file is renamed on copy.
+          mkdir -p docs/public/specification/v0_9/catalogs/iframe
+          cp catalogs/iframe/catalog.json docs/public/specification/v0_9/catalogs/iframe/
+          cp -R catalogs/iframe/examples docs/public/specification/v0_9/catalogs/iframe/
+          mkdir -p docs/public/specification/v0_9/catalogs/mcp
+          cp catalogs/mcp/catalog.json docs/public/specification/v0_9/catalogs/mcp/mcp_catalog.json
+          cp -R catalogs/mcp/examples docs/public/specification/v0_9/catalogs/mcp/
           # Flatten JSON files to version roots to support clean URLs without redirects
           for version in v0_8 v0_9 v0_9_1 v1_0; do
             if [ -d "docs/public/specification/$version/json" ]; then
