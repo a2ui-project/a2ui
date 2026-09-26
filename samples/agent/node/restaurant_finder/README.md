@@ -64,7 +64,7 @@ The server checks environment variables before binding to the port:
 
 - `A2UI_VERSION`: `'v0.9'` or `'v1.0'` (default: `'v1.0'`).
 - `A2UI_FORMAT`: `'direct_json'` or `'express'` (default: `'direct_json'`).
-- `MODEL_NAME`: Gemini model identifier (default: `'gemini-2.5-flash'`).
+- `MODEL_NAME`: Gemini model identifier (default: `'gemini-3.6-flash'`).
 - `PORT`: HTTP port to bind (default: `10002`).
 - `GEMINI_API_KEY`: Required when `STUB_LLM` is not `'true'`.
 - `STUB_LLM`: Set to `'true'` to use canned example responses.
