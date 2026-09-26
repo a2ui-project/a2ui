@@ -317,6 +317,20 @@ describe('ComponentHostComponent', () => {
       expect(runSpy).toHaveBeenCalled();
     });
 
+    it('should initialize a component created later inside the Angular Zone', () => {
+      fixture.componentRef.setInput('componentKey', {id: 'later', basePath: '/'});
+      fixture.detectChanges();
+
+      const runSpy = spyOn(TestBed.inject(NgZone), 'run').and.callThrough();
+      mockSurface.componentsModel.addComponent(
+        new ComponentModel('later', 'TestType', {text: 'Hi'}, mockCatalog),
+      );
+
+      expect(runSpy).toHaveBeenCalled();
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeTruthy();
+    });
+
     it('should run property updates inside the Angular Zone when component model updates', () => {
       fixture.detectChanges();
 

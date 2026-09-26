@@ -176,7 +176,7 @@ export class ComponentHostComponent {
 
       const sub = surface.componentsModel.onCreated.subscribe(comp => {
         if (comp.id === id) {
-          this.initializeComponent(surface, comp, id, basePath, surfaceId);
+          this.ngZone.run(() => this.initializeComponent(surface, comp, id, basePath, surfaceId));
           sub.unsubscribe();
         }
       });
