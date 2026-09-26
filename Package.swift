@@ -77,7 +77,8 @@ let package = Package(
         .product(name: "JSONSchema", package: "swift-json-schema"),
         .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
       ],
-      path: "swift/core/Sources/BasicCatalog"
+      path: "swift/core/Sources/BasicCatalog",
+      resources: [.process("Resources")]
     ),
 
     // ── SwiftUI ──

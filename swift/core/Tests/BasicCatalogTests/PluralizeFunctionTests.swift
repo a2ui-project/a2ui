@@ -13,10 +13,9 @@
 // limitations under the License.
 
 import A2UICore
+import BasicCatalog
 import Foundation
 import Testing
-
-@testable import BasicCatalog
 
 @MainActor
 private final class MockFunctionHandler: FunctionHandler {
@@ -41,7 +40,8 @@ private final class MockPluralResolver: PluralResolver, @unchecked Sendable {
 @MainActor
 struct PluralizeFunctionTests {
 
-  let function = PluralizeFunction()
+  let function = PluralizeFunction(locale: Locale(identifier: "en_US"))
+  let welshFunction = PluralizeFunction(locale: Locale(identifier: "cy"))
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
 
@@ -52,7 +52,7 @@ struct PluralizeFunctionTests {
     #expect(function.api.returnType == .string)
   }
 
-  // MARK: - Evaluation (Default Heuristic)
+  // MARK: - Evaluation (Locale Rules)
 
   @Test func returnsOneWhenValueIsOne() throws {
     let result = try function.evaluate(
@@ -74,7 +74,7 @@ struct PluralizeFunctionTests {
   }
 
   @Test func returnsZeroWhenValueIsZeroAndZeroIsProvided() throws {
-    let result = try function.evaluate(
+    let result = try welshFunction.evaluate(
       arguments: [
         "value": .number(0),
         "zero": .string("No items"),
@@ -84,7 +84,7 @@ struct PluralizeFunctionTests {
   }
 
   @Test func returnsOtherWhenValueIsZeroAndZeroIsMissing() throws {
-    let result = try function.evaluate(
+    let result = try welshFunction.evaluate(
       arguments: [
         "value": .number(0),
         "other": .string("0 items"),
@@ -93,7 +93,7 @@ struct PluralizeFunctionTests {
   }
 
   @Test func returnsTwoWhenValueIsTwoAndTwoIsProvided() throws {
-    let result = try function.evaluate(
+    let result = try welshFunction.evaluate(
       arguments: [
         "value": .number(2),
         "two": .string("a pair of items"),
@@ -135,6 +135,37 @@ struct PluralizeFunctionTests {
     let result = try function.evaluate(
       arguments: ["value": .number(1)], context: context)
     #expect(result == .string(""))
+  }
+
+  @Test(arguments: [
+    ("en", 0.0, "other"),
+    ("en", 2.0, "other"),
+    ("zh", 1.0, "other"),
+    ("ar", 3.0, "few"),
+    ("ru", 5.0, "many"),
+    ("fr", 1.5, "one"),
+    ("pt-BR", 0.0, "one"),
+    ("pt-PT", 0.0, "other"),
+    ("eng", 1.0, "one"),
+    ("fra", 1.0, "one"),
+    ("deu", 1.0, "one"),
+    ("en", -1.0, "one"),
+    ("en", Double.nan, "other"),
+    ("en", Double.infinity, "other"),
+  ])
+  func selectsFormUsingLocale(locale: String, value: Double, expected: String) throws {
+    let function = PluralizeFunction(locale: Locale(identifier: locale))
+    let result = try function.evaluate(
+      arguments: [
+        "value": .number(value),
+        "zero": .string("zero"),
+        "one": .string("one"),
+        "two": .string("two"),
+        "few": .string("few"),
+        "many": .string("many"),
+        "other": .string("other"),
+      ], context: context)
+    #expect(result == .string(expected))
   }
 
   // MARK: - Evaluation (With Custom Resolver)

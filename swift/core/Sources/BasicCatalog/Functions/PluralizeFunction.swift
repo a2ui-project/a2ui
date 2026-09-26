@@ -21,12 +21,10 @@ public enum PluralCategory: String, Sendable {
   case zero, one, two, few, many, other
 }
 
-/// A protocol for providing custom CLDR plural categorization logic.
+/// A protocol for overriding CLDR plural categorization logic.
 ///
-/// Since Apple's Foundation framework does not expose a public runtime API for
-/// determining CLDR plural categories dynamically, host applications can implement
-/// this protocol to bridge their own internationalization engine (e.g. ICU rules)
-/// into the A2UI evaluation pipeline.
+/// A2UI uses Foundation by default. Host applications can implement this protocol to bridge
+/// another internationalization engine into the evaluation pipeline.
 public protocol PluralResolver: AnyObject, Sendable {
   /// Determines the CLDR plural category for the given numeric value.
   func pluralCategory(for value: Double) -> PluralCategory
@@ -56,34 +54,30 @@ public final class PluralizeFunction: FunctionImplementation, @unchecked Sendabl
   )
 
   public weak var resolver: (any PluralResolver)?
+  private static let categoryTemplate = Bundle.module.localizedString(
+    forKey: "category", value: nil, table: "PluralCategories")
+  private let locale: Locale
 
   /// Initializes a new pluralize function, optionally accepting a custom resolver.
   ///
-  /// - Parameter resolver: An optional weak reference to a `PluralResolver`. If `nil`,
-  ///   the function falls back to a simplified English-centric heuristic matching
-  ///   exact cases for `0`, `1`, and `2`, and falling back to `other`.
-  public init(resolver: (any PluralResolver)? = nil) {
+  /// - Parameters:
+  ///   - resolver: An optional weak reference to a custom `PluralResolver`.
+  ///   - locale: The locale used by the default Foundation implementation when `resolver` is `nil`.
+  public init(resolver: (any PluralResolver)? = nil, locale: Locale = .current) {
     self.resolver = resolver
-  }
-
-  private func defaultCategory(for numberValue: Double) -> PluralCategory {
-    let absVal = abs(numberValue)
-    if absVal == 0 { return .zero }
-    if absVal == 1 { return .one }
-    if absVal == 2 { return .two }
-    return .other
+    self.locale = locale
   }
 
   /// Evaluates the pluralize function.
   ///
-  /// This implementation checks the numeric `value` argument against the configured `PluralResolver`
-  /// (or uses a simplified heuristic fallback if no resolver is present) to determine its `PluralCategory`.
-  /// It then returns the string argument corresponding to that category (e.g. `one`, `few`, `other`).
+  /// This implementation checks the numeric `value` argument against the configured
+  /// `PluralResolver`, or Foundation if no override is present. It then returns the string argument
+  /// corresponding to that category (e.g. `one`, `few`, `other`).
   ///
   /// - Parameters:
   ///   - arguments: The dictionary of arguments provided to the function.
   ///   - context: The current data context.
-  /// - Returns: The resolved localized string, or the `other` string if a specific category was not provided.
+  /// - Returns: The resolved string, or `other` when the selected category is not provided.
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let other = arguments["other"]?.stringValue else {
       return .string("")
@@ -98,18 +92,19 @@ public final class PluralizeFunction: FunctionImplementation, @unchecked Sendabl
       return .string(other)
     }
 
-    let category = resolver?.pluralCategory(for: numberValue) ?? defaultCategory(for: numberValue)
+    let category =
+      resolver?.pluralCategory(for: numberValue)
+      ?? defaultCategory(for: numberValue)
 
-    let match: String
-    switch category {
-    case .zero: match = arguments["zero"]?.stringValue ?? other
-    case .one: match = arguments["one"]?.stringValue ?? other
-    case .two: match = arguments["two"]?.stringValue ?? other
-    case .few: match = arguments["few"]?.stringValue ?? other
-    case .many: match = arguments["many"]?.stringValue ?? other
-    case .other: match = other
-    }
+    return .string(arguments[category.rawValue]?.stringValue ?? other)
+  }
 
-    return .string(match)
+  private func defaultCategory(for value: Double) -> PluralCategory {
+    guard value.isFinite else { return .other }
+    // A single unlocalized resource returns category names using the explicitly supplied locale.
+    // Rules and numeric boundaries follow the OS, not a pinned ICU or JavaScript implementation.
+    let category = String(
+      format: Self.categoryTemplate, locale: locale, arguments: [abs(value)])
+    return PluralCategory(rawValue: category) ?? .other
   }
 }

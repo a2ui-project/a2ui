@@ -46,6 +46,22 @@ swift test
 
 ---
 
+## Plural selection
+
+`BasicCatalog` uses Foundation by default for `pluralize`. Set its language with
+`PluralizeFunction(locale: Locale(identifier: "ar"))`, or omit the locale to use `.current`.
+Applications can continue to supply their own `PluralResolver`.
+
+The function uses Foundation's public localized formatting API and the package's bundled
+`PluralCategories.stringsdict`. This single, unlocalized resource contains category names, not
+translations or language rules. Keep it outside `.lproj` directories and include the SwiftPM resource
+bundle when distributing the library. Server-provided text is selected after category resolution and
+is never evaluated as a format string. Missing category text falls back to `other`.
+
+Plural rules and numeric boundary behavior follow the installed operating system, including for
+fractional and very large counts. They are not pinned to an ICU release and may differ from Web
+`Intl.PluralRules`. Non-finite numbers return `other`.
+
 ## Agent guidelines and coding standards
 
 For AI agents and contributors working in this directory hierarchy:
