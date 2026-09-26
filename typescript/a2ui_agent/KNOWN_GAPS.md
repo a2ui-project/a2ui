@@ -138,3 +138,10 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** A bug in the upstream Python implementation. Our TypeScript `hasA2uiParts` correctly parses the block and requires a closed tag.
 - **What it risks:** The Python reference implementation is failing a conformance contract that we pass.
 - **Done looks like:** Python's `parser.py` is patched to match the conformance suite.
+
+### Python's trailing-comma repair rewrites string contents
+
+- **What it is:** When a Direct JSON payload fails to parse, Python's `_remove_trailing_commas` in `payload_fixer.py` drops every comma followed by whitespace and a `]` or `}`, using the regex `,(?=\s*[\]}])`. It does not skip string literals, so a value such as `"a,}"` loses its comma. The TypeScript `removeTrailingCommas` skips string literals and keeps it.
+- **Why it exists:** The TypeScript port started from the same regex. A review of this package pointed out the corruption, and only the TypeScript side was changed.
+- **What it risks:** For the same model output, the two SDKs can emit different string values. Conformance does not catch it: `test_compile_json_trailing_commas_removed` has no comma inside a string.
+- **Done looks like:** Python skips string literals as well, and a conformance case with a `,}` inside a string value pins the behaviour.

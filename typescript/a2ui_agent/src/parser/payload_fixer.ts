@@ -72,7 +72,35 @@ function normalizeSmartQuotes(jsonStr: string): string {
 
 /**
  * Attempts to remove trailing commas from a JSON string.
+ *
+ * A comma is dropped when only whitespace separates it from a closing `]` or `}`.
+ * String literals are copied unchanged, so a value such as `"a,}"` keeps its comma.
  */
 export function removeTrailingCommas(jsonStr: string): string {
-  return jsonStr.replace(/,(?=\s*[\]}])/g, '');
+  const out: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < jsonStr.length; i++) {
+    const ch = jsonStr[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      out.push(ch);
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === ',') {
+      let next = i + 1;
+      while (next < jsonStr.length && /\s/.test(jsonStr[next])) next++;
+      if (jsonStr[next] === ']' || jsonStr[next] === '}') continue;
+    }
+    out.push(ch);
+  }
+  return out.join('');
 }
