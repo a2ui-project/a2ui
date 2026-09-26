@@ -25,13 +25,14 @@ import {SchemaCatalog} from '../../types.js';
 import {getCatalogDocument} from '../../utils/catalog_document.js';
 import {getProtocolSchemas} from '../../utils/protocol_schemas.js';
 
-const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/\$defs\/(\w+)$/;
+const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
 
 /**
  * Recognizes protocol common types referenced via `$ref` into `common_types.json`.
  *
  * Matches both relative paths (`common_types.json#/$defs/<Name>`) and absolute URLs
- * (`https://a2ui.org/specification/.../common_types.json#/$defs/<Name>`).
+ * (`https://a2ui.org/specification/.../common_types.json#/$defs/<Name>`), under either
+ * `$defs` or the older `definitions`.
  *
  * @param ref The `$ref` string to inspect.
  * @returns The def name if pointing into `common_types.json`, or undefined.
