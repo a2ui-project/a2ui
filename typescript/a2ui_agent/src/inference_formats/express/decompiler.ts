@@ -26,7 +26,7 @@ import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/co
 import {SchemaCatalog} from '../../types.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
 import {isExpressIdentifier} from './identifier.js';
-import {ExpressInvalidIdentifierError} from './errors.js';
+import {ExpressInvalidIdentifierError, ExpressValidationError} from './errors.js';
 import {A2uiCatalogError} from '../../errors.js';
 import {buildSchemaHelpers, toCatalogList} from './catalogs.js';
 
@@ -59,6 +59,30 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+/**
+ * Reads an optional object-valued field, such as an event's `context` or a call's `args`.
+ *
+ * @param value The field's value.
+ * @param owner Describes the object holding the field, for the error message.
+ * @param field The field's name, for the error message.
+ * @returns The value as a record, or an empty record when it is absent or null.
+ * @throws {ExpressValidationError} If the value is present but not a plain object.
+ */
+function optionalObjectField(
+  value: unknown,
+  owner: string,
+  field: string,
+): Record<string, unknown> {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  const record = asRecord(value);
+  if (!record) {
+    throw new ExpressValidationError(`${owner} has a non-object '${field}'`);
+  }
+  return record;
 }
 
 /**
@@ -564,7 +588,7 @@ export class ExpressDecompiler {
 
             // If condition.call is absent, Python reproduces '?None'
             const checkName = typeof condition.call === 'string' ? condition.call : 'None';
-            const checkArgs = (condition.args ?? {}) as Record<string, unknown>;
+            const checkArgs = optionalObjectField(condition.args, `Check '${checkName}'`, 'args');
 
             const checkProps = checkName !== 'None' ? helper.getFunctionProperties(checkName) : [];
             const explicitArgsReprs: string[] = [];
@@ -709,7 +733,7 @@ export class ExpressDecompiler {
       if ('event' in obj && obj.event && typeof obj.event === 'object') {
         const evt = obj.event as Record<string, unknown>;
         const name = typeof evt.name === 'string' ? evt.name : '';
-        const ctx = (evt.context ?? {}) as Record<string, unknown>;
+        const ctx = optionalObjectField(evt.context, `Event '${name}'`, 'context');
         const ctxReprs: string[] = [];
         for (const [k, v] of Object.entries(ctx)) {
           const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
@@ -724,7 +748,7 @@ export class ExpressDecompiler {
       if ('functionCall' in obj && obj.functionCall && typeof obj.functionCall === 'object') {
         const fn = obj.functionCall as Record<string, unknown>;
         const name = typeof fn.call === 'string' ? fn.call : '';
-        const args = (fn.args ?? {}) as Record<string, unknown>;
+        const args = optionalObjectField(fn.args, `Function call '${name}'`, 'args');
 
         const fnProps = helper.getFunctionProperties(name);
         const argsReprs: string[] = [];

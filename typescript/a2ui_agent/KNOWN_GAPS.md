@@ -254,3 +254,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The key list in Python matches v1.0, where components travel inside `createSurface`.
 - **What it risks:** In Python, a v0.9 Express prompt shows the model JSON examples while asking for Express.
 - **Done looks like:** `updateComponents` is added to the list, in Python first.
+
+### Python's Express decompiler fails loosely on a non-object `context` or `args`
+
+- **What it is:** When an event's `context` or a function call's `args` is present but is not an object, Python's decompiler either crashes with `AttributeError` or `TypeError`, or, for a string `args`, tests parameter names as substrings of the string and writes `_` placeholders.
+- **TypeScript:** The decompiler throws `ExpressValidationError` naming the event or call and the field. Absent or `null` fields still decompile as empty.
+- **Why it exists:** Python reads both fields with `.get(..., {})` and uses the result as a dict without checking it.
+- **What it risks:** A malformed example gives Python users a stack trace, or a wrong Express example with no error.
+- **Done looks like:** Python raises a validation error for both fields, and a conformance case in `agent/express/decompiler.yaml` pins it for both SDKs.
