@@ -64,12 +64,12 @@ Three kinds of coupling, in descending order of difficulty.
 
 Hard couplings, which must change:
 
-| File and line | What it is |
-| --- | --- |
-| `src/internal/web_core.ts:34-44` | Imports the message and capability schemas from `@a2ui/web_core/v1_0` |
-| `src/internal/web_core.ts:46-47` | Re-exports `BASIC_COMPONENTS` and `BASIC_FUNCTION_APIS` from `@a2ui/web_core/v1_0/basic_catalog`. This is the line that hits the problem in section 4 |
-| `src/types.ts:50-62` | `basicCatalog()` hardcodes the v1.0 catalog id and passes `'v1.0'` to the `Catalog` constructor, memoised in a module-level singleton at line 35 |
-| `src/inference_formats/direct_json/streaming.ts:575` and `:971` | Synthesised partial messages stamped `version: 'v1.0'` |
+| File and line                                                   | What it is                                                                                                                                            |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/internal/web_core.ts:34-44`                                | Imports the message and capability schemas from `@a2ui/web_core/v1_0`                                                                                 |
+| `src/internal/web_core.ts:46-47`                                | Re-exports `BASIC_COMPONENTS` and `BASIC_FUNCTION_APIS` from `@a2ui/web_core/v1_0/basic_catalog`. This is the line that hits the problem in section 4 |
+| `src/types.ts:50-62`                                            | `basicCatalog()` hardcodes the v1.0 catalog id and passes `'v1.0'` to the `Catalog` constructor, memoised in a module-level singleton at line 35      |
+| `src/inference_formats/direct_json/streaming.ts:575` and `:971` | Synthesised partial messages stamped `version: 'v1.0'`                                                                                                |
 
 Naming-only couplings. `V10RendererCapabilities` appears as a parameter type in
 `src/processor/generator.ts:19,50` and `src/utils/catalog_resolver.ts:20,35`. The
@@ -80,12 +80,12 @@ already version-neutral in behaviour.
 
 Shape assumptions that a search for "v1.0" does not find:
 
-* `src/processor/generator.ts:59-62` reads `msg.createSurface?.components` when
+- `src/processor/generator.ts:59-62` reads `msg.createSurface?.components` when
   validating examples. v0.9 `createSurface` has no `components` field, so under
   v0.9 this branch is dead and example validation silently does nothing.
-* `src/inference_formats/direct_json/streaming.ts:603-613` makes the same
+- `src/inference_formats/direct_json/streaming.ts:603-613` makes the same
   assumption when harvesting inline components.
-* `src/inference_formats/direct_json/streaming.ts:80-82` uses
+- `src/inference_formats/direct_json/streaming.ts:80-82` uses
   `{component: 'Row', children: {explicitList: []}}` as its placeholder.
   `explicitList` is v0.8 syntax. It appears nowhere in the v0.9 or v1.0
   specifications, which both define `ChildList` as either a plain array of
@@ -410,17 +410,17 @@ never had, so the merge cannot collide with it, and nothing here needs to move.
 
 What the merge brings, and what each item costs us:
 
-* The conformance reorganisation from PR #2713. This is the one with real work
+- The conformance reorganisation from PR #2713. This is the one with real work
   attached, and section 6 describes it. Until it arrives, the harness keeps reading
   the three suites at their current paths; after it arrives, those paths become
   `conformance/agent/legacy/` and the per-format suites become available.
-* The catalog relocation from PR #2693, `specification/v1_0/catalogs/basic/` to
+- The catalog relocation from PR #2693, `specification/v1_0/catalogs/basic/` to
   `catalogs/basic/v1/`. This costs us nothing, because the catalog access mechanism
   in section 4 reads the copy that `copy-spec.js` writes into `web_core`, and #2693
   deliberately left that destination path unchanged. The source path inside
   `copy-spec.js` will need repointing at merge time, but that is a `web_core`
   concern rather than an agent SDK one, and it is a single line.
-* `agent_sdks/`, `dart/`, and the top-level `catalogs/`. No interaction with this
+- `agent_sdks/`, `dart/`, and the top-level `catalogs/`. No interaction with this
   package.
 
 A `web_core` subpath export, if the catalog access decision in section 4 goes that
