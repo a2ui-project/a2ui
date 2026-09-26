@@ -18,7 +18,7 @@ import {describe, test, expect} from 'vitest';
 import {A2uiGenerator} from '../../../src/processor/generator.js';
 import {CatalogConfig} from '../../../src/processor/catalog_config.js';
 import {basicCatalog} from '../../../src/types.js';
-import {A2uiCatalogError} from '../../../src/errors.js';
+import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
 import {V10RendererCapabilities} from '../../../src/internal/web_core.js';
 
 describe('A2uiGenerator', () => {
@@ -81,5 +81,25 @@ describe('A2uiGenerator', () => {
 
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiCatalogError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(/MagicUnicorn/);
+  });
+
+  test('throws a catalog error when capabilities are missing', () => {
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalog())]);
+    const missing = undefined as unknown as V10RendererCapabilities;
+
+    expect(() => generator.createProcessor(missing)).toThrow(A2uiCatalogError);
+    expect(() => generator.createProcessor(missing)).toThrow(/renderer capabilities/);
+  });
+
+  test('throws a validation error when an example message is not an object', () => {
+    const config = new CatalogConfig(basicCatalog());
+    // Examples loaded from JSON bypass the type, so a null entry can reach the generator.
+    const examples = {'broken_turn': [null]} as unknown as ConstructorParameters<
+      typeof A2uiGenerator
+    >[1];
+    const generator = new A2uiGenerator([config], examples);
+
+    expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
+    expect(() => generator.createProcessor(mockCapabilities)).toThrow(/broken_turn/);
   });
 });
