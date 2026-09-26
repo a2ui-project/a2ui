@@ -224,7 +224,6 @@ with them. The agent SDK already declares no Zod dependency and imports Zod
 nowhere, so Zod is an implementation detail of `web_core` from this package's point
 of view either way.
 
-
 ---
 
 ## 5. Catalog agnosticism
@@ -242,21 +241,21 @@ treating them specially is correct and not a leak.
 
 Six places do violate the rule, and none should be ported as written:
 
-* `compiler.py:540` decides whether a property is an action with
+- `compiler.py:540` decides whether a property is an action with
   `prop_name in ["action", "submitAction"]`.
-* `compiler.py:546-552` coerces a list of strings into `{label, value}` objects. The
+- `compiler.py:546-552` coerces a list of strings into `{label, value}` objects. The
   detection is schema-driven but the predicate and the emitted key names are
   hardcoded.
-* `compiler.py:563-568`, `:589-598`, and `:679-687` use the literal string `"value"`
+- `compiler.py:563-568`, `:589-598`, and `:679-687` use the literal string `"value"`
   to decide whether a validation check gets an auto-bound target.
-* `schema_helper.py:84-87` matches the substring `"Checkable"` inside a `$ref` and
+- `schema_helper.py:84-87` matches the substring `"Checkable"` inside a `$ref` and
   synthesises a `"checks"` property, which is then hardcoded in the compiler. A
   similar `$ref` sniff exists for `"DataBinding"` and `"Dynamic"`. These may not
   survive Zod to JSON Schema regeneration at all, which makes them a portability
   problem as well as a rule violation.
-* `prompt_generator.py:60` and `:89` name `DateTimeInput` and the `action` parameter
+- `prompt_generator.py:60` and `:89` name `DateTimeInput` and the `action` parameter
   inside `EXPRESS_RULES`, the block that is supposed to be catalog-agnostic.
-* `_schema_allows_databinding` exists twice with different behaviour, in
+- `_schema_allows_databinding` exists twice with different behaviour, in
   `compiler.py:71-97` and `prompt_generator.py:96-113`, so the prompt and the
   compiler can disagree about whether a property accepts a `$` path. Port one
   implementation.
@@ -279,10 +278,10 @@ Python's leak is not that it names these types. It matches **substrings** of any
 properties** (`"action"`, `"value"`, `"label"`, `"checks"`). The TS port applies two
 rules:
 
-* A `$ref` is recognised only if it points into `common_types.json`, and then only
+- A `$ref` is recognised only if it points into `common_types.json`, and then only
   by the exact def name: regex `(^|/)common_types\.json#/\$defs/(\w+)$`. A catalog's
   own `#/$defs/MyDynamicThing` never matches.
-* The compiler never names a catalog property. It learns property names from the
+- The compiler never names a catalog property. It learns property names from the
   schema. The one documented exception is option coercion (5.2 item 2).
 
 `get_property_type` (`schema_helper.py:285-309`, with its `"Child" in ref` sniffs) is
@@ -305,15 +304,15 @@ tests for the TS schema helper should repeat these checks.
    schema declaring both `label` and `value` properties, each string `s` in the
    written list becomes `{"label": s, "value": s}`. This is the one place the port
    names catalog property names. It is kept because:
-   * Coercion is a convenience whose meaning depends on the names. A string can
+   - Coercion is a convenience whose meaning depends on the names. A string can
      stand in for `{label, value}` because a choice shown as its own value is a
      common idiom. No schema feature expresses "this object is a label/value pair".
-   * The schema-shaped alternative looked at (items whose required properties all
+   - The schema-shaped alternative looked at (items whose required properties all
      accept strings, excluding component references) selected the same property in
      every catalog checked. It is still the same guess in more general form: without
      the exclusion it would have wrongly caught `Tabs.tabs` (`title`, `child`), and a
      future catalog could defeat the exclusion too.
-   * Matching Python keeps the two SDKs compiling the same Express text to the same
+   - Matching Python keeps the two SDKs compiling the same Express text to the same
      JSON. No conformance case covers this, so parity is the only external check.
 
    The code carries a comment citing this section. When the rule fires or fails it
@@ -324,26 +323,26 @@ tests for the TS schema helper should repeat these checks.
    `value`. The TS rule is to bind the check function's first declared parameter
    when the component bound a property **of the same name** to a path, and the
    written first argument isn't itself a path.
-   * Both names come from the catalog.
-   * Every check function in every catalog checked has `value` as its first
+   - Both names come from the catalog.
+   - Every check function in every catalog checked has `value` as its first
      parameter, so behaviour is identical.
-   * This is the suite's rule, "a `?check` passes the component's own bound value",
+   - This is the suite's rule, "a `?check` passes the component's own bound value",
      made precise.
 
 4. **The check-rule property.** A component's check-rule property is found in one of
    two places:
-   * its own property whose schema is an array of common `CheckRule`, which is how
+   - its own property whose schema is an array of common `CheckRule`, which is how
      the forms fixture declares it; or
-   * a property of that shape inside a common def the component pulls in via
+   - a property of that shape inside a common def the component pulls in via
      `allOf`, which is `Checkable.checks` in both basic catalogs.
 
    The schema helper exposes that property's name per component. The compiler uses
    it instead of the literal `"checks"` and leaves it out of the positional order. An
    inherited one is appended last, as Python does.
-   * This finds the same six components per basic catalog as Python's `"Checkable"`
+   - This finds the same six components per basic catalog as Python's `"Checkable"`
      sniff, plus the forms fixture's `TextField`. Python only picks that one up by
      accident: its own property happens to be named `checks`.
-   * **Deliberate difference:** writing checks on a component with no check-rule
+   - **Deliberate difference:** writing checks on a component with no check-rule
      property throws `ExpressValidationError`. Python silently emits a `checks` key
      that the component doesn't declare (verified: `Text("hi", _, _, [?required])`
      compiles to `Text` with `checks` and empty args).
@@ -362,20 +361,20 @@ tests for the TS schema helper should repeat these checks.
    schema admits a path if it is, or combines via `$ref`/`oneOf`/`anyOf`/`allOf`, an
    object schema declaring a `path` property. It never descends into `items` or into
    property values.
-   * This covers `DataBinding` and every `Dynamic*` type, which reach `DataBinding`,
+   - This covers `DataBinding` and every `Dynamic*` type, which reach `DataBinding`,
      as well as the `ChildList` template form `{componentId, path}`, with no names at
      all.
-   * **Prompt:** a property is labelled `(static)` when it does not admit a path.
+   - **Prompt:** a property is labelled `(static)` when it does not admit a path.
      Checked against the golden `express_catalog_instructions.txt`, it matches all
      75 labels (51 static, 24 not), with 0 mismatches.
-   * **Compiler:** the forbidden-binding check applies `admitsPath` at the position
+   - **Compiler:** the forbidden-binding check applies `admitsPath` at the position
      where a path is written, following `items` and object properties down the
      schema.
-   * **Deliberate difference:** Python rejects a path anywhere inside a property
+   - **Deliberate difference:** Python rejects a path anywhere inside a property
      whose top level doesn't admit one. That wrongly rejects
      `Tabs([{title: $/t, child: c}])` even though `title` is a `DynamicString`
      (verified against Python).
-   * The prompt's `(component ID)` label keeps Python's rule: a direct `$ref` to
+   - The prompt's `(component ID)` label keeps Python's rule: a direct `$ref` to
      common `ComponentId`, by exact name. It must not resolve `Child` to
      `ComponentId`, because the golden labels `Card(child (static))`, not
      `(component ID)`.
@@ -396,20 +395,20 @@ tests for the TS schema helper should repeat these checks.
 Line counts are from the Python implementation. TypeScript estimates assume similar
 structure with some added verbosity.
 
-| Component | Python | TypeScript estimate | Risk |
-| --- | ---: | ---: | --- |
-| `format.ts` | 77 | 90 | low |
-| `parser.ts` | 114 | 130 | low, `BlockLexer` already ported |
-| `visitor.ts` | 217 | 280 | low, mechanical against the grammar |
-| `schema_helper.ts` | 308 | 400 | high, see section 4 |
-| `compiler.ts` | 834 | 1,000 | high |
-| `decompiler.ts` | 465 | 550 | medium, needed for few-shot examples |
-| `prompt_generator.ts` | 542 | 600 | medium |
-| `errors.ts` | 186 | 200 | low |
-| `constants.ts` | 25 | 30 | low |
-| Harness format dispatch | n/a | 60 | low |
-| ANTLR codegen script and config | n/a | 50 | low |
-| Streaming | 0 | unknown | no reference, see section 2 |
+| Component                       | Python | TypeScript estimate | Risk                                 |
+| ------------------------------- | -----: | ------------------: | ------------------------------------ |
+| `format.ts`                     |     77 |                  90 | low                                  |
+| `parser.ts`                     |    114 |                 130 | low, `BlockLexer` already ported     |
+| `visitor.ts`                    |    217 |                 280 | low, mechanical against the grammar  |
+| `schema_helper.ts`              |    308 |                 400 | high, see section 4                  |
+| `compiler.ts`                   |    834 |               1,000 | high                                 |
+| `decompiler.ts`                 |    465 |                 550 | medium, needed for few-shot examples |
+| `prompt_generator.ts`           |    542 |                 600 | medium                               |
+| `errors.ts`                     |    186 |                 200 | low                                  |
+| `constants.ts`                  |     25 |                  30 | low                                  |
+| Harness format dispatch         |    n/a |                  60 | low                                  |
+| ANTLR codegen script and config |    n/a |                  50 | low                                  |
+| Streaming                       |      0 |             unknown | no reference, see section 2          |
 
 Hand-written total excluding generated sources and streaming: about 2,768 lines in
 Python, an estimated 3,400 in TypeScript. Generated ANTLR output is about 49 KB
@@ -425,12 +424,12 @@ the harness does not implement.
 On `main`, PR #2713 landed on 2026-09-21 and added 204 conformance cases, of which
 86 are Express:
 
-| Suite | Cases |
-| --- | ---: |
-| `conformance/agent/express/compiler.yaml` | 45 |
-| `conformance/agent/express/response_parser.yaml` | 17 |
-| `conformance/agent/express/decompiler.yaml` | 12 |
-| `conformance/agent/express/prompt_generator.yaml` | 12 |
+| Suite                                             | Cases |
+| ------------------------------------------------- | ----: |
+| `conformance/agent/express/compiler.yaml`         |    45 |
+| `conformance/agent/express/response_parser.yaml`  |    17 |
+| `conformance/agent/express/decompiler.yaml`       |    12 |
+| `conformance/agent/express/prompt_generator.yaml` |    12 |
 
 There is no `express/response_streaming.yaml`. Its absence is deliberate, and the
 PR states the reason directly: "Express has no streaming suite because the format
