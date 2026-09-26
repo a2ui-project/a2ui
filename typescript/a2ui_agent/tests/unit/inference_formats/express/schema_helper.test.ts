@@ -243,6 +243,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       ).toBe('CheckRule');
       expect(commonDefName('common_types.json#/$defs/DynamicString')).toBe('DynamicString');
       expect(commonDefName('common_types.json#/$defs/DataBinding')).toBe('DataBinding');
+      expect(commonDefName('common_types.json#/definitions/Action')).toBe('Action');
 
       expect(commonDefName('#/$defs/MyDynamicString')).toBeUndefined();
       expect(commonDefName('#/definitions/MyThing')).toBeUndefined();
