@@ -138,6 +138,27 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/catalog-iframe@workspace:typescript/catalogs/iframe":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/catalog-iframe@workspace:typescript/catalogs/iframe"
+  dependencies:
+    "@types/jasmine": "npm:^6.0.0"
+    ajv: "npm:^8.17.1"
+    esbuild: "npm:^0.28.1"
+    eslint: "npm:^10.4.1"
+    gts: "npm:^7.0.0"
+    jasmine-core: "npm:^6.3.0"
+    karma: "npm:^6.4.4"
+    karma-chrome-launcher: "npm:^3.2.0"
+    karma-esbuild: "npm:^2.3.0"
+    karma-jasmine: "npm:^5.1.0"
+    prettier: "npm:^3.8.4"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+    zod: "npm:^3.25.76"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp":
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp"
