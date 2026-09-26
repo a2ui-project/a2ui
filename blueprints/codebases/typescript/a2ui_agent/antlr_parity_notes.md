@@ -38,9 +38,9 @@ differences, the shape of the generated visitor, and the hand-written code that 
 on top. The rest of this document is that list.
 
 Python pins the tool to 4.13.2 explicitly, in
-[pack_specs_hook.py:143](file:///work/google/a2ui/python/a2ui_agent/pack_specs_hook.py#L143),
+[pack_specs_hook.py:143](../../../../python/a2ui_agent/pack_specs_hook.py#L143),
 and pins the runtime to the matching 4.13.x range in
-[pyproject.toml:24](file:///work/google/a2ui/python/a2ui_agent/pyproject.toml#L24).
+[pyproject.toml:24](../../../../python/a2ui_agent/pyproject.toml#L24).
 TypeScript pins `antlr-ng` at exactly 1.0.10 as a devDependency and `antlr4ng` at
 exactly 3.0.16 as a runtime dependency; `antlr-ng` itself depends on exactly that
 `antlr4ng` version.
@@ -84,7 +84,7 @@ the property if it is set and falls back to `visitChildren` otherwise. Python em
 ordinary methods on `ExpressVisitor`.
 
 Subclassing therefore works differently. In Python,
-[ExpressAstVisitor](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L49)
+[ExpressAstVisitor](../../../../python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L49)
 overrides methods on the prototype chain, and `super()` reaches the base. In
 TypeScript, declaring a method where the base declares a property is a type error,
 and there is no `super.visitFoo` to call.
@@ -111,7 +111,7 @@ Java and Python design instead.
 | `shouldVisitNextChild` | present, returns `True`            | present, returns `true`            |
 
 The grammar has 16 parser rules and
-[visitor.py](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py)
+[visitor.py](../../../../python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py)
 overrides all 16, so the inherited default is not reached today. If a rule is added
 without an override, both languages now return the last child's result.
 
@@ -125,9 +125,9 @@ Status: verified by reading `AbstractParseTreeVisitor` in the installed
 ### Numbers lose their Python int and float distinction
 
 `NUMBER` at
-[Express.g4:157](file:///work/google/a2ui/specification/inference_formats/express/Express.g4#L157)
+[Express.g4:157](../../../../specification/inference_formats/express/Express.g4#L157)
 is `'-'? [0-9]+ ('.' [0-9]+)?`, with no exponent form.
-[visitor.py:173-175](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L173-L175)
+[visitor.py:173-175](../../../../python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L173-L175)
 turns it into `float(val) if "." in val else int(val)`.
 
 JavaScript has one numeric type, so a naive `Number(val)` diverges twice. Input
@@ -143,7 +143,7 @@ Status: verified from the grammar and the visitor. Needs a test.
 
 ### String escape handling needs the Unicode flag
 
-[visitor.py:46](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L46)
+[visitor.py:46](../../../../python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L46)
 unescapes with `re.sub(r"\\([\s\S])", repl, val)`. Python strings are sequences of
 code points, so `[\s\S]` captures one whole character even outside the basic
 multilingual plane.
@@ -154,7 +154,7 @@ replacement splits the pair. Use the `u` flag.
 
 The surrounding slicing is safe by accident rather than by design: the delimiters
 being stripped in
-[visitor.py:184-196](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L184-L196)
+[visitor.py:184-196](../../../../python/a2ui_agent/src/a2ui/inference_formats/experimental/express/visitor.py#L184-L196)
 are all ASCII, so counting code points and counting code units give the same answer.
 If a future grammar change introduces a non-ASCII delimiter, that stops being true.
 
@@ -163,7 +163,7 @@ backslash.
 
 ### IDENTIFIER is ASCII-only, and the prose disagrees
 
-[Express.g4:163](file:///work/google/a2ui/specification/inference_formats/express/Express.g4#L163)
+[Express.g4:163](../../../../specification/inference_formats/express/Express.g4#L163)
 is `[a-zA-Z_] [a-zA-Z0-9_]*`, while the Express specification prose calls for UAX #31
 identifiers. The grammar wins, and both implementations inherit the same restriction,
 so there is no parity problem today.
@@ -176,9 +176,9 @@ Status: verified. No action unless the grammar changes.
 
 ### Error columns are zero-based on purpose
 
-[compiler.py:268-270](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py#L268-L270)
+[compiler.py:268-270](../../../../python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py#L268-L270)
 assigns ANTLR's `charPositionInLine` straight into `SyntaxError.offset`, and
-[parser.py:94](file:///work/google/a2ui/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/parser.py#L94)
+[parser.py:94](../../../../python/a2ui_agent/src/a2ui/inference_formats/experimental/express/parser.py#L94)
 reads it back out into `A2uiCompilationError.column`. ANTLR counts columns from zero;
 Python's `SyntaxError.offset` is conventionally one-based. The two conventions are
 mixed, and the zero-based value is what ends up in the error the caller sees and what
@@ -207,7 +207,7 @@ different lines.
 
 Every ignored token in the grammar uses `-> skip`: `COMMENT`, `BLOCK_COMMENT`,
 `SEMICOLON`, and `WS`, at
-[Express.g4:166-169](file:///work/google/a2ui/specification/inference_formats/express/Express.g4#L166-L169).
+[Express.g4:166-169](../../../../specification/inference_formats/express/Express.g4#L166-L169).
 Skipped tokens never enter the token stream in either runtime, so `getText()` cannot
 pick them up and the two languages agree.
 
