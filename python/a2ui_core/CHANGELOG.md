@@ -1,0 +1,162 @@
+## Unreleased
+
+- **BREAKING**: Module paths and validation interfaces moved or changed in v0.2.0. Deprecation shims are provided for renamed public module paths; importing them emits a `DeprecationWarning` naming the new path. These shims will be removed in `v0.3.0`.
+
+  **Shimmed Modules (Deprecated; removal in v0.3.0):**
+
+  | Old Path (`v0.1.x`)                                                                  | New Path (`v0.2.0`)                                                                       | Notes                                                |
+  | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+  | `a2ui.core.basic_catalog.{components,function_apis,function_impls,styles}`           | `a2ui.core.basic_catalog.v0_9.{components,function_apis,function_impls,styles}`           | Re-exports v0.9 basic catalog symbols                |
+  | `a2ui.core.basic_catalog.expression_parser`                                          | `a2ui.core.expressions.expression_parser`                                                 | Re-exports `ExpressionParser`, `Scanner`, and limits |
+  | `a2ui.core.schema.{client_capabilities,client_to_server,constants,server_to_client}` | `a2ui.core.schema.v0_9.{client_capabilities,client_to_server,constants,server_to_client}` | Also aliases `A2uiClientError*` and `SPEC_VERSION*`  |
+
+  **Unshimmed Internal Modules & Renames:**
+
+  Internal modules were moved without shims; callers should import from the new paths directly:
+
+  - `a2ui.core.rendering` (and `.component_context`, `.data_context`, `.generic_binder`): moved to `a2ui.core.resolution` (and matching submodules).
+  - `a2ui.core.validating` (and `.integrity_checker`, `.topology_analyzer`): moved to `a2ui.core.validation` (and `a2ui.core.state.validation_helpers`).
+  - `validate_component_integrity`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> None`.
+  - `analyze_topology`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> set[str]`.
+
+  **Removed Modules and APIs:**
+
+  | Removed (`v0.1.x`)                                                                               | Replacement (`v0.2.0`)                                                             |
+  | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+  | `a2ui.core.validating.validator` (`A2uiValidator`, `A2uiValidatorError`)                         | `a2ui.core.validation.PayloadValidator`                                            |
+  | `a2ui.core.validating.catalog_schema_validator` (`CatalogSchemaValidator`, `extract_ref_fields`) | `a2ui.core.catalog.reference_map` (`ComponentRefSpec`, `build_component_ref_map`)  |
+  | `a2ui.core.validating.integrity_checker.get_component_references`                                | `ComponentRefSpec.extract_child_references`, `ComponentModel.get_child_references` |
+  | `a2ui.core.state.{node_graph,component_node}` (`NodeGraph`, `ComponentNode`)                     | Removed                                                                            |
+  | `a2ui.core.basic_catalog.locale_config`                                                          | `a2ui.core.basic_catalog.locale_formatting` (Babel/CLDR)                           |
+  | `a2ui.core.basic_catalog.operator_apis`                                                          | `a2ui.core.basic_catalog.v1_0.operator_apis`                                       |
+  | `get_client_capabilities`, `get_client_data_model`                                               | Removed                                                                            |
+  | `SPEC_VERSION`                                                                                   | `PROTOCOL_VERSION` (in `a2ui.core.schema.v0_9.constants`)                          |
+  | `A2uiClientErrorMessage`                                                                         | `A2uiRendererErrorMessage`                                                         |
+  | `Catalog(spec_version=)`                                                                         | `Catalog(protocol_version=)`                                                       |
+  | `MessageProcessor(strict_mode=)`                                                                 | `MessageProcessor(options=)`                                                       |
+
+- **BREAKING**: `DataModel` stores data values by reference instead of making deep copies. Callers that mutate nested objects after setting them in `DataModel` will update internal state directly.
+- **BREAKING**: `A2uiRpcError` argument order is now `(message, code, ...)`.
+- **BREAKING**: `DataModel.set` now raises `A2uiDataError` instead of resetting the root when attempting to traverse or set a subpath under a primitive root value.
+- **BREAKING**: `SurfaceComponentsModel.add_component` now raises `A2uiStateError` if a component with the same ID already exists in the model.
+- **BREAKING**: pending RPC requests on `RpcHandler.dispose()` are now rejected with error code `CANCELLED` (previously `DISPOSED`).
+- `SurfaceModel` now accepts a `root_id` parameter (defaulting to `"root"`) and provides a deprecated `catalog` property aliasing `default_catalog`.
+- `SurfaceComponentsModel.detect_cycles` now correctly ignores disconnected orphan components by passing `allow_orphan_components=True` to topology analysis, reporting cycle and depth limit violations exclusively.
+- Bound function calls to `MAX_FUNCTION_CALL_ARGS` (1,000 arguments) across both `PayloadValidator.validate_function` and runtime `DataContext._execute_function` resolution.
+- Bound expression template strings to `MAX_EXPRESSION_TEMPLATE_LENGTH` (10,000 characters) and parsed expression segments to `MAX_EXPRESSION_PARTS` (1,000 parts) in `ExpressionParser`.
+- Add SemVer parsing and comparison utilities (`SemVer`, `compare_semver`, `is_at_least_version`, `normalize_version_string`, `parse_semver`, `to_canonical_version`, `to_semver`) in `a2ui.core.common.semver`.
+- Add `A2uiProtocolVersion` and `ProtocolVersion` enum in `a2ui.core.schema`.
+- Remove `A2uiCompileError` from `a2ui_core` exception hierarchy.
+- **BREAKING**: locale formatting now comes from CLDR by way of `babel`,
+  replacing the hand-rolled locale tables. Currency, number, date month and
+  weekday names, and plural category selection now match what the TypeScript
+  engine gets from `Intl`. That was the point: the two engines previously
+  disagreed for every locale other than `en-US`, on the symbol chosen and on
+  which Unicode space separates it from the amount.
+
+  `a2ui.core.basic_catalog` no longer exports `LocaleFormattingRules`,
+  `register_locale_rules`, `get_locale_rules` or `CURRENCY_SYMBOLS`, and
+  `locale_config.py` is deleted. `register_locale_rules` was the extension
+  point for registering a custom locale; that capability goes away rather than
+  moving, because `babel` resolves locales from CLDR only.
+
+  `babel` is added as a runtime dependency.
+
+  `babel` reads its patterns and symbols from CLDR but does not implement
+  CLDR's `currencySpacing`, which ICU does apply. The package supplies that
+  rule itself, so a currency whose symbol is alphabetic is separated from the
+  amount by U+00A0 as `Intl` separates it: `CHF 1,234.56`, not `CHF1,234.56`.
+  This affects the assigned codes `CHF`, `SEK`, `DKK`, `CZK` and `PLN` among
+  others, in `en-US` as well as elsewhere.
+
+  One difference from `Intl` remains. For Arabic locales such as `ar-EG`,
+  `Intl` shapes digits in Eastern Arabic numerals while `babel` emits Latin
+  ones. `babel` offers no way to close this: requesting the locale's default
+  numbering system converts the separators but not the digits, which agrees
+  with neither engine.
+
+  A locale tag the catalog cannot use falls back to `en_US` rather than
+  raising. `babel` raises for a malformed tag and for a well-formed tag CLDR
+  does not carry, such as `xx-YY`, either of which would otherwise abort every
+  format call made by a catalog built with it. The TypeScript engine falls back
+  for the same tags.
+
+- **BREAKING**: the `Dynamic*` schema aliases no longer coerce a value of the
+  wrong primitive type. Each admits one primitive type, a data binding, or a
+  function call, matching the TypeScript engine and the specification. What
+  changes in practice:
+  - `DynamicNumber` rejects the string `"1"`, which previously validated as
+    `1.0`, and rejects `True`, which previously validated as `1`.
+  - `DynamicBoolean` rejects `1`, `0` and `"true"`, which previously validated
+    as `True`, `False` and `True`.
+  - `DynamicValue` keeps an integer as an integer. It admitted `float` but not
+    `int`, so a payload carrying `1` came back as `1.0`.
+  - `DynamicString` and `DynamicStringList` are now declared strict for
+    consistency. This is not a behaviour change: pydantic already refused to
+    coerce other primitives into a string.
+
+  Data bindings and function calls are unaffected.
+
+- The v0.9 and v1.0 basic catalogs no longer register `add`, `subtract`, `multiply`,
+  `divide`, `equals`, `not_equals`, `greater_than`, `less_than`, `contains`,
+  `starts_with` or `ends_with`. The published catalogs declare exactly 14
+  functions, and none of these operators is among them, so an agent had no way to know
+  they were callable. `a2ui.core.basic_catalog` no longer exports their
+  API classes or implementations, aligning Python engine behavior with the
+  reference typescript implementation.
+
+- The v1.0 `formatDate` `ISO` pattern now returns the UTC instant with exactly
+  three fractional digits, as `web_core` does. It previously echoed back
+  whichever offset the input carried, so `2025-01-01T12:00:00+02:00` formatted
+  as itself instead of `2025-01-01T10:00:00.000Z`. A timestamp without an
+  offset is read as UTC, so the result no longer depends on the host time zone.
+
+- The v1.0 `pluralize` function now falls back to the `other` form only when
+  the selected category is absent, not when its value is empty. A caller that
+  supplies `zero: ""` gets an empty string, matching `web_core`; previously the
+  empty form was discarded and the `other` form rendered in its place.
+
+- `ExpressionParser.MAX_DEPTH` is 100, up from 10, matching `web_core` and the
+  Swift engine. An expression nested between 11 and 100 levels deep was
+  rejected here and accepted there.
+
+- A function-call argument now counts toward the expression parser's recursion
+  depth, as it does in `web_core`. Only nested interpolations were counted
+  before, so `${f(a: ${f(a: ...)})}` written as `${f(a: f(a: ...))}` recursed
+  unchecked and raised `RecursionError` from the interpreter rather than a
+  parse error.
+
+- `Catalog.from_json` accepts a `common_types_schema` argument and rewrites
+  cross-document references such as `common_types.json#/$defs/ChildList` into
+  local `#/$defs/...` pointers, satisfying them from the supplied document or
+  from the built-in definitions. Catalogs that reference the published shared
+  types now load without the `specification/` tree on disk, and the validator
+  no longer reads schema files at runtime.
+- Deleting a list index past the end of the list is now a no-op. It previously
+  padded the list with `None` up to that index, so deleting `/items/10` from a
+  three-element list produced an eleven-element list.
+- The shared type definitions used to satisfy `common_types.json` references
+  are now checked against the published document by a test, with an explicit
+  list of the definitions that intentionally differ. Descriptions on
+  `AccessibilityAttributes`, `DynamicString`, `DynamicNumber` and
+  `DynamicBoolean` were brought back into line with the specification.
+- The conformance harness now fails, rather than silently skipping, when a
+  suite cannot be parsed, when a case has no `name` or `action`, or when an
+  action has no handler. Suites the core library cannot run are named in
+  `UNRUNNABLE_SUITES` with a reason.
+
+## 0.1.1
+
+- Enable type checks across `a2ui_core` (#1816).
+- Fix `MessageProcessor.get_client_capabilities` exporting `None` into `inlineCatalogs` for programmatically created catalogs.
+- Optimize component validation with cached Pydantic `TypeAdapter` on `ComponentImplementation`.
+
+## 0.1.0
+
+- Initial standalone release of `a2ui_core` (split from `a2ui_agent`).
+
+## 0.0.4
+
+## 0.0.3
+
+## 0.0.1

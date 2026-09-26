@@ -18,6 +18,7 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
 import {main} from './upload_manifest.mjs';
+import {getPackageGraph} from './lib/workspace.mjs';
 
 describe('upload_manifest script integration test', () => {
   it('should throw an error when no packages are specified', async () => {
@@ -103,5 +104,26 @@ describe('upload_manifest script integration test', () => {
       executedCommands[0].startsWith('gcloud storage cp'),
       'Should be gcloud upload command',
     );
+  });
+
+  it('should resolve web_core package under typescript directory', async () => {
+    const graph = getPackageGraph();
+    assert.ok(graph['@a2ui/web_core']);
+    assert.match(graph['@a2ui/web_core'].dir, /\/typescript\/web_core$/);
+
+    let writtenFileContent = null;
+    const mocks = {
+      runCommand: () => {},
+      writeFileSync: (_, content) => {
+        writtenFileContent = content;
+      },
+    };
+
+    await main(['--package=web_core'], mocks);
+
+    assert.ok(writtenFileContent, 'Should have written manifest file');
+    const manifest = JSON.parse(writtenFileContent);
+    assert.strictEqual(manifest.publishing_groups[0].packages.length, 1);
+    assert.strictEqual(manifest.publishing_groups[0].packages[0].name, 'web_core');
   });
 });

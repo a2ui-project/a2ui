@@ -30,7 +30,7 @@ COMPONENT_DIRS = {
     "component: standard catalog specification": "specification",
     "component: specification": "specification",
     "component: samples": "samples",
-    "component: agent library": "agent_sdks",
+    "component: agent library": "python",
 }
 
 

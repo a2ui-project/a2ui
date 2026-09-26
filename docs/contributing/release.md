@@ -45,8 +45,8 @@ workflow. There is no version file to edit and no script to run locally.
 
 1. Check the Unreleased sections of the changelogs. If both are empty, there is
    nothing to release.
-    - a2ui_core [CHANGELOG](../../agent_sdks/python/a2ui_core/CHANGELOG.md)
-    - a2ui_agent [CHANGELOG](../../agent_sdks/python/a2ui_agent/CHANGELOG.md)
+    - a2ui_core [CHANGELOG](../../python/a2ui_core/CHANGELOG.md)
+    - a2ui_agent [CHANGELOG](../../python/a2ui_agent/CHANGELOG.md)
 
 2. Run the [Release Python SDKs](../../.github/workflows/release-pypi.yml)
    workflow from the Actions tab, on `main`. Pick the package, pick a bump
@@ -112,7 +112,7 @@ the Unreleased section is empty, when the target version already has a tag, and
 when a proposed `a2ui-core` version falls outside the range that
 `a2ui-agent-sdk` pins it to. That last one means a `a2ui-core` minor bump needs
 the pin in
-[a2ui_agent/pyproject.toml](../../agent_sdks/python/a2ui_agent/pyproject.toml)
+[a2ui_agent/pyproject.toml](../../python/a2ui_agent/pyproject.toml)
 widened in the same release.
 
 Releasing both packages together publishes `a2ui-core` first, because

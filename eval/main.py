@@ -28,15 +28,20 @@ from inspect_ai.dataset import MemoryDataset
 
 MODEL_ALIASES: dict[str, str] = {
     # Cloud models
+    "gemma": "google/gemma-4-26b-a4b-it",
     "gemma-4-26b": "google/gemma-4-26b-a4b-it",
+    "gemma-large": "google/gemma-4-31b-it",
     "gemma-4-31b": "google/gemma-4-31b-it",
     "gemini-3.8-flash": "google/gemini-3.8-flash",
     "gemini-3.6-flash": "google/gemini-3.6-flash",
     "gemini-3.5-flash": "google/gemini-3.5-flash",
     "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
     # Ollama edge convenience aliases
+    "gemma-e2b": "ollama/gemma4:e2b",
     "gemma-4-e2b": "ollama/gemma4:e2b",
+    "gemma-e4b": "ollama/gemma4:e4b",
     "gemma-4-e4b": "ollama/gemma4:e4b",
+    "gemma-2b": "ollama/gemma2:2b",
     "gemma-2-2b": "ollama/gemma2:2b",
 }
 

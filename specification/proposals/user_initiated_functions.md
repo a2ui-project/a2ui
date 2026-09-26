@@ -114,7 +114,7 @@ Rather than adding metadata to catalog component definitions or introducing new 
   Active during surface layout construction, dynamic string interpolation (`${openUrl(...)}`), template iteration, reactive state updates, or direct agent function invocation messages.
   - **Blocks** functions marked `requiresUserActivation: true`.
 
-- **Agent Invocation Rejection**: Functions declared with `callableFrom: "rendererOrAgent"` (or `"rendererOnly"`) that set `requiresUserActivation: true` MUST be rejected with a runtime security error if directly invoked by a server/agent message. Because direct backend agent calls execute without a physical client user activation context (`isExecutingAction = false`), they are prohibited from auto-executing user-activation-restricted functions.
+- **Agent Invocation Rejection**: Functions declared with `allowedCallers: "rendererOrAgent"` (or `"rendererOnly"`) that set `requiresUserActivation: true` MUST be rejected with a runtime security error if directly invoked by a server/agent message. Because direct backend agent calls execute without a physical client user activation context (`isExecutingAction = false`), they are prohibited from auto-executing user-activation-restricted functions.
 
 ### 3.3 Asynchronous Execution Boundaries
 

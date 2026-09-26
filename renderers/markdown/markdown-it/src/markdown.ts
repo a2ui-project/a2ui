@@ -16,7 +16,13 @@
 
 import {rawMarkdownRenderer} from './raw-markdown.js';
 import {sanitize} from './sanitizer.js';
-import * as Types from '@a2ui/web_core';
+import type {
+  MarkdownRenderer,
+  MarkdownRendererOptions,
+  MarkdownRendererTagClassMap,
+} from '@a2ui/web_core';
+
+export type {MarkdownRenderer, MarkdownRendererOptions, MarkdownRendererTagClassMap};
 
 /**
  * A Markdown to HTML renderer using markdown-it and dompurify.
@@ -26,7 +32,7 @@ import * as Types from '@a2ui/web_core';
  */
 export async function renderMarkdown(
   value: string,
-  options?: Types.MarkdownRendererOptions,
+  options?: MarkdownRendererOptions,
 ): Promise<string> {
   const htmlString = rawMarkdownRenderer.render(value, options?.tagClassMap);
   return sanitize(htmlString);

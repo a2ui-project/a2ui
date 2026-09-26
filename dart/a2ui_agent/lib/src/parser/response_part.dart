@@ -19,11 +19,33 @@ sealed class ResponsePart {
   const ResponsePart();
 }
 
+/// A slice of an LLM response before its payloads are compiled: [TextPart] or
+/// [RawA2uiPart].
+sealed class RawResponsePart {
+  const RawResponsePart();
+}
+
 /// Conversational text from an LLM response, for display to the user.
-final class TextPart extends ResponsePart {
+///
+/// Text reads the same before and after compilation, so it is both a
+/// [RawResponsePart] and a [ResponsePart].
+final class TextPart extends ResponsePart implements RawResponsePart {
   final String text;
 
   const TextPart(this.text);
+}
+
+/// The content of one payload block of an LLM response, without its sentinel
+/// tags, before it is compiled.
+final class RawA2uiPart extends RawResponsePart {
+  /// The payload, in the notation of the inference format.
+  final String a2uiRaw;
+
+  /// Whether the block was closed, rather than cut off by the end of the
+  /// response.
+  final bool isFinal;
+
+  const RawA2uiPart(this.a2uiRaw, {this.isFinal = true});
 }
 
 /// A2UI messages compiled from one payload block of an LLM response, ready to

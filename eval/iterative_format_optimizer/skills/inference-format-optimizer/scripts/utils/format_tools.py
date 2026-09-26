@@ -18,17 +18,17 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 current = Path(__file__).resolve()
 REPO_ROOT = current.parents[5]
 for p in [current] + list(current.parents):
-    if (p / "specification").exists() and (p / "agent_sdks").exists():
+    if (p / "specification").exists() and (p / "python").exists():
         REPO_ROOT = p
         break
 
-SDK_SRC = str(REPO_ROOT / "agent_sdks/python/a2ui_agent/src")
-SDK_CORE_SRC = str(REPO_ROOT / "agent_sdks/python/a2ui_core/src")
+SDK_SRC = str(REPO_ROOT / "python/a2ui_agent/src")
+SDK_CORE_SRC = str(REPO_ROOT / "python/a2ui_core/src")
 if SDK_SRC not in sys.path:
     sys.path.insert(0, SDK_SRC)
 if SDK_CORE_SRC not in sys.path:
@@ -109,7 +109,7 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
     cat = _load_basic_catalog()
     fmt_lower = format_name.lower()
 
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     if isinstance(json_str_or_dict, str):
         if os.path.isfile(json_str_or_dict):
             with open(json_str_or_dict, "r", encoding="utf-8") as f:

@@ -1,0 +1,2311 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it, beforeEach} from 'node:test';
+import {
+  MessageProcessor,
+  formatZodIssue,
+  STRICT_VALIDATION,
+  RELAXED_VALIDATION,
+  ProcessableMessagePayload,
+  RpcErrorCode,
+} from './message-processor.js';
+import {
+  Catalog,
+  ComponentApi,
+  FunctionImplementation,
+  createFunctionImplementation,
+} from '../catalog/types.js';
+import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
+import {BasicCatalogThemeSchema} from '../v0_9/basic_catalog/theme.js';
+import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
+import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+import {z} from 'zod';
+
+/**
+ * Turns validation on while relaxing every topology rule, so a test exercises
+ * only the check it is about.
+ */
+const THEME_ONLY_VALIDATION = {
+  allowOrphanComponents: true,
+  allowDanglingReferences: true,
+  allowMissingRoot: true,
+  allowUnknownElements: true,
+};
+
+describe('MessageProcessor', () => {
+  let processor: MessageProcessor<ComponentApi>;
+  let testCatalog: Catalog<ComponentApi>;
+  let actions: any[] = [];
+
+  beforeEach(() => {
+    actions = [];
+    testCatalog = new Catalog('test-catalog', '0.9', []);
+    processor = new MessageProcessor<ComponentApi>([testCatalog], async a => {
+      actions.push(a);
+    });
+  });
+
+  describe('getRendererCapabilities', () => {
+    it('throws when no protocol versions are provided', () => {
+      assert.throws(
+        () => (processor as any).getRendererCapabilities(),
+        /At least one protocol version must be provided/,
+      );
+      assert.throws(
+        () => processor.getRendererCapabilities({} as any),
+        /At least one protocol version must be provided/,
+      );
+      assert.throws(
+        () => processor.getRendererCapabilities({versions: []}),
+        /At least one protocol version must be provided/,
+      );
+    });
+
+    it('generates basic capabilities with supportedCatalogIds', () => {
+      const caps = processor.getRendererCapabilities({versions: ['v0.9']});
+      assert.ok(caps['v0.9']);
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-catalog']);
+      assert.strictEqual(caps.supportedCatalogIds, undefined);
+    });
+
+    it('includes inline catalogs when requested', () => {
+      const caps = processor.getRendererCapabilities({
+        versions: ['v0.9'],
+        includeInlineCatalogs: true,
+      });
+      assert.ok((caps['v0.9'] as any).inlineCatalogs);
+      assert.strictEqual((caps['v0.9'] as any).inlineCatalogs.length, 1);
+    });
+
+    it('supports custom componentEnvelopeRef for inline catalogs', () => {
+      const strictComp: ComponentApi = {
+        name: 'CustomButton',
+        schema: z.object({label: z.string()}),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-custom', '1.0', [strictComp])]);
+      const caps = proc.getRendererCapabilities({
+        versions: ['v0.9'],
+        includeInlineCatalogs: true,
+        componentEnvelopeRef: 'https://example.com/schema.json#/$defs/Base',
+      });
+      const inlineCat = (caps['v0.9'] as any).inlineCatalogs?.[0] as any;
+      assert.strictEqual(
+        inlineCat.components.CustomButton.allOf[0].$ref,
+        'https://example.com/schema.json#/$defs/Base',
+      );
+    });
+
+    it('keeps $ref on basic catalog child references despite per-usage descriptions', () => {
+      const cat = new Catalog('cat-basic', '1.0', [CardApi, RowApi, TabsApi]);
+      const proc = new MessageProcessor([cat]);
+
+      const caps = proc.getRendererCapabilities({
+        versions: ['v0.9'],
+        includeInlineCatalogs: true,
+      });
+      const inlineCat = (caps['v0.9'] as any).inlineCatalogs?.[0] as any;
+      const components = inlineCat?.components;
+      assert.ok(components);
+
+      const cardChild = components.Card.allOf[1].properties.child;
+      assert.strictEqual(cardChild.$ref, '#/$defs/ComponentId');
+      assert.strictEqual(cardChild.type, undefined);
+
+      const rowChildren = components.Row.allOf[1].properties.children;
+      assert.strictEqual(rowChildren.$ref, '#/$defs/ChildList');
+
+      const tabItems = components.Tabs.allOf[1].properties.tabs.items;
+      assert.strictEqual(tabItems.properties.child.$ref, '#/$defs/ComponentId');
+    });
+
+    it('generates v1.0 inline catalog schemas with dictionary functions and top-level defs', () => {
+      const greetFunc: FunctionImplementation = {
+        name: 'greet',
+        description: 'Greets user',
+        returnType: 'string',
+        schema: z.object({name: z.string()}),
+        execute: async (args: any) => `Hello, ${args.name}!`,
+      };
+      const cat = new Catalog('cat-v1', '1.0', [CardApi], [greetFunc]);
+      const proc = new MessageProcessor([cat], undefined, {version: 'v1.0'});
+
+      const caps = proc.getRendererCapabilities({
+        versions: ['v1.0'],
+        includeInlineCatalogs: true,
+      });
+
+      const inlineCat = (caps['v1.0'] as any)?.inlineCatalogs?.[0];
+      assert.ok(inlineCat);
+      assert.strictEqual(inlineCat.catalogId, 'cat-v1');
+      assert.ok(inlineCat.components.Card);
+      assert.ok(inlineCat.functions.greet);
+      assert.strictEqual(inlineCat.functions.greet.type, 'object');
+      assert.strictEqual(typeof inlineCat.functions, 'object');
+      assert.ok(!Array.isArray(inlineCat.functions));
+    });
+
+    it('generates capabilities for multiple versions when versions array is provided', () => {
+      const caps = processor.getRendererCapabilities({
+        versions: ['v0.9', 'v1.0'],
+      });
+      assert.ok(caps['v0.9']);
+      assert.ok(caps['v1.0']);
+      assert.strictEqual(caps.supportedCatalogIds, undefined);
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-catalog']);
+      assert.deepStrictEqual((caps['v1.0'] as any).supportedCatalogIds, ['test-catalog']);
+    });
+
+    it('generates inline catalogs across multiple versions when requested', () => {
+      const greetFunc: FunctionImplementation = {
+        name: 'greet',
+        description: 'Greets user',
+        returnType: 'string',
+        schema: z.object({name: z.string()}),
+        execute: async (args: any) => `Hello, ${args.name}!`,
+      };
+      const cat = new Catalog('cat-multi', '1.0', [CardApi], [greetFunc]);
+      const proc = new MessageProcessor([cat]);
+
+      const caps = proc.getRendererCapabilities({
+        versions: ['v0.9', 'v1.0'],
+        includeInlineCatalogs: true,
+      });
+
+      assert.strictEqual(caps.inlineCatalogs, undefined);
+      assert.ok((caps['v0.9'] as any)?.inlineCatalogs);
+      assert.ok((caps['v1.0'] as any)?.inlineCatalogs);
+      // v1.0 has dictionary functions
+      const v10Cat = (caps['v1.0'] as any).inlineCatalogs[0];
+      assert.strictEqual(typeof v10Cat.functions, 'object');
+      assert.ok(!Array.isArray(v10Cat.functions));
+      // v0.9 has array functions
+      const v09Cat = (caps['v0.9'] as any).inlineCatalogs[0];
+      assert.ok(Array.isArray(v09Cat.functions));
+    });
+  });
+
+  describe('getRendererDataModel', () => {
+    it('returns undefined when no surfaces have sendDataModel enabled', () => {
+      const model = processor.getRendererDataModel();
+      assert.strictEqual(model, undefined);
+    });
+
+    it('returns data model payload and auto-infers version from surface catalog', () => {
+      const processor = new MessageProcessor<ComponentApi>([
+        new Catalog('test-catalog', '1.0', []),
+      ]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'test-catalog',
+          sendDataModel: true,
+          dataModel: {user: {name: 'Alice'}},
+        },
+      });
+
+      // Auto-inferred
+      const autoModel = processor.getRendererDataModel();
+      assert.ok(autoModel);
+      assert.strictEqual(autoModel.version, 'v1.0');
+      assert.strictEqual((autoModel as any).surfaces.s1.user.name, 'Alice');
+
+      // Explicit target version
+      const explicitModel = processor.getRendererDataModel('v1.0');
+      assert.ok(explicitModel);
+      assert.strictEqual(explicitModel.version, 'v1.0');
+      assert.strictEqual((explicitModel as any).surfaces.s1.user.name, 'Alice');
+    });
+
+    it('throws when multiple protocol versions are present without explicit version', () => {
+      const catV09 = new Catalog('cat-09', '0.9', []);
+      const catV10 = new Catalog('cat-10', '1.0', []);
+      const multiProc = new MessageProcessor<ComponentApi>([catV09, catV10]);
+
+      multiProc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 's09',
+            catalogId: 'cat-09',
+            sendDataModel: true,
+          },
+        },
+        {
+          version: 'v0.9',
+          updateDataModel: {
+            surfaceId: 's09',
+            value: {val: 'from-09'},
+          },
+        },
+      ]);
+      multiProc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's10',
+            catalogId: 'cat-10',
+            sendDataModel: true,
+            dataModel: {val: 'from-10'},
+          },
+        },
+      ]);
+
+      assert.throws(
+        () => multiProc.getRendererDataModel(),
+        /Multiple protocol versions detected among active surfaces/,
+      );
+
+      // But specifying target version succeeds and filters:
+      const v09Model = multiProc.getRendererDataModel('v0.9');
+      assert.ok(v09Model);
+      assert.strictEqual(v09Model.version, 'v0.9');
+      assert.deepStrictEqual((v09Model as any).surfaces, {s09: {val: 'from-09'}});
+
+      const v10Model = multiProc.getRendererDataModel('v1.0');
+      assert.ok(v10Model);
+      assert.strictEqual(v10Model.version, 'v1.0');
+      assert.deepStrictEqual((v10Model as any).surfaces, {s10: {val: 'from-10'}});
+    });
+  });
+
+  describe('surface lifecycle events', () => {
+    it('fires onSurfaceCreated and onSurfaceDeleted callbacks', () => {
+      let createdId = '';
+      let deletedId = '';
+
+      processor.onSurfaceCreated(s => {
+        createdId = s.id;
+      });
+      processor.onSurfaceDeleted(id => {
+        deletedId = id;
+      });
+
+      processor.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
+      });
+      assert.strictEqual(createdId, 's1');
+
+      processor.processMessages({
+        version: 'v0.9',
+        deleteSurface: {surfaceId: 's1'},
+      });
+      assert.strictEqual(deletedId, 's1');
+      assert.strictEqual(processor.getSurface('s1'), undefined);
+    });
+  });
+
+  describe('processMessages operation handling', () => {
+    it('creates a surface and processes components and data model updates', () => {
+      processor.processMessages({
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'test-catalog',
+        },
+      });
+
+      const surface = processor.getSurface('s1');
+      assert.ok(surface);
+      assert.strictEqual(surface?.id, 's1');
+    });
+
+    it('recreates component when type changes', () => {
+      processor.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
+      });
+
+      processor.processMessages({
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [{id: 'comp1', component: 'Button', label: 'Btn'}],
+        },
+      });
+
+      let surface = processor.getSurface('s1');
+      let comp = surface?.componentsModel.get('comp1');
+      assert.strictEqual(comp?.type, 'Button');
+
+      // Change type to Label
+      processor.processMessages({
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [{id: 'comp1', component: 'Label', text: 'Lbl'}],
+        },
+      });
+
+      surface = processor.getSurface('s1');
+      comp = surface?.componentsModel.get('comp1');
+      assert.strictEqual(comp?.type, 'Label');
+      assert.strictEqual(comp?.properties.text, 'Lbl');
+      assert.strictEqual(comp?.properties.label, undefined);
+    });
+
+    it('throws when creating component without type', () => {
+      processor.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
+      });
+
+      assert.throws(() => {
+        processor.processMessages({
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'comp1', label: 'No Type'} as any],
+          },
+        });
+      }, /Cannot create component comp1 without a type/);
+    });
+
+    it('throws when catalog not found', () => {
+      assert.throws(() => {
+        processor.processMessages({
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'unknown-catalog',
+          },
+        });
+      }, /Catalog not found: unknown-catalog/);
+    });
+
+    it('exposes only version-compatible catalogs on the new surface', () => {
+      const v09 = new Catalog<ComponentApi>('cat-0-9', '0.9', []);
+      const alsoV09 = new Catalog<ComponentApi>('cat-0-9-b', '0.9', []);
+      const v10 = new Catalog<ComponentApi>('cat-1-0', '1.0', []);
+      const proc = new MessageProcessor<ComponentApi>([v09, alsoV09, v10]);
+
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-0-9'},
+      });
+
+      const surface = proc.model.getSurface('s1')!;
+      assert.strictEqual(surface.defaultCatalog, v09);
+      assert.deepStrictEqual([...surface.availableCatalogs.keys()].sort(), [
+        'cat-0-9',
+        'cat-0-9-b',
+      ]);
+    });
+
+    it('throws when duplicate surface created', () => {
+      processor.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
+      });
+
+      assert.throws(() => {
+        processor.processMessages({
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
+        });
+      }, /Surface s1 already exists/);
+    });
+
+    it('throws when updating non-existent surface', () => {
+      assert.throws(() => {
+        processor.processMessages({
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'unknown-s',
+            components: [{id: 'root', component: 'Column'}],
+          },
+        });
+      }, /Surface not found for message: unknown-s/);
+    });
+
+    it('throws when component is missing id', () => {
+      processor.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
+      });
+      assert.throws(() => {
+        processor.processMessages({
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{component: 'Button'} as any],
+          },
+        });
+      }, /missing an 'id'/);
+    });
+
+    it('processes updateDataModel message at root and specific JSON pointer paths', () => {
+      const processor = new MessageProcessor<ComponentApi>([
+        new Catalog('test-catalog', '1.0', []),
+      ]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
+      });
+
+      processor.processMessages({
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 's1',
+          path: '/user/profile',
+          value: {name: 'Bob', age: 30},
+        },
+      });
+
+      const surface = processor.getSurface('s1');
+      assert.strictEqual(surface?.dataModel.get('/user/profile/name'), 'Bob');
+
+      processor.processMessages({
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 's1',
+          value: {rootKey: 'rootValue'},
+        },
+      });
+      assert.strictEqual(surface?.dataModel.get('/rootKey'), 'rootValue');
+    });
+
+    it('throws A2uiStateError when updateDataModel targets non-existent surface', () => {
+      assert.throws(() => {
+        processor.processMessages({
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'non_existent',
+            path: '/key',
+            value: 'val',
+          },
+        });
+      }, /Surface not found for message: non_existent/);
+    });
+
+    it('directly processes InternalOperation objects passed to processMessages', () => {
+      processor.processMessages({
+        type: 'createSurface',
+        surfaceId: 's_direct',
+        catalogId: 'test-catalog',
+        dataModel: {foo: 'bar'},
+      });
+
+      assert.ok(processor.getSurface('s_direct'));
+      assert.strictEqual(processor.getSurface('s_direct')?.dataModel.get('/foo'), 'bar');
+    });
+
+    it('treats createSurface data model keys as literal property names', () => {
+      // A key is a property name, not a JSON Pointer fragment. Building a
+      // pointer per key would read 'a/b' as a nested path and '~' as the
+      // start of an escape.
+      const processor = new MessageProcessor<ComponentApi>([
+        new Catalog('test-catalog', '1.0', []),
+      ]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_literal',
+          catalogId: 'test-catalog',
+          dataModel: {'a/b': 'slash', 'c~d': 'tilde', 'plain': 'value'},
+        },
+      });
+
+      const surface = processor.getSurface('s_literal');
+      assert.strictEqual(surface?.dataModel.get('/a~1b'), 'slash');
+      assert.strictEqual(surface?.dataModel.get('/c~0d'), 'tilde');
+      assert.strictEqual(surface?.dataModel.get('/plain'), 'value');
+      // The slash must not have produced a nested object.
+      assert.strictEqual(surface?.dataModel.get('/a'), undefined);
+    });
+  });
+
+  describe('formatZodIssue and error formatting', () => {
+    it('formats unrecognized keys with exact property names', () => {
+      const issue: any = {
+        code: 'unrecognized_keys',
+        keys: ['color', 'gap'],
+        path: ['header'],
+        message: 'Unrecognized key(s) in object: color, gap',
+      };
+      assert.strictEqual(
+        formatZodIssue(issue),
+        "header: Unrecognized key(s) in object: 'color', 'gap'",
+      );
+    });
+
+    it('formats unrecognized keys at root level', () => {
+      const issue: any = {
+        code: 'unrecognized_keys',
+        keys: ['color'],
+        path: [],
+        message: 'Expected undefined, received undefined',
+      };
+      assert.strictEqual(formatZodIssue(issue), "root: Unrecognized key(s) in object: 'color'");
+    });
+
+    it('formats invalid enum values', () => {
+      const issue: any = {
+        code: 'invalid_enum_value',
+        options: ['primary', 'secondary'],
+        received: 'invalid',
+        path: ['variant'],
+        message: 'Invalid enum value',
+      };
+      assert.strictEqual(
+        formatZodIssue(issue),
+        "variant: Invalid enum value. Expected primary | secondary, received 'invalid'",
+      );
+    });
+
+    it('falls back to expected/received when message is corrupted with undefined', () => {
+      const issue: any = {
+        code: 'invalid_type',
+        expected: 'string',
+        received: 'number',
+        path: ['label'],
+        message: 'Expected undefined, received undefined',
+      };
+      assert.strictEqual(formatZodIssue(issue), 'label: Expected string, received number');
+    });
+
+    it('surfaces unrecognized property validation error when processing component updates', () => {
+      const strictButtonApi: ComponentApi = {
+        name: 'MaterialButton',
+        schema: z
+          .object({
+            label: z.string(),
+          })
+          .strict(),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-m3', '0.9', [strictButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-m3'},
+        },
+      ]);
+
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's1',
+                components: [
+                  {
+                    id: 'btn1',
+                    component: 'MaterialButton',
+                    label: 'Submit',
+                    color: 'primary',
+                  } as any,
+                ],
+              },
+            },
+          ]);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(
+            err.message,
+            "Validation failed for component 'MaterialButton' (btn1): root: Unrecognized key(s) in object: 'color'",
+          );
+          return true;
+        },
+      );
+    });
+  });
+
+  describe('ValidationConfig', () => {
+    it('enforces targetVersion matching when configured', () => {
+      const proc = new MessageProcessor([new Catalog('cat-test', '1.0', [])], undefined, {
+        validationConfig: {targetVersion: 'v1.0'},
+      });
+
+      // Matching version passes
+      assert.doesNotThrow(() => {
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-test'},
+        });
+      });
+
+      // Non-matching version throws
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v0.9',
+            deleteSurface: {surfaceId: 's1'},
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes(
+              "Message version 'v0.9' does not match expected target version 'v1.0'",
+            ),
+          );
+          return true;
+        },
+      );
+    });
+
+    it('enforces allowedMessages filter when configured', () => {
+      const proc = new MessageProcessor([new Catalog('cat-test', '1.0', [])], undefined, {
+        validationConfig: {allowedMessages: ['createSurface', 'updateComponents']},
+      });
+
+      assert.doesNotThrow(() => {
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-test'},
+        });
+      });
+
+      // Disallowed operation throws
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v1.0',
+            deleteSurface: {surfaceId: 's1'},
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Operation 'deleteSurface' is not permitted"));
+          return true;
+        },
+      );
+    });
+
+    it('validates themeSchema when validationConfig is active', () => {
+      const themeCatalog = new Catalog(
+        'cat-theme',
+        '0.9',
+        [],
+        undefined,
+        z.object({primaryColor: z.string()}),
+      );
+      const proc = new MessageProcessor([themeCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v0.9',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'cat-theme',
+              theme: {primaryColor: 123},
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Validation failed for theme on surface 's1'"));
+          return true;
+        },
+      );
+    });
+
+    it('validates surface theme against the basic catalog themeSchema', () => {
+      const themedCatalog = new Catalog('themed-cat', '0.9', [], [], BasicCatalogThemeSchema);
+      const proc = new MessageProcessor([themedCatalog], undefined, {
+        validationConfig: THEME_ONLY_VALIDATION,
+      });
+
+      // Valid: 6-char hex, 3-char hex, 8-char hex (with alpha), named and functional colors.
+      const validColors = {
+        '6char': '#00BFFF',
+        '3char': '#17e',
+        '8char': '#00BFFF80',
+        'named': 'red',
+        'rgb': 'rgb(255, 0, 0)',
+        'hsl': 'hsl(120, 100%, 50%)',
+      };
+      for (const [label, primaryColor] of Object.entries(validColors)) {
+        proc.processMessages({
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: `valid-${label}`,
+            catalogId: 'themed-cat',
+            theme:
+              label === '6char'
+                ? {primaryColor, agentDisplayName: 'Test Agent', customExtra: 'passthrough'}
+                : {primaryColor},
+          },
+        });
+        const surface = proc.model.getSurface(`valid-${label}`);
+        assert.ok(surface, `expected surface for ${label}`);
+        assert.strictEqual(surface.theme?.primaryColor, primaryColor);
+      }
+      assert.strictEqual(
+        proc.model.getSurface('valid-6char')?.theme?.agentDisplayName,
+        'Test Agent',
+      );
+
+      // Invalid: malformed hex, non-colors, and CSS injection attempts.
+      const invalidColors = [
+        'url(https://attacker.example/beacon)',
+        '#12',
+        '#12345',
+        '#1234567',
+        '#gggggg',
+        'not-a-color',
+        'red; url(x)',
+        123,
+      ];
+      for (const primaryColor of invalidColors) {
+        const surfaceId = `invalid-${String(primaryColor)}`;
+        assert.throws(
+          () => {
+            proc.processMessages({
+              version: 'v0.9',
+              createSurface: {surfaceId, catalogId: 'themed-cat', theme: {primaryColor}},
+            });
+          },
+          (err: any) => {
+            assert.ok(err instanceof A2uiValidationError);
+            assert.ok(
+              err.message.includes(`Validation failed for theme on surface '${surfaceId}'`),
+            );
+            return true;
+          },
+          `expected ${String(primaryColor)} to be rejected`,
+        );
+        assert.strictEqual(proc.model.getSurface(surfaceId), undefined);
+      }
+    });
+
+    it('applies themeSchema transforms and defaults to the stored theme', () => {
+      const transformSchema = z.object({
+        primaryColor: z.string().transform(c => c.toUpperCase()),
+        defaultedField: z.string().default('default-val'),
+      });
+      const proc = new MessageProcessor(
+        [new Catalog('transform-cat', '0.9', [], [], transformSchema)],
+        undefined,
+        {
+          validationConfig: THEME_ONLY_VALIDATION,
+        },
+      );
+
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'transform-surface',
+          catalogId: 'transform-cat',
+          theme: {primaryColor: '#abcdef'},
+        },
+      });
+
+      const surface = proc.model.getSurface('transform-surface');
+      assert.ok(surface);
+      assert.strictEqual(surface.theme?.primaryColor, '#ABCDEF');
+      assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
+    });
+
+    it('enforces allowUnknownElements: false by rejecting unregistered components', () => {
+      const proc = new MessageProcessor([new Catalog('cat-strict', '1.0', [])], undefined, {
+        validationConfig: {allowUnknownElements: false, allowMissingRoot: true},
+      });
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-strict'},
+      });
+
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'c1', component: 'UnregisteredWidget'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes(
+              "Unknown component type 'UnregisteredWidget' not found in catalog 'cat-strict'",
+            ),
+          );
+          return true;
+        },
+      );
+    });
+
+    it('permits unregistered components when allowUnknownElements is true', () => {
+      const proc = new MessageProcessor([new Catalog('cat-loose', '1.0', [])], undefined, {
+        validationConfig: {allowUnknownElements: true, allowMissingRoot: true},
+      });
+
+      assert.doesNotThrow(() => {
+        proc.processMessages([
+          {
+            version: 'v1.0',
+            createSurface: {surfaceId: 's1', catalogId: 'cat-loose'},
+          },
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'c1', component: 'UnregisteredWidget'}],
+            },
+          },
+        ]);
+      });
+    });
+
+    it('enforces allowMissingRoot constraint', () => {
+      const compApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({}),
+      };
+      const cat = new Catalog('cat-root', '1.0', [compApi]);
+
+      // allowMissingRoot: false throws when no root component exists
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowMissingRoot: false},
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-root'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'leaf1', component: 'Card'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes('Missing root component'));
+          return true;
+        },
+      );
+
+      // allowMissingRoot: true passes when no root component exists
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowMissingRoot: true},
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-root'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [{id: 'leaf1', component: 'Card'}],
+          },
+        });
+      });
+    });
+
+    it('enforces allowDanglingReferences constraint', () => {
+      const containerApi: ComponentApi = {
+        name: 'Container',
+        schema: z.object({child: z.string().describe('REF:common_types.json#/$defs/ComponentId')}),
+      };
+      const cat = new Catalog('cat-refs', '1.0', [containerApi]);
+
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowDanglingReferences: false},
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-refs'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'root', component: 'Container', child: 'nonexistent-child'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes("Dangling reference 'nonexistent-child' in component 'root'"),
+          );
+          return true;
+        },
+      );
+
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowDanglingReferences: true, allowOrphanComponents: true},
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-refs'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [{id: 'root', component: 'Container', child: 'nonexistent-child'}],
+          },
+        });
+      });
+    });
+
+    it('enforces allowOrphanComponents constraint', () => {
+      const compApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({}),
+      };
+      const cat = new Catalog('cat-orphans', '1.0', [compApi]);
+
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowOrphanComponents: false},
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-orphans'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [
+                {id: 'root', component: 'Card'},
+                {id: 'orphan1', component: 'Card'},
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes('orphan1'));
+          assert.ok(err.message.includes('not reachable'));
+          return true;
+        },
+      );
+
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowOrphanComponents: true},
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-orphans'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [
+              {id: 'root', component: 'Card'},
+              {id: 'orphan1', component: 'Card'},
+            ],
+          },
+        });
+      });
+    });
+
+    it('uses STRICT_VALIDATION and RELAXED_VALIDATION presets', () => {
+      const compApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({}),
+      };
+      const cat = new Catalog('cat-preset', '1.0', [compApi]);
+
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-preset'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'orphan', component: 'Card'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          return true;
+        },
+      );
+
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: RELAXED_VALIDATION,
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-preset'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [{id: 'orphan', component: 'Card'}],
+          },
+        });
+      });
+    });
+  });
+
+  describe('Mixed Catalogs Support', () => {
+    const basicCat: Catalog<ComponentApi> = new Catalog('cat-basic', '1.0', [
+      {
+        name: 'Box',
+        schema: z.object({child: z.string().describe('ChildComponentId').optional()}),
+      },
+      {
+        name: 'Text',
+        schema: z.object({text: z.string()}),
+      },
+    ]);
+
+    const customCat: Catalog<ComponentApi> = new Catalog('cat-custom', '1.0', [
+      {
+        name: 'CustomCard',
+        schema: z.object({
+          title: z.string(),
+          contentSlot: z.string().describe('ChildComponentId'),
+        }),
+      },
+      {
+        name: 'CustomButton',
+        schema: z.object({
+          actionName: z.string(),
+          variant: z.enum(['primary', 'secondary']),
+        }),
+      },
+    ]);
+
+    it('processes and validates components from multiple catalogs on a single surface', () => {
+      const processor = new MessageProcessor([basicCat, customCat]);
+
+      // Create surface with basicCat as default
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      // Send components from both cat-basic and cat-custom
+      processor.processMessages({
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'surface-1',
+          components: [
+            {
+              id: 'root',
+              component: 'CustomCard',
+              catalogId: 'cat-custom',
+              title: 'Dashboard',
+              contentSlot: 'btn1',
+            },
+            {
+              id: 'btn1',
+              component: 'CustomButton',
+              catalogId: 'cat-custom',
+              actionName: 'submit',
+              variant: 'primary',
+            },
+            {
+              id: 'status',
+              component: 'Text',
+              text: 'Active',
+            },
+          ],
+        },
+      });
+
+      const surface = processor.getSurface('surface-1');
+      assert.ok(surface);
+
+      const rootComp = surface?.componentsModel.get('root');
+      assert.strictEqual(rootComp?.type, 'CustomCard');
+      assert.strictEqual(rootComp?.catalog?.id, 'cat-custom');
+
+      const btnComp = surface?.componentsModel.get('btn1');
+      assert.strictEqual(btnComp?.type, 'CustomButton');
+      assert.strictEqual(btnComp?.catalog?.id, 'cat-custom');
+
+      const statusComp = surface?.componentsModel.get('status');
+      assert.strictEqual(statusComp?.type, 'Text');
+      assert.strictEqual(statusComp?.catalog?.id, 'cat-basic');
+    });
+
+    it('fails schema validation if custom component properties are invalid against custom catalog', () => {
+      const processor = new MessageProcessor([basicCat, customCat]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      assert.throws(
+        () => {
+          processor.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'surface-1',
+              components: [
+                {
+                  id: 'btn1',
+                  component: 'CustomButton',
+                  catalogId: 'cat-custom',
+                  actionName: 'submit',
+                  variant: 'invalid-variant',
+                },
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Validation failed for component 'CustomButton'"));
+          return true;
+        },
+      );
+    });
+
+    it('fails when component references an unknown catalogId', () => {
+      const processor = new MessageProcessor([basicCat, customCat]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      assert.throws(
+        () => {
+          processor.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'surface-1',
+              components: [
+                {
+                  id: 'c1',
+                  component: 'CustomCard',
+                  catalogId: 'non-existent-catalog',
+                },
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Unknown catalog ID 'non-existent-catalog'"));
+          return true;
+        },
+      );
+    });
+
+    it('fails when component references a catalog with incompatible specification version', () => {
+      const surfaceCatalog = new Catalog('cat-v1', '1.0', [
+        {name: 'RootBox', schema: z.object({})},
+      ]);
+      const incompatCatalog = new Catalog('cat-v08', '0.8', [
+        {name: 'OldCard', schema: z.object({})},
+      ]);
+      const processor = new MessageProcessor([surfaceCatalog, incompatCatalog]);
+
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-v1'},
+      });
+
+      assert.throws(
+        () => {
+          processor.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'surface-1',
+              components: [
+                {
+                  id: 'c1',
+                  component: 'OldCard',
+                  catalogId: 'cat-v08',
+                },
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes(
+              "catalog 'cat-v08' specification version (0.8) does not match surface default catalog version (1.0)",
+            ),
+          );
+          return true;
+        },
+      );
+    });
+
+    it('resolves callRendererFunction against a secondary catalog in availableCatalogs', async () => {
+      const fnCatalog = new Catalog(
+        'cat-fn',
+        '1.0',
+        [],
+        [
+          {
+            name: 'computeGreeting',
+            returnType: 'string',
+            allowedCallers: 'rendererOrAgent',
+            schema: z.object({user: z.string()}),
+            execute: args => `Hi ${args.user}`,
+          },
+        ],
+      );
+      const processor = new MessageProcessor([basicCat, fnCatalog]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      const responses = await processor.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-1',
+          callFunction: {
+            call: 'computeGreeting',
+            catalogId: 'cat-fn',
+            args: {user: 'Alice'},
+          },
+        },
+      });
+
+      assert.strictEqual(responses.length, 1);
+      assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Hi Alice');
+    });
+  });
+
+  describe('MessageProcessor Full Pipeline & Validation Integration', () => {
+    const basicCatalog = new Catalog('https://a2ui.org/catalog', '1.0', BASIC_COMPONENTS);
+
+    it('validates a valid message envelope stream', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      const payload: ProcessableMessagePayload = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'main',
+            catalogId: 'https://a2ui.org/catalog',
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'main',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                children: ['c1'],
+              },
+              {
+                id: 'c1',
+                component: 'Text',
+                text: 'Hello World',
+              },
+            ],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => proc.processMessages(payload));
+      assert.ok(proc.getSurface('main'));
+      assert.strictEqual(proc.getSurface('main')?.componentsModel.size, 2);
+    });
+
+    it('validates inline components inside createSurface for v1.0', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      const payload: ProcessableMessagePayload = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'main',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['c1'],
+            },
+            {
+              id: 'c1',
+              component: 'Text',
+              text: 'Inline text',
+            },
+          ],
+        },
+      };
+
+      assert.doesNotThrow(() => proc.processMessages(payload));
+      assert.ok(proc.getSurface('main'));
+      assert.strictEqual(proc.getSurface('main')?.componentsModel.size, 2);
+    });
+
+    it('respects relaxed validation config for dangling references & orphans', () => {
+      const strictProc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      const relaxedProc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: RELAXED_VALIDATION,
+      });
+
+      const orphanPayload: ProcessableMessagePayload = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'https://a2ui.org/catalog',
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: ['c1']},
+              {id: 'c1', component: 'Text', text: 'Child'},
+              {id: 'orphan', component: 'Text', text: 'Unused'},
+            ],
+          },
+        },
+      ];
+
+      assert.throws(
+        () => strictProc.processMessages(orphanPayload),
+        (err: any) => err instanceof A2uiIntegrityError && err.message.includes('not reachable'),
+      );
+
+      assert.doesNotThrow(() => relaxedProc.processMessages(orphanPayload));
+      assert.ok(relaxedProc.getSurface('s1'));
+      assert.strictEqual(relaxedProc.getSurface('s1')?.componentsModel.size, 3);
+    });
+
+    it('validates components split across multiple stream messages', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'https://a2ui.org/catalog',
+        },
+      });
+
+      // Split across multiple update messages in relaxed intermediate or batched update
+      const splitPayload: ProcessableMessagePayload = [
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: ['c1']},
+              {id: 'c1', component: 'Text', text: 'Child in first message'},
+            ],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'c1', component: 'Text', text: 'Child updated in second message'}],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => proc.processMessages(splitPayload));
+      assert.strictEqual(
+        proc.getSurface('s1')?.componentsModel.get('c1')?.properties.text,
+        'Child updated in second message',
+      );
+    });
+
+    it('validates v0.9 envelope messages with version adapter', () => {
+      const v09Catalog = new Catalog('basic', '0.9', BASIC_COMPONENTS);
+      const proc = new MessageProcessor([v09Catalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      const v09Payload: ProcessableMessagePayload = [
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'basic',
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Card', child: 'txt'},
+              {id: 'txt', component: 'Text', text: 'Hello v0.9'},
+            ],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => proc.processMessages(v09Payload));
+      assert.ok(proc.getSurface('s1'));
+      assert.strictEqual(proc.getSurface('s1')?.componentsModel.size, 2);
+    });
+
+    it('enforces recursion depth limit (>50) and path syntax in processMessages', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // Build payload exceeding recursion depth 50
+      let nested: any = {leaf: 'val'};
+      for (let i = 0; i < 52; i++) {
+        nested = {layer: nested};
+      }
+
+      const recursivePayload: ProcessableMessagePayload = {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 's_deep',
+          catalogId: 'https://a2ui.org/catalog',
+          theme: nested,
+        },
+      };
+
+      assert.throws(
+        () => proc.processMessages(recursivePayload),
+        (err: any) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+    });
+
+    it('processes and validates multi-surface payloads across mixed catalogs', () => {
+      const catalogA = new Catalog('cat-a', '1.0', [
+        {
+          name: 'BoxA',
+          schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
+        },
+      ]);
+      const catalogB = new Catalog('cat-b', '1.0', [
+        {
+          name: 'BoxB',
+          schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
+        },
+        {
+          name: 'LeafB',
+          schema: z.object({text: z.string()}),
+        },
+      ]);
+
+      const proc = new MessageProcessor([catalogA, catalogB], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      const components = [
+        {id: 'root', component: 'BoxA', catalogId: 'cat-a', childSlot: 'node_b'},
+        {id: 'node_b', component: 'BoxB', catalogId: 'cat-b', contentSlot: 'leaf_b'},
+        {id: 'leaf_b', component: 'LeafB', catalogId: 'cat-b', text: 'Hello'},
+      ];
+
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'multi-surf',
+            catalogId: 'cat-a',
+            components,
+          },
+        }),
+      );
+
+      assert.ok(proc.getSurface('multi-surf'));
+      assert.strictEqual(proc.getSurface('multi-surf')?.componentsModel.size, 3);
+    });
+
+    it('validates full component properties on updates', () => {
+      const counterCatalog = new Catalog('counter-cat', '1.0', [
+        {
+          name: 'Counter',
+          schema: z.object({
+            label: z.string(),
+            count: z.number().min(0),
+          }),
+        },
+      ]);
+      const proc = new MessageProcessor([counterCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial creation
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_delta',
+          catalogId: 'counter-cat',
+          components: [{id: 'root', component: 'Counter', label: 'Score', count: 5}],
+        },
+      });
+
+      // 2. Full component update with new values
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's_delta',
+            components: [{id: 'root', component: 'Counter', label: 'Updated Score', count: 10}],
+          },
+        }),
+      );
+      assert.strictEqual(
+        proc.getSurface('s_delta')?.componentsModel.get('root')?.properties.count,
+        10,
+      );
+      assert.strictEqual(
+        proc.getSurface('s_delta')?.componentsModel.get('root')?.properties.label,
+        'Updated Score',
+      );
+
+      // 3. Update missing required field 'label' fails schema validation
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_delta',
+              components: [{id: 'root', component: 'Counter', count: 15}],
+            },
+          }),
+        (err: any) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes("Validation failed for component 'Counter'"),
+      );
+
+      // 4. Update with invalid count (< 0) fails schema validation
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_delta',
+              components: [{id: 'root', component: 'Counter', label: 'Score', count: -1}],
+            },
+          }),
+        (err: any) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes("Validation failed for component 'Counter'"),
+      );
+    });
+
+    it('replaces component properties on update so omitted properties are removed', () => {
+      const cardCatalog = new Catalog('card-cat', '1.0', [
+        {
+          name: 'Card',
+          schema: z.object({
+            title: z.string(),
+            subtitle: z.string().optional(),
+            child: z.string().describe('ChildComponentId'),
+          }),
+        },
+        {
+          name: 'Text',
+          schema: z.object({text: z.string()}),
+        },
+      ]);
+      const proc = new MessageProcessor([cardCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial creation
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_card',
+          catalogId: 'card-cat',
+          components: [
+            {
+              id: 'root',
+              component: 'Card',
+              title: 'Initial Title',
+              subtitle: 'Initial Subtitle',
+              child: 'txt',
+            },
+            {id: 'txt', component: 'Text', text: 'Hello'},
+          ],
+        },
+      });
+
+      let rootComp = proc.getSurface('s_card')?.componentsModel.get('root');
+      assert.strictEqual(rootComp?.properties.title, 'Initial Title');
+      assert.strictEqual(rootComp?.properties.subtitle, 'Initial Subtitle');
+
+      // 2. Update providing replacement Card definition with new title, omitting subtitle
+      proc.processMessages({
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 's_card',
+          components: [{id: 'root', component: 'Card', title: 'New Title', child: 'txt'}],
+        },
+      });
+
+      rootComp = proc.getSurface('s_card')?.componentsModel.get('root');
+      assert.strictEqual(rootComp?.properties.title, 'New Title');
+      assert.strictEqual(rootComp?.properties.subtitle, undefined); // Omitted property was removed
+      assert.strictEqual(rootComp?.properties.child, 'txt');
+
+      // 3. Update missing required schema field (child) throws validation error
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_card',
+              components: [{id: 'root', component: 'Card', title: 'Incomplete'}],
+            },
+          }),
+        /Validation failed for component 'Card'/,
+      );
+    });
+
+    it('preserves container child relationships in composition constraint validation during updates', () => {
+      const constraintCatalog = new Catalog('constraint-cat', '1.0', [
+        {
+          name: 'StrictParent',
+          schema: z.object({
+            title: z.string().optional(),
+            children: z.array(z.string()).describe('ChildList'),
+          }),
+        },
+        {
+          name: 'RestrictedChild',
+          schema: z.object({text: z.string()}),
+          allowedParents: ['StrictParent'],
+        },
+      ]);
+      const proc = new MessageProcessor([constraintCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial surface creation with StrictParent and RestrictedChild
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_constr',
+          catalogId: 'constraint-cat',
+          components: [
+            {id: 'root', component: 'StrictParent', children: ['c1']},
+            {id: 'c1', component: 'RestrictedChild', text: 'Allowed'},
+          ],
+        },
+      });
+
+      // 2. Update modifying title on StrictParent while keeping children intact
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's_constr',
+            components: [
+              {id: 'root', component: 'StrictParent', title: 'Updated Title', children: ['c1']},
+            ],
+          },
+        }),
+      );
+    });
+
+    it('does not treat non-reference string properties matching child component IDs as child references', () => {
+      const constraintCatalog = new Catalog('constraint-cat-2', '1.0', [
+        {
+          name: 'RootContainer',
+          schema: z.object({
+            children: z.array(z.string()).describe('ChildList'),
+          }),
+        },
+        {
+          name: 'AllowedParent',
+          schema: z.object({
+            child: z.string().describe('Child'),
+          }),
+          allowedParents: ['RootContainer'],
+        },
+        {
+          name: 'RestrictedChild',
+          schema: z.object({text: z.string()}),
+          allowedParents: ['AllowedParent'],
+        },
+        {
+          name: 'TextDisplay',
+          schema: z.object({text: z.string()}),
+          allowedParents: ['RootContainer'],
+        },
+      ]);
+      const proc = new MessageProcessor([constraintCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // TextDisplay has text: 'rc1', which matches RestrictedChild's ID 'rc1'.
+      // Because 'text' is not a schema reference property, TextDisplay must NOT be treated as a parent of rc1.
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's_text_test',
+            catalogId: 'constraint-cat-2',
+            components: [
+              {id: 'root', component: 'RootContainer', children: ['ap1', 'td1']},
+              {id: 'ap1', component: 'AllowedParent', child: 'rc1'},
+              {id: 'rc1', component: 'RestrictedChild', text: 'Hello'},
+              {id: 'td1', component: 'TextDisplay', text: 'rc1'},
+            ],
+          },
+        }),
+      );
+    });
+
+    it('leaves componentsModel untouched when updateComponents fails topology validation', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial valid surface
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_atomic',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [
+            {id: 'root', component: 'Column', children: ['c1']},
+            {id: 'c1', component: 'Text', text: 'Initial Child'},
+          ],
+        },
+      });
+
+      const surface = proc.getSurface('s_atomic')!;
+      assert.strictEqual(surface.componentsModel.size, 2);
+
+      // Track whether any update/create events are fired
+      let eventFired = false;
+      surface.componentsModel.onCreated.subscribe(() => {
+        eventFired = true;
+      });
+
+      // 2. Send update that introduces an orphan component (failing topology validation)
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_atomic',
+              components: [
+                {id: 'root', component: 'Column', children: ['c1']},
+                {id: 'c1', component: 'Text', text: 'Updated Child'},
+                {id: 'orphan_comp', component: 'Text', text: 'Unreachable'},
+              ],
+            },
+          }),
+        (err: any) => err instanceof A2uiIntegrityError && err.message.includes('not reachable'),
+      );
+
+      // 3. Verify that componentsModel was NOT mutated and no events fired
+      assert.strictEqual(surface.componentsModel.size, 2);
+      assert.strictEqual(surface.componentsModel.has('orphan_comp'), false);
+      assert.strictEqual(
+        surface.componentsModel.get('c1')?.properties.text,
+        'Initial Child', // Not updated to 'Updated Child'
+      );
+      assert.strictEqual(eventFired, false);
+    });
+
+    it('leaves componentsModel untouched when updateComponents introduces a circular reference', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_cycle',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [
+            {id: 'root', component: 'Column', children: ['c1']},
+            {id: 'c1', component: 'Text', text: 'Child'},
+          ],
+        },
+      });
+
+      const surface = proc.getSurface('s_cycle')!;
+
+      // Attempt to create a cycle (c1 -> c2 -> c1)
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_cycle',
+              components: [
+                {id: 'root', component: 'Column', children: ['c1']},
+                {id: 'c1', component: 'Column', children: ['c2']},
+                {id: 'c2', component: 'Column', children: ['c1']},
+              ],
+            },
+          }),
+        (err: any) =>
+          err instanceof A2uiRecursionError && err.message.includes('Circular reference'),
+      );
+
+      // Verify that componentsModel remains in the pre-update state
+      assert.strictEqual(surface.componentsModel.size, 2);
+      assert.strictEqual(surface.componentsModel.has('c2'), false);
+      assert.strictEqual(surface.componentsModel.get('c1')?.type, 'Text');
+    });
+
+    it('leaves componentsModel untouched when updateComponents contains a valid component followed by an untyped new component', () => {
+      const proc = new MessageProcessor([basicCatalog]);
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_untyped',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [{id: 'root', component: 'Text', text: 'Initial'}],
+        },
+      });
+
+      const surface = proc.getSurface('s_untyped')!;
+
+      // Batch contains valid update to 'root' followed by an invalid new component 'new_comp' without type
+      assert.throws(
+        () =>
+          proc.processOperation({
+            type: 'updateComponents',
+            surfaceId: 's_untyped',
+            components: [
+              {id: 'root', component: 'Text', text: 'Updated Text'},
+              {id: 'new_comp', text: 'Missing component field'},
+            ],
+          }),
+        (err: any) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes('Cannot create component new_comp without a type'),
+      );
+
+      // Verify that 'root' was NOT mutated
+      assert.strictEqual(surface.componentsModel.get('root')?.properties.text, 'Initial');
+      assert.strictEqual(surface.componentsModel.has('new_comp'), false);
+    });
+
+    it('handles empty message array without throwing or processing', () => {
+      const proc = new MessageProcessor([basicCatalog]);
+      assert.doesNotThrow(() => proc.processMessages([]));
+      assert.strictEqual(proc.getSurfaces().size, 0);
+    });
+
+    it('allows partial streaming component updates before parent container arrives', () => {
+      const cardComp: ComponentApi = {
+        name: 'Card',
+        allowedParents: ['Surface'],
+        allowedChildren: ['Button'],
+        schema: z.object({
+          child: z.string().describe('REF:common_types.json#/$defs/ComponentId'),
+        }),
+      };
+      const buttonComp: ComponentApi = {
+        name: 'Button',
+        allowedParents: ['Card'],
+        schema: z.object({
+          label: z.string(),
+        }),
+      };
+
+      const customCat = new Catalog('custom-stream', '1.0', [cardComp, buttonComp]);
+      const proc = new MessageProcessor([customCat], undefined, {
+        validationConfig: {allowOrphanComponents: true, allowMissingRoot: true},
+      });
+
+      // Stream child Button first before Card arrives
+      assert.doesNotThrow(() =>
+        proc.processMessages([
+          {
+            version: 'v1.0',
+            createSurface: {
+              surfaceId: 'stream-surface',
+              catalogId: 'custom-stream',
+            },
+          },
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'stream-surface',
+              components: [{id: 'b1', component: 'Button', label: 'Click'}],
+            },
+          },
+        ]),
+      );
+
+      // Now attach root Card containing Button
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'stream-surface',
+            components: [{id: 'root', component: 'Card', child: 'b1'}],
+          },
+        }),
+      );
+
+      const surface = proc.getSurface('stream-surface');
+      assert.ok(surface);
+      assert.strictEqual(surface.componentsModel.size, 2);
+    });
+  });
+  describe('MessageProcessor Bidirectional RPC & Asynchronous Pipeline', () => {
+    const rpcApi = {
+      name: 'echoFunction',
+      returnType: 'string' as const,
+      schema: z.object({text: z.string()}),
+      allowedCallers: 'rendererOrAgent' as const,
+    };
+    const rpcImpl = createFunctionImplementation(rpcApi, (args: any) => `Echo: ${args.text}`);
+
+    const secureApi = {
+      name: 'secureAction',
+      returnType: 'boolean' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      requiresUserActivation: true,
+    };
+    const secureImpl = createFunctionImplementation(secureApi, () => true);
+
+    const rpcCatalog = new Catalog('rpc-cat', '1.0', [], [rpcImpl, secureImpl]);
+
+    it('processes callRendererFunction via processMessagesAsync and returns response', async () => {
+      const proc = new MessageProcessor([rpcCatalog]);
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
+      });
+
+      const responses = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-call-1',
+          callFunction: {
+            call: 'echoFunction',
+            catalogId: 'rpc-cat',
+            args: {text: 'World'},
+          },
+        },
+      });
+
+      assert.strictEqual(responses.length, 1);
+      assert.strictEqual(responses[0].rendererFunctionResponse.functionCallId, 'rpc-call-1');
+      assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Echo: World');
+      assert.strictEqual(responses[0].rendererFunctionResponse.error, undefined);
+    });
+
+    it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
+      const proc = new MessageProcessor([rpcCatalog]);
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
+      });
+
+      // Without user activation
+      const unauthResponses = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-call-2',
+          callFunction: {
+            call: 'secureAction',
+            catalogId: 'rpc-cat',
+            args: {},
+          },
+        },
+      });
+
+      assert.strictEqual(unauthResponses.length, 1);
+      assert.strictEqual(
+        unauthResponses[0].rendererFunctionResponse.error?.code,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
+
+      // With user activation
+      const authResponses = await proc.processMessagesAsync(
+        {
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'rpc-call-3',
+            callFunction: {
+              call: 'secureAction',
+              catalogId: 'rpc-cat',
+              args: {},
+            },
+          },
+        },
+        {isUserActivated: true},
+      );
+
+      assert.strictEqual(authResponses.length, 1);
+      assert.strictEqual(authResponses[0].rendererFunctionResponse.value, true);
+    });
+
+    it('initiates callAgentFunction and resolves via inbound agentFunctionResponse in processMessages', async () => {
+      let emittedMessage: any;
+      const proc = new MessageProcessor([rpcCatalog], undefined, {
+        outboundListener: msg => {
+          emittedMessage = msg;
+        },
+      });
+
+      const callPromise = proc.callAgentFunction('s1', {
+        call: 'fetchAgentData',
+        catalogId: 'rpc-cat',
+        args: {id: '42'},
+      });
+
+      assert.ok(emittedMessage);
+      assert.strictEqual(emittedMessage.callAgentFunction.surfaceId, 's1');
+      assert.strictEqual(emittedMessage.callAgentFunction.callFunction.call, 'fetchAgentData');
+      const callId = emittedMessage.callAgentFunction.functionCallId;
+
+      // Inbound response processed through standard message processing pipeline
+      proc.processMessages({
+        version: 'v1.0',
+        agentFunctionResponse: {
+          functionCallId: callId,
+          value: {data: 'Agent Result'},
+        },
+      });
+
+      const result = await callPromise;
+      assert.deepStrictEqual(result, {data: 'Agent Result'});
+    });
+
+    it('rejects pending callAgentFunction on processor disposal', async () => {
+      const proc = new MessageProcessor([rpcCatalog], undefined, {
+        outboundListener: () => {},
+      });
+
+      const callPromise = proc.callAgentFunction('s1', {
+        call: 'fetchData',
+      });
+
+      proc.dispose();
+
+      await assert.rejects(callPromise, (err: any) => {
+        assert.strictEqual(err.code, RpcErrorCode.CANCELLED);
+        return true;
+      });
+    });
+
+    it('executes callRendererFunction in synchronous processMessages and emits to outboundListener', async () => {
+      let emittedResponse: any;
+      const proc = new MessageProcessor([rpcCatalog], undefined, {
+        outboundListener: msg => {
+          emittedResponse = msg;
+        },
+      });
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
+      });
+
+      // Fire-and-forget callRendererFunction in synchronous pipeline
+      proc.processMessages({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-sync-1',
+          callFunction: {
+            call: 'echoFunction',
+            catalogId: 'rpc-cat',
+            args: {text: 'SyncTest'},
+          },
+        },
+      });
+
+      // Give the asynchronous promise chain a tick to complete
+      await new Promise(resolve => setTimeout(resolve, 10));
+      assert.ok(emittedResponse);
+      assert.strictEqual(emittedResponse.rendererFunctionResponse.functionCallId, 'rpc-sync-1');
+      assert.strictEqual(emittedResponse.rendererFunctionResponse.value, 'Echo: SyncTest');
+    });
+
+    it('catches and logs unexpected promise rejections from callRendererFunction in processMessages', async () => {
+      let loggedError = false;
+      const originalConsoleError = console.error;
+      console.error = () => {
+        loggedError = true;
+      };
+
+      try {
+        const proc = new MessageProcessor([rpcCatalog]);
+        (proc as any).rpc.handleCallRendererFunction = async () => {
+          throw new Error('RPC exploded');
+        };
+
+        proc.processMessages({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'rpc-sync-2',
+            callFunction: {
+              call: 'echoFunction',
+              catalogId: 'rpc-cat',
+              args: {},
+            },
+          },
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+        assert.strictEqual(loggedError, true);
+      } finally {
+        console.error = originalConsoleError;
+      }
+    });
+  });
+
+  describe('Backwards Compatibility Shims', () => {
+    it('provides getClientCapabilities alias', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      const caps = proc.getClientCapabilities({versions: ['v0.9']});
+      assert.deepStrictEqual(caps, proc.getRendererCapabilities({versions: ['v0.9']}));
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-cat']);
+    });
+
+    it('provides getClientDataModel alias', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'test-cat',
+          sendDataModel: true,
+        },
+      });
+      proc.processMessages({
+        version: 'v0.9',
+        updateDataModel: {
+          surfaceId: 's1',
+          path: '/user/name',
+          value: 'Alice',
+        },
+      });
+      const dataModel = proc.getClientDataModel('v0.9');
+      assert.deepStrictEqual(dataModel, proc.getRendererDataModel('v0.9'));
+      assert.deepStrictEqual((dataModel?.surfaces as any)?.s1, {user: {name: 'Alice'}});
+    });
+
+    it('provides resolvePath method on MessageProcessor', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      assert.strictEqual(proc.resolvePath('/absolute/path'), '/absolute/path');
+      assert.strictEqual(proc.resolvePath('relative', '/base'), '/base/relative');
+      assert.strictEqual(proc.resolvePath('relative', '/base/'), '/base/relative');
+      assert.strictEqual(proc.resolvePath('standalone'), '/standalone');
+    });
+
+    it('rejects component with non-string or empty id', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'test-cat'},
+      });
+
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 123 as any, component: 'Text'}],
+            },
+          });
+        },
+        (err: any) => {
+          return err instanceof A2uiValidationError && err.message.includes("missing an 'id'");
+        },
+      );
+    });
+
+    it('extracts v0.8 beginRendering.root into surface.rootId and validates topology against it', () => {
+      const cat = new Catalog('v08-cat', '0.8', [
+        {name: 'Text', schema: z.object({text: z.string()})},
+      ]);
+      const proc = new MessageProcessor([cat], undefined, {
+        version: 'v0.8',
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      proc.processMessages([
+        {
+          beginRendering: {
+            surfaceId: 's_v08',
+            root: 'custom_entry',
+          },
+        } as any,
+        {
+          surfaceUpdate: {
+            surfaceId: 's_v08',
+            components: [
+              {
+                id: 'custom_entry',
+                component: {
+                  Text: {text: 'Hello v0.8'},
+                },
+              },
+            ],
+          },
+        } as any,
+      ]);
+
+      const surface = proc.getSurface('s_v08');
+      assert.ok(surface);
+      assert.strictEqual(surface.rootId, 'custom_entry');
+      assert.strictEqual(surface.componentsModel.has('custom_entry'), true);
+    });
+  });
+});

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, ClassVar, Optional, Dict
+from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.inference_formats.direct_json import DirectJsonFormat
@@ -76,12 +76,10 @@ class FileUploadSummarizerAgent:
         self._memory_service = InMemoryMemoryService()
         self._artifact_service = InMemoryArtifactService()
 
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: Dict[str, DirectJsonFormat] = {}
-        self._ui_runners: Dict[str, Runner] = {}
+        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._ui_runners: dict[str, Runner] = {}
 
         inference_format = self._build_inference_format(VERSION_0_9)
         self._inference_formats[VERSION_0_9] = inference_format
@@ -94,14 +92,12 @@ class FileUploadSummarizerAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def get_runner(self, version: Optional[str]) -> Runner:
+    def get_runner(self, version: str | None) -> Runner:
         if version is None:
             return self._text_runner
         return self._ui_runners[version]
 
-    def get_inference_format(
-        self, version: Optional[str]
-    ) -> Optional[DirectJsonFormat]:
+    def get_inference_format(self, version: str | None) -> DirectJsonFormat | None:
         if version is None:
             return None
         return self._inference_formats[version]
@@ -178,7 +174,7 @@ class FileUploadSummarizerAgent:
         )
 
     def _build_llm_agent(
-        self, inference_format: Optional[DirectJsonFormat] = None
+        self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         instruction = (
             inference_format.generate_system_prompt(

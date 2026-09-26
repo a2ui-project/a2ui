@@ -22,10 +22,15 @@ from main import resolve_model_name, main
 
 def test_resolve_model_name_aliases():
     """Verify explicit versioned Gemma and Gemini model aliases resolve properly."""
+    assert resolve_model_name("gemma") == "google/gemma-4-26b-a4b-it"
     assert resolve_model_name("gemma-4-26b") == "google/gemma-4-26b-a4b-it"
+    assert resolve_model_name("gemma-large") == "google/gemma-4-31b-it"
     assert resolve_model_name("gemma-4-31b") == "google/gemma-4-31b-it"
+    assert resolve_model_name("gemma-e2b") == "ollama/gemma4:e2b"
     assert resolve_model_name("gemma-4-e2b") == "ollama/gemma4:e2b"
+    assert resolve_model_name("gemma-e4b") == "ollama/gemma4:e4b"
     assert resolve_model_name("gemma-4-e4b") == "ollama/gemma4:e4b"
+    assert resolve_model_name("gemma-2b") == "ollama/gemma2:2b"
     assert resolve_model_name("gemma-2-2b") == "ollama/gemma2:2b"
 
     assert resolve_model_name("gemini-3.8-flash") == "google/gemini-3.8-flash"

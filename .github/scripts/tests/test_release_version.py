@@ -248,10 +248,14 @@ class CoreConstraintTest(unittest.TestCase):
         ) as handle:
             specifier = rv.core_specifier(handle.read())
         self.assertTrue(specifier, "a2ui-agent-sdk must pin a2ui-core")
-        # Whatever the pin is, the current core version must satisfy it.
+        # The pin must be satisfied by either the current released core version
+        # or the upcoming version being prepared for release.
+        current = rv.current_version(rv.CORE, repo_root)
+        upcoming = rv.bump_version(current, "minor")
         self.assertTrue(
-            rv.satisfies(rv.current_version(rv.CORE, repo_root), specifier),
-            f"released a2ui-core does not satisfy {specifier}",
+            rv.satisfies(current, specifier) or rv.satisfies(upcoming, specifier),
+            f"neither current core {current} nor upcoming {upcoming} satisfies"
+            f" {specifier}",
         )
 
 

@@ -1,0 +1,308 @@
+{
+  "name": "@a2ui/web_core",
+  "version": "0.11.0",
+  "description": "A2UI Core Library",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/web_core",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "web",
+    "ai",
+    "agent",
+    "ui",
+    "renderer"
+  ],
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./catalog": {
+      "types": "./dist/src/catalog/index.d.ts",
+      "default": "./dist/src/catalog/index.js"
+    },
+    "./state": {
+      "types": "./dist/src/state/index.d.ts",
+      "default": "./dist/src/state/index.js"
+    },
+    "./processing": {
+      "types": "./dist/src/processing/index.d.ts",
+      "default": "./dist/src/processing/index.js"
+    },
+    "./resolution": {
+      "types": "./dist/src/resolution/index.d.ts",
+      "default": "./dist/src/resolution/index.js"
+    },
+    "./rendering": {
+      "types": "./dist/src/resolution/index.d.ts",
+      "default": "./dist/src/resolution/index.js"
+    },
+    "./validation": {
+      "types": "./dist/src/validation/index.d.ts",
+      "default": "./dist/src/validation/index.js"
+    },
+    "./validating": {
+      "types": "./dist/src/validation/integrity-checker.d.ts",
+      "default": "./dist/src/validation/integrity-checker.js"
+    },
+    "./reactivity": {
+      "types": "./dist/src/reactivity/index.d.ts",
+      "default": "./dist/src/reactivity/index.js"
+    },
+    "./expressions": {
+      "types": "./dist/src/expressions/index.d.ts",
+      "default": "./dist/src/expressions/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/src/processing/adapters/index.d.ts",
+      "default": "./dist/src/processing/adapters/index.js"
+    },
+    "./rpc": {
+      "types": "./dist/src/rpc/index.d.ts",
+      "default": "./dist/src/rpc/index.js"
+    },
+    "./errors": {
+      "types": "./dist/src/errors.d.ts",
+      "default": "./dist/src/errors.js"
+    },
+    "./events": {
+      "types": "./dist/src/common/events.d.ts",
+      "default": "./dist/src/common/events.js"
+    },
+    "./semver": {
+      "types": "./dist/src/common/semver.d.ts",
+      "default": "./dist/src/common/semver.js"
+    },
+    "./v0_8": {
+      "types": "./dist/src/v0_8/index.d.ts",
+      "default": "./dist/src/v0_8/index.js"
+    },
+    "./v0_8/basic_catalog": {
+      "types": "./dist/src/v0_8/basic_catalog/index.d.ts",
+      "default": "./dist/src/v0_8/basic_catalog/index.js"
+    },
+    "./v0_9": {
+      "types": "./dist/src/v0_9/index.d.ts",
+      "default": "./dist/src/v0_9/index.js"
+    },
+    "./v0_9/universal": {
+      "types": "./dist/src/v0_9/universal/index.d.ts",
+      "default": "./dist/src/v0_9/universal/index.js"
+    },
+    "./v0_9/basic_catalog": {
+      "types": "./dist/src/v0_9/basic_catalog/index.d.ts",
+      "default": "./dist/src/v0_9/basic_catalog/index.js"
+    },
+    "./v1_0": {
+      "types": "./dist/src/v1_0/index.d.ts",
+      "default": "./dist/src/v1_0/index.js"
+    },
+    "./v1_0/basic_catalog": {
+      "types": "./dist/src/v1_0/basic_catalog/index.d.ts",
+      "default": "./dist/src/v1_0/basic_catalog/index.js"
+    },
+    "./data/*": {
+      "types": "./dist/src/v0_8/data/*.d.ts",
+      "default": "./dist/src/v0_8/data/*.js"
+    },
+    "./types/*": {
+      "types": "./dist/src/v0_8/types/*.d.ts",
+      "default": "./dist/src/v0_8/types/*.js"
+    },
+    "./styles/*": {
+      "types": "./dist/src/v0_8/styles/*.d.ts",
+      "default": "./dist/src/v0_8/styles/*.js"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../../renderers/scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepack": "yarn build",
+    "prepare": "yarn build",
+    "build": "wireit",
+    "build:tsc": "wireit",
+    "test": "wireit",
+    "test:conformance": "wireit",
+    "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
+    "generate-zod-schemas": "wireit",
+    "compile": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "fix": "gts fix",
+    "format": "wireit",
+    "format:check": "wireit",
+    "clean": "wireit"
+  },
+  "wireit": {
+    "generate-zod-schemas": {
+      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-superset-common-types.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/v1_0/scripts/generate-catalog.mjs && prettier --write \"src/**/*.ts\"",
+      "files": [
+        "../../specification/v0_8/json/*.json",
+        "../../specification/v0_9/catalogs/**/*.json",
+        "../../specification/v0_9/json/*.json",
+        "../../specification/v1_0/json/*.json",
+        "../../catalogs/basic/v1/**/*.json",
+        "scripts/generate-standard-defs.mjs",
+        "scripts/generate-zod-schemas.mjs",
+        "scripts/generate-superset-common-types.mjs",
+        "scripts/generate-catalog-schemas.mjs",
+        "scripts/zod-generator-core.mjs",
+        "src/types/helpers.ts",
+        "src/types/child-ref-helpers.ts",
+        "src/v0_9/schema/helpers.ts",
+        "src/v1_0/schema/helpers.ts",
+        "src/v0_9/scripts/generate-schemas.mjs",
+        "src/v1_0/scripts/generate-schemas.mjs",
+        "src/v0_9/scripts/generate-catalog.mjs",
+        "src/v1_0/scripts/generate-catalog.mjs"
+      ],
+      "output": [
+        "src/v0_8/standard_defs.ts",
+        "src/v0_9/standard_defs.ts",
+        "src/v1_0/standard_defs.ts",
+        "src/types/common-types.ts",
+        "src/v0_9/schema/common-types.ts",
+        "src/v0_9/schema/server-to-client.ts",
+        "src/v0_9/schema/client-to-server.ts",
+        "src/v0_9/schema/client-capabilities.ts",
+        "src/v0_9/schema/index.ts",
+        "src/v0_9/basic_catalog/components/basic_components.ts",
+        "src/v0_9/basic_catalog/functions/basic_functions_api.ts",
+        "src/v1_0/schema/common-types.ts",
+        "src/v1_0/schema/agent-to-renderer.ts",
+        "src/v1_0/schema/renderer-to-agent.ts",
+        "src/v1_0/schema/renderer-capabilities.ts",
+        "src/v1_0/schema/catalog-definition.ts",
+        "src/v1_0/schema/index.ts",
+        "src/v1_0/basic_catalog/components/basic_components.ts",
+        "src/v1_0/basic_catalog/functions/basic_functions_api.ts"
+      ]
+    },
+    "copy-spec": {
+      "command": "node scripts/copy-spec.js",
+      "files": [
+        "../../specification/v0_8/json/*.json",
+        "../../specification/v0_9/json/*.json",
+        "../../specification/v0_9/catalogs/**/*.json",
+        "../../specification/v1_0/json/*.json",
+        "../../catalogs/basic/**/*.json",
+        "scripts/copy-spec.js"
+      ],
+      "output": [
+        "src/v0_8/schemas/*.json",
+        "src/v0_9/schemas/*.json",
+        "src/v0_9/schemas/catalogs/**/*.json",
+        "src/v1_0/schemas/*.json",
+        "src/v1_0/schemas/catalogs/**/*.json"
+      ]
+    },
+    "build": {
+      "dependencies": [
+        "build:tsc"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "copy-spec",
+        "generate-zod-schemas"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/",
+        "!dist/**/*.min.js{,.map}"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "test": {
+      "command": "node --test \"dist/**/*.test.js\"",
+      "dependencies": [
+        "build",
+        "test:conformance"
+      ]
+    },
+    "test:conformance": {
+      "command": "node tests/conformance/conformance_test.mjs",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "tests/conformance/**",
+        "../../conformance/**"
+      ],
+      "output": []
+    },
+    "clean": {
+      "command": "rm -rf dist .tsbuildinfo .wireit"
+    },
+    "format": {
+      "command": "prettier --write .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**/*.ts",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "format:check": {
+      "command": "prettier --check .",
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**/*.ts",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    }
+  },
+  "author": "Google",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@angular/core": "^21.2.5",
+    "@types/js-yaml": "^4.0.9",
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^25.9.3",
+    "c8": "^11.0.0",
+    "eslint": "^10.4.1",
+    "google-artifactregistry-auth": "^3.5.0",
+    "gts": "^7.0.0",
+    "js-yaml": "^4.3.0",
+    "jsdom": "^29.1.1",
+    "json-schema-to-zod": "^2.8.1",
+    "rxjs": "^7.8.2",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2",
+    "yaml": "^2.8.1"
+  },
+  "dependencies": {
+    "@lit/context": "^1.1.6",
+    "@preact/signals-core": "^1.14.2",
+    "lit": "^3.3.3",
+    "validate-color": "^2.2.4",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
+  }
+}

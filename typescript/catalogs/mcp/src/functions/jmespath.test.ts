@@ -19,10 +19,15 @@ import {describe, it} from 'node:test';
 import {A2uiExpressionError, Catalog, DataContext, DataModel} from '@a2ui/web_core/v0_9';
 import {JmespathImplementation} from './jmespath.js';
 
-const catalog = new Catalog<any>('https://a2ui.org/test/jmespath', [], [JmespathImplementation]);
+const catalog = new Catalog<any>(
+  'https://a2ui.org/test/jmespath',
+  '0.9',
+  [],
+  [JmespathImplementation],
+);
 
 const createContext = (model = new DataModel({})) =>
-  new DataContext({dataModel: model, catalog: {invoker: catalog.invoker}} as any, '/');
+  new DataContext({dataModel: model, defaultCatalog: {invoker: catalog.invoker}} as any, '/');
 
 const call = (args: Record<string, unknown>, model = new DataModel({})) =>
   catalog.invoker('jmespath', args, createContext(model));
