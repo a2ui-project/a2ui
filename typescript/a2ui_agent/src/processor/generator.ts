@@ -47,7 +47,8 @@ export class A2uiGenerator {
    *
    * @throws {A2uiCatalogError} If `rendererCapabilities` is missing, since there is
    *     nothing to negotiate against, or if negotiation leaves no catalog.
-   * @throws {A2uiValidationError} If an example message is not an object.
+   * @throws {A2uiValidationError} If an example message is not an object, or uses a
+   *     component the negotiated catalogs do not declare.
    */
   createProcessor(
     rendererCapabilities: RendererCapabilities,
@@ -81,7 +82,7 @@ export class A2uiGenerator {
             if (compName) {
               const supported = activeCatalogs.some(cat => cat.components.has(compName));
               if (!supported) {
-                throw new A2uiCatalogError(`Example uses unsupported component '${compName}'`);
+                throw new A2uiValidationError(`Example uses unsupported component '${compName}'`);
               }
             }
           }
