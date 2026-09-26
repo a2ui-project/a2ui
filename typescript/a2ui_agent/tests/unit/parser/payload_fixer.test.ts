@@ -38,6 +38,21 @@ describe('PayloadFixer', () => {
     expect(fixed).toBe('{"a": [1, 2 ], "b": {"k": "v" } }');
   });
 
+  it('keeps commas inside string literals', () => {
+    const json = '{"formula": "a,}", "list": "x, ]", "b": [1, ],}';
+    expect(removeTrailingCommas(json)).toBe('{"formula": "a,}", "list": "x, ]", "b": [1 ]}');
+  });
+
+  it('keeps commas inside strings that contain escaped quotes', () => {
+    const json = '{"s": "say \\",}\\" and \\\\", "t": [1,],}';
+    expect(JSON.parse(removeTrailingCommas(json))).toEqual({s: 'say ",}" and \\', t: [1]});
+  });
+
+  it('parseAndFix keeps string contents while recovering trailing commas', () => {
+    const res = parseAndFix('[{"formula": "a,}", "items": ["x", ],},]');
+    expect(res).toEqual([{formula: 'a,}', items: ['x']}]);
+  });
+
   it('parseAndFix recovers trailing commas', () => {
     const corruptPayload =
       '[{"version": "v0.9", "createSurface": {"surfaceId": "default",' +

@@ -25,7 +25,9 @@ import {registerCatalogDocument} from './catalog_document.js';
  * transformed set for this session.
  *
  * @param catalogs Registered catalog configurations supported by the agent.
- * @param rendererCapabilities Capabilities sent by the client renderer.
+ * @param rendererCapabilities Capabilities sent by the client renderer, or `undefined` when
+ *     the request carried none. With no capabilities the renderer stated no preference, so
+ *     every registered catalog is active.
  * @param acceptsInlineCatalogs Whether the agent accepts inline catalogs from the client.
  * @returns Array of active, transformed SchemaCatalog instances.
  * @throws {A2uiCatalogError} If no supported catalog matches and no fallback applies,
@@ -33,7 +35,7 @@ import {registerCatalogDocument} from './catalog_document.js';
  */
 export function resolveCatalogs(
   catalogs: CatalogConfig[],
-  rendererCapabilities: RendererCapabilities,
+  rendererCapabilities: RendererCapabilities | undefined,
   acceptsInlineCatalogs?: boolean,
 ): SchemaCatalog[] {
   if (catalogs.length === 0) {
@@ -41,6 +43,9 @@ export function resolveCatalogs(
   }
 
   const agentCatalogs = catalogs.map(c => c.transformedCatalog);
+  if (!rendererCapabilities) {
+    return agentCatalogs;
+  }
   let baseCatalog: SchemaCatalog | undefined;
 
   const supportedIds = rendererCapabilities.supportedCatalogIds;

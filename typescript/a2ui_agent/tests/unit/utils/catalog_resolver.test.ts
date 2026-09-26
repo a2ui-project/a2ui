@@ -113,4 +113,9 @@ describe('resolveCatalogs', () => {
     expect(resolved[0].id).toBe('id_basic'); // Default fallback
     expect(resolved[1].id).toBe('id_inline');
   });
+
+  it('test_absent_capabilities_activate_every_catalog: activates every registered catalog when capabilities are absent', () => {
+    const resolved = resolveCatalogs(supportedConfigs, undefined);
+    expect(resolved.map(c => c.id)).toEqual(['id_basic', 'id_custom1', 'id_custom2']);
+  });
 });

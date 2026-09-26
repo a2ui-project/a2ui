@@ -20,7 +20,7 @@ import {InferenceFormatFactory} from '../inference_format/base.js';
 import {A2uiRequestProcessor} from './processor.js';
 import {resolveCatalogs} from '../utils/catalog_resolver.js';
 import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
-import {A2uiCatalogError} from '../errors.js';
+import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 
 /**
  * Agent-lifetime object holding every catalog the agent supports.
@@ -44,18 +44,32 @@ export class A2uiGenerator {
    *
    * Validates the configured examples against the resolved catalogs and throws if an
    * example uses a component the negotiated catalogs do not support.
+   *
+   * @throws {A2uiCatalogError} If `rendererCapabilities` is missing, since there is
+   *     nothing to negotiate against, or if negotiation leaves no catalog.
+   * @throws {A2uiValidationError} If an example message is not an object.
    */
   createProcessor(
     rendererCapabilities: RendererCapabilities,
     inferenceFormatFactory?: InferenceFormatFactory,
   ): A2uiRequestProcessor {
+    if (!rendererCapabilities) {
+      throw new A2uiCatalogError(
+        'createProcessor requires renderer capabilities to negotiate against',
+      );
+    }
     const activeCatalogs = resolveCatalogs(this.catalogs, rendererCapabilities);
 
     if (this.examples) {
-      for (const msgs of Object.values(this.examples)) {
+      for (const [exampleName, msgs] of Object.entries(this.examples)) {
         // Preformatted text examples are not parsed here.
         if (typeof msgs === 'string') continue;
         for (const msg of msgs) {
+          if (typeof msg !== 'object' || msg === null || Array.isArray(msg)) {
+            throw new A2uiValidationError(
+              `Example '${exampleName}' contains a message that is not an object`,
+            );
+          }
           const components: {component?: string}[] = [];
           if ('createSurface' in msg && msg.createSurface?.components)
             components.push(...msg.createSurface.components);
