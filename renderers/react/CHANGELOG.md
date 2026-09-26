@@ -1,5 +1,11 @@
 ## Unreleased
 
+- (v0_9) Render catalog entries that are W3C Custom Elements as elements, so a catalog can mix native React components and web components in either nesting order. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
+- (v0_9) `createComponentImplementation` and `createBinderlessComponentImplementation` now return a `tagName` and register a custom element wrapper, which makes native React components renderable beneath web component parents. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
+- (v0_9) Export the `ReactCatalogComponent` union type from `@a2ui/react/v0_9`. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
+- (v0_9) `A2uiSurface` defines the custom element of every web component entry in its catalog before rendering, since universal components declare their element without registering it. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
+- (v0_9) Creating a React component implementation now throws when `customElements` is unavailable, instead of silently producing an implementation with no element behind its tag name. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
+
 ## 0.11.1
 
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` is now unique per rendered instance instead of derived from the surface-scoped component id ([#2447](https://github.com/a2ui-project/a2ui/issues/2447)).
