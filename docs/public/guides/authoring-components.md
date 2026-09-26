@@ -1,5 +1,9 @@
 # Authoring Custom Components
 
+> [!TIP]
+> **Authoring components for multiple frameworks?**
+> See [Authoring Universal Components](authoring-universal-components.md) to learn how to write a single W3C Custom Element that works directly across Lit, React, and Angular renderers.
+
 Learn how to define, implement, and register custom components in A2UI using the `rizzcharts` sample as an example. This guide focuses on authoring a component around your Angular code.
 
 ## Overview
