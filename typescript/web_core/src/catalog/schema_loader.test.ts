@@ -20,6 +20,8 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {z} from 'zod';
 import {Catalog} from './types.js';
+import {analyzeChildRefSchema} from './reference-map.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 
 describe('Catalog.fromSchema & schema_loader', () => {
   const basicCatalogPath = resolve(
@@ -100,6 +102,125 @@ describe('Catalog.fromSchema & schema_loader', () => {
       action: {event: {name: 'click_me'}},
     });
     assert.strictEqual(validAction.success, true);
+  });
+
+  it('resolves the Checkable mixin referenced from an external document', () => {
+    // Checkable arrives as an allOf $ref into common_types.json, a document the loader never
+    // reads. It used to fall through every branch and be discarded without an error, taking
+    // `checks` off every input component with it.
+    const catalog = Catalog.fromSchema(basicCatalogJson);
+
+    for (const name of [
+      'Button',
+      'TextField',
+      'CheckBox',
+      'ChoicePicker',
+      'Slider',
+      'DateTimeInput',
+    ]) {
+      const comp = catalog.components.get(name);
+      assert.ok(comp, `${name} is missing from the basic catalog`);
+      const shape = (comp.schema as z.ZodObject<any>).shape;
+      assert.ok(shape.checks, `${name} lost its checks property`);
+    }
+
+    const button = catalog.components.get('Button');
+    assert.ok(button);
+    const withChecks = button.schema.safeParse({
+      child: 'txt1',
+      action: {event: {name: 'submit'}},
+      checks: [{condition: {path: '/form/valid'}, message: 'This field is required'}],
+    });
+    assert.strictEqual(withChecks.success, true);
+
+    // The property is typed, not a free-form escape hatch.
+    const badChecks = button.schema.safeParse({
+      child: 'txt1',
+      action: {event: {name: 'submit'}},
+      checks: 'always',
+    });
+    assert.strictEqual(badChecks.success, false);
+  });
+
+  it('resolves an external mixin written as a relative reference', () => {
+    // v1.0 catalogs spell the same reference without the absolute URL prefix.
+    const catalog = Catalog.fromSchema({
+      catalogId: 'test_relative_checkable',
+      protocolVersion: 'v1.0',
+      components: {
+        Input: {
+          type: 'object',
+          allOf: [
+            {$ref: 'common_types.json#/$defs/Checkable'},
+            {type: 'object', properties: {label: {type: 'string'}}},
+          ],
+        },
+      },
+    } as any);
+
+    const input = catalog.components.get('Input');
+    assert.ok(input);
+    const shape = (input.schema as z.ZodObject<any>).shape;
+    assert.ok(shape.checks);
+    assert.ok(shape.label);
+  });
+
+  it('resolves the Child reference from common_types.json', () => {
+    const v10BasicCatalogPath = resolve(process.cwd(), '../../catalogs/basic/v1/catalog.json');
+    const v10BasicCatalogJson = JSON.parse(readFileSync(v10BasicCatalogPath, 'utf-8'));
+    const catalog = Catalog.fromSchema(v10BasicCatalogJson);
+
+    // The regression was not that the description stamp went missing, but that
+    // `analyzeChildRefSchema` stopped reporting these properties as child references at
+    // all, which silently emptied the reference map for v1.0. Assert the outcome, and the
+    // stamp only as a secondary detail.
+    const expectedChildProps: ReadonlyArray<readonly [string, string]> = [
+      ['Card', 'child'],
+      ['Button', 'child'],
+      ['Modal', 'trigger'],
+      ['Modal', 'content'],
+    ];
+
+    for (const [componentName, propName] of expectedChildProps) {
+      const component = catalog.components.get(componentName);
+      assert.ok(component, `${componentName} is missing from the v1.0 basic catalog`);
+
+      const shape = (component.schema as z.ZodObject<any>).shape;
+      const prop = shape[propName];
+      assert.ok(prop, `${componentName}.${propName} is missing`);
+
+      const analysis = analyzeChildRefSchema(prop, V10_CHILD_REF_OPTIONS);
+      assert.equal(
+        analysis.isChild,
+        true,
+        `${componentName}.${propName} is not recognised as a child reference`,
+      );
+      assert.ok(
+        prop.description?.includes('REF:common_types.json#/$defs/Child'),
+        `${componentName}.${propName} lost its REF description stamp`,
+      );
+    }
+  });
+
+  it('ignores an external reference that names no canonical protocol type', () => {
+    const catalog = Catalog.fromSchema({
+      catalogId: 'test_unknown_external_ref',
+      protocolVersion: 'v1.0',
+      components: {
+        Widget: {
+          type: 'object',
+          allOf: [
+            {$ref: 'other_document.json#/$defs/NotAProtocolType'},
+            {type: 'object', properties: {label: {type: 'string'}}},
+          ],
+        },
+      },
+    } as any);
+
+    const widget = catalog.components.get('Widget');
+    assert.ok(widget);
+    const shape = (widget.schema as z.ZodObject<any>).shape;
+    assert.deepStrictEqual(Object.keys(shape), ['label']);
   });
 
   it('parses functions from catalog into FunctionApi map', () => {
