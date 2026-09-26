@@ -22,7 +22,10 @@ import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core
 import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
-import {ExpressInvalidIdentifierError} from '../../../../src/inference_formats/express/errors.js';
+import {
+  ExpressInvalidIdentifierError,
+  ExpressValidationError,
+} from '../../../../src/inference_formats/express/errors.js';
 import {ExpressParser} from '../../../../src/inference_formats/express/parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -233,6 +236,46 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
       expect(() => decompiler.decompile(msg)).toThrow(ExpressInvalidIdentifierError);
+    });
+  });
+
+  describe('decompiling an object-valued field that is not an object throws', () => {
+    function decompileButton(action: unknown): string {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const msg = {
+        createSurface: {
+          surfaceId: 'default_surface',
+          components: [{id: 'c1', component: 'Card', child: action}],
+        },
+      } as unknown as AgentToRendererMessage;
+      return decompiler.decompile(msg);
+    }
+
+    it('throws when an event context is a string', () => {
+      expect(() => decompileButton({event: {name: 'go', context: 'oops'}})).toThrow(
+        ExpressValidationError,
+      );
+      expect(() => decompileButton({event: {name: 'go', context: 'oops'}})).toThrow(
+        /Event 'go' has a non-object 'context'/,
+      );
+    });
+
+    it('throws when an event context is an array', () => {
+      expect(() => decompileButton({event: {name: 'go', context: [1, 2]}})).toThrow(
+        ExpressValidationError,
+      );
+    });
+
+    it('throws when function call args are a string', () => {
+      expect(() =>
+        decompileButton({functionCall: {call: 'openUrl', args: 'https://example.com'}}),
+      ).toThrow(/Function call 'openUrl' has a non-object 'args'/);
+    });
+
+    it('still treats absent or null fields as empty', () => {
+      expect(decompileButton({event: {name: 'go'}})).toContain('Event("go")');
+      expect(decompileButton({event: {name: 'go', context: null}})).toContain('Event("go")');
     });
   });
 
