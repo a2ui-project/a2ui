@@ -121,6 +121,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** `Tabs.tabs` is affected on both the v0.9 and v1.0 basic catalogs. `@a2ui/agent` compensates with a name-matching fallback in `src/utils/legacy_child_refs.ts`, which on the shipped catalogs claims exactly that one property. Every other consumer of the reference map gets no child reference for `Tabs` at all.
 - **Done looks like:** The loader builds a real object schema for inline array items, `Tabs.tabs` reports formal child references, and the fallback in `@a2ui/agent` can be deleted.
 
+### Component payloads are structurally unchecked (Sharp edge)
+
+- **What it is:** `AnyComponentSchema` is declared `z.ZodType<any>` and built with `.passthrough()` (`web_core/src/v1_0/schema/helpers.ts:95`). Validation therefore stops at the message envelope: `createSurface` and `updateComponents` are `.strict()` and reject unknown keys, but anything inside the `components` array is accepted as-is.
+- **Why it exists:** The recursive component tree is catalog-dependent, so a single static schema cannot know which props a given `component` permits.
+- **What it risks:** A misspelled or invented component prop passes both the TypeScript compiler and `MessageProcessor.processMessages` without complaint, and only fails at the renderer — or renders silently wrong. Typing example payloads as `AgentToRendererMessage[]` buys envelope-level safety only; do not read a passing typecheck as proof that component props are correct.
+- **Done looks like:** Component payloads are validated against the negotiated catalog's per-component Zod schemas, rather than a permissive `any` passthrough.
+
 ## 3. Specification & Blueprints
 
 ### Truncation signal lost at compile boundary (Sharp edge)
@@ -262,3 +269,33 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Python reads both fields with `.get(..., {})` and uses the result as a dict without checking it.
 - **What it risks:** A malformed example gives Python users a stack trace, or a wrong Express example with no error.
 - **Done looks like:** Python raises a validation error for both fields, and a conformance case in `agent/express/decompiler.yaml` pins it for both SDKs.
+
+## 5. Node Sample (`samples/agent/node/restaurant_finder`)
+
+### Only the first streamed message reaches the client (Resolved)
+
+- **What it was:** `@a2a-js/sdk` ends the SSE stream at the first `message` event (`dist/server/index.js:290`: `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample published one `message` per chunk, so with a live model only the first reached the client.
+- **Resolution:** The sample now publishes each batch of parts as a non-final `working` status update carrying `status.message`, as the Python sample does, and ends the turn with one final status update.
+
+### The sample answers in A2UI when no A2UI extension is requested
+
+- **What it is:** Python's sample answers with plain text when the client does not request an A2UI extension. The Node sample logs a warning and answers in its configured A2UI version, so curl works without the `X-A2A-Extensions` header. A request for a different A2UI version fails the task with a message that says how to restart the agent.
+- **Why it exists:** Porting the text-only agent would double the sample for a path no sample client uses. Telling "none requested" from "another version requested" also needs a workaround: `DefaultRequestHandler` drops requested extensions the agent card does not advertise, so `index.ts` copies the header into `message.extensions`.
+- **What it risks:** A client that wants text gets A2UI.
+- **Done looks like:** A text-only mode, if a client needs one.
+
+### `input-required` turns end with `final: true`
+
+- **What it is:** Python marks only `completed` status updates as final. The Node sample also marks `input-required` as final.
+- **Why it exists:** `@a2a-js/sdk` keeps the SSE stream open until it sees a final status update, so a non-final `input-required` would leave streaming clients waiting.
+- **What it risks:** Nothing found so far. The multi-turn flow continues through `contextId`.
+- **Done looks like:** Nothing, unless the SDK changes.
+
+### `@google/adk` cannot be used in this monorepo
+
+- **What it is:** `@google/adk@2.1.0` requires `zod ^4.2.1`. The root `resolutions` block pins `zod` to `^3.25.76`, so ADK fails at import time with `z.object(...).loose is not a function`. The sample uses `@google/genai` directly instead, losing the structural parallel with the Python ADK sample.
+- **Why it exists:** `web_core` is built on Zod 3 APIs, and the v1.0 catalog that `@a2ui/agent` consumes is a tree of Zod 3 `ZodObject`s that web_core converts to JSON Schema for the prompt. The Zod major is load-bearing for the agent-side path, so the pin cannot simply be relaxed.
+- **What it risks:** Any future JavaScript sample or downstream consumer wanting ADK hits the same wall. Working around it means either carrying two Zod majors and guaranteeing they never meet, or migrating `web_core` to Zod 4.
+- **Status:** Deferred by decision. The Node sample is the only consumer affected, and modernising that sample is a separate question that can be answered later.
+- **Untested assumption:** The "guarantee they never meet" option was never actually tried. `@a2ui/agent` imports Zod nowhere and declares no Zod dependency; `basicCatalog()` returns a catalog whose Zod schemas are built and consumed entirely inside `web_core`. ADK would use Zod 4 for its own tool schemas while `web_core` uses Zod 3 for catalogs, and the two may never exchange a Zod object. Whoever revisits this should test lifting the root `resolutions` pin before assuming a `web_core` migration is required, because the fallback to `@google/genai` was chosen without that check.
+- **Done looks like:** Either the two majors are shown to coexist and the root pin is scoped rather than global, or `web_core` is migrated to Zod 4 and the pin is lifted, at which point ADK becomes usable and the Node sample can mirror the Python one.

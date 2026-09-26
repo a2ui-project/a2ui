@@ -1,0 +1,150 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "default",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["title_heading", "item_list"]
+        },
+        {
+          "id": "title_heading",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "item_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "componentId": "item_card_template",
+            "path": "/items"
+          }
+        },
+        {
+          "id": "item_card_template",
+          "component": "Card",
+          "child": "card_layout"
+        },
+        {
+          "id": "card_layout",
+          "component": "Row",
+          "children": ["card_image", "card_details"]
+        },
+        {
+          "id": "card_image",
+          "component": "Image",
+          "variant": "mediumFeature",
+          "url": {
+            "path": "imageUrl"
+          }
+        },
+        {
+          "id": "card_details",
+          "component": "Column",
+          "children": [
+            "template_name",
+            "template_rating",
+            "template_detail",
+            "template_link",
+            "template_book_button"
+          ]
+        },
+        {
+          "id": "template_name",
+          "component": "Text",
+          "text": {
+            "path": "name"
+          }
+        },
+        {
+          "id": "template_rating",
+          "component": "Text",
+          "text": {
+            "path": "rating"
+          }
+        },
+        {
+          "id": "template_detail",
+          "component": "Text",
+          "text": {
+            "path": "detail"
+          }
+        },
+        {
+          "id": "template_link",
+          "component": "Text",
+          "text": {
+            "path": "infoLink"
+          }
+        },
+        {
+          "id": "template_book_button",
+          "component": "Button",
+          "child": "book_now_text",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "book_restaurant",
+              "context": {
+                "restaurantName": {
+                  "path": "name"
+                },
+                "imageUrl": {
+                  "path": "imageUrl"
+                },
+                "address": {
+                  "path": "address"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "book_now_text",
+          "component": "Text",
+          "text": "Book Now"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "default",
+      "path": "/",
+      "value": {
+        "title": "Found Restaurants",
+        "items": [
+          {
+            "name": "The Fancy Place",
+            "rating": 4.8,
+            "detail": "Fine dining experience",
+            "infoLink": "https://fancyplace.com",
+            "imageUrl": "https://picsum.photos/200/300?random=1",
+            "address": "123 Luxury Ave, Food City"
+          },
+          {
+            "name": "Quick Bites",
+            "rating": 4.2,
+            "detail": "Casual and fast",
+            "infoLink": "https://quickbites.com",
+            "imageUrl": "https://picsum.photos/200/300?random=2",
+            "address": "456 Fast Lane, Quick Town"
+          }
+        ]
+      }
+    }
+  }
+]
