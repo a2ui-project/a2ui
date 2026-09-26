@@ -18,12 +18,16 @@ import {describe, it, expect} from 'vitest';
 import {render, screen, act, fireEvent} from '@testing-library/react';
 import React from 'react';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {A2uiSurface} from '@a2ui/react/v0_9';
 
 import exMarkdown from '../../../../specification/v0_9/catalogs/basic/examples/35_markdown-text.json';
 import exTaskCard from '../../../../specification/v0_9/catalogs/basic/examples/07_task-card.json';
 import exLoginForm from '../../../../specification/v0_9/catalogs/basic/examples/09_login-form.json';
 
+// The basic catalog renders as Custom Elements, whose first paint lands after
+// Lit's update cycle, so every assertion below waits rather than reading the
+// DOM synchronously.
 describe('Gallery Integration Tests', () => {
   it('renders Markdown Text -> "Markdown Rendering"', async () => {
     const processor = new MessageProcessor([basicCatalog as any], async () => {});
@@ -38,7 +42,7 @@ describe('Gallery Integration Tests', () => {
       </React.StrictMode>,
     );
 
-    expect(screen.getByText('Markdown Rendering')).toBeInTheDocument();
+    expect(await screen.findByText('Markdown Rendering')).toBeInTheDocument();
   });
 
   it('renders Task Card -> content visibility', async () => {
@@ -54,8 +58,8 @@ describe('Gallery Integration Tests', () => {
       </React.StrictMode>,
     );
 
-    expect(screen.getByText('Review pull request')).toBeInTheDocument();
-    expect(screen.getByText('Backend')).toBeInTheDocument();
+    expect(await screen.findByText('Review pull request')).toBeInTheDocument();
+    expect(await screen.findByText('Backend')).toBeInTheDocument();
   });
 
   it('handles Login form -> input updates data model', async () => {
@@ -71,11 +75,13 @@ describe('Gallery Integration Tests', () => {
       </React.StrictMode>,
     );
 
-    const emailInput = screen.getByLabelText('Email') as HTMLInputElement;
-    expect(emailInput).toBeDefined();
+    // web_core's TextField renders its label as a sibling of the input, with
+    // no `for` attribute, so the input has to be reached through the field.
+    const emailField = (await screen.findByText('Email')).closest('a2ui-basic-textfield');
+    const emailInput = emailField!.querySelector('input') as HTMLInputElement;
 
     await act(async () => {
-      fireEvent.change(emailInput, {target: {value: 'alice@example.com'}});
+      fireEvent.input(emailInput, {target: {value: 'alice@example.com'}});
     });
 
     expect(surface!.dataModel.get('/email')).toBe('alice@example.com');
