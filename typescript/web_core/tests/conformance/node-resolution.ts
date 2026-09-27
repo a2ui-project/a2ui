@@ -16,16 +16,15 @@
 
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {describe, it} from 'node:test';
-import {parse as parseYaml} from 'yaml';
-import {Catalog, createFunctionImplementation} from '../../src/v0_9/catalog/types.js';
-import {ComponentNode, isComponentNode} from '../../src/v0_9/nodes/component-node.js';
-import {NodeResolver} from '../../src/v0_9/nodes/node-resolver.js';
-import {ResolvedBinding, isWritable} from '../../src/v0_9/nodes/resolved-binding.js';
-import {effect, getValue, peekValue} from '../../src/v0_9/reactivity/signals.js';
-import {ComponentModel} from '../../src/v0_9/state/component-model.js';
-import {SurfaceModel} from '../../src/v0_9/state/surface-model.js';
-import {loadConformanceSuite, resolveConformancePath} from './harness.js';
+import {join} from 'node:path';
+import yaml from 'js-yaml';
+import {Catalog, createFunctionImplementation} from '../../src/catalog/types.js';
+import {ComponentNode, isComponentNode} from '../../src/resolution/component-node.js';
+import {NodeResolver} from '../../src/resolution/node-resolver.js';
+import {ResolvedBinding, isWritable} from '../../src/resolution/resolved-binding.js';
+import {effect, getValue, peekValue} from '../../src/reactivity/signals.js';
+import {ComponentModel} from '../../src/state/component-model.js';
+import {SurfaceModel} from '../../src/state/surface-model.js';
 
 type Component = Record<string, unknown> & {id: string; component: string};
 interface Fixture {
@@ -57,7 +56,7 @@ type Operation =
   | {op: 'write'; node: string; property: string; value: unknown}
   | {op: 'invoke'; node: string; property: string}
   | {op: 'dispose'};
-interface ConformanceCase {
+export interface ConformanceCase {
   name: string;
   action: 'resolve_nodes';
   fixture: string;
@@ -184,18 +183,26 @@ function saveBindings(
   return saved;
 }
 
-async function runCase(testCase: ConformanceCase): Promise<void> {
+/**
+ * Runs one `resolve_nodes` case; fixture and catalog paths resolve against
+ * `conformanceRoot`.
+ */
+export async function runNodeResolutionCase(
+  testCase: ConformanceCase,
+  conformanceRoot: string,
+): Promise<void> {
   assert.equal(testCase.action, 'resolve_nodes');
-  const fixture = parseYaml(
-    readFileSync(resolveConformancePath(testCase.fixture), 'utf8'),
+  const fixture = yaml.load(
+    readFileSync(join(conformanceRoot, testCase.fixture), 'utf8'),
   ) as Fixture;
   const parsed = Catalog.fromSchema(
-    JSON.parse(readFileSync(resolveConformancePath(fixture.catalog), 'utf8')),
+    JSON.parse(readFileSync(join(conformanceRoot, fixture.catalog), 'utf8')),
   );
   const functions: unknown[] = [];
   const events: unknown[] = [];
   const catalog = new Catalog(
     parsed.id,
+    parsed.protocolVersion,
     [...parsed.components.values()],
     [...parsed.functions.values()].map(api =>
       createFunctionImplementation(api, args => {
@@ -359,9 +366,3 @@ async function runCase(testCase: ConformanceCase): Promise<void> {
     stopActions.unsubscribe();
   }
 }
-
-describe('conformance core/node_resolution.yaml', () => {
-  const cases = loadConformanceSuite<ConformanceCase>('core/node_resolution.yaml');
-  it('suite is not empty', () => assert.ok(cases.length > 0));
-  for (const testCase of cases) it(testCase.name, () => runCase(testCase));
-});

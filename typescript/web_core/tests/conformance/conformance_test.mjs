@@ -41,6 +41,7 @@ import {A2uiExpressionError, A2uiValidationError} from '../../dist/src/errors.js
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
 import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
+import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -317,6 +318,9 @@ async function runConformanceHarness() {
             break;
           case 'get_renderer_data_model':
             validateGetRendererDataModelTestCase(testCase);
+            break;
+          case 'resolve_nodes':
+            await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
             break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);
