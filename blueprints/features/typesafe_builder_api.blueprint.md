@@ -51,12 +51,12 @@ flowchart LR
 
 ### Reference implementation (Python)
 
-In the [Python reference implementation](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/), developers author nested trees using generated catalog classes and package the flattened output directly into `a2ui_core` message models:
+In the [Python reference implementation](../../python/a2ui_agent/src/a2ui/builder/), developers author nested trees using generated catalog classes and package the flattened output directly into `a2ui_core` message models:
 
 ```python
 from a2ui.builder.v0_9 import Action, ActionEvent, DataBinding
 from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
-from a2ui.core.schema.server_to_client import (
+from a2ui.core.schema.v0_9.server_to_client import (
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,
@@ -99,9 +99,9 @@ def build_order_card(order_id: str) -> list:
 
 **Reference codebase links:**
 
-- Version-agnostic runtime (`core/`): [`agent_sdks/python/a2ui_agent/src/a2ui/builder/core/`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/core/)
-- Versioned v0.9 models (`v0_9/`): [`agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/)
-- Generated basic catalog: [`agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py`](../../agent_sdks/python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py)
+- Version-agnostic runtime (`core/`): [`python/a2ui_agent/src/a2ui/builder/core/`](../../python/a2ui_agent/src/a2ui/builder/core/)
+- Versioned v0.9 models (`v0_9/`): [`python/a2ui_agent/src/a2ui/builder/v0_9/`](../../python/a2ui_agent/src/a2ui/builder/v0_9/)
+- Generated basic catalog: [`python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py`](../../python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py)
 - Unified CLI codegen emitter (`dart/a2ui_cli`): [`dart/a2ui_cli/lib/src/emitters/python/python_emitter.dart`](../../dart/a2ui_cli/lib/src/emitters/python/python_emitter.dart)
 
 ---
@@ -259,7 +259,7 @@ Catalog files (such as `builder/v0_9/catalogs/basic.<ext>`) are generated from t
 
 #### Cross-language golden test suite
 
-All positive authoring and serialization cases are defined in [`conformance/agent/builder/builder.yaml`](../../conformance/agent/builder/builder.yaml) with golden outputs in [`conformance/agent/builder/golden/`](../../conformance/agent/builder/golden/) (see [`builder_suite.py`](../../agent_sdks/python/a2ui_agent/tests/conformance/builder_suite.py) for the reference test harness).
+All positive authoring and serialization cases are defined in [`conformance/agent/builder/builder.yaml`](../../conformance/agent/builder/builder.yaml) with golden outputs in [`conformance/agent/builder/golden/`](../../conformance/agent/builder/golden/) (see [`builder_suite.py`](../../python/a2ui_agent/tests/conformance/builder_suite.py) for the reference test harness).
 
 Every conformance test runner must verify each case with two checks:
 
@@ -268,7 +268,7 @@ Every conformance test runner must verify each case with two checks:
 
 #### Local tests for non-obvious invariants
 
-Because the golden suite tests only valid positive ASTs, each language implementation must include local unit tests for the following cases (see [`test_pydantic_builders.py`](../../agent_sdks/python/a2ui_agent/tests/test_pydantic_builders.py)):
+Because the golden suite tests only valid positive ASTs, each language implementation must include local unit tests for the following cases (see [`test_pydantic_builders.py`](../../python/a2ui_agent/tests/test_pydantic_builders.py)):
 
 1. **Negative strictness tests**:
    - Constructing a component or item model with an undeclared property raises an error.

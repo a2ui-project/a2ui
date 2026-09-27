@@ -15,12 +15,8 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
-import '../inference_formats/express/format.dart';
 import '../parser/response_part.dart';
-
-/// The tag that opens a direct JSON payload, which this processor does not
-/// read.
-const String _directJsonOpenTag = '<a2ui-json>';
+import 'validation.dart';
 
 /// The per-request facade: the catalogs negotiated with one renderer, the
 /// prompt snippet describing them, and parsing of the LLM's response.
@@ -34,41 +30,37 @@ class A2uiRequestProcessor {
   /// The format the LLM writes payloads in.
   final InferenceFormatFactory formatFactory;
 
-  /// Throws [UnsupportedError] if [formatFactory] is not an
-  /// [ExpressFormatFactory], the only format this SDK implements.
+  final InferenceFormat _format;
+
   A2uiRequestProcessor({
     required this.activeCatalogs,
     required this.formatFactory,
-  }) {
-    if (formatFactory is! ExpressFormatFactory) {
-      throw UnsupportedError(
-        'Unsupported inference format ${formatFactory.runtimeType}; this SDK '
-        'supports only ExpressFormatFactory.',
-      );
-    }
-  }
+  }) : _format = formatFactory.createFormat(activeCatalogs);
 
-  /// The system prompt snippet teaching the LLM the Express format and the
-  /// components and functions of [activeCatalogs].
+  /// The system prompt snippet teaching the LLM the format and the components
+  /// and functions of [activeCatalogs].
   ///
   /// The agent adds its own role and workflow instructions around it.
-  String get promptSnippet {
-    throw UnimplementedError('A2uiRequestProcessor.promptSnippet');
-  }
+  String get promptSnippet => _format.promptGenerator.generate();
 
   /// Parses a complete LLM response into text and v0.9 A2UI messages, in the
   /// order the LLM emitted them.
   ///
-  /// Throws [A2uiParseError] if [content] carries a payload in a format other
-  /// than Express.
+  /// Each payload block becomes one [A2uiPart], checked as a renderer holding
+  /// [activeCatalogs] would check it.
+  ///
+  /// Throws [A2uiParseError] if a block cannot be read or [content] carries a
+  /// payload in another format, [A2uiValidationError] if a block uses
+  /// anything the catalogs do not declare, and another [A2uiError] if a
+  /// renderer would reject the messages, such as an [A2uiIntegrityError] for
+  /// a component nothing reaches from `root`.
   List<ResponsePart> parseResponse(String content) {
-    if (content.contains(_directJsonOpenTag)) {
-      throw A2uiParseError(
-        'The response carries a direct JSON payload ($_directJsonOpenTag); '
-        'this processor reads only the Express format.',
-        rawContent: content,
-      );
-    }
-    throw UnimplementedError('A2uiRequestProcessor.parseResponse');
+    final List<ResponsePart> parts = _format.createParser().parseResponse(
+      content,
+    );
+    validatePayloads(activeCatalogs, [
+      for (final A2uiPart part in parts.whereType<A2uiPart>()) part.a2ui,
+    ]);
+    return parts;
   }
 }

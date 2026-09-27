@@ -24,7 +24,7 @@ describe('Example: Notification Permission', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Notification Permission');
+    fixture = await loadExample({name: 'Notification Permission'});
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });

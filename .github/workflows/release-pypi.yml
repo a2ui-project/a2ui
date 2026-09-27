@@ -224,18 +224,19 @@ jobs:
       - name: Stage built artifacts for hand-off
         run: |
           set -euo pipefail
-          mkdir -p .artifacts
-          cp release-plan.json .artifacts/
+          mkdir -p staging-artifacts
+          cp release-plan.json staging-artifacts/
           jq -r '.[].directory' release-plan.json | while read -r directory; do
-            mkdir -p ".artifacts/${directory}/dist"
-            cp "${directory}"/dist/* ".artifacts/${directory}/dist/"
+            mkdir -p "staging-artifacts/${directory}/dist"
+            cp "${directory}"/dist/* "staging-artifacts/${directory}/dist/"
           done
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-artifacts
-          path: .artifacts
+          path: staging-artifacts
+          include-hidden-files: true
           retention-days: 7
 
   release:

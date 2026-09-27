@@ -18,7 +18,7 @@ import asyncio
 import re
 import os
 import httpx
-from typing import Optional, Any, List, override, Union
+from typing import Any, override
 
 from google.adk.agents.invocation_context import new_invocation_context_id, InvocationContext
 from google.adk.events.event_actions import EventActions
@@ -190,7 +190,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
     @classmethod
     async def create(
-        cls, base_url: str, subagent_urls: List[str]
+        cls, base_url: str, subagent_urls: list[str]
     ) -> tuple["OrchestratorAgentExecutor", AgentCard]:
         """Creates the OrchestratorAgentExecutor and AgentCard."""
         orchestrator_agent, agent_card = await cls._build_agent(
@@ -201,7 +201,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
     @classmethod
     async def _build_agent(
-        cls, base_url: str, subagent_urls: List[str]
+        cls, base_url: str, subagent_urls: list[str]
     ) -> tuple[LlmAgent, AgentCard]:
         """Builds the LLM agent for the orchestrator_agent agent."""
 
@@ -348,7 +348,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
         executor_context: ExecutorContext,
         a2a_event: A2AEvent,
         event: Event,
-    ) -> Union[A2AEvent, list[A2AEvent], None]:
+    ) -> A2AEvent | list[A2AEvent] | None:
         invocation_context = executor_context.invocation_context
 
         # Try to populate subagent agent card if available.

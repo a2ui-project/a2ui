@@ -300,7 +300,7 @@ In multi-agent systems, a central **Orchestrator** often manages interactions be
 
 ### The Surface Ownership Pattern
 
-To handle routing in a multi-agent architecture, an orchestrator must maintain a mapping of each `surfaceId` to its owning sub-agent. The official Python SDK provides the [`A2uiSubagentMap`](../../../agent_sdks/python/a2ui_agent/src/a2ui/adk/orchestration/a2ui_subagent_map.py) utility to manage this mapping safely.
+To handle routing in a multi-agent architecture, an orchestrator must maintain a mapping of each `surfaceId` to its owning sub-agent. The official Python SDK provides the [`A2uiSubagentMap`](../../../python/a2ui_agent/src/a2ui/adk/orchestration/a2ui_subagent_map.py) utility to manage this mapping safely.
 
 For a complete working example, see the [orchestrator agent executor](../../../samples/community/agent/adk/orchestrator/orchestrator_agent_executor.py) sample.
 

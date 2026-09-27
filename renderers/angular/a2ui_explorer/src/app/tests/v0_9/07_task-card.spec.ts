@@ -23,7 +23,7 @@ describe('Example: Task Card', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Task Card');
+    fixture = await loadExample({name: 'Task Card'});
 
     // Wait a bit more for dynamic components
     await wait(100);

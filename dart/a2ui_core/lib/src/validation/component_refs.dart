@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:collection';
+
 import '../core/catalog.dart';
 import '../primitives/reference_schema.dart';
 
@@ -55,10 +57,11 @@ class ComponentReference {
 /// documents write it, and the `REF:` description pointer that catalogs built
 /// in Dart carry (see `CommonSchemas`). Local `$ref`s are followed first
 /// against the component's own `$defs`, then against the catalog document.
+/// An unmarked string `child` or string-array `children` also counts, for
+/// ad-hoc schemas that carry neither notation.
 ///
 /// An unmarked `componentId`-and-`path` object is not treated as a child
-/// list: validation rejects a whole batch, so it keeps to what the catalog
-/// states rather than what a schema resembles.
+/// list.
 Map<String, ComponentRefFields> extractComponentRefFields<
   C extends ComponentApi,
   F extends FunctionApi
@@ -67,11 +70,13 @@ Map<String, ComponentRefFields> extractComponentRefFields<
   final result = <String, ComponentRefFields>{};
 
   for (final MapEntry<String, C> entry in catalog.components.entries) {
-    final RefFields fields = ReferenceSchemaReader(
-      entry.value.schema.value,
-      document: document,
-      structuralChildLists: false,
-    ).fields();
+    final RefFields fields = _withNamedFallbacks(
+      ReferenceSchemaReader(
+        entry.value.schema.value,
+        document: document,
+        structuralChildLists: false,
+      ),
+    );
     if (fields.isEmpty) continue;
     result[entry.key] = ComponentRefFields(
       single: {
@@ -90,6 +95,45 @@ Map<String, ComponentRefFields> extractComponentRefFields<
     );
   }
   return result;
+}
+
+/// Reads [reader]'s fields, adding an unmarked string `child` as a single
+/// reference and an unmarked string-array `children` as a list.
+RefFields _withNamedFallbacks(ReferenceSchemaReader reader) {
+  final RefFields fields = reader.fields();
+  final added = <String, RefKind>{};
+  for (final Map<String, Object?> node in reader.schemas(reader.root)) {
+    final Object? properties = node['properties'];
+    if (properties is! Map) continue;
+    final Map<String, Object?>? child = _target(reader, properties['child']);
+    if (!fields.containsKey('child') && child?['type'] == 'string') {
+      added['child'] = const SingleRef();
+    }
+    final Map<String, Object?>? children = _target(
+      reader,
+      properties['children'],
+    );
+    if (!fields.containsKey('children') &&
+        children?['type'] == 'array' &&
+        _target(reader, children?['items'])?['type'] == 'string') {
+      added['children'] = const ListRef();
+    }
+  }
+  return added.isEmpty ? fields : {...fields, ...added};
+}
+
+/// Follows local `$ref`s from [schema] without entering combinator branches.
+Map<String, Object?>? _target(ReferenceSchemaReader reader, Object? schema) {
+  final visited = HashSet<Object>.identity();
+  var current = schema;
+  while (current is Map && visited.add(current)) {
+    final Object? ref = current[r'$ref'];
+    if (ref is! String) return current.cast<String, Object?>();
+    final List<Map<String, Object?>> reached = reader.schemas({r'$ref': ref});
+    if (reached.length < 2) return current.cast<String, Object?>();
+    current = reached[1];
+  }
+  return null;
 }
 
 /// Lists every component [component] references, in declaration order.

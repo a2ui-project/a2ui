@@ -35,6 +35,7 @@ import {
 /** A catalog exposing `shout`, used to exercise function call resolution. */
 const testCatalog = new Catalog<ComponentApi>(
   'https://example.com/test-catalog.json',
+  '0.9',
   [],
   [
     createFunctionImplementation(
@@ -51,7 +52,8 @@ const testCatalog = new Catalog<ComponentApi>(
 function createContext(data: Record<string, unknown> = {}): DataContext {
   const surface = {
     dataModel: new DataModel(data),
-    catalog: {invoker: testCatalog.invoker},
+    defaultCatalog: {invoker: testCatalog.invoker},
+    availableCatalogs: new Map(),
     dispatchError: () => {},
   } as any;
   return new DataContext(surface, '/');

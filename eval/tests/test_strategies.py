@@ -210,8 +210,8 @@ async def test_a2ui_elemental_solvers() -> None:
                     message=ChatMessageAssistant(
                         content=(
                             '<a2ui><body id="main"><link rel="catalog"'
-                            ' href="https://a2ui.org/catalog"><ui-text id="root"'
-                            ' text="Hello"></ui-text></body></a2ui>'
+                            ' href="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"><ui-text'
+                            ' id="root" text="Hello"></ui-text></body></a2ui>'
                         )
                     )
                 )

@@ -91,7 +91,20 @@ abstract class AgentToRendererMessage {
             version: version,
             surfaceId: _required<String>(body, 'surfaceId', key),
             catalogId: _required<String>(body, 'catalogId', key),
-            theme: _optional<Map<String, dynamic>>(body, 'theme', key),
+            theme: () {
+              final Map<dynamic, dynamic>? themeMap =
+                  _optional<Map<dynamic, dynamic>>(body, 'theme', key);
+              if (themeMap != null) {
+                if (themeMap.keys.any((k) => k is! String)) {
+                  throw A2uiValidationError(
+                    "Field '$key.theme' must have string keys.",
+                    details: body,
+                  );
+                }
+                return themeMap.cast<String, dynamic>();
+              }
+              return null;
+            }(),
             sendDataModel: _optional<bool>(body, 'sendDataModel', key) ?? false,
           );
         case 'updateComponents':
@@ -268,6 +281,12 @@ Map<String, dynamic> _object(
     throw A2uiValidationError(
       "Field '$messageType.$field' must be an object, got "
       '${value.runtimeType}.',
+      details: body,
+    );
+  }
+  if (value.keys.any((key) => key is! String)) {
+    throw A2uiValidationError(
+      "Field '$messageType.$field' must have string keys.",
       details: body,
     );
   }

@@ -101,6 +101,11 @@ describe('v0.9 Angular Renderer Integration', () => {
               id: 'button-id',
               component: 'Button',
               child: 'button-text-id',
+              action: {
+                event: {
+                  name: 'click',
+                },
+              },
             },
             {
               id: 'button-text-id',

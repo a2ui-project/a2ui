@@ -16,8 +16,46 @@ import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-class _OtherFormatFactory extends InferenceFormatFactory {
-  const _OtherFormatFactory();
+/// A format that reads every response as text, to show that the processor
+/// delegates to the format it is given.
+class _TextFormatFactory extends InferenceFormatFactory {
+  const _TextFormatFactory();
+
+  @override
+  InferenceFormat createFormat(List<SchemaCatalog> catalogs) =>
+      _TextFormat(catalogs);
+}
+
+class _TextFormat extends InferenceFormat {
+  const _TextFormat(this.catalogs);
+
+  final List<SchemaCatalog> catalogs;
+
+  @override
+  PromptGenerator get promptGenerator => _TextPromptGenerator(catalogs);
+
+  @override
+  Parser createParser() => const _TextParser();
+}
+
+class _TextPromptGenerator extends PromptGenerator {
+  const _TextPromptGenerator(this.catalogs);
+
+  final List<SchemaCatalog> catalogs;
+
+  @override
+  String generate() => 'Answer in text. Catalogs: ${catalogs.map((c) => c.id)}';
+}
+
+class _TextParser extends Parser {
+  const _TextParser();
+
+  @override
+  List<RawResponsePart> unwrap(String content) => [TextPart(content)];
+
+  @override
+  List<AgentToRendererMessage> compile(String formatContent) =>
+      throw UnimplementedError();
 }
 
 void main() {
@@ -61,12 +99,14 @@ void main() {
       );
     });
 
-    test('rejects a format other than Express', () {
+    test('binds the active catalogs to the given format', () {
+      final A2uiRequestProcessor processor = generator(
+        format: const _TextFormatFactory(),
+      ).createProcessor(A2uiRendererCapabilities.forCatalogIds([a.id]));
+      expect(processor.promptSnippet, 'Answer in text. Catalogs: (${a.id})');
       expect(
-        () => generator(
-          format: const _OtherFormatFactory(),
-        ).createProcessor(A2uiRendererCapabilities.forCatalogIds([a.id])),
-        throwsUnsupportedError,
+        (processor.parseResponse('Which city?').single as TextPart).text,
+        'Which city?',
       );
     });
   });

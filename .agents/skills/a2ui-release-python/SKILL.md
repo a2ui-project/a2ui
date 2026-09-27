@@ -159,7 +159,7 @@ release that is not the one that will go out.
 git status --short --branch
 ```
 
-Uncommitted changes under `agent_sdks/python/*/CHANGELOG.md`, or a branch behind
+Uncommitted changes under `python/*/CHANGELOG.md`, or a branch behind
 `origin/main`, mean stop and say what was found.
 
 **3. The repository's own preflight passes.** Use the version from Step 1. This
@@ -175,7 +175,7 @@ It rejects an empty `## Unreleased`, a version that already has a tag, and an
 > [!IMPORTANT]
 > That last one is the usual surprise. An `a2ui-core` **minor or major** bump
 > needs the `a2ui-core>=...` pin in
-> [a2ui_agent/pyproject.toml](../../../agent_sdks/python/a2ui_agent/pyproject.toml)
+> [a2ui_agent/pyproject.toml](../../../python/a2ui_agent/pyproject.toml)
 > widened in the same release. That is a code change requiring its own reviewed
 > pull request, so it has to land before the release, not during it. If the
 > check reports this, stop and tell the maintainer what needs widening.

@@ -16,7 +16,7 @@
 
 import {useState, useEffect} from 'react';
 import {useMarkdownRenderer} from '../context/MarkdownContext';
-import type {MarkdownRendererOptions} from '@a2ui/web_core/types/types';
+import type {MarkdownRendererOptions} from '@a2ui/web_core';
 
 let warningLogged = false;
 

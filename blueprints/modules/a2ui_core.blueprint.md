@@ -457,7 +457,6 @@ export interface MessageProcessorOptions {
 
 class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
-  readonly version: ProtocolVersion;
   readonly rpc: RpcHandler;
 
   constructor(
@@ -478,13 +477,13 @@ class MessageProcessor<T extends ComponentApi> {
   ): Promise<T>;
 
   // Returns a strictly typed capabilities object ready for JSON serialization
-  getRendererCapabilities(options?: CapabilitiesOptions): A2uiRendererCapabilities;
+  getRendererCapabilities(options: CapabilitiesOptions): A2uiRendererCapabilities;
 
   /**
    * Returns the aggregated data model for all surfaces that have 'sendDataModel' enabled.
    * This should be used by the transport layer to populate metadata (e.g., 'A2uiRendererDataModel').
    */
-  getRendererDataModel(): A2uiRendererDataModel | undefined;
+  getRendererDataModel(version?: ProtocolVersion): A2uiRendererDataModel | undefined;
 
   /** Disposes the processor, its surfaces, and all pending outbound RPC requests. */
   dispose(reason?: string): void;
@@ -510,7 +509,9 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 **Implementation Flow:**
 
 1.  The `MessageProcessor` tracks the `sendDataModel` flag for each surface.
-2.  The `getRendererDataModel()` method iterates over all active surfaces and returns a map of data models for those where the flag is enabled.
+2.  The `getRendererDataModel(version?: ProtocolVersion)` method collects the data models of active surfaces where `sendDataModel` is enabled:
+    - If `version` is provided, it filters and returns only surfaces compatible with that protocol version.
+    - If `version` is omitted, it auto-infers the protocol version from the active surface(s). If active surfaces have conflicting protocol versions, it throws an `A2uiValidationError` requiring the caller to explicitly specify the target version.
 3.  The **Transport Layer** (e.g., A2A, MCP) calls `getRendererDataModel()` before sending any message to the agent.
 4.  If a non-empty data model map is returned, it is included in the transport's metadata field (e.g., `A2uiRendererDataModel` in A2A metadata).
 
@@ -529,11 +530,28 @@ Both sides advertise their capabilities to each other.
 
 Schemas live in `specification/<version>/json/`. v1.0 names the pair [`renderer_capabilities.json`](../../specification/v1_0/json/renderer_capabilities.json) and [`agent_capabilities.json`](../../specification/v1_0/json/agent_capabilities.json). v0.9 and v0.9.1 name the same pair [`client_capabilities.json`](../../specification/v0_9_1/json/client_capabilities.json) and [`server_capabilities.json`](../../specification/v0_9_1/json/server_capabilities.json), carried as `a2uiClientCapabilities` and `a2uiServerCapabilities`. v0.8 spells it differently again ([`a2ui_client_capabilities_schema.json`](../../specification/v0_8/json/a2ui_client_capabilities_schema.json)) and publishes no server-side counterpart.
 
+##### `CapabilitiesOptions`
+
+When invoking `getRendererCapabilities(options: CapabilitiesOptions)`, at least one protocol version must be specified in `options.versions` (otherwise an `A2uiValidationError` is thrown):
+
+```typescript
+export interface CapabilitiesOptions {
+  /** Protocol versions to generate capabilities for. Required; must contain at least one version. */
+  versions: ProtocolVersion[];
+  /** Whether full definitions of all catalogs will be included inline. */
+  includeInlineCatalogs?: boolean;
+  /** Base schema `$ref` to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
+  componentEnvelopeRef?: string;
+}
+```
+
+The returned `A2uiRendererCapabilities` map contains capability structures keyed by each protocol version specified in `versions` (e.g. `{"v0.9": {"supportedCatalogIds": [...]}, "v1.0": {"supportedCatalogIds": [...]}}`), strictly conforming to [`renderer_capabilities.json`](../../specification/v1_0/json/renderer_capabilities.json) where `supportedCatalogIds` is defined under the protocol version.
+
 #### Generating Renderer Capabilities and Schema Types
 
 To dynamically generate the `A2uiRendererCapabilities` payload (specifically `inlineCatalogs`), the processor must convert internal component schemas into valid JSON Schemas.
 
-**Schema Types Location**: Foundational schema types _should_ be defined in a dedicated directory like `schema`. You can see the `renderers/web_core/src/v1_0/schema/common-types.ts` file in the reference web implementation as an example.
+**Schema Types Location**: Foundational schema types _should_ be defined in a dedicated directory like `schema`. You can see the `typescript/web_core/src/v1_0/schema/common-types.ts` file in the reference web implementation as an example.
 
 **Detectable Common Types**: Shared definitions (like `DynamicString`) must emit external JSON Schema `$ref` pointers. This is achieved by "tagging" the schemas using their `description` property (e.g., `REF:common_types.json#/$defs/DynamicString`).
 

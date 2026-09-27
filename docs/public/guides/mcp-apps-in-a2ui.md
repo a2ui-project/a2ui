@@ -115,6 +115,7 @@ const McpAppSchema = z.object({
 
 export const DEMO_CATALOG = new Catalog(
   'my_app.org/some_catalog.json',
+  'v0.9',
   [
     {name: 'McpApp', component: McpApp, schema: McpAppSchema},
     {

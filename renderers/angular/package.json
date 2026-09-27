@@ -101,7 +101,7 @@
     "build": {
       "command": "ng build lib && node ../scripts/prepare-publish.mjs --source ./dist/package.json --skip-path-adjustment",
       "dependencies": [
-        "../../renderers/web_core:build",
+        "../../typescript/web_core:build",
         "../../renderers/markdown/markdown-it:build"
       ],
       "files": [
