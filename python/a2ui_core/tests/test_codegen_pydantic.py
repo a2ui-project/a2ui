@@ -175,6 +175,12 @@ def test_compile_properties_to_pydantic():
         in lines
     )
 
+    # JSON Schema regex escapes must survive as the same Python string value.
+    pattern = r"^\d+\.[A-Z]+$"
+    props = {"code": {"type": "string", "pattern": pattern}}
+    lines = codegen.compile_properties(props, ["code"])
+    assert lines == [f"    code: str = Field(..., pattern={json.dumps(pattern)})"]
+
     # CamelCase to snake_case alias
     props = {"surfaceId": {"type": "string"}}
     lines = codegen.compile_properties(props, ["surfaceId"])

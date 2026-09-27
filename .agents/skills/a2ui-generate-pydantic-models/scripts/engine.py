@@ -173,8 +173,7 @@ class PydanticCodegen:
                 )
 
             if "pattern" in prop_desc:
-                pat = prop_desc["pattern"].replace("\\", "\\\\")
-                field_opts.append(f'pattern=r"{pat}"')
+                field_opts.append(f"pattern={json.dumps(prop_desc['pattern'])}")
 
             if const_default:
                 field_opts.append(const_default)
