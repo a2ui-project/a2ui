@@ -31,7 +31,7 @@ The layers have separate responsibilities:
 - A `ComponentNode` is one resolved component instance at one position in the tree. One node exists per referencing position: two parents that reference the same component id hold two distinct nodes.
 - `instanceId` names the position and MUST be distinct among siblings; a template item's position is its index in the array, not a key in the item's data.
 - The node object at a position is replaced when the component definition there changes type, and when a placeholder's component arrives; the replacement keeps the `instanceId`. A node whose position is gone is disposed, and disposing a node disposes its subtree.
-- `props` is a reactive map keyed by the component's schema property names. It holds a `ResolvedBinding` for each dynamic property, a `NodeAction` for each action, child nodes for each child reference, and the literal value otherwise. It reflects the current component definition.
+- `props` is a reactive map keyed by the component's schema property names. It holds a `ResolvedBinding` for each dynamic property, a `NodeAction` for each action, child nodes for each child reference the resolver mounts, and the literal value otherwise. It reflects the current component definition.
 - `dataPath` is the data scope the node resolves relative paths against.
 
 ### **3. Bindings**
@@ -43,13 +43,14 @@ The layers have separate responsibilities:
 ### **4. Children**
 
 - A property whose schema references the shared `ComponentId` definition (single child) or `ChildList` definition (explicit id list or data-driven template) is a child reference.
+- The resolver mounts single references, explicit id lists and templates in top-level properties, and single references in objects within top-level arrays.
 - A single reference resolves to one child node; an explicit list and a template alike resolve to one list of child nodes.
 - A template resolves its path against the parent's scope and spawns one node per array item, at the data scope `<template path>/<index>`.
 
 ### **5. Actions**
 
 - An action property resolves to a `NodeAction`. Invoking it MUST resolve the action payload at that moment, not at bind, in the node's data scope.
-- For an `event` payload the surface emits one client action carrying the resolved context and the source component id. For a `functionCall` payload the catalog function executes and the surface MUST emit nothing.
+- For an `event` payload the surface emits one client action carrying the resolved context and the source component id. For a `functionCall` payload the catalog function executes and the surface MUST emit no action event.
 
 ### **6. Notification**
 
@@ -156,7 +157,7 @@ class NodeResolver<C extends ComponentApi> {
 ### **Changes to existing core contracts**
 
 1. **Dynamic properties become bindings.** Node props hold a `ResolvedBinding` per dynamic property in place of a value plus a setter.
-2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. A node's `NodeAction` executes a `functionCall` payload itself, in its data scope, and emits nothing.
+2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. A node's `NodeAction` executes a `functionCall` payload itself, in its data scope, and emits no action event.
 
 ### **Changes to the framework adapter contract**
 
@@ -165,7 +166,7 @@ A node-based adapter reads children from the resolver instead of calling the `bu
 1. **Owns one resolver per surface.** It constructs a `NodeResolver` when the surface mounts, renders from its `rootNode`, and disposes the resolver when the surface unmounts.
 2. **Subscribes per node.** Each node's `props` is subscribed separately.
 3. **Renders placeholders.** The adapter supplies the view for any node whose `state` is not `resolved`.
-4. **Unwraps bindings at the control boundary.** A control reads a binding's value and writes through its `set`.
+4. **Unwraps bindings at the control boundary.** A control reads a binding's value and, for a writable binding, writes through its `set`.
 
 ---
 
