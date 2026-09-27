@@ -73,7 +73,6 @@
             "remove_strict_validation",
             "render",
             "resolve_catalogs",
-            "resolve_nodes",
             "resolve_path",
             "select_catalog",
             "select_newest",

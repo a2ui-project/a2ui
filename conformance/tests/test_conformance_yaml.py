@@ -93,6 +93,13 @@ def node_case(**changes):
     }
 
 
+@pytest.mark.parametrize("missing", ["fixture", "expect", "steps"])
+def test_node_cases_require_their_fields(missing):
+    case = {key: value for key, value in node_case().items() if key != missing}
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([case])
+
+
 @pytest.mark.parametrize(
     "step",
     [
