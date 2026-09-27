@@ -561,13 +561,22 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_accessibility_check_case(case)
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
-    elif action == "resolve_nodes":
-        pytest.skip(UNRUNNABLE_SUITES["core/node_resolution.yaml"])
+    elif action == "resolve_nodes" and rel_path == "core/node_resolution.yaml":
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."
             " Add one, or add the suite to UNRUNNABLE_SUITES with a reason."
         )
+
+
+def test_resolve_nodes_outside_its_suite_is_unsupported() -> None:
+    case = {"name": "stray", "action": "resolve_nodes"}
+    with pytest.raises(BaseException) as outcome:
+        test_conformance_suite(
+            "core/data_model.yaml::stray", "core/data_model.yaml", case
+        )
+    assert isinstance(outcome.value, pytest.fail.Exception), outcome.value
 
 
 def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
