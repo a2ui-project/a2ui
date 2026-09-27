@@ -833,6 +833,22 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
                     assert cat.get_function(fn_name) is not None
 
 
+def _normalize_schema_for_comparison(value: Any) -> Any:
+    """Ignore enum ordering, which JSON Schema defines as semantically irrelevant."""
+    if isinstance(value, dict):
+        normalized = {
+            key: _normalize_schema_for_comparison(item) for key, item in value.items()
+        }
+        if isinstance(normalized.get("enum"), list):
+            normalized["enum"] = sorted(
+                normalized["enum"], key=lambda item: json.dumps(item, sort_keys=True)
+            )
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_schema_for_comparison(item) for item in value]
+    return value
+
+
 def validate_catalog_schema_case(case: dict[str, Any]) -> None:
     p_ver = resolve_protocol_version(case)
     if case.get("useBasicCatalog") or case.get("catalog") == "BasicCatalog":
@@ -888,7 +904,9 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
         expected = case.get("expect")
 
     if expected is not None:
-        assert cat.catalog_schema == expected
+        assert _normalize_schema_for_comparison(cat.catalog_schema) == (
+            _normalize_schema_for_comparison(expected)
+        )
 
 
 def validate_resolve_path_case(case: dict[str, Any]) -> None:

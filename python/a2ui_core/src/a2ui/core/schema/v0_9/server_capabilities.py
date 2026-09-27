@@ -31,12 +31,12 @@ class V09ServerCapabilities(StrictBaseModel):
         ),
     )
     accepts_inline_catalogs: bool | None = Field(
+        None,
         alias="acceptsInlineCatalogs",
         description=(
             "A boolean indicating if the server can accept an 'inlineCatalogs' array in"
             " the client's a2uiClientCapabilities. If omitted, this defaults to false."
         ),
-        default=False,
     )
 
 

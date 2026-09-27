@@ -14,6 +14,7 @@
 
 """Core Pydantic v2 code generation engine for converting JSON Schemas to Python types."""
 
+import json
 from typing import Any
 from utils import (
     ensure_v_prefix,
@@ -142,39 +143,41 @@ class PydanticCodegen:
             if prop_name == "component":
                 continue
             py_type = self.map_json_type_to_python(prop_name, prop_desc)
-            raw_desc = (
-                prop_desc.get("description", "").replace("\n", " ").replace('"', '\\"')
-            )
+            raw_desc = prop_desc.get("description", "").replace("\n", " ")
 
             field_opts = []
+            has_default = False
+            const_default: str | None = None
+            if "default" in prop_desc and "const" not in prop_desc:
+                # JSON Schema defaults describe consumers' assumptions; they should
+                # not become values that a Pydantic model producer writes.
+                if "default" not in raw_desc.lower():
+                    documented_default = json.dumps(
+                        prop_desc["default"], ensure_ascii=False
+                    )
+                    default_note = f"Defaults to {documented_default} when absent."
+                    raw_desc = f"{raw_desc} {default_note}".strip()
+            elif "const" in prop_desc:
+                has_default = True
+                const_val = prop_desc["const"]
+                if isinstance(const_val, str):
+                    const_default = f'default="{const_val}"'
+                elif isinstance(const_val, bool):
+                    const_default = f"default={const_val}"
+                else:
+                    const_default = f"default={const_val}"
+
             if raw_desc:
-                field_opts.append(f'description="{raw_desc}"')
+                field_opts.append(
+                    f"description={json.dumps(raw_desc, ensure_ascii=False)}"
+                )
 
             if "pattern" in prop_desc:
                 pat = prop_desc["pattern"].replace("\\", "\\\\")
                 field_opts.append(f'pattern=r"{pat}"')
 
-            has_default = False
-            if "default" in prop_desc:
-                has_default = True
-                default_val = prop_desc["default"]
-                if isinstance(default_val, str):
-                    field_opts.append(f'default="{default_val}"')
-                elif isinstance(default_val, bool):
-                    field_opts.append(f"default={default_val}")
-                elif default_val is None:
-                    field_opts.append("default=None")
-                else:
-                    field_opts.append(f"default={default_val}")
-            elif "const" in prop_desc:
-                has_default = True
-                const_val = prop_desc["const"]
-                if isinstance(const_val, str):
-                    field_opts.append(f'default="{const_val}"')
-                elif isinstance(const_val, bool):
-                    field_opts.append(f"default={const_val}")
-                else:
-                    field_opts.append(f"default={const_val}")
+            if const_default:
+                field_opts.append(const_default)
 
             snake_name = to_snake_case(prop_name)
             if snake_name != prop_name:
