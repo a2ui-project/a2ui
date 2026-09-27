@@ -131,12 +131,24 @@ const SKIP_TEST_NAMES = new Set([
 ]);
 
 /**
- * Cases that web_core's behaviour does not satisfy, keyed by case name, with
- * the behaviour that differs. They are reported as skipped with that reason.
+ * Cases that web_core's behaviour does not satisfy, keyed by suite path and
+ * then case name, with the behaviour that differs. They are reported as
+ * skipped with that reason. An entry that matches no case fails the run.
  */
 const KNOWN_DIVERGENCES = new Map([
-  ['function_action_without_event', 'web_core emits a functionCall action as an onAction event'],
+  [
+    'core/node_resolution.yaml',
+    new Map([
+      [
+        'function_action_without_event',
+        'web_core emits a functionCall action as an onAction event',
+      ],
+    ]),
+  ],
 ]);
+
+/** Suites that must be discovered and contain at least one case. */
+const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
 
 /**
  * Transition skip list containing specific test suite files to skip during active feature transitions.
@@ -222,6 +234,19 @@ async function runConformanceHarness() {
   const failures = [];
   /** Count of cases skipped per `UNIMPLEMENTED_ACTIONS` entry, for the summary. */
   const unrunByAction = new Map();
+  /** `KNOWN_DIVERGENCES` entries that matched a case, as `suite#name`. */
+  const matchedDivergences = new Set();
+  const discoveredSuites = new Set(files.map(file => path.relative(CONFORMANCE_ROOT, file)));
+
+  for (const suite of REQUIRED_SUITES) {
+    if (!discoveredSuites.has(suite)) {
+      totalTests++;
+      totalFailed++;
+      const err = 'Required suite was not discovered.';
+      console.error(`  ✗ FAILED: ${suite}: ${err}`);
+      failures.push({file: suite, name: 'Required Suite', error: err});
+    }
+  }
 
   for (const filePath of files) {
     const relativePath = path.relative(CONFORMANCE_ROOT, filePath);
@@ -249,6 +274,15 @@ async function runConformanceHarness() {
       continue;
     }
 
+    if (REQUIRED_SUITES.has(relativePath) && testCases.length === 0) {
+      totalTests++;
+      totalFailed++;
+      const err = 'Required suite has no test cases.';
+      console.error(`  ✗ FAILED: ${relativePath}: ${err}`);
+      failures.push({file: relativePath, name: 'Required Suite', error: err});
+      continue;
+    }
+
     console.log(`\n📄 Suite: ${relativePath} (${testCases.length} test cases)`);
 
     for (const testCase of testCases) {
@@ -273,9 +307,11 @@ async function runConformanceHarness() {
         continue;
       }
 
-      if (KNOWN_DIVERGENCES.has(name)) {
+      const divergence = KNOWN_DIVERGENCES.get(relativePath)?.get(name);
+      if (divergence !== undefined) {
+        matchedDivergences.add(`${relativePath}#${name}`);
         totalSkipped++;
-        console.log(`  ⁃ [SKIPPED] ${name} (known divergence: ${KNOWN_DIVERGENCES.get(name)})`);
+        console.log(`  ⁃ [SKIPPED] ${name} (known divergence: ${divergence})`);
         continue;
       }
 
@@ -347,6 +383,18 @@ async function runConformanceHarness() {
         const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
         console.error(failMessage);
         failures.push({file: relativePath, name, error: err.message});
+      }
+    }
+  }
+
+  for (const [suite, cases] of KNOWN_DIVERGENCES) {
+    for (const name of cases.keys()) {
+      if (!matchedDivergences.has(`${suite}#${name}`)) {
+        totalTests++;
+        totalFailed++;
+        const err = 'Known divergence matches no test case.';
+        console.error(`  ✗ FAILED: ${name}: ${err}`);
+        failures.push({file: suite, name, error: err});
       }
     }
   }
