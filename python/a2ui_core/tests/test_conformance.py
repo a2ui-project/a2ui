@@ -89,6 +89,7 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " (Lit, React, Angular, Flutter, SwiftUI), which the core library does"
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
+    "core/node_resolution.yaml": "The Python core has no node resolution layer.",
 }
 
 # Root core conformance directory resolution
@@ -560,6 +561,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_accessibility_check_case(case)
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
+    elif action == "resolve_nodes":
+        pytest.skip(UNRUNNABLE_SUITES["core/node_resolution.yaml"])
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."
