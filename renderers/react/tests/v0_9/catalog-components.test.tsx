@@ -16,7 +16,8 @@
 
 import {describe, it, expect, vi} from 'vitest';
 import {screen, fireEvent, act, within} from '@testing-library/react';
-import {Catalog, ComponentModel} from '@a2ui/web_core/v0_9';
+import {ComponentModel} from '@a2ui/web_core/v0_9';
+
 import {renderA2uiComponent, renderedElement} from '../utils';
 
 import {
@@ -253,14 +254,7 @@ describe('Basic Catalog Components', () => {
         {
           initialData: {items: [{n: 'A'}, {n: 'B'}]},
           additionalImpls: [Text],
-          additionalComponents: [
-            new ComponentModel(
-              'itemComp',
-              'Text',
-              {text: {path: 'n'}},
-              new Catalog('text-cat', '0.9', [Text]),
-            ),
-          ],
+          additionalComponents: [new ComponentModel('itemComp', 'Text', {text: {path: 'n'}})],
         },
       );
 

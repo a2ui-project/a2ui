@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9) Every catalog component renders inside a custom element (`<a2ui-react-<name>>`, `display: contents`); React implementations render into it through a portal from the surface's React root. `buildChild(childNode)` returns that element. [#2849](https://github.com/a2ui-project/a2ui/pull/2849)
+
 ## 0.12.0
 
 - Align with `@a2ui/web_core` multi-catalog and protocol versioning updates.

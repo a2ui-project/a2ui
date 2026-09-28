@@ -15,31 +15,28 @@
  */
 
 /**
- * Surface renderer driven by the node layer.
- *
- * `A2uiSurface` owns one `NodeResolver` for the surface it is given,
- * subscribes to the resolved root node, and renders it through `NodeView`
- * under `NodeSurfaceContext`. Everything below the root, including dispatch
- * to each implementation and child reference resolution, lives in
- * `node-view.tsx`.
+ * `A2uiSurface` owns one `NodeResolver` for its surface, renders the root
+ * node's element and portals `NodeContent` into every React host that
+ * registers with the surface's `HostRegistry`. The portals keep every
+ * component in this one React tree, so providers, error boundaries and
+ * Suspense above `A2uiSurface` reach all of them; they are siblings, so React
+ * context from a parent catalog component does not reach its children.
  */
 
 import React, {useCallback, useMemo, useSyncExternalStore} from 'react';
+import {createPortal} from 'react-dom';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
+import {prepareCatalogs} from './catalog/prepare_catalogs';
+import {HostRegistry} from './host_registry';
+import {ChildElement, LoadingPlaceholder, NodeContent} from './node-view';
 import type {ReactComponentImplementation} from './react_component_implementation';
-
-import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
 
 export const A2uiSurface: React.FC<{
   surface: SurfaceModel<ReactComponentImplementation>;
 }> = ({surface}) => {
-  // The resolver is created inside subscribe, which React calls only for
-  // committed renders: a render that is discarded (concurrent mode,
-  // Suspense) never constructs one, and every constructed resolver is
-  // disposed by its own unsubscribe. StrictMode's double mount creates and
-  // disposes two in turn.
-  // The factory reads nothing; the dependency exists to reset the box when
-  // the surface is swapped.
+  // The resolver is created inside `subscribe`, which React calls only for
+  // committed renders, so a discarded render never constructs one and every
+  // resolver is disposed by its own unsubscribe.
   const box = useMemo(
     () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,6 +44,7 @@ export const A2uiSurface: React.FC<{
   );
   const subscribe = useCallback(
     (onChange: () => void) => {
+      prepareCatalogs(surface);
       const resolver = new NodeResolver(surface, surface.defaultCatalog);
       box.resolver = resolver;
       const stopEffect = effect(() => {
@@ -56,6 +54,7 @@ export const A2uiSurface: React.FC<{
       return () => {
         stopEffect();
         resolver.dispose();
+
         if (box.resolver === resolver) {
           box.resolver = undefined;
         }
@@ -69,12 +68,20 @@ export const A2uiSurface: React.FC<{
   );
   const root = useSyncExternalStore(subscribe, getSnapshot);
 
+  // Hosts are created by whichever parent renders them, a React parent through
+  // `WebComponentNode` or a Lit parent through `renderA2uiNode`, so they are
+  // not in this component's tree. A connected host registers with its surface
+  // together with its node, and the surface portals that node's content into it.
+  const registry = HostRegistry.forSurface(surface);
+  const hosts = useSyncExternalStore(registry.subscribe, registry.getSnapshot);
+
   if (!root) {
     return <LoadingPlaceholder componentId="root" />;
   }
   return (
-    <NodeSurfaceContext.Provider value={surface}>
-      <NodeView surface={surface} node={root} />
-    </NodeSurfaceContext.Provider>
+    <>
+      <ChildElement node={root} />
+      {hosts.map(({host, node}) => createPortal(<NodeContent node={node} />, host, node.id))}
+    </>
   );
 };

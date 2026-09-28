@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {describe, it, expect, beforeEach} from 'vitest';
-import React from 'react';
-import {render, screen, act, fireEvent} from '@testing-library/react';
+import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
+import React, {createContext, useContext} from 'react';
+import {render, screen, act, fireEvent, within} from '@testing-library/react';
 import {z} from 'zod';
 import {
   Catalog,
@@ -30,8 +30,10 @@ import {
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
 import {createComponentImplementation, type ReactComponentImplementation} from '../../src/v0_9';
-import {NodeSurfaceContext} from '../../src/v0_9/node-view';
+import type {ReactHostElement} from '../../src/v0_9/catalog/react_host_element';
+import {toWebComponent} from '../../src/v0_9/catalog/to_web_component';
 import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
+import {HostRegistry} from '../../src/v0_9/host_registry';
 import {basicCatalog} from '../../src/v0_9/catalog/basic';
 
 /** View render counts, keyed per component instance. */
@@ -41,6 +43,11 @@ function bump(key: string): void {
 }
 function rendersOf(key: string): number {
   return renders.get(key) ?? 0;
+}
+
+/** The tag of the host element `implementation` renders inside. */
+function tagOf(implementation: ReactComponentImplementation): string {
+  return toWebComponent(implementation).tagName;
 }
 
 const TextImpl = createComponentImplementation(
@@ -191,6 +198,30 @@ const UnmarkedParentImpl = createComponentImplementation(
   ({props, buildChild}) => <div>{props.child ? buildChild(props.child as string) : null}</div>,
 );
 
+const Theme = createContext('no provider');
+const PanelTheme = createContext('no panel provider');
+
+/** Reads React context, to show what reaches a nested component. */
+const ThemedImpl = createComponentImplementation({name: 'Themed', schema: z.object({})}, () => {
+  const theme = useContext(Theme);
+  const panelTheme = useContext(PanelTheme);
+  return <span data-testid="themed">{`${theme}/${panelTheme}`}</span>;
+});
+
+/** Provides React context around its child, which does not reach the child. */
+const PanelImpl = createComponentImplementation(
+  {name: 'Panel', schema: z.object({child: ComponentIdSchema.optional()})},
+  ({props, buildChild}) => (
+    <PanelTheme.Provider value="from panel">
+      {props.child ? buildChild(props.child as string) : null}
+    </PanelTheme.Provider>
+  ),
+);
+
+const ThrowerImpl = createComponentImplementation({name: 'Thrower', schema: z.object({})}, () => {
+  throw new Error('nested component failed');
+});
+
 /** Catches an expected render error so it stays out of the test output. */
 class CatchBoundary extends React.Component<{children: React.ReactNode}, {error: Error | null}> {
   state: {error: Error | null} = {error: null};
@@ -215,6 +246,9 @@ function setup() {
     CollidingScoperImpl,
     DashCollidingScoperImpl,
     UnmarkedParentImpl,
+    ThemedImpl,
+    PanelImpl,
+    ThrowerImpl,
   ]);
   const surface = new SurfaceModel<ReactComponentImplementation>('surf-1', catalog);
   return surface;
@@ -227,6 +261,17 @@ function add(surface: SurfaceModel, id: string, type: string, props: Record<stri
 beforeEach(() => {
   renders.clear();
 });
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/** Lets deferred host unregistration (a microtask) run. */
+async function flushMicrotasks() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
 
 describe('A2uiSurface', () => {
   it('renders a resolved tree end to end', () => {
@@ -490,8 +535,8 @@ describe('A2uiSurface', () => {
   });
 
   it('renders a component whose id matches a duplicate token as its own subtree', () => {
-    // A literal component named 'a#2' next to duplicates of 'a': tokens are
-    // instance ids, which are injective, so the literal cannot be shadowed.
+    // A literal component named 'a#2' next to duplicates of 'a': the literal
+    // is its own node, not shadowed by the second reference to 'a'.
     const surface = setup();
     add(surface, 'root', 'Column', {children: ['a#2', 'a', 'a']});
     add(surface, 'a#2', 'Probe', {});
@@ -499,20 +544,19 @@ describe('A2uiSurface', () => {
 
     render(<A2uiSurface surface={surface} />);
     const texts = screen.getAllByText(/^id:/).map(e => e.textContent);
-    expect(texts).toHaveLength(3);
-    expect(new Set(texts).size).toBe(3);
+    expect(texts).toEqual(['id:a~12', 'id:a', 'id:a#2']);
   });
 
-  it('renders duplicate child references as distinct subtrees', () => {
+  it('renders each duplicate child reference with its own node', () => {
     const surface = setup();
     add(surface, 'root', 'Column', {children: ['a', 'a']});
     add(surface, 'a', 'Probe', {});
 
-    render(<A2uiSurface surface={surface} />);
-    // Each position resolves to its own node; a collapse would render the
-    // first node's id at both positions.
-    expect(screen.getByText('id:a')).toBeDefined();
-    expect(screen.getByText('id:a#2')).toBeDefined();
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    const hosts = [...container.querySelectorAll(tagOf(ProbeImpl))] as ReactHostElement[];
+    expect(hosts.map(host => host.node?.instanceId)).toEqual(['a', 'a#2']);
+    expect(hosts.map(host => host.textContent)).toEqual(['id:a', 'id:a#2']);
   });
 
   it('tracks child arrival and removal under a factory-created render-only parent', async () => {
@@ -622,7 +666,7 @@ describe('A2uiSurface', () => {
     expect(reported.map(r => r.code)).toEqual([]);
   });
 
-  it('renders the loading state for a component removed before its render commits', () => {
+  it('keeps rendering a component removed before its render commits', () => {
     const surface = setup();
     // Delay the resolver's deletion delivery past the removal, as any
     // subscriber registered ahead of it does in production.
@@ -636,40 +680,8 @@ describe('A2uiSurface', () => {
     surface.componentsModel.removeComponent('root');
 
     const View = root!.impl!.view!;
-    render(
-      <NodeSurfaceContext.Provider value={surface}>
-        <View node={root!} buildChild={() => null} />
-      </NodeSurfaceContext.Provider>,
-    );
-    expect(screen.getByText('[Loading root...]')).toBeDefined();
-    resolver.dispose();
-  });
-
-  it('throws a named error when a view renders outside A2uiSurface', () => {
-    const surface = setup();
-    const resolver = new NodeResolver(surface, surface.defaultCatalog);
-    add(surface, 'root', 'Text', {text: 'hi'});
-    const root = getValue(resolver.rootNode);
-    const View = root!.impl!.view!;
-
-    // The boundary catches the expected throw. React dev also re-throws it
-    // through a window error event before boundary handling, and jsdom logs
-    // any unhandled one, so mark the event handled for the duration.
-    const onWindowError = (event: ErrorEvent) => event.preventDefault();
-    window.addEventListener('error', onWindowError);
-    const consoleError = console.error;
-    console.error = () => {};
-    try {
-      render(
-        <CatchBoundary>
-          <View node={root!} buildChild={() => null} />
-        </CatchBoundary>,
-      );
-    } finally {
-      console.error = consoleError;
-      window.removeEventListener('error', onWindowError);
-    }
-    expect(screen.getByText(/only inside A2uiSurface/)).toBeDefined();
+    render(<View node={root!} buildChild={() => null} />);
+    expect(screen.getByText('hi')).toBeDefined();
     resolver.dispose();
   });
 
@@ -756,5 +768,221 @@ describe('A2uiSurface', () => {
 
     unmount();
     expect(() => surface.dataModel.set('/username', 'Bob')).not.toThrow();
+  });
+});
+
+describe('host elements', () => {
+  it('renders every node inside its host element', () => {
+    const surface = setup();
+    add(surface, 'root', 'Column', {children: ['greeting', 'card1']});
+    add(surface, 'greeting', 'Text', {text: 'Hello'});
+    add(surface, 'card1', 'Card', {child: 'inner'});
+    add(surface, 'inner', 'Text', {text: 'Inner'});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.localName).toBe(tagOf(ColumnImpl));
+    expect(root.style.display).toBe('contents');
+    expect(
+      container.querySelector(`${tagOf(ColumnImpl)} > div > ${tagOf(TextImpl)} > span`),
+    ).toHaveTextContent('Hello');
+    expect(
+      container.querySelector(
+        `${tagOf(ColumnImpl)} > div > ${tagOf(CardImpl)} > div > ${tagOf(TextImpl)} > span`,
+      ),
+    ).toHaveTextContent('Inner');
+  });
+
+  it('defines and renders a component from another available catalog in its host', () => {
+    const ExtraImpl = createComponentImplementation({name: 'Extra', schema: z.object({})}, () => (
+      <span>extra</span>
+    ));
+    const extraCatalog = new Catalog<ReactComponentImplementation>('node-extra-test', '0.9', [
+      ExtraImpl,
+    ]);
+    const base = setup();
+    const surface = new SurfaceModel<ReactComponentImplementation>(
+      'surf-extra',
+      base.defaultCatalog,
+      new Map([[extraCatalog.id, extraCatalog]]),
+    );
+    add(surface, 'root', 'Column', {children: ['extra']});
+    surface.componentsModel.addComponent(new ComponentModel('extra', 'Extra', {}, extraCatalog));
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(customElements.get(tagOf(ExtraImpl))).toBe(toWebComponent(ExtraImpl).element);
+    expect(
+      container.querySelector(`${tagOf(ColumnImpl)} > div > ${tagOf(ExtraImpl)} > span`),
+    ).toHaveTextContent('extra');
+  });
+
+  it('renders a hand-written implementation, with no tag name or element, inside its host', () => {
+    const HandWrittenImpl: ReactComponentImplementation = {
+      name: 'HandWritten',
+      schema: z.object({}),
+      render: () => <span>hand-written</span>,
+    };
+    const surface = new SurfaceModel<ReactComponentImplementation>(
+      'surf-hand-written',
+      new Catalog<ReactComponentImplementation>('node-hand-written-test', '0.9', [HandWrittenImpl]),
+    );
+    add(surface, 'root', 'HandWritten', {});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect('tagName' in HandWrittenImpl).toBe(false);
+    expect(container.querySelector('a2ui-react-handwritten > span')).toHaveTextContent(
+      'hand-written',
+    );
+  });
+
+  it("hands each host its own node, and the node's context", () => {
+    const surface = setup();
+    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
+    add(surface, 'root', 'Column', {children: {componentId: 'item', path: '/items'}});
+    add(surface, 'item', 'Text', {text: {path: 'name'}});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    const hosts = [...container.querySelectorAll(tagOf(TextImpl))] as ReactHostElement[];
+    expect(hosts.map(host => host.node?.dataPath)).toEqual(['/items/0', '/items/1']);
+    expect(hosts.map(host => host.context)).toEqual(hosts.map(host => host.node?.context));
+    expect(hosts.map(host => host.textContent)).toEqual(['A', 'B']);
+  });
+
+  it('renders a template child added to the data later in its own host', async () => {
+    const surface = setup();
+    surface.dataModel.set('/items', [{name: 'A'}]);
+    add(surface, 'root', 'Column', {children: {componentId: 'item', path: '/items'}});
+    add(surface, 'item', 'Text', {text: {path: 'name'}});
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    await act(async () => {
+      surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
+    });
+
+    const hosts = [...container.querySelectorAll(tagOf(TextImpl))];
+    expect(hosts.map(host => host.textContent)).toEqual(['A', 'B']);
+  });
+
+  it('renders a child that arrives after its parent in a host once it arrives', async () => {
+    const surface = setup();
+    add(surface, 'root', 'Card', {child: 'late'});
+    const {container} = render(<A2uiSurface surface={surface} />);
+    expect(container.querySelector(tagOf(TextImpl))).toBeNull();
+
+    await act(async () => {
+      add(surface, 'late', 'Text', {text: 'Arrived'});
+    });
+
+    expect(container.querySelector(`${tagOf(CardImpl)} ${tagOf(TextImpl)}`)).toHaveTextContent(
+      'Arrived',
+    );
+  });
+
+  it('renders a component its parent lists twice at the same data path in both hosts', () => {
+    const surface = setup();
+    add(surface, 'root', 'Column', {children: ['kid', 'kid']});
+    add(surface, 'kid', 'Text', {text: 'Twice'});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    const hosts = [...container.querySelectorAll(tagOf(TextImpl))];
+    expect(hosts.map(host => host.textContent)).toEqual(['Twice', 'Twice']);
+  });
+
+  it('renders a placeholder, not a host, for a component that has not arrived', () => {
+    const surface = setup();
+    add(surface, 'root', 'Card', {child: 'late'});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(container.querySelector(`${tagOf(CardImpl)} > div`)).toHaveTextContent(
+      '[Loading late...]',
+    );
+    expect(container.querySelector(tagOf(TextImpl))).toBeNull();
+  });
+
+  it('moves every host to the new surface when the surface prop changes', async () => {
+    const first = setup();
+    add(first, 'root', 'Card', {child: 'kid'});
+    add(first, 'kid', 'Text', {text: 'first surface'});
+    const second = setup();
+    add(second, 'root', 'Card', {child: 'kid'});
+    add(second, 'kid', 'Text', {text: 'second surface'});
+
+    const {container, rerender} = render(<A2uiSurface surface={first} />);
+    expect(container).toHaveTextContent('first surface');
+
+    rerender(<A2uiSurface surface={second} />);
+    await flushMicrotasks();
+
+    expect(container).toHaveTextContent('second surface');
+    expect(container).not.toHaveTextContent('first surface');
+    expect(container.querySelectorAll(tagOf(CardImpl))).toHaveLength(1);
+    expect(HostRegistry.forSurface(first).getSnapshot()).toHaveLength(0);
+    expect(HostRegistry.forSurface(second).getSnapshot()).toHaveLength(2);
+  });
+
+  it('unregisters every host on unmount', async () => {
+    const surface = setup();
+    add(surface, 'root', 'Card', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'kid'});
+
+    const {unmount} = render(<A2uiSurface surface={surface} />);
+    expect(HostRegistry.forSurface(surface).getSnapshot()).toHaveLength(2);
+
+    unmount();
+    await flushMicrotasks();
+
+    expect(HostRegistry.forSurface(surface).getSnapshot()).toHaveLength(0);
+  });
+});
+
+describe('React context across hosts', () => {
+  it('makes a provider above A2uiSurface visible to a nested component', () => {
+    const surface = setup();
+    add(surface, 'root', 'Column', {children: ['card']});
+    add(surface, 'card', 'Card', {child: 'themed'});
+    add(surface, 'themed', 'Themed', {});
+
+    const {container} = render(
+      <Theme.Provider value="dark">
+        <A2uiSurface surface={surface} />
+      </Theme.Provider>,
+    );
+
+    expect(within(container).getByTestId('themed')).toHaveTextContent('dark/no panel provider');
+  });
+
+  it('does not pass React context from a parent component to its child components', () => {
+    const surface = setup();
+    add(surface, 'root', 'Panel', {child: 'themed'});
+    add(surface, 'themed', 'Themed', {});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(within(container).getByTestId('themed')).toHaveTextContent(
+      'no provider/no panel provider',
+    );
+  });
+
+  it('lets an error boundary above A2uiSurface catch a nested component throw', () => {
+    // React reports caught render errors through console.error.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const surface = setup();
+    add(surface, 'root', 'Column', {children: ['card']});
+    add(surface, 'card', 'Card', {child: 'thrower'});
+    add(surface, 'thrower', 'Thrower', {});
+
+    const {container} = render(
+      <CatchBoundary>
+        <A2uiSurface surface={surface} />
+      </CatchBoundary>,
+    );
+
+    expect(container).toHaveTextContent('caught: nested component failed');
   });
 });

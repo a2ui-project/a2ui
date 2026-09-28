@@ -18,29 +18,23 @@
  * The node rendering layer: everything that turns a resolved `ComponentNode`
  * into React output.
  *
- * `NodeView` walks the resolved tree, hands each implementation its node and a
- * `buildChild` that renders resolved children, and reports the child
- * references the resolver could not classify. Each implementation carries a
- * generated `view` (see `adapter.tsx`) that subscribes to its own node's props
- * through `useNodeView` and converts them back to the shapes existing views
- * expect, so a data change re-renders exactly the affected component.
+ * A node renders as its implementation's custom element (`ChildElement`). For
+ * a React implementation that element is a host (`catalog/react_host_element.ts`)
+ * into which `A2uiSurface` portals `NodeContent`: the implementation's `view`
+ * with the host's node and a `buildChild` that renders child nodes as their own
+ * elements. Each factory-made implementation carries a generated `view` (see
+ * `adapter.tsx`) that subscribes to its node's props through `useNodeView`, so
+ * a data change re-renders exactly the affected component.
  *
- * Surface lifecycle concerns (resolver construction and disposal, root
- * subscription) belong in `A2uiSurface.tsx`, not here.
+ * Every node that reaches a host is resolved: `A2uiSurface` prepares the
+ * catalogs, so `impl` is a web component, and the parent only renders nodes
+ * that have a `context`.
  */
 
 import type React from 'react';
+import {memo, useCallback, useEffect, useMemo, useSyncExternalStore} from 'react';
 import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useSyncExternalStore,
-} from 'react';
-import {
-  ComponentContext,
+  type ComponentContext,
   type ComponentNode,
   isComponentNode,
   ResolvedBinding,
@@ -53,11 +47,15 @@ import {
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
 import type {NodeBuildChild, ReactComponentImplementation} from './react_component_implementation';
+import {WebComponentNode} from './web_component_node';
 
-/** The surface a node view renders under, provided by `A2uiSurface`. */
-export const NodeSurfaceContext = createContext<SurfaceModel<ReactComponentImplementation> | null>(
-  null,
-);
+/** The context of a node a host renders. */
+function contextOf(node: ComponentNode): ComponentContext {
+  if (!node.context) {
+    throw new Error(`A2UI views render only resolved nodes; '${node.componentId}' has no context.`);
+  }
+  return node.context;
+}
 
 /** Stands in for a component that has not arrived, or has just been removed. */
 export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
@@ -76,16 +74,13 @@ const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation
  * that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation> | null;
+  surface: SurfaceModel<ReactComponentImplementation>;
   id: string;
   requestedPath: string;
   detail: string;
 }> = ({surface, id, requestedPath, detail}) => {
   const message = `Unresolved child reference '${id}' at '${requestedPath}': ${detail}`;
   useEffect(() => {
-    if (!surface) {
-      return;
-    }
     let seen = reportedUnresolved.get(surface);
     if (!seen) {
       seen = new Set();
@@ -113,57 +108,20 @@ export function useSignalValue<T>(signal: Signal<T>): T {
   return useSyncExternalStore(subscribe, getSnapshot);
 }
 
-/** Child nodes of one view, keyed by id, then by the child's data path. */
-type ChildMap = Map<string, Map<string, ComponentNode<ReactComponentImplementation>>>;
-
 /**
- * The two id namespaces `buildChild` callers use. Views hand back the tokens
- * the conversion put in their props (instanceIds, distinct per position);
- * `render`-only and binderless implementations read raw component ids from
- * the model. The namespaces can claim the same string for different nodes
- * (a component named `a#2` next to a second reference to `a`), so each kind
- * of caller resolves through its own map.
+ * Child nodes of one view by `node.id`, the token the conversion puts in view
+ * props, in prop order. `render`-only implementations pass raw component ids
+ * instead; those resolve by scanning for `(componentId, dataPath)`.
  */
-interface ChildIndex {
-  byToken: ChildMap;
-  byId: ChildMap;
-}
+type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
 
-function newChildIndex(): ChildIndex {
-  return {byToken: new Map(), byId: new Map()};
-}
-
-function setChild(
-  map: ChildMap,
-  id: string,
-  child: ComponentNode<ReactComponentImplementation>,
-  firstWins: boolean,
-): void {
-  let byPath = map.get(id);
-  if (!byPath) {
-    byPath = new Map();
-    map.set(id, byPath);
-  }
-  if (!firstWins || !byPath.has(child.dataPath)) {
-    byPath.set(child.dataPath, child);
-  }
-}
-
-/**
- * Registers a child and returns the token views should hand back to
- * `buildChild`: the node's `instanceId`, which is distinct per position and
- * cannot collide with another node's token. For a component referenced once
- * at the parent's scope, the instanceId is the component id. The raw-id map
- * keeps the first occurrence, matching how a raw reference has no way to
- * name a later one.
- */
+/** Registers a child and returns the token views hand back to `buildChild`. */
 function registerChild(
   index: ChildIndex,
   child: ComponentNode<ReactComponentImplementation>,
 ): string {
-  setChild(index.byToken, child.instanceId, child, false);
-  setChild(index.byId, child.componentId, child, true);
-  return child.instanceId;
+  index.set(child.id, child);
+  return child.id;
 }
 
 /**
@@ -242,41 +200,30 @@ export function useNodeView(
   buildChild: NodeBuildChild,
 ): {
   viewProps: NodeProps;
-  context: ComponentContext | undefined;
+  context: ComponentContext;
   viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
   rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
-  const surface = useContext(NodeSurfaceContext);
+  const context = contextOf(node);
+  const surface = context.dataContext.surface as SurfaceModel<ReactComponentImplementation>;
   const resolved = useSignalValue(node.props);
 
   const {viewProps, childIndex} = useMemo(() => {
-    const index = newChildIndex();
+    const index: ChildIndex = new Map();
     return {viewProps: toViewProps(node, resolved, index) as NodeProps, childIndex: index};
   }, [node, resolved]);
 
-  // The component can be removed between the resolver's update and this
-  // render committing; ComponentContext's constructor throws on a missing
-  // model, so treat that window as not-ready rather than crashing. Callers
-  // render a LoadingPlaceholder for it.
-  const context = useMemo(
-    () =>
-      surface && surface.componentsModel.get(node.componentId)
-        ? new ComponentContext(surface, node.componentId, node.dataPath)
-        : undefined,
-    [surface, node],
-  );
-
-  const resolveThrough = useCallback(
-    (map: ChildMap, id: string, basePath?: string): React.ReactNode => {
+  const rawBuildChild = useCallback(
+    (id: string, basePath?: string): React.ReactNode => {
       const requested = basePath ?? node.dataPath;
-      const byPath = map.get(id);
-      const childNode = byPath?.get(requested);
+      const instances = [...childIndex.values()].filter(child => child.componentId === id);
+      const childNode = instances.find(child => child.dataPath === requested);
       if (childNode) {
         return buildChild(childNode, basePath);
       }
       // An instance at another data path means the reference itself is fine
       // and the requested path is not one the payload created.
-      const elsewhere = byPath ? [...byPath.keys()] : [];
+      const elsewhere = [...new Set(instances.map(child => child.dataPath))];
       if (elsewhere.length > 0) {
         return (
           <UnresolvedChildReference
@@ -293,22 +240,19 @@ export function useNodeView(
       }
       return buildChild(id, basePath);
     },
-    [buildChild, node, surface],
+    [buildChild, node, surface, childIndex],
   );
 
+  // A view that hands back a raw component id instead of a token resolves
+  // like a `render` caller.
   const viewBuildChild = useCallback(
-    (id: string, basePath?: string) => resolveThrough(childIndex.byToken, id, basePath),
-    [resolveThrough, childIndex],
+    (id: string, basePath?: string): React.ReactNode => {
+      const childNode = childIndex.get(id);
+      return childNode ? buildChild(childNode, basePath) : rawBuildChild(id, basePath);
+    },
+    [buildChild, rawBuildChild, childIndex],
   );
 
-  const rawBuildChild = useCallback(
-    (id: string, basePath?: string) => resolveThrough(childIndex.byId, id, basePath),
-    [resolveThrough, childIndex],
-  );
-
-  if (!surface) {
-    throw new Error('A2UI component views render only inside A2uiSurface.');
-  }
   return {viewProps, context, viewBuildChild, rawBuildChild};
 }
 
@@ -322,63 +266,68 @@ const RenderFallback: React.FC<{
   // conversion puts in view props, so it resolves through the raw-id map.
   const {context, rawBuildChild} = useNodeView(node, buildChild);
   const Render = impl.render;
-  if (!context) {
-    return <LoadingPlaceholder componentId={node.componentId} />;
-  }
   return <Render context={context} buildChild={rawBuildChild} />;
 };
 
-export const NodeView = memo(
-  ({
-    surface,
-    node,
-  }: {
-    surface: SurfaceModel<ReactComponentImplementation>;
-    node: ComponentNode<ReactComponentImplementation>;
-  }) => {
-    const buildChild = useCallback<NodeBuildChild>(
-      (child, basePath) => {
-        if (isComponentNode(child)) {
-          return <NodeView key={child.instanceId} surface={surface} node={child} />;
-        }
-        // The resolver turns every child reference it can identify into a
-        // node, so a leftover id was never classified. Distinguish the two
-        // causes a catalog author can actually have.
-        const requested = basePath ?? node.dataPath;
-        const detail = surface.componentsModel.get(child)
-          ? 'the component exists, but the catalog schema does not mark the referencing ' +
-            'property as a component id. Use componentId() or childList() from ' +
-            '@a2ui/web_core.'
-          : 'no component with this id exists on the surface.';
-        return (
-          <UnresolvedChildReference
-            key={JSON.stringify([child, requested])}
-            surface={surface}
-            id={child}
-            requestedPath={requested}
-            detail={detail}
-          />
-        );
-      },
-      [surface, node],
-    );
+/**
+ * Renders a node as its implementation's custom element. A node that has not
+ * arrived renders a `LoadingPlaceholder`; one of an unknown type renders an
+ * inline error.
+ */
+export const ChildElement = memo(({node}: {node: ComponentNode<ReactComponentImplementation>}) => {
+  if (node.state === 'unknown-type') {
+    return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
+  }
+  if (node.isPlaceholder || !node.impl || !node.context) {
+    return <LoadingPlaceholder componentId={node.componentId} />;
+  }
+  return <WebComponentNode node={node} />;
+});
+ChildElement.displayName = 'ChildElement';
 
-    if (node.state === 'unknown-type') {
-      return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
-    }
-    if (node.isPlaceholder) {
-      return <LoadingPlaceholder componentId={node.componentId} />;
-    }
-    const impl = node.impl;
-    if (!impl) {
-      // Type narrowing; unreachable for a resolved node.
-      return null;
-    }
-    const View = impl.view;
-    if (!View) {
-      return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
-    }
-    return <View node={node} buildChild={buildChild} />;
-  },
-);
-NodeView.displayName = 'NodeView';
+/**
+ * The content `A2uiSurface` portals into one host: the node's implementation,
+ * with children as their elements. Memoized so a registry update, which
+ * re-renders `A2uiSurface`, leaves existing portals alone.
+ */
+export const NodeContent = memo(({node}: {node: ComponentNode<ReactComponentImplementation>}) => {
+  const surface = contextOf(node).dataContext.surface as SurfaceModel<ReactComponentImplementation>;
+  const buildChild = useCallback<NodeBuildChild>(
+    (child, basePath) => {
+      if (isComponentNode(child)) {
+        return <ChildElement key={child.id} node={child} />;
+      }
+
+      // The resolver turns every child reference it can identify into a
+      // node, so a leftover id was never classified. Distinguish the two
+      // causes a catalog author can actually have.
+      const requested = basePath ?? node.dataPath;
+      const detail = surface.componentsModel.get(child)
+        ? 'the component exists, but the catalog schema does not mark the referencing ' +
+          'property as a component id. Use componentId() or childList() from ' +
+          '@a2ui/web_core.'
+        : 'no component with this id exists on the surface.';
+      return (
+        <UnresolvedChildReference
+          key={JSON.stringify([child, requested])}
+          surface={surface}
+          id={child}
+          requestedPath={requested}
+          detail={detail}
+        />
+      );
+    },
+    [surface, node],
+  );
+
+  const impl = node.impl;
+  if (node.disposed || !impl) {
+    return null;
+  }
+  const View = impl.view;
+  if (!View) {
+    return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
+  }
+  return <View node={node} buildChild={buildChild} />;
+});
+NodeContent.displayName = 'NodeContent';
