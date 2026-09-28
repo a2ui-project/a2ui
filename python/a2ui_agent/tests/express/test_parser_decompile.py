@@ -28,9 +28,8 @@ conformance suites leave to the SDK implementation:
 import json
 import os
 import unittest
-from a2ui.core.catalog import Catalog
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import VERSION_1_0
+from a2ui.core import Catalog
+from a2ui.schema import A2uiCatalog, VERSION_1_0
 
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser

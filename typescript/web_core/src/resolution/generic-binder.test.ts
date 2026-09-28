@@ -257,8 +257,57 @@ describe('GenericBinder Checkable Trait', () => {
     });
   });
 
-  it('should resolve functionCall ACTION binding and dispatch resolved payload without local execution', () => {
+  it('should resolve dynamic userMessage on direct name action and include it in dispatched action', () => {
     const {surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/feedback', 'Great service!');
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_user_msg',
+      'Button',
+      {
+        onTap: {
+          name: 'sendFeedback',
+          userMessage: {path: '/feedback'},
+        },
+      },
+      surface.defaultCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_user_msg');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    binder.snapshot.onTap?.();
+
+    assert.ok(dispatchedAction);
+    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'sendFeedback');
+    assert.strictEqual((dispatchedAction as {userMessage?: string})?.userMessage, 'Great service!');
+  });
+
+  it('should execute functionCall ACTION binding locally and not dispatch onAction event', () => {
+    let orderSubmittedWith: Record<string, unknown> | null = null;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'submitOrder',
+        returnType: 'string',
+        schema: z.object({orderId: z.string(), total: z.number()}),
+        execute: (args: Record<string, unknown>) => {
+          orderSubmittedWith = args;
+          return 'ok';
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
     surface.dataModel.set('/order/id', 'ORD-987');
     surface.dataModel.set('/order/total', 49.99);
 
@@ -284,39 +333,42 @@ describe('GenericBinder Checkable Trait', () => {
     );
     surface.componentsModel.addComponent(compModel);
 
-    let dispatchedAction: {
-      name?: string;
-      sourceComponentId?: string;
-      context?: Record<string, unknown>;
-    } | null = null;
+    let dispatchedAction: unknown = null;
     surface.onAction.subscribe(act => {
-      dispatchedAction = act as {
-        name?: string;
-        sourceComponentId?: string;
-        context?: Record<string, unknown>;
-      };
+      dispatchedAction = act;
     });
 
     const context = new ComponentContext(surface, 'c5_fc');
     const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
 
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    assert.strictEqual(orderSubmittedWith, null);
+    assert.strictEqual(dispatchedAction, null);
+
     binder.snapshot.onTap?.();
 
-    assert.ok(dispatchedAction);
-    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'submitOrder');
-    assert.strictEqual(
-      (dispatchedAction as {sourceComponentId?: string})?.sourceComponentId,
-      'c5_fc',
-    );
-    assert.deepStrictEqual((dispatchedAction as {context?: Record<string, unknown>})?.context, {
+    assert.deepStrictEqual(orderSubmittedWith, {
       orderId: 'ORD-987',
       total: 49.99,
     });
+    assert.strictEqual(dispatchedAction, null);
   });
 
-  it('should resolve functionCall ACTION without args and not execute prematurely during binding', () => {
-    const {surface} = setupSurfaceAndMocks();
+  it('should execute functionCall ACTION without args locally upon activation and not prematurely during binding', () => {
+    let refreshCallCount = 0;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'refreshData',
+        returnType: 'string',
+        schema: z.object({}).passthrough(),
+        execute: () => {
+          refreshCallCount++;
+          return 'ok';
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
 
     const actionSchema = z.object({
       onTap: CommonSchemas.Action,
@@ -336,17 +388,9 @@ describe('GenericBinder Checkable Trait', () => {
     );
     surface.componentsModel.addComponent(compModel);
 
-    let dispatchedAction: {
-      name?: string;
-      sourceComponentId?: string;
-      context?: Record<string, unknown>;
-    } | null = null;
+    let dispatchedAction: unknown = null;
     surface.onAction.subscribe(act => {
-      dispatchedAction = act as {
-        name?: string;
-        sourceComponentId?: string;
-        context?: Record<string, unknown>;
-      };
+      dispatchedAction = act;
     });
 
     const context = new ComponentContext(surface, 'c5_zero_arg');
@@ -354,15 +398,65 @@ describe('GenericBinder Checkable Trait', () => {
 
     // Binding must create action closure, not execute functionCall prematurely
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    assert.strictEqual(refreshCallCount, 0);
     assert.strictEqual(dispatchedAction, null);
 
     binder.snapshot.onTap?.();
-    assert.ok(dispatchedAction);
-    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'refreshData');
-    assert.strictEqual(
-      (dispatchedAction as {sourceComponentId?: string})?.sourceComponentId,
-      'c5_zero_arg',
+    assert.strictEqual(refreshCallCount, 1);
+    assert.strictEqual(dispatchedAction, null);
+  });
+
+  it('should execute unwrapped {call} ACTION binding locally and not dispatch onAction event', () => {
+    let executedArgs: Record<string, unknown> | null = null;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'setValue',
+        returnType: 'boolean',
+        schema: z.object({path: z.string(), value: z.boolean()}),
+        execute: (args: Record<string, unknown>) => {
+          executedArgs = args;
+          return true;
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_unwrapped_call',
+      'Button',
+      {
+        onTap: {
+          call: 'setValue',
+          args: {
+            path: '/clicked',
+            value: true,
+          },
+        },
+      },
+      surface.defaultCatalog,
     );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_unwrapped_call');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    binder.snapshot.onTap?.();
+
+    assert.deepStrictEqual(executedArgs, {
+      path: '/clicked',
+      value: true,
+    });
+    assert.strictEqual(dispatchedAction, null);
   });
 
   it('should resolve STRUCTURAL ChildList bindings and update dynamically', async () => {

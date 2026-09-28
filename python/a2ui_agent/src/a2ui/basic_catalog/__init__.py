@@ -13,3 +13,5 @@
 # limitations under the License.
 
 from .provider import BasicCatalog
+
+__all__ = ["BasicCatalog"]

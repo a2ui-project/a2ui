@@ -193,24 +193,39 @@ class DataContext(Generic[TComponent, TFunction]):
         # 5. Return static literals directly
         return value
 
+    def _resolve_action_context(self, context: Any) -> dict[str, Any]:
+        if not isinstance(context, dict):
+            return {}
+        return {k: self.resolve_dynamic_value(v) for k, v in context.items()}
+
     def resolve_action(self, action: dict[str, Any]) -> Any:
-        """
-        Resolves an action by evaluating its top-level dynamic values.
-        For event actions, resolves each value in the context map.
-        For function call actions, evaluates the call.
-        """
-        if isinstance(action, dict) and "event" in action:
-            evt = copy.deepcopy(action["event"])
-            resolved_context = {}
-            if isinstance(evt.get("context"), dict):
-                for k, v in evt["context"].items():
-                    resolved_context[k] = self.resolve_dynamic_value(v)
-            evt["context"] = resolved_context
-            if "userMessage" in evt and evt["userMessage"] is not None:
+        """Resolves an action by evaluating its top-level dynamic values."""
+        if not isinstance(action, dict):
+            return action
+
+        if isinstance(action.get("event"), dict):
+            evt = dict(action["event"])
+            if "context" in evt:
+                evt["context"] = self._resolve_action_context(evt["context"])
+            if evt.get("userMessage") is not None:
                 evt["userMessage"] = self.resolve_dynamic_value(evt["userMessage"])
-            return {"event": evt}
-        if isinstance(action, dict) and "functionCall" in action:
+            return {**action, "event": evt}
+
+        if "name" in action:
+            resolved = dict(action)
+            if "context" in action:
+                resolved["context"] = self._resolve_action_context(action["context"])
+            if action.get("userMessage") is not None:
+                resolved["userMessage"] = self.resolve_dynamic_value(
+                    action["userMessage"]
+                )
+            return resolved
+
+        if "functionCall" in action:
             return self.resolve_dynamic_value(action["functionCall"])
+        if isinstance(action.get("call"), str):
+            return self.resolve_dynamic_value(action)
+
         return action
 
     def subscribe_dynamic_value(

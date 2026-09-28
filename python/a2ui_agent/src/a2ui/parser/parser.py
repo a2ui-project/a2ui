@@ -60,7 +60,7 @@ class Parser(ABC):
                     setattr(e, "partial_results", parsed_so_far)
                     raise
                 except Exception as e:
-                    from a2ui.parser.errors import A2uiCompilationError
+                    from .errors import A2uiCompilationError
 
                     raise A2uiCompilationError(
                         message=str(e),
@@ -162,7 +162,7 @@ def parse_response(content: str) -> list[ResponsePart]:
         stacklevel=2,
     )
     from a2ui.inference_formats.direct_json.parser import unwrap_response
-    from a2ui.parser.payload_fixer import parse_and_fix
+    from .payload_fixer import parse_and_fix
 
     parts = unwrap_response(content)
     for part in parts:

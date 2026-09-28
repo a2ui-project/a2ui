@@ -35,8 +35,8 @@ from a2ui.builder.v0_9 import (
     FunctionCall,
     flatten_component_tree,
 )
-from a2ui.builder.v0_9.catalogs import basic
-from a2ui.core.schema.v0_9.server_to_client import (
+from a2ui.builder.v0_9 import basic
+from a2ui.core.schema.v0_9 import (
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,
@@ -44,7 +44,7 @@ from a2ui.core.schema.v0_9.server_to_client import (
     UpdateDataModel,
     UpdateDataModelMessage,
 )
-from a2ui.core.validation import ValidationConfig
+from a2ui.core import ValidationConfig
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
     COMMON_TYPES_SCHEMA_KEY,
@@ -275,7 +275,7 @@ def basic_catalog_schema() -> A2uiCatalog:
 
 def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
     """Validates ``payload`` against the bundled basic catalog schema and topology rules."""
-    from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
+    from a2ui.core import MessageProcessor, MessageProcessorOptions
 
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
@@ -284,7 +284,7 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
         options=MessageProcessorOptions(validation_config=config),
     )
     if not has_create:
-        from a2ui.core.state import SurfaceModel
+        from a2ui.core import SurfaceModel
 
         processor.model.add_surface(
             SurfaceModel(

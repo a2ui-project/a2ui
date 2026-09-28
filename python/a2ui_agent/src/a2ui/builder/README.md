@@ -15,8 +15,7 @@ The builder API allows developers and agents to author interfaces as nested Pyth
 Components are instantiated as Python objects. Containers accept child components through designated slot parameters:
 
 ```python
-from a2ui.builder.v0_9 import Action, ActionEvent
-from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text, Button
+from a2ui.builder.v0_9 import Action, ActionEvent, Button, Card, Column, Text
 
 tree = Card(
     child=Column(
@@ -47,10 +46,10 @@ components = tree.flatten()
 
 ### Packaging into message envelopes
 
-Flattened component trees are packaged into standard A2UI server-to-client messages using models from `a2ui.core.schema.v0_9.server_to_client`:
+Flattened component trees are packaged into standard A2UI server-to-client messages using models from `a2ui.core.schema.v0_9`:
 
 ```python
-from a2ui.core.schema.v0_9.server_to_client import (
+from a2ui.core.schema.v0_9 import (
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,
@@ -180,8 +179,7 @@ You can subclass generated components to create domain-specific building blocks 
 
 ```python
 from typing import Any
-from a2ui.builder.v0_9 import Action, ActionEvent
-from a2ui.builder.v0_9.catalogs.basic import Button, Text
+from a2ui.builder.v0_9 import Action, ActionEvent, Button, Text
 
 class PrimaryActionButton(Button):
     """Button configured with primary styling and default event name."""
