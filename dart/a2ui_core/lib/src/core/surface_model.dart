@@ -16,9 +16,7 @@ import 'dart:async';
 
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
-import 'common.dart';
 import 'component_model.dart';
-import 'contexts.dart';
 import 'data_model.dart';
 import 'messages.dart';
 
@@ -49,32 +47,45 @@ class SurfaceModel<T extends ComponentApi> {
   })  : dataModel = DataModel(),
         componentsModel = SurfaceComponentsModel();
 
-  /// Dispatches an action from this surface.
+  /// Emits an agent-bound action from this surface on [onAction].
+  ///
+  /// The [payload] is either `{'event': {'name': ..., 'context': ...,
+  /// 'userMessage': ...}}` or the same fields without the `event` wrapper.
+  /// Its values must already be resolved against the data model.
+  ///
+  /// Any other payload, including a `functionCall` or `call` action, is
+  /// ignored, as is an event whose `name` is missing, empty or not a string.
+  /// Local function actions run in `GenericBinder`, which calls this method
+  /// only for actions that go to the agent.
   Future<void> dispatchAction(
     Map<String, dynamic> payload,
     String sourceComponentId,
   ) async {
-    if (payload.containsKey('event')) {
-      final event = payload['event'] as Map<String, dynamic>;
-      final action = A2uiClientAction(
-        name: (event['name'] as String?) ?? 'unknown',
-        surfaceId: id,
-        sourceComponentId: sourceComponentId,
-        timestamp: DateTime.now(),
-        context: Map<String, dynamic>.from(
-          (event['context'] ?? <String, dynamic>{}) as Map,
-        ),
-      );
-      _onAction.emit(action);
-    } else if (payload.containsKey('functionCall')) {
-      final callJson = payload['functionCall'] as Map<String, dynamic>;
-      final call = FunctionCall.fromJson(callJson);
-      catalog.invoke(
-        call.call,
-        Map<String, dynamic>.from(call.args),
-        DataContext(dataModel, catalog.invoke, '/'),
-      );
+    final Map<String, dynamic> event;
+    if (payload.containsKey('event') && payload['event'] is Map) {
+      event = Map<String, dynamic>.from(payload['event'] as Map);
+    } else if (payload.containsKey('name')) {
+      event = payload;
+    } else {
+      return;
     }
+
+    final Object? name = event['name'];
+    if (name is! String || name.isEmpty) return;
+
+    final action = A2uiClientAction(
+      name: name,
+      surfaceId: id,
+      sourceComponentId: sourceComponentId,
+      timestamp: DateTime.now(),
+      context: event['context'] is Map
+          ? Map<String, dynamic>.from(event['context'] as Map)
+          : const <String, dynamic>{},
+      userMessage: event['userMessage'] is String
+          ? event['userMessage'] as String
+          : null,
+    );
+    _onAction.emit(action);
   }
 
   /// Dispatches an error from this surface.
