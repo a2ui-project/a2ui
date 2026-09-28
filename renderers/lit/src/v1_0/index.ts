@@ -1,11 +1,11 @@
 /*
- * Copyright 2024 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     https://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
-export {basicCatalog as basicCatalogV09} from '@a2ui/lit/v0_9';
-export {basicCatalog as basicCatalogV10} from '@a2ui/lit/v1_0';
-export {LocalGallery} from './local-gallery.js';
+export * from '@a2ui/web_core/v1_0';
+export * from '@a2ui/web_core/v1_0/universal';
+export {A2uiSurface, renderA2uiNode, Context, provideMarkdown} from '../v0_9/index.js';
+export * from './catalogs/basic/index.js';

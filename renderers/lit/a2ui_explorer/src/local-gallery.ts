@@ -17,10 +17,11 @@
 import {LitElement, html, nothing} from 'lit';
 import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor, A2uiMessage, A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {basicCatalog, Context} from '@a2ui/lit/v0_9';
+import {MessageProcessor, A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {basicCatalog as basicCatalogV09, Context} from '@a2ui/lit/v0_9';
+import {basicCatalog as basicCatalogV10} from '@a2ui/lit/v1_0';
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {getDemoItems, DemoItem} from './examples';
+import {getDemoItems, DemoItem, ExplorerMessage, SpecVersion} from './examples';
 import {appStyles} from './local-gallery.css';
 
 @customElement('local-gallery')
@@ -33,6 +34,7 @@ export class LocalGallery extends LitElement {
   @state() primaryColor = '#1177ee';
   @state() isLeftSidebarCollapsed = false;
   @state() isRightSidebarCollapsed = false;
+  @state() specVersion: SpecVersion = '0.9';
 
   // Expose the dispatched actions log for automated integration tests to inspect
   actionLog: A2uiClientAction[] = [];
@@ -40,10 +42,13 @@ export class LocalGallery extends LitElement {
   @provide({context: Context.markdown})
   private markdownRenderer = renderMarkdown;
 
-  private processor = new MessageProcessor([basicCatalog], (action: A2uiClientAction) => {
-    this.log(`Action dispatched: ${action.surfaceId}`, action);
-    this.actionLog.push(action);
-  });
+  private processor = new MessageProcessor(
+    [basicCatalogV09, basicCatalogV10],
+    (action: A2uiClientAction) => {
+      this.log(`Action dispatched: ${action.surfaceId}`, action);
+      this.actionLog.push(action);
+    },
+  );
 
   private dataModelSubscription?: {unsubscribe: () => void};
 
@@ -89,19 +94,23 @@ export class LocalGallery extends LitElement {
     window.removeEventListener('keydown', this.handleKeyDown);
   }
 
+  private isEditableElement(el: HTMLElement | null): boolean {
+    if (!el) return false;
+    return (
+      el.tagName === 'INPUT' ||
+      el.tagName === 'TEXTAREA' ||
+      el.tagName === 'SELECT' ||
+      el.isContentEditable
+    );
+  }
+
   private handleKeyDown = (event: KeyboardEvent) => {
     const activeEl =
       typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
-    const targetEl = event.target as HTMLElement | null;
-    const focusedEl = (activeEl && activeEl.isConnected ? activeEl : null) || targetEl;
+    const focusedEl =
+      (activeEl && activeEl.isConnected ? activeEl : null) || (event.target as HTMLElement | null);
 
-    if (
-      focusedEl &&
-      (focusedEl.tagName === 'INPUT' ||
-        focusedEl.tagName === 'TEXTAREA' ||
-        focusedEl.tagName === 'SELECT' ||
-        focusedEl.isContentEditable)
-    ) {
+    if (this.isEditableElement(focusedEl)) {
       return;
     }
 
@@ -142,11 +151,22 @@ export class LocalGallery extends LitElement {
     this.setLocalStorage('isRightSidebarCollapsed', String(this.isRightSidebarCollapsed));
   }
 
-  loadExamples() {
+  setSpecVersion(version: SpecVersion) {
+    if (this.specVersion === version && this.demoItems.length > 0) return;
+    const currentFilename = this.demoItems[this.activeItemIndex]?.filename;
+    this.deleteActiveExampleSurface();
+    this.specVersion = version;
+    this.loadExamples(version, currentFilename);
+  }
+
+  loadExamples(version: SpecVersion = this.specVersion, preferredFilename?: string) {
     try {
-      this.demoItems = getDemoItems();
+      this.demoItems = getDemoItems(version);
       if (this.demoItems.length > 0) {
-        this.selectItem(0);
+        const matchedIndex = preferredFilename
+          ? this.demoItems.findIndex(item => item.filename === preferredFilename)
+          : -1;
+        this.selectItem(matchedIndex >= 0 ? matchedIndex : 0);
       }
     } catch (err) {
       console.error('Failed to initiate gallery:', err);
@@ -187,11 +207,11 @@ export class LocalGallery extends LitElement {
    * Removes the surface of this.activeItemIndex, if still present.
    */
   deleteActiveExampleSurface() {
-    const surfaceId = this.demoItems[this.activeItemIndex]?.id;
-    if (surfaceId) {
-      if (this.processor.model.getSurface(surfaceId)) {
-        this.processor.processMessages([{version: 'v0.9', deleteSurface: {surfaceId}}]);
-      }
+    const activeItem = this.demoItems[this.activeItemIndex];
+    const surfaceId = activeItem?.id;
+    if (surfaceId && this.processor.model.getSurface(surfaceId)) {
+      const version = activeItem.version === '1.0' ? 'v1.0' : 'v0.9';
+      this.processor.processMessages([{version, deleteSurface: {surfaceId}}]);
     }
   }
 
@@ -238,18 +258,12 @@ export class LocalGallery extends LitElement {
   /**
    * Applies the user-selected primary color to `createSurface` messages.
    *
-   * This is necessary for the explorer application to allow users to live-preview
-   * theme changes by injecting the selected color into the message stream.
-   * In a standard A2UI renderer deployment, this is not needed as the renderer
-   * simply processes messages as received from the agent, which is responsible
-   * for providing the correct theme.
-   *
    * @param messages The list of messages to process.
    * @returns A new list of messages with the primary color applied to `createSurface` messages.
    */
-  private applyPrimaryColorToMessages(messages: A2uiMessage[]): A2uiMessage[] {
+  private applyPrimaryColorToMessages(messages: ExplorerMessage[]): ExplorerMessage[] {
     return messages.map(msg => {
-      if ('createSurface' in msg && this.primaryColor) {
+      if ('createSurface' in msg && this.primaryColor && msg.version !== 'v1.0') {
         return {
           ...msg,
           createSurface: {
@@ -293,7 +307,23 @@ export class LocalGallery extends LitElement {
       <header>
         <div>
           <h1>A2UI Explorer</h1>
-          <p class="subtitle">v0.9 Basic Catalog</p>
+          <p class="subtitle">v${this.specVersion} Basic Catalog</p>
+        </div>
+        <div class="version-selector" role="group" aria-label="Specification version">
+          <button
+            class="version-btn ${this.specVersion === '0.9' ? 'active' : ''}"
+            data-version="0.9"
+            @click=${() => this.setSpecVersion('0.9')}
+          >
+            v0.9
+          </button>
+          <button
+            class="version-btn ${this.specVersion === '1.0' ? 'active' : ''}"
+            data-version="1.0"
+            @click=${() => this.setSpecVersion('1.0')}
+          >
+            v1.0
+          </button>
         </div>
       </header>
       <main>
