@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import Any, Final
 
@@ -311,9 +312,13 @@ class ExpressionParser:
         num_str = scanner.input[start : scanner.pos]
         if not _NUMBER_LITERAL.fullmatch(num_str):
             raise A2uiExpressionError(f"Invalid number literal: '{num_str}'")
+        as_float = float(num_str)
+        if not math.isfinite(as_float):
+            raise A2uiExpressionError(f"Number literal is out of range: '{num_str}'")
         if "." in num_str or "e" in num_str or "E" in num_str:
-            return float(num_str)
-        return int(num_str)
+            return as_float
+        sign = -1 if num_str.startswith("-") else 1
+        return sign * int(num_str.lstrip("+-").lstrip("0") or "0")
 
     def skip_exponent(self, scanner: Scanner) -> None:
         """Consumes an exponent suffix (`e` or `E`, an optional sign, then digits).

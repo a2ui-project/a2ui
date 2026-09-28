@@ -13,6 +13,9 @@
 - `ExpressionParser` accepts number literals with a leading decimal point
   (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
   and `./x` are still paths.
+- `ExpressionParser` rejects a number literal outside the double range, such as
+  `1e999`, with `Number literal is out of range`. It used to return `Infinity`,
+  which JSON can't represent.
 - Factor out basic catalog function implementations shared between v0.9 and v1.0
   into a common module (`src/common/basic_functions.ts`). Both versions now
   share implementation logic for logical operations, string formatting, number

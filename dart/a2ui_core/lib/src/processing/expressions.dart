@@ -284,7 +284,11 @@ class ExpressionParser {
     if (!_numberLiteral.hasMatch(text)) {
       throw A2uiExpressionError("Invalid number literal: '$text'");
     }
-    return num.parse(text);
+    final num value = num.parse(text);
+    if (!value.isFinite) {
+      throw A2uiExpressionError("Number literal is out of range: '$text'");
+    }
+    return value;
   }
 
   /// Consumes an exponent suffix (`e` or `E`, an optional sign, then digits)

@@ -153,6 +153,27 @@ void main() {
           throwsA(isA<A2uiExpressionError>()),
         );
       });
+
+      test('reject literals outside the double range', () {
+        for (final String expr in ['1e999', '-1e999', '2e308', '1' * 400]) {
+          expect(
+            () => parser.parseExpression(expr),
+            throwsA(
+              isA<A2uiExpressionError>().having(
+                (e) => e.message,
+                'message',
+                contains('out of range'),
+              ),
+            ),
+            reason: expr,
+          );
+        }
+      });
+
+      test('accept literals at the edges of the double range', () {
+        expect(parser.parseExpression('1e308'), 1e308);
+        expect(parser.parseExpression('1e-999'), 0);
+      });
     });
 
     group('recursion depth', () {

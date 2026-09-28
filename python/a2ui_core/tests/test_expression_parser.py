@@ -195,6 +195,23 @@ def test_rejects_numbers_with_multiple_decimal_dots(parser):
         parser.parse_expression("1.2.3")
 
 
+@pytest.mark.parametrize("expr", ["1e999", "-1e999", "2e308", "1" * 400, "1" * 5000])
+def test_rejects_number_literals_outside_the_double_range(parser, expr):
+    with pytest.raises(A2uiExpressionError, match="out of range"):
+        parser.parse_expression(expr)
+
+
+def test_accepts_literals_at_the_edges_of_the_double_range(parser):
+    assert parser.parse_expression("1e308") == 1e308
+    assert parser.parse_expression("1e-999") == 0.0
+
+
+def test_parses_integer_literals_with_many_leading_zeros(parser):
+    zeros = "0" * 5000
+    assert parser.parse_expression(f"{zeros}1") == 1
+    assert parser.parse_expression(f"-{zeros}1") == -1
+
+
 def test_rejects_expression_template_exceeding_max_length(parser):
     from a2ui.core.expressions.expression_parser import MAX_EXPRESSION_TEMPLATE_LENGTH
 

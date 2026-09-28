@@ -40,6 +40,10 @@
 - `ExpressionParser` accepts number literals with a leading decimal point
   (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
   and `./x` are still paths.
+- `ExpressionParser` raises `A2uiExpressionError` for a number literal outside
+  the double range, such as `1e999` or a 400-digit integer. It used to return
+  `inf` for float literals and an exact `int` for integer literals. Integer
+  literals longer than 4,300 digits no longer raise a bare `ValueError`.
 - **BREAKING**: `DataModel.set` now raises `A2uiDataError` instead of resetting the root when attempting to traverse or set a subpath under a primitive root value.
 - **BREAKING**: `SurfaceComponentsModel.add_component` now raises `A2uiStateError` if a component with the same ID already exists in the model.
 - **BREAKING**: pending RPC requests on `RpcHandler.dispose()` are now rejected with error code `CANCELLED` (previously `DISPOSED`).

@@ -10,6 +10,9 @@
   `Unexpected characters at end of expression`. A `-` or `.` inside a path such
   as `a-1` or `a.5` is still part of the path, and `.foo` is still a path. This
   matches the TypeScript, Python and Swift parsers.
+- `ExpressionParser` rejects a number literal outside the double range, such as
+  `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
+  which `jsonEncode` can't encode.
 - Fixed `DataModel.set` with a `null` value (a delete) at a list index at or
   past the end of the list padding the list with `null` up to that index. It
   now leaves the list unchanged; only a write extends a list.

@@ -323,7 +323,11 @@ export class ExpressionParser {
     if (!NUMBER_LITERAL.test(text)) {
       throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
     }
-    return Number(text);
+    const value = Number(text);
+    if (!Number.isFinite(value)) {
+      throw new A2uiExpressionError(`Number literal is out of range: '${text}'`);
+    }
+    return value;
   }
 
   /**

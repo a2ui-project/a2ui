@@ -353,13 +353,13 @@ public struct ExpressionParser: Sendable {
     if isInteger, let i = Int(numStr) {
       return .integer(i)
     }
-    if let d = Double(numStr) {
-      return .number(d)
+    guard let d = Double(numStr), d.isFinite else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Number literal is out of range: '\(numStr)'"
+      )
     }
-    throw FunctionError.executionFailed(
-      name: "expressionParser",
-      message: "Invalid number literal: '\(numStr)'"
-    )
+    return .number(d)
   }
 
   /// Consumes an exponent suffix (`e` or `E`, an optional sign, then digits)

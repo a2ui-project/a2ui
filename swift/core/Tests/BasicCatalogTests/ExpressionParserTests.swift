@@ -182,9 +182,33 @@ struct ExpressionParserTests {
     }
   }
 
+  @Test(arguments: ["1e999", "-1e999", "2e308", String(repeating: "1", count: 400)])
+  func rejectsNumberLiteralsOutsideTheDoubleRange(expr: String) {
+    let message = executionFailedMessage {
+      _ = try parser.parseExpression(expr)
+    }
+    #expect(message?.contains("out of range") == true)
+  }
+
+  @Test func acceptsLiteralsAtTheEdgesOfTheDoubleRange() throws {
+    #expect(try parser.parseExpression("1e308") == .number(1e308))
+    #expect(try parser.parseExpression("1e-999") == .number(0))
+  }
+
   @Test func returnsErrorOnMissingColonInFunctionArgs() {
     #expect(throws: FunctionError.self) {
       _ = try parser.parseExpression("add(a 10, b: 20)")
+    }
+  }
+
+  private func executionFailedMessage(_ body: () throws -> Void) -> String? {
+    do {
+      try body()
+      return nil
+    } catch FunctionError.executionFailed(_, let message) {
+      return message
+    } catch {
+      return nil
     }
   }
 }

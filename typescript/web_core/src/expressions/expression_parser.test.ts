@@ -213,6 +213,17 @@ describe('ExpressionParser', () => {
     }, /Invalid number literal/);
   });
 
+  it('rejects number literals outside the double range', () => {
+    for (const expr of ['1e999', '-1e999', '2e308', '1'.repeat(400)]) {
+      assert.throws(() => parser.parseExpression(expr), /out of range/, expr);
+    }
+  });
+
+  it('accepts literals at the edges of the double range', () => {
+    assert.strictEqual(parser.parseExpression('1e308'), 1e308);
+    assert.strictEqual(parser.parseExpression('1e-999'), 0);
+  });
+
   it('rejects template string exceeding MAX_EXPRESSION_TEMPLATE_LENGTH (Issue #2389)', () => {
     assert.strictEqual(MAX_EXPRESSION_TEMPLATE_LENGTH, 10000);
     const oversizedTemplate = 'a'.repeat(MAX_EXPRESSION_TEMPLATE_LENGTH + 1);
