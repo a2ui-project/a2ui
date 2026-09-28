@@ -23,7 +23,7 @@ describe('Example: Incremental', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Incremental');
+    fixture = await loadExample({name: 'Incremental'});
     textContent = getCanvas().textContent || '';
   });
 

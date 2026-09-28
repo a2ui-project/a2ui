@@ -24,7 +24,7 @@ describe('Example: Event Detail', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Event Detail');
+    fixture = await loadExample({name: 'Event Detail'});
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });

@@ -103,7 +103,7 @@ export class A2uiSurface extends LitElement {
 
     try {
       const rootContext = new ComponentContext(this.surface, 'root', '/');
-      return html`${renderA2uiNode(rootContext, this.surface.catalog)}`;
+      return html`${renderA2uiNode(rootContext, this.surface.defaultCatalog)}`;
     } catch (e) {
       console.error('Error creating root context:', e);
       return html`<div>Error rendering surface</div>`;

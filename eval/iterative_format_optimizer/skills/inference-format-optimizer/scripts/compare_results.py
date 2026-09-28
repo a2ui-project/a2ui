@@ -22,7 +22,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 
 def resolve_results_file(target_path: str) -> str:
@@ -125,8 +125,8 @@ def extract_metrics(
     json_path: str,
     label_name: str = "",
     use_median: bool = True,
-    filter_sample_ids: Optional[Set[str]] = None,
-) -> Dict[str, Any]:
+    filter_sample_ids: set[str] | None = None,
+) -> dict[str, Any]:
     """Extracts summary and per-sample metrics from an evaluation results JSON file.
 
     Args:
@@ -414,14 +414,14 @@ def extract_metrics(
     )
 
     # Fallback stats model usage if sample metadata is empty
-    model_usage: Dict[str, Any] = (data.get("stats") or {}).get("model_usage") or {}
-    primary_usage: Dict[str, Any] = (
+    model_usage: dict[str, Any] = (data.get("stats") or {}).get("model_usage") or {}
+    primary_usage: dict[str, Any] = (
         next(iter(model_usage.values()), {}) if model_usage else {}
     )
 
     import statistics
 
-    def _calc_stat(lst: List[float], fallback: float = 0.0) -> float:
+    def _calc_stat(lst: list[float], fallback: float = 0.0) -> float:
         if not lst:
             return fallback
         return float(statistics.median(lst)) if use_median else (sum(lst) / len(lst))
@@ -508,7 +508,7 @@ def format_delta_pct(
     return f"{sign}{pct_change:.1f}%"
 
 
-def compute_s_opt(m: Dict[str, Any], b: Dict[str, Any]) -> float:
+def compute_s_opt(m: dict[str, Any], b: dict[str, Any]) -> float:
     """Computes the composite optimization score S_opt for a run against a baseline.
 
     Args:
@@ -550,8 +550,8 @@ def compute_s_opt(m: Dict[str, Any], b: Dict[str, Any]) -> float:
 
 
 def generate_markdown_table(
-    baseline_metrics: Dict[str, Any],
-    comparison_metrics_list: List[Dict[str, Any]],
+    baseline_metrics: dict[str, Any],
+    comparison_metrics_list: list[dict[str, Any]],
     use_median: bool = True,
 ) -> str:
     """Renders a GitHub Flavored Markdown comparison table for evaluation runs.
@@ -775,7 +775,7 @@ def generate_markdown_table(
     return "\n".join(lines)
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Executes the CLI entrypoint for comparing evaluation results against a baseline.
 
     Args:
@@ -819,7 +819,7 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     # Load comparison runs
     comp_metrics_list = []
-    target_sample_ids: Set[str] = set()
+    target_sample_ids: set[str] = set()
 
     for r_dir in args.results_dirs:
         res_json = resolve_results_file(r_dir)

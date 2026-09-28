@@ -189,7 +189,7 @@ A single model turn can mix conversational text and structured UI blocks, so A2U
 
 ### Inference format
 
-The format of the structured UI blocks in model-to-agent messages, for example JSON, [Express DSL syntax](https://github.com/a2ui-project/a2ui/tree/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express), or Elemental HTML tags.
+The format of the structured UI blocks in model-to-agent messages, for example JSON, [Express DSL syntax](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent/src/a2ui/inference_formats/experimental/express), or Elemental HTML tags.
 
 ### Phases of parsing of model-to-agent responses
 
@@ -239,7 +239,7 @@ Agent and renderer functionality consists of layers that can be developed separa
 
     Set of primitives needed to describe a catalog and to interact with the agent.
 
-    For example, see the [JavaScript web core library](../../../renderers/web_core/README.md).
+    For example, see the [JavaScript web core library](../../../typescript/web_core/README.md).
 
 - **Catalog schema**:
 

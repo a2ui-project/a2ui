@@ -66,7 +66,7 @@ export function App() {
   );
 
   const processor = useMemo(() => {
-    return new MessageProcessor([basicCatalog], action => {
+    return new MessageProcessor<ReactComponentImplementation>([basicCatalog], action => {
       console.log('User action:', action);
       if (sendAndProcessRef.current) {
         sendAndProcessRef.current({version: 'v0.9', action});

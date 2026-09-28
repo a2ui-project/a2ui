@@ -69,6 +69,14 @@ on:
           - patch
           - minor
           - major
+      author_name:
+        description: Author name for the changelog commit (defaults to triggering GitHub actor)
+        required: false
+        type: string
+      author_email:
+        description: Author email for the changelog commit (must have signed the CLA)
+        required: false
+        type: string
       dry_run:
         description: Stage in Artifact Registry without publishing
         type: boolean
@@ -224,18 +232,19 @@ jobs:
       - name: Stage built artifacts for hand-off
         run: |
           set -euo pipefail
-          mkdir -p .artifacts
-          cp release-plan.json .artifacts/
+          mkdir -p staging-artifacts
+          cp release-plan.json staging-artifacts/
           jq -r '.[].directory' release-plan.json | while read -r directory; do
-            mkdir -p ".artifacts/${directory}/dist"
-            cp "${directory}"/dist/* ".artifacts/${directory}/dist/"
+            mkdir -p "staging-artifacts/${directory}/dist"
+            cp "${directory}"/dist/* "staging-artifacts/${directory}/dist/"
           done
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-artifacts
-          path: .artifacts
+          path: staging-artifacts
+          include-hidden-files: true
           retention-days: 7
 
   release:
@@ -476,6 +485,8 @@ jobs:
       - name: Push the changelog branch
         env:
           BRANCH: release/changelog-${{ github.run_id }}
+          AUTHOR_NAME: ${{ inputs.author_name }}
+          AUTHOR_EMAIL: ${{ inputs.author_email }}
         run: |
           set -euo pipefail
           jq -r '.[] | "\(.pypi_name)\t\(.version)"' release-plan.json |
@@ -484,8 +495,10 @@ jobs:
                 --package "$name" --version "$version" --write
             done
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          name="${AUTHOR_NAME:-${GITHUB_TRIGGERING_ACTOR:-github-actions[bot]}}"
+          email="${AUTHOR_EMAIL:-${GITHUB_TRIGGERING_ACTOR:-41898282+github-actions[bot]}@users.noreply.github.com}"
+          git config user.name "$name"
+          git config user.email "$email"
           git checkout -b "$BRANCH"
           # Only the changelogs: release-plan.json is downloaded into the
           # workspace and must not end up in the commit.

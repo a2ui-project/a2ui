@@ -80,7 +80,7 @@ struct ExpressionParserTests {
 
   @Test func returnsErrorOnMaxDepthExceeded() {
     #expect(throws: FunctionError.self) {
-      _ = try parser.parse("depth", depth: 11)
+      _ = try parser.parse("depth", depth: ExpressionParser.maxDepth + 1)
     }
   }
 

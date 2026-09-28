@@ -1,0 +1,307 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
+import {z} from 'zod';
+import {markChildRef} from '../../types/child-ref-helpers.js';
+
+export const ComponentIdSchema = markChildRef(
+  z
+    .string()
+    .describe(
+      'REF:#/$defs/ComponentId|The unique identifier for a component, used for both definitions and references within the same surface.',
+    ),
+  'component-id',
+);
+export type ComponentId = z.infer<typeof ComponentIdSchema>;
+
+export const CallIdSchema = z
+  .string()
+  .describe('REF:#/$defs/CallId|The unique identifier for a function call.');
+export type CallId = z.infer<typeof CallIdSchema>;
+
+export const DataBindingSchema = z
+  .object({'path': z.string().describe('A JSON Pointer path to a value in the data model.')})
+  .strict()
+  .describe('REF:#/$defs/DataBinding');
+export type DataBinding = z.infer<typeof DataBindingSchema>;
+
+export const FunctionCommonSchema = z
+  .object({
+    'call': z.string().describe('The name of the function to call.'),
+    'catalogId': z
+      .string()
+      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
+      .optional(),
+  })
+  .describe(
+    "REF:#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
+  );
+export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
+
+export const FunctionCallSchema = z
+  .record(z.string(), z.any())
+  .and(z.intersection(FunctionCommonSchema, z.any()))
+  .describe(
+    'REF:#/$defs/FunctionCall|Invokes a named function, combining common function properties with the catalog function definition.',
+  );
+export type FunctionCall = z.infer<typeof FunctionCallSchema>;
+
+export const DynamicStringSchema = z
+  .union([z.string(), DataBindingSchema, FunctionCallSchema])
+  .describe('REF:#/$defs/DynamicString|Represents a string');
+export type DynamicString = z.infer<typeof DynamicStringSchema>;
+
+export const DynamicBooleanSchema = z
+  .union([z.boolean(), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.',
+  );
+export type DynamicBoolean = z.infer<typeof DynamicBooleanSchema>;
+
+export const AccessibilityAttributesSchema = z
+  .object({
+    'label': DynamicStringSchema.optional(),
+    'description': DynamicStringSchema.optional(),
+    'live': z
+      .enum(['off', 'polite', 'assertive'])
+      .describe(
+        "Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live). 'polite' waits for user pause; 'assertive' interrupts immediately for alerts.",
+      )
+      .default('off'),
+    'hidden': DynamicBooleanSchema.optional(),
+  })
+  .strict()
+  .describe(
+    'REF:#/$defs/AccessibilityAttributes|Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding.',
+  );
+export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSchema>;
+
+export const ExtensionsSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((value, ctx) => {
+    for (const key in value) {
+      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}:-]*$/u)) {
+        ctx.addIssue({
+          path: [key],
+          code: z.ZodIssueCode.custom,
+          message: `Invalid extension key "${key}": Keys MUST be Unicode identifiers (UAX #31).`,
+        });
+      }
+    }
+  })
+  .describe(
+    "REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
+  );
+export type Extensions = z.infer<typeof ExtensionsSchema>;
+
+export const ComponentCommonSchema = z
+  .object({
+    'id': ComponentIdSchema,
+    'catalogId': z
+      .string()
+      .describe(
+        'The catalog ID for this component, overriding any surface-level default catalogId.',
+      )
+      .optional(),
+    'accessibility': AccessibilityAttributesSchema.optional(),
+    'metadata': z
+      .object({'extensions': ExtensionsSchema.optional()})
+      .strict()
+      .describe('Optional component-level metadata for vendor extensions.')
+      .optional(),
+  })
+  .describe('REF:#/$defs/ComponentCommon');
+export type ComponentCommon = z.infer<typeof ComponentCommonSchema>;
+
+export const ChildSchema = ComponentIdSchema;
+export type Child = z.infer<typeof ChildSchema>;
+
+export const ChildListSchema = markChildRef(
+  z
+    .union([
+      z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
+      z
+        .object({
+          'componentId': ComponentIdSchema,
+          'path': z
+            .string()
+            .describe('The path to the list of component property objects in the data model.'),
+        })
+        .strict()
+        .describe(
+          'A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template.',
+        ),
+    ])
+    .describe('REF:#/$defs/ChildList'),
+  'child-list',
+);
+export type ChildList = z.infer<typeof ChildListSchema>;
+
+export const DynamicValueSchema = z
+  .union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.array(z.any()),
+    z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
+    DataBindingSchema,
+    FunctionCallSchema,
+  ])
+  .describe(
+    'REF:#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
+  );
+export type DynamicValue = z.infer<typeof DynamicValueSchema>;
+
+export const DynamicNumberSchema = z
+  .union([z.number(), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
+  );
+export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;
+
+export const DynamicStringListSchema = z
+  .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
+  );
+export type DynamicStringList = z.infer<typeof DynamicStringListSchema>;
+
+export const IndexSystemFunctionSchema = z
+  .object({
+    'call': z.literal('@index'),
+    'args': z.object({'offset': DynamicNumberSchema.optional()}).optional(),
+  })
+  .describe(
+    'REF:#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
+  );
+export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;
+
+export const CheckRuleSchema = z
+  .object({
+    'condition': z
+      .union([DataBindingSchema, FunctionCallSchema])
+      .describe('Path or function call evaluating to a structured validation result object.'),
+    'message': z.string().describe('Optional fallback error message.').optional(),
+  })
+  .strict()
+  .describe(
+    'REF:#/$defs/CheckRule|A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object.',
+  );
+export type CheckRule = z.infer<typeof CheckRuleSchema>;
+
+export const CheckableSchema = z
+  .object({
+    'checks': z
+      .array(CheckRuleSchema)
+      .describe(
+        'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+      )
+      .optional(),
+  })
+  .describe('REF:#/$defs/Checkable|Properties for components that support renderer-side checks.');
+export type Checkable = z.infer<typeof CheckableSchema>;
+
+export const ActionSchema = z
+  .union([
+    z
+      .object({
+        'event': z
+          .object({
+            'name': z.string().describe('The name of the action to be dispatched to the agent.'),
+            'userMessage': DynamicStringSchema.optional(),
+            'context': z
+              .record(z.string(), DynamicValueSchema)
+              .describe(
+                'A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.',
+              )
+              .optional(),
+          })
+          .strict()
+          .describe('The event to dispatch to the agent.'),
+      })
+      .strict()
+      .describe('Triggers an agent-side event.'),
+    z
+      .object({'functionCall': FunctionCallSchema})
+      .strict()
+      .describe('Executes a renderer or agent-side function.'),
+  ])
+  .describe(
+    'REF:#/$defs/Action|Defines an interaction handler that can either trigger an agent-side event or execute a local renderer-side function.',
+  );
+export type Action = z.infer<typeof ActionSchema>;
+
+export const SurfaceSchema = z
+  .object({'component': z.literal('Surface').optional(), 'child': z.literal('root').optional()})
+  .strict()
+  .describe(
+    "REF:#/$defs/Surface|The reserved canonical container component representing an A2UI surface. The Surface component is immutable and always has 'child': 'root'.",
+  );
+export type Surface = z.infer<typeof SurfaceSchema>;
+
+export const FunctionResponseSchema = z
+  .object({
+    'functionCallId': CallIdSchema,
+    'value': z.any().describe('The return value of the function.').optional(),
+    'error': z
+      .object({'code': z.string(), 'message': z.string()})
+      .strict()
+      .describe('An error object indicating failure of the function execution.')
+      .optional(),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    const hasValue = 'value' in val;
+    const hasError = 'error' in val;
+    if ((hasValue && hasError) || (!hasValue && !hasError)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'FunctionResponse must have either "value" or "error", but not both or neither.',
+      });
+    }
+  })
+  .describe(
+    'REF:#/$defs/FunctionResponse|The return response matching a callAgentFunction or callRendererFunction invocation.',
+  );
+export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;
+
+export const CommonSchemas = {
+  ComponentId: ComponentIdSchema,
+  CallId: CallIdSchema,
+  DataBinding: DataBindingSchema,
+  FunctionCommon: FunctionCommonSchema,
+  FunctionCall: FunctionCallSchema,
+  DynamicString: DynamicStringSchema,
+  DynamicBoolean: DynamicBooleanSchema,
+  AccessibilityAttributes: AccessibilityAttributesSchema,
+  Extensions: ExtensionsSchema,
+  ComponentCommon: ComponentCommonSchema,
+  Child: ChildSchema,
+  ChildList: ChildListSchema,
+  DynamicValue: DynamicValueSchema,
+  DynamicNumber: DynamicNumberSchema,
+  DynamicStringList: DynamicStringListSchema,
+  IndexSystemFunction: IndexSystemFunctionSchema,
+  CheckRule: CheckRuleSchema,
+  Checkable: CheckableSchema,
+  Action: ActionSchema,
+  Surface: SurfaceSchema,
+  FunctionResponse: FunctionResponseSchema,
+};
+
+export * from './helpers.js';

@@ -20,7 +20,7 @@ describe('Example: ChildList Template Expansion', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('ChildList Template Expansion');
+    await loadExample({name: 'ChildList Template Expansion'});
     textContent = getCanvas().textContent;
   });
 

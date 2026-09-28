@@ -15,7 +15,9 @@
  */
 
 import {createContext} from '@lit/context';
-import type {MarkdownRenderer} from '@a2ui/web_core/v0_9';
+import type {MarkdownRenderer} from '@a2ui/web_core';
+
+export type {MarkdownRenderer};
 
 /**
  * The markdown renderer context.

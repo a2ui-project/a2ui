@@ -24,10 +24,10 @@ import os
 import re
 import sys
 import glob
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
-def parse_yaml(yaml_str: str) -> Dict[str, Any]:
+def parse_yaml(yaml_str: str) -> dict[str, Any]:
     """Parses a YAML string into a dictionary.
 
     A simple, zero-dependency YAML parser for blueprint frontmatter.
@@ -40,8 +40,8 @@ def parse_yaml(yaml_str: str) -> Dict[str, Any]:
         A dictionary containing the parsed YAML data.
     """
     lines = yaml_str.splitlines()
-    data: Dict[str, Any] = {}
-    path: List[Tuple[int, str]] = []  # list of (indent_level, key)
+    data: dict[str, Any] = {}
+    path: list[tuple[int, str]] = []  # list of (indent_level, key)
 
     for line in lines:
         # Remove comments
@@ -108,7 +108,7 @@ def parse_yaml(yaml_str: str) -> Dict[str, Any]:
 
 def parse_frontmatter(
     file_path: str,
-) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+) -> tuple[dict[str, Any] | None, str | None]:
     """Parses the YAML frontmatter from a markdown file.
 
     Args:

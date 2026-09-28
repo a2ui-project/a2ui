@@ -75,6 +75,57 @@ void main() {
       expect(() => parser.parse('hello \${world'), throwsException);
     });
 
+    group('number literals', () {
+      test('parse signed integers and decimals', () {
+        expect(parser.parseExpression('-42'), -42);
+        expect(parser.parseExpression('+7'), 7);
+        expect(parser.parseExpression('-3.5'), -3.5);
+        expect(parser.parseExpression('-0'), 0);
+      });
+
+      test('parse exponent notation', () {
+        expect(parser.parseExpression('1e5'), 100000);
+        expect(parser.parseExpression('1E5'), 100000);
+        expect(parser.parseExpression('1.5e-3'), 0.0015);
+        expect(parser.parseExpression('2.5E+4'), 25000);
+        expect(parser.parseExpression('-2e3'), -2000);
+      });
+
+      test('parse signed literals as function arguments', () {
+        expect(parser.parseExpression('clamp(value: -1.5e2, max: +10)'), {
+          'call': 'clamp',
+          'args': {'value': -150, 'max': 10},
+          'returnType': 'any',
+        });
+      });
+
+      test('keep a hyphen inside a path as part of the path', () {
+        expect(parser.parseExpression('a-1'), {'path': 'a-1'});
+        expect(parser.parseExpression('/items/-1'), {'path': '/items/-1'});
+      });
+
+      test('treat a sign not followed by a digit as a path', () {
+        expect(parser.parseExpression('-foo'), {'path': '-foo'});
+      });
+
+      test('reject a malformed exponent', () {
+        for (final expr in ['1e', '1e+', '1E-']) {
+          expect(
+            () => parser.parseExpression(expr),
+            throwsA(isA<A2uiExpressionError>()),
+            reason: expr,
+          );
+        }
+      });
+
+      test('reject characters left after a literal', () {
+        expect(
+          () => parser.parseExpression('-1x'),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+    });
+
     group('recursion depth', () {
       // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so
       // this nests [calls] + 1 deep.

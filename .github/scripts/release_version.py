@@ -76,14 +76,14 @@ class Package:
 
 CORE = Package(
     pypi_name="a2ui-core",
-    directory="agent_sdks/python/a2ui_core",
+    directory="python/a2ui_core",
     tag_prefix="python/a2ui-core/v",
     bootstrap_version="0.1.1",
 )
 
 AGENT = Package(
     pypi_name="a2ui-agent-sdk",
-    directory="agent_sdks/python/a2ui_agent",
+    directory="python/a2ui_agent",
     tag_prefix="python/a2ui-agent-sdk/v",
     bootstrap_version="0.6.0",
 )

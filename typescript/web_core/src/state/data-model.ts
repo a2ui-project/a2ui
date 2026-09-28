@@ -1,0 +1,468 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {Subscription as BaseSubscription} from '../common/events.js';
+import {A2uiDataError} from '../errors.js';
+import {
+  batchWrite,
+  effect,
+  getValue,
+  peekValue,
+  setValue,
+  signal,
+  Signal,
+} from '../reactivity/signals.js';
+
+/**
+ * Reactive subscription to a specific path in the data model.
+ */
+export interface DataSubscription<T> extends BaseSubscription {
+  /** Current value at the subscribed path. */
+  readonly value: T | undefined;
+}
+
+function isNumeric(value: string): boolean {
+  return /^(0|[1-9]\d*)$/.test(value);
+}
+
+/**
+ * The maximum array index that auto-vivification and array mutations will expand to.
+ * Prevents OOM and thread hangs from excessively large indices.
+ */
+export const MAX_ARRAY_INDEX = 10000;
+
+/**
+ * Keys forbidden in path resolution to prevent prototype pollution
+ * vulnerabilities. Accessing or mutating these keys via object paths can allow
+ * attackers to modify Object.prototype or Function.prototype.
+ */
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Observable data store representing the renderer-side state.
+ *
+ * Handles JSON Pointer path resolution, mutation, and reactive subscriptions.
+ */
+export class DataModel {
+  private data: Record<string, unknown> = {};
+  private readonly signals: Map<string, Signal<any>> = new Map();
+  private readonly subscriptions: Set<() => void> = new Set(); // To track direct subscriptions for dispose
+
+  /**
+   * Initializes a new `DataModel` instance.
+   *
+   * @param initialData Initial data for the model. Defaults to an empty object.
+   */
+  constructor(initialData: Record<string, unknown> = {}) {
+    this.data = initialData;
+  }
+
+  /**
+   * Retrieves a Preact Signal for a specific data path.
+   *
+   * This provides a reactive way to access a value. If the value at the path
+   * changes via `set()`, the signal will automatically be updated.
+   *
+   * @param path The JSON pointer path to create or retrieve a signal for.
+   * @returns A Preact Signal representing the value at the specified path.
+   * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
+   *     segments (`__proto__`, `constructor`, `prototype`).
+   */
+  getSignal<T>(path: string): Signal<T | undefined> {
+    const normalizedPath = this.normalizePath(path);
+    if (!this.signals.has(normalizedPath)) {
+      this.signals.set(normalizedPath, signal(this.get(normalizedPath)));
+    }
+    return this.signals.get(normalizedPath) as Signal<T | undefined>;
+  }
+
+  /**
+   * Updates the model at the specific path and notifies all relevant signals.
+   * If path is '/' or empty, replaces the entire root.
+   *
+   * Note on `undefined` values:
+   * - For objects: Setting a property to `undefined` removes the key from the
+   * object.
+   * - For arrays: Setting an index to `undefined` sets that index to
+   * `undefined` but preserves the array length (sparse array).
+   *
+   * @param path The JSON pointer path to set value for.
+   * @param value The value to set at the specified path.
+   * @returns This `DataModel` instance for chaining.
+   * @throws {A2uiDataError} If path is null, undefined, invalid for
+   *     arrays/primitives, exceeds max array bounds, or contains forbidden
+   *     segments (`__proto__`, `constructor`, `prototype`).
+   */
+  set(path: string, value: any): this {
+    if (path === null || path === undefined) {
+      throw new A2uiDataError('Path cannot be null or undefined.');
+    }
+
+    if (path === '/' || path === '') {
+      this.data = value === null || value === undefined ? {} : value;
+      this.notifyAllSignals();
+      return this;
+    }
+
+    const segments = this.parsePath(path);
+    const lastSegment = segments.pop()!;
+
+    if ((value === undefined || value === null) && this.get(path) === undefined) {
+      return this;
+    }
+
+    // Only an absent root is replaced with a container. A primitive root is a
+    // value the caller put there, and writing a path through it is the same
+    // error as writing through a primitive at any other depth.
+    if (this.data === undefined || this.data === null) {
+      this.data = {};
+    } else if (typeof this.data !== 'object') {
+      throw new A2uiDataError(
+        `Cannot set path '${path}': the data model root is a primitive value.`,
+        path,
+      );
+    }
+    let current: any = this.data;
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+
+      if (Array.isArray(current)) {
+        if (!isNumeric(segment)) {
+          throw new A2uiDataError(
+            `Cannot use non-numeric segment '${segment}' on an array in path '${path}'.`,
+            path,
+          );
+        }
+
+        const index = parseInt(segment, 10);
+        if (index > MAX_ARRAY_INDEX) {
+          throw new A2uiDataError(
+            `Cannot set path '${path}': array index '${segment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+            path,
+          );
+        }
+
+        // If we encounter a primitive where a container is expected, we cannot
+        // proceed. We allow undefined/null to be overwritten by a new
+        // container.
+        const val = current[index];
+        if (val !== undefined && val !== null && typeof val !== 'object') {
+          throw new A2uiDataError(
+            `Cannot set path '${path}': segment '${segment}' is a primitive value.`,
+            path,
+          );
+        }
+
+        if (val === undefined || val === null) {
+          const nextSegment = i < segments.length - 1 ? segments[i + 1] : lastSegment;
+          if (isNumeric(nextSegment)) {
+            const nextIdx = parseInt(nextSegment, 10);
+            if (nextIdx > MAX_ARRAY_INDEX) {
+              throw new A2uiDataError(
+                `Cannot set path '${path}': array index '${nextSegment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+                path,
+              );
+            }
+            current[index] = [];
+          } else {
+            current[index] = {};
+          }
+        }
+      } else {
+        // Ensure we only inspect own properties to prevent inherited
+        // Object.prototype properties (e.g., toString) from being treated as
+        // existing state.
+        const hasOwnProp = Object.prototype.hasOwnProperty.call(current, segment);
+        if (hasOwnProp) {
+          const propVal = current[segment];
+          // If we encounter a primitive where a container is expected, we
+          // cannot proceed. We allow undefined/null to be overwritten by a new
+          // container.
+          if (propVal !== undefined && propVal !== null && typeof propVal !== 'object') {
+            throw new A2uiDataError(
+              `Cannot set path '${path}': segment '${segment}' is a primitive value.`,
+              path,
+            );
+          }
+        }
+
+        if (!hasOwnProp || current[segment] === undefined || current[segment] === null) {
+          const nextSegment = i < segments.length - 1 ? segments[i + 1] : lastSegment;
+          if (isNumeric(nextSegment)) {
+            const nextIdx = parseInt(nextSegment, 10);
+            if (nextIdx > MAX_ARRAY_INDEX) {
+              throw new A2uiDataError(
+                `Cannot set path '${path}': array index '${nextSegment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+                path,
+              );
+            }
+            current[segment] = [];
+          } else {
+            current[segment] = {};
+          }
+        }
+      }
+
+      current = current[segment];
+    }
+
+    if (Array.isArray(current)) {
+      if (!isNumeric(lastSegment)) {
+        throw new A2uiDataError(
+          `Cannot use non-numeric segment '${lastSegment}' on an array in path '${path}'.`,
+          path,
+        );
+      }
+      const lastIndex = parseInt(lastSegment, 10);
+      if (lastIndex > MAX_ARRAY_INDEX) {
+        throw new A2uiDataError(
+          `Cannot set path '${path}': array index '${lastSegment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+          path,
+        );
+      }
+    }
+
+    if (value === undefined || value === null) {
+      if (Array.isArray(current)) {
+        const idx = parseInt(lastSegment, 10);
+        // Deleting an index past the end of the array is a no-op. Assigning
+        // here would extend `length` and materialise entries never set.
+        if (idx < current.length) {
+          current[idx] = undefined;
+        }
+      } else {
+        delete current[lastSegment];
+      }
+    } else {
+      current[lastSegment] = value;
+    }
+
+    this.notifySignals(path);
+    return this;
+  }
+
+  /**
+   * Deletes the value at the specified JSON pointer path.
+   *
+   * If `path` is `'/'` or empty, resets the root data model to an empty object.
+   *
+   * @param path The JSON pointer path to remove.
+   * @returns This `DataModel` instance for chaining.
+   */
+  delete(path: string): this {
+    return this.set(path, undefined);
+  }
+
+  /**
+   * Resolves a relative path against a base context path.
+   *
+   * @param path The path to resolve.
+   * @param contextPath The base path (optional).
+   * @returns The resolved absolute path.
+   */
+  static resolvePath(path: string, contextPath?: string): string {
+    if (path.startsWith('/')) {
+      return path;
+    }
+    if (contextPath) {
+      const base = contextPath.endsWith('/') ? contextPath : `${contextPath}/`;
+      return `${base}${path}`;
+    }
+    return `/${path}`;
+  }
+
+  /**
+   * Retrieves data at a specific JSON pointer path.
+   *
+   * @template T The expected type of the returned value. Defaults to `any`.
+   * @param path The JSON pointer path to read from.
+   * @returns The value at the specified path, or undefined if not found.
+   * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
+   *     segments (`__proto__`, `constructor`, `prototype`).
+   */
+  get<T = any>(path: string): T {
+    if (path === null || path === undefined) {
+      throw new A2uiDataError('Path cannot be null or undefined.');
+    }
+    if (path === '/' || path === '') {
+      return this.data as T;
+    }
+
+    const segments = this.parsePath(path);
+    let current: any = this.data;
+    for (const segment of segments) {
+      if (current === undefined || current === null || typeof current !== 'object') {
+        return undefined as T;
+      }
+
+      if (Array.isArray(current)) {
+        if (!isNumeric(segment)) {
+          return undefined as T;
+        }
+        const index = parseInt(segment, 10);
+        if (index < 0 || index >= current.length) {
+          return undefined as T;
+        }
+        current = current[index];
+      } else {
+        if (!Object.prototype.hasOwnProperty.call(current, segment)) {
+          return undefined as T;
+        }
+        current = current[segment];
+      }
+    }
+    return current as T;
+  }
+
+  /**
+   * Checks whether a JSON pointer path physically exists in the data model.
+   *
+   * Differentiates between a path holding an explicit `null` value (`true`) and
+   * a path that is absent from the object or array hierarchy (`false`).
+   *
+   * @param path Absolute JSON pointer path to check.
+   * @returns Whether every segment along `path` exists in the hierarchy.
+   */
+  hasPath(path: string): boolean {
+    if (path === null || path === undefined) {
+      return false;
+    }
+    return this.get(path) !== undefined;
+  }
+
+  /**
+   * Subscribes to changes at the specified data path.
+   *
+   * This is a backwards-compatible layer using Preact Signals internally. It
+   * allows listeners to be notified whenever the value at the specified path
+   * (or any of its ancestors/descendants) changes.
+   *
+   * @param path The JSON pointer path to observe.
+   * @param onChange A callback fired whenever the value changes.
+   * @returns A `DataSubscription` containing the initial value and an
+   *     `unsubscribe` method.
+   * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
+   *     segments (`__proto__`, `constructor`, `prototype`).
+   */
+  subscribe<T>(path: string, onChange: (value: T | undefined) => void): DataSubscription<T> {
+    const sig = this.getSignal<T>(path);
+    let isSync = true;
+    let currentValue = peekValue(sig);
+
+    const dispose = effect(() => {
+      const val = getValue(sig);
+      currentValue = val;
+      if (!isSync) {
+        onChange(val);
+      }
+    });
+    isSync = false;
+
+    this.subscriptions.add(dispose);
+
+    return {
+      get value() {
+        return currentValue;
+      },
+      unsubscribe: () => {
+        dispose();
+        this.subscriptions.delete(dispose);
+      },
+    };
+  }
+
+  /**
+   * Clears all internal subscriptions and active signals.
+   */
+  dispose(): void {
+    for (const dispose of this.subscriptions) {
+      dispose();
+    }
+    this.subscriptions.clear();
+    this.signals.clear();
+  }
+
+  private normalizePath(path: string): string {
+    if (path.length > 1 && path.endsWith('/')) {
+      return path.slice(0, -1);
+    }
+    return path || '/';
+  }
+
+  private parsePath(path: string): string[] {
+    return path
+      .split('/')
+      .filter(p => p.length > 0)
+      .map(rawSegment => {
+        const segment = rawSegment.replace(/~([01])/g, (_, g) => (g === '1' ? '/' : '~'));
+        if (FORBIDDEN_KEYS.has(segment)) {
+          throw new A2uiDataError(`Forbidden path segment '${segment}' in path '${path}'.`, path);
+        }
+        return segment;
+      });
+  }
+
+  private notifySignals(path: string): void {
+    const normalizedPath = this.normalizePath(path);
+
+    batchWrite(() => {
+      this.updateSignal(normalizedPath);
+
+      // Notify Ancestors
+      let parentPath = normalizedPath;
+      while (parentPath !== '/' && parentPath !== '') {
+        parentPath = parentPath.substring(0, parentPath.lastIndexOf('/')) || '/';
+        this.updateSignal(parentPath);
+      }
+
+      // Notify Descendants
+      for (const subPath of this.signals.keys()) {
+        if (this.isDescendant(subPath, normalizedPath)) {
+          this.updateSignal(subPath);
+        }
+      }
+    });
+  }
+
+  private updateSignal(path: string): void {
+    const sig = this.signals.get(path);
+    if (sig) {
+      const val = this.get(path);
+      if (Array.isArray(val)) {
+        setValue(sig, val.slice());
+      } else if (typeof val === 'object' && val !== null) {
+        setValue(sig, {...val});
+      } else {
+        setValue(sig, val);
+      }
+    }
+  }
+
+  private notifyAllSignals(): void {
+    batchWrite(() => {
+      for (const path of this.signals.keys()) {
+        this.updateSignal(path);
+      }
+    });
+  }
+
+  private isDescendant(childPath: string, parentPath: string): boolean {
+    if (parentPath === '/' || parentPath === '') {
+      return childPath !== '/';
+    }
+    return childPath.startsWith(parentPath + '/');
+  }
+}
