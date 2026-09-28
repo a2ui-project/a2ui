@@ -99,7 +99,7 @@ Constants that are formally part of the public protocol API (e.g., `SPEC_VERSION
 
 ### Error Hierarchy & Exception Handling
 
-- **Base Exception**: All exceptions in the SDK inherit from `A2uiError` in `a2ui.core.exceptions`.
+- **Base Exception**: All exceptions in the SDK inherit from `A2uiError` in `a2ui.core`.
 - **Specialized Exceptions**:
   - `A2uiValidationError`: Schema, property, or constraint violations.
   - `A2uiParseError`: Syntax or formatting errors in LLM output.
@@ -142,7 +142,7 @@ uv run pyink .
 Strict type checking must pass across all workspace packages:
 
 ```bash
-uv run --all-packages mypy .
+uv run mypy .
 ```
 
 ### 4. Unit & Conformance Tests (Pytest)
@@ -174,6 +174,6 @@ uv build --all
 - [ ] Public symbols exported through package-level `__init__.py` with explicit `__all__`.
 - [ ] No deep internal module imports in code, tests, docstrings, or READMEs.
 - [ ] `uv run pyink --check .` passes cleanly.
-- [ ] `uv run --all-packages mypy .` passes with zero errors.
+- [ ] `uv run mypy .` passes with zero errors.
 - [ ] `uv run pytest` passes 100%.
 - [ ] `uv build --all` completes successfully.
