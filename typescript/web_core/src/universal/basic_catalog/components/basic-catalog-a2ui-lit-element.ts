@@ -25,7 +25,6 @@ import type {
   UniversalCheckableProps,
   UniversalAccessibilityAttributes,
 } from '../types.js';
-import type {A2uiController} from '../../a2ui-controller.js';
 
 export type {ResolvedChildList, A2uiChildRef, A2uiChildRef as ResolvedChildRef};
 
@@ -42,13 +41,11 @@ export type InferredBasicCatalogProps<T> = T extends ComponentApi
  * @internal
  */
 export abstract class BasicCatalogA2uiLitElement<
-  ApiOrProps = UniversalCommonProps,
-> extends A2uiLitElement<any> {
-  override get controller(): A2uiController<any> & {
-    props: InferredBasicCatalogProps<ApiOrProps>;
-  } {
-    return super.controller as any;
-  }
+  ApiOrProps extends UniversalCommonProps | ComponentApi = UniversalCommonProps,
+> extends A2uiLitElement<
+  ApiOrProps extends ComponentApi ? ApiOrProps : ComponentApi,
+  InferredBasicCatalogProps<ApiOrProps>
+> {
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
    */
@@ -74,7 +71,7 @@ export abstract class BasicCatalogA2uiLitElement<
   override willUpdate(changedProperties: Map<string, any>) {
     super.willUpdate(changedProperties);
 
-    const props = this.controller?.props;
+    const props = this.controller?.props as UniversalCommonProps | undefined;
     if (props && props.weight !== undefined) {
       this.style.flex = String(props.weight);
     } else {

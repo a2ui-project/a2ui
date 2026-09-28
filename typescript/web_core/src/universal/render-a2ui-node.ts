@@ -47,7 +47,11 @@ export function renderA2uiNode(
 
   // A catalog can also hold entries whose element another framework's adapter
   // already defined; those carry a tag name but no element to register.
-  if (isWebComponentImplementation(implementation)) {
+  if (
+    isWebComponentImplementation(implementation) &&
+    typeof customElements !== 'undefined' &&
+    !customElements.get(implementation.tagName)
+  ) {
     registerUniversalElement(implementation);
   }
 

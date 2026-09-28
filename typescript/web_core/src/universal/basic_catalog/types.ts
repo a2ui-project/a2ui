@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import type {ResolvedChildList} from '../../universal/index.js';
+import type {ResolvedChildList, A2uiChildRef} from '../../universal/index.js';
+
+export type {A2uiChildRef};
 
 /**
  * Universal accessibility attributes rendered on basic catalog custom elements.
@@ -38,21 +40,30 @@ export interface UniversalCheckableProps {
   isValid?: boolean;
 }
 
+export type UniversalLayoutJustify =
+  | 'start'
+  | 'center'
+  | 'end'
+  | 'spaceBetween'
+  | 'spaceAround'
+  | 'spaceEvenly'
+  | 'stretch';
+
+export type UniversalLayoutAlign = 'start' | 'center' | 'end' | 'stretch' | 'baseline';
+
 export interface UniversalAudioPlayerProps extends UniversalCommonProps {
   url?: string;
-  autoplay?: boolean;
-  controls?: boolean;
-  loop?: boolean;
-  muted?: boolean;
+  description?: string;
 }
 
-export interface UniversalButtonProps extends UniversalCommonProps {
-  child?: string;
+export interface UniversalButtonProps extends UniversalCommonProps, UniversalCheckableProps {
+  child?: A2uiChildRef;
   action?: () => void;
+  variant?: 'default' | 'primary' | 'borderless';
 }
 
 export interface UniversalCardProps extends UniversalCommonProps {
-  child?: string;
+  child?: A2uiChildRef;
   children?: ResolvedChildList;
 }
 
@@ -72,55 +83,66 @@ export interface UniversalChoicePickerProps extends UniversalCommonProps, Univer
   value?: string | string[];
   setValue?: (value: string | string[]) => void;
   options?: UniversalChoicePickerOption[];
-  multiSelect?: boolean;
+  variant?: 'multipleSelection' | 'mutuallyExclusive';
+  displayStyle?: 'checkbox' | 'chips';
+  filterable?: boolean;
 }
 
 export interface UniversalColumnProps extends UniversalCommonProps {
   children?: ResolvedChildList;
   wrap?: boolean;
-  justify?: string;
-  align?: string;
+  justify?: UniversalLayoutJustify;
+  align?: UniversalLayoutAlign;
 }
 
 export interface UniversalDateTimeInputProps extends UniversalCommonProps, UniversalCheckableProps {
   label?: string;
   value?: string;
   setValue?: (value: string) => void;
-  mode?: 'date' | 'time' | 'datetime';
+  enableDate?: boolean;
+  enableTime?: boolean;
   min?: string;
   max?: string;
 }
 
 export interface UniversalDividerProps extends UniversalCommonProps {
-  orientation?: 'horizontal' | 'vertical';
+  axis?: 'horizontal' | 'vertical';
 }
 
 export interface UniversalIconProps extends UniversalCommonProps {
-  name?: string;
-  svgPath?: string;
+  name?: string | {svgPath: string};
 }
 
 export interface UniversalImageProps extends UniversalCommonProps {
   url?: string;
-  alt?: string;
-  fit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
-  aspectRatio?: string;
+  description?: string;
+  fit?: 'contain' | 'cover' | 'fill' | 'none' | 'scaleDown';
+  variant?:
+    | 'icon'
+    | 'avatar'
+    | 'smallFeature'
+    | 'mediumFeature'
+    | 'largeFeature'
+    | 'header'
+    | 'default';
 }
 
 export interface UniversalListProps extends UniversalCommonProps {
   children?: ResolvedChildList;
+  direction?: 'vertical' | 'horizontal';
+  listStyle?: 'ordered' | 'unordered' | 'none';
 }
 
 export interface UniversalModalProps extends UniversalCommonProps {
-  isOpen?: boolean;
-  child?: string;
+  trigger?: A2uiChildRef;
+  content?: A2uiChildRef;
 }
 
 export interface UniversalRowProps extends UniversalCommonProps {
   children?: ResolvedChildList;
   wrap?: boolean;
-  justify?: string;
-  align?: string;
+  justify?: UniversalLayoutJustify;
+  align?: UniversalLayoutAlign;
 }
 
 export interface UniversalSliderProps extends UniversalCommonProps, UniversalCheckableProps {
@@ -134,13 +156,11 @@ export interface UniversalSliderProps extends UniversalCommonProps, UniversalChe
 
 export interface UniversalTabItem {
   title: string;
-  child: string;
+  child: A2uiChildRef;
 }
 
 export interface UniversalTabsProps extends UniversalCommonProps {
   tabs?: UniversalTabItem[];
-  selectedIndex?: number;
-  onTabSelected?: (index: number) => void;
 }
 
 export interface UniversalTextProps extends UniversalCommonProps {
@@ -153,20 +173,11 @@ export interface UniversalTextFieldProps extends UniversalCommonProps, Universal
   value?: string;
   setValue?: (value: string) => void;
   placeholder?: string;
-  type?: 'text' | 'password' | 'email' | 'number' | 'tel' | 'url';
-  multiline?: boolean;
-  minLength?: number;
-  maxLength?: number;
-  required?: boolean;
-  pattern?: string;
+  variant?: 'shortText' | 'longText' | 'number' | 'obscured' | 'email' | 'phone' | 'url';
 }
 
 export interface UniversalVideoProps extends UniversalCommonProps {
   url?: string;
   poster?: string;
   posterUrl?: string;
-  autoplay?: boolean;
-  controls?: boolean;
-  loop?: boolean;
-  muted?: boolean;
 }

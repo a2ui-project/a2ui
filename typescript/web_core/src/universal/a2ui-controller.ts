@@ -28,11 +28,19 @@ import {A2uiLitElement} from './a2ui-lit-element.js';
  * @template Api The specific A2UI component API interface this controller is bound to.
  * @internal
  */
-export class A2uiController<Api extends ComponentApi> implements ReactiveController {
+export class A2uiController<
+  Api extends ComponentApi = ComponentApi,
+  Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
+> implements ReactiveController {
+  private _props: Props;
+
   /**
    * The current reactive properties of the A2UI component, matching the expected output schema.
    */
-  public props: ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
+  public get props(): Props {
+    return this._props;
+  }
+
   private binder: GenericBinder<InferredComponentApiSchemaType<Api>>;
   private subscription?: {unsubscribe: () => void};
   private componentsSubscription?: {unsubscribe: () => void};
@@ -44,11 +52,11 @@ export class A2uiController<Api extends ComponentApi> implements ReactiveControl
    * @param api The A2UI component API defining the schema for this element.
    */
   constructor(
-    private host: A2uiLitElement<any>,
+    private host: A2uiLitElement<any, any>,
     api: Api,
   ) {
     this.binder = new GenericBinder(this.host.context, api.schema);
-    this.props = this.binder.snapshot as ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
+    this._props = this.binder.snapshot as Props;
     this.host.addController(this);
     if (this.host.isConnected) {
       this.hostConnected();
@@ -63,7 +71,7 @@ export class A2uiController<Api extends ComponentApi> implements ReactiveControl
   hostConnected() {
     if (!this.subscription) {
       this.subscription = this.binder.subscribe(newProps => {
-        this.props = newProps as ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
+        this._props = newProps as Props;
         this.host.requestUpdate();
       });
     }

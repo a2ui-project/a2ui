@@ -17,7 +17,8 @@
 import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
 import {ComponentContext} from '../resolution/component-context.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {Catalog, ComponentApi, type InferredComponentApiSchemaType} from '../catalog/types.js';
+import type {ResolveA2uiProps} from '../resolution/generic-binder.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 import {type ComponentId} from '../types/common-types.js';
 import {renderA2uiNode} from './render-a2ui-node.js';
@@ -50,7 +51,10 @@ export type ResolvedChildList = A2uiChildRef[];
  * @experimental This class is experimental and subject to change as A2UI transitions
  * to the unified Node Layer resolution pipeline.
  */
-export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> extends LitElement {
+export abstract class A2uiLitElement<
+  Api extends ComponentApi = ComponentApi,
+  Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
+> extends LitElement {
   @property({type: Object}) context!: ComponentContext;
 
   /**
@@ -58,12 +62,12 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
    */
   protected readonly api?: Api;
 
-  private _controller?: A2uiController<Api>;
+  private _controller?: A2uiController<Api, Props>;
 
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
    */
-  public get controller(): A2uiController<Api> {
+  public get controller(): A2uiController<Api, Props> {
     return this._controller!;
   }
 
@@ -193,7 +197,7 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
    *
    * @returns A new instance of `A2uiController` matching the component API.
    */
-  protected createController(): A2uiController<Api> {
+  protected createController(): A2uiController<Api, Props> {
     const activeCatalog = (this.context?.componentModel?.catalog ??
       this.context?.dataContext?.surface?.defaultCatalog) as
       | Catalog<WebComponentImplementation>
@@ -208,7 +212,7 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
         `[A2uiLitElement] Either define 'protected readonly api = ...' on ${this.constructor.name} or override 'createController()'.`,
       );
     }
-    return new A2uiController(this, activeApi);
+    return new A2uiController(this, activeApi) as unknown as A2uiController<Api, Props>;
   }
 
   /**

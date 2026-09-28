@@ -91,7 +91,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<Univer
 
     const classes = {'a2ui-textfield': true, invalid: isInvalid};
 
-    const placeholder = (props as any).placeholder || nothing;
+    const placeholder = props.placeholder || nothing;
 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}

@@ -69,7 +69,7 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSlide
 
     const min = props.min ?? 0;
     const max = props.max ?? 100;
-    const steps = (props as any).steps;
+    const steps = props.steps;
     const stepVal =
       typeof steps === 'number' && steps > 0 && max > min ? (max - min) / steps : nothing;
 

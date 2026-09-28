@@ -50,7 +50,7 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<UniversalVideoP
       <div class="a2ui-video-container">
         <video
           src=${props.url || nothing}
-          poster=${(props as any).posterUrl || (props as any).poster || nothing}
+          poster=${props.posterUrl || props.poster || nothing}
           controls
           class="a2ui-video"
         >
