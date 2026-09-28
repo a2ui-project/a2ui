@@ -20,7 +20,7 @@ from typing import Any, Callable
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
-from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
+from a2ui.core.schema.v0_9 import V09Capabilities
 
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,

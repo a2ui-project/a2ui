@@ -31,13 +31,15 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.server.apps import A2AStarletteApplication
 from a2a.types import AgentCard, AgentSkill, AgentCapabilities
 from starlette.middleware.cors import CORSMiddleware
-from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
-from a2ui.a2a.extension import get_a2ui_agent_extension
-
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.a2a import get_a2ui_agent_extension
+from a2ui.adk.a2a import A2uiPartConverter
+from a2ui.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.adk.a2a.part_converter import A2uiPartConverter
-from a2ui.schema.common_modifiers import remove_strict_validation
+from a2ui.schema import (
+    VERSION_0_8,
+    VERSION_0_9,
+    remove_strict_validation,
+)
 
 inference_format = DirectJsonFormat(
     version=VERSION_0_9,

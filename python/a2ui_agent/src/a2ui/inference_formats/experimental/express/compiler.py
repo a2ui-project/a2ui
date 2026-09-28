@@ -22,10 +22,10 @@ The grammar for A2UI Express is defined in Express.g4.
 
 from typing import Any
 from antlr4 import InputStream, CommonTokenStream
-from a2ui.core.catalog import Catalog
+from a2ui.core import Catalog
 from a2ui.core.common.semver import is_at_least_version
 from a2ui.core.schema import ProtocolVersion
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema import A2uiCatalog
 from .generated.express_lexer import ExpressLexer
 from .generated.express_parser import ExpressParser
 from .visitor import ExpressAstVisitor, ExpressErrorListener

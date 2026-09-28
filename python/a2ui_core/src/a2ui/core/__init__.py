@@ -36,8 +36,13 @@ from a2ui.core.processing import (
     MessageProcessor as MessageProcessor,
     MessageProcessorOptions as MessageProcessorOptions,
 )
+from a2ui.core.resolution import DataContext as DataContext
 from a2ui.core.rpc import CallOptions as CallOptions, RpcHandler as RpcHandler
-from a2ui.core.state import DataModel as DataModel, SurfaceModel as SurfaceModel
+from a2ui.core.state import (
+    ComponentModel as ComponentModel,
+    DataModel as DataModel,
+    SurfaceModel as SurfaceModel,
+)
 from a2ui.core.validation import (
     PayloadValidator as PayloadValidator,
     RELAXED_VALIDATION as RELAXED_VALIDATION,
@@ -61,6 +66,8 @@ __all__ = [
     "CallOptions",
     "CapabilitiesOptions",
     "Catalog",
+    "ComponentModel",
+    "DataContext",
     "DataModel",
     "ExecutionContext",
     "MessageProcessor",

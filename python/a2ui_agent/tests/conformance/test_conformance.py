@@ -23,19 +23,22 @@ from .conformance_helpers import (
 )
 
 from a2ui.basic_catalog import BasicCatalog
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
-from a2ui.core.processing import MessageProcessor
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.core import (
-    A2uiError,
-    A2uiParseError,
-    A2uiValidationError,
     A2uiCatalogError,
+    A2uiError,
     A2uiIntegrityError,
+    A2uiParseError,
     A2uiRecursionError,
+    A2uiValidationError,
+    MessageProcessor,
+)
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
+from a2ui.schema import (
+    A2uiCatalog,
+    CatalogConfig,
+    VERSION_0_8,
+    VERSION_0_9,
+    remove_strict_validation,
 )
 from a2ui.parser.errors import A2uiCompilationError
 
@@ -387,7 +390,7 @@ def test_schema_manager_conformance(name, test_case):
         if not spec_ver_key.startswith("v"):
             spec_ver_key = f"v{spec_ver_key}"
 
-        from a2ui.core.catalog import Catalog
+        from a2ui.core import Catalog
         from a2ui.schema.utils import get_basic_catalog_path
 
         with open(get_basic_catalog_path(spec_ver_key), "r", encoding="utf-8") as f:

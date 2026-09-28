@@ -197,6 +197,15 @@ def test_surface_model_action_and_error_dispatch():
     surface.dispatch_action("not_a_dict", "btn6")  # type: ignore[arg-type]
     assert len(actions) == 3
 
+    # functionCall actions and unwrapped call actions must not emit on_action
+    surface.dispatch_action(
+        {"functionCall": {"call": "submitOrder", "args": {"id": 1}}}, "btn_fc"
+    )
+    assert len(actions) == 3
+
+    surface.dispatch_action({"call": "submitOrder", "args": {"id": 1}}, "btn_call")
+    assert len(actions) == 3
+
     # Context explicitly None normalizes to empty dict
     surface.dispatch_action({"name": "reset", "context": None}, "btn7")
     assert len(actions) == 4
