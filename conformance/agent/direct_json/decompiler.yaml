@@ -1,0 +1,92 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Direct JSON decompilation: writing A2UI messages back out as JSON.
+#
+# `decompile` is the inverse of `compile`. It exists so a prompt example can be
+# authored as messages and shown to a model in the notation the model is being
+# asked to produce. Every case below recompiles its own output and expects the
+# messages it started from, so a format that cannot round-trip an envelope fails
+# here rather than quietly teaching a model a spelling its own compiler rejects.
+#
+# This is the shortest suite in the tree for a reason: decompiling direct JSON
+# is serialization, and the round trip carries nearly all of the assertion. What
+# the payload means is fixed by `agent/direct_json/compiler.yaml`.
+#
+# A case asserts fragments through `expect_contains` rather than the whole
+# output, since indentation and key order are the implementation's as long as it
+# recompiles.
+#
+# The Express counterpart of this suite is `agent/express/decompiler.yaml`,
+# which is much longer: Express has a notation to get right, and direct JSON
+# does not.
+#
+# The catalogs under test live in `args`, and every case here is written against
+# v1.0. A case states no version of its own: the version it runs under is the
+# one its catalog document declares.
+
+- name: test_decompile_json_messages
+  description: Messages are written back out as the JSON a model would have emitted, and compiling that returns them.
+  action: decompile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - '"updateComponents"'
+    - '"Hello"'
+  expect_round_trip: true
+
+- name: test_decompile_json_update_data_model
+  description: A data model update writes back out with its path and value, so an example that changes state can be authored from messages.
+  action: decompile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/title"
+        value: "Hello"
+  expect_contains:
+    - '"updateDataModel"'
+    - '"/title"'
+  expect_round_trip: true
+
+- name: test_decompile_json_delete_surface
+  description: A surface deletion writes back out as its own message, which is the envelope most likely to be dropped by a decompiler that only walks components.
+  action: decompile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "s1"
+  expect_contains:
+    - '"deleteSurface"'
+    - '"s1"'
+  expect_round_trip: true

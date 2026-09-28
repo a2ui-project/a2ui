@@ -159,7 +159,6 @@ Matcher _matchesError(Map<String, Object?> expectError) {
     'IntegrityError' => isA<A2uiIntegrityError>(),
     'RecursionError' => isA<A2uiRecursionError>(),
     'ParseError' => isA<A2uiParseError>(),
-    'CompileError' => isA<A2uiCompileError>(),
     _ => isA<A2uiError>(),
   };
   if (message != null) {

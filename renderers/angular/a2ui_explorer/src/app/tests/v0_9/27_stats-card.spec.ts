@@ -20,13 +20,13 @@ describe('Example: Stats Card', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Stats Card');
+    await loadExample({name: 'Stats Card'});
     textContent = getCanvas().textContent;
   });
 
   it('should render text content and icons', async () => {
-    expect(textContent).toContain('trending_up');
+    expect(textContent).toContain('payment');
     expect(textContent).toContain('Monthly Revenue');
-    expect(textContent).toContain('arrow_upward');
+    expect(textContent).toContain('arrow_forward');
   });
 });

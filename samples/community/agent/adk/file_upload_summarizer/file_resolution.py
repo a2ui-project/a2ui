@@ -22,7 +22,7 @@ decorator to automatically download and inject file contents directly into tools
 
 import logging
 import traceback
-from typing import Any, Dict
+from typing import Any
 import httpx
 from a2ui.extensions.file_resolve import FileResolver, FileResolverSecurityError
 
@@ -44,7 +44,7 @@ ALLOWED_MIME_TYPES = [
 _http_client = httpx.AsyncClient()
 
 
-async def _mock_drive_handler(file_id: str, file_info: Dict[str, Any]) -> bytes:
+async def _mock_drive_handler(file_id: str, file_info: dict[str, Any]) -> bytes:
     drive_id = file_id.removeprefix(MOCK_DRIVE_SCHEME)
     base_url = file_info.get("base_url") or DEFAULT_BASE_URL
     url = f"{base_url}/api/mock-drive/v3/files/{drive_id}?alt=media"

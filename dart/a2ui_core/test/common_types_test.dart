@@ -37,7 +37,7 @@ void main() {
     });
 
     test('parses to the v0.9 document', () {
-      final Map<String, Object?> document = A2uiValidator.commonTypesFor(
+      final Map<String, Object?> document = PayloadValidator.commonTypesFor(
         A2uiProtocolVersion.v0_9,
       );
 
@@ -50,21 +50,24 @@ void main() {
     });
 
     test('hands out a fresh document each call', () {
-      final Map<String, Object?> first = A2uiValidator.commonTypesFor(
+      final Map<String, Object?> first = PayloadValidator.commonTypesFor(
         A2uiProtocolVersion.v0_9,
       );
       first.remove(r'$defs');
 
       expect(
-        A2uiValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
+        PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
         contains(r'$defs'),
       );
     });
 
     test('is what a validator resolves against by default', () {
       expect(
-        A2uiValidator<ComponentApi, FunctionApi>().commonTypesSchema,
-        A2uiValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
+        PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: MinimalCatalog(),
+          protocolVersion: A2uiProtocolVersion.v0_9,
+        ).commonTypesSchema,
+        PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
       );
     });
 
@@ -72,14 +75,17 @@ void main() {
       expect(
         MessageProcessor(
           catalogs: [MinimalCatalog()],
-        ).validator.commonTypesSchema,
-        A2uiValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
+          protocolVersion: A2uiProtocolVersion.v0_9,
+        ).commonTypesSchema,
+        PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
       );
     });
 
     test('an empty document leaves the shared types unchecked', () {
       expect(
-        A2uiValidator<ComponentApi, FunctionApi>(
+        PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: MinimalCatalog(),
+          protocolVersion: A2uiProtocolVersion.v0_9,
           commonTypesSchema: const {},
         ).commonTypesSchema,
         isEmpty,

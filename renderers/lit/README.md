@@ -142,7 +142,9 @@ Group your custom components into a `Catalog` from `@a2ui/web_core/v0_9`.
 import {Catalog} from '@a2ui/web_core/v0_9';
 import {MyProfile} from './my-profile';
 
-export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', [MyProfile]);
+export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', 'v0.9', [
+  MyProfile,
+]);
 ```
 
 ### 4. Use the Custom Catalog
@@ -168,7 +170,7 @@ You can find the full specification of the basic catalog in the [GitHub reposito
 - **Content**: `Text`, `Image`, `Icon`, `Video`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-The standard basic catalog components are implemented as framework-agnostic universal Custom Elements in `@a2ui/web_core` ([source code on GitHub](https://github.com/a2ui-project/a2ui/tree/main/renderers/web_core/src/v0_9/basic_catalog/components)) and re-exported from `@a2ui/lit/v0_9` for backwards compatibility.
+The standard basic catalog components are implemented as framework-agnostic universal Custom Elements in `@a2ui/web_core` ([source code on GitHub](../../typescript/web_core/src/v0_9/basic_catalog/components)) and re-exported from `@a2ui/lit/v0_9` for backwards compatibility.
 
 ## Migration from v0.8
 

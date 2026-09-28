@@ -39,11 +39,19 @@ def get_yaml_files():
     files = []
     for domain in ["core", "agent", "extensions"]:
         pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
-        files.extend(glob.glob(pattern, recursive=True))
+        files.extend(
+            f
+            for f in glob.glob(pattern, recursive=True)
+            if not f.startswith(os.path.join(CONFORMANCE_DIR, "agent", "builder"))
+        )
     return sorted(files)
 
 
-@pytest.mark.parametrize("yaml_path", get_yaml_files(), ids=os.path.basename)
+@pytest.mark.parametrize(
+    "yaml_path",
+    get_yaml_files(),
+    ids=lambda item: os.path.basename(item) if isinstance(item, str) else str(item),
+)
 def test_validate_conformance_yaml(yaml_path):
     yaml_data = load_yaml_file(yaml_path)
     basename = os.path.basename(yaml_path)

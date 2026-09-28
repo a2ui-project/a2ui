@@ -27,15 +27,20 @@ import {
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
-const mockCatalog = new Catalog('test', [], []);
+const mockCatalog = new Catalog('test', '0.9', [], []);
 
 describe('adapter', () => {
   it('should render component with resolved props', () => {
     const surface = new SurfaceModel<any>('test-surface', mockCatalog);
-    const compModel = new ComponentModel('c1', 'TestComp', {
-      text: 'Hello World',
-      child: 'child1',
-    });
+    const compModel = new ComponentModel(
+      'c1',
+      'TestComp',
+      {
+        text: 'Hello World',
+        child: 'child1',
+      },
+      mockCatalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c1', '/');
@@ -67,7 +72,12 @@ describe('adapter', () => {
 
   it('should react to data model changes', async () => {
     const surface = new SurfaceModel<any>('test-surface', mockCatalog);
-    const compModel = new ComponentModel('c1', 'TestComp', {text: {path: '/greeting'}});
+    const compModel = new ComponentModel(
+      'c1',
+      'TestComp',
+      {text: {path: '/greeting'}},
+      mockCatalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     // Set initial data
@@ -102,7 +112,12 @@ describe('adapter', () => {
 
   it('should clean up listeners on unmount', () => {
     const surface = new SurfaceModel<any>('test-surface', mockCatalog);
-    const compModel = new ComponentModel('c1', 'TestComp', {text: {path: '/greeting'}});
+    const compModel = new ComponentModel(
+      'c1',
+      'TestComp',
+      {text: {path: '/greeting'}},
+      mockCatalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c1', '/');
@@ -154,11 +169,11 @@ describe('adapter', () => {
       <span data-testid="resolved">{props.text}</span>
     ));
 
-    const testCatalog = new Catalog('test', [TestParent, TestChild], []);
+    const testCatalog = new Catalog('test', '0.9', [TestParent, TestChild], []);
     const surface = new SurfaceModel<any>('test-surface', testCatalog);
 
     // 1. Initial State: Parent component exists, but its child is missing from the surface.
-    const parentModel = new ComponentModel('root', 'TestParent', {child: 'child1'});
+    const parentModel = new ComponentModel('root', 'TestParent', {child: 'child1'}, testCatalog);
     surface.componentsModel.addComponent(parentModel);
 
     const {getByTestId, queryByTestId} = render(<A2uiSurface surface={surface} />);
@@ -171,7 +186,7 @@ describe('adapter', () => {
     // 2. Simulate streaming 'updateComponents' adding the missing child
     await act(async () => {
       surface.componentsModel.addComponent(
-        new ComponentModel('child1', 'TestChild', {text: 'Loaded Data'}),
+        new ComponentModel('child1', 'TestChild', {text: 'Loaded Data'}, testCatalog),
       );
     });
 

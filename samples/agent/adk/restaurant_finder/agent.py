@@ -17,7 +17,7 @@ import logging
 import os
 from collections import OrderedDict
 from collections.abc import AsyncIterable
-from typing import Any, Optional, Dict
+from typing import Any
 
 import jsonschema
 from a2a.types import (
@@ -42,18 +42,21 @@ from prompt_builder import (
     UI_DESCRIPTION,
 )
 from tools import get_restaurants
-from a2ui.schema.constants import (
+from a2ui.basic_catalog import BasicCatalog
+from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.parser import ResponsePart, parse_response
+from a2ui.schema import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
     VERSION_0_8,
     VERSION_0_9,
-    A2UI_OPEN_TAG,
-    A2UI_CLOSE_TAG,
+    remove_strict_validation,
 )
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser.parser import parse_response, ResponsePart
-from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.a2a.extension import get_a2ui_agent_extension
-from a2ui.a2a.parts import parse_response_to_parts, stream_response_to_parts
+from a2ui.a2a import (
+    get_a2ui_agent_extension,
+    parse_response_to_parts,
+    stream_response_to_parts,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +70,10 @@ class RestaurantAgent:
         self.base_url = base_url
         self._agent_name = "Restaurant Agent"
         self._user_id = "remote_agent"
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: Dict[str, DirectJsonFormat] = {}
-        self._ui_runners: Dict[str, Runner] = {}
+        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._ui_runners: dict[str, Runner] = {}
         self._parsers = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
@@ -149,11 +150,11 @@ class RestaurantAgent:
         return "Finding restaurants that match your criteria..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[DirectJsonFormat] = None
+        self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
         model_env = (
-            os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.8-flash"
+            os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.6-flash"
         )
         model_name = model_env.split("/")[-1]
 
@@ -170,7 +171,12 @@ class RestaurantAgent:
         )
 
         return LlmAgent(
-            model=Gemini(model=model_name),
+            model=Gemini(
+                model=model_name,
+                # Retry transient backend errors (429, 5xx), which the model
+                # returns under load.
+                retry_options=types.HttpRetryOptions(attempts=3, initial_delay=2.0),
+            ),
             name="restaurant_agent",
             description="An agent that finds restaurants and helps book tables.",
             instruction=instruction,
@@ -181,7 +187,7 @@ class RestaurantAgent:
         self,
         query,
         session_id,
-        ui_version: Optional[str] = None,
+        ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
         session_state = {"base_url": self.base_url, "expression": "{expression}"}
@@ -273,7 +279,7 @@ class RestaurantAgent:
                                 yield p.text
 
             if selected_catalog:
-                from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
+                from a2ui.inference_formats.direct_json import DirectJsonStreamParser
 
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
@@ -327,7 +333,7 @@ class RestaurantAgent:
                             "--- RestaurantAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        selected_catalog.validator.validate(parsed_json_data)
+                        selected_catalog.validate_components(parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

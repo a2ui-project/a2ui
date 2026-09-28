@@ -61,21 +61,6 @@ class A2uiParseError extends A2uiError {
     : super(message, 'PARSE_ERROR');
 }
 
-/// Thrown when a raw format payload cannot be compiled into A2UI messages.
-class A2uiCompileError extends A2uiError {
-  /// The raw content that could not be compiled.
-  final String? rawContent;
-
-  /// Parts that were compiled successfully before the failure.
-  final List<Object?> partialResults;
-
-  A2uiCompileError(
-    String message, {
-    this.rawContent,
-    this.partialResults = const [],
-  }) : super(message, 'COMPILE_ERROR');
-}
-
 /// Thrown when a catalog cannot be loaded, parsed, or negotiated.
 class A2uiCatalogError extends A2uiError {
   /// The catalog id involved, when known.

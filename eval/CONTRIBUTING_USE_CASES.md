@@ -67,7 +67,7 @@ Every data point is a YAML object inside a list in `eval/datasets/<dataset_name>
 
 - `name` (required, string): Unique identifier for the sample (lowercase with underscores).
 - `description` (required, string): A concise summary of what the scenario tests.
-- `catalog` (required, string): Relative path to the component catalog. Use `'specification/{version}/catalogs/basic/catalog.json'` for standard components.
+- `catalog` (required, string): Relative path to the component catalog. Use `'catalogs/basic/v1/catalog.json'` for standard v1.0 components; older versions live at `'specification/{version}/catalogs/basic/catalog.json'`.
 - `messages` (required, array): Ordered list of conversation turns (`user`, `assistant` with optional `tool_calls`, `tool` with `tool_call_id`, and `system`).
 - `system_prompt` (optional, string): Domain-specific system instructions.
 - `target` (optional, string): Grading rubric for the LLM-as-a-judge. Defaults to `description` if omitted.

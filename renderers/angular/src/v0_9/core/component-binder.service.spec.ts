@@ -32,14 +32,14 @@ function createComponentContext({
   componentType?: string;
   data?: Record<string, unknown>;
 }): {context: ComponentContext; surface: SurfaceModel} {
-  const catalog = new Catalog('test-catalog', []);
+  const catalog = new Catalog('test-catalog', '0.9', []);
   const surface = new SurfaceModel('test-surface', catalog);
 
   for (const [path, val] of Object.entries(data)) {
     surface.dataModel.set(path, val);
   }
 
-  const componentModel = new ComponentModel(componentId, componentType, properties);
+  const componentModel = new ComponentModel(componentId, componentType, properties, catalog);
   surface.componentsModel.addComponent(componentModel);
 
   const context = new ComponentContext(surface, componentId);

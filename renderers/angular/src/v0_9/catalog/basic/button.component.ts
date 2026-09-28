@@ -74,7 +74,7 @@ import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
         color: var(--_a2ui-text-color);
       }
       .a2ui-button.primary {
-        background: var(--a2ui-color-primary, #17e);
+        background-color: var(--a2ui-color-primary, #17e);
         --_a2ui-text-color: var(--a2ui-color-on-primary, #fff);
         color: var(--_a2ui-text-color);
         border: none;

@@ -44,6 +44,12 @@ export interface Example {
   description: string;
   /** The sequence of A2UI messages to send to the renderer. */
   messages: A2uiMessage[];
+  /**
+   * Names of components used by the example that are not part of the basic
+   * catalog (for example `CustomGrid`). The specification validator extends
+   * the catalog with these names when validating the example.
+   */
+  customComponents?: string[];
 }
 
 /**

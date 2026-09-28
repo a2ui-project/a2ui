@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/processing/expressions.dart';
 import 'package:test/test.dart';
 
@@ -72,6 +73,105 @@ void main() {
 
     test('throws on unclosed interpolation', () {
       expect(() => parser.parse('hello \${world'), throwsException);
+    });
+
+    group('number literals', () {
+      test('parse signed integers and decimals', () {
+        expect(parser.parseExpression('-42'), -42);
+        expect(parser.parseExpression('+7'), 7);
+        expect(parser.parseExpression('-3.5'), -3.5);
+        expect(parser.parseExpression('-0'), 0);
+      });
+
+      test('parse exponent notation', () {
+        expect(parser.parseExpression('1e5'), 100000);
+        expect(parser.parseExpression('1E5'), 100000);
+        expect(parser.parseExpression('1.5e-3'), 0.0015);
+        expect(parser.parseExpression('2.5E+4'), 25000);
+        expect(parser.parseExpression('-2e3'), -2000);
+      });
+
+      test('parse signed literals as function arguments', () {
+        expect(parser.parseExpression('clamp(value: -1.5e2, max: +10)'), {
+          'call': 'clamp',
+          'args': {'value': -150, 'max': 10},
+          'returnType': 'any',
+        });
+      });
+
+      test('keep a hyphen inside a path as part of the path', () {
+        expect(parser.parseExpression('a-1'), {'path': 'a-1'});
+        expect(parser.parseExpression('/items/-1'), {'path': '/items/-1'});
+      });
+
+      test('treat a sign not followed by a digit as a path', () {
+        expect(parser.parseExpression('-foo'), {'path': '-foo'});
+      });
+
+      test('reject a malformed exponent', () {
+        for (final expr in ['1e', '1e+', '1E-']) {
+          expect(
+            () => parser.parseExpression(expr),
+            throwsA(isA<A2uiExpressionError>()),
+            reason: expr,
+          );
+        }
+      });
+
+      test('reject characters left after a literal', () {
+        expect(
+          () => parser.parseExpression('-1x'),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+    });
+
+    group('recursion depth', () {
+      // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so
+      // this nests [calls] + 1 deep.
+      String nestedCalls(int calls) => '\${${'f(a: ' * calls}1${')' * calls}}';
+
+      // '${${ ... x ... }}', nesting [depth] levels deep.
+      String nestedInterpolations(int depth) =>
+          '${'\${' * depth}x${'}' * depth}';
+
+      test('accepts nesting up to maxDepth', () {
+        expect(
+          () => parser.parse(nestedCalls(ExpressionParser.maxDepth - 1)),
+          returnsNormally,
+        );
+        expect(
+          () => parser.parse(nestedInterpolations(ExpressionParser.maxDepth)),
+          returnsNormally,
+        );
+      });
+
+      test('rejects function arguments one level past maxDepth', () {
+        expect(
+          () => parser.parse(nestedCalls(ExpressionParser.maxDepth)),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
+      test('rejects interpolations one level past maxDepth', () {
+        expect(
+          () =>
+              parser.parse(nestedInterpolations(ExpressionParser.maxDepth + 1)),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
+      test('rejects pathological nesting instead of overflowing the stack', () {
+        // Deep enough to exhaust the stack while the guard was unreachable.
+        expect(
+          () => parser.parse(nestedCalls(20000)),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+        expect(
+          () => parser.parse(nestedInterpolations(20000)),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
     });
   });
 }
