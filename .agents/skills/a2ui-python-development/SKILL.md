@@ -9,7 +9,7 @@ description: >-
 
 # Python Development and Best Practices Skill
 
-This skill guides AI assistants and human contributors writing, maintaining, or refactoring any
+This skill guides AI assistants writing, maintaining, or refactoring any
 Python code across the entire A2UI repository (including core state libraries, agent SDKs, builders,
 evaluation pipelines, tools, scripts, and samples). These best practices apply uniformly to all Python
 code in the codebase, not specific folders. It outlines package boundaries, coding standards, facade
@@ -67,12 +67,6 @@ from a2ui.core.state.data_model import DataModel
 from a2ui.builder.v0_9 import Action, ActionEvent, Button, Card, Column, Text
 from a2ui.core import DataModel, MessageProcessor, PayloadValidator
 ```
-
-### Why Deep Imports are Dangerous
-
-1. **Tight Coupling to File Layouts**: Deep imports tie external callers to internal folder structures, filenames, and module boundaries.
-2. **Refactoring Friction Across Codebases**: When internal directories are restructured (e.g., modularizing submodules, reorganizing package layouts, or splitting catalogs), every deep import breaks downstream call sites, requiring tedious and fragile codebase-wide migrations.
-3. **Loss of API Guarantees**: Internal submodule symbols may change behavior, be renamed, or be removed between releases without notice.
 
 ### How to Implement Public Facades
 
@@ -144,15 +138,25 @@ All Python code across the entire repository must pass formatting, type checking
 uv sync --all-packages
 ```
 
-### 2. Format Checking (Pyink)
+### 2. Formatting (fix_format.sh / Pyink)
 
-Code must be formatted using Pyink:
+Code must be formatted using the repository's formatting script (which checks/formats Python with Pyink, web code with Prettier, and Dart code):
 
 ```bash
 # Check formatting
-uv run pyink --check .
+./scripts/fix_format.sh --check
 
 # Auto-format in place
+./scripts/fix_format.sh
+```
+
+If you only want to format Python code directly:
+
+```bash
+# Check Python formatting
+uv run pyink --check .
+
+# Auto-format Python in place
 uv run pyink .
 ```
 
@@ -193,7 +197,7 @@ uv build --all
 - [ ] Public symbols exported through package-level `__init__.py` with explicit `__all__`.
 - [ ] No deep internal module imports in code, tests, docstrings, or READMEs.
 - [ ] Imports grouped (standard library, third-party, local) and sorted alphabetically.
-- [ ] `uv run pyink --check .` passes cleanly.
+- [ ] `./scripts/fix_format.sh --check` (or `uv run pyink --check .`) passes cleanly.
 - [ ] `uv run mypy .` passes with zero errors.
 - [ ] `uv run pytest` passes 100%.
 - [ ] `uv build --all` completes successfully.
