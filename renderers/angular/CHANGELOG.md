@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.11.0
+
 - (v0_9) Support markdown in universal basic catalog:
   - When `useUniversalComponents` is enabled, `A2uiRendererService` bridges `MarkdownRenderer` from Angular DI to `@a2ui/web_core`'s global markdown renderer.
   - **BREAKING CHANGE**: Removed export of `MarkdownRendererOptions` from `@a2ui/angular/v0_9`. Consumers should now import `MarkdownRendererOptions` directly from `@a2ui/web_core/v0_9`. Additionally, `provideMarkdownRenderer` now accepts `MarkdownRenderer` from `@a2ui/web_core/v0_9` (where `tagClassMap` is typed as `Record<string, string[]>`). [#2604](https://github.com/a2ui-project/a2ui/pull/2604)

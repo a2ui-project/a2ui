@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.12.0
+
 - Fix: Execute component `functionCall` actions locally via catalog functions at invocation time instead of emitting them as `onAction` events, aligning with the A2UI specification for local actions ([#2837](https://github.com/a2ui-project/a2ui/issues/2837)).
 - **BREAKING CHANGE**: The package directory moved from `renderers/web_core/` to `typescript/web_core/`.
 - **BREAKING CHANGE**: The root package export (`@a2ui/web_core`) now provides the shared core state, validation, catalog, expressions, RPC, and resolution APIs across protocol versions. Consumers using v0.8 protocol APIs should import from `@a2ui/web_core/v0_8`.

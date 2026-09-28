@@ -1,5 +1,8 @@
 ## Unreleased
 
+## 0.12.0
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.12.0`.
 - (v0_9) Update internal Web Component imports to consume `@a2ui/web_core/v0_9/universal`. To upgrade to this version of `@a2ui/lit`, apps must also update to the latest version of `@a2ui/web_core`. [#2488](https://github.com/a2ui-project/a2ui/pull/2488)
 
 ## 0.11.0
