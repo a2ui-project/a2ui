@@ -572,12 +572,120 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     );
   });
 
-  it('SliderApi v1.0 schema accepts steps property', () => {
+  it('SliderApi v1.0 schema accepts steps property and omits step attribute when max <= min', async () => {
     const result = SliderApi.schema.safeParse({
       max: 100,
       steps: 10,
       value: 50,
     });
     assert.strictEqual(result.success, true);
+
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {surfaceId: 'sSliderBounds', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'sSliderBounds',
+          components: [
+            {
+              id: 'sliderEq',
+              component: 'Slider',
+              min: 50,
+              max: 50,
+              steps: 5,
+              value: 50,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('sSliderBounds')!;
+    const sliderEl = document.createElement('a2ui-slider') as A2uiWebComponentElement;
+    cleanupElements.push(sliderEl);
+    document.body.appendChild(sliderEl);
+
+    await asyncUpdate(sliderEl, e => {
+      e.context = new ComponentContext(surface, 'sliderEq');
+    });
+
+    const inputEl = sliderEl.querySelector('input[type="range"]') as HTMLInputElement;
+    assert.strictEqual(inputEl.hasAttribute('step'), false);
+  });
+
+  it('extractFunctionDefinition preserves first argsSchema in allOf while scanning requiresUserActivation', async () => {
+    const modulePath = '../../../../scripts/generate-catalog-schemas.mjs';
+    const {extractFunctionDefinition} = (await import(modulePath)) as {
+      extractFunctionDefinition: (
+        funcName: string,
+        funcDef: Record<string, unknown>,
+      ) => {
+        argsProps: Record<string, unknown>;
+        requiresUserActivation: boolean;
+      };
+    };
+
+    const extracted = extractFunctionDefinition('testFn', {
+      allOf: [
+        {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {firstArg: {type: 'string'}},
+              required: ['firstArg'],
+            },
+          },
+        },
+        {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {secondArg: {type: 'number'}},
+            },
+            requiresUserActivation: {const: true},
+          },
+        },
+      ],
+    });
+
+    assert.deepStrictEqual(Object.keys(extracted.argsProps), ['firstArg']);
+    assert.strictEqual(extracted.requiresUserActivation, true);
+  });
+
+  it('handles undefined navigator.userActivation without throwing TypeError', () => {
+    const originalNavigator = globalThis.navigator;
+    const origOpen = window.open;
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {userActivation: undefined},
+      configurable: true,
+    });
+    window.open = (() => null) as any;
+
+    try {
+      assert.throws(
+        () =>
+          basicCatalog.invoker('openUrl', {url: 'https://a2ui.org'}, {
+            isPassiveEvaluation: true,
+          } as any),
+        (err: unknown) =>
+          err instanceof A2uiExpressionError && /requires user activation/.test(err.message),
+      );
+
+      assert.doesNotThrow(() =>
+        basicCatalog.invoker('openUrl', {url: 'https://a2ui.org'}, {
+          isUserActivated: false,
+        } as any),
+      );
+    } finally {
+      window.open = origOpen;
+      Object.defineProperty(globalThis, 'navigator', {
+        value: originalNavigator,
+        configurable: true,
+      });
+    }
   });
 });

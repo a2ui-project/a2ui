@@ -323,7 +323,7 @@ export function extractFunctionDefinition(funcName, funcDef, catalogDefs = {}, c
   let argsSchema = funcDef.properties?.args;
   if (!argsSchema && Array.isArray(funcDef.allOf)) {
     for (const sub of funcDef.allOf) {
-      if (sub.properties?.args) {
+      if (!argsSchema && sub.properties?.args) {
         argsSchema = sub.properties.args;
       }
       if (requiresUserActivation === undefined) {
