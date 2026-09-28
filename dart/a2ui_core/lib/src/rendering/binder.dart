@@ -37,7 +37,8 @@ class BehaviorNode {
 /// An unresolved child reference and the data scope it would render against.
 ///
 /// The binder emits one per entry of a static `ChildList` array or expanded
-/// template. A descriptor is not a mounted node and owns no lifecycle.
+/// template, up to [maxDynamicChildListSize]. A descriptor is not a mounted
+/// node and owns no lifecycle.
 class ChildNode {
   /// The referenced component id.
   final String id;
@@ -498,8 +499,8 @@ class GenericBinder {
   }
 }
 
-/// The maximum number of children a `ChildList` expands to, bounding resource
-/// use when a template is bound to a very large array.
+/// The maximum number of children a `ChildList` expands to, whether a static id
+/// array or a template bound to a very large array, bounding resource use.
 const int maxDynamicChildListSize = 10000;
 
 /// Copies container values handed to [WritableBinding.set], so a published
