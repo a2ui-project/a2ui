@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-import {TestBed} from '@angular/core/testing';
-import {App} from './app';
-import {provideMarkdownRenderer} from '../../../src/v0_9/core/markdown';
+import { TestBed } from '@angular/core/testing';
+import { App } from './app';
+import { provideMarkdownRenderer } from '../../../src/v0_9/core/markdown';
 
 describe('App', () => {
   beforeEach(async () => {
+    if (typeof window !== 'undefined') {
+      window.location.hash = '';
+    }
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -107,14 +110,14 @@ describe('App', () => {
     const activeBefore = compiled.querySelector('.example-list li.active .ex-name')?.textContent;
 
     // Press 'j' -> Next example
-    window.dispatchEvent(new KeyboardEvent('keydown', {key: 'j'}));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }));
     fixture.detectChanges();
 
     const activeAfterJ = compiled.querySelector('.example-list li.active .ex-name')?.textContent;
     expect(activeAfterJ).not.toEqual(activeBefore);
 
     // Press 'k' -> Previous example
-    window.dispatchEvent(new KeyboardEvent('keydown', {key: 'k'}));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k' }));
     fixture.detectChanges();
 
     const activeAfterK = compiled.querySelector('.example-list li.active .ex-name')?.textContent;
@@ -131,11 +134,32 @@ describe('App', () => {
 
     // Dispatch keydown from textarea
     textarea.focus();
-    const event = new KeyboardEvent('keydown', {key: 'j', bubbles: true});
+    const event = new KeyboardEvent('keydown', { key: 'j', bubbles: true });
     textarea.dispatchEvent(event);
     fixture.detectChanges();
 
     const activeAfter = compiled.querySelector('.example-list li.active .ex-name')?.textContent;
     expect(activeAfter).toEqual(activeBefore);
+  });
+
+  it('should load v1.0 examples when A2UI_VERSION is provided as Version.V1_0', async () => {
+    if (typeof window !== 'undefined') {
+      window.location.hash = '';
+    }
+    const { A2UI_VERSION, Version } = await import('./types');
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideMarkdownRenderer(), { provide: A2UI_VERSION, useValue: Version.V1_0 }],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const select = compiled.querySelector('#version') as HTMLSelectElement;
+    expect(select.value).toBe(Version.V1_0);
+    const items = compiled.querySelectorAll('.example-list li');
+    expect(items.length).toBeGreaterThan(0);
   });
 });

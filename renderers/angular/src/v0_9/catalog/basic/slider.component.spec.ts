@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {signal as angularSignal} from '@angular/core';
-import {SliderComponent} from './slider.component';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal as angularSignal } from '@angular/core';
+import { SliderComponent } from './slider.component';
+import { A2uiRendererService } from '../../core/a2ui-renderer.service';
+import { ComponentBinder } from '../../core/component-binder.service';
+import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
 
 describe('SliderComponent', () => {
   let component: SliderComponent;
@@ -43,8 +43,8 @@ describe('SliderComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SliderComponent],
       providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
+        { provide: A2uiRendererService, useValue: mockRendererService },
+        { provide: ComponentBinder, useValue: mockBinder },
       ],
     }).compileComponents();
 
@@ -85,12 +85,41 @@ describe('SliderComponent', () => {
     const onUpdateSpy = jasmine.createSpy('onUpdate');
     setComponentProps(fixture, {
       ...defaultProps,
-      value: {value: angularSignal(50), raw: 50, onUpdate: onUpdateSpy},
+      value: { value: angularSignal(50), raw: 50, onUpdate: onUpdateSpy },
     });
     fixture.detectChanges();
     const input = fixture.nativeElement.querySelector('input');
     input.value = '75';
     input.dispatchEvent(new Event('input'));
     expect(onUpdateSpy).toHaveBeenCalledWith(75);
+  });
+
+  it('should calculate step attribute from steps prop', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      min: createBoundProperty<number | undefined>(0),
+      max: createBoundProperty(100),
+      steps: createBoundProperty(4),
+    } as any);
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    expect(input.getAttribute('step')).toBe('25');
+  });
+
+  it('should render validation errors and invalid class when checks fail', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      isValid: createBoundProperty(false),
+      validationErrors: createBoundProperty(['Value out of allowed range']),
+    });
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    expect(input.classList.contains('invalid')).toBeTrue();
+
+    const errorEl = fixture.nativeElement.querySelector('.a2ui-error-message') as HTMLElement;
+    expect(errorEl).toBeTruthy();
+    expect(errorEl.textContent).toContain('Value out of allowed range');
   });
 });

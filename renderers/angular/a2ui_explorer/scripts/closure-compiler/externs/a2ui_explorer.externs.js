@@ -45,6 +45,10 @@ ExampleExterns.prototype.name;
 function VersionEnumExterns() {}
 /** @type {?|undefined} */
 VersionEnumExterns.prototype.V0_9;
+/** @type {?|undefined} */
+VersionEnumExterns.prototype.V1_0;
+/** @type {?|undefined} */
+VersionEnumExterns.prototype.VERSION_1_0;
 
 /**
  * Externs for demo gallery data model property keys in `examples-bundle.ts` (e.g. Weather Current).

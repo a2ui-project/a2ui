@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {signal as angularSignal} from '@angular/core';
-import {DateTimeInputComponent} from './date-time-input.component';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal as angularSignal } from '@angular/core';
+import { DateTimeInputComponent } from './date-time-input.component';
+import { A2uiRendererService } from '../../core/a2ui-renderer.service';
+import { ComponentBinder } from '../../core/component-binder.service';
+import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
 
 describe('DateTimeInputComponent', () => {
   let component: DateTimeInputComponent;
@@ -43,8 +43,8 @@ describe('DateTimeInputComponent', () => {
     await TestBed.configureTestingModule({
       imports: [DateTimeInputComponent],
       providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
+        { provide: A2uiRendererService, useValue: mockRendererService },
+        { provide: ComponentBinder, useValue: mockBinder },
       ],
     }).compileComponents();
 

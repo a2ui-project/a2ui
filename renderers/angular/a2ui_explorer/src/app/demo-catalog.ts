@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import {Injectable} from '@angular/core';
-import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
-import {customSliderComponentDeclaration} from './custom-slider.component';
-import {customGridComponentDeclaration} from './custom-grid.component';
+import { Injectable } from '@angular/core';
+import { AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS } from '@a2ui/angular/v0_9';
+import { BasicCatalogBase as BasicCatalogBaseV10 } from '@a2ui/angular/v1_0';
+import { customSliderComponentDeclaration } from './custom-slider.component';
+import { customGridComponentDeclaration } from './custom-grid.component';
 
 /**
  * A catalog specific to the demo, extending the basic catalog with custom components.
@@ -33,5 +34,19 @@ export class DemoCatalog extends AngularCatalog {
       [...BASIC_COMPONENTS, customSliderComponentDeclaration, customGridComponentDeclaration],
       BASIC_FUNCTIONS,
     );
+  }
+}
+
+/**
+ * A v1.0 catalog specific to the demo, extending the v1.0 basic catalog with custom components.
+ */
+@Injectable({
+  providedIn: 'root',
+})
+export class DemoCatalogV10 extends BasicCatalogBaseV10 {
+  constructor() {
+    super({
+      extraComponents: [customSliderComponentDeclaration, customGridComponentDeclaration],
+    });
   }
 }

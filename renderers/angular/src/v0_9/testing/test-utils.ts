@@ -15,19 +15,19 @@
  */
 /// <reference types="jasmine" />
 
-import {ComponentFixture} from '@angular/core/testing';
-import {signal} from '@angular/core';
-import {BoundProperty, ComponentTemplate} from '@a2ui/angular/v0_9';
+import { ComponentFixture } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { BoundProperty, ComponentTemplate } from '@a2ui/angular/v0_9';
 
 /**
  * Extracts the type of the props input from a component type.
  */
-export type ComponentToProps<C> = C extends {props: () => infer P} ? P : never;
+export type ComponentToProps<C> = C extends { props: () => infer P } ? P : never;
 
 /**
  * Sets the props input of a component in a type-safe way, for use in tests.
  */
-export function setComponentProps<T extends {props: () => any}>(
+export function setComponentProps<T extends { props: () => any }>(
   fixture: ComponentFixture<T>,
   props: ComponentToProps<T>,
 ) {

@@ -14,65 +14,74 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {Renderer} from './rendering/renderer';
-import {Catalog} from './rendering/catalog';
-import {DEFAULT_CATALOG} from './catalog';
-import {Theme} from './rendering/theming';
-import {MessageProcessor} from './data/processor';
-import {MarkdownRenderer} from './data/markdown';
-import {Component} from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Renderer } from './rendering/renderer';
+import { Catalog } from './rendering/catalog';
+import { DEFAULT_CATALOG } from './catalog';
+import { Theme } from './rendering/theming';
+import { MessageProcessor } from './data/processor';
+import { MarkdownRenderer } from './data/markdown';
+import { Component } from '@angular/core';
 import * as restaurantCardMock from './test_data/mocks/restaurant-card.json';
 import * as contactCardMock from './test_data/mocks/contact-card.json';
+
+/**
+ * Resolves child node lists from v0.8 format.
+ */
+function resolveChildren(children: any, resolveFn: (node: any) => any): any {
+  if (Array.isArray(children)) {
+    return children.map((c: any) => resolveFn(c));
+  }
+  if (children?.explicitList) {
+    return children.explicitList.map((id: string) => resolveFn(id));
+  }
+  return children;
+}
+
+/**
+ * Resolves an individual node by ID or reference in the component map.
+ */
+function resolveNode(idOrNode: any, componentMap: Map<string, any>): any {
+  if (typeof idOrNode === 'string') {
+    const node = componentMap.get(idOrNode);
+    return node ? resolveNode(node, componentMap) : null;
+  }
+  if (!idOrNode || typeof idOrNode !== 'object' || (idOrNode.type && idOrNode.properties)) {
+    return idOrNode;
+  }
+  if (!idOrNode.component) {
+    return idOrNode;
+  }
+
+  const type = Object.keys(idOrNode.component)[0];
+  const properties = { ...idOrNode.component[type] };
+
+  if (properties.child) {
+    properties.child = resolveNode(properties.child, componentMap);
+  }
+  if (properties.children) {
+    properties.children = resolveChildren(properties.children, (child) =>
+      resolveNode(child, componentMap),
+    );
+  }
+
+  return {
+    id: idOrNode.id,
+    type,
+    properties,
+  };
+}
 
 /**
  * Resolves a component tree from a flat list of component messages.
  * This handles the v0.8 format where children are often referenced by ID.
  */
 function resolveComponentTree(messages: any[], rootId: string): any {
-  const surfaceUpdate = messages.find(m => m.surfaceUpdate)?.surfaceUpdate;
+  const surfaceUpdate = messages.find((m) => m.surfaceUpdate)?.surfaceUpdate;
   if (!surfaceUpdate) return null;
 
-  const componentMap = new Map(surfaceUpdate.components.map((c: any) => [c.id, c]));
-
-  function resolve(idOrNode: any): any {
-    if (typeof idOrNode === 'string') {
-      const node = componentMap.get(idOrNode);
-      return node ? resolve(node) : null;
-    }
-
-    if (idOrNode && typeof idOrNode === 'object') {
-      // If it's already in the { type, properties } format, just return it
-      if (idOrNode.type && idOrNode.properties) return idOrNode;
-
-      // If it's in the { id, component: { Type: { ... } } } format
-      if (idOrNode.component) {
-        const type = Object.keys(idOrNode.component)[0];
-        const properties = {...idOrNode.component[type]};
-
-        // Recursively resolve children
-        if (properties.child) {
-          properties.child = resolve(properties.child);
-        }
-        if (properties.children) {
-          if (Array.isArray(properties.children)) {
-            properties.children = properties.children.map((c: any) => resolve(c));
-          } else if (properties.children.explicitList) {
-            properties.children = properties.children.explicitList.map((id: string) => resolve(id));
-          }
-        }
-
-        return {
-          id: idOrNode.id,
-          type,
-          properties,
-        };
-      }
-    }
-    return idOrNode;
-  }
-
-  return resolve(rootId);
+  const componentMap = new Map<string, any>(surfaceUpdate.components.map((c: any) => [c.id, c]));
+  return resolveNode(rootId, componentMap);
 }
 
 @Component({
@@ -109,8 +118,8 @@ describe('v0.8 Angular Renderer Integration', () => {
     await TestBed.configureTestingModule({
       imports: [TestHost],
       providers: [
-        {provide: MessageProcessor, useValue: processor},
-        {provide: Catalog, useValue: DEFAULT_CATALOG},
+        { provide: MessageProcessor, useValue: processor },
+        { provide: Catalog, useValue: DEFAULT_CATALOG },
         {
           provide: MarkdownRenderer,
           useValue: {
@@ -124,22 +133,22 @@ describe('v0.8 Angular Renderer Integration', () => {
     theme.update({
       components: {
         Text: {
-          all: {'a2ui-text': true},
-          h1: {'a2ui-text-h1': true},
-          h2: {'a2ui-text-h2': true},
-          h3: {'a2ui-text-h3': true},
-          h4: {'a2ui-text-h4': true},
-          h5: {'a2ui-text-h5': true},
-          body: {'common-body': true},
-          caption: {'caption-style': true},
+          all: { 'a2ui-text': true },
+          h1: { 'a2ui-text-h1': true },
+          h2: { 'a2ui-text-h2': true },
+          h3: { 'a2ui-text-h3': true },
+          h4: { 'a2ui-text-h4': true },
+          h5: { 'a2ui-text-h5': true },
+          body: { 'common-body': true },
+          caption: { 'caption-style': true },
         },
-        Card: {'a2ui-card': true},
-        Row: {'a2ui-row': true},
-        Column: {'a2ui-column': true},
-        Image: {all: {'a2ui-image': true}, avatar: {'avatar-style': true}},
-        Divider: {'a2ui-divider': true},
-        Icon: {'a2ui-icon': true},
-        Button: {'a2ui-button': true},
+        Card: { 'a2ui-card': true },
+        Row: { 'a2ui-row': true },
+        Column: { 'a2ui-column': true },
+        Image: { all: { 'a2ui-image': true }, avatar: { 'avatar-style': true } },
+        Divider: { 'a2ui-divider': true },
+        Icon: { 'a2ui-icon': true },
+        Button: { 'a2ui-button': true },
       } as any,
       elements: {} as any,
       markdown: {
@@ -165,7 +174,7 @@ describe('v0.8 Angular Renderer Integration', () => {
     fixture.componentInstance.component = {
       type: 'Row',
       id: 'row-1',
-      properties: {children: []},
+      properties: { children: [] },
     };
     fixture.detectChanges();
 
@@ -194,7 +203,7 @@ describe('v0.8 Angular Renderer Integration', () => {
                 type: 'Text',
                 id: 'name',
                 properties: {
-                  text: {path: '/name'},
+                  text: { path: '/name' },
                   usageHint: 'h2',
                 },
               },
@@ -229,7 +238,7 @@ describe('v0.8 Angular Renderer Integration', () => {
       id: 'wrapper-test',
       component: {
         Text: {
-          text: {literalString: 'Wrapped Text'},
+          text: { literalString: 'Wrapped Text' },
         },
       },
     };
@@ -249,7 +258,7 @@ describe('v0.8 Angular Renderer Integration', () => {
       type: 'Text',
       id: 'text-1',
       properties: {
-        text: {literalString: 'Resilient'},
+        text: { literalString: 'Resilient' },
         unknownProp: 'should not crash',
       },
     };
