@@ -504,8 +504,8 @@ class TestAtomFormat(unittest.TestCase):
     def test_fuzzed_synthetic_catalog_agnosticism(self):
         """Verify 100% catalog agnosticism using a fuzzed synthetic catalog with non-standard names."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler
-        from a2ui.schema.catalog import CatalogConfig, A2uiCatalog
-        from a2ui.core.catalog import Catalog
+        from a2ui.schema import A2uiCatalog, CatalogConfig
+        from a2ui.core import Catalog
 
         # Synthetic catalog definitions with non-standard names
         synthetic_components = {

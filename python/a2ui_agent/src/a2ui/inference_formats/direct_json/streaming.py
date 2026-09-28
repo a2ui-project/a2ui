@@ -1014,7 +1014,7 @@ class DirectJsonStreamParser:
 
         try:
             # Construct ComponentModels for topology analysis
-            from a2ui.core.state.component_model import ComponentModel
+            from a2ui.core import ComponentModel
 
             comp_models: dict[str, ComponentModel] = {}
             for cid, cdef in self._seen_components.items():
@@ -1343,7 +1343,7 @@ class DirectJsonStreamParser:
                 child_fields.update(ref_spec.nested_child_slots.keys())
                 return child_fields
 
-        from a2ui.core.state.component_model import is_v0_8_heuristic_child_prop_key
+        from a2ui.core.state import is_v0_8_heuristic_child_prop_key
 
         for k, v in obj.items():
             if is_v0_8_heuristic_child_prop_key(k, v):

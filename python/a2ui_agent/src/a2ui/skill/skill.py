@@ -20,7 +20,7 @@ from typing import Any, Iterator, Optional, Union
 import yaml
 
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.schema import A2uiCatalog, CatalogConfig
 
 
 def _clean_catalog_name(catalog: Any) -> str:

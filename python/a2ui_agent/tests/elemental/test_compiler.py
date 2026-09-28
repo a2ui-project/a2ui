@@ -17,7 +17,7 @@
 import json
 import os
 import unittest
-from a2ui.core.catalog import Catalog
+from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.elemental.compiler import (
     ElementalCompiler,
     _is_action_property,

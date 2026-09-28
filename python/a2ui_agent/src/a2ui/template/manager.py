@@ -17,8 +17,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from a2ui.inference_format import InferenceFormat
 
-from a2ui.prompt.generator import PromptGenerator
-from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
+from a2ui.prompt import PromptGenerator
+from a2ui.core.schema.v0_9 import V09Capabilities
 
 
 class TemplateManager(ABC):
