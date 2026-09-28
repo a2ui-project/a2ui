@@ -557,7 +557,7 @@ function collectComponentSubSchemas(
               checks: z
                 .array(CheckRuleSchema)
                 .describe(
-                  'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+                  'A list of checks to perform. These are function calls that evaluate to a structured validation result object.',
                 ),
             },
           });

@@ -176,6 +176,20 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     assert.strictEqual(el.getAttribute('aria-description'), 'Extra description');
     assert.strictEqual(el.getAttribute('aria-live'), 'polite');
     assert.strictEqual(el.getAttribute('aria-hidden'), 'true');
+
+    // Verify subsequent reactive data model updates propagate to host attributes
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 's-a11y',
+          path: '/a11yLabel',
+          value: 'Updated Accessible Label',
+        },
+      },
+    ]);
+    await (el as any).updateComplete;
+    assert.strictEqual(el.getAttribute('aria-label'), 'Updated Accessible Label');
   });
 
   it('renders TextField placeholder, Video posterUrl, and Slider steps in v1.0 basicCatalog', async () => {

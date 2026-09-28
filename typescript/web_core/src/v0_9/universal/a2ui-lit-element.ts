@@ -194,11 +194,11 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
    * @returns A new instance of `A2uiController` matching the component API.
    */
   protected createController(): A2uiController<Api> {
-    const activeCatalog = (this.context?.componentModel.catalog ??
-      this.context?.dataContext.surface.defaultCatalog) as
+    const activeCatalog = (this.context?.componentModel?.catalog ??
+      this.context?.dataContext?.surface?.defaultCatalog) as
       | Catalog<WebComponentImplementation>
       | undefined;
-    const catalogImpl = activeCatalog?.components.get(this.context?.componentModel.type ?? '');
+    const catalogImpl = activeCatalog?.components.get(this.context?.componentModel?.type ?? '');
     const activeApi =
       catalogImpl && catalogImpl.element === this.constructor
         ? (catalogImpl as unknown as Api)
