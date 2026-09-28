@@ -118,6 +118,20 @@ Constants that are formally part of the public protocol API (e.g., `SPEC_VERSION
 - Do not hardcode catalog-specific component names, property rules, or syntax filters into core parsers, prompt generators, or compilers.
 - Component property rules, constraints, and hints must be dynamically derived from the component catalog JSON schema.
 
+### Import Organization and Sorting
+
+Maintain strict, predictable import organization following standard Python (PEP 8) conventions:
+
+1. **Future Imports**: Place `from __future__ import annotations` at the very top of the file (directly below the module docstring/license header).
+2. **Three-Group Hierarchy**: Group imports into three distinct sections separated by a single blank line:
+   - **Standard library** (e.g., `import os`, `import sys`, `from typing import Any, Mapping`)
+   - **Third-party packages** (e.g., `import pytest`, `from pydantic import BaseModel, Field`)
+   - **First-party / repository packages** (e.g., `from a2ui.builder.v0_9 import Button, Card`, `from a2ui.core import DataModel`)
+3. **Alphabetical Sorting**:
+   - Within each group, sort import statements alphabetically by module name.
+   - For multi-symbol `from <module> import (...)` statements, sort the imported symbols alphabetically (e.g., `from a2ui.builder.v0_9 import Action, ActionEvent, Button, Card, Column, Text`).
+4. **No Wildcard Imports**: Never use wildcard imports (`from module import *`) in application, library, or test code. Explicitly name every imported symbol.
+
 ---
 
 ## 5. Tooling & Mandatory Verification Workflow
@@ -178,6 +192,7 @@ uv build --all
 - [ ] Grounded in authoritative `specification/` schemas and `blueprints/`.
 - [ ] Public symbols exported through package-level `__init__.py` with explicit `__all__`.
 - [ ] No deep internal module imports in code, tests, docstrings, or READMEs.
+- [ ] Imports grouped (standard library, third-party, local) and sorted alphabetically.
 - [ ] `uv run pyink --check .` passes cleanly.
 - [ ] `uv run mypy .` passes with zero errors.
 - [ ] `uv run pytest` passes 100%.
