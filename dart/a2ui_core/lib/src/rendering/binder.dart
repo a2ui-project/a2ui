@@ -244,6 +244,7 @@ class GenericBinder {
         }
         if (value is List) {
           return value
+              .take(maxDynamicChildListSize)
               .map((id) => ChildNode(id.toString(), context.dataContext.path))
               .toList();
         }

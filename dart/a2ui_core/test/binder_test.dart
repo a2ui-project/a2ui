@@ -113,6 +113,23 @@ void main() {
       expect(children[1].id, 'child2');
     });
 
+    test('caps a static child id list at maxDynamicChildListSize', () {
+      final comp = ComponentModel('c1', 'Row', {
+        'children': [
+          for (int i = 0; i < maxDynamicChildListSize + 5; i++) 'child$i',
+        ],
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalRowApi().schema);
+
+      final children =
+          binder.resolvedProps.value['children'] as List<ChildNode>;
+      expect(children, hasLength(maxDynamicChildListSize));
+      expect(children.last.id, 'child${maxDynamicChildListSize - 1}');
+    });
+
     test('resolves checkable validation', () async {
       final comp = ComponentModel('c1', 'TextField', {
         'label': 'Name',
