@@ -324,6 +324,11 @@ export function flushLitUpdates(root: Element): void {
   if (maybeLit.isUpdatePending && typeof maybeLit.performUpdate === 'function') {
     maybeLit.performUpdate();
   }
+  if (root.shadowRoot) {
+    for (const child of Array.from(root.shadowRoot.children)) {
+      flushLitUpdates(child);
+    }
+  }
   for (const child of Array.from(root.children)) {
     flushLitUpdates(child);
   }
@@ -346,9 +351,10 @@ export const WebComponentNodeView: React.FC<{
       return;
     }
 
+    const prevRenderer = getMarkdownRenderer();
     if (contextMarkdownRenderer) {
       setMarkdownRenderer(contextMarkdownRenderer);
-    } else if (!getMarkdownRenderer()) {
+    } else if (!prevRenderer) {
       setMarkdownRenderer(renderMarkdown);
     }
 
@@ -378,6 +384,7 @@ export const WebComponentNodeView: React.FC<{
       dataSub.unsubscribe();
       createdSub.unsubscribe();
       el.remove();
+      setMarkdownRenderer(prevRenderer);
     };
   }, [surface, componentId, dataPath, impl, contextMarkdownRenderer]);
 
