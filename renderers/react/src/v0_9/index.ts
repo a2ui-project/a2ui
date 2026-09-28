@@ -21,6 +21,7 @@ export type {
   NodeBuildChild,
   NodeViewProps,
   ReactA2uiComponentProps,
+  ReactCatalogComponent,
   ReactComponentImplementation,
 } from './react_component_implementation';
 
