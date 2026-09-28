@@ -35,7 +35,7 @@ from pydantic import (
 from ..core.base_model import BuilderBaseModel
 from ..core.child import Child
 
-from a2ui.core.schema.v0_9.common_types import (
+from a2ui.core.schema.v0_9 import (
     AccessibilityAttributes as AccessibilityAttributes,
     ActionEvent as ActionEvent,
     CheckRule as CheckRule,

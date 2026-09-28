@@ -19,7 +19,7 @@ tailored for prompt tokens compression.
 """
 
 from typing import Any
-from a2ui.core.catalog import Catalog
+from a2ui.core import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG

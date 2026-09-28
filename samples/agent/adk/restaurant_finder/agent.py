@@ -42,16 +42,17 @@ from prompt_builder import (
     UI_DESCRIPTION,
 )
 from tools import get_restaurants
-from a2ui.schema.constants import (
+from a2ui.basic_catalog import BasicCatalog
+from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.parser import parse_response
+from a2ui.parser.response_part import ResponsePart
+from a2ui.schema import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
     VERSION_0_8,
     VERSION_0_9,
-    A2UI_OPEN_TAG,
-    A2UI_CLOSE_TAG,
+    remove_strict_validation,
 )
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser.parser import parse_response, ResponsePart
-from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.a2a.parts import parse_response_to_parts, stream_response_to_parts
 
@@ -276,7 +277,7 @@ class RestaurantAgent:
                                 yield p.text
 
             if selected_catalog:
-                from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
+                from a2ui.inference_formats.direct_json import DirectJsonStreamParser
 
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)

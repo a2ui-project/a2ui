@@ -15,7 +15,7 @@
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
 from typing import Any, Type
-from a2ui.core.catalog import Catalog
+from a2ui.core import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.errors import (
     A2uiCompilationError,
