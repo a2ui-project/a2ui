@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {Icon} from './icon';
-import {MessageProcessor} from '../data/processor';
-import {Theme} from '../rendering/theming';
-import {Catalog} from '../rendering/catalog';
-import {By} from '@angular/platform-browser';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Icon } from './icon';
+import { MessageProcessor } from '../data/processor';
+import { Theme } from '../rendering/theming';
+import { Catalog } from '../rendering/catalog';
+import { By } from '@angular/platform-browser';
 
 describe('Icon Component', () => {
   let component: Icon;
@@ -29,7 +29,7 @@ describe('Icon Component', () => {
 
   beforeEach(async () => {
     mockTheme = new Theme();
-    mockTheme.components = {Icon: 'icon-class'} as any;
+    mockTheme.components = { Icon: 'icon-class' } as any;
     mockDataModelValue = null;
 
     await TestBed.configureTestingModule({
@@ -42,8 +42,8 @@ describe('Icon Component', () => {
             getData: (_comp: unknown, _path: string, _surfaceId: unknown) => mockDataModelValue,
           },
         },
-        {provide: Theme, useValue: mockTheme},
-        {provide: Catalog, useValue: {}},
+        { provide: Theme, useValue: mockTheme },
+        { provide: Catalog, useValue: {} },
       ],
     }).compileComponents();
 
@@ -51,7 +51,7 @@ describe('Icon Component', () => {
     component = fixture.componentInstance;
 
     fixture.componentRef.setInput('surfaceId', 'surface-1');
-    fixture.componentRef.setInput('component', {id: 'icon-1', type: 'Icon', weight: 1});
+    fixture.componentRef.setInput('component', { id: 'icon-1', type: 'Icon', weight: 1 });
     fixture.componentRef.setInput('weight', 1);
     fixture.componentRef.setInput('name', null);
   });
@@ -61,7 +61,7 @@ describe('Icon Component', () => {
   });
 
   it('should render icon name inside span if provided', () => {
-    fixture.componentRef.setInput('name', {literalString: 'home'});
+    fixture.componentRef.setInput('name', { literalString: 'home' });
     fixture.detectChanges();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
@@ -85,7 +85,7 @@ describe('Icon Component', () => {
   });
 
   it('should convert camelCase name to snake_case', () => {
-    fixture.componentRef.setInput('name', {literalString: 'arrowForward'});
+    fixture.componentRef.setInput('name', { literalString: 'arrowForward' });
     fixture.detectChanges();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
@@ -94,7 +94,7 @@ describe('Icon Component', () => {
   });
 
   it('should convert TitleCase name to snake_case', () => {
-    fixture.componentRef.setInput('name', {literalString: 'ArrowForward'});
+    fixture.componentRef.setInput('name', { literalString: 'ArrowForward' });
     fixture.detectChanges();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
@@ -104,7 +104,7 @@ describe('Icon Component', () => {
 
   it('should NOT render anything and NOT throw if name resolves to an array from DataModel', () => {
     mockDataModelValue = [1, 2, 3];
-    fixture.componentRef.setInput('name', {path: '/bad_array'});
+    fixture.componentRef.setInput('name', { path: '/bad_array' });
     expect(() => fixture.detectChanges()).not.toThrow();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
@@ -115,8 +115,8 @@ describe('Icon Component', () => {
   });
 
   it('should NOT render anything and NOT throw if name resolves to an object from DataModel', () => {
-    mockDataModelValue = {malicious: true};
-    fixture.componentRef.setInput('name', {path: '/bad_object'});
+    mockDataModelValue = { malicious: true };
+    fixture.componentRef.setInput('name', { path: '/bad_object' });
     expect(() => fixture.detectChanges()).not.toThrow();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
@@ -128,7 +128,7 @@ describe('Icon Component', () => {
 
   it('should NOT render anything and NOT throw if name resolves to a number from DataModel', () => {
     mockDataModelValue = 12345;
-    fixture.componentRef.setInput('name', {path: '/bad_number'});
+    fixture.componentRef.setInput('name', { path: '/bad_number' });
     expect(() => fixture.detectChanges()).not.toThrow();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
@@ -140,7 +140,7 @@ describe('Icon Component', () => {
 
   it('should NOT render anything and NOT throw if name resolves to a boolean from DataModel', () => {
     mockDataModelValue = true;
-    fixture.componentRef.setInput('name', {path: '/bad_bool'});
+    fixture.componentRef.setInput('name', { path: '/bad_bool' });
     expect(() => fixture.detectChanges()).not.toThrow();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));
@@ -152,7 +152,7 @@ describe('Icon Component', () => {
 
   it('should render icon name if name resolves to a valid string from DataModel', () => {
     mockDataModelValue = 'starBorder';
-    fixture.componentRef.setInput('name', {path: '/valid_icon'});
+    fixture.componentRef.setInput('name', { path: '/valid_icon' });
     fixture.detectChanges();
 
     const spanEl = fixture.debugElement.query(By.css('.g-icon'));

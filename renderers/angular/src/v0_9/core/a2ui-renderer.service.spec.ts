@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import {Injectable} from '@angular/core';
-import {TestBed} from '@angular/core/testing';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
-import {BasicCatalog} from '../catalog/basic/basic-catalog';
-import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
-import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
-import {MarkdownRenderer} from './markdown';
+import { Injectable } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui } from './a2ui-renderer.service';
+import { BasicCatalog } from '../catalog/basic/basic-catalog';
+import { isWebComponentImplementation } from '@a2ui/web_core/v0_9/universal';
+import { getMarkdownRenderer, setMarkdownRenderer } from '@a2ui/web_core/v0_9/basic_catalog';
+import { MarkdownRenderer } from './markdown';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -45,7 +45,7 @@ describe('A2uiRendererService', () => {
         A2uiRendererService,
         {
           provide: A2UI_RENDERER_CONFIG,
-          useValue: {catalogs: [mockCatalog]},
+          useValue: { catalogs: [mockCatalog] },
         },
       ],
     });
@@ -81,7 +81,7 @@ describe('A2uiRendererService', () => {
           A2uiRendererService,
           {
             provide: A2UI_RENDERER_CONFIG,
-            useValue: {catalogs: [mockCatalog], useUniversalComponents: true},
+            useValue: { catalogs: [mockCatalog], useUniversalComponents: true },
           },
           {
             provide: MarkdownRenderer,
@@ -96,10 +96,10 @@ describe('A2uiRendererService', () => {
       const registeredFn = getMarkdownRenderer();
       expect(registeredFn).toBeDefined();
 
-      const result = await registeredFn!('# heading', {tagClassMap: {h1: ['custom-h1']}});
+      const result = await registeredFn!('# heading', { tagClassMap: { h1: ['custom-h1'] } });
       expect(result).toBe('<p>rendered</p>');
       expect(mockRenderer.render).toHaveBeenCalledWith('# heading', {
-        tagClassMap: {h1: ['custom-h1']},
+        tagClassMap: { h1: ['custom-h1'] },
       });
     });
 
@@ -113,7 +113,7 @@ describe('A2uiRendererService', () => {
           A2uiRendererService,
           {
             provide: A2UI_RENDERER_CONFIG,
-            useValue: {catalogs: [mockCatalog], useUniversalComponents: true},
+            useValue: { catalogs: [mockCatalog], useUniversalComponents: true },
           },
         ],
       });
@@ -122,47 +122,58 @@ describe('A2uiRendererService', () => {
       expect(getMarkdownRenderer()).toBe(existing);
     });
 
-    it('should not configure web_core setMarkdownRenderer when universal components are disabled', () => {
-      const existing = async (markdown: string) => markdown;
-      setMarkdownRenderer(existing);
+    it('should configure web_core setMarkdownRenderer even when universal components are disabled', async () => {
+      const mockRenderer: MarkdownRenderer = {
+        render: jasmine.createSpy('render').and.resolveTo('<p>rendered</p>'),
+      };
 
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
           A2uiRendererService,
-          {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: [mockCatalog]}},
-          {provide: MarkdownRenderer, useValue: {render: async () => '<p>rendered</p>'}},
+          { provide: A2UI_RENDERER_CONFIG, useValue: { catalogs: [mockCatalog] } },
+          { provide: MarkdownRenderer, useValue: mockRenderer },
         ],
       });
       TestBed.inject(A2uiRendererService);
 
-      expect(getMarkdownRenderer()).toBe(existing);
+      const registeredFn = getMarkdownRenderer();
+      expect(registeredFn).toBeDefined();
+      expect(await registeredFn!('# test')).toBe('<p>rendered</p>');
     });
   });
 
-  describe('processMessages', () => {
-    it('should delegate to MessageProcessor', () => {
-      // Access private _messageProcessor via bracket notation for testing if needed,
-      // or verify indirectly by inspecting surfaceGroup after messages.
-      // Since MessageProcessor is complex, we can just verify it doesn't crash
-      // and updates model if we pass valid messages.
-      // For a pure unit test, we might consider mocking MessageProcessor if it was injected,
-      // but it's instantiated via 'new'.
-      // Let's pass an empty array to verify delegate runs without error.
+  describe('processMessages and processor methods', () => {
+    it('should delegate processMessages to MessageProcessor', () => {
       expect(() => service.processMessages([])).not.toThrow();
+    });
+
+    it('should delegate processMessagesAsync to MessageProcessor', async () => {
+      const spy = spyOn(service.processor, 'processMessagesAsync').and.resolveTo();
+      await service.processMessagesAsync({ version: 'v1.0', messages: [] });
+      expect(spy).toHaveBeenCalledWith({ version: 'v1.0', messages: [] });
+    });
+
+    it('should delegate callAgentFunction to MessageProcessor', async () => {
+      const spy = spyOn(service.processor, 'callAgentFunction').and.resolveTo('ok');
+      const result = await service.callAgentFunction('surf1', 'myFn', { a: 1 });
+      expect(result).toBe('ok');
+      expect(spy).toHaveBeenCalledWith('surf1', { call: 'myFn', args: { a: 1 } } as any, undefined);
     });
   });
 
   describe('ngOnDestroy', () => {
-    it('should dispose surfaceGroup', () => {
-      const surfaceGroup = service.surfaceGroup;
-      expect(surfaceGroup).toBeDefined();
-
-      const disposeSpy = spyOn(surfaceGroup as any, 'dispose');
+    it('should dispose processor and surfaceGroup', () => {
+      const processorDisposeSpy = spyOn(service.processor, 'dispose').and.callThrough();
+      const surfaceGroupDisposeSpy = spyOn(
+        service.surfaceGroup as any,
+        'dispose',
+      ).and.callThrough();
 
       service.ngOnDestroy();
 
-      expect(disposeSpy).toHaveBeenCalled();
+      expect(processorDisposeSpy).toHaveBeenCalled();
+      expect(surfaceGroupDisposeSpy).toHaveBeenCalled();
     });
   });
 });
@@ -174,10 +185,10 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [mockCatalog as any]})],
+      providers: [provideA2Ui({ catalogs: [mockCatalog as any] })],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
-    expect(config).toEqual({catalogs: [mockCatalog as any]});
+    expect(config).toEqual({ catalogs: [mockCatalog as any] });
 
     const service = TestBed.inject(A2uiRendererService);
     expect(service).toBeTruthy();
@@ -189,10 +200,10 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [provideA2Ui(() => ({catalogs: [mockCatalog as any]}))],
+      providers: [provideA2Ui(() => ({ catalogs: [mockCatalog as any] }))],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
-    expect(config).toEqual({catalogs: [mockCatalog as any]});
+    expect(config).toEqual({ catalogs: [mockCatalog as any] });
 
     const service = TestBed.inject(A2uiRendererService);
     expect(service).toBeTruthy();
@@ -201,7 +212,7 @@ describe('provideA2Ui', () => {
   it('should provide BasicCatalog in configuration', () => {
     const basicCat = new BasicCatalog();
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [basicCat]})],
+      providers: [provideA2Ui({ catalogs: [basicCat] })],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config.catalogs).toBeDefined();
@@ -216,7 +227,7 @@ describe('provideA2Ui', () => {
   it('should support useUniversalComponents option in configuration', () => {
     const basicCat = new BasicCatalog();
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: true})],
+      providers: [provideA2Ui({ catalogs: [basicCat], useUniversalComponents: true })],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config.useUniversalComponents).toBeTrue();
@@ -226,7 +237,7 @@ describe('provideA2Ui', () => {
   it('should keep basic catalog entries renderable both natively and as Web Components regardless of the flag', () => {
     const basicCat = new BasicCatalog();
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: false})],
+      providers: [provideA2Ui({ catalogs: [basicCat], useUniversalComponents: false })],
     });
     TestBed.inject(A2uiRendererService);
     expect(basicCat.components.size).toBeGreaterThan(1);
@@ -242,8 +253,8 @@ describe('provideA2Ui', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideA2Ui({catalogs: [new CustomCatalog()], useUniversalComponents: true}),
-        {provide: CustomCatalog, useClass: CustomCatalog},
+        provideA2Ui({ catalogs: [new CustomCatalog()], useUniversalComponents: true }),
+        { provide: CustomCatalog, useClass: CustomCatalog },
       ],
     });
 

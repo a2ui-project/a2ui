@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-import {ComponentFixture} from '@angular/core/testing';
-import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample, wait, waitForCondition} from '../utils';
+import { ComponentFixture } from '@angular/core/testing';
+import { DemoComponent } from '../../demo.component';
+import { getCanvas, loadExample, wait, waitForCondition } from '../utils';
 
 describe('Example: Live Invitation Builder', () => {
   let fixture: ComponentFixture<DemoComponent>;
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({name: 'Live Invitation Builder'});
+    fixture = await loadExample({ name: 'Live Invitation Builder' });
     textContent = getCanvas().textContent;
   });
 
   function getLivePreview() {
     const allElements = [...fixture.nativeElement.querySelectorAll('*')] as HTMLElement[];
-    const celebratingEl = allElements.find(el => el.textContent.trim() === 'Celebrating')!;
+    const celebratingEl = allElements.find((el) => el.textContent.trim() === 'Celebrating')!;
     const livePreview = celebratingEl.parentElement!.parentElement!.parentElement!;
     expect(livePreview).withContext('Should Live Preview card content wrapper').toBeTruthy();
     return livePreview;
@@ -79,7 +79,7 @@ describe('Example: Live Invitation Builder', () => {
 
   it('should update preview when changing Event Name input', async () => {
     const inputs = [...fixture.nativeElement.querySelectorAll('input')] as HTMLInputElement[];
-    const textInputs = inputs.filter(i => i.type === 'text' || !i.type);
+    const textInputs = inputs.filter((i) => i.type === 'text' || !i.type);
     expect(textInputs.length).toBeGreaterThanOrEqual(2);
 
     const nameInput = textInputs[0];
@@ -101,7 +101,7 @@ describe('Example: Live Invitation Builder', () => {
 
   it('should update preview when changing Guest of Honor input', async () => {
     const inputs = [...fixture.nativeElement.querySelectorAll('input')] as HTMLInputElement[];
-    const textInputs = inputs.filter(i => i.type === 'text' || !i.type);
+    const textInputs = inputs.filter((i) => i.type === 'text' || !i.type);
     expect(textInputs.length).toBeGreaterThanOrEqual(2);
 
     const nameInput = textInputs[0];
@@ -128,7 +128,7 @@ describe('Example: Live Invitation Builder', () => {
     const chips = [...fixture.nativeElement.querySelectorAll('.a2ui-chip')] as HTMLElement[];
     expect(chips.length).toBeGreaterThanOrEqual(3);
 
-    const ballroomChip = chips.find(el => el.textContent.trim() === 'Grand Ballroom');
+    const ballroomChip = chips.find((el) => el.textContent.trim() === 'Grand Ballroom');
     expect(ballroomChip).toBeTruthy();
 
     ballroomChip!.click();
@@ -141,7 +141,7 @@ describe('Example: Live Invitation Builder', () => {
     });
     expect(ballroomUpdated).withContext('Location should update to ballroom').toBeTrue();
 
-    const terraceChip = chips.find(el => el.textContent.trim() === 'Sunset Terrace');
+    const terraceChip = chips.find((el) => el.textContent.trim() === 'Sunset Terrace');
     expect(terraceChip).toBeTruthy();
 
     terraceChip!.click();

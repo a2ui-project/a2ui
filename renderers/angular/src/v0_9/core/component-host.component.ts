@@ -39,7 +39,8 @@ import {A2uiRendererService} from './a2ui-renderer.service';
 import {ComponentBinder} from './component-binder.service';
 import {BoundProperty} from './types';
 
-import type {AngularComponentImplementation} from '../catalog/types';
+import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
+import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
@@ -206,8 +207,9 @@ export class ComponentHostComponent {
       }
     });
 
-    // Resolve component from the surface's catalog
-    const catalog = surface.defaultCatalog;
+    // Resolve component from the component's owning catalog (or fallback to surface's default catalog)
+    const catalog =
+      (componentModel.catalog as AngularCatalog | undefined) ?? surface.defaultCatalog;
     const componentImpl = catalog.components.get(componentModel.type);
 
     if (!componentImpl) {
@@ -222,7 +224,8 @@ export class ComponentHostComponent {
     // Element; the flag picks which one to mount. Web Component-only entries render only with the
     // flag on (their placeholder `component` reports the misconfiguration otherwise).
     if (
-      this.rendererService.useUniversalComponents &&
+      (this.rendererService.useUniversalComponents ||
+        componentImpl.component === UniversalOnlyComponent) &&
       isWebComponentImplementation(componentImpl)
     ) {
       this.setupWebComponent(componentImpl, surface, componentModel, id, basePath);

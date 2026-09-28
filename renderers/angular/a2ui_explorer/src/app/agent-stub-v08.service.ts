@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import {Injectable, signal, computed} from '@angular/core';
-import {MessageProcessor as MessageProcessorV08, Theme as ThemeV08} from '@a2ui/angular/v0_8';
-import {A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {ServerToClientMessage} from 'src/v0_8/types';
-import {AgentStubService} from './agent-stub.service';
-import {UserAction} from '@a2ui/web_core/types/client-event';
+import { Injectable, signal, computed } from '@angular/core';
+import { MessageProcessor as MessageProcessorV08, Theme as ThemeV08 } from '@a2ui/angular/v0_8';
+import { A2uiClientAction } from '@a2ui/web_core/v0_9';
+import { ServerToClientMessage } from 'src/v0_8/types';
+import { AgentStubService } from './agent-stub.service';
+import { UserAction } from '@a2ui/web_core/types/client-event';
 
 /**
  * Context for the 'update_property' event.
@@ -39,10 +39,10 @@ interface UpdatePropertyContext {
   providedIn: 'root',
 })
 export class AgentStubV08Service extends AgentStubService {
-  override eventsLog = signal<Array<{timestamp: Date; action: A2uiClientAction}>>([]);
-  override surfaceId = signal<string>('demo-surface', {equal: () => false});
+  override eventsLog = signal<Array<{ timestamp: Date; action: A2uiClientAction }>>([]);
+  override surfaceId = signal<string>('demo-surface', { equal: () => false });
   override currentCreateSurfaceMessage = signal<ServerToClientMessage[] | null>(null);
-  private actionSub?: {unsubscribe: () => void};
+  private actionSub?: { unsubscribe: () => void };
 
   override dataModel = computed(() => {
     const surfaceId = this.surfaceId();
@@ -50,7 +50,7 @@ export class AgentStubV08Service extends AgentStubService {
     const surfaces = this.messageProcessorV08.getSurfaces();
     const surface = surfaces.get(surfaceId);
     if (surface) {
-      return this.messageProcessorV08.getData({id: 'root'} as any, '/', surfaceId) as Record<
+      return this.messageProcessorV08.getData({ id: 'root' } as any, '/', surfaceId) as Record<
         string,
         unknown
       >;
@@ -69,9 +69,9 @@ export class AgentStubV08Service extends AgentStubService {
     console.log('[AgentStubV08] handleAction action:', action);
 
     setTimeout(() => {
-      const {context} = action;
+      const { context } = action;
       if (action.name === 'update_property' && action.context) {
-        const {path, value, surfaceId} = context as unknown as UpdatePropertyContext;
+        const { path, value, surfaceId } = context as unknown as UpdatePropertyContext;
         this.messageProcessorV08.processMessages([
           {
             dataModelUpdate: {
@@ -94,7 +94,7 @@ export class AgentStubV08Service extends AgentStubService {
     const clonedMessages = JSON.parse(JSON.stringify(initialMessages)) as ServerToClientMessage[];
     this.themeV08.update(this.getDefault08Theme());
 
-    const surfaceUpdate = clonedMessages.find(m => 'surfaceUpdate' in m) as
+    const surfaceUpdate = clonedMessages.find((m) => 'surfaceUpdate' in m) as
       | ServerToClientMessage
       | undefined;
     const newSurfaceId = surfaceUpdate?.surfaceUpdate?.surfaceId ?? 'demo-surface';
@@ -104,13 +104,13 @@ export class AgentStubV08Service extends AgentStubService {
     if (this.actionSub) {
       this.actionSub.unsubscribe();
     }
-    this.actionSub = this.messageProcessorV08.events.subscribe(event => {
+    this.actionSub = this.messageProcessorV08.events.subscribe((event) => {
       const message = event.message;
       if (message.userAction) {
         const action = message.userAction;
         this.handleAction(action);
-        this.eventsLog.update(log => [
-          {timestamp: new Date(), action: this.userActionToClientAction(action)},
+        this.eventsLog.update((log) => [
+          { timestamp: new Date(), action: this.userActionToClientAction(action) },
           ...log,
         ]);
       }
@@ -138,12 +138,12 @@ export class AgentStubV08Service extends AgentStubService {
     return {
       components: {
         AudioPlayer: {},
-        Text: {all: {}, h1: {}, h2: {}, h3: {}, h4: {}, h5: {}, body: {}, caption: {}},
-        CheckBox: {container: {}, element: {}, label: {}},
-        DateTimeInput: {container: {}, element: {}, label: {}},
+        Text: { all: {}, h1: {}, h2: {}, h3: {}, h4: {}, h5: {}, body: {}, caption: {} },
+        CheckBox: { container: {}, element: {}, label: {} },
+        DateTimeInput: { container: {}, element: {}, label: {} },
         List: {},
-        Modal: {backdrop: {}, element: {}},
-        MultipleChoice: {container: {}, element: {}, label: {}},
+        Modal: { backdrop: {}, element: {} },
+        MultipleChoice: { container: {}, element: {}, label: {} },
         Tabs: {
           container: {},
           element: {},
@@ -152,8 +152,8 @@ export class AgentStubV08Service extends AgentStubService {
             selected: {},
           },
         },
-        Slider: {container: {}, element: {}, label: {}},
-        TextField: {container: {}, element: {}, label: {}},
+        Slider: { container: {}, element: {}, label: {} },
+        TextField: { container: {}, element: {}, label: {} },
         Video: {},
         Card: {},
         Row: {},

@@ -21,6 +21,7 @@
       "@a2ui/angular/v0_8": ["./src/v0_8/index.ts"],
       "@a2ui/angular/v0_9": ["./src/v0_9/index.ts"],
       "@a2ui/angular/v0_9/testing": ["./src/v0_9/testing/index.ts"],
+      "@a2ui/angular/v1_0": ["./src/v1_0/index.ts"],
       "@a2ui/angular/testing": ["./src/v0_9/testing/index.ts"]
     }
   },

@@ -26,22 +26,22 @@ import {
   ElementRef,
   InjectionToken,
 } from '@angular/core';
-import {CommonModule} from '@angular/common';
+import { CommonModule } from '@angular/common';
 import {
   A2uiRendererService,
   A2UI_RENDERER_CONFIG,
   AngularCatalog,
   SurfaceComponent as SurfaceComponentV09,
 } from '@a2ui/angular/v0_9';
-import {AgentStubService} from './agent-stub.service';
-import {AgentStubV08Service} from './agent-stub-v08.service';
-import {AgentStubV09Service} from './agent-stub-v09.service';
-import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
-import {DemoCatalog} from './demo-catalog';
-import {A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
-import {ActionDispatcher} from './action-dispatcher.service';
-import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
+import { AgentStubService } from './agent-stub.service';
+import { AgentStubV08Service } from './agent-stub-v08.service';
+import { AgentStubV09Service } from './agent-stub-v09.service';
+import { provideMarkdownRenderer, Surface as SurfaceV08 } from '@a2ui/angular/v0_8';
+import { DemoCatalog, DemoCatalogV10 } from './demo-catalog';
+import { A2uiClientAction } from '@a2ui/web_core/v0_9';
+import { A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version } from './types';
+import { ActionDispatcher } from './action-dispatcher.service';
+import { Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08 } from '@a2ui/angular/v0_8';
 
 /**
  * Dependency injection token for enabling universal components in the explorer (used by tests only).
@@ -64,7 +64,7 @@ function getUseUniversalComponents(): boolean {
 }
 
 /**
- * Main dashboard component for A2UI v0.9 Angular Renderer.
+ * Main dashboard component for A2UI v0.9 / v1.0 Angular Renderer.
  * It provides a sidebar of examples, a canvas for rendering,
  * and inspector tools for state auditing.
  */
@@ -82,6 +82,12 @@ function getUseUniversalComponents(): boolean {
             <div class="version-selector">
               <label for="version">Ver:</label>
               <select id="version" (change)="onVersionChange($event)">
+                <option
+                  [value]="Version.V1_0"
+                  [selected]="version === Version.V1_0 || version === Version.VERSION_1_0"
+                >
+                  1.0
+                </option>
                 <option [value]="Version.V0_9" [selected]="version === Version.V0_9">0.9</option>
                 <option [value]="Version.V0_8" [selected]="version === Version.V0_8">0.8</option>
               </select>
@@ -178,7 +184,11 @@ function getUseUniversalComponents(): boolean {
             [class.protocol-version-08]="version === Version.V0_8"
           >
             <a2ui-v09-surface
-              *ngIf="version === Version.V0_9"
+              *ngIf="
+                version === Version.V0_9 ||
+                version === Version.V1_0 ||
+                version === Version.VERSION_1_0
+              "
               [surfaceId]="surfaceId()"
             ></a2ui-v09-surface>
             <a2ui-surface *ngIf="version === Version.V0_8" [surfaceId]="surfaceId()"></a2ui-surface>
@@ -751,8 +761,9 @@ function getUseUniversalComponents(): boolean {
   ],
   providers: [
     A2uiRendererService,
-    {provide: AngularCatalog, useClass: DemoCatalog},
-    {provide: CatalogV08, useValue: DEFAULT_CATALOG_V08},
+    { provide: AngularCatalog, useClass: DemoCatalog },
+    DemoCatalogV10,
+    { provide: CatalogV08, useValue: DEFAULT_CATALOG_V08 },
     provideMarkdownRenderer(),
     ActionDispatcher,
     {
@@ -768,14 +779,15 @@ function getUseUniversalComponents(): boolean {
       provide: A2UI_RENDERER_CONFIG,
       useFactory: (
         catalog: AngularCatalog,
+        catalogV10: DemoCatalogV10,
         dispatcher: ActionDispatcher,
         injectedUniversal: boolean,
       ) => ({
-        catalogs: [catalog],
+        catalogs: [catalog, catalogV10],
         useUniversalComponents: getUseUniversalComponents() || injectedUniversal,
         actionHandler: (action: A2uiClientAction) => dispatcher.dispatch(action),
       }),
-      deps: [AngularCatalog, ActionDispatcher, A2UI_USE_UNIVERSAL_COMPONENTS],
+      deps: [AngularCatalog, DemoCatalogV10, ActionDispatcher, A2UI_USE_UNIVERSAL_COMPONENTS],
     },
   ],
 })
@@ -907,7 +919,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   selectNextExample() {
     if (!this.examples || this.examples.length === 0) return;
     const currentIndex = this.selectedExample
-      ? this.examples.findIndex(ex => ex === this.selectedExample)
+      ? this.examples.findIndex((ex) => ex === this.selectedExample)
       : -1;
     const nextIndex = currentIndex < this.examples.length - 1 ? currentIndex + 1 : 0;
     this.selectExample(this.examples[nextIndex]);
@@ -916,7 +928,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   selectPrevExample() {
     if (!this.examples || this.examples.length === 0) return;
     const currentIndex = this.selectedExample
-      ? this.examples.findIndex(ex => ex === this.selectedExample)
+      ? this.examples.findIndex((ex) => ex === this.selectedExample)
       : -1;
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : this.examples.length - 1;
     this.selectExample(this.examples[prevIndex]);
@@ -959,7 +971,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     if (typeof window !== 'undefined') {
       setTimeout(() => {
         const activeEl = this.elementRef.nativeElement.querySelector('.example-list li.active');
-        activeEl?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        activeEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }, 0);
     }
   }
@@ -984,7 +996,7 @@ export class DemoComponent implements OnInit, OnDestroy {
 
       if (!('createSurface' in parsed) || !this.selectedExample) return;
 
-      const updatedMessages = this.selectedExample.messages.map(m =>
+      const updatedMessages = this.selectedExample.messages.map((m) =>
         'createSurface' in m ? parsed : m,
       );
 
@@ -1056,7 +1068,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   private selectExampleFromUrl(): void {
     const hash = window.location.hash.substring(1) || '';
     const example: A2uiExample | undefined =
-      this.examples.find(ex => this.slugify(ex.name) === hash) || this.examples[0];
+      this.examples.find((ex) => this.slugify(ex.name) === hash) || this.examples[0];
     if (!example) return;
     this.selectExample(example);
   }

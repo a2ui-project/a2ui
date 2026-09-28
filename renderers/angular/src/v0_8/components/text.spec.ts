@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {Text} from './text';
-import {MessageProcessor} from '../data/processor';
-import {Theme} from '../rendering/theming';
-import {Catalog} from '../rendering/catalog';
-import {MarkdownRenderer} from '../data/markdown';
-import {By} from '@angular/platform-browser';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Text } from './text';
+import { MessageProcessor } from '../data/processor';
+import { Theme } from '../rendering/theming';
+import { Catalog } from '../rendering/catalog';
+import { MarkdownRenderer } from '../data/markdown';
+import { By } from '@angular/platform-browser';
 
 describe('Text Component', () => {
   let component: Text;
@@ -32,11 +32,11 @@ describe('Text Component', () => {
     mockTheme = new Theme();
     mockTheme.components = {
       Text: {
-        all: {'base-all': true},
-        h1: {'style-h1': true},
-        h2: {'style-h2': true},
-        body: {'style-body': true},
-        caption: {'style-caption': true},
+        all: { 'base-all': true },
+        h1: { 'style-h1': true },
+        h2: { 'style-h2': true },
+        body: { 'style-body': true },
+        caption: { 'style-caption': true },
       },
     } as any;
 
@@ -48,10 +48,10 @@ describe('Text Component', () => {
     await TestBed.configureTestingModule({
       imports: [Text],
       providers: [
-        {provide: MessageProcessor, useValue: {}},
-        {provide: Theme, useValue: mockTheme},
-        {provide: Catalog, useValue: {}},
-        {provide: MarkdownRenderer, useValue: mockMarkdownRenderer},
+        { provide: MessageProcessor, useValue: {} },
+        { provide: Theme, useValue: mockTheme },
+        { provide: Catalog, useValue: {} },
+        { provide: MarkdownRenderer, useValue: mockMarkdownRenderer },
       ],
     })
       // Text component uses ChangeDetectionStrategy.OnPush originally!
@@ -61,9 +61,9 @@ describe('Text Component', () => {
     component = fixture.componentInstance;
 
     fixture.componentRef.setInput('surfaceId', 'surface-1');
-    fixture.componentRef.setInput('component', {id: 'text-1', type: 'Text', weight: 1});
+    fixture.componentRef.setInput('component', { id: 'text-1', type: 'Text', weight: 1 });
     fixture.componentRef.setInput('weight', 1);
-    fixture.componentRef.setInput('text', {literalString: 'Hello World'});
+    fixture.componentRef.setInput('text', { literalString: 'Hello World' });
     fixture.componentRef.setInput('usageHint', 'body');
 
     fixture.detectChanges();

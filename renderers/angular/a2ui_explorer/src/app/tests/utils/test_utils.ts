@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import {TestBed} from '@angular/core/testing';
-import {DemoComponent, A2UI_USE_UNIVERSAL_COMPONENTS} from '../../demo.component';
-import {EXAMPLES_V08, EXAMPLES_V09} from '../../generated/examples-bundle';
-import {provideMarkdownRenderer} from '../../../../../src/v0_9/core/markdown';
-import {A2UI_VERSION, Version} from '../../types';
+import { TestBed } from '@angular/core/testing';
+import { DemoComponent, A2UI_USE_UNIVERSAL_COMPONENTS } from '../../demo.component';
+import { EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10 } from '../../generated/examples-bundle';
+import { provideMarkdownRenderer } from '../../../../../src/v0_9/core/markdown';
+import { A2UI_VERSION, Version } from '../../types';
 
-export {Version};
+export { Version };
 
 /**
  * Options for configuring example loading in tests.
@@ -36,7 +36,7 @@ export interface LoadExampleOptions {
  * Resolves after the example is selected and initial async rendering has time to complete.
  */
 export async function loadExample(options: LoadExampleOptions) {
-  const {name, version = Version.V0_9, useUniversalComponents = false} = options;
+  const { name, version = Version.V0_9, useUniversalComponents = false } = options;
 
   await TestBed.configureTestingModule({
     imports: [DemoComponent],
@@ -57,13 +57,18 @@ export async function loadExample(options: LoadExampleOptions) {
   const component = fixture.componentInstance;
   fixture.detectChanges();
 
-  const examples = version === Version.V0_9 ? EXAMPLES_V09 : EXAMPLES_V08;
-  let example = examples.find(ex => ex.name === name);
+  const examples =
+    version === Version.V1_0 || version === Version.VERSION_1_0
+      ? EXAMPLES_V10
+      : version === Version.V0_9
+        ? EXAMPLES_V09
+        : EXAMPLES_V08;
+  let example = examples.find((ex) => ex.name === name);
 
   if (version === Version.V0_8 && !example) {
     example =
-      examples.find(ex => ex.name === `${name} (basic)`) ||
-      examples.find(ex => ex.name === `${name} (minimal)`);
+      examples.find((ex) => ex.name === `${name} (basic)`) ||
+      examples.find((ex) => ex.name === `${name} (minimal)`);
   }
 
   expect(example).withContext(`Example not found: ${name}`).toBeTruthy();
@@ -94,7 +99,7 @@ async function whenSettled(): Promise<void> {
  * Helper function to wait for a given number of milliseconds.
  */
 export function wait(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function getCanvas(): HTMLDivElement {

@@ -25,19 +25,19 @@
         {
           "id": "avatar-image",
           "component": "Image",
-          "url": {"path": "/avatar"},
+          "url": { "path": "/avatar" },
           "fit": "cover"
         },
         {
           "id": "name",
           "component": "Text",
-          "text": {"path": "/name"},
+          "text": { "path": "/name" },
           "weight": 700
         },
         {
           "id": "title",
           "component": "Text",
-          "text": {"path": "/title"}
+          "text": { "path": "/title" }
         },
         {
           "id": "divider",
@@ -62,7 +62,7 @@
         {
           "id": "phone-text",
           "component": "Text",
-          "text": {"path": "/phone"}
+          "text": { "path": "/phone" }
         },
         {
           "id": "email-row",
@@ -78,7 +78,7 @@
         {
           "id": "email-text",
           "component": "Text",
-          "text": {"path": "/email"}
+          "text": { "path": "/email" }
         },
         {
           "id": "location-row",
@@ -94,7 +94,7 @@
         {
           "id": "location-text",
           "component": "Text",
-          "text": {"path": "/location"}
+          "text": { "path": "/location" }
         },
         {
           "id": "actions",
@@ -108,7 +108,7 @@
           "action": {
             "functionCall": {
               "call": "call",
-              "args": {"number": {"path": "/phone"}}
+              "args": { "number": { "path": "/phone" } }
             }
           }
         },
@@ -124,7 +124,7 @@
           "action": {
             "functionCall": {
               "call": "message",
-              "args": {"recipient": {"path": "/email"}}
+              "args": { "recipient": { "path": "/email" } }
             }
           }
         },

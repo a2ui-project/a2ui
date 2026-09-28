@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {Component, ChangeDetectionStrategy} from '@angular/core';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from './core/a2ui-renderer.service';
-import {SurfaceComponent} from './core/surface.component';
-import {BasicCatalog} from './catalog/basic/basic-catalog';
-import {A2uiMessage} from '@a2ui/web_core/v0_9';
-import {MarkdownRenderer} from './core/markdown';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
+import { A2uiRendererService, A2UI_RENDERER_CONFIG } from './core/a2ui-renderer.service';
+import { SurfaceComponent } from './core/surface.component';
+import { BasicCatalog } from './catalog/basic/basic-catalog';
+import { A2uiMessage } from '@a2ui/web_core/v0_9';
+import { MarkdownRenderer } from './core/markdown';
 
 import * as restaurantCardMock from './test_data/mocks/restaurant-card.json';
 import * as contactCardMock from './test_data/mocks/contact-card.json';
@@ -152,7 +152,7 @@ describe('v0.9 Angular Renderer Integration', () => {
             {
               id: 'root',
               component: 'Text',
-              text: {path: '/user/name'},
+              text: { path: '/user/name' },
             },
           ],
         },
@@ -207,7 +207,7 @@ describe('v0.9 Angular Renderer Integration', () => {
               action: {
                 event: {
                   name: 'navigate',
-                  context: {url: 'https://example.com'},
+                  context: { url: 'https://example.com' },
                 },
               },
             },
@@ -232,7 +232,7 @@ describe('v0.9 Angular Renderer Integration', () => {
     const actionArg = actionSpy.calls.mostRecent().args[0];
     expect(actionArg.surfaceId).toBe('test-surface');
     expect(actionArg.name).toBe('navigate');
-    expect(actionArg.context).toEqual({url: 'https://example.com'});
+    expect(actionArg.context).toEqual({ url: 'https://example.com' });
     expect(actionArg.sourceComponentId).toBe('root');
     expect(actionArg.timestamp).toBeDefined();
   });

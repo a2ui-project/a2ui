@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {ChangeDetectionStrategy, Component, input} from '@angular/core';
-import {ComponentHostComponent} from './component-host.component';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ComponentHostComponent } from './component-host.component';
 
 /**
  * High-level component for rendering an entire A2UI surface.
@@ -33,7 +33,7 @@ import {ComponentHostComponent} from './component-host.component';
   },
   template: `
     <a2ui-v09-component-host
-      [componentKey]="{id: 'root', basePath: dataContextPath()}"
+      [componentKey]="{ id: 'root', basePath: dataContextPath() }"
       [surfaceId]="surfaceId()"
     >
     </a2ui-v09-component-host>
