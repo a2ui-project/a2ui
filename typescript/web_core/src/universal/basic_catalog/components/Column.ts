@@ -15,12 +15,13 @@
  */
 
 import type {UniversalColumnProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css, PropertyValues} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {ResolvedChildList, WebComponentImplementation} from '../../index.js';
+import type {ResolvedChildList} from '../../index.js';
+
+export const COLUMN_TAG_NAME = 'a2ui-basic-column';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -47,6 +48,8 @@ function getChildKey(child: any): string {
 }
 
 export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<UniversalColumnProps> {
+  static readonly tagName = COLUMN_TAG_NAME;
+
   /**
    * The styles of the column can be customized by redefining the following
    * CSS variables:
@@ -63,8 +66,6 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<Universal
       gap: var(--a2ui-column-gap, var(--a2ui-spacing-m));
     }
   `;
-
-  protected readonly api = {name: 'Column'} as any;
 
   override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
@@ -92,10 +93,3 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<Universal
     return html` ${repeat(children, getChildKey, child => html`${this.renderNode(child)}`)} `;
   }
 }
-
-export const A2uiColumn: WebComponentImplementation = {
-  name: 'Column',
-  tagName: 'a2ui-basic-column',
-  element: A2uiBasicColumnElement,
-  schema: z.record(z.unknown()) as any,
-};

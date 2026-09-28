@@ -15,13 +15,14 @@
  */
 
 import type {UniversalSliderProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const SLIDER_TAG_NAME = 'a2ui-slider';
 
 export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSliderProps> {
+  static readonly tagName = SLIDER_TAG_NAME;
   /**
    * The slider can be customized with the following CSS variables:
    *
@@ -62,8 +63,6 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSlide
     }
   `;
 
-  protected readonly api = {name: 'Slider'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -94,10 +93,3 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSlide
     `;
   }
 }
-
-export const A2uiSlider: WebComponentImplementation = {
-  name: 'Slider',
-  tagName: 'a2ui-slider',
-  element: A2uiSliderElement,
-  schema: z.record(z.unknown()) as any,
-};

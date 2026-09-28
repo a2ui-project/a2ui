@@ -15,14 +15,15 @@
  */
 
 import type {UniversalTextFieldProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const TEXT_FIELD_TAG_NAME = 'a2ui-basic-textfield';
 
 export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<UniversalTextFieldProps> {
+  static readonly tagName = TEXT_FIELD_TAG_NAME;
   /**
    * The styles of the text field can be customized by redefining the following
    * CSS variables:
@@ -78,8 +79,6 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<Univer
     }
   `;
 
-  protected readonly api = {name: 'TextField'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -116,10 +115,3 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<Univer
     `;
   }
 }
-
-export const A2uiTextField: WebComponentImplementation = {
-  name: 'TextField',
-  tagName: 'a2ui-basic-textfield',
-  element: A2uiBasicTextFieldElement,
-  schema: z.record(z.unknown()) as any,
-};

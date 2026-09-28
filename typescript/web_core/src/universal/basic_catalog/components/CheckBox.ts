@@ -15,14 +15,15 @@
  */
 
 import type {UniversalCheckBoxProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const CHECK_BOX_TAG_NAME = 'a2ui-checkbox';
 
 export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<UniversalCheckBoxProps> {
+  static readonly tagName = CHECK_BOX_TAG_NAME;
   /**
    * The styles of the checkbox can be customized by redefining the following
    * CSS variables:
@@ -77,8 +78,6 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<UniversalChe
     }
   `;
 
-  protected readonly api = {name: 'CheckBox'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -107,10 +106,3 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<UniversalChe
     `;
   }
 }
-
-export const A2uiCheckBox: WebComponentImplementation = {
-  name: 'CheckBox',
-  tagName: 'a2ui-checkbox',
-  element: A2uiCheckBoxElement,
-  schema: z.record(z.unknown()) as any,
-};

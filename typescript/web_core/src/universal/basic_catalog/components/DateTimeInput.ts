@@ -15,11 +15,11 @@
  */
 
 import type {UniversalDateTimeInputProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const DATE_TIME_INPUT_TAG_NAME = 'a2ui-datetimeinput';
 
 /**
  * Returns the current date formatted as YYYY-MM-DD in the user's local timezone.
@@ -67,6 +67,7 @@ function normalizeDateTimeValue(value: string | null | undefined, type: string):
 }
 
 export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<UniversalDateTimeInputProps> {
+  static readonly tagName = DATE_TIME_INPUT_TAG_NAME;
   /**
    * The styles of the datetime input can be customized by redefining the following
    * CSS variables:
@@ -123,8 +124,6 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<Univers
       font-size: var(--a2ui-font-size-xs, 0.75rem);
     }
   `;
-
-  protected readonly api = {name: 'DateTimeInput'} as any;
 
   override render() {
     const props = this.controller.props;
@@ -196,10 +195,3 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<Univers
     `;
   }
 }
-
-export const A2uiDateTimeInput: WebComponentImplementation = {
-  name: 'DateTimeInput',
-  tagName: 'a2ui-datetimeinput',
-  element: A2uiDateTimeInputElement,
-  schema: z.record(z.unknown()) as any,
-};

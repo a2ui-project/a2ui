@@ -15,13 +15,14 @@
  */
 
 import type {UniversalAudioPlayerProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const AUDIO_PLAYER_TAG_NAME = 'a2ui-audioplayer';
 
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<UniversalAudioPlayerProps> {
+  static readonly tagName = AUDIO_PLAYER_TAG_NAME;
   static override styles = css`
     .a2ui-audio-player {
       display: flex;
@@ -44,8 +45,6 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<Universal
     }
   `;
 
-  protected readonly api = {name: 'AudioPlayer'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -62,10 +61,3 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<Universal
     `;
   }
 }
-
-export const A2uiAudioPlayer: WebComponentImplementation = {
-  name: 'AudioPlayer',
-  tagName: 'a2ui-audioplayer',
-  element: A2uiAudioPlayerElement,
-  schema: z.record(z.unknown()) as any,
-};

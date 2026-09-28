@@ -15,19 +15,20 @@
  */
 
 import type {UniversalTextProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {consume} from '@lit/context';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
 import {Context} from '../context/context.js';
 import type {MarkdownRenderer} from '../context/markdown.js';
 import {markdown} from '../directives/directives.js';
 
+export const TEXT_TAG_NAME = 'a2ui-basic-text';
+
 const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
 export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<UniversalTextProps> {
+  static readonly tagName = TEXT_TAG_NAME;
   /**
    * The styles of the text component can be customized by redefining the following
    * CSS variables:
@@ -98,8 +99,6 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<UniversalTe
   @consume({context: Context.markdown, subscribe: true})
   markdownRenderer: MarkdownRenderer | undefined;
 
-  protected readonly api = {name: 'Text'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -138,10 +137,3 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<UniversalTe
     return html`<span class="a2ui-text ${variant}" style=${flexStyle}>${renderedMarkdown}</span>`;
   }
 }
-
-export const A2uiText: WebComponentImplementation = {
-  name: 'Text',
-  tagName: 'a2ui-basic-text',
-  element: A2uiBasicTextElement,
-  schema: z.record(z.unknown()) as any,
-};

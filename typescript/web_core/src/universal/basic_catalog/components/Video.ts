@@ -15,13 +15,14 @@
  */
 
 import type {UniversalVideoProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const VIDEO_TAG_NAME = 'a2ui-video';
 
 export class A2uiVideoElement extends BasicCatalogA2uiLitElement<UniversalVideoProps> {
+  static readonly tagName = VIDEO_TAG_NAME;
   /**
    * The styles of the video can be customized by redefining the following
    * CSS variables:
@@ -41,8 +42,6 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<UniversalVideoP
     }
   `;
 
-  protected readonly api = {name: 'Video'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -61,10 +60,3 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<UniversalVideoP
     `;
   }
 }
-
-export const A2uiVideo: WebComponentImplementation = {
-  name: 'Video',
-  tagName: 'a2ui-video',
-  element: A2uiVideoElement,
-  schema: z.record(z.unknown()) as any,
-};

@@ -15,12 +15,13 @@
  */
 
 import type {UniversalRowProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css, PropertyValues} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {ResolvedChildList, WebComponentImplementation} from '../../index.js';
+import type {ResolvedChildList} from '../../index.js';
+
+export const ROW_TAG_NAME = 'a2ui-basic-row';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -47,6 +48,8 @@ function getChildKey(child: any): string {
 }
 
 export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<UniversalRowProps> {
+  static readonly tagName = ROW_TAG_NAME;
+
   /**
    * The styles of the row can be customized by redefining the following
    * CSS variables:
@@ -61,8 +64,6 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<UniversalRow
       gap: var(--a2ui-row-gap, var(--a2ui-spacing-m));
     }
   `;
-
-  protected readonly api = {name: 'Row'} as any;
 
   override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
@@ -90,10 +91,3 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<UniversalRow
     return html` ${repeat(children, getChildKey, child => html`${this.renderNode(child)}`)} `;
   }
 }
-
-export const A2uiRow: WebComponentImplementation = {
-  name: 'Row',
-  tagName: 'a2ui-basic-row',
-  element: A2uiBasicRowElement,
-  schema: z.record(z.unknown()) as any,
-};

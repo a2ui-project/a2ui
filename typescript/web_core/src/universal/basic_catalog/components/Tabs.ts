@@ -15,15 +15,16 @@
  */
 
 import type {UniversalTabsProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const TABS_TAG_NAME = 'a2ui-tabs';
 
 export class A2uiLitTabs extends BasicCatalogA2uiLitElement<UniversalTabsProps> {
+  static readonly tagName = TABS_TAG_NAME;
   /**
    * The styles of the tabs can be customized by redefining the following
    * CSS variables:
@@ -66,8 +67,6 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<UniversalTabsProps> 
     }
   `;
 
-  protected readonly api = {name: 'Tabs'} as any;
-
   @state() activeIndex = 0;
 
   override willUpdate(changedProperties: any) {
@@ -109,9 +108,4 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<UniversalTabsProps> 
   }
 }
 
-export const A2uiTabs: WebComponentImplementation = {
-  name: 'Tabs',
-  tagName: 'a2ui-tabs',
-  element: A2uiLitTabs,
-  schema: z.record(z.unknown()) as any,
-};
+export {A2uiLitTabs as A2uiTabsElement};

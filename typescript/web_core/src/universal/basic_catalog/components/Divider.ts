@@ -15,14 +15,15 @@
  */
 
 import type {UniversalDividerProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const DIVIDER_TAG_NAME = 'a2ui-divider';
 
 export class A2uiDividerElement extends BasicCatalogA2uiLitElement<UniversalDividerProps> {
+  static readonly tagName = DIVIDER_TAG_NAME;
   /**
    * The styles of the divider can be customized by redefining the following
    * CSS variables:
@@ -52,8 +53,6 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<UniversalDivi
     }
   `;
 
-  protected readonly api = {name: 'Divider'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -68,10 +67,3 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<UniversalDivi
     return html`<hr class=${classMap(classes)} />`;
   }
 }
-
-export const A2uiDivider: WebComponentImplementation = {
-  name: 'Divider',
-  tagName: 'a2ui-divider',
-  element: A2uiDividerElement,
-  schema: z.record(z.unknown()) as any,
-};

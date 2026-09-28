@@ -15,11 +15,11 @@
  */
 
 import type {UniversalIconProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const ICON_TAG_NAME = 'a2ui-icon';
 
 const ICON_NAME_OVERRIDES: Record<string, string> = {
   play: 'play_arrow',
@@ -34,6 +34,7 @@ function toMaterialIconName(name: string): string {
 }
 
 export class A2uiIconElement extends BasicCatalogA2uiLitElement<UniversalIconProps> {
+  static readonly tagName = ICON_TAG_NAME;
   /**
    * The icon component can be customized with the following CSS variables:
    *
@@ -73,8 +74,6 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<UniversalIconPro
     }
   `;
 
-  protected readonly api = {name: 'Icon'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -95,10 +94,3 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<UniversalIconPro
     return html`<i class="material-icons a2ui-icon">${iconName}</i>`;
   }
 }
-
-export const A2uiIcon: WebComponentImplementation = {
-  name: 'Icon',
-  tagName: 'a2ui-icon',
-  element: A2uiIconElement,
-  schema: z.record(z.unknown()) as any,
-};

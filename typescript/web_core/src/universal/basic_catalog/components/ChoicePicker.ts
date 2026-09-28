@@ -15,15 +15,16 @@
  */
 
 import type {UniversalChoicePickerProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const CHOICE_PICKER_TAG_NAME = 'a2ui-choicepicker';
 
 export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<UniversalChoicePickerProps> {
+  static readonly tagName = CHOICE_PICKER_TAG_NAME;
   /**
    * The styles of the choice picker can be customized by redefining the following
    * CSS variables:
@@ -137,8 +138,6 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<Universa
 
   @state() filter = '';
 
-  protected readonly api = {name: 'ChoicePicker'} as any;
-
   override render() {
     const props = this.controller?.props;
     if (!props) return nothing;
@@ -242,10 +241,3 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<Universa
     `;
   }
 }
-
-export const A2uiChoicePicker: WebComponentImplementation = {
-  name: 'ChoicePicker',
-  tagName: 'a2ui-choicepicker',
-  element: A2uiChoicePickerElement,
-  schema: z.record(z.unknown()) as any,
-};

@@ -15,14 +15,15 @@
  */
 
 import type {UniversalModalProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const MODAL_TAG_NAME = 'a2ui-modal';
 
 export class A2uiLitModal extends BasicCatalogA2uiLitElement<UniversalModalProps> {
+  static readonly tagName = MODAL_TAG_NAME;
   /**
    * The styles of the modal can be customized by redefining the following
    * CSS variables:
@@ -84,8 +85,6 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<UniversalModalProps
 
   @state() isOpen = false;
 
-  protected readonly api = {name: 'Modal'} as any;
-
   openModal() {
     this.isOpen = true;
   }
@@ -130,9 +129,4 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<UniversalModalProps
   }
 }
 
-export const A2uiModal: WebComponentImplementation = {
-  name: 'Modal',
-  tagName: 'a2ui-modal',
-  element: A2uiLitModal,
-  schema: z.record(z.unknown()) as any,
-};
+export {A2uiLitModal as A2uiModalElement};

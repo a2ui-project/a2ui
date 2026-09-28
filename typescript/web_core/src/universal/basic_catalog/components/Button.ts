@@ -15,17 +15,18 @@
  */
 
 import type {UniversalButtonProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const BUTTON_TAG_NAME = 'a2ui-basic-button';
 
 /**
  * A button component that can be used to trigger an action.
  */
 export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<UniversalButtonProps> {
+  static readonly tagName = BUTTON_TAG_NAME;
   /**
    * The styles of the button can be customized by redefining the following
    * CSS variables:
@@ -85,8 +86,6 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<Universal
     }
   `;
 
-  protected readonly api = {name: 'Button'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -115,10 +114,3 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<Universal
     `;
   }
 }
-
-export const A2uiButton: WebComponentImplementation = {
-  name: 'Button',
-  tagName: 'a2ui-basic-button',
-  element: A2uiBasicButtonElement,
-  schema: z.record(z.unknown()) as any,
-};

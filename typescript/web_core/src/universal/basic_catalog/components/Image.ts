@@ -15,14 +15,15 @@
  */
 
 import type {UniversalImageProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {styleMap} from 'lit/directives/style-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const IMAGE_TAG_NAME = 'a2ui-image';
 
 export class A2uiImageElement extends BasicCatalogA2uiLitElement<UniversalImageProps> {
+  static readonly tagName = IMAGE_TAG_NAME;
   /**
    * The styles of the image can be customized by redefining the following
    * CSS variables:
@@ -61,8 +62,6 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<UniversalImageP
     }
   `;
 
-  protected readonly api = {name: 'Image'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -78,10 +77,3 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<UniversalImageP
     />`;
   }
 }
-
-export const A2uiImage: WebComponentImplementation = {
-  name: 'Image',
-  tagName: 'a2ui-image',
-  element: A2uiImageElement,
-  schema: z.record(z.unknown()) as any,
-};

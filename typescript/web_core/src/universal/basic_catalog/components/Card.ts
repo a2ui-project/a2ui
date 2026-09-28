@@ -15,13 +15,14 @@
  */
 
 import type {UniversalCardProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../index.js';
+
+export const CARD_TAG_NAME = 'a2ui-card';
 
 export class A2uiCardElement extends BasicCatalogA2uiLitElement<UniversalCardProps> {
+  static readonly tagName = CARD_TAG_NAME;
   /**
    * The styles of the card can be customized by redefining the following
    * CSS variables:
@@ -47,8 +48,6 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<UniversalCardPro
     }
   `;
 
-  protected readonly api = {name: 'Card'} as any;
-
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
@@ -58,10 +57,3 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<UniversalCardPro
     `;
   }
 }
-
-export const A2uiCard: WebComponentImplementation = {
-  name: 'Card',
-  tagName: 'a2ui-card',
-  element: A2uiCardElement,
-  schema: z.record(z.unknown()) as any,
-};

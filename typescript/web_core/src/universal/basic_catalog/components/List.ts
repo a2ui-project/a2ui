@@ -15,12 +15,13 @@
  */
 
 import type {UniversalListProps} from '../types.js';
-import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {ResolvedChildList, WebComponentImplementation} from '../../index.js';
+import type {ResolvedChildList} from '../../index.js';
+
+export const LIST_TAG_NAME = 'a2ui-list';
 
 function getChildKey(child: any): string {
   return typeof child === 'object' && child !== null
@@ -29,6 +30,7 @@ function getChildKey(child: any): string {
 }
 
 export class A2uiListElement extends BasicCatalogA2uiLitElement<UniversalListProps> {
+  static readonly tagName = LIST_TAG_NAME;
   static override styles = css`
     .a2ui-list {
       display: flex;
@@ -51,8 +53,6 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<UniversalListPro
       display: inline-block;
     }
   `;
-
-  protected readonly api = {name: 'List'} as any;
 
   override render() {
     const props = this.controller.props;
@@ -89,10 +89,3 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<UniversalListPro
     `;
   }
 }
-
-export const A2uiList: WebComponentImplementation = {
-  name: 'List',
-  tagName: 'a2ui-list',
-  element: A2uiListElement,
-  schema: z.record(z.unknown()) as any,
-};
