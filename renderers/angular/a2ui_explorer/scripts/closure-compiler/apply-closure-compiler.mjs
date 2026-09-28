@@ -29,8 +29,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import {fileURLToPath} from 'url';
-import {createRequire} from 'module';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,11 +43,11 @@ if (!fs.existsSync(distDir)) {
   process.exit(1);
 }
 
-const {compiler: Compiler} = require('google-closure-compiler');
+const { compiler: Compiler } = require('google-closure-compiler');
 const files = fs
   .readdirSync(distDir)
-  .filter(f => f.endsWith('.js') && !f.endsWith('.tmp'))
-  .map(f => path.join(distDir, f));
+  .filter((f) => f.endsWith('.js') && !f.endsWith('.tmp'))
+  .map((f) => path.join(distDir, f));
 
 if (files.length === 0) {
   console.error('Error: No JavaScript bundle chunks found in ' + distDir);
@@ -180,7 +180,7 @@ for (const f of files) {
   // Angular's runtime dependency injection and component resolvers cannot inspect class definitions.
   let next = c.replace(
     /static\s+(?:\\u0275|ɵ|__NG_)([a-zA-Z0-9_$]+)/g,
-    m => '/** @nocollapse */ ' + m,
+    (m) => '/** @nocollapse */ ' + m,
   );
   if (next !== c) {
     c = next;
@@ -208,7 +208,7 @@ for (const f of files) {
 
 // Locate main chunk file to serve as the target output bundle.
 const mainFile =
-  files.find(f => path.basename(f).startsWith('main')) || path.join(distDir, 'main.js');
+  files.find((f) => path.basename(f).startsWith('main')) || path.join(distDir, 'main.js');
 const tmpPath = mainFile + '.tmp';
 
 console.log(
@@ -217,7 +217,7 @@ console.log(
 
 const cwd = process.cwd();
 const options = {
-  js: files.map(f => path.relative(cwd, f)),
+  js: files.map((f) => path.relative(cwd, f)),
   compilation_level: 'ADVANCED',
   language_in: 'ECMASCRIPT_NEXT',
   language_out: 'ECMASCRIPT_NEXT',
@@ -240,7 +240,7 @@ for (const p of activeExterns) {
 }
 
 if (activeExterns.length > 0) {
-  options.externs = activeExterns.map(p => path.relative(cwd, p));
+  options.externs = activeExterns.map((p) => path.relative(cwd, p));
 }
 
 await new Promise((resolve, reject) => {

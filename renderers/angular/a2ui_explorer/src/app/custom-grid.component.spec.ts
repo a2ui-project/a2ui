@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {TestBed, ComponentFixture} from '@angular/core/testing';
-import {CustomGridComponent} from './custom-grid.component';
-import {signal} from '@angular/core';
+import { TestBed, ComponentFixture } from '@angular/core/testing';
+import { CustomGridComponent } from './custom-grid.component';
+import { signal } from '@angular/core';
 
 describe('CustomGridComponent', () => {
   let fixture: ComponentFixture<CustomGridComponent>;
@@ -37,13 +37,13 @@ describe('CustomGridComponent', () => {
 
   it('should render title and description when provided', () => {
     fixture.componentRef.setInput('props', {
-      title: {value: signal('My 4x4 Grid'), onUpdate: () => {}, raw: 'My 4x4 Grid'},
+      title: { value: signal('My 4x4 Grid'), onUpdate: () => {}, raw: 'My 4x4 Grid' },
       description: {
         value: signal('Sample container layout'),
         onUpdate: () => {},
         raw: 'Sample container layout',
       },
-      children: {value: signal([]), onUpdate: () => {}, raw: []},
+      children: { value: signal([]), onUpdate: () => {}, raw: [] },
     });
     fixture.componentRef.setInput('surfaceId', 'test-surface');
     fixture.componentRef.setInput('componentId', 'grid-1');
@@ -58,7 +58,7 @@ describe('CustomGridComponent', () => {
 
   it('should render 4 grid slots and display empty placeholders when no children provided', () => {
     fixture.componentRef.setInput('props', {
-      children: {value: signal([]), onUpdate: () => {}, raw: []},
+      children: { value: signal([]), onUpdate: () => {}, raw: [] },
     });
     fixture.componentRef.setInput('surfaceId', 'test-surface');
     fixture.componentRef.setInput('componentId', 'grid-1');

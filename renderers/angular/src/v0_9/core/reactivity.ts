@@ -58,13 +58,13 @@ export function initializeAngularReactivity(injector: EnvironmentInjector): void
         let cleanup: (() => void) | void;
 
         const ref = angularEffect(
-          onCleanup => {
+          (onCleanup) => {
             cleanup = effectFn();
             if (cleanup) {
               onCleanup(cleanup);
             }
           },
-          {injector},
+          { injector },
         );
 
         return () => ref.destroy();

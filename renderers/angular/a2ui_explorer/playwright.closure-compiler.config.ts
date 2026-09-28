@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import {defineConfig, devices} from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
   outputDir: './.playwright/results',
-  reporter: [['list'], ['html', {outputFolder: './.playwright/report', open: 'never'}]],
+  reporter: [['list'], ['html', { outputFolder: './.playwright/report', open: 'never' }]],
   use: {
     baseURL: 'http://localhost:4200',
     headless: true,
@@ -36,6 +36,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        channel: 'chrome',
       },
     },
   ],

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {Component, input} from '@angular/core';
-import {ButtonComponent} from './button.component';
-import {Action, ComponentModel} from '@a2ui/web_core/v0_9';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder, Child} from '../../core/component-binder.service';
-import {By} from '@angular/platform-browser';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Component, input } from '@angular/core';
+import { ButtonComponent } from './button.component';
+import { Action, ComponentModel } from '@a2ui/web_core/v0_9';
+import { A2uiRendererService } from '../../core/a2ui-renderer.service';
+import { ComponentBinder, Child } from '../../core/component-binder.service';
+import { By } from '@angular/platform-browser';
+import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
 
 describe('ButtonComponent', () => {
   let component: ButtonComponent;
@@ -60,7 +60,7 @@ describe('ButtonComponent', () => {
     mockSurface = {
       dispatchAction: jasmine.createSpy('dispatchAction'),
       componentsModel: new Map([
-        ['child1', new ComponentModel('child1', 'Text', {text: 'Child Content'}, mockCatalog)],
+        ['child1', new ComponentModel('child1', 'Text', { text: 'Child Content' }, mockCatalog)],
       ]),
       defaultCatalog: mockCatalog,
       availableCatalogs: new Map(),
@@ -75,13 +75,13 @@ describe('ButtonComponent', () => {
     };
 
     const mockBinder = jasmine.createSpyObj('ComponentBinder', ['bind']);
-    mockBinder.bind.and.returnValue({text: {value: () => 'bound text'}});
+    mockBinder.bind.and.returnValue({ text: { value: () => 'bound text' } });
 
     await TestBed.configureTestingModule({
       imports: [ButtonComponent],
       providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
+        { provide: A2uiRendererService, useValue: mockRendererService },
+        { provide: ComponentBinder, useValue: mockBinder },
       ],
     }).compileComponents();
 
@@ -92,9 +92,9 @@ describe('ButtonComponent', () => {
 
     defaultProps = {
       variant: createBoundProperty('primary' as const),
-      child: createBoundProperty<Child>({id: 'child1', basePath: '/'}),
+      child: createBoundProperty<Child>({ id: 'child1', basePath: '/' }),
       action: createBoundProperty<Action>({
-        event: {name: 'test-action'},
+        event: { name: 'test-action' },
       }),
       isValid: createBoundProperty(true),
       validationErrors: createBoundProperty<string[]>([]),
@@ -142,7 +142,7 @@ describe('ButtonComponent', () => {
     fixture.detectChanges();
     const host = fixture.debugElement.query(By.css('a2ui-v09-component-host'));
     expect(host).toBeTruthy();
-    expect(host.componentInstance.componentKey()).toEqual({id: 'child1', basePath: '/'});
+    expect(host.componentInstance.componentKey()).toEqual({ id: 'child1', basePath: '/' });
   });
 
   it('should be disabled when isValid is false', () => {
@@ -163,21 +163,21 @@ describe('ButtonComponent', () => {
   });
 
   it('should override the button default background color when primary color is set', () => {
-    mockSurface.theme = {primaryColor: '#FF0000'};
+    mockSurface.theme = { primaryColor: '#FF0000' };
     fixture.detectChanges();
     let button = fixture.debugElement.query(By.css('button'));
     let computedStyle = window.getComputedStyle(button.nativeElement);
     expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)');
 
     // Supports named colors like "red"
-    mockSurface.theme = {primaryColor: 'red'};
+    mockSurface.theme = { primaryColor: 'red' };
     fixture.detectChanges();
     button = fixture.debugElement.query(By.css('button'));
     computedStyle = window.getComputedStyle(button.nativeElement);
     expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)');
 
     // Supports functional notation like "rgb(255, 0, 0)"
-    mockSurface.theme = {primaryColor: 'rgb(255, 0, 0)'};
+    mockSurface.theme = { primaryColor: 'rgb(255, 0, 0)' };
     fixture.detectChanges();
     button = fixture.debugElement.query(By.css('button'));
     computedStyle = window.getComputedStyle(button.nativeElement);

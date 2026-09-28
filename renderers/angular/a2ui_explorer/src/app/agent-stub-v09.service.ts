@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import {Injectable, signal} from '@angular/core';
-import {A2uiRendererService} from '@a2ui/angular/v0_9';
-import {A2uiClientAction, A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
-import {ActionDispatcher} from './action-dispatcher.service';
-import {AgentStubService} from './agent-stub.service';
+import { Injectable, signal } from '@angular/core';
+import { A2uiRendererService } from '@a2ui/angular/v0_9';
+import { A2uiClientAction, A2uiMessage, CreateSurfaceMessage } from '@a2ui/web_core/v0_9';
+import { ActionDispatcher } from './action-dispatcher.service';
+import { AgentStubService } from './agent-stub.service';
 
 /**
  * Context for the 'update_property' event.
@@ -47,11 +47,12 @@ interface SubmitFormContext {
 })
 export class AgentStubV09Service extends AgentStubService {
   override dataModel = signal<Record<string, unknown>>({});
-  override surfaceId = signal<string>('demo-surface', {equal: () => false});
-  override eventsLog = signal<Array<{timestamp: Date; action: A2uiClientAction}>>([]);
+  override surfaceId = signal<string>('demo-surface', { equal: () => false });
+  override eventsLog = signal<Array<{ timestamp: Date; action: A2uiClientAction }>>([]);
   override currentCreateSurfaceMessage = signal<CreateSurfaceMessage | null>(null);
-  private actionSub?: {unsubscribe: () => void};
-  private dataModelSub?: {unsubscribe: () => void};
+  private actionSub?: { unsubscribe: () => void };
+  private dataModelSub?: { unsubscribe: () => void };
+  private activeProtocolVersion: 'v0.9' | 'v1.0' = 'v0.9';
 
   constructor(
     private rendererService: A2uiRendererService,
@@ -64,9 +65,9 @@ export class AgentStubV09Service extends AgentStubService {
     console.log('[AgentStubV09] handleAction action:', action);
 
     setTimeout(() => {
-      const {name, context} = action;
+      const { name, context } = action;
       if (name === 'update_property' && context) {
-        const {path, value, surfaceId} = context as unknown as UpdatePropertyContext;
+        const { path, value, surfaceId } = context as unknown as UpdatePropertyContext;
         console.log(
           '[AgentStubV09] update_property path:',
           path,
@@ -77,7 +78,7 @@ export class AgentStubV09Service extends AgentStubService {
         );
         this.rendererService.processMessages([
           {
-            version: 'v0.9',
+            version: this.activeProtocolVersion,
             updateDataModel: {
               surfaceId: surfaceId || action.surfaceId,
               path: path,
@@ -91,7 +92,7 @@ export class AgentStubV09Service extends AgentStubService {
 
         this.rendererService.processMessages([
           {
-            version: 'v0.9',
+            version: this.activeProtocolVersion,
             updateDataModel: {
               surfaceId: action.surfaceId,
               path: '/form/submitted',
@@ -99,7 +100,7 @@ export class AgentStubV09Service extends AgentStubService {
             },
           },
           {
-            version: 'v0.9',
+            version: this.activeProtocolVersion,
             updateDataModel: {
               surfaceId: action.surfaceId,
               path: '/form/responseMessage',
@@ -113,42 +114,27 @@ export class AgentStubV09Service extends AgentStubService {
 
   override initializeDemo(initialMessages: A2uiMessage[]) {
     const clonedMessages = JSON.parse(JSON.stringify(initialMessages)) as A2uiMessage[];
-    if (this.rendererService.surfaceGroup) {
-      for (const msg of clonedMessages) {
-        if ('createSurface' in msg) {
-          const createSurface = msg.createSurface;
-          if (this.rendererService.surfaceGroup.getSurface(createSurface.surfaceId)) {
-            this.rendererService.processMessages([
-              {
-                version: 'v0.9',
-                deleteSurface: {surfaceId: createSurface.surfaceId},
-              },
-            ]);
-          }
-        }
-      }
-    }
+    const firstMsgVersion = (clonedMessages[0] as { version?: string } | undefined)?.version;
+    this.activeProtocolVersion = firstMsgVersion === 'v1.0' ? 'v1.0' : 'v0.9';
+
+    this.deleteExistingSurfaces(clonedMessages);
     const createMsg = clonedMessages.find((m): m is CreateSurfaceMessage => 'createSurface' in m);
     const newSurfaceId = createMsg ? createMsg.createSurface.surfaceId : 'demo-surface';
     this.currentCreateSurfaceMessage.set(createMsg || null);
 
     this.eventsLog.set([]);
-    if (this.actionSub) {
-      this.actionSub.unsubscribe();
-    }
-    this.actionSub = this.actionDispatcher.actions.subscribe(action => {
+    this.actionSub?.unsubscribe();
+    this.actionSub = this.actionDispatcher.actions.subscribe((action) => {
       this.handleAction(action);
-      this.eventsLog.update(log => [{timestamp: new Date(), action}, ...log]);
+      this.eventsLog.update((log) => [{ timestamp: new Date(), action }, ...log]);
     });
 
     this.rendererService.processMessages(clonedMessages);
 
-    if (this.dataModelSub) {
-      this.dataModelSub.unsubscribe();
-    }
+    this.dataModelSub?.unsubscribe();
     const surface = this.rendererService.surfaceGroup?.getSurface(newSurfaceId);
-    if (surface && surface.dataModel) {
-      this.dataModelSub = surface.dataModel.subscribe('/', data => {
+    if (surface?.dataModel) {
+      this.dataModelSub = surface.dataModel.subscribe('/', (data) => {
         this.dataModel.set(data as Record<string, unknown>);
       });
       this.dataModel.set(surface.dataModel.get('/'));
@@ -160,5 +146,22 @@ export class AgentStubV09Service extends AgentStubService {
     setTimeout(() => {
       this.surfaceId.set(newSurfaceId);
     }, 0);
+  }
+
+  private deleteExistingSurfaces(messages: A2uiMessage[]) {
+    if (!this.rendererService.surfaceGroup) return;
+    for (const msg of messages) {
+      if ('createSurface' in msg) {
+        const surfaceId = msg.createSurface.surfaceId;
+        if (this.rendererService.surfaceGroup.getSurface(surfaceId)) {
+          this.rendererService.processMessages([
+            {
+              version: this.activeProtocolVersion,
+              deleteSurface: { surfaceId },
+            },
+          ]);
+        }
+      }
+    }
   }
 }

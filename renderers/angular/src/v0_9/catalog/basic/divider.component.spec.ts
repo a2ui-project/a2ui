@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {DividerComponent} from './divider.component';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { DividerComponent } from './divider.component';
+import { A2uiRendererService } from '../../core/a2ui-renderer.service';
+import { ComponentBinder } from '../../core/component-binder.service';
+import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
 
 describe('DividerComponent', () => {
   let component: DividerComponent;
@@ -42,8 +42,8 @@ describe('DividerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [DividerComponent],
       providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
+        { provide: A2uiRendererService, useValue: mockRendererService },
+        { provide: ComponentBinder, useValue: mockBinder },
       ],
     }).compileComponents();
   });

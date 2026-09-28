@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {getNormalizedPath} from './utils';
+import { getNormalizedPath } from './utils';
 
 describe('getNormalizedPath', () => {
   it('should handle absolute paths', () => {

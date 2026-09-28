@@ -28,19 +28,20 @@ import {
   signal,
   NgZone,
 } from '@angular/core';
-import {NgComponentOutlet} from '@angular/common';
-import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
+import { NgComponentOutlet } from '@angular/common';
+import { ComponentContext, ComponentModel, SurfaceModel, Subscription } from '@a2ui/web_core/v0_9';
 import {
   isWebComponentImplementation,
   registerUniversalElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
-import {A2uiRendererService} from './a2ui-renderer.service';
-import {ComponentBinder} from './component-binder.service';
-import {BoundProperty} from './types';
+import { A2uiRendererService } from './a2ui-renderer.service';
+import { ComponentBinder } from './component-binder.service';
+import { BoundProperty } from './types';
 
-import type {AngularComponentImplementation} from '../catalog/types';
-import {CatalogComponentInstance} from './catalog_component_instance';
+import type { AngularCatalog, AngularComponentImplementation } from '../catalog/types';
+import { UniversalOnlyComponent } from '../catalog/universal_only.component';
+import { CatalogComponentInstance } from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   context: ComponentContext;
@@ -84,7 +85,7 @@ interface UniversalComponentHostElement extends HTMLElement {
 })
 export class ComponentHostComponent {
   /** The key of the component to render, either an ID string or an object with ID and basePath. Defaults to 'root'. */
-  componentKey = input<string | {id: string; basePath: string}>('root');
+  componentKey = input<string | { id: string; basePath: string }>('root');
 
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
@@ -107,6 +108,7 @@ export class ComponentHostComponent {
 
   private propsSub?: Subscription;
   private createSub?: Subscription;
+  private deleteSub?: Subscription;
   private surfaceSub?: Subscription;
 
   constructor() {
@@ -124,66 +126,102 @@ export class ComponentHostComponent {
     });
   }
 
-  private setupComponent(key: string | {id: string; basePath: string}, surfaceId: string) {
+  private setupComponent(key: string | { id: string; basePath: string }, surfaceId: string) {
     this.resetState();
 
     const surface = this.rendererService.surfaceGroup?.getSurface(surfaceId);
 
     if (!surface) {
-      console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
-      this.surfaceSub?.unsubscribe();
-      let unsubscribed = false;
-      const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe(s => {
-        if (s.id === surfaceId) {
-          unsubscribed = true;
-          if (this.surfaceSub) {
-            this.surfaceSub.unsubscribe();
-            this.surfaceSub = undefined;
-          }
-          this.ngZone.run(() => {
-            this.setupComponent(key, surfaceId);
-          });
-        }
-      });
-      if (sub) {
-        this.surfaceSub = sub;
-        if (unsubscribed) {
-          this.surfaceSub.unsubscribe();
-          this.surfaceSub = undefined;
-        }
-      }
+      this.waitForSurface(key, surfaceId);
       return;
     }
 
-    let id: string;
-    let basePath: string;
-
-    if (typeof key === 'object' && key !== null && 'id' in key) {
-      id = key.id;
-      basePath = key.basePath || '/';
-    } else {
-      id = key;
-      basePath = '/';
-    }
-
+    const { id, basePath } = this.resolveKey(key);
     this.resolvedComponentId = id;
+
+    this.deleteSub = surface.componentsModel.onDeleted?.subscribe((deletedId) => {
+      if (deletedId === id) {
+        this.ngZone.run(() => {
+          this.handleComponentDeleted(surface, id, basePath);
+        });
+      }
+    });
 
     const componentModel = surface.componentsModel.get(id);
 
     if (!componentModel) {
       console.warn(`Component ${id} not found in surface ${surfaceId}. Waiting for it...`);
-
-      const sub = surface.componentsModel.onCreated.subscribe(comp => {
-        if (comp.id === id) {
-          this.initializeComponent(surface, comp, id, basePath);
-          sub.unsubscribe();
-        }
-      });
-      this.createSub = sub;
+      this.waitForComponent(surface, id, basePath);
       return;
     }
 
     this.initializeComponent(surface, componentModel, id, basePath);
+  }
+
+  private resolveKey(key: string | { id: string; basePath: string }): {
+    id: string;
+    basePath: string;
+  } {
+    if (typeof key === 'object' && key !== null && 'id' in key) {
+      return { id: key.id, basePath: key.basePath || '/' };
+    }
+    return { id: key, basePath: '/' };
+  }
+
+  private waitForSurface(key: string | { id: string; basePath: string }, surfaceId: string): void {
+    console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
+    this.surfaceSub?.unsubscribe();
+    let unsubscribed = false;
+    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe((s) => {
+      if (s.id === surfaceId) {
+        unsubscribed = true;
+        this.surfaceSub?.unsubscribe();
+        this.surfaceSub = undefined;
+        this.ngZone.run(() => {
+          this.setupComponent(key, surfaceId);
+        });
+      }
+    });
+    if (sub && !unsubscribed) {
+      this.surfaceSub = sub;
+    } else if (sub && unsubscribed) {
+      sub.unsubscribe();
+    }
+  }
+
+  private waitForComponent(
+    surface: SurfaceModel<AngularComponentImplementation>,
+    id: string,
+    basePath: string,
+  ): void {
+    this.createSub?.unsubscribe();
+    const sub = surface.componentsModel.onCreated.subscribe((comp) => {
+      if (comp.id === id) {
+        this.initializeComponent(surface, comp, id, basePath);
+        sub.unsubscribe();
+        if (this.createSub === sub) {
+          this.createSub = undefined;
+        }
+      }
+    });
+    this.createSub = sub;
+  }
+
+  private handleComponentDeleted(
+    surface: SurfaceModel<AngularComponentImplementation>,
+    id: string,
+    basePath: string,
+  ): void {
+    this.propsSub?.unsubscribe();
+    this.propsSub = undefined;
+    this.componentType.set(null);
+    this.props.set({});
+    if (this.mountedWcEl) {
+      this.mountedWcEl.remove();
+      this.mountedWcEl = null;
+    }
+    this.cdr.markForCheck();
+    this.waitForComponent(surface, id, basePath);
   }
 
   private initializeComponent(
@@ -192,8 +230,9 @@ export class ComponentHostComponent {
     id: string,
     basePath: string,
   ): void {
-    // Resolve component from the surface's catalog
-    const catalog = surface.defaultCatalog;
+    // Resolve component from the component's owning catalog (or fallback to surface's default catalog)
+    const catalog =
+      (componentModel.catalog as AngularCatalog | undefined) ?? surface.defaultCatalog;
     const componentImpl = catalog.components.get(componentModel.type);
 
     if (!componentImpl) {
@@ -205,10 +244,11 @@ export class ComponentHostComponent {
     this.resolvedDataContextPath = this.context.dataContext.path;
 
     // Entries from `createComponentImplementation` carry both an Angular component and a Custom
-    // Element; the flag picks which one to mount. Web Component-only entries render only with the
-    // flag on (their placeholder `component` reports the misconfiguration otherwise).
+    // Element; `useUniversalComponents` picks which one to mount. Web Component-only entries
+    // (`component === UniversalOnlyComponent`) automatically mount as Web Components.
     if (
-      this.rendererService.useUniversalComponents &&
+      (this.rendererService.useUniversalComponents ||
+        componentImpl.component === UniversalOnlyComponent) &&
       isWebComponentImplementation(componentImpl)
     ) {
       this.setupWebComponent(componentImpl, surface, componentModel, id, basePath);
@@ -228,6 +268,7 @@ export class ComponentHostComponent {
     this.componentType.set(componentClass);
     this.updateProps();
 
+    this.propsSub?.unsubscribe();
     this.propsSub = componentModel.onUpdated.subscribe(() => {
       this.ngZone.run(() => this.updateProps());
     });
@@ -267,6 +308,7 @@ export class ComponentHostComponent {
       this.elementRef.nativeElement.appendChild(el);
     }
 
+    this.propsSub?.unsubscribe();
     this.propsSub = componentModel.onUpdated.subscribe(() => {
       this.ngZone.run(() => {
         if (this.mountedWcEl) {
@@ -286,6 +328,8 @@ export class ComponentHostComponent {
     this.propsSub = undefined;
     this.createSub?.unsubscribe();
     this.createSub = undefined;
+    this.deleteSub?.unsubscribe();
+    this.deleteSub = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
 

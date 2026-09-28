@@ -14,10 +14,17 @@
  * limitations under the License.
  */
 
-import {Component, computed, ChangeDetectionStrategy, inject, signal, effect} from '@angular/core';
-import {MarkdownRenderer} from '../../core/markdown';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {
+  Component,
+  computed,
+  ChangeDetectionStrategy,
+  inject,
+  signal,
+  effect,
+} from '@angular/core';
+import { MarkdownRenderer } from '../../core/markdown';
+import { BasicCatalogComponent } from './basic-catalog-component';
+import { TextApi } from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Text component (v0.9).
@@ -164,7 +171,7 @@ export class TextComponent extends BasicCatalogComponent<typeof TextApi> {
       }
       const text = this.text();
       const requestId = ++this.renderRequestId;
-      this.markdownRenderer.render(text).then(rendered => {
+      this.markdownRenderer.render(text).then((rendered) => {
         if (requestId === this.renderRequestId) {
           this.resolvedText.set(rendered);
         }

@@ -19,11 +19,11 @@
  * See `scripts/closure-compiler/apply-closure-compiler.mjs` for compilation details, and
  * `scripts/closure-compiler/serve-dist.mjs` for local serving details.
  */
-import {test, expect, Page} from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 function setupErrorMonitoring(page: Page): string[] {
   const errors: string[] = [];
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     if (msg.type() === 'error') {
       const text = msg.text();
       // Ignore offline network errors from external font/resource loading in sandboxed test environments
@@ -32,7 +32,7 @@ function setupErrorMonitoring(page: Page): string[] {
       }
     }
   });
-  page.on('pageerror', err => {
+  page.on('pageerror', (err) => {
     errors.push(err.message);
   });
   return errors;
@@ -45,14 +45,16 @@ async function expectNoErrors(page: Page, errors: string[]): Promise<void> {
   expect(errors).toEqual([]);
 }
 
-test('renders dynamic component inputs correctly in minified production build', async ({page}) => {
+test('renders dynamic component inputs correctly in minified production build', async ({
+  page,
+}) => {
   const errors = setupErrorMonitoring(page);
 
   await page.goto('/');
   await expectNoErrors(page, errors);
 
   // Click on 'Simple Text' example in sidebar
-  await page.locator('.sidebar .example-list li', {hasText: 'Simple Text'}).click();
+  await page.locator('.sidebar .example-list li', { hasText: 'Simple Text' }).click();
 
   // In production builds with unquoted keys, the props object passed to NgComponentOutlet
   // gets minified (e.g. { a: props }), causing inputs to be silently ignored.
@@ -71,7 +73,9 @@ test('supports interactive forms, updateDataModel, and two-way data binding in m
   await expectNoErrors(page, errors);
 
   // Click on 'Login Form with Validation' example in sidebar, which explicitly sends updateDataModel
-  await page.locator('.sidebar .example-list li', {hasText: 'Login Form with Validation'}).click();
+  await page
+    .locator('.sidebar .example-list li', { hasText: 'Login Form with Validation' })
+    .click();
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Welcome back');
@@ -85,7 +89,7 @@ test('supports interactive forms, updateDataModel, and two-way data binding in m
   await passwordInput.fill('securepass123');
 
   // Trigger interactive action dispatch
-  await page.locator('.rendered-content button', {hasText: 'Sign in'}).click();
+  await page.locator('.rendered-content button', { hasText: 'Sign in' }).click();
 
   // Verify no runtime errors occurred during updateDataModel or interaction
   await expectNoErrors(page, errors);
@@ -100,7 +104,7 @@ test('supports string formatting and dynamic function evaluation in minified pro
   await expectNoErrors(page, errors);
 
   // Click on 'Formatted Text' example in sidebar
-  await page.locator('.sidebar .example-list li', {hasText: 'Formatted Text'}).click();
+  await page.locator('.sidebar .example-list li', { hasText: 'Formatted Text' }).click();
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Type something:');
@@ -122,14 +126,14 @@ test('populates events log correctly when interacting with buttons in minified p
   await expectNoErrors(page, errors);
 
   // Click on 'Interactive Button' example in sidebar
-  await page.locator('.sidebar .example-list li', {hasText: 'Interactive Button'}).click();
+  await page.locator('.sidebar .example-list li', { hasText: 'Interactive Button' }).click();
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Click the button below');
   await expectNoErrors(page, errors);
 
   // Click the button inside the rendered component
-  await page.locator('.rendered-content button', {hasText: 'Click Me'}).click();
+  await page.locator('.rendered-content button', { hasText: 'Click Me' }).click();
 
   // Verify that an event was recorded and displayed with valid details in the log
   const logItem = page.locator('.events-section .log-item').first();
@@ -154,14 +158,14 @@ test('renders Weather Current with date formatting in minified production build'
   await expectNoErrors(page, errors);
 
   // Click on 'Weather Current' example in sidebar
-  await page.locator('.sidebar .example-list li', {hasText: 'Weather Current'}).click();
+  await page.locator('.sidebar .example-list li', { hasText: 'Weather Current' }).click();
 
   const canvas = page.locator('.rendered-content');
   await expect(canvas).toContainText('Austin, TX');
   await expectNoErrors(page, errors);
 
   // Check that day names (from formatDate function call) are rendered
-  const hasDayName = await canvas.evaluate(el => {
+  const hasDayName = await canvas.evaluate((el) => {
     const text = el.textContent || '';
     return (
       text.includes('Tue') ||
@@ -177,7 +181,9 @@ test('renders Weather Current with date formatting in minified production build'
   await expectNoErrors(page, errors);
 });
 
-test('renders Incremental example without errors in minified production build', async ({page}) => {
+test('renders Incremental example without errors in minified production build', async ({
+  page,
+}) => {
   const errors = setupErrorMonitoring(page);
 
   await page.goto('/');
@@ -186,7 +192,7 @@ test('renders Incremental example without errors in minified production build', 
   // Click on 'Incremental' example in sidebar
   await page
     .locator('.sidebar .example-list li')
-    .filter({has: page.locator('.ex-name', {hasText: /^Incremental$/})})
+    .filter({ has: page.locator('.ex-name', { hasText: /^Incremental$/ }) })
     .click();
 
   const canvas = page.locator('.rendered-content');
@@ -207,7 +213,7 @@ test('renders native Angular container grid with native and universal children i
   // Click on 'Native Grid' example in sidebar
   await page
     .locator('.sidebar .example-list li')
-    .filter({has: page.locator('.ex-name', {hasText: /Native Grid/i})})
+    .filter({ has: page.locator('.ex-name', { hasText: /Native Grid/i }) })
     .click();
 
   const canvas = page.locator('.rendered-content');

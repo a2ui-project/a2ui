@@ -18,6 +18,7 @@
 **/lib
 **/.wireit
 **/*.tsbuildinfo
+**/.playwright
 .git
 .dart_tool
 .venv

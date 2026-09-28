@@ -21,9 +21,9 @@ import {
   Signal as AngularSignal,
   EnvironmentInjector,
 } from '@angular/core';
-import {ComponentContext, computed} from '@a2ui/web_core/v0_9';
-import {BoundProperty, ComponentTemplate} from './types';
-import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
+import { ComponentContext, computed } from '@a2ui/web_core/v0_9';
+import { BoundProperty, ComponentTemplate } from './types';
+import { assertAngularSignal, initializeAngularReactivity } from './reactivity';
 
 /** Represents a reference to a child component. */
 export interface Child {
@@ -61,116 +61,178 @@ export class ComponentBinder {
 
     for (const key of Object.keys(props)) {
       const value = props[key];
-      let template: ComponentTemplate | undefined = undefined;
-
-      let valueSignal;
-      const isChildListTemplate =
-        value && typeof value === 'object' && 'componentId' in value && 'path' in value;
-      const isBoundPath =
-        value && typeof value === 'object' && 'path' in value && !('componentId' in value);
-
-      if (isChildListTemplate) {
-        const listSig = context.dataContext.resolveSignal({path: value.path});
-        assertAngularSignal(listSig);
-
-        const listContext = context.dataContext.nested(value.path);
-        valueSignal = computed(() => {
-          const arr = listSig();
-          const currentArr = Array.isArray(arr) ? arr : [];
-          return currentArr.map((_, i) => ({
-            id: value.componentId,
-            basePath: listContext.nested(String(i)).path,
-          }));
-        });
-      } else {
-        valueSignal = context.dataContext.resolveSignal(value);
-      }
-
-      if (['child', 'trigger', 'content'].includes(key)) {
-        const originalSig = valueSignal;
-        assertAngularSignal(originalSig);
-
-        valueSignal = computed(() => {
-          const val = originalSig();
-          if (!val) return null;
-          if (typeof val === 'object' && val !== null && 'id' in val) {
-            return val;
-          }
-          return {id: val, basePath: context.dataContext.path};
-        });
-      } else if (key === 'children') {
-        const originalSig = valueSignal;
-        assertAngularSignal(originalSig);
-        const id = value?.componentId;
-        const path = value?.path;
-        if (id && path) {
-          template = {id, path};
-        }
-        valueSignal = computed(() => {
-          const val = originalSig();
-          const arr = Array.isArray(val) ? val : [];
-          return arr.map(item => {
-            if (typeof item === 'object' && item !== null && 'id' in item) {
-              return item;
-            }
-            return {id: item, basePath: context.dataContext.path};
-          });
-        });
-      }
-
-      if (valueSignal?.unsubscribe) {
-        this.destroyRef.onDestroy(() => valueSignal.unsubscribe!());
-      }
-
-      bound[key] = {
-        value: valueSignal as AngularSignal<unknown>,
-        raw: value,
-        template,
-        onUpdate: isBoundPath
-          ? (newValue: unknown) => context.dataContext.set(value.path, newValue)
-          : () => {}, // No-op for non-bound values
-      };
+      bound[key] = this.bindProperty(key, value, context);
 
       if (key === 'checks') {
-        const checksArray = Array.isArray(value) ? value : [];
-
-        const ruleResults = checksArray.map(rule => {
-          const condition = rule.condition || rule;
-          const message = rule.message || 'Validation failed';
-          const conditionSig = context.dataContext.resolveSignal(condition);
-          return {conditionSig, message};
-        });
-
-        const isValidSignal = computed(() => {
-          return ruleResults.every(r => {
-            assertAngularSignal(r.conditionSig);
-            return !!r.conditionSig();
-          });
-        });
-
-        const validationErrorsSignal = computed(() => {
-          return ruleResults
-            .filter(r => {
-              assertAngularSignal(r.conditionSig);
-              return !r.conditionSig();
-            })
-            .map(r => r.message);
-        });
-
-        bound['isValid'] = {
-          value: isValidSignal as AngularSignal<boolean>,
-          raw: null,
-          onUpdate: () => {},
-        };
-
-        bound['validationErrors'] = {
-          value: validationErrorsSignal as AngularSignal<unknown>,
-          raw: null,
-          onUpdate: () => {},
-        };
+        const checkProps = this.bindChecks(value, context);
+        bound['isValid'] = checkProps.isValid;
+        bound['validationErrors'] = checkProps.validationErrors;
       }
     }
 
     return bound;
+  }
+
+  private bindProperty(key: string, value: any, context: ComponentContext): BoundProperty<unknown> {
+    const isChildListTemplate =
+      value && typeof value === 'object' && 'componentId' in value && 'path' in value;
+    const isBoundPath =
+      value && typeof value === 'object' && 'path' in value && !('componentId' in value);
+
+    const baseSignal = isChildListTemplate
+      ? this.createChildListSignal(value, context)
+      : context.dataContext.resolveSignal(value);
+
+    const { valueSignal, template } = this.transformStructuralSignal(
+      key,
+      value,
+      baseSignal,
+      context,
+    );
+
+    if (valueSignal?.unsubscribe) {
+      this.destroyRef.onDestroy(() => valueSignal.unsubscribe!());
+    }
+
+    return {
+      value: valueSignal as AngularSignal<unknown>,
+      raw: value,
+      template,
+      onUpdate: isBoundPath
+        ? (newValue: unknown) => context.dataContext.set(value.path, newValue)
+        : () => {}, // No-op for non-bound values
+    };
+  }
+
+  private createChildListSignal(
+    value: { componentId: string; path: string },
+    context: ComponentContext,
+  ) {
+    const listSig = context.dataContext.resolveSignal({ path: value.path });
+    assertAngularSignal(listSig);
+
+    const listContext = context.dataContext.nested(value.path);
+    return computed(() => {
+      const arr = listSig();
+      const currentArr = Array.isArray(arr) ? arr : [];
+      return currentArr.map((_, i) => ({
+        id: value.componentId,
+        basePath: listContext.nested(String(i)).path,
+      }));
+    });
+  }
+
+  private transformStructuralSignal(
+    key: string,
+    value: any,
+    valueSignal: any,
+    context: ComponentContext,
+  ): { valueSignal: any; template: ComponentTemplate | undefined } {
+    if (['child', 'trigger', 'content'].includes(key)) {
+      assertAngularSignal(valueSignal);
+      return {
+        template: undefined,
+        valueSignal: computed(() =>
+          this.normalizeChildItem(valueSignal(), context.dataContext.path),
+        ),
+      };
+    }
+
+    if (key === 'children') {
+      assertAngularSignal(valueSignal);
+      const id = value?.componentId;
+      const path = value?.path;
+      const template = id && path ? { id, path } : undefined;
+      return {
+        template,
+        valueSignal: computed(() => {
+          const val = valueSignal();
+          const arr = Array.isArray(val) ? val : [];
+          return arr.map((item) => this.normalizeChildItem(item, context.dataContext.path));
+        }),
+      };
+    }
+
+    return { valueSignal, template: undefined };
+  }
+
+  private normalizeChildItem(val: unknown, basePath: string): unknown {
+    if (!val) return null;
+    if (typeof val === 'object' && 'id' in val) {
+      return val;
+    }
+    return { id: val, basePath };
+  }
+
+  private bindChecks(
+    value: unknown,
+    context: ComponentContext,
+  ): { isValid: BoundProperty<unknown>; validationErrors: BoundProperty<unknown> } {
+    const checksArray = Array.isArray(value) ? value : [];
+
+    const ruleResults = checksArray.map((rule) => {
+      const condition = rule.condition ?? rule;
+      const message = rule.message ?? 'Validation failed';
+      const conditionSig = context.dataContext.resolveSignal(condition);
+      const messageSig = context.dataContext.resolveSignal(message);
+      return { conditionSig, messageSig };
+    });
+
+    const isValidSignal = computed(() =>
+      ruleResults.every(
+        (r) => !this.evaluateCheckRule(r.conditionSig, r.messageSig).isBlockingError,
+      ),
+    );
+
+    const validationErrorsSignal = computed(() => {
+      const errors: string[] = [];
+      for (const r of ruleResults) {
+        const result = this.evaluateCheckRule(r.conditionSig, r.messageSig);
+        if (result.isBlockingError) {
+          errors.push(result.errorMessage);
+        }
+      }
+      return errors;
+    });
+
+    return {
+      isValid: {
+        value: isValidSignal as AngularSignal<unknown>,
+        raw: null,
+        onUpdate: () => {},
+      },
+      validationErrors: {
+        value: validationErrorsSignal as AngularSignal<unknown>,
+        raw: null,
+        onUpdate: () => {},
+      },
+    };
+  }
+
+  private evaluateCheckRule(
+    conditionSig: unknown,
+    messageSig: unknown,
+  ): { isBlockingError: boolean; errorMessage: string } {
+    assertAngularSignal(conditionSig);
+    assertAngularSignal(messageSig);
+    const rawResult = conditionSig();
+
+    if (typeof rawResult === 'object' && rawResult !== null && 'valid' in rawResult) {
+      const resObj = rawResult as Record<string, unknown>;
+      const isValid = Boolean(resObj['valid']);
+      const severity = typeof resObj['severity'] === 'string' ? resObj['severity'] : 'error';
+      const dynamicMsg =
+        typeof resObj['message'] === 'string' && resObj['message'] ? resObj['message'] : undefined;
+      return {
+        isBlockingError: !isValid && severity === 'error',
+        errorMessage: dynamicMsg || (messageSig() as string) || 'Validation failed',
+      };
+    }
+
+    const isValid = Boolean(rawResult);
+    return {
+      isBlockingError: !isValid,
+      errorMessage: (messageSig() as string) || 'Validation failed',
+    };
   }
 }

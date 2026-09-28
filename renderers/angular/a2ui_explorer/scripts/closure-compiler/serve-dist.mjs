@@ -22,7 +22,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import {fileURLToPath} from 'url';
+import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(__dirname, '../../dist/browser');
@@ -52,7 +52,7 @@ const server = http.createServer((req, res) => {
   try {
     pathname = decodeURIComponent(req.url.split('?')[0]);
   } catch {
-    res.writeHead(400, {'Content-Type': 'text/plain'});
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end('Bad Request: Malformed URI');
     return;
   }
@@ -70,13 +70,13 @@ const server = http.createServer((req, res) => {
       res.writeHead(500);
       res.end(`Server Error: ${err.code}`);
     } else {
-      res.writeHead(200, {'Content-Type': contentType});
+      res.writeHead(200, { 'Content-Type': contentType });
       res.end(content, 'utf-8');
     }
   });
 });
 
-server.on('error', err => {
+server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`\n[Error] Port ${port} is already in use.`);
     console.error(`Another server instance is already running on http://localhost:${port}.`);
@@ -91,7 +91,7 @@ server.listen(port, () => {
   console.log(`Static server listening on http://localhost:${port}`);
 });
 
-const shutdown = signal => {
+const shutdown = (signal) => {
   console.log(`\nReceived ${signal}, shutting down server on http://localhost:${port}...`);
   if (typeof server.closeAllConnections === 'function') {
     server.closeAllConnections();

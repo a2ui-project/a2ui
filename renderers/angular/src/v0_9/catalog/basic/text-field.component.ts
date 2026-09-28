@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
+import { BasicCatalogComponent } from './basic-catalog-component';
+import { TextFieldApi } from '@a2ui/web_core/v0_9/basic_catalog';
+import { BoundProperty } from '../../core/types';
 
 /**
  * Angular implementation of the A2UI TextField component (v0.9).
@@ -47,6 +48,7 @@ import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
       <input
         [type]="inputType()"
         [value]="value()"
+        [attr.placeholder]="placeholder()"
         (input)="handleInput($event)"
         [class.invalid]="props()['isValid']?.value() === false"
       />
@@ -97,6 +99,12 @@ export class TextFieldComponent extends BasicCatalogComponent<typeof TextFieldAp
   readonly label = computed(() => this.props()['label']?.value());
   readonly value = computed(() => this.props()['value']?.value() || '');
   readonly variant = computed(() => this.props()['variant']?.value());
+  readonly placeholder = computed(
+    () =>
+      (this.props() as unknown as Record<string, BoundProperty<string | undefined>>)[
+        'placeholder'
+      ]?.value() ?? null,
+  );
 
   readonly inputType = computed(() => {
     switch (this.variant()) {

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {Component, input} from '@angular/core';
-import {By} from '@angular/platform-browser';
-import {ModalComponent} from './modal.component';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Component, input } from '@angular/core';
+import { By } from '@angular/platform-browser';
+import { ModalComponent } from './modal.component';
+import { ComponentModel } from '@a2ui/web_core/v0_9';
+import { A2uiRendererService } from '../../core/a2ui-renderer.service';
+import { ComponentBinder } from '../../core/component-binder.service';
+import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
 
 @Component({
   selector: 'dummy-text-for-modal',
@@ -44,7 +44,7 @@ describe('ModalComponent', () => {
   beforeEach(async () => {
     const mockCatalog = {
       id: 'mock-catalog',
-      components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
+      components: new Map([['Text', { type: 'Text', component: DummyTextComponent }]]),
     } as any;
 
     const mockRendererService = {
@@ -53,11 +53,16 @@ describe('ModalComponent', () => {
           componentsModel: new Map([
             [
               'trigger-btn',
-              new ComponentModel('trigger-btn', 'Text', {text: {value: 'Open'}}, mockCatalog),
+              new ComponentModel('trigger-btn', 'Text', { text: { value: 'Open' } }, mockCatalog),
             ],
             [
               'modal-content',
-              new ComponentModel('modal-content', 'Text', {text: {value: 'Modal'}}, mockCatalog),
+              new ComponentModel(
+                'modal-content',
+                'Text',
+                { text: { value: 'Modal' } },
+                mockCatalog,
+              ),
             ],
           ]),
           defaultCatalog: mockCatalog,
@@ -70,8 +75,8 @@ describe('ModalComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ModalComponent],
       providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
+        { provide: A2uiRendererService, useValue: mockRendererService },
+        { provide: ComponentBinder, useValue: mockBinder },
       ],
     }).compileComponents();
 
@@ -92,8 +97,8 @@ describe('ModalComponent', () => {
   it('should render trigger and open modal on click', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      trigger: createBoundProperty({id: 'trigger-btn', basePath: '/'}),
-      content: createBoundProperty({id: 'modal-content', basePath: '/'}),
+      trigger: createBoundProperty({ id: 'trigger-btn', basePath: '/' }),
+      content: createBoundProperty({ id: 'modal-content', basePath: '/' }),
     });
     fixture.detectChanges();
     const triggerHost = fixture.debugElement.query(
@@ -123,8 +128,8 @@ describe('ModalComponent', () => {
   it('should close modal when close button clicked', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      trigger: createBoundProperty({id: 'trigger-btn', basePath: '/'}),
-      content: createBoundProperty({id: 'modal-content', basePath: '/'}),
+      trigger: createBoundProperty({ id: 'trigger-btn', basePath: '/' }),
+      content: createBoundProperty({ id: 'modal-content', basePath: '/' }),
     });
     fixture.detectChanges();
 
@@ -140,8 +145,8 @@ describe('ModalComponent', () => {
   it('should close modal when overlay clicked', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      trigger: createBoundProperty({id: 'trigger-btn', basePath: '/'}),
-      content: createBoundProperty({id: 'modal-content', basePath: '/'}),
+      trigger: createBoundProperty({ id: 'trigger-btn', basePath: '/' }),
+      content: createBoundProperty({ id: 'modal-content', basePath: '/' }),
     });
     fixture.detectChanges();
 
