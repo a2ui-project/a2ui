@@ -439,74 +439,61 @@ export class GenericBinder<T> {
    * against the current data context without creating persistent reactive subscriptions.
    *
    * @param val Raw value, nested object, or dynamic expression to evaluate.
-   * @param isActionRoot When true, preserves action wrappers (`functionCall`, `event`,
-   *   `call`, `name`) while resolving nested arguments/context, ensuring actions are
-   *   evaluated at invocation time rather than immediately flattened.
+   * @param depth Current recursion depth, bounded by MAX_DYNAMIC_VALUE_DEPTH.
    * @returns Evaluated data structure with dynamic expressions resolved.
    */
-  private resolveDeepSync(val: unknown, isActionRoot = true, depth = 0): unknown {
+  private resolveDeepSync(val: unknown, depth = 0): unknown {
     if (typeof val !== 'object' || val === null) return val;
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
-
-    if (isActionRoot) {
-      const obj = val as Record<string, unknown>;
-      if (
-        'functionCall' in obj &&
-        typeof obj.functionCall === 'object' &&
-        obj.functionCall !== null
-      ) {
-        const fc = obj.functionCall as Record<string, unknown>;
-        return {
-          functionCall: {
-            ...fc,
-            args: fc.args
-              ? (this.resolveDeepSync(fc.args, false, depth + 1) as Record<string, unknown>)
-              : undefined,
-          },
-        };
-      }
-      if ('event' in obj && typeof obj.event === 'object' && obj.event !== null) {
-        const ev = obj.event as Record<string, unknown>;
-        const resolvedEvent: Record<string, unknown> = {
-          ...ev,
-          context: ev.context
-            ? (this.resolveDeepSync(ev.context, false, depth + 1) as Record<string, unknown>)
-            : undefined,
-        };
-        // `userMessage` is a DynamicString; the agent expects it already
-        // resolved to a plain string.
-        if (ev['userMessage'] !== undefined) {
-          resolvedEvent['userMessage'] = this.resolveDeepSync(ev['userMessage'], false, depth + 1);
-        }
-        return {event: resolvedEvent};
-      }
-      if ('call' in obj) {
-        return {
-          ...obj,
-          args: obj.args
-            ? (this.resolveDeepSync(obj.args, false, depth + 1) as Record<string, unknown>)
-            : undefined,
-        };
-      }
-      if ('name' in obj) {
-        return {
-          ...obj,
-          context: obj.context
-            ? (this.resolveDeepSync(obj.context, false, depth + 1) as Record<string, unknown>)
-            : undefined,
-        };
-      }
-    }
 
     if ('path' in val || 'call' in val) {
       return this.context.dataContext.resolveDynamicValue(val, depth);
     }
-    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, false, depth + 1));
+    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, depth + 1));
     const res: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val)) {
-      res[k] = this.resolveDeepSync(v, false, depth + 1);
+      res[k] = this.resolveDeepSync(v, depth + 1);
     }
     return res;
+  }
+
+  /**
+   * Resolves a server-bound `event` action payload at invocation time, preserving
+   * the `event` wrapper while evaluating nested `context` and `userMessage` fields.
+   */
+  private resolveEventAction(val: unknown): Action | Record<string, unknown> {
+    if (typeof val !== 'object' || val === null) {
+      return val as Record<string, unknown>;
+    }
+    const obj = val as Record<string, unknown>;
+    if ('event' in obj && typeof obj.event === 'object' && obj.event !== null) {
+      const ev = obj.event as Record<string, unknown>;
+      const resolvedEvent: Record<string, unknown> = {
+        ...ev,
+        context: ev.context
+          ? (this.resolveDeepSync(ev.context, 1) as Record<string, unknown>)
+          : undefined,
+      };
+      // `userMessage` is a DynamicString; the agent expects it already
+      // resolved to a plain string.
+      if (ev['userMessage'] !== undefined) {
+        resolvedEvent['userMessage'] = this.resolveDeepSync(ev['userMessage'], 1);
+      }
+      return {...obj, event: resolvedEvent};
+    }
+    if ('name' in obj) {
+      const resolved: Record<string, unknown> = {
+        ...obj,
+        context: obj.context
+          ? (this.resolveDeepSync(obj.context, 1) as Record<string, unknown>)
+          : undefined,
+      };
+      if (obj['userMessage'] !== undefined) {
+        resolved['userMessage'] = this.resolveDeepSync(obj['userMessage'], 1);
+      }
+      return resolved;
+    }
+    return this.resolveDeepSync(val, 0) as Action | Record<string, unknown>;
   }
 
   private bindAction(value: unknown, path: string[]): () => void {
@@ -516,7 +503,18 @@ export class GenericBinder<T> {
       return cached.closure;
     }
     const closure = () => {
-      this.context.dispatchAction(this.resolveDeepSync(value) as Action | Record<string, unknown>);
+      if (value && typeof value === 'object') {
+        const valObj = value as Record<string, unknown>;
+        const fc =
+          valObj.functionCall && typeof valObj.functionCall === 'object'
+            ? (valObj.functionCall as Record<string, unknown>)
+            : valObj;
+        if (typeof fc.call === 'string') {
+          this.context.dataContext.resolveDynamicValue(fc);
+          return;
+        }
+      }
+      this.context.dispatchAction(this.resolveEventAction(value));
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
