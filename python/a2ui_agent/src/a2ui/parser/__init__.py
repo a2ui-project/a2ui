@@ -11,7 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from .errors import (
+    A2uiCompilationError,
+    A2uiCompilationParseError,
+    A2uiCompilationValidationError,
+)
 from .parser import Parser, parse_response
 from .payload_fixer import parse_and_fix
+from .response_part import ResponsePart
 
-__all__ = ["Parser", "parse_and_fix", "parse_response"]
+__all__ = [
+    "A2uiCompilationError",
+    "A2uiCompilationParseError",
+    "A2uiCompilationValidationError",
+    "Parser",
+    "ResponsePart",
+    "parse_and_fix",
+    "parse_response",
+]

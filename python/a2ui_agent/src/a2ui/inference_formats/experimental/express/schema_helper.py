@@ -20,7 +20,7 @@ signatures, and requirements directly from standard catalog JSON schemas.
 
 from typing import Any
 from a2ui.core import Catalog
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema import A2uiCatalog
 
 
 class CatalogSchemaHelper:

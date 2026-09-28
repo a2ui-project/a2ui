@@ -59,7 +59,7 @@ from a2ui.a2a.extension import (
     AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
     AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
 )
-from a2ui.a2a.parts import is_a2ui_part
+from a2ui.a2a import is_a2ui_part
 from a2ui.schema.constants import (
     A2UI_CLIENT_CAPABILITIES_KEY,
     A2UI_CLIENT_DATA_MODEL_KEY,
@@ -74,7 +74,7 @@ from a2ui.schema.constants import (
     A2UI_DELETE_SURFACE_KEY,
 )
 
-from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+from a2ui.adk.orchestration import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 

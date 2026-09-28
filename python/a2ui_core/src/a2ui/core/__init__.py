@@ -36,6 +36,7 @@ from a2ui.core.processing import (
     MessageProcessor as MessageProcessor,
     MessageProcessorOptions as MessageProcessorOptions,
 )
+from a2ui.core.resolution import DataContext as DataContext
 from a2ui.core.rpc import CallOptions as CallOptions, RpcHandler as RpcHandler
 from a2ui.core.state import (
     ComponentModel as ComponentModel,
@@ -66,6 +67,7 @@ __all__ = [
     "CapabilitiesOptions",
     "Catalog",
     "ComponentModel",
+    "DataContext",
     "DataModel",
     "ExecutionContext",
     "MessageProcessor",

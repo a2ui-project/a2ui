@@ -16,9 +16,8 @@
 
 from typing import Any
 from a2ui.core import Catalog
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.parser.response_part import ResponsePart
-from a2ui.parser import Parser
+from a2ui.parser import Parser, ResponsePart
+from a2ui.schema import A2uiCatalog
 from google.adk.utils.feature_decorator import experimental
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .compiler import ElementalCompiler
@@ -95,7 +94,7 @@ class ElementalParser(Parser):
         Raises:
             A2uiCompilationError: If compilation or schema validation fails.
         """
-        from a2ui.parser.errors import A2uiCompilationError
+        from a2ui.parser import A2uiCompilationError
 
         if not is_final:
             stripped = format_content.strip()

@@ -23,7 +23,7 @@ import re
 from html.parser import HTMLParser
 from typing import Any
 from a2ui.core import Catalog
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema import A2uiCatalog
 from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
 )

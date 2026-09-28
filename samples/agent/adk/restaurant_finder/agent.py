@@ -44,8 +44,7 @@ from prompt_builder import (
 from tools import get_restaurants
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser import parse_response
-from a2ui.parser.response_part import ResponsePart
+from a2ui.parser import ResponsePart, parse_response
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
@@ -53,8 +52,11 @@ from a2ui.schema import (
     VERSION_0_9,
     remove_strict_validation,
 )
-from a2ui.a2a.extension import get_a2ui_agent_extension
-from a2ui.a2a.parts import parse_response_to_parts, stream_response_to_parts
+from a2ui.a2a import (
+    get_a2ui_agent_extension,
+    parse_response_to_parts,
+    stream_response_to_parts,
+)
 
 logger = logging.getLogger(__name__)
 
