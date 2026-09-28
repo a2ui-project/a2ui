@@ -201,6 +201,10 @@ describe('ExpressionParser', () => {
     assert.deepStrictEqual(parser.parseExpression('/items/.5'), {path: '/items/.5'});
   });
 
+  it('treats a sign not followed by a digit as a path', () => {
+    assert.deepStrictEqual(parser.parseExpression('-a'), {path: '-a'});
+  });
+
   it('rejects malformed leading-dot numeric literals', () => {
     for (const expr of ['.5.5', '-.5e', '.5e+']) {
       assert.throws(() => parser.parseExpression(expr), /Invalid number literal/, expr);

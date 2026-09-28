@@ -170,9 +170,15 @@ struct ExpressionParserTests {
     )
   }
 
-  @Test(arguments: [".foo", "./x", "-.", ".e5", "a-1", "a.5", "/items/.5", "-foo"])
+  @Test(arguments: [".foo", "./x", "-.", ".e5", "a-1", "a.5", "/items/.5", "-a", "-foo"])
   func keepsPathsThatStartWithOrContainASignOrDot(expr: String) throws {
     #expect(try parser.parseExpression(expr) == .object(["path": .string(expr)]))
+  }
+
+  @Test func parsesLeadingZerosAndMaxSafeIntegers() throws {
+    #expect(try parser.parseExpression("007") == .integer(7))
+    #expect(try parser.parseExpression("9007199254740991") == .integer(9_007_199_254_740_991))
+    #expect(try parser.parseExpression("-9007199254740991") == .integer(-9_007_199_254_740_991))
   }
 
   @Test(arguments: ["1.2.3", ".5.5", "1e", "-.5e", ".5e+", "-1x"])

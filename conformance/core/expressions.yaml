@@ -321,6 +321,81 @@
     category: "ParseError"
     message: "Invalid number literal"
 
+- name: test_expr_positive_integer_literal
+  description: An integer literal with a leading plus sign is parsed as a number.
+  action: parse_expression_template
+  input: "${+1}"
+  expect: [1]
+
+- name: test_expr_hyphen_inside_path
+  description: A hyphen after an identifier character stays part of the path token.
+  action: parse_expression_template
+  input: "${a-1}"
+  expect: [{path: "a-1"}]
+
+- name: test_expr_hyphen_before_non_digit_is_a_path
+  description: A leading hyphen not followed by a digit or a dot-and-digit stays a path.
+  action: parse_expression_template
+  input: "${-a}"
+  expect: [{path: "-a"}]
+
+- name: test_expr_error_exponent_without_digits
+  description: A number literal whose exponent has no digits is rejected.
+  action: parse_expression_template
+  input: "${1e}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
+
+# Number literal range. Every engine returns an integer literal within
+# ±(2^53 - 1) exactly; RFC 8259 section 6 names that range as the one JSON
+# implementations agree on. Larger integers are not portable: TypeScript
+# rounds them to the nearest double, Dart and Swift keep them exact up to
+# 2^63 - 1, and Python keeps them exact at any size. A literal outside the
+# double range is an error in every engine.
+
+- name: test_expr_max_safe_integer_literals
+  description: Integer literals at ±(2^53 - 1) are returned with exact value in every engine.
+  action: parse_expression_template
+  input: "${9007199254740991} ${-9007199254740991}"
+  expect: [9007199254740991, " ", -9007199254740991]
+
+- name: test_expr_largest_exponent_literal
+  description: A number literal near the top of the double range is accepted.
+  action: parse_expression_template
+  input: "${1e308}"
+  expect: [1.0e+308]
+
+- name: test_expr_exponent_underflow_is_zero
+  description: A number literal that underflows the double range evaluates to zero.
+  action: parse_expression_template
+  input: "${1e-999}"
+  expect: [0]
+
+- name: test_expr_error_exponent_out_of_range
+  description: A positive exponent literal that overflows the double range is rejected.
+  action: parse_expression_template
+  input: "${1e999}"
+  expect_error:
+    category: "ParseError"
+    message: "out of range"
+
+- name: test_expr_error_negative_exponent_out_of_range
+  description: A negative number literal that overflows the double range is rejected.
+  action: parse_expression_template
+  input: "${-1e999}"
+  expect_error:
+    category: "ParseError"
+    message: "out of range"
+
+- name: test_expr_error_integer_out_of_range
+  description: An integer literal of 10^309 is outside the double range and is rejected.
+  action: parse_expression_template
+  input: "${1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}"
+  expect_error:
+    category: "ParseError"
+    message: "out of range"
+
 - name: test_expression_parser_string_interpolation_multiple_bindings
   description: Verifies ${/path} interpolation across multiple variables and static text.
   catalog:

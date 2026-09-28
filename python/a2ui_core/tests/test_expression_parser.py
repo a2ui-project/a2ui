@@ -182,6 +182,10 @@ def test_keeps_paths_that_start_with_or_contain_a_dot_unchanged(parser, expr):
     assert parser.parse_expression(expr) == {"path": expr}
 
 
+def test_treats_a_sign_not_followed_by_a_digit_as_a_path(parser):
+    assert parser.parse_expression("-a") == {"path": "-a"}
+
+
 @pytest.mark.parametrize("expr", [".5.5", "-.5e", ".5e+"])
 def test_rejects_malformed_leading_dot_numeric_literals(parser, expr):
     with pytest.raises(A2uiExpressionError, match="Invalid number literal"):
