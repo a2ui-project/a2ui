@@ -23,6 +23,7 @@ export default defineConfig([
       index: 'src/index.ts',
       'v0_8/index': 'src/v0_8/index.ts',
       'v0_9/index': 'src/v0_9/index.ts',
+      'v1_0/index': 'src/v1_0/index.ts',
     },
     format: ['esm', 'cjs'],
     dts: true,
@@ -30,7 +31,7 @@ export default defineConfig([
     sourcemap: true,
     clean: true,
     treeshake: true,
-    external: ['react', 'react-dom', 'markdown-it'],
+    external: ['react', 'react-dom', 'react-dom/client', 'markdown-it'],
     esbuildOptions(options) {
       options.jsx = 'automatic';
     },

@@ -21,9 +21,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useSyncExternalStore,
 } from 'react';
 import {
+  type Catalog,
   ComponentContext,
   type ComponentNode,
   isComponentNode,
@@ -36,22 +38,32 @@ import {
   type Signal,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
+import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {
+  isWebComponentImplementation,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '@a2ui/web_core/v0_9/universal';
+import {renderMarkdown} from '@a2ui/markdown-it';
 import type {ReactComponentImplementation} from './adapter';
+import {useMarkdownRenderer} from './catalog/basic/context/MarkdownContext';
+
+export type AnyComponentImplementation = ReactComponentImplementation | WebComponentImplementation;
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
 export type NodeBuildChild = (
-  child: ComponentNode<ReactComponentImplementation> | string,
+  child: ComponentNode<AnyComponentImplementation> | string,
   basePath?: string,
 ) => React.ReactNode;
 
 /** What a component implementation's `view` receives from the node surface. */
 export type NodeViewProps = {
-  node: ComponentNode<ReactComponentImplementation>;
+  node: ComponentNode<AnyComponentImplementation>;
   buildChild: NodeBuildChild;
 };
 
 /** The surface a node view renders under, provided by `A2uiSurface`. */
-export const NodeSurfaceContext = createContext<SurfaceModel<ReactComponentImplementation> | null>(
+export const NodeSurfaceContext = createContext<SurfaceModel<AnyComponentImplementation> | null>(
   null,
 );
 
@@ -61,7 +73,7 @@ export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId
 );
 
 /** Unresolved-reference reports already dispatched, per surface. */
-const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation>, Set<string>>();
+const reportedUnresolved = new WeakMap<SurfaceModel<AnyComponentImplementation>, Set<string>>();
 
 /**
  * The in-tree notice for a child reference the resolver built no node for.
@@ -72,7 +84,7 @@ const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation
  * that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation> | null;
+  surface: SurfaceModel<AnyComponentImplementation> | null;
   id: string;
   requestedPath: string;
   detail: string;
@@ -110,7 +122,7 @@ export function useSignalValue<T>(signal: Signal<T>): T {
 }
 
 /** Child nodes of one view, keyed by id, then by the child's data path. */
-type ChildMap = Map<string, Map<string, ComponentNode<ReactComponentImplementation>>>;
+type ChildMap = Map<string, Map<string, ComponentNode<AnyComponentImplementation>>>;
 
 /**
  * The two id namespaces `buildChild` callers use. Views hand back the tokens
@@ -132,7 +144,7 @@ function newChildIndex(): ChildIndex {
 function setChild(
   map: ChildMap,
   id: string,
-  child: ComponentNode<ReactComponentImplementation>,
+  child: ComponentNode<AnyComponentImplementation>,
   firstWins: boolean,
 ): void {
   let byPath = map.get(id);
@@ -155,7 +167,7 @@ function setChild(
  */
 function registerChild(
   index: ChildIndex,
-  child: ComponentNode<ReactComponentImplementation>,
+  child: ComponentNode<AnyComponentImplementation>,
 ): string {
   setChild(index.byToken, child.instanceId, child, false);
   setChild(index.byId, child.componentId, child, true);
@@ -171,9 +183,7 @@ function registerChild(
  */
 function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): unknown {
   if (isComponentNode(value)) {
-    // Every node in this surface's props came from its own resolver, whose
-    // catalog carries ReactComponentImplementation entries.
-    const token = registerChild(index, value as ComponentNode<ReactComponentImplementation>);
+    const token = registerChild(index, value as ComponentNode<AnyComponentImplementation>);
     if (value.dataPath !== parent.dataPath) {
       return {id: token, basePath: value.dataPath};
     }
@@ -307,3 +317,204 @@ export function useNodeView(
   }
   return {viewProps, context, viewBuildChild, rawBuildChild};
 }
+
+/** Recursively flushes pending Lit updates on a Custom Element subtree. */
+export function flushLitUpdates(root: Element): void {
+  const maybeLit = root as Element & {isUpdatePending?: boolean; performUpdate?: () => void};
+  if (maybeLit.isUpdatePending && typeof maybeLit.performUpdate === 'function') {
+    maybeLit.performUpdate();
+  }
+  for (const child of Array.from(root.children)) {
+    flushLitUpdates(child);
+  }
+}
+
+/** Mounts a universal Custom Element (`WebComponentImplementation`) inside the React tree. */
+export const WebComponentNodeView: React.FC<{
+  surface: SurfaceModel<AnyComponentImplementation>;
+  node: {readonly componentId: string; readonly dataPath: string};
+  impl: WebComponentImplementation;
+}> = ({surface, node, impl}) => {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const contextMarkdownRenderer = useMarkdownRenderer();
+  const {componentId, dataPath} = node;
+
+  useEffect(() => {
+    const host = hostRef.current;
+    const compModel = surface.componentsModel.get(componentId);
+    if (!host || !compModel) {
+      return;
+    }
+
+    if (contextMarkdownRenderer) {
+      setMarkdownRenderer(contextMarkdownRenderer);
+    } else if (!getMarkdownRenderer()) {
+      setMarkdownRenderer(renderMarkdown);
+    }
+
+    registerUniversalElement(impl);
+    const el = document.createElement(impl.tagName) as HTMLElement & {
+      context?: ComponentContext;
+    };
+    el.context = new ComponentContext(surface, componentId, dataPath);
+    host.replaceChildren(el);
+    flushLitUpdates(el);
+
+    const sub = compModel.onUpdated.subscribe(() => {
+      if (surface.componentsModel.get(componentId)) {
+        el.context = new ComponentContext(surface, componentId, dataPath);
+        flushLitUpdates(el);
+      }
+    });
+    const dataSub = surface.dataModel.subscribe('/', () => {
+      flushLitUpdates(el);
+    });
+    const createdSub = surface.componentsModel.onCreated.subscribe(() => {
+      flushLitUpdates(el);
+    });
+
+    return () => {
+      sub.unsubscribe();
+      dataSub.unsubscribe();
+      createdSub.unsubscribe();
+      el.remove();
+    };
+  }, [surface, componentId, dataPath, impl, contextMarkdownRenderer]);
+
+  return <div ref={hostRef} style={{display: 'contents'}} />;
+};
+
+function normalizeChildRef(
+  childIdOrRef: string | {id: string; basePath?: string},
+  customBasePath: string | undefined,
+  fallbackPath: string,
+): {id: string; resolvedPath: string} {
+  if (typeof childIdOrRef === 'object' && childIdOrRef !== null) {
+    return {
+      id: childIdOrRef.id,
+      resolvedPath: customBasePath ?? childIdOrRef.basePath ?? fallbackPath,
+    };
+  }
+  return {
+    id: childIdOrRef,
+    resolvedPath: customBasePath ?? fallbackPath,
+  };
+}
+
+/**
+ * Renders an A2UI component by ID and data path on `surface`.
+ * Used by custom React components hosted inside Universal Custom Element containers.
+ */
+function useComponentSubscription(
+  surface: SurfaceModel<AnyComponentImplementation>,
+  id: string,
+): string | undefined {
+  const revRef = useRef(0);
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const bump = () => {
+        revRef.current += 1;
+        onChange();
+      };
+      const subCreated = surface.componentsModel.onCreated.subscribe(comp => {
+        if (comp.id === id) bump();
+      });
+      const subDeleted = surface.componentsModel.onDeleted.subscribe(deletedId => {
+        if (deletedId === id) bump();
+      });
+      const current = surface.componentsModel.get(id);
+      const subUpdated = current?.onUpdated.subscribe(bump);
+      return () => {
+        subCreated.unsubscribe();
+        subDeleted.unsubscribe();
+        subUpdated?.unsubscribe();
+      };
+    },
+    [surface, id],
+  );
+
+  const getSnapshot = useCallback(() => {
+    const comp = surface.componentsModel.get(id);
+    return comp ? `${comp.id}:${comp.type}:${revRef.current}` : undefined;
+  }, [surface, id]);
+
+  return useSyncExternalStore(subscribe, getSnapshot);
+}
+
+function renderImplementation(
+  impl: AnyComponentImplementation,
+  context: ComponentContext,
+  buildChild: (
+    childIdOrRef: string | {id: string; basePath?: string},
+    childBasePath?: string,
+  ) => React.ReactNode,
+  surface: SurfaceModel<AnyComponentImplementation>,
+  id: string,
+  basePath: string,
+): React.ReactNode {
+  if (typeof (impl as Partial<ReactComponentImplementation>).render === 'function') {
+    const Render = (impl as ReactComponentImplementation).render;
+    return <Render context={context} buildChild={buildChild} />;
+  }
+
+  if (isWebComponentImplementation(impl)) {
+    return (
+      <WebComponentNodeView
+        surface={surface}
+        node={{componentId: id, dataPath: basePath}}
+        impl={impl}
+      />
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Renders an A2UI component by ID and data path on `surface`.
+ * Used by custom React components hosted inside Universal Custom Element containers.
+ */
+export const A2uiNodeById: React.FC<{
+  surface: SurfaceModel<AnyComponentImplementation>;
+  id: string;
+  basePath?: string;
+}> = ({surface, id, basePath = '/'}) => {
+  const snapshot = useComponentSubscription(surface, id);
+  const compModel = surface.componentsModel.get(id);
+
+  const context = useMemo(
+    () => (compModel ? new ComponentContext(surface, id, basePath) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [surface, id, basePath, snapshot],
+  );
+
+  const buildChild = useCallback(
+    (childIdOrRef: string | {id: string; basePath?: string}, childBasePath?: string) => {
+      const {id: childId, resolvedPath} = normalizeChildRef(childIdOrRef, childBasePath, basePath);
+      return (
+        <A2uiNodeById
+          key={JSON.stringify([childId, resolvedPath])}
+          surface={surface}
+          id={childId}
+          basePath={resolvedPath}
+        />
+      );
+    },
+    [surface, basePath],
+  );
+
+  if (!compModel || !context) {
+    return <LoadingPlaceholder componentId={id} />;
+  }
+
+  const catalog = (
+    compModel.catalog?.components.size ? compModel.catalog : surface.defaultCatalog
+  ) as Catalog<AnyComponentImplementation>;
+  const impl = catalog.components.get(compModel.type);
+
+  if (!impl) {
+    return <div style={{color: 'red'}}>Unknown component type: {compModel.type}</div>;
+  }
+
+  return renderImplementation(impl, context, buildChild, surface, id, basePath);
+};

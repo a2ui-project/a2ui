@@ -21,7 +21,9 @@ import type {
   InferredComponentApiSchemaType,
   ResolveA2uiProps,
 } from '@a2ui/web_core/v0_9';
+import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import {LoadingPlaceholder, useNodeView, type NodeViewProps} from './node-view';
+import {toWebComponent} from './to-web-component';
 
 export interface ReactComponentImplementation extends ComponentApi {
   /** The framework-specific rendering wrapper. */
@@ -53,7 +55,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
   RenderComponent: React.FC<
     ReactA2uiComponentProps<ResolveA2uiProps<InferredComponentApiSchemaType<Api>>>
   >,
-): ReactComponentImplementation {
+): ReactComponentImplementation & WebComponentImplementation {
   type Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
 
   const MemoizedRender = memo(RenderComponent, (prev, next) => {
@@ -116,12 +118,12 @@ export function createComponentImplementation<Api extends ComponentApi>(
   };
   NodeView.displayName = `${api.name}.view`;
 
-  return {
+  return toWebComponent({
     name: api.name,
     schema: api.schema,
     render: ReactWrapper,
     view: NodeView,
-  };
+  });
 }
 
 /**
@@ -133,7 +135,7 @@ export function createBinderlessComponentImplementation(
     context: ComponentContext;
     buildChild: (id: string, basePath?: string) => React.ReactNode;
   }>,
-): ReactComponentImplementation {
+): ReactComponentImplementation & WebComponentImplementation {
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
     // The conversion's only role here is filling the child index; the
     // component binds its own values from the context, so its child ids are
@@ -146,10 +148,10 @@ export function createBinderlessComponentImplementation(
   };
   NodeView.displayName = `${api.name}.view`;
 
-  return {
+  return toWebComponent({
     name: api.name,
     schema: api.schema,
     render: RenderComponent,
     view: NodeView,
-  };
+  });
 }

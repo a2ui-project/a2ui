@@ -36,18 +36,25 @@ import {
   peekValue,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
+import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import type {ReactComponentImplementation} from './adapter';
 import {
+  type AnyComponentImplementation,
   LoadingPlaceholder,
   NodeSurfaceContext,
   UnresolvedChildReference,
   useNodeView,
+  WebComponentNodeView,
   type NodeBuildChild,
 } from './node-view';
 
+export interface A2uiSurfaceProps {
+  surface: SurfaceModel<AnyComponentImplementation>;
+}
+
 /** Renders an implementation that has no `view`: its wrapper binds itself. */
 const RenderFallback: React.FC<{
-  node: ComponentNode<ReactComponentImplementation>;
+  node: ComponentNode<AnyComponentImplementation>;
   impl: ReactComponentImplementation;
   buildChild: NodeBuildChild;
 }> = ({node, impl, buildChild}) => {
@@ -66,8 +73,8 @@ const NodeView = memo(
     surface,
     node,
   }: {
-    surface: SurfaceModel<ReactComponentImplementation>;
-    node: ComponentNode<ReactComponentImplementation>;
+    surface: SurfaceModel<AnyComponentImplementation>;
+    node: ComponentNode<AnyComponentImplementation>;
   }) => {
     const buildChild = useCallback<NodeBuildChild>(
       (child, basePath) => {
@@ -107,18 +114,29 @@ const NodeView = memo(
       // Type narrowing; unreachable for a resolved node.
       return null;
     }
-    const View = impl.view;
-    if (!View) {
-      return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
+    const reactImpl = impl as Partial<ReactComponentImplementation>;
+    if (typeof reactImpl.view === 'function') {
+      const View = reactImpl.view;
+      return <View node={node} buildChild={buildChild} />;
     }
-    return <View node={node} buildChild={buildChild} />;
+    if (typeof reactImpl.render === 'function') {
+      return (
+        <RenderFallback
+          node={node}
+          impl={impl as ReactComponentImplementation}
+          buildChild={buildChild}
+        />
+      );
+    }
+    if (isWebComponentImplementation(impl)) {
+      return <WebComponentNodeView surface={surface} node={node} impl={impl} />;
+    }
+    return null;
   },
 );
 NodeView.displayName = 'NodeView';
 
-export const A2uiSurface: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
-}> = ({surface}) => {
+export const A2uiSurface: React.FC<A2uiSurfaceProps> = ({surface}) => {
   // The resolver is created inside subscribe, which React calls only for
   // committed renders: a render that is discarded (concurrent mode,
   // Suspense) never constructs one, and every constructed resolver is
@@ -127,7 +145,7 @@ export const A2uiSurface: React.FC<{
   // The factory reads nothing; the dependency exists to reset the box when
   // the surface is swapped.
   const box = useMemo(
-    () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
+    () => ({resolver: undefined as NodeResolver<AnyComponentImplementation> | undefined}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );

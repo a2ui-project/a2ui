@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-export * from './A2uiSurface';
-export * from './adapter';
-export * from './to-web-component';
+export * from '../v0_9/A2uiSurface';
+export * from '../v0_9/adapter';
+export * from '../v0_9/to-web-component';
+export {MarkdownContext, useMarkdownRenderer} from '../v0_9/catalog/basic/context/MarkdownContext';
 export {
   useSignalValue,
   A2uiNodeById,
   type NodeBuildChild,
   type NodeViewProps,
   type AnyComponentImplementation,
-} from './node-view';
+} from '../v0_9/node-view';
 
-// Export basic catalog components directly for 3P developers
-export * from './catalog/basic';
+export * from '@a2ui/web_core/v1_0';
+export * from '@a2ui/web_core/v1_0/basic_catalog';
+export * from '@a2ui/web_core/v1_0/universal';

@@ -34,6 +34,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(process.cwd(), 'src/v0_8'),
+      '@a2ui/react/v1_0': path.resolve(process.cwd(), 'src/v1_0/index.ts'),
       '@a2ui/react/v0_9': path.resolve(process.cwd(), 'src/v0_9/index.ts'),
       '@a2ui/react/v0_8': path.resolve(process.cwd(), 'src/v0_8/index.ts'),
       '@a2ui/react/styles': path.resolve(process.cwd(), 'src/styles/index.ts'),

@@ -55,6 +55,16 @@
         "default": "./dist/v0_9/index.cjs"
       }
     },
+    "./v1_0": {
+      "import": {
+        "types": "./dist/v1_0/index.d.ts",
+        "default": "./dist/v1_0/index.js"
+      },
+      "require": {
+        "types": "./dist/v1_0/index.d.cts",
+        "default": "./dist/v1_0/index.cjs"
+      }
+    },
     "./styles": {
       "import": {
         "types": "./dist/styles/index.d.ts",
