@@ -14,40 +14,4 @@
  * limitations under the License.
  */
 
-import {nothing} from 'lit';
-import {html, unsafeStatic} from 'lit/static-html.js';
-import {ComponentContext, Catalog} from '@a2ui/web_core/v0_9';
-import {
-  isWebComponentImplementation,
-  registerUniversalElement,
-  type WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
-
-/**
- * Pure function that acts as a generic container for A2UI components in Lit.
- *
- * @param context The component context defining the data model and type to render.
- * @param catalog The catalog of component implementations.
- * @returns A Lit TemplateResult representing the resolved component, or `nothing`.
- */
-export function renderA2uiNode(context: ComponentContext, catalog: Catalog<any>) {
-  const type = context.componentModel.type;
-  const implementation = catalog.components.get(type);
-
-  if (!implementation) {
-    console.warn(`Component implementation not found for type: ${type}`);
-    return nothing;
-  }
-
-  // Basic catalog elements are defined on first render rather than on import.
-  if (isWebComponentImplementation(implementation)) {
-    registerUniversalElement(implementation);
-  }
-
-  const tagName = (implementation as WebComponentImplementation).tagName;
-  if (tagName) {
-    const tag = unsafeStatic(tagName);
-    return html`<${tag} .context=${context}></${tag}>`;
-  }
-  return nothing;
-}
+export {renderA2uiNode} from '@a2ui/web_core/v0_9/universal';

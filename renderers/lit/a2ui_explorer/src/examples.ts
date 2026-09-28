@@ -14,9 +14,20 @@
  * limitations under the License.
  */
 
-import {basicCatalog} from '@a2ui/lit/v0_9';
-import {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
-import {ExampleData, ExampleModule, exampleModules} from './generated/examples-list';
+import {basicCatalog as basicCatalogV09} from '@a2ui/lit/v0_9';
+import {basicCatalog as basicCatalogV10} from '@a2ui/lit/v1_0';
+import {
+  ExampleData,
+  ExampleModule,
+  ExplorerMessage,
+  EXAMPLES_V09,
+  EXAMPLES_V10,
+} from './generated/examples-list';
+
+export type {ExplorerMessage};
+
+/** Supported specification versions in the Lit Explorer. */
+export type SpecVersion = '0.9' | '1.0';
 
 /**
  * Represents a demo item loaded from an example JSON file.
@@ -32,26 +43,28 @@ export interface DemoItem {
   /** Description of the example, or a fallback source string. */
   description: string;
   /** The list of A2UI messages to be processed for this demo. */
-  messages: A2uiMessage[];
+  messages: ExplorerMessage[];
+  /** The specification version of the example ('0.9' | '1.0'). */
+  version: SpecVersion;
 }
 
 /**
- * Loads and returns the list of all available demo items to be displayed in the gallery.
+ * Loads and returns the list of available demo items for the requested protocol version.
  *
+ * @param version Target specification version ('0.9' | '1.0'). Defaults to '0.9'.
  * @returns An array of DemoItem objects.
  */
-export function getDemoItems(): DemoItem[] {
+export function getDemoItems(version: SpecVersion = '0.9'): DemoItem[] {
   const items: DemoItem[] = [];
-
-  const sortedEntries = getSortedExampleEntries();
+  const modules = version === '1.0' ? EXAMPLES_V10 : EXAMPLES_V09;
+  const sortedEntries = getSortedExampleEntries(modules);
 
   for (const [filename, data] of sortedEntries) {
     try {
-      const jsonData = data.default;
-
-      const [messages, description] = extractMessagesAndDescription(jsonData, filename);
-
-      const surfaceId = ensureCreateSurfaceMessage(filename, messages);
+      const jsonData = structuredClone(data.default);
+      const [rawMessages, description] = extractMessagesAndDescription(jsonData, filename);
+      const messages = version === '1.0' ? normalizeV10Messages(rawMessages) : rawMessages;
+      const surfaceId = ensureCreateSurfaceMessage(filename, messages, version);
 
       items.push({
         id: surfaceId,
@@ -59,6 +72,7 @@ export function getDemoItems(): DemoItem[] {
         filename,
         description,
         messages,
+        version,
       });
     } catch (err) {
       console.error(`Error loading ${filename}:`, err);
@@ -72,6 +86,38 @@ export function getDemoItems(): DemoItem[] {
   return items;
 }
 
+function normalizeId(id: unknown): unknown {
+  return typeof id === 'string' ? id.replace(/-/g, '_') : id;
+}
+
+function normalizeV10Component(comp: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = {...comp, id: normalizeId(comp.id)};
+  if (typeof next.child === 'string') {
+    next.child = normalizeId(next.child);
+  }
+  if (Array.isArray(next.children)) {
+    next.children = next.children.map(normalizeId);
+  }
+  return next;
+}
+
+function normalizeV10Messages(messages: ExplorerMessage[]): ExplorerMessage[] {
+  return messages.map(msg => {
+    if ('updateComponents' in msg && Array.isArray(msg.updateComponents.components)) {
+      return {
+        ...msg,
+        updateComponents: {
+          ...msg.updateComponents,
+          components: msg.updateComponents.components.map(c =>
+            normalizeV10Component(c as Record<string, unknown>),
+          ),
+        },
+      } as ExplorerMessage;
+    }
+    return msg;
+  });
+}
+
 /**
  * Ensures that the messages array contains a createSurface message.
  *
@@ -79,24 +125,37 @@ export function getDemoItems(): DemoItem[] {
  * messages array.**
  *
  * @param filename The name of the file, used as fallback surfaceId.
- * @param messages The array of A2UI messages. **Note: This array may be mutated
- *                 by prepending a createSurface message if none exists.**
+ * @param messages The array of A2UI messages.
+ * @param version The specification version ('0.9' | '1.0').
  * @returns The surfaceId for the createSurface message of this set of messages.
  */
-function ensureCreateSurfaceMessage(filename: string, messages: A2uiMessage[]): string {
+function ensureCreateSurfaceMessage(
+  filename: string,
+  messages: ExplorerMessage[],
+  version: SpecVersion,
+): string {
   let surfaceId = filename.replace('.json', '');
   const createMsg = messages.find(
-    (message): message is CreateSurfaceMessage => 'createSurface' in message,
+    (message): message is Extract<ExplorerMessage, {createSurface: unknown}> =>
+      'createSurface' in message,
   );
 
   if (createMsg) {
     surfaceId = createMsg.createSurface.surfaceId;
+  } else if (version === '1.0') {
+    messages.unshift({
+      version: 'v1.0',
+      createSurface: {
+        surfaceId,
+        catalogId: basicCatalogV10.id,
+      },
+    });
   } else {
     messages.unshift({
       version: 'v0.9',
       createSurface: {
         surfaceId,
-        catalogId: basicCatalog.id,
+        catalogId: basicCatalogV09.id,
       },
     });
   }
@@ -104,33 +163,17 @@ function ensureCreateSurfaceMessage(filename: string, messages: A2uiMessage[]): 
   return surfaceId;
 }
 
-/**
- * Dynamically imports all example JSON files from the specification folder
- * and returns them as an array of entries sorted by their file path.
- *
- * @returns An array of tuples where the first element is the file path and the
- * second is the ExampleModule.
- */
-function getSortedExampleEntries(): [string, ExampleModule][] {
-  return Object.entries(exampleModules).sort((a, b) => a[0].localeCompare(b[0]));
+function getSortedExampleEntries(
+  modules: Record<string, ExampleModule>,
+): [string, ExampleModule][] {
+  return Object.entries(modules).sort((a, b) => a[0].localeCompare(b[0]));
 }
 
-/**
- * Extracts the array of A2UI messages and the description from the loaded JSON
- * data.
- *
- * Handles both direct arrays of messages and wrapped ExampleData objects.
- * Logs warnings for unexpected formats or empty messages.
- *
- * @param jsonData The raw JSON data loaded from the file.
- * @param filename The name of the file (used for default description and logging).
- * @returns A tuple containing the array of messages and the description string.
- */
 function extractMessagesAndDescription(
-  jsonData: ExampleData | A2uiMessage[],
+  jsonData: ExampleData | ExplorerMessage[],
   filename: string,
-): [A2uiMessage[], string] {
-  let messages: A2uiMessage[] = [];
+): [ExplorerMessage[], string] {
+  let messages: ExplorerMessage[] = [];
   let description = `Source: ${filename}`;
 
   if (Array.isArray(jsonData)) {
@@ -147,16 +190,6 @@ function extractMessagesAndDescription(
   return [messages, description];
 }
 
-/**
- * Converts a filename (e.g., "02_email-compose.json") to a human-readable title
- * (e.g., "Email Compose").
- *
- * Removes leading numbering prefixes, replaces hyphens and underscores with spaces,
- * and capitalizes each word.
- *
- * @param filename The filename to convert.
- * @returns The formatted title.
- */
 function filenameToTitle(filename: string): string {
   return filename
     .replace('.json', '')

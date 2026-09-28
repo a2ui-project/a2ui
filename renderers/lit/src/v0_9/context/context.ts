@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {markdown} from './markdown.js';
 
 /**
@@ -22,3 +23,5 @@ import {markdown} from './markdown.js';
 export const Context = {
   markdown,
 };
+
+export {setMarkdownRenderer as provideMarkdown};

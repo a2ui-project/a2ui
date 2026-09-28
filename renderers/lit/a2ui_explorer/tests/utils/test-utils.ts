@@ -28,7 +28,10 @@ import {ReactiveElement} from 'lit';
  * @returns A promise that resolves to the <local-gallery> element after the
  * example has been loaded and rendered.
  */
-export async function loadExample(filename: string): Promise<LocalGallery> {
+export async function loadExample(
+  filename: string,
+  version: '0.9' | '1.0' = '0.9',
+): Promise<LocalGallery> {
   // Side-effect import to guarantee the <local-gallery> custom element is
   // registered in the browser's customElements registry at test run-time.
   await import('../../src/local-gallery');
@@ -36,6 +39,11 @@ export async function loadExample(filename: string): Promise<LocalGallery> {
   const gallery = document.createElement('local-gallery') as LocalGallery;
   document.body.appendChild(gallery);
   await gallery.updateComplete;
+
+  if (version !== '0.9') {
+    gallery.setSpecVersion(version);
+    await gallery.updateComplete;
+  }
 
   const index = gallery.demoItems.findIndex(item => item.filename === filename);
   if (index === -1) {

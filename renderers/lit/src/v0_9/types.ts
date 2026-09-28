@@ -22,3 +22,8 @@ import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
  * Re-exported for backwards compatibility as a type alias for `WebComponentImplementation`.
  */
 export type LitComponentApi = WebComponentImplementation;
+
+/**
+ * Type alias for an A2UI component implementation in Lit / Web Components.
+ */
+export type A2uiLitComponent = WebComponentImplementation;
