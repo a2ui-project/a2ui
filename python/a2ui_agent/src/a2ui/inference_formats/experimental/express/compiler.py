@@ -709,9 +709,9 @@ class ExpressCompiler:
         raw_symbols: dict,
         ctx: _CompileContext,
         is_action: bool = False,
-        parent_id: Optional[str] = None,
-        parent_prop: Optional[str] = None,
-        list_index: Optional[int] = None,
+        parent_id: str | None = None,
+        parent_prop: str | None = None,
+        list_index: int | None = None,
     ) -> Any:
         """Compiles an individual AST node value into valid A2UI equivalents.
 
