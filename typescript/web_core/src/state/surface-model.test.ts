@@ -96,12 +96,16 @@ describe('SurfaceModel', () => {
   });
 
   it('carries an explicit catalogId into the dispatched action', async () => {
-    await surface.dispatchAction(
-      {functionCall: {call: 'submit', args: {}, catalogId: 'other-catalog'}},
-      'comp-1',
-    );
+    await surface.dispatchAction({event: {name: 'submit', catalogId: 'other-catalog'}}, 'comp-1');
     assert.strictEqual(actions.length, 1);
     assert.strictEqual(actions[0].catalogId, 'other-catalog');
+
+    await surface.dispatchAction(
+      {event: {name: 'submitTopLevel'}, catalogId: 'top-level-catalog'},
+      'comp-1',
+    );
+    assert.strictEqual(actions.length, 2);
+    assert.strictEqual(actions[1].catalogId, 'top-level-catalog');
   });
 
   it('omits catalogId when the payload does not name a catalog', async () => {
@@ -110,14 +114,10 @@ describe('SurfaceModel', () => {
     assert.ok(!('catalogId' in actions[0]));
   });
 
-  it('dispatches functionCall actions with call and args', async () => {
+  it('does not dispatch onAction for functionCall actions', async () => {
     await surface.dispatchAction({functionCall: {call: 'doTask', args: {param: 123}}}, 'comp-2');
-    assert.strictEqual(actions.length, 1);
-    const action = actions[0];
-    assert.strictEqual(action.name, 'doTask');
-    assert.strictEqual(action.surfaceId, 'surface-1');
-    assert.strictEqual(action.sourceComponentId, 'comp-2');
-    assert.deepStrictEqual(action.context, {param: 123});
+    await surface.dispatchAction({call: 'doTask', args: {param: 123}}, 'comp-2');
+    assert.strictEqual(actions.length, 0);
   });
 
   it('dispatches actions with default context', async () => {
