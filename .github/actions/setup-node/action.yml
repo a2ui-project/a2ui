@@ -21,6 +21,9 @@ inputs:
   install:
     description: "Whether to run yarn install"
     default: "true"
+  cache:
+    description: "Whether to enable Yarn caching (defaults to true when install is true)"
+    default: ""
 runs:
   using: composite
   steps:
@@ -30,10 +33,11 @@ runs:
     - run: corepack enable
       shell: bash
     - uses: actions/setup-node@v6
+      if: ${{ (inputs.cache == 'true' || inputs.cache == true) || ((inputs.cache == '' || inputs.cache == null) && (inputs.install == 'true' || inputs.install == true)) }}
       with:
         node-version: ${{ inputs.node-version }}
         cache: "yarn"
     - name: Install dependencies
-      if: ${{ inputs.install == 'true' }}
+      if: ${{ inputs.install == 'true' || inputs.install == true }}
       run: yarn install --immutable
       shell: bash

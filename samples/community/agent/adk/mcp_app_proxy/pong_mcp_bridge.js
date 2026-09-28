@@ -91,22 +91,22 @@ window.addEventListener('message', event => {
 
       // Automatically restart if scores reset to 0
       if (localPlayerScore === 0 && localCpuScore === 0) {
-        if (typeof isPaused !== 'undefined') {
+        if (typeof isPaused !== 'undefined' && isPaused) {
           isPaused = false;
+          if (typeof hideOverlay === 'function') {
+            hideOverlay();
+          }
+          if (typeof resetBall === 'function') {
+            resetBall();
+          }
+          sendRequest('tools/call', {
+            name: 'commentate_pong',
+            arguments: {
+              game_event: 'Match started! Current Score: Player 0 - CPU 0.',
+              silent: true,
+            },
+          }).catch(e => console.error('Failed to request commentary:', e));
         }
-        if (typeof hideOverlay === 'function') {
-          hideOverlay();
-        }
-        if (typeof resetBall === 'function') {
-          resetBall();
-        }
-        sendRequest('tools/call', {
-          name: 'commentate_pong',
-          arguments: {
-            game_event: 'Match started! Current Score: Player 0 - CPU 0.',
-            silent: true,
-          },
-        }).catch(e => console.error('Failed to request commentary:', e));
       }
     }
   }

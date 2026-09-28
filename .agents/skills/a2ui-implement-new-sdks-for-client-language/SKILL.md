@@ -20,7 +20,7 @@ Thoroughly review:
 - `blueprints/modules/a2ui_core.blueprint.md` (for state and message structures).
 - `specification/v1_0/json/common_types.json` (dynamic binding schemas).
 - `specification/v1_0/json/server_to_client.json` (message envelopes).
-- `specification/v1_0/catalogs/basic/catalog.json` (target components catalog).
+- `catalogs/basic/v1/catalog.json` (target components catalog).
 
 ### **Phase 2: Technical Architecture Planning**
 
@@ -68,7 +68,7 @@ If you are building a new **UI Framework Adapter / Renderer** (e.g., in Flutter/
 Review:
 
 - `blueprints/modules/a2ui_framework_adapter.blueprint.md` (View and rendering architecture).
-- `specification/v1_0/docs/basic_catalog_implementation_guide.md` (spacing, alignment, and typography specifications).
+- `catalogs/basic/v1/basic_catalog_implementation_guide.md` (spacing, alignment, and typography specifications).
 
 ### **Phase 2: Architectural Plan**
 
@@ -104,5 +104,5 @@ Build the **Gallery App** as a testing playground with:
 ### **Phase 6: Full Catalog Support**
 
 - Implement all remaining widgets (e.g. Card, Image, List, etc.) and validation traits like `Checkable`.
-- Update the Gallery App to support all official examples in `specification/v1_0/catalogs/basic/examples/`.
+- Update the Gallery App to support all official examples in `catalogs/basic/v1/examples/`.
 - Run visual parity and event action tests to verify correctness.

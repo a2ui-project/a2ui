@@ -46,8 +46,20 @@ import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
       @if (isOpen()) {
         <div class="a2ui-modal-overlay" (click)="closeModal()">
-          <div class="a2ui-modal-content" (click)="$event.stopPropagation()">
-            <button class="a2ui-modal-close" (click)="closeModal()">&times;</button>
+          <div
+            class="a2ui-modal-content"
+            role="dialog"
+            aria-modal="true"
+            (click)="$event.stopPropagation()"
+          >
+            <button
+              type="button"
+              class="a2ui-modal-close"
+              aria-label="Close"
+              (click)="closeModal()"
+            >
+              &times;
+            </button>
             @if (content()) {
               <a2ui-v09-component-host [componentKey]="content()!" [surfaceId]="surfaceId()">
               </a2ui-v09-component-host>

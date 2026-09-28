@@ -31,7 +31,7 @@ import ssl
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Tuple
+import zipfile
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ CNXML_NS = {"cnxml": "http://cnx.rice.edu/cnxml"}
 
 # Module cache with TTL - caches parsed content to avoid re-fetching
 # Note: Cache grows unbounded. For production, consider adding LRU eviction.
-_MODULE_CACHE: dict[str, Tuple[str, float]] = {}
+_MODULE_CACHE: dict[str, tuple[str, float]] = {}
 _MODULE_CACHE_TTL = 3600  # 1 hour (content rarely changes)
 
 
@@ -183,7 +183,7 @@ def _extract_text_from_element(elem) -> str:
     return " ".join(texts)
 
 
-def fetch_module_from_gcs(module_id: str) -> Optional[str]:
+def fetch_module_from_gcs(module_id: str) -> str | None:
     """
     Fetch a module's CNXML content from GCS.
 
@@ -212,7 +212,7 @@ def fetch_module_from_gcs(module_id: str) -> Optional[str]:
         return None
 
 
-def fetch_module_from_github(module_id: str) -> Optional[str]:
+def fetch_module_from_github(module_id: str) -> str | None:
     """
     Fetch a module's CNXML content directly from GitHub.
 
@@ -241,7 +241,7 @@ def fetch_module_from_github(module_id: str) -> Optional[str]:
         return None
 
 
-def fetch_module_content(module_id: str, parse: bool = True) -> Optional[str]:
+def fetch_module_content(module_id: str, parse: bool = True) -> str | None:
     """
     Fetch a module's content, trying GCS first then GitHub.
 
@@ -269,7 +269,7 @@ def fetch_module_content(module_id: str, parse: bool = True) -> Optional[str]:
     return content
 
 
-def fetch_module_content_cached(module_id: str, parse: bool = True) -> Optional[str]:
+def fetch_module_content_cached(module_id: str, parse: bool = True) -> str | None:
     """
     Fetch a module's content with TTL-based caching.
 
@@ -301,7 +301,7 @@ def fetch_module_content_cached(module_id: str, parse: bool = True) -> Optional[
     return content
 
 
-def fetch_chapter_content(chapter_slug: str) -> Optional[dict]:
+def fetch_chapter_content(chapter_slug: str) -> dict | None:
     """
     Fetch all content for a chapter by fetching its modules in parallel.
 

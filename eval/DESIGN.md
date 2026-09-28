@@ -15,7 +15,7 @@ The framework adopts the three-pillar architecture of Inspect AI—Tasks, Solver
 | Inspect Component | A2UI Implementation Detail                                                 | Primary Responsibility                                            |
 | :---------------- | :------------------------------------------------------------------------- | :---------------------------------------------------------------- |
 | Dataset           | Encrypted YAML files conforming to `datasets/dataset_schema.json`.         | Providing structured `messages` turns, catalogs, and UI targets.  |
-| Solver            | Uses `A2uiSchemaManager` to inject system prompt and protocol rules.       | Orchestrating the model's attempt to generate a valid UI payload. |
+| Solver            | Uses an `InferenceFormat` to inject system prompt and protocol rules.      | Orchestrating the model's attempt to generate a valid UI payload. |
 | Scorer            | Algorithmic `a2ui_scorer` validation and `measured_model_graded_qa` judge. | Determining technical validity and semantic intent quality.       |
 | Model Provider    | Support for Gemini, OpenAI, Anthropic, and local vLLM.                     | Standardizing API interactions across diverse model families.     |
 
@@ -25,12 +25,12 @@ The interaction flow begins with loading a dataset sample. Each sample specifies
 
 To ensure consistency between the evaluation framework and the actual agent implementation, the framework integrates the A2UI Python SDK. This reduces duplication of logic and leverages the SDK's robust parsing and validation capabilities.
 
-| SDK Component       | Role in Evaluation                                  | Benefit                                                                                                          |
-| :------------------ | :-------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| `A2uiSchemaManager` | Generates the system prompt for the Solver.         | Ensures the model receives the correct schema and catalog definitions without manual hardcoding in eval scripts. |
-| `A2uiValidator`     | Used in Stage 1 Scorer for schema validation.       | Centralizes validation logic, ensuring evals match runtime validation.                                           |
-| `parse_response`    | Used to parse the model's completion.               | Handles extraction of JSON payloads from markdown and handles common LLM formatting artifacts.                   |
-| `payload_fixer`     | Applied before validation to correct common errors. | Allows focusing evaluation on intent rather than minor formatting issues that are easily fixed in production.    |
+| SDK Component      | Role in Evaluation                                                                  | Benefit                                                                                                          |
+| :----------------- | :---------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| `InferenceFormat`  | Generates the system prompt for the Solver (for example `DirectJsonFormat`).        | Ensures the model receives the correct schema and catalog definitions without manual hardcoding in eval scripts. |
+| `MessageProcessor` | Used in Stage 1 Scorer with strict validation, alongside the catalog's `validator`. | Centralizes validation logic, ensuring evals match runtime validation.                                           |
+| `parse_response`   | Used to parse the model's completion.                                               | Handles extraction of JSON payloads from markdown and handles common LLM formatting artifacts.                   |
+| `payload_fixer`    | Applied before validation to correct common errors.                                 | Allows focusing evaluation on intent rather than minor formatting issues that are easily fixed in production.    |
 
 ### **Replicating and Enhancing the Eval Lifecycle**
 
@@ -111,7 +111,7 @@ Evaluating an A2UI response requires more than just checking if the output is va
 
 ### **Stage 1: Structural & Schema Validation (Programmatic)**
 
-The first line of defense is a non-LLM based programmatic scorer. Using the `A2uiValidator` from the A2UI Python SDK, this scorer validates the generated JSON for schema compliance and hierarchy validity. Before validation, the output is processed by `parse_response` and `payload_fixer` to handle common LLM formatting quirks. This stage provides a binary "Pass/Fail" based on strict adherence to the protocol.
+The first line of defense is a non-LLM based programmatic scorer. Using the selected catalog's validator and a strict `MessageProcessor` from the A2UI Python SDK, this scorer validates the generated JSON for schema compliance and hierarchy validity. Before validation, the output is processed by `parse_response` and `payload_fixer` to handle common LLM formatting quirks. This stage provides a binary "Pass/Fail" based on strict adherence to the protocol.
 
 ### **Stage 2: Programmatic Semantic Checks**
 
@@ -155,7 +155,7 @@ By implementing these strategies, the A2UI project ensures that its evaluation d
 - [AI Evaluation: 7 Core Components Enterprises Must Get Right \- Innodata](https://innodata.com/ai-evaluation-7-core-components-enterprises-must-get-right/)
 - [AI Testing 101: A Practical Guide to Skills, Basics & Getting Started \- GSD Council](https://www.gsdcouncil.org/blogs/ai-testing-101-a-practical-guide-to-skills-basics-getting-started)
 - [An Open-Source Data Contamination Report for Large Language Models \- ACL Anthology](https://aclanthology.org/2024.findings-emnlp.30.pdf)
-- [A Survey on Data Contamination for Large Language Models \- arXiv](https://arxiv.org/html/2502.14425v2)
+- [A Survey on Data Contamination for Large Language Models \- arXiv](https://arxiv.org/abs/2502.14425v2)
 - [Best Practices for Managing Secrets in GitHub Actions \- Blacksmith](https://www.blacksmith.sh/blog/best-practices-for-managing-secrets-in-github-actions)
 - [Confidentiality/Ethics \- The Dataverse Project](https://dataverse.org/book/confidentiality-ethics)
 - [Eliminating Trust in the Cloud: Evaluation of a Zero-Knowledge Encrypted Git Service](https://www.diva-portal.org/smash/get/diva2:1996117/FULLTEXT01.pdf)
@@ -172,8 +172,8 @@ By implementing these strategies, the A2UI project ensures that its evaluation d
 - [LLM Evaluation: Key Concepts & Best Practices \- Nexla](https://nexla.com/ai-readiness/llm-evaluation/)
 - [LLM Testing: A Practical Guide to Automated Testing for LLM Applications \- Langfuse](https://langfuse.com/blog/2025-10-21-testing-llm-applications)
 - [Model Providers \- Inspect AI](https://inspect.aisi.org.uk/providers.html)
-- [Search-Time Data Contamination \- arXiv](https://arxiv.org/html/2508.13180v1)
-- [Secret Breach Detection in Source Code with Large Language Models \- arXiv](https://arxiv.org/html/2504.18784v2)
+- [Search-Time Data Contamination \- arXiv](https://arxiv.org/abs/2508.13180v1)
+- [Secret Breach Detection in Source Code with Large Language Models \- arXiv](https://arxiv.org/abs/2504.18784v2)
 - [Standard Tools \- Inspect AI](https://inspect.aisi.org.uk/tools-standard)
 - [Stop Uploading Test Data in Plain Text \- ResearchGate](https://www.researchgate.net/publication/376392896_Stop_Uploading_Test_Data_in_Plain_Text_Practical_Strategies_for_Mitigating_Data_Contamination_by_Evaluation_Benchmarks)
 - [The Definitive Guide to LLM Evaluation \- Arize AI](https://arize.com/llm-evaluation/)

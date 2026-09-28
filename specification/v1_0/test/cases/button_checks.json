@@ -262,6 +262,47 @@
           ]
         }
       }
+    },
+    {
+      "description": "Button action with optional userMessage (literal and path binding)",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn_dn",
+              "component": "Button",
+              "child": "txt_dn",
+              "action": {
+                "event": {
+                  "name": "submit_deal",
+                  "userMessage": "Saved deal"
+                }
+              }
+            },
+            {
+              "id": "btn_path",
+              "component": "Button",
+              "child": "txt_dn",
+              "action": {
+                "event": {
+                  "name": "submit_deal",
+                  "userMessage": {
+                    "path": "/form/userMsg"
+                  }
+                }
+              }
+            },
+            {
+              "id": "txt_dn",
+              "component": "Text",
+              "text": "Save"
+            }
+          ]
+        }
+      }
     }
   ]
 }

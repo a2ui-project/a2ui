@@ -17,14 +17,14 @@ import JSONSchema
 import SwiftUI
 
 /// A closure that constructs a SwiftUI view from a resolved engine node.
-public typealias ComponentViewBuilder = (Node) -> AnyView
+public typealias ComponentViewBuilder = @MainActor (Node) -> AnyView
 
 /// A concrete component implementation for SwiftUI rendering.
 ///
 /// Combines the component type name, JSON Schema, and SwiftUI view builder into a single
 /// self-contained object that can be exported by component packages and registered into a
-/// ``CatalogImplementation``.
-public struct ComponentImplementation: @unchecked Sendable {
+/// ``Catalog``.
+public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
   /// The component type name as it appears in A2UI JSON (e.g., "Button", "Map").
   public let name: String
 
@@ -34,35 +34,30 @@ public struct ComponentImplementation: @unchecked Sendable {
   /// The closure that constructs a SwiftUI view from a resolved engine node.
   public let builder: ComponentViewBuilder
 
-  /// The framework-agnostic API definition (``ComponentAPI``).
-  public var api: ComponentAPI {
-    ComponentAPI(name: name, schema: schema)
-  }
-
   /// Creates a new component implementation with a type name, schema, and view builder.
   ///
   /// - Parameters:
   ///   - name: The component type name.
   ///   - schema: The JSON Schema validating the component's properties.
   ///   - builder: The view builder closure constructing the component's SwiftUI view.
-  public init(
+  public init<Content: View>(
     name: String,
     schema: Schema,
-    builder: @escaping ComponentViewBuilder
+    builder: @escaping @MainActor (Node) -> Content
   ) {
     self.name = name
     self.schema = schema
-    self.builder = builder
+    self.builder = { node in AnyView(builder(node)) }
   }
 
   /// Creates a new component implementation from an existing API definition and view builder.
   ///
   /// - Parameters:
-  ///   - api: The component API definition.
+  ///   - api: The component API definition conforming to ``ComponentAPI``.
   ///   - builder: The view builder closure constructing the component's SwiftUI view.
-  public init(
-    api: ComponentAPI,
-    builder: @escaping ComponentViewBuilder
+  public init<Content: View>(
+    api: any ComponentAPI,
+    builder: @escaping @MainActor (Node) -> Content
   ) {
     self.init(
       name: api.name,

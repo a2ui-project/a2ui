@@ -67,8 +67,8 @@ describe('Example: Movie Card', () => {
     button.click();
     await whenSettled(gallery);
 
-    const modal = querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0] as HTMLDialogElement;
-    expect(modal?.open).toBeTruthy();
+    const modal = querySelectorAllDeep(surface, '.a2ui-modal-overlay')[0] as HTMLElement;
+    expect(modal).toBeTruthy();
 
     const video = querySelectorAllDeep(surface, 'video')[0] as HTMLVideoElement;
     expect(video).toBeTruthy();

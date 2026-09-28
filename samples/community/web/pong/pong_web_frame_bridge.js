@@ -183,19 +183,19 @@ function handleDataModelUpdate(data) {
 
     // Automatically restart if scores reset to 0
     if (localPlayerScore === 0 && localCpuScore === 0) {
-      if (typeof isPaused !== 'undefined') {
+      if (typeof isPaused !== 'undefined' && isPaused) {
         isPaused = false;
+        if (typeof hideOverlay === 'function') {
+          hideOverlay();
+        }
+        if (typeof resetBall === 'function') {
+          resetBall();
+        }
+        dispatchAction('commentate_pong', {
+          game_event: 'Match started! Current Score: Player 0 - CPU 0.',
+          silent: true,
+        });
       }
-      if (typeof hideOverlay === 'function') {
-        hideOverlay();
-      }
-      if (typeof resetBall === 'function') {
-        resetBall();
-      }
-      dispatchAction('commentate_pong', {
-        game_event: 'Match started! Current Score: Player 0 - CPU 0.',
-        silent: true,
-      });
     }
   }
 }

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {describe, it, expect} from 'vitest';
 import {
   IncomingWebFrameMessageSchema,
   MAX_PAYLOAD_SIZE_BYTES,

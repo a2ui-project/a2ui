@@ -61,9 +61,9 @@ transport the file:
   object directly to the host callback in memory. The host performs the upload via its own secure
   channels and returns an abstract reference ID (`fileId: "host-file-ref-789"`).
 - Inline upload mode (fallback strategy): If no host callback is configured, the component falls
-  back to encoding small files as inline data URIs (`fileId: "data:image/png;base64,..."`). This
-  enables rapid prototyping and lightweight web usage out of the box without requiring cloud bucket
-  provisioning.
+  back to encoding small files as inline data URIs (`fileId: "data:image/png;base64,..."`) or
+  in-band session attachments (`fileId: "inline://..."`). This enables rapid prototyping and
+  lightweight web usage out of the box without requiring cloud bucket provisioning.
 - Future extension (presigned URLs): Direct client-led HTTP uploading with presigned URLs is left as
   a future extension.
 
@@ -106,7 +106,7 @@ two resolution models depending on the trust boundary and coupling between the a
 | :------------------------------------ | :-------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **UX & UI state management**          | A2UI core library                 | Implements drag-and-drop zones, file queues, progress indicators, pause/resume controls, and error states natively inside the web component.                                                                                                             |
 | **Host-delegated transport (IoC)**    | Host developer (primary strategy) | Passes an upload callback (`onUploadFile`) programmatically when registering the component in the catalog to route uploads through native OS daemons or internal VPC endpoints.                                                                          |
-| **Inline upload transport**           | A2UI core library (fallback)      | Automatically encodes small files as inline base64 data URIs when no host callback is present, enabling out-of-the-box rapid prototyping.                                                                                                                |
+| **Inline upload transport**           | A2UI core library (fallback)      | Automatically encodes small files as inline base64 data URIs or passes them as in-band session attachments when no host callback is present, enabling out-of-the-box rapid prototyping.                                                                  |
 | **Storage infrastructure & security** | Host developer                    | Provisions cloud storage buckets (S3 or GCS), configures CORS and CSP headers, enforces malware scanning, and sets lifecycle rules for orphaned files.                                                                                                   |
 | **Pointer resolution & inference**    | Agent backend developer           | Resolves the `fileId` payload into raw bytes just in time—using implicit schema agreements (such as `gdrive://` or `s3://`) for internal agents, or explicit resolution mechanisms (such as ephemeral HTTPS URLs or resource tools) for external agents. |
 
@@ -159,7 +159,8 @@ export const FileUploadDefinition: ComponentDefinition = {
         },
         files: {
           type: 'array',
-          description: 'Array of resolved abstract file pointers or inline data URIs.',
+          description:
+            'Array of resolved abstract file pointers, inline data URIs, or in-band session pointers.',
           items: {
             type: 'object',
             properties: {
@@ -350,18 +351,32 @@ s3_client = boto3.client('s3', region_name='us-east-1')
 
 # 1. Define resolution adapter (handling inline URIs, implicit schemas, and explicit HTTPS URLs)
 async def resolve_file_adapter(file_id: str, session: SessionData) -> bytes:
-    # Strategy 1: Inline data URI fallback
+    # Strategy 1: Inline ADK session history resolving
+    if file_id.startswith("inline://"):
+        if not session:
+            raise ValueError(f"Cannot resolve {file_id}: No session provided.")
+        for event in getattr(session, "events", []):
+            if hasattr(event, "message") and event.message and getattr(event.message, "parts", None):
+                for part in event.message.parts:
+                    if getattr(part, "inline_data", None):
+                        part_meta = getattr(part, "part_metadata", None) or {}
+                        part_file_id = part_meta.get("fileId") if isinstance(part_meta, dict) else getattr(part_meta, "fileId", None)
+                        if part_file_id == file_id:
+                            return part.inline_data.data
+        raise ValueError(f"Inline data pointer {file_id} not found in session history.")
+
+    # Strategy 2: Inline data URI fallback
     if file_id.startswith("data:"):
         header, base64_data = file_id.split(",", 1)
         return base64.b64decode(base64_data)
 
-    # Strategy 2: Implicit resolution via shared schema (e.g., s3:// or gdrive://)
+    # Strategy 3: Implicit resolution via shared schema (e.g., s3:// or gdrive://)
     if file_id.startswith("s3://"):
         bucket, key = file_id.replace("s3://", "").split("/", 1)
         response = s3_client.get_object(Bucket=bucket, Key=key)
         return response['Body'].read()
 
-    # Strategy 3: Explicit resolution via unshared schema (e.g., ephemeral HTTPS download URL)
+    # Strategy 4: Explicit resolution via unshared schema (e.g., ephemeral HTTPS download URL)
     if file_id.startswith("https://"):
         async with httpx.AsyncClient() as client:
             response = await client.get(file_id, follow_redirects=True)

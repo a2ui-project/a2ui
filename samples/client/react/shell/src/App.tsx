@@ -66,7 +66,7 @@ export function App() {
   );
 
   const processor = useMemo(() => {
-    return new MessageProcessor([basicCatalog], action => {
+    return new MessageProcessor<ReactComponentImplementation>([basicCatalog], action => {
       console.log('User action:', action);
       if (sendAndProcessRef.current) {
         sendAndProcessRef.current({version: 'v0.9', action});
@@ -316,7 +316,6 @@ function ShellContent({config, client, sendAndProcessRef, processor}: ShellConte
       {/* Error display */}
       {error && <div className="error">{error}</div>}
 
-      {/* Render all surfaces */}
       {hasSurfaces && (
         <section className="surfaces">
           {surfaces.map(surface => (

@@ -58,20 +58,4 @@ public final class SurfaceGroupModel: ObservableObject {
     surfacesMap
   }
 
-  // MARK: - Data Model Aggregation
-
-  /// Aggregates the data models of all surfaces that have
-  /// `sendDataModel` enabled.
-  ///
-  /// Returns `nil` if no surfaces have the flag set.
-  public func getClientDataModel() -> JSONValue? {
-    var result: OrderedDictionary<String, JSONValue> = [:]
-    for (surfaceID, vm) in surfacesMap {
-      if vm.sendDataModel {
-        result[surfaceID] = vm.dataModel.data
-      }
-    }
-    guard !result.isEmpty else { return nil }
-    return .object(result)
-  }
 }

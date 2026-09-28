@@ -22,5 +22,14 @@ extension Int: Resolved {}
 extension Bool: Resolved {}
 extension JSONValue: Resolved {}
 
-/// Arrays of `Node` are `Resolved` when their elements are.
-extension Array: Resolved where Element == Node {}
+/// Arrays whose elements are Resolved are also Resolved.
+extension Array: Resolved where Element: Resolved {
+  public func isEqual(to other: any Resolved) -> Bool {
+    guard let otherArray = other as? [Element] else { return false }
+    guard count == otherArray.count else { return false }
+    for (lhs, rhs) in zip(self, otherArray) {
+      guard lhs.isEqual(to: rhs) else { return false }
+    }
+    return true
+  }
+}

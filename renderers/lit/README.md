@@ -104,19 +104,17 @@ export const MyProfileApi = {
 Extend `A2uiLitElement` and implement `createController` and `render`.
 
 ```typescript
-import {A2uiLitElement, A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiLitElement} from '@a2ui/lit/v0_9';
 import {customElement} from 'lit/decorators.js';
 import {html, nothing} from 'lit';
 import {MyProfileApi} from './my-profile-api';
 
 @customElement('my-profile')
 export class MyProfileElement extends A2uiLitElement<typeof MyProfileApi> {
-  protected createController() {
-    return new A2uiController(this, MyProfileApi);
-  }
+  protected readonly api = MyProfileApi;
 
   render() {
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (!props) return nothing;
 
     return html`
@@ -144,7 +142,9 @@ Group your custom components into a `Catalog` from `@a2ui/web_core/v0_9`.
 import {Catalog} from '@a2ui/web_core/v0_9';
 import {MyProfile} from './my-profile';
 
-export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', [MyProfile]);
+export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', 'v0.9', [
+  MyProfile,
+]);
 ```
 
 ### 4. Use the Custom Catalog
@@ -170,7 +170,7 @@ You can find the full specification of the basic catalog in the [GitHub reposito
 - **Content**: `Text`, `Image`, `Icon`, `Video`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-You can find the source code for these components in the [GitHub repository](src/v0_9/catalogs/basic/components).
+The standard basic catalog components are implemented as framework-agnostic universal Custom Elements in `@a2ui/web_core` ([source code on GitHub](../../typescript/web_core/src/v0_9/basic_catalog/components)) and re-exported from `@a2ui/lit/v0_9` for backwards compatibility.
 
 ## Migration from v0.8
 

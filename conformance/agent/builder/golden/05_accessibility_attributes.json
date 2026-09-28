@@ -1,0 +1,31 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "accessible_button__btn_label",
+          "text": "Submit",
+          "variant": "body"
+        },
+        {
+          "component": "Button",
+          "id": "accessible_button",
+          "accessibility": {
+            "label": "Submit Application",
+            "description": "Transmits all form entries to the review server"
+          },
+          "child": "accessible_button__btn_label",
+          "variant": "default",
+          "action": {
+            "event": {
+              "name": "submit_application"
+            }
+          }
+        }
+      ]
+    }
+  }
+]

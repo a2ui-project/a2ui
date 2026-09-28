@@ -15,7 +15,7 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {DemoComponent} from '../../demo.component';
+import {DemoComponent, A2UI_USE_UNIVERSAL_COMPONENTS} from '../../demo.component';
 import {EXAMPLES_V08, EXAMPLES_V09} from '../../generated/examples-bundle';
 import {provideMarkdownRenderer} from '../../../../../src/v0_9/core/markdown';
 import {A2UI_VERSION, Version} from '../../types';
@@ -23,10 +23,21 @@ import {A2UI_VERSION, Version} from '../../types';
 export {Version};
 
 /**
+ * Options for configuring example loading in tests.
+ */
+export interface LoadExampleOptions {
+  name: string;
+  version?: Version;
+  useUniversalComponents?: boolean;
+}
+
+/**
  * Helper function to load an example in the DemoComponent for testing.
  * Resolves after the example is selected and initial async rendering has time to complete.
  */
-export async function loadExample(exampleName: string, version: Version = Version.V0_9) {
+export async function loadExample(options: LoadExampleOptions) {
+  const {name, version = Version.V0_9, useUniversalComponents = false} = options;
+
   await TestBed.configureTestingModule({
     imports: [DemoComponent],
     providers: [
@@ -34,6 +45,10 @@ export async function loadExample(exampleName: string, version: Version = Versio
       {
         provide: A2UI_VERSION,
         useValue: version,
+      },
+      {
+        provide: A2UI_USE_UNIVERSAL_COMPONENTS,
+        useValue: useUniversalComponents,
       },
     ],
   });
@@ -43,15 +58,15 @@ export async function loadExample(exampleName: string, version: Version = Versio
   fixture.detectChanges();
 
   const examples = version === Version.V0_9 ? EXAMPLES_V09 : EXAMPLES_V08;
-  let example = examples.find(ex => ex.name === exampleName);
+  let example = examples.find(ex => ex.name === name);
 
   if (version === Version.V0_8 && !example) {
     example =
-      examples.find(ex => ex.name === `${exampleName} (basic)`) ||
-      examples.find(ex => ex.name === `${exampleName} (minimal)`);
+      examples.find(ex => ex.name === `${name} (basic)`) ||
+      examples.find(ex => ex.name === `${name} (minimal)`);
   }
 
-  expect(example).withContext(`Example not found: ${exampleName}`).toBeTruthy();
+  expect(example).withContext(`Example not found: ${name}`).toBeTruthy();
 
   component.selectExample(example!);
   fixture.detectChanges();

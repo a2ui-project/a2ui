@@ -11,6 +11,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
+- **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/a2ui-swift-development/SKILL.md](.agents/skills/a2ui-swift-development/SKILL.md)
 
 ---
 
@@ -48,7 +49,7 @@ To scale development across multiple programming languages and UI frameworks, th
 - **Concrete Codebases** track their module compliance by git commit hash using a `codebase.blueprint.md` file stored under `blueprints/codebases/<relative_codebase_path>/codebase.blueprint.md`.
 - **SDD Skills**: SDD skills live in `blueprints/skills/` and can be symlinked into `.agents/skills/` by running `./blueprints/link_skills.sh`. To remove them when done, remove the `.agents/skills/a2ui-*` symlinks.
 
-For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](specification/proposals/spec_driven_development.md).
+For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](docs/proposals/spec_driven_development.md).
 
 ---
 
@@ -56,11 +57,16 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 
 - **`blueprints/`**: Isolated central repository for language-agnostic module blueprints (`modules/`), feature blueprints (`features/`, `features/archived/`), codebase compliance blueprints (`codebases/`), and SDD skills (`skills/`).
 - **`docs/`**: Documentation hierarchy. Public site documentation published via MkDocs resides in `docs/public/`, while non-public contributor or internal documentation resides under `docs/` alongside `docs/scripts/`.
-- **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas, component/function catalogs, and human-readable guides. The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
-- **`agent_sdks/`**: Server integration SDKs for Python (`python/`) and core conformance tests (`conformance/`).
+- **`catalogs/`**: Canonical `catalog.json` schemas for the catalogs maintained by the A2UI team (e.g. `catalogs/basic/v1/`, `catalogs/mcp/`). Catalogs are versioned independently of the protocol.
+- **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas and human-readable guides (older versions also bundle their basic catalog). The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
+- **`python/`**: Core state SDK (`a2ui_core/`), agent SDK (`a2ui_agent/`), and catalog packages (`catalogs/`) for Python.
+- **`conformance/`**: Language-agnostic test suites (`core/`, `agent/`, `extensions/`) and test data (`test_data/`) for verifying behavioral parity across all SDK implementations.
+- **`dart/`**: Dart implementations including core state model (`a2ui_core/`), agent SDK (`a2ui_agent/`), and Flutter framework adapter (`a2ui_flutter/`).
 - **`kotlin/`**: Legacy Kotlin agent SDK (`agent_sdk_legacy/`).
-- **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
+- **`typescript/`**: Framework-agnostic Web Core state and protocol logic (`web_core/`), TypeScript agent SDK (`a2ui_agent/`), and TypeScript catalog packages (`catalogs/`).
+- **`renderers/`**: Framework renderers only: Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), and markdown parser (`markdown/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
+- **`swift/`**: Native Apple implementation including core state engine (`core/`), SwiftUI adapter (`swiftui/`), and sample iOS client (`sample/`).
 - **`tools/`**: Developer utility suite including visual Editor (`editor/`), visual Composer (`composer/`), payload Inspector (`inspector/`), and catalog builder (`build_catalog/`).
 
 ---
@@ -84,8 +90,8 @@ When creating or modifying workspaces, guarantee strict script uniformity by imp
 
 Do not use hardcoded or guessed build/run sequences. Each subdirectory contains detailed setup, build, dependency resolution, and execution steps.
 
-- **Prerequisite:** Consult the `README.md` under `renderers/` to build shared web core and renderer packages before running any web tools or clients.
-- **Running SDKs & Samples:** Consult the local `README.md` inside any targeted directory under `agent_sdks/`, `kotlin/`, `samples/`, or `tools/` for specific run/test/build commands.
+- **Prerequisite:** Consult the `README.md` files under `typescript/web_core/` and `renderers/` to build the shared web core and renderer packages before running any web tools or clients.
+- **Running SDKs & Samples:** Consult the local `README.md` inside any targeted directory under `python/`, `kotlin/`, `samples/`, or `tools/` for specific run/test/build commands.
 
 ---
 

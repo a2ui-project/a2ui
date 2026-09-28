@@ -59,6 +59,8 @@ export class A2aServiceImpl implements A2aService {
   }
 
   async sendMessage(parts: Part[], signal?: AbortSignal): Promise<SendMessageSuccessResponse> {
+    const newParts: Part[] = [];
+
     for (const p of parts) {
       const isTextPart = 'text' in p && typeof p.text === 'string';
       if (isTextPart) {
@@ -67,6 +69,48 @@ export class A2aServiceImpl implements A2aService {
           const parsed = parseResult.data;
           if (parsed.action) {
             const action = parsed.action;
+
+            // When an upload completes, we extract the large inline base64 data and append
+            // them as dedicated A2A FileParts. This prevents bloating the text action payload
+            // while preserving the fileId for pointer resolution.
+            if (action.name === 'upload_complete' && Array.isArray(action.context?.files)) {
+              let hasExtractedFiles = false;
+
+              for (const uploadedFile of action.context.files) {
+                if (!uploadedFile.inlineData || !uploadedFile.fileId) {
+                  continue;
+                }
+
+                const mimeType =
+                  uploadedFile.mimeType ||
+                  uploadedFile.metadata?.mimeType ||
+                  'application/octet-stream';
+
+                // Strip the data URL prefix if present (e.g., "data:image/png;base64,...")
+                const base64Data = uploadedFile.inlineData.includes(',')
+                  ? uploadedFile.inlineData.split(',')[1]
+                  : uploadedFile.inlineData;
+
+                // Append as a dedicated file part
+                // @ts-ignore
+                newParts.push({
+                  kind: 'file',
+                  file: {bytes: base64Data, mimeType},
+                  metadata: {fileId: uploadedFile.fileId},
+                });
+
+                // Remove inlineData from the JSON payload to reduce size
+                delete uploadedFile.inlineData;
+                hasExtractedFiles = true;
+              }
+
+              // Replace the text part with the modified JSON payload to omit inlineData,
+              // while preserving the fileId for pointer resolution.
+              if (hasExtractedFiles) {
+                p.text = JSON.stringify(parsed);
+              }
+            }
+
             this.telemetry.log({
               card: 'action',
               title: `A2UI Action Dispatched: ${action.name || 'event'}`,
@@ -82,10 +126,11 @@ export class A2aServiceImpl implements A2aService {
           this.enrichPromptWithContext(p);
         }
       }
+      newParts.push(p);
     }
 
     const response = await fetch('/a2a', {
-      body: JSON.stringify({parts: parts}),
+      body: JSON.stringify({parts: newParts}),
       method: 'POST',
       signal,
     });

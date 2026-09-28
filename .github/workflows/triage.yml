@@ -54,7 +54,9 @@ on:
 # result on its own, and the daily cron is a backstop either way.
 concurrency:
   group: triage
-  cancel-in-progress: true
+  # Not cancelling in-progress runs because otherwise some issues go unlabled
+  # when multiple issues arrive concurrently.
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -62,6 +64,13 @@ permissions:
 jobs:
   triage:
     name: Execute Triage
+    # A standard runner, not the ubuntu-latest-extra-capacity pool that
+    # https://github.com/a2ui-project/a2ui/pull/2338 set repo-wide. Jobs queue
+    # for hours on that pool. Triage events arrive every few minutes and each
+    # one cancels the queued run (see concurrency above), so a run waiting
+    # hours for a machine never gets to start: nothing has been triaged since
+    # 2026-08-21. A standard runner starts in seconds, and this job only calls
+    # the GitHub API, so it has no use for the larger pool.
     runs-on: ubuntu-latest
     # Requires issue and PR write permissions for automated labeling and comment management
     permissions:
@@ -71,12 +80,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Reconcile triage flag labels
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const path = require('path');

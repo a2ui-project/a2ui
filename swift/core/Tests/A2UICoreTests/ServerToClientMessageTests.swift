@@ -199,6 +199,74 @@ struct ServerToClientMessageTests {
     }
   }
 
+  @Test func decodeRejectsMultipleActionsCreateAndComponents() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v0.9.1",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "default"
+        },
+        "updateComponents": {
+          "surfaceId": "s1",
+          "components": []
+        }
+      }
+      """.data(using: .utf8))
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+    }
+  }
+
+  @Test func decodeRejectsMultipleActionsCreateAndDataModel() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v0.9.1",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "default"
+        },
+        "updateDataModel": {
+          "surfaceId": "s1",
+          "value": "hello"
+        }
+      }
+      """.data(using: .utf8))
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+    }
+  }
+
+  @Test func decodeRejectsMultipleActionsAllFour() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v0.9.1",
+        "createSurface": {"surfaceId": "s1", "catalogId": "default"},
+        "updateComponents": {"surfaceId": "s1", "components": []},
+        "updateDataModel": {"surfaceId": "s1", "value": 1},
+        "deleteSurface": {"surfaceId": "s1"}
+      }
+      """.data(using: .utf8))
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+    }
+  }
+
+  @Test func decodeRejectsZeroActions() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v0.9.1"
+      }
+      """.data(using: .utf8))
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(ServerToClientMessage.self, from: json)
+    }
+  }
+
   // MARK: - Encoding Round-Trip
 
   @Test func encodeDecodeRoundTripCreateSurface() throws {

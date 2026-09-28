@@ -15,8 +15,15 @@
  */
 
 import {Type} from '@angular/core';
-import {Catalog, ComponentApi} from '@a2ui/web_core/v0_9';
+import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core/v0_9';
+import {
+  WebComponentImplementation,
+  isWebComponentImplementation,
+} from '@a2ui/web_core/v0_9/universal';
+import {z} from 'zod';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
+import {toWebComponent} from './to_web_component';
+import {UniversalOnlyComponent} from './universal_only.component';
 
 /**
  * Temporary type used during basic catalog schema alignment to bypass strict type checking.
@@ -41,32 +48,95 @@ export interface AngularComponentImplementation extends ComponentApi {
 }
 
 /**
- * A collection of Angular component and function implementations mapped to
+ * A collection of component and function implementations mapped to
  * A2UI protocol types.
+ *
+ * Accepts native Angular components (`AngularComponentImplementation`) and
+ * universal Web Components (`WebComponentImplementation`). Web Component
+ * entries render only when `RendererConfiguration.useUniversalComponents`
+ * is enabled.
  *
  * Catalogs are used by the {@link MessageProcessor} to resolve component
  * definitions and by {@link ComponentHostComponent} to instantiate the
  * correct Angular components.
  */
-export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
+export class AngularCatalog extends Catalog<AngularComponentImplementation> {
+  constructor(
+    id: string,
+    protocolVersion: string,
+    components: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation> = [],
+    functions?: FunctionImplementation[],
+    themeSchema?: z.ZodTypeAny,
+    instructions?: string,
+  ) {
+    super(
+      id,
+      protocolVersion,
+      components.map(toAngularComponentImplementation),
+      functions,
+      themeSchema,
+      instructions,
+    );
+  }
+}
+
+function toAngularComponentImplementation(
+  entry: AngularComponentImplementation | WebComponentImplementation,
+): AngularComponentImplementation {
+  if (!isAngularComponentImplementation(entry)) {
+    // Workaround, needed only while 1P apps migrate to `useUniversalComponents: true`: until
+    // then every catalog entry must carry an Angular component, so Web Component-only entries
+    // get a placeholder that reports the missing flag instead of rendering.
+    return {...entry, component: UniversalOnlyComponent};
+  }
+  return entry;
+}
 
 /**
- * Helper function to create an {@link AngularComponentImplementation}.
+ * Duck-types a catalog entry as an {@link AngularComponentImplementation}
+ * (`typeof api.component === 'function'`), so catalogs built from plain object
+ * literals are recognized without class inheritance or brand symbols.
+ */
+function isAngularComponentImplementation(api: unknown): api is AngularComponentImplementation {
+  return (
+    typeof api === 'object' &&
+    api !== null &&
+    'component' in api &&
+    typeof (api as {component?: unknown}).component === 'function'
+  );
+}
+
+/**
+ * Creates a catalog entry for an Angular component that can be rendered both natively and as a
+ * universal Web Component.
  *
- * It extracts the name and schema from a generic {@link ComponentApi} and
- * associates it with the given Angular component type.
+ * The entry also carries a Custom Element (`tagName`, `element`): the one of `componentApi` when
+ * it is a `WebComponentImplementation` (for example a `@a2ui/web_core` basic catalog component),
+ * otherwise `component` wrapped with {@link toWebComponent}. Universal container components can
+ * therefore render the entry by tag, and the renderer mounts the element instead of `component`
+ * when `RendererConfiguration.useUniversalComponents` is enabled.
  *
- * @param api The generic component API definition.
- * @param component The Angular component class implementing the API.
- * @returns The structured Angular component implementation.
+ * @param componentApi The ComponentApi or WebComponentImplementation defining the schema and name.
+ * @param component The Angular Component class.
+ * @returns The entry, usable both natively and as a Web Component.
  */
 export function createComponentImplementation(
-  api: ComponentApi,
+  componentApi: ComponentApi | WebComponentImplementation,
   component: Type<CatalogComponentInstance>,
 ): AngularComponentImplementation {
-  return {
-    name: api.name,
-    schema: api.schema,
+  const webComponent = isWebComponentImplementation(componentApi)
+    ? componentApi
+    : toWebComponent({name: componentApi.name, schema: componentApi.schema, component});
+
+  // Annotated wider than the return type so the Custom Element fields pass the object literal
+  // check; to consumers the entry is an AngularComponentImplementation that also satisfies
+  // `isWebComponentImplementation`.
+  const implementation: AngularComponentImplementation & WebComponentImplementation = {
+    name: componentApi.name,
+    schema: componentApi.schema,
+    tagName: webComponent.tagName,
+    element: webComponent.element,
     component,
   };
+  return implementation;
 }

@@ -55,14 +55,16 @@
       <div class="progress-bar-container">
         <div class="progress-bar-fill" [style.width.%]="progress()"></div>
       </div>
-      <span class="status-caption">Uploading to Mock Drive ({{ progress() }}%)...</span>
+      <span class="status-caption">Uploading... ({{ progress() }}%)</span>
     }
 
     @if (uploadState() === 'success') {
       <div class="uploaded-files-list">
         @for (file of uploadedFiles(); track file.fileId; let i = $index) {
           <div class="success-badge-container" (click)="$event.stopPropagation()">
-            <span class="badge-chip">IOC UPLOADED</span>
+            <span class="badge-chip">{{
+              isInlineFile(file) ? 'INLINE DATA' : 'IOC UPLOADED'
+            }}</span>
             <div class="file-info-row">
               <span class="file-name">{{ file.metadata.fileName }}</span>
               <code class="pointer-uri">{{ file.fileId }}</code>

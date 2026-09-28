@@ -39,6 +39,17 @@ export const SENSITIVE_PERMISSIONS = [
   'clipboard-write',
 ] as const;
 
+export const RESOURCE_READY_NOTIFICATION: McpUiSandboxResourceReadyNotification['method'] =
+  'ui/notifications/sandbox-resource-ready';
+export const PROXY_READY_NOTIFICATION: McpUiSandboxProxyReadyNotification['method'] =
+  'ui/notifications/sandbox-proxy-ready';
+
+export const A2uiMessageType = {
+  Action: 'a2ui_action',
+  SandboxProxyReady: 'a2ui_sandbox_proxy_ready',
+  SandboxResourceReady: 'a2ui_sandbox_resource_ready',
+} as const;
+
 export function buildPermissionsPolicy(allowAttribute?: string): string {
   if (!allowAttribute || !allowAttribute.trim()) {
     return SENSITIVE_PERMISSIONS.map(f => `${f} 'none'`).join('; ') + ';';
@@ -65,11 +76,6 @@ export function buildPermissionsPolicy(allowAttribute?: string): string {
 export function normalizeOrigin(origin: string): string {
   return origin.replace('://127.0.0.1', '://localhost');
 }
-
-export const RESOURCE_READY_NOTIFICATION: McpUiSandboxResourceReadyNotification['method'] =
-  'ui/notifications/sandbox-resource-ready';
-export const PROXY_READY_NOTIFICATION: McpUiSandboxProxyReadyNotification['method'] =
-  'ui/notifications/sandbox-proxy-ready';
 
 const isTestEnv = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
 
@@ -113,9 +119,10 @@ if (!isTestEnv && typeof window !== 'undefined' && typeof document !== 'undefine
   // iframe on a separate origin. It creates an inner iframe for untrusted HTML content.
   // Note: allow-top-navigation and allow-top-navigation-by-user-activation are strictly omitted
   // to prevent embedded scripts from hijacking top-level window navigation (frame-busting).
+  // allow-popups and allow-popups-to-escape-sandbox are omitted by default to prevent 1-click hyperlink exfiltration.
   const inner = document.createElement('iframe');
   inner.style.cssText = 'width:100%; height:100%; border:none;';
-  inner.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');
+  inner.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals');
   inner.setAttribute('allow', buildPermissionsPolicy());
   document.body.appendChild(inner);
 
@@ -132,7 +139,8 @@ if (!isTestEnv && typeof window !== 'undefined' && typeof document !== 'undefine
       }
 
       const isMcpResourceReady = event.data && event.data.method === RESOURCE_READY_NOTIFICATION;
-      const isA2uiResourceReady = event.data && event.data.type === 'a2ui_sandbox_resource_ready';
+      const isA2uiResourceReady =
+        event.data && event.data.type === A2uiMessageType.SandboxResourceReady;
 
       if (isMcpResourceReady || isA2uiResourceReady) {
         const payload = isMcpResourceReady ? event.data.params : event.data;
@@ -204,7 +212,7 @@ if (!isTestEnv && typeof window !== 'undefined' && typeof document !== 'undefine
   // Note: This message is a no-op and safely ignored if the host is using an McpApp component instead.
   window.parent.postMessage(
     {
-      type: 'a2ui_sandbox_proxy_ready',
+      type: A2uiMessageType.SandboxProxyReady,
     },
     EXPECTED_HOST_ORIGIN,
   );

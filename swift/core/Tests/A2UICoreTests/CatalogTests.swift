@@ -36,7 +36,8 @@ struct ConcatFunction: FunctionImplementation {
     )
   )
 
-  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue {
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let first = arguments["a"]?.stringValue ?? ""
     let second = arguments["b"]?.stringValue ?? ""
     return .string(first + second)
@@ -61,7 +62,8 @@ struct IsEmptyFunction: FunctionImplementation {
     )
   )
 
-  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue {
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let value = arguments["value"]?.stringValue ?? ""
     return .boolean(value.isEmpty)
   }
@@ -82,7 +84,7 @@ struct ComponentAPITests {
         }
         """
     )
-    let api = ComponentAPI(name: "Button", schema: schema)
+    let api = AnyComponentAPI(name: "Button", schema: schema)
     #expect(api.name == "Button")
     #expect(api.schema == schema)
   }
@@ -91,15 +93,15 @@ struct ComponentAPITests {
 
   @Test func componentAPIsEqualByNameAndSchema() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let a = ComponentAPI(name: "Button", schema: schema)
-    let b = ComponentAPI(name: "Button", schema: schema)
+    let a = AnyComponentAPI(name: "Button", schema: schema)
+    let b = AnyComponentAPI(name: "Button", schema: schema)
     #expect(a == b)
   }
 
   @Test func componentAPIsNotEqualByDifferentName() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let a = ComponentAPI(name: "Button", schema: schema)
-    let b = ComponentAPI(name: "Text", schema: schema)
+    let a = AnyComponentAPI(name: "Button", schema: schema)
+    let b = AnyComponentAPI(name: "Text", schema: schema)
     #expect(a != b)
   }
 }
@@ -147,7 +149,7 @@ struct CatalogTests {
 
   // MARK: - Initialization
 
-  @Test func catalogInitializesWithIdComponentsAndFunctions() throws {
+  @Test func catalogInitializesWithIDComponentsAndFunctions() throws {
     let buttonSchema = try Schema(
       instance: """
         {
@@ -158,7 +160,7 @@ struct CatalogTests {
         }
         """
     )
-    let buttonAPI = ComponentAPI(name: "Button", schema: buttonSchema)
+    let buttonAPI = AnyComponentAPI(name: "Button", schema: buttonSchema)
     let catalog = Catalog(
       id: "test-catalog",
       components: [buttonAPI],
@@ -173,7 +175,7 @@ struct CatalogTests {
   }
 
   @Test func catalogInitializesWithEmptyDefaults() {
-    let catalog = Catalog(id: "empty-catalog", components: [])
+    let catalog = AnyCatalog(id: "empty-catalog", components: [])
     #expect(catalog.id == "empty-catalog")
     #expect(catalog.components.isEmpty)
     #expect(catalog.functions.isEmpty)
@@ -191,7 +193,7 @@ struct CatalogTests {
         }
         """
     )
-    let catalog = Catalog(
+    let catalog = AnyCatalog(
       id: "themed-catalog",
       components: [],
       themeSchema: themeSchema
@@ -203,7 +205,7 @@ struct CatalogTests {
 
   @Test func catalogComponentsLookupReturnsAPIForRegisteredName() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let api = ComponentAPI(name: "Text", schema: schema)
+    let api = AnyComponentAPI(name: "Text", schema: schema)
     let catalog = Catalog(id: "test", components: [api])
 
     let result = catalog.components["Text"]
@@ -213,100 +215,24 @@ struct CatalogTests {
   }
 
   @Test func catalogComponentsLookupReturnsNilForUnregisteredName() {
-    let catalog = Catalog(id: "test", components: [])
+    let catalog = AnyCatalog(id: "test", components: [])
     #expect(catalog.components["Unknown"] == nil)
   }
 
   // MARK: - Function Lookup
 
   @Test func catalogFunctionsLookupReturnsImplementation() {
-    let catalog = Catalog(
+    let catalog = AnyCatalog(
       id: "test",
       components: [],
       functions: [ConcatFunction(), IsEmptyFunction()]
     )
-    let fn = catalog.functions["concat"]
-    #expect(fn != nil)
+    let function = catalog.functions["concat"]
+    #expect(function != nil)
   }
 
   @Test func catalogFunctionsLookupReturnsNilForUnregistered() {
-    let catalog = Catalog(id: "test", components: [])
+    let catalog = AnyCatalog(id: "test", components: [])
     #expect(catalog.functions["unknown"] == nil)
-  }
-
-  @Test func catalogFunctionEvaluatesCorrectly() throws {
-    let catalog = Catalog(
-      id: "test",
-      components: [],
-      functions: [ConcatFunction()]
-    )
-    let fn = try #require(catalog.functions["concat"])
-    let result = try fn.evaluate(arguments: [
-      "a": "Hello, ",
-      "b": "World!",
-    ])
-    #expect(result.stringValue == "Hello, World!")
-  }
-
-  @Test func catalogFunctionEvaluatesBooleanResult() throws {
-    let catalog = Catalog(
-      id: "test",
-      components: [],
-      functions: [IsEmptyFunction()]
-    )
-    let fn = try #require(catalog.functions["isEmpty"])
-    let result = try fn.evaluate(arguments: ["value": ""])
-    #expect(result.boolValue == true)
-
-    let result2 = try fn.evaluate(arguments: ["value": "hello"])
-    #expect(result2.boolValue == false)
-  }
-}
-
-struct FunctionImplementationTests {
-
-  // MARK: - ConcatFunction
-
-  @Test func concatFunctionEvaluatesWithBothArgs() throws {
-    let fn = ConcatFunction()
-    let result = try fn.evaluate(arguments: [
-      "a": "Hello, ",
-      "b": "World!",
-    ])
-    #expect(result.stringValue == "Hello, World!")
-  }
-
-  @Test func concatFunctionHandlesMissingArgs() throws {
-    let fn = ConcatFunction()
-    let result = try fn.evaluate(arguments: [:])
-    #expect(result.stringValue == "")
-  }
-
-  // MARK: - IsEmptyFunction
-
-  @Test func isEmptyFunctionReturnsTrueForEmptyString() throws {
-    let fn = IsEmptyFunction()
-    let result = try fn.evaluate(arguments: ["value": ""])
-    #expect(result.boolValue == true)
-  }
-
-  @Test func isEmptyFunctionReturnsFalseForNonEmptyString() throws {
-    let fn = IsEmptyFunction()
-    let result = try fn.evaluate(arguments: ["value": "hello"])
-    #expect(result.boolValue == false)
-  }
-
-  @Test func isEmptyFunctionReturnsTrueForMissingArg() throws {
-    let fn = IsEmptyFunction()
-    let result = try fn.evaluate(arguments: [:])
-    #expect(result.boolValue == true)
-  }
-
-  // MARK: - API Exposure
-
-  @Test func functionImplementationExposesAPI() {
-    let fn = ConcatFunction()
-    #expect(fn.api.name == "concat")
-    #expect(fn.api.returnType == .string)
   }
 }

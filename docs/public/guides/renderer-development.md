@@ -8,7 +8,7 @@ This document outlines the required features for a new renderer implementation o
 
 ## Web Renderers: Use `@a2ui/web_core` (`web_core`)
 
-If you're building a renderer for the web (React, Vue, Svelte, etc.), you don't need to implement message processing, state management, or schema validation from scratch. The **[`@a2ui/web_core`](../../../renderers/web_core)** package (`web_core`) provides all the framework-agnostic logic that the maintained Lit, Angular, and React renderers share.
+If you're building a renderer for the web (React, Vue, Svelte, etc.), you don't need to implement message processing, state management, or schema validation from scratch. The **[`@a2ui/web_core`](../../../typescript/web_core)** package (`web_core`) provides all the framework-agnostic logic that the maintained Lit, Angular, and React renderers share.
 
 ### What `web_core` provides
 
@@ -126,11 +126,10 @@ This section details the fundamental mechanics of the A2UI protocol. A compliant
     All requirements from v0.9.1, with the following extensions:
     - **Surface Properties**:
         - Handle `createSurface` with `surfaceProperties` (renamed from `theme`). Custom primary brand colors are no longer supported inside the surface schema.
-    - **Action Responses (RPC)**:
-        - Handle the `actionResponse` message from the server containing `actionId` and a return `value` or `error`.
+    - **Directional Function Calls (RPC)**:
+        - Handle `callRendererFunction` messages from the agent and return `rendererFunctionResponse` (or `error`).
     - **Client-to-Server**:
-        - Generate and include an `actionId` inside `action` payloads.
-        - Support `wantResponse: true` on actions when the client expects a response.
+        - Support initiating `callAgentFunction` messages to the agent for remote function execution.
         - If using A2A, every A2A `Message` sent to the server must include an `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message`.
     - **Capabilities**:
         - Expose `surfaceProperties` in place of `theme` during capabilities exchange.

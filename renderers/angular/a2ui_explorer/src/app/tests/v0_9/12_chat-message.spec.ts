@@ -23,7 +23,7 @@ describe('Example: Chat Message', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Chat Message');
+    fixture = await loadExample({name: 'Chat Message'});
     textContent = getCanvas().textContent;
   });
 

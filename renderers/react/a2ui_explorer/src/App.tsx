@@ -88,10 +88,110 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
   const [surfaces, setSurfaces] = useState<string[]>([]);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(-1);
 
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(() => {
+    try {
+      return (
+        typeof window !== 'undefined' && localStorage.getItem('isLeftSidebarCollapsed') === 'true'
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(() => {
+    try {
+      return (
+        typeof window !== 'undefined' && localStorage.getItem('isRightSidebarCollapsed') === 'true'
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  const navListRef = useRef<HTMLDivElement | null>(null);
+
+  const toggleLeftSidebar = useCallback(() => {
+    setIsLeftSidebarCollapsed(prev => {
+      const next = !prev;
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('isLeftSidebarCollapsed', String(next));
+        }
+      } catch {
+        // Ignore in restricted environments
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleRightSidebar = useCallback(() => {
+    setIsRightSidebarCollapsed(prev => {
+      const next = !prev;
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('isRightSidebarCollapsed', String(next));
+        }
+      } catch {
+        // Ignore in restricted environments
+      }
+      return next;
+    });
+  }, []);
+
+  const scrollToActiveExample = useCallback(() => {
+    setTimeout(() => {
+      const activeEl = navListRef.current?.querySelector(`.${styles.navItem}.${styles.active}`);
+      activeEl?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    }, 0);
+  }, []);
+
   const onActionRef = useRef(onAction);
   useEffect(() => {
     onActionRef.current = onAction;
   }, [onAction]);
+
+  // Handle keyboard shortcuts ('j' and 'k')
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const activeEl =
+        typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+      const targetEl = event.target as HTMLElement | null;
+      const focusedEl = (activeEl && activeEl.isConnected ? activeEl : null) || targetEl;
+
+      if (
+        focusedEl &&
+        (focusedEl.tagName === 'INPUT' ||
+          focusedEl.tagName === 'TEXTAREA' ||
+          focusedEl.tagName === 'SELECT' ||
+          focusedEl.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+        return;
+      }
+
+      if (event.key === 'j') {
+        setSelectedExampleId(prevId => {
+          const currentIndex = demoItems.findIndex(e => e.id === prevId);
+          const nextIndex = currentIndex < demoItems.length - 1 ? currentIndex + 1 : 0;
+          return demoItems[nextIndex].id;
+        });
+        event.preventDefault();
+      } else if (event.key === 'k') {
+        setSelectedExampleId(prevId => {
+          const currentIndex = demoItems.findIndex(e => e.id === prevId);
+          const prevIndex = currentIndex > 0 ? currentIndex - 1 : demoItems.length - 1;
+          return demoItems[prevIndex].id;
+        });
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Initialize or reset processor
   const resetProcessor = useCallback(
@@ -133,6 +233,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
   // Effect to handle example selection change
   useEffect(() => {
     resetProcessor(true);
+    scrollToActiveExample();
     // Cleanup on unmount or when changing examples
     return () => {
       setProcessor(prev => {
@@ -140,7 +241,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
         return null;
       });
     };
-  }, [selectedExampleId, resetProcessor]);
+  }, [selectedExampleId, resetProcessor, scrollToActiveExample]);
 
   // Handle surface subscriptions
   useEffect(() => {
@@ -185,9 +286,11 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <div>
-          <h1 className={styles.h1}>A2UI React Explorer</h1>
-          <p className={styles.subtitle}>Preview and interact with React components</p>
+        <div className={styles.headerLeft}>
+          <div>
+            <h1 className={styles.h1}>A2UI React Explorer</h1>
+            <p className={styles.subtitle}>Preview and interact with React components</p>
+          </div>
         </div>
         <div className={styles.stepperControls}>
           <span>
@@ -201,23 +304,104 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
 
       <main className={styles.main}>
         {/* Left Column: Sample List */}
-        <div className={styles.navPane}>
-          {demoItems.map(item => {
-            const isActive = selectedExampleId === item.id;
-            return (
-              <button
-                key={item.id}
-                className={`${styles.navItem} ${isActive ? styles.active : ''}`}
-                onClick={() => setSelectedExampleId(item.id)}
+        <nav
+          className={`${styles.navPane} ${isLeftSidebarCollapsed ? styles.collapsed : ''}`}
+          aria-label="Examples Navigation"
+        >
+          <div className={styles.navHeader}>
+            <h3 className={styles.navHeaderTitle}>Examples</h3>
+            <button
+              className={`${styles.iconBtn} ${styles.collapseLeftBtn}`}
+              onClick={toggleLeftSidebar}
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               >
-                <div className={styles.navTitle}>{item.title}</div>
-              </button>
-            );
-          })}
-        </div>
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div className={styles.navList} ref={navListRef}>
+            {demoItems.map(item => {
+              const isActive = selectedExampleId === item.id;
+              return (
+                <button
+                  key={item.id}
+                  className={`${styles.navItem} ${isActive ? styles.active : ''}`}
+                  onClick={() => setSelectedExampleId(item.id)}
+                >
+                  <div className={styles.navTitle}>{item.title}</div>
+                  <div className={styles.navDesc}>{item.description}</div>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
 
         {/* Center Column: Preview & JSON Stepper */}
         <div className={styles.galleryPane}>
+          <div className={styles.previewHeader}>
+            <div className={styles.previewHeaderLeft}>
+              {isLeftSidebarCollapsed && (
+                <button
+                  className={`${styles.iconBtn} ${styles.expandLeftBtn}`}
+                  onClick={toggleLeftSidebar}
+                  title="Expand sidebar"
+                  aria-label="Expand sidebar"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              )}
+              <div>
+                <h2>{selectedItem?.title || 'No selection'}</h2>
+                <p className={styles.subtitle}>{selectedItem?.description}</p>
+              </div>
+            </div>
+            <div className={styles.previewHeaderRight}>
+              {isRightSidebarCollapsed && (
+                <button
+                  className={`${styles.iconBtn} ${styles.expandRightBtn}`}
+                  onClick={toggleRightSidebar}
+                  title="Expand inspector"
+                  aria-label="Expand inspector"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className={styles.previewContent}>
             <div className={styles.surfaceContainer}>
               {surfaces.length === 0 && (
@@ -304,7 +488,33 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
         </div>
 
         {/* Right Column: Live DataModelViewer & Action Logs */}
-        <div className={styles.inspectorPane}>
+        <aside
+          className={`${styles.inspectorPane} ${isRightSidebarCollapsed ? styles.collapsed : ''}`}
+          aria-label="Inspector Panel"
+        >
+          <div className={styles.inspectorPaneHeader}>
+            <h4 className={styles.inspectorPaneTitle}>Inspector</h4>
+            <button
+              className={`${styles.iconBtn} ${styles.collapseRightBtn}`}
+              onClick={toggleRightSidebar}
+              title="Collapse inspector"
+              aria-label="Collapse inspector"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
+
           <div className={styles.inspectorSection}>
             <h3 className={styles.inspectorHeader}>Data Model</h3>
             <div className={styles.inspectorBody}>
@@ -343,7 +553,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
               </div>
             </div>
           </div>
-        </div>
+        </aside>
       </main>
     </div>
   );

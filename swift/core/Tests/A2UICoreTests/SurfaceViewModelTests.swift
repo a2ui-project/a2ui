@@ -14,6 +14,7 @@
 
 import A2UICore
 import A2UIJSON
+import Combine
 import Foundation
 import JSONSchema
 import OrderedJSON
@@ -38,7 +39,8 @@ struct TestConcatFunction: FunctionImplementation {
     )
   )
 
-  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue {
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let a = arguments["a"]?.stringValue ?? ""
     let b = arguments["b"]?.stringValue ?? ""
     return .string(a + b)
@@ -47,22 +49,95 @@ struct TestConcatFunction: FunctionImplementation {
 
 /// Builds a `Catalog` with a button component schema that has dynamic
 /// properties, and a `concat` local function for testing.
-func makeTestCatalog() throws -> Catalog {
+struct TestRequiredFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "required",
+    returnType: .boolean,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    guard let value = arguments["value"] else { return .boolean(false) }
+    switch value {
+    case .null: return .boolean(false)
+    case .string(let s): return .boolean(!s.isEmpty)
+    default: return .boolean(true)
+    }
+  }
+}
+
+struct TestEmailFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "email",
+    returnType: .boolean,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    guard let s = arguments["value"]?.stringValue else { return .boolean(false) }
+    return .boolean(s.contains("@") && s.contains("."))
+  }
+}
+
+func makeTestCatalog() throws -> AnyCatalog {
   let buttonSchema = try Schema(
     instance: """
       {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string" },
-          "component": { "type": "string" },
-          "label": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" },
-          "enabled": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
-          "count": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber" },
-          "details": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicValue" },
-          "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" },
-          "children": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList" }
-        },
-        "required": ["id", "component"]
+        "allOf": [
+          { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentCommon" },
+          { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Checkable" },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "component": { "type": "string" },
+              "label": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"
+              },
+              "enabled": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean"
+              },
+              "count": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber"
+              },
+              "max": { "type": "number" },
+              "min": { "type": "number" },
+              "details": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicValue"
+              },
+              "icon": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding" }
+                ]
+              },
+              "tags": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList"
+              },
+              "config": {
+                "type": "object",
+                "properties": {
+                  "visible": {
+                    "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean"
+                  },
+                  "amount": {
+                    "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber"
+                  },
+                  "custom": { "type": "object" }
+                }
+              },
+              "onClick": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action"
+              },
+              "children": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList"
+              }
+            },
+            "required": ["id", "component"]
+          }
+        ]
       }
       """,
     remoteSchemas: A2UICommonSchema.allSchemas
@@ -70,8 +145,8 @@ func makeTestCatalog() throws -> Catalog {
 
   return Catalog(
     id: "test-catalog",
-    components: [ComponentAPI(name: "button", schema: buttonSchema)],
-    functions: [TestConcatFunction()]
+    components: [AnyComponentAPI(name: "button", schema: buttonSchema)],
+    functions: [TestConcatFunction(), TestRequiredFunction(), TestEmailFunction()]
   )
 }
 
@@ -140,7 +215,7 @@ struct SurfaceViewModelTests {
     }
   }
 
-  @Test func updateComponentsRejectsMissingIdKey() throws {
+  @Test func updateComponentsRejectsMissingIDKey() throws {
     let (processor, _, handler) = try makeProcessor()
     processor.updateComponents(
       surfaceID: "test-surface",
@@ -305,6 +380,42 @@ struct SurfaceViewModelTests {
     #expect(binding.value == "Hello, World!")
   }
 
+  /// A property bound through a function call must reflect a data update as
+  /// soon as the update is delivered, exactly like a plain path binding to
+  /// the same data.
+  @Test func functionCallBindingReflectsDataUpdate() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/first", value: "Alice")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": [
+            "call": "concat",
+            "args": ["a": ["path": "/user/first"], "b": "!"],
+          ],
+          "details": ["path": "/user/first"],
+        ]
+      ]
+    )
+    await Task.yield()
+    let initial = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(initial.value == "Alice!")
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/first", value: "Bob")
+    await Task.yield()
+
+    // Both bindings read the same path; both must see the new value.
+    let plainPath = try #require(
+      surface.rootNode?.properties["details"] as? DataBinding<JSONValue>)
+    let throughCall = try #require(
+      surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(plainPath.value?.stringValue == "Bob")
+    #expect(throughCall.value == "Bob!")
+  }
+
   @Test func dynamicBooleanResolvesLiteralAndPathOnRootNode() async throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/isReady", value: true)
@@ -345,6 +456,51 @@ struct SurfaceViewModelTests {
     #expect(updatedBinding.value == 100.0)
   }
 
+  @Test func sliderNumberPropertiesResolution() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/progress", value: 0.45)
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "max": 1,
+          "min": 0,
+          "count": ["path": "/progress"],
+        ]
+      ]
+    )
+    await Task.yield()
+    let root = try #require(surface.rootNode)
+    #expect(root.double(for: "max") == 1.0)
+    #expect(root.double(for: "min") == 0.0)
+    #expect(root.double(for: "count") == 0.45)
+    #expect(root.properties["max"] as? Double == 1.0)
+    #expect(root.properties["min"] as? Double == 0.0)
+  }
+
+  @Test func dynamicStringCoercesNumbersAndBooleans() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/tempHigh", value: 72)
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/playIcon", value: "pause")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["path": "/tempHigh"],
+          "icon": ["path": "/playIcon"],
+        ]
+      ]
+    )
+    await Task.yield()
+    let root = try #require(surface.rootNode)
+    #expect(root.string(for: "label") == "72")
+    #expect(root.string(for: "icon") == "pause")
+  }
+
   @Test func dynamicValueResolvesPathOnRootNode() async throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/info", value: ["key": "val"])
@@ -357,6 +513,67 @@ struct SurfaceViewModelTests {
     await Task.yield()
     let binding = try #require(surface.rootNode?.properties["details"] as? DataBinding<JSONValue>)
     #expect(binding.value?["key"]?.stringValue == "val")
+  }
+
+  @Test func dataBindingResolvesPathOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/iconName", value: "check")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "icon": ["path": "/iconName"]]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["icon"] as? DataBinding<String>)
+    #expect(binding.value == "check")
+  }
+
+  @Test func dynamicStringListResolvesArrayPathOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/tags", value: ["ios", "swift"])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "tags": ["path": "/tags"]]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["tags"] as? DataBinding<[String]>)
+    #expect(binding.value == ["ios", "swift"])
+  }
+
+  @Test func nestedDynamicPropertiesResolveCorrectTypes() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/isVisible", value: true)
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/total", value: 42.5)
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/raw", value: ["foo": "bar"])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "config": [
+            "visible": ["path": "/isVisible"],
+            "amount": ["path": "/total"],
+            "custom": ["path": "/raw"],
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let root = try #require(surface.rootNode)
+    let config = try #require(root.dictionary(for: "config"))
+
+    let visibleBinding = try #require(config["visible"] as? DataBinding<Bool>)
+    #expect(visibleBinding.value == true)
+
+    let amountBinding = try #require(config["amount"] as? DataBinding<Double>)
+    #expect(amountBinding.value == 42.5)
+
+    let customBinding = try #require(config["custom"] as? DataBinding<JSONValue>)
+    #expect(customBinding.value?["foo"]?.stringValue == "bar")
   }
 
   // MARK: - Action Resolution
@@ -407,6 +624,181 @@ struct SurfaceViewModelTests {
     #expect(funcCallJSON["call"]?.stringValue == "submit")
   }
 
+  // MARK: - Validation Checks
+
+  @Test func checksResolveAndReflectInNodeValidationErrors() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/email", value: "not-an-email")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "checks": [
+            [
+              "condition": [
+                "call": "required",
+                "args": ["value": ["path": "/email"]],
+              ],
+              "message": "Email is required",
+            ],
+            [
+              "condition": [
+                "call": "email",
+                "args": ["value": ["path": "/email"]],
+              ],
+              "message": "Please enter a valid email address",
+            ],
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = try #require(surface.rootNode)
+    #expect(!node.isValid)
+    #expect(node.validationErrors == ["Please enter a valid email address"])
+
+    // Updating data model to valid email should clear validation errors
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/email", value: "user@example.com")
+    await Task.yield()
+    let updatedNode = try #require(surface.rootNode)
+    #expect(updatedNode.isValid)
+    #expect(updatedNode.validationErrors.isEmpty)
+  }
+
+  @Test func buttonChecksBlockActionDispatchOnValidationError() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/email", value: "")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "checks": [
+            [
+              "condition": [
+                "call": "required",
+                "args": ["value": ["path": "/email"]],
+              ],
+              "message": "Email is required",
+            ]
+          ],
+          "onClick": [
+            "event": ["name": "submit", "context": [:]]
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = try #require(surface.rootNode)
+    let action = try #require(node.properties["onClick"] as? ResolvedAction)
+
+    // Triggering action while invalid should not dispatch event
+    action()
+    #expect(handler.capturedActions.isEmpty)
+
+    // Update to valid value and trigger again
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/email", value: "hello@world.com")
+    await Task.yield()
+    let validNode = try #require(surface.rootNode)
+    let validAction = try #require(validNode.properties["onClick"] as? ResolvedAction)
+    validAction()
+    #expect(handler.capturedActions.count == 1)
+  }
+
+  @Test func customNamedCheckPropertyResolvesAndBlocksAction() async throws {
+    let customSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "rules": {
+              "type": "array",
+              "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/CheckRule" }
+            },
+            "singleCheck": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/CheckRule"
+            },
+            "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" }
+          },
+          "required": ["id", "component"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let handler = TestActionHandler()
+    let catalog = Catalog(
+      id: "custom-catalog",
+      components: [AnyComponentAPI(name: "customInput", schema: customSchema)],
+      functions: [TestRequiredFunction(), TestEmailFunction()]
+    )
+    let processor = MessageProcessor(
+      catalogs: [catalog],
+      actionHandler: handler
+    )
+    let surface = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog,
+      actionHandler: handler
+    )
+    processor.surfaceGroupModel.addSurface(surface)
+
+    processor.updateDataModel(surfaceID: "s1", path: "/email", value: "invalid")
+    processor.updateComponents(
+      surfaceID: "s1",
+      components: [
+        [
+          "id": "root",
+          "component": "customInput",
+          "rules": [
+            [
+              "condition": [
+                "call": "email",
+                "args": ["value": ["path": "/email"]],
+              ],
+              "message": "Invalid email in custom rule",
+            ]
+          ],
+          "singleCheck": [
+            "condition": [
+              "call": "required",
+              "args": ["value": ["path": "/email"]],
+            ],
+            "message": "Email is required",
+          ],
+          "onClick": [
+            "event": ["name": "submit", "context": [:]]
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = try #require(surface.rootNode)
+    #expect(!node.isValid)
+    #expect(node.checks.count == 2)
+    #expect(node.validationErrors == ["Invalid email in custom rule"])
+
+    let action = try #require(node.properties["onClick"] as? ResolvedAction)
+    action()
+    #expect(handler.capturedActions.isEmpty)
+
+    // Update data model to valid value
+    processor.updateDataModel(surfaceID: "s1", path: "/email", value: "test@example.com")
+    await Task.yield()
+    let validNode = try #require(surface.rootNode)
+    #expect(validNode.isValid)
+    #expect(validNode.validationErrors.isEmpty)
+
+    let validAction = try #require(validNode.properties["onClick"] as? ResolvedAction)
+    validAction()
+    #expect(handler.capturedActions.count == 1)
+  }
   // MARK: - Child List Resolution (Static)
 
   @Test func childListResolvesStaticArray() throws {
@@ -477,7 +869,9 @@ struct SurfaceViewModelTests {
           "properties": {
             "id": { "type": "string" },
             "component": { "type": "string" },
-            "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList" }
+            "items": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList"
+            }
           },
           "required": ["id", "component"]
         }
@@ -487,7 +881,7 @@ struct SurfaceViewModelTests {
 
     let catalog = Catalog(
       id: "lookalike-catalog",
-      components: [ComponentAPI(name: "custom", schema: schema)],
+      components: [AnyComponentAPI(name: "custom", schema: schema)],
       functions: []
     )
 
@@ -573,13 +967,42 @@ struct SurfaceViewModelTests {
     // instanceID (card_0, card_0_0, etc.) so the guard never triggers.
     #expect(true)
   }
+
+  @Test func dynamicStringResolvesFunctionCallWithPathArgsAfterDataModelUpdate() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": [
+            "call": "concat",
+            "args": [
+              "a": "Hello, ",
+              "b": ["path": "/name"],
+            ],
+            "returnType": "string",
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let beforeBinding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(beforeBinding.value == "Hello, ")
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "", value: ["name": "Alice"])
+    await Task.yield()
+    let afterBinding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(afterBinding.value == "Hello, Alice")
+  }
 }
 
 // MARK: - ComponentModel Tests
 
 struct ComponentModelTests {
 
-  @Test func componentModelStoresIdTypeAndProperties() {
+  @Test func componentModelStoresIDTypeAndProperties() {
     let model = ComponentModel(
       id: "btn1",
       type: "button",
@@ -635,6 +1058,7 @@ struct ComponentModelTests {
 
 // MARK: - SurfaceComponentsModel Tests
 
+@MainActor
 struct SurfaceComponentsModelTests {
 
   @Test func startsEmpty() {
@@ -659,7 +1083,7 @@ struct SurfaceComponentsModelTests {
     #expect(model.components.isEmpty)
   }
 
-  @Test func replaceComponentWithSameId() {
+  @Test func replaceComponentWithSameID() {
     let model = SurfaceComponentsModel()
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "Old"]))
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "New"]))
@@ -674,10 +1098,26 @@ struct SurfaceComponentsModelTests {
     #expect(snap.count == 1)
     #expect(snap["a"] != nil)
   }
+
+  @Test func subscriberReadingBackThroughComponentsModelSeesStoredComponents() {
+    let model = SurfaceComponentsModel()
+    var announced: [[String: ComponentModel]] = []
+    var readBack: [ComponentModel?] = []
+    let cancellable = model.componentsPublisher.sink { components in
+      announced.append(components)
+      readBack.append(model.get("btn1"))
+    }
+    model.addComponent(ComponentModel(id: "btn1", type: "button", properties: [:]))
+    cancellable.cancel()
+    #expect(announced.count == 2)
+    #expect(announced[1]["btn1"]?.type == "button")
+    #expect(readBack[1]?.type == "button")
+  }
 }
 
 // MARK: - DataModel Tests
 
+@MainActor
 struct DataModelTests {
 
   @Test func startsEmpty() {
@@ -702,6 +1142,36 @@ struct DataModelTests {
     let model = DataModel(initial: ["name": "Bob"])
     #expect(model.get("/name")?.stringValue == "Bob")
   }
+
+  @Test func subscriberReadingBackThroughModelSeesStoredValue() {
+    let model = DataModel()
+    var announced: [JSONValue] = []
+    var readBack: [JSONValue?] = []
+    let cancellable = model.dataPublisher.sink { value in
+      announced.append(value)
+      readBack.append(model.get("/user/name"))
+    }
+    model.set("/user/name", value: "Alice")
+    cancellable.cancel()
+    #expect(announced.count == 2)
+    #expect(announced[1]["/user/name"]?.stringValue == "Alice")
+    #expect(readBack[1]?.stringValue == "Alice")
+  }
+
+  @Test func setsRootPathReplacesEntireData() {
+    let model = DataModel(initial: ["oldKey": "oldVal", "sharedKey": "prev"])
+    model.set("", value: ["newKey": "newVal"])
+    #expect(model.get("/newKey")?.stringValue == "newVal")
+    #expect(model.get("/oldKey") == nil)
+    #expect(model.get("") == .object(["newKey": "newVal"]))
+
+    model.set("/", value: ["other": 123])
+    #expect(model.get("/other")?.intValue == 123)
+    #expect(model.get("/newKey") == nil)
+
+    model.set("", value: nil)
+    #expect(model.data == .object([:]))
+  }
 }
 
 extension MessageProcessor {
@@ -709,8 +1179,8 @@ extension MessageProcessor {
     surfaceID: String,
     components: [[String: JSONValue]]
   ) {
-    processMessage(
-      .updateComponents(
+    process(
+      message: .updateComponents(
         UpdateComponentsMessage(surfaceID: surfaceID, components: components)
       )
     )
@@ -721,8 +1191,8 @@ extension MessageProcessor {
     path: String,
     value: JSONValue?
   ) {
-    processMessage(
-      .updateDataModel(
+    process(
+      message: .updateDataModel(
         UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value)
       )
     )

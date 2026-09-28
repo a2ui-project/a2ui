@@ -1,0 +1,145 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Direct JSON compilation: turning one raw JSON block into A2UI messages.
+#
+# `compile` takes the content of one block, without its sentinel tags, and
+# returns the messages an agent sends.
+#
+# The inverse, writing messages back out as JSON, is
+# `agent/direct_json/decompiler.yaml`. Finding the blocks in a response and
+# putting them back is `agent/direct_json/response_parser.yaml`. The blueprint's
+# `Parser` declares `compile`, `decompile`, `wrap`, `unwrap` and
+# `parse_response` as one interface; the suites are split by call because each
+# has rules of its own.
+#
+# Compiling direct JSON is mostly reading the block, so what the cases fix is
+# mainly what a compiler may repair before reading: a trailing comma, a smart
+# quote a model picked up from prose, a single object where a list was asked
+# for. Four of the seven cases are that. They matter because a model that emits
+# almost-JSON is the common case rather than the exception.
+#
+# Two error categories carry the load. `ParseError` is for payload text the
+# format cannot read. `ValidationError` is for a payload that reads but names
+# something the catalog does not declare.
+#
+# A component carrying a property its catalog does not declare is invalid, but
+# the rule lives in the message envelope rather than in the catalog. Like the
+# published catalogs, the fixtures here leave their component schemas open, and
+# `agent_to_renderer.json` closes each component with `unevaluatedProperties`
+# once it has added the envelope's own `id`. An implementation that validates a
+# component against the bare catalog schema will miss this; it has to validate
+# the message it is about to emit.
+#
+# The Express counterpart of this suite is `agent/express/compiler.yaml`. The
+# two are deliberately parallel: a rule that holds for both formats has a case
+# in each, written against that format's own notation.
+#
+# The catalogs under test live in `args`, and every case here is written against
+# v1.0. A case states no version of its own: the version it runs under is the
+# one its catalog document declares.
+
+- name: test_compile_json_message_list
+  description: A well formed message list compiles to those messages.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_json_single_object_is_wrapped_in_a_list
+  description: A payload that is one message rather than a list compiles to a list of one.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}'
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_json_trailing_commas_removed
+  description: Trailing commas in a list and an object are dropped rather than failing the parse.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello",},]}},]'
+  expect:
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_json_smart_quotes_normalised
+  description: Curly quotes a model reached for are read as straight quotes.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "[{“version”: “v1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_json_malformed_is_a_parse_error
+  description: Payload text that is not JSON is a parse error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "here is your surface"
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_json_empty_block_is_a_parse_error
+  description: A block with nothing in it is a parse error rather than an empty message list.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: ""
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_json_unknown_component_is_a_validation_error
+  description: A payload that reads but names a component the catalog does not declare is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Sparkline", "values": [1, 2]}]}}]'
+  expect_error:
+    category: "ValidationError"

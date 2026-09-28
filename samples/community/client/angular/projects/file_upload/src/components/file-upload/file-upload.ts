@@ -34,6 +34,7 @@ export const FILE_UPLOAD_CONFIG = new InjectionToken<FileUploadConfig>('FILE_UPL
 
 export const DEFAULT_MAX_INLINE_SIZE = 500_000;
 export const DEFAULT_MAX_FILE_SIZE = 10_485_760;
+export const INLINE_URI_PREFIX = 'inline://';
 
 export enum UploadState {
   IDLE = 'idle',
@@ -44,6 +45,7 @@ export enum UploadState {
 
 export interface UploadedFile {
   fileId: string;
+  inlineData?: string;
   metadata: {
     fileName: string;
     fileSize: number;
@@ -85,6 +87,14 @@ export class FileUploadComponent extends CatalogComponent<any> {
   readonly progress = signal<number>(0);
   readonly errorMessage = signal<string>('');
   readonly uploadedFiles = signal<UploadedFile[]>([]);
+
+  get isIocMode(): boolean {
+    return !!this.config.onUploadFile;
+  }
+
+  isInlineFile(file: UploadedFile): boolean {
+    return file.fileId.startsWith(INLINE_URI_PREFIX);
+  }
 
   async onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -158,13 +168,18 @@ export class FileUploadComponent extends CatalogComponent<any> {
     totalFiles: number,
   ): Promise<UploadedFile> {
     let pointerUri: string;
+    let inlineData: string | undefined = undefined;
 
     if (this.config.onUploadFile) {
       pointerUri = await this.config.onUploadFile(file, percent => {
         this.progress.set(Math.round((index * 100 + percent) / totalFiles));
       });
     } else if (file.size <= (this.config.maxInlineSize || DEFAULT_MAX_INLINE_SIZE)) {
-      pointerUri = await this.encodeAsDataUri(file);
+      inlineData = await this.encodeAsDataUri(file);
+      const uuid = crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2);
+      pointerUri = `${INLINE_URI_PREFIX}${uuid}`;
       this.progress.set(Math.round(((index + 1) * 100) / totalFiles));
     } else {
       throw new Error(
@@ -175,6 +190,7 @@ export class FileUploadComponent extends CatalogComponent<any> {
 
     return {
       fileId: pointerUri,
+      inlineData,
       metadata: {
         fileName: file.name,
         fileSize: file.size,

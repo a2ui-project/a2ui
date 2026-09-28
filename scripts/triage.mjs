@@ -14,58 +14,29 @@
  * limitations under the License.
  */
 
-// Reconciles the 'status: needs-triage' and 'status: waiting-for-author-response'
-// labels across all open issues and PRs.
+// Reconciles the 'status: needs-triage' and 'status:
+// waiting-for-author-response' labels across all open issues and PRs.
 //
-// 'status: needs-triage' is fully owned by this automation: it is added to every
-// item that matches a rule below and removed from every item that does not, on
-// each run.
+// For detailed rules and documentation on how the triage automation works, see:
+// https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/triage.md#how-the-automated-triage-bot-works
 //
-// 'status: waiting-for-author-response' is applied by hand; the automation only
-// clears it, once the author has contributed at least once after the label went
-// on. While it is set the item is never flagged, so parking an item on its
-// author also parks it out of triage.
-//
-// An item is flagged with 'status: needs-triage' when it does not have the label
-// 'status: waiting-for-author-response' and:
-//   1. It is an issue:
-//      a. without a priority label, or
-//      b. P0/P1 without an assignee, or
-//      c. P0 and stale for more than 1 day, or
-//      d. P1 and stale for more than 30 days, or
-//      e. P2 and stale for more than 90 days.
-//   2. It is a stale PR opened by an external contributor (PRs from
-//      maintainers are managed by their authors).
-//   3. It is an issue whose latest human comment is from an external author
-//      and has gone unanswered for more than 1 day.
-//
-// "Stale" is measured from the last human contribution (a comment, or — on PRs —
-// a review or inline review comment, or the opening post if there are none)
-// rather than `updated_at`, so the bot's own label edits never reset the clock.
-// A PR is "stale" when no internal member has responded after the external
-// author's last contribution for more than a day.
-//
-// Flagged issues and PRs:
-// https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22
-//
-// The job prints to console what items are flagged/unflagged and why. To see the
-// history of runs see:
-// https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
+// Implementation notes:
+// - Items are selected by query, but the query alone is not trusted: GitHub's
+//   search index can lag behind reality. Before changing any label, the script
+//   re-reads the item and confirms it still matches.
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
 export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
-// (rule 1b). Every entry must be one of PRIORITY_LABELS.
+// (rule 2b). Every entry must be one of PRIORITY_LABELS.
 export const ASSIGNEE_REQUIRED_PRIORITIES = new Set(['P0', 'P1']);
 
-// Days of inactivity before a prioritized issue / PR is considered stale
-// (rules 1c-e). Keys must be a subset of PRIORITY_LABELS; priorities absent
-// here are never flagged for staleness.
-export const STALE_DAYS = {P0: 1, P1: 30, P2: 90};
-export const PR_STALE_DAYS = 1;
-export const EXTERNAL_RESPONSE_DAYS = 1;
+// Days of inactivity before a prioritized issue is considered stale (rule 2c).
+// Keys must be a subset of PRIORITY_LABELS; priorities absent here are never
+// flagged for staleness.
+export const STALE_DAYS = {P0: 1, P1: 30};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -111,25 +82,27 @@ export function lastHumanContribution(item, contributions) {
 }
 
 /**
- * True when the author has answered the request WAITING_LABEL is tracking: they
- * contributed at least once at or after `waitingSince`, the moment the label was
- * added. Used to clear the label.
+ * True when the request WAITING_LABEL is tracking has been answered: an external
+ * contributor — the item's author or anyone else outside the team — contributed
+ * at least once at or after `waitingSince`, the moment the label was added. Used
+ * to clear the label.
  *
- * Only the author's own contributions count, and only those from after the label
- * went on. The opening post predates it, so an item with no replies is exactly
- * the one still waiting on its author. Contributions from anyone else are
- * irrelevant in both directions: they do not answer on the author's behalf, and
- * one landing after the author's reply does not hide it.
+ * Maintainer contributions never count: the team asked the question, so its own
+ * follow-ups do not answer it. Neither do contributions from before the label
+ * went on — the opening post predates it, so an item with no replies is exactly
+ * the one still waiting.
  *
  * `waitingSince` is null when the labeling could not be read — see
  * `waitingLabelAddedAt`. The label is then left for a human to clear rather than
  * guessed at.
  */
-export function authorHasResponded(item, contributions, waitingSince) {
-  const author = item.user?.login;
-  if (!author || !waitingSince) return false;
+export function externalHasResponded(contributions, waitingSince) {
+  if (!waitingSince) return false;
   return contributions.some(
-    event => event.user?.login === author && event.createdAt >= waitingSince,
+    event =>
+      event.createdAt >= waitingSince &&
+      !MAINTAINER_ASSOCIATIONS.has(event.association) &&
+      !isBot(event.user),
   );
 }
 
@@ -139,58 +112,67 @@ export function authorHasResponded(item, contributions, waitingSince) {
  */
 export function flagReason(item, contributions, now) {
   const labels = labelNames(item);
+  const isPR = Boolean(item.pull_request);
+  const assigneeCount = item.assignees?.length ?? 0;
 
-  // An item parked on its author is off the triage queue entirely, whatever the
-  // rules below would say.
+  // Rule 1: items the automation stays out of altogether.
+
+  // 1a. A parked item is off the triage queue entirely, whatever the rules
+  // below would say.
   if (labels.includes(WAITING_LABEL)) {
     return null;
   }
 
-  const isPR = Boolean(item.pull_request);
+  // 1b. An assigned issue already has a team member on it, so there is nothing
+  // to triage. PRs are excluded: an assignee there is the reviewer, and rule 3
+  // is precisely about the reviewer having gone quiet on the author.
+  if (!isPR && assigneeCount > 0) {
+    return null;
+  }
+
   const latest = lastHumanContribution(item, contributions);
-  const staleDays = ageInDays(latest.createdAt, now);
 
   // True when the most recent human contribution is from outside the team — no
   // internal member has commented after the external author's last word.
   const awaitingMember = !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
 
-  // Rule 2: PRs. Only external contributors' PRs are watched; maintainers
-  // manage their own, so an internally-authored PR is never flagged. A PR is
-  // "stale" when no internal member has commented after the external author's
-  // last comment for more than a day.
+  // Rule 3: PRs. Only external contributors' PRs are watched; maintainers
+  // manage their own, so an internally-authored PR is never flagged. There is
+  // no grace period: a PR counts as needing triage from the moment the author
+  // has the last word, opening it included.
   if (isPR) {
     if (MAINTAINER_ASSOCIATIONS.has(item.author_association)) {
       return null;
     }
-    return awaitingMember && staleDays > PR_STALE_DAYS
-      ? `no maintainer has responded to the author for more than ${PR_STALE_DAYS} day.`
-      : null;
+    return awaitingMember ? 'no maintainer has responded to the author.' : null;
   }
 
-  // Rule 3: an external author's latest comment has gone unanswered too long.
-  if (awaitingMember && staleDays > EXTERNAL_RESPONSE_DAYS) {
-    return `the latest reply is from an external contributor and has gone unanswered for more than ${EXTERNAL_RESPONSE_DAYS} day.`;
-  }
-
-  // Rule 1: issues.
+  // Rule 2: issues. Rule 1b means every issue reaching here is unassigned; the
+  // rules below still state their own conditions rather than lean on that.
 
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
-  // 1a. No priority assigned yet.
+  // 2a. No priority assigned yet.
   if (!priority) {
     return 'this issue has no priority label yet.';
   }
 
-  // 1b. Urgent work with nobody on it.
-  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority) && (item.assignees?.length ?? 0) === 0) {
+  // 2b. Urgent work with nobody on it.
+  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority) && assigneeCount === 0) {
     return `this ${priority} issue has no assignee.`;
   }
 
-  // 1c-e. Prioritized but stale beyond its threshold.
+  // 2c. Prioritized but stale beyond its threshold.
   const threshold = STALE_DAYS[priority];
-  if (threshold !== undefined && staleDays > threshold) {
+  if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
     const unit = threshold === 1 ? 'day' : 'days';
     return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
+  }
+
+  // 2d. The last word on the issue is an external one. Like rule 3, this
+  // carries no grace period: it fires as soon as the comment lands.
+  if (awaitingMember) {
+    return 'the latest contribution is from an external contributor and has gone unanswered.';
   }
 
   return null;
@@ -316,8 +298,8 @@ export default async function issueTriage({github, context}) {
 
   // Fetch each item's contributions in bounded concurrent batches to avoid a
   // slow serial loop without flooding the API. The label's event history is only
-  // needed for the items actually parked on their author, so it costs an extra
-  // call on those alone.
+  // needed for the items actually parked, so it costs an extra call on those
+  // alone.
   const itemsWithContributions = await mapInBatches(openItems, async item => {
     const client = {github, owner, repo};
     const [contributions, waitingSince] = await Promise.all([
@@ -328,16 +310,16 @@ export default async function issueTriage({github, context}) {
   });
 
   // Decide each item's desired state from the snapshot, and keep only those
-  // whose labels need to change. The snapshot from `listForRepo` can be stale
-  // if another run (the daily schedule overlapping an issue event) already
-  // changed a label, so the actual mutation re-checks the live state below.
-  // Include contributions so we can re-evaluate safely after
-  // re-reading the live issue.
+  // whose labels need to change. The snapshot from `listForRepo` can be stale —
+  // another run (the daily schedule overlapping an issue event) may have changed
+  // a label, and GitHub's index can still list an item that is already closed —
+  // so the mutation below re-reads each item and decides again on live data.
+  // Contributions are carried along for that second pass.
   const itemsToUpdate = itemsWithContributions
     .map(({item, contributions, waitingSince}) => {
       const labels = labelNames(item);
       const clearWaiting =
-        labels.includes(WAITING_LABEL) && authorHasResponded(item, contributions, waitingSince);
+        labels.includes(WAITING_LABEL) && externalHasResponded(contributions, waitingSince);
 
       // Score the item as it will look once the waiting label is gone: a label
       // this run clears must not also inhibit flagging until the next run.
@@ -365,24 +347,32 @@ export default async function issueTriage({github, context}) {
 
   await mapInBatches(itemsToUpdate, async ({item, contributions, clearWaiting, reason}) => {
     const target = {owner, repo, issue_number: item.number};
-    // We'll re-read the live labels and recompute the desired flag state from
-    // the fresh data to avoid races where another concurrent run added/removed
-    // the flag between our snapshot and the mutation.
     try {
-      // Re-read the live labels so a concurrent run cannot make us add or remove
-      // a label twice.
+      // Re-read the item so every decision below rests on live data rather than
+      // on the listing, which a concurrent run or a lagging index can outdate.
       const {data: fresh} = await github.rest.issues.get(target);
+
+      // Confirm it still matches the query it came from. An item the index
+      // reported as open may already be closed, and a closed item is nobody's
+      // triage work.
+      if (fresh.state !== 'open') {
+        console.log(`Skipped ${item.html_url} — no longer open.`);
+        return;
+      }
+
       const freshLabels = labelNames(fresh);
 
-      // Check whether the waiting label should be cleared against the live
-      // labels. Since contributions and waitingSince are not re-fetched, the
-      // author response status is unchanged from the snapshot.
+      // Check the waiting label against the live labels too. Contributions are
+      // not re-fetched, so whether an external contributor has responded is
+      // unchanged from the snapshot.
       const clearWaitingNow = clearWaiting && freshLabels.includes(WAITING_LABEL);
 
       if (clearWaitingNow) {
         await github.rest.issues.removeLabel({...target, name: WAITING_LABEL});
         waitingCleared += 1;
-        console.log(`Cleared ${WAITING_LABEL} on ${item.html_url} — the author responded.`);
+        console.log(
+          `Cleared ${WAITING_LABEL} on ${item.html_url} — an external contributor responded.`,
+        );
       }
 
       // Recompute desired flag state from the fresh issue snapshot (with the

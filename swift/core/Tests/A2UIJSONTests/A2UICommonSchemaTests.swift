@@ -28,7 +28,7 @@ struct A2UICommonSchemaTests {
     )
   }
 
-  @Test func testUriForDefinition() {
+  @Test func testURIForDefinition() {
     #expect(
       A2UICommonSchema.uri(for: "DataBinding")
         == "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding"
@@ -340,7 +340,7 @@ struct A2UICommonSchemaTests {
 
   // MARK: - Validation: ComponentCommon
 
-  @Test func testComponentCommonValidatesWithId() throws {
+  @Test func testComponentCommonValidatesWithID() throws {
     let schema = try Schema(
       instance: """
         { "$ref": "\(A2UICommonSchema.uri(for: "ComponentCommon"))" }
@@ -352,7 +352,7 @@ struct A2UICommonSchemaTests {
     #expect(result.isValid)
   }
 
-  @Test func testComponentCommonRejectsMissingId() throws {
+  @Test func testComponentCommonRejectsMissingID() throws {
     let schema = try Schema(
       instance: """
         { "$ref": "\(A2UICommonSchema.uri(for: "ComponentCommon"))" }

@@ -50,7 +50,11 @@ describe('Example: Flight Status', () => {
     const iconInnerEl = Array.from(
       surface.querySelectorAll('.material-symbols-outlined, .a2ui-icon'),
     )[0] as HTMLElement;
-    expect(iconInnerEl).toBeTruthy();
+    expect(iconInnerEl).toBeInstanceOf(HTMLElement);
+    expect(
+      iconInnerEl?.classList?.contains('material-symbols-outlined') ||
+        iconInnerEl?.classList?.contains('a2ui-icon'),
+    ).toBeTrue();
     expect((iconInnerEl.textContent || '').trim()).toBe('send');
   });
 });

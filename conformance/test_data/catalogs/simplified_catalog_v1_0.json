@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/simplified_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Simplified Catalog (v1.0)",
+  "description": "A four component catalog for the agent SDK conformance suites. Like a published catalog it takes its common types from the protocol's common_types.json and defines only anyComponent and anyFunction itself.",
+  "catalogId": "conformance/simplified",
+  "components": {
+    "Text": {
+      "type": "object",
+      "description": "Displays a run of text.",
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "variant": {
+          "type": "string",
+          "enum": ["body", "caption"],
+          "default": "body"
+        }
+      },
+      "required": ["component", "text"]
+    },
+    "Button": {
+      "type": "object",
+      "description": "A control that emits an action when pressed.",
+      "properties": {
+        "component": { "const": "Button" },
+        "child": { "$ref": "common_types.json#/$defs/Child" },
+        "action": { "$ref": "common_types.json#/$defs/Action" }
+      },
+      "required": ["component", "child", "action"]
+    },
+    "Card": {
+      "type": "object",
+      "description": "A container holding a single child.",
+      "properties": {
+        "component": { "const": "Card" },
+        "child": { "$ref": "common_types.json#/$defs/Child" }
+      },
+      "required": ["component", "child"]
+    },
+    "Column": {
+      "type": "object",
+      "description": "A layout that stacks its children vertically.",
+      "properties": {
+        "component": { "const": "Column" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" }
+      },
+      "required": ["component", "children"]
+    }
+  },
+  "functions": {
+    "required": {
+      "type": "object",
+      "description": "Checks that the value is not null, undefined or empty.",
+      "returnType": "validationResult",
+      "properties": {
+        "call": { "const": "required" },
+        "args": {
+          "type": "object",
+          "properties": { "value": {} },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["call", "args"]
+    },
+    "formatString": {
+      "type": "object",
+      "description": "Interpolates data model values into a template string.",
+      "returnType": "string",
+      "properties": {
+        "call": { "const": "formatString" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["call", "args"]
+    },
+    "openUrl": {
+      "type": "object",
+      "description": "Opens a URL in the renderer's browser or handler.",
+      "returnType": "void",
+      "requiresUserActivation": true,
+      "properties": {
+        "call": { "const": "openUrl" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["url"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["call", "args"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Text" },
+        { "$ref": "#/components/Button" },
+        { "$ref": "#/components/Card" },
+        { "$ref": "#/components/Column" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": {
+      "oneOf": [
+        { "$ref": "#/functions/required" },
+        { "$ref": "#/functions/formatString" },
+        { "$ref": "#/functions/openUrl" }
+      ],
+      "discriminator": { "propertyName": "call" }
+    }
+  }
+}

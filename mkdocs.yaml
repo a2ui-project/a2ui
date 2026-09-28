@@ -203,7 +203,13 @@ hooks:
 # Plugins
 plugins:
   - search
-  - macros
+  # Jinja rendering breaks on the literal {{ }} that appears throughout
+  # code samples and spec prose (code fences do not protect it), so pages
+  # are only rendered if they opt in with `render_macros: true` front
+  # matter.
+  - macros:
+      render_by_default: false
+      on_error_fail: true
   # - include-markdown
   - mermaid2
   - redirects:

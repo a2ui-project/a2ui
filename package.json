@@ -3,7 +3,10 @@
   "private": true,
   "packageManager": "yarn@4.13.0",
   "workspaces": [
+    "catalogs/*",
+    "typescript/catalogs/*",
     "renderers/*",
+    "typescript/*",
     "renderers/angular/*",
     "renderers/lit/*",
     "renderers/markdown/*",
@@ -14,7 +17,6 @@
     "samples/client/lit/*",
     "samples/client/react/*",
     "samples/personalized_learning",
-    "specification/*/eval",
     "specification/*/test",
     "tools/*",
     "!**/dist"

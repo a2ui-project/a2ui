@@ -157,7 +157,7 @@ describe('Example: Live Invitation Builder', () => {
     await wait(100);
     await whenSettled(gallery);
 
-    const chips = querySelectorAllDeep(surface, '.chip') as HTMLElement[];
+    const chips = querySelectorAllDeep(surface, '.a2ui-chip') as HTMLElement[];
     expect(chips.length).toBeGreaterThanOrEqual(3);
 
     const ballroomChip = chips.find(el => el.textContent.trim() === 'Grand Ballroom');

@@ -15,7 +15,7 @@
 // ignore_for_file: avoid_print
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restaurant_finder_client/restaurant_finder_client.dart';
+import 'package:restaurant_finder_client/main.dart';
 
 import 'test_infra/restaurant_finder.dart';
 

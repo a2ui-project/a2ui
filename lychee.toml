@@ -55,6 +55,10 @@ exclude = [
   # Flaky: the host intermittently stops responding entirely (connection hangs
   # well past our 20s timeout) while the cited paper is still published there.
   "https://www\\.diva-portal\\.org",
+  # The page is live in a browser, but the host serves a self-referential 301
+  # (/llm-evaluation/ redirects to itself), so the checker exhausts its redirect
+  # budget and reports a failure that no URL rewrite here can resolve.
+  "arize\\.com/llm-evaluation",
 ]
 
 # Don't descend into dependency or build-output directories.

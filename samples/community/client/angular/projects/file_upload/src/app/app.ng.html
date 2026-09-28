@@ -26,6 +26,12 @@
       </div>
       <div class="header-actions">
         <mat-slide-toggle
+          [checked]="fileUploadSettings.enableIoc()"
+          (change)="fileUploadSettings.enableIoc.set($event.checked)"
+        >
+          Enable IOC Upload
+        </mat-slide-toggle>
+        <mat-slide-toggle
           [checked]="fileUploadSettings.enableMultiFile()"
           (change)="fileUploadSettings.enableMultiFile.set($event.checked)"
         >

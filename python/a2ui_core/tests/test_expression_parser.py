@@ -1,0 +1,187 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import pytest
+from a2ui.core.exceptions import A2uiExpressionError
+from a2ui.core.expressions.expression_parser import ExpressionParser
+
+
+@pytest.fixture
+def parser():
+    return ExpressionParser()
+
+
+def test_parses_literal_strings_unchanged(parser):
+    assert parser.parse("hello world") == ["hello world"]
+
+
+def test_parses_simple_interpolation(parser):
+    assert parser.parse("hello ${foo}") == ["hello ", {"path": "foo"}]
+
+
+def test_parses_number_interpolation(parser):
+    assert parser.parse("number is ${num}") == ["number is ", {"path": "num"}]
+
+
+def test_parses_nested_interpolation(parser):
+    assert parser.parse("val is ${${nested}}") == ["val is ", {"path": "nested"}]
+
+
+def test_handles_escaped_interpolation(parser):
+    assert parser.parse("escaped \\${foo}") == ["escaped ", "${", "foo}"]
+
+
+def test_parses_function_calls(parser):
+    assert parser.parse("sum is ${add(a: 10, b: 20)}") == [
+        "sum is ",
+        {"call": "add", "args": {"a": 10, "b": 20}, "returnType": "any"},
+    ]
+
+
+def test_parses_function_calls_with_string_literals(parser):
+    assert parser.parse('case is ${upper(text: "hello")}') == [
+        "case is ",
+        {"call": "upper", "args": {"text": "hello"}, "returnType": "any"},
+    ]
+
+
+def test_parses_keywords(parser):
+    assert parser.parse("${true} ${false} ${null}") == [True, " ", False, " "]
+
+
+def test_returns_error_on_max_depth_exceeded(parser):
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
+        parser.parse("depth", ExpressionParser.MAX_DEPTH + 1)
+
+
+def test_accepts_interpolations_nested_to_the_maximum_depth(parser):
+    depth = ExpressionParser.MAX_DEPTH
+    assert parser.parse("${" * depth + '"x"' + "}" * depth) == ["x"]
+
+
+def test_rejects_interpolations_one_level_past_the_maximum_depth(parser):
+    depth = ExpressionParser.MAX_DEPTH + 1
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
+        parser.parse("${" * depth + '"x"' + "}" * depth)
+
+
+def _nested_calls(calls: int) -> str:
+    """Returns '${f(a: f(a: ... 1 ...))}'.
+
+    The interpolation is itself a level, so the result nests `calls + 1` deep.
+    """
+    return "${" + "f(a: " * calls + "1" + ")" * calls + "}"
+
+
+def _nested_interpolations(depth: int) -> str:
+    """Returns '${${... "x" ...}}' nested to depth levels."""
+    return "${" * depth + '"x"' + "}" * depth
+
+
+def test_accepts_function_arguments_nested_to_the_maximum_depth(parser):
+    assert parser.parse(_nested_calls(ExpressionParser.MAX_DEPTH - 1))
+
+
+def test_rejects_function_arguments_one_level_past_the_maximum_depth(parser):
+    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
+        parser.parse(_nested_calls(ExpressionParser.MAX_DEPTH))
+
+
+def test_rejects_pathological_nesting_instead_of_overflowing_the_stack(parser):
+    # Deep enough to exhaust the interpreter stack were the guard unreachable.
+    # Asserted on the error kind rather than its message, matching TS test parity.
+    with pytest.raises(A2uiExpressionError):
+        parser.parse(_nested_calls(50000))
+    with pytest.raises(A2uiExpressionError):
+        parser.parse(_nested_interpolations(50000))
+
+
+def test_handles_deep_recursion_gracefully(parser):
+    assert parser.parse('${${"hello"}}') == ["hello"]
+
+
+def test_returns_error_on_unclosed_interpolation(parser):
+    with pytest.raises(A2uiExpressionError, match="Unclosed interpolation"):
+        parser.parse("hello ${world")
+
+
+def test_returns_error_on_invalid_function_syntax(parser):
+    with pytest.raises(A2uiExpressionError, match="Expected '\\)'"):
+        parser.parse("${add(a: 1, b: 2}")
+
+
+def test_returns_error_on_unexpected_characters_at_end(parser):
+    with pytest.raises(A2uiExpressionError, match="Unexpected characters"):
+        parser.parse("${true false}")
+
+
+def test_handles_empty_identifiers(parser):
+    assert parser.parse("${()}") == [{"call": "", "args": {}, "returnType": "any"}]
+    assert parser.parse_expression("") == ""
+    assert parser.parse_expression("()") == {
+        "call": "",
+        "args": {},
+        "returnType": "any",
+    }
+
+
+def test_handles_string_literals_with_escaped_characters(parser):
+    assert parser.parse_expression(r"'line1\nline2\t\r\'\\x'") == "line1\nline2\t\r'\\x"
+
+
+def test_handles_parsing_paths_with_special_characters(parser):
+    assert parser.parse_expression("my-path.with_underscores") == {
+        "path": "my-path.with_underscores"
+    }
+
+
+def test_returns_error_on_missing_colon_in_function_args(parser):
+    with pytest.raises(A2uiExpressionError, match="Expected ':'"):
+        parser.parse_expression("add(a 10, b: 20)")
+
+
+def test_parses_valid_numeric_literals_including_trailing_point(parser):
+    assert parser.parse_expression("42") == 42
+    assert parser.parse_expression("-42") == -42
+    assert parser.parse_expression("+42") == 42
+    assert parser.parse_expression("3.14") == 3.14
+    assert parser.parse_expression("-0.5") == -0.5
+    assert parser.parse_expression("1e5") == 100000.0
+    assert parser.parse_expression("-2.5e-3") == -0.0025
+    assert parser.parse_expression("1.") == 1.0
+    assert parser.parse_expression("-42.") == -42.0
+    assert parser.parse_expression("+0.") == 0.0
+
+
+def test_rejects_numbers_with_multiple_decimal_dots(parser):
+    from a2ui.core.exceptions import A2uiExpressionError
+
+    with pytest.raises(A2uiExpressionError, match="Invalid number literal"):
+        parser.parse_expression("1.2.3")
+
+
+def test_rejects_expression_template_exceeding_max_length(parser):
+    from a2ui.core.expressions.expression_parser import MAX_EXPRESSION_TEMPLATE_LENGTH
+
+    oversized = "a" * (MAX_EXPRESSION_TEMPLATE_LENGTH + 1)
+    with pytest.raises(A2uiExpressionError, match="exceeds maximum limit"):
+        parser.parse(oversized)
+
+
+def test_rejects_expression_parts_exceeding_max_limit(parser):
+    from a2ui.core.expressions.expression_parser import MAX_EXPRESSION_PARTS
+
+    too_many_parts = "${x}" * (MAX_EXPRESSION_PARTS + 1)
+    with pytest.raises(A2uiExpressionError, match="parts count exceeds maximum limit"):
+        parser.parse(too_many_parts)

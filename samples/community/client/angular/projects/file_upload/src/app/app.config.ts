@@ -32,6 +32,7 @@ import {DEMO_CATALOG} from '../a2ui-catalog/catalog';
 import {A2aServiceImpl} from '../services/a2a-service-impl';
 import {FILE_UPLOAD_CONFIG} from '../components/file-upload/file-upload';
 import {MockDriveUploadService} from '../services/mock-drive-upload-service';
+import {FileUploadSettingsService} from '../services/file-upload-settings-service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -54,19 +55,27 @@ export const appConfig: ApplicationConfig = {
       provide: FILE_UPLOAD_CONFIG,
       useFactory: () => {
         const driveService = inject(MockDriveUploadService);
+        const settings = inject(FileUploadSettingsService);
         return {
-          onUploadFile: async (file: File, onProgress: (percent: number) => void) => {
-            const pointerUri = await driveService.uploadFileToDrive(file, onProgress);
-            driveService.addUploadedFile({
-              fileId: pointerUri,
-              fileName: file.name,
-              fileSize: file.size,
-              mimeType: file.type || 'text/plain',
-            });
-            return pointerUri;
+          maxInlineSize: 10_485_760,
+          get onUploadFile() {
+            if (!settings.enableIoc()) return undefined;
+            return async (file: File, onProgress: (percent: number) => void) => {
+              const pointerUri = await driveService.uploadFileToDrive(file, onProgress);
+              driveService.addUploadedFile({
+                fileId: pointerUri,
+                fileName: file.name,
+                fileSize: file.size,
+                mimeType: file.type || 'text/plain',
+              });
+              return pointerUri;
+            };
           },
-          onRemoveFile: (pointerUri: string) => {
-            driveService.removeUploadedFile(pointerUri);
+          get onRemoveFile() {
+            if (!settings.enableIoc()) return undefined;
+            return (pointerUri: string) => {
+              driveService.removeUploadedFile(pointerUri);
+            };
           },
         };
       },

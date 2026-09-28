@@ -66,6 +66,38 @@ export const appStyles = css`
     border-right: 1px solid rgba(148, 163, 184, 0.1);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    transition:
+      width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+      min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+  }
+
+  .nav-pane.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    border-right: none;
+    visibility: hidden;
+  }
+
+  .nav-header {
+    padding: 12px 16px;
+    background: #1e293b;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .nav-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #38bdf8;
+  }
+
+  .nav-list {
+    flex: 1;
     overflow-y: auto;
   }
 
@@ -98,6 +130,30 @@ export const appStyles = css`
     text-overflow: ellipsis;
   }
 
+  .icon-btn {
+    background: transparent;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 4px;
+    color: #94a3b8;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    line-height: 1;
+    transition: all 0.2s;
+  }
+
+  .icon-btn:hover {
+    background-color: #334155;
+    color: #f8fafc;
+    border-color: #475569;
+  }
+
+  .icon-btn svg {
+    display: block;
+  }
+
   .gallery-pane {
     flex: 1;
     display: flex;
@@ -111,19 +167,27 @@ export const appStyles = css`
     background: #1e293b;
     border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
     gap: 12px;
+    flex-shrink: 0;
 
     h2 {
       margin: 0;
     }
   }
 
+  .preview-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
   .agent-controls {
     display: flex;
     gap: 8px;
-    justify-content: space-between;
+    align-items: center;
 
     fieldset {
       border: 1px solid rgba(148, 163, 184, 0.2);
@@ -164,7 +228,8 @@ export const appStyles = css`
     }
   }
 
-  button {
+  .agent-controls button,
+  .clear-btn {
     background: #38bdf8;
     color: #0f172a;
     border: none;
@@ -173,10 +238,12 @@ export const appStyles = css`
     font-weight: 600;
     cursor: pointer;
   }
-  button:hover {
+  .agent-controls button:hover,
+  .clear-btn:hover {
     background: #7dd3fc;
   }
-  button:disabled {
+  .agent-controls button:disabled,
+  .clear-btn:disabled {
     background: #475569;
     color: #94a3b8;
     cursor: not-allowed;
@@ -205,6 +272,36 @@ export const appStyles = css`
     flex-direction: column;
     border-left: 1px solid rgba(148, 163, 184, 0.1);
     background: #020617;
+    overflow: hidden;
+    transition:
+      width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+      min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+  }
+
+  .inspector-pane.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    border-left: none;
+    visibility: hidden;
+  }
+
+  .inspector-pane-header {
+    padding: 12px 16px;
+    background: #1e293b;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .inspector-pane-header h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 600;
   }
 
   .inspector-section {

@@ -16,27 +16,14 @@ import A2UICore
 import A2UISwiftUI
 import SwiftUI
 
-// Minimal @main entry point for the A2UI sample iOS client app.
-// Will be expanded in a future PR with full demo scenario.
-
+/// @main entry point for the A2UI sample iOS gallery application.
 @main
 struct A2UISampleApp: App {
+  @StateObject private var galleryViewModel = GalleryViewModel()
+
   var body: some Scene {
     WindowGroup {
-      ContentView()
+      GalleryMainView(viewModel: galleryViewModel)
     }
-  }
-}
-
-struct ContentView: View {
-  var body: some View {
-    VStack {
-      Text("A2UI Sample Client")
-        .font(.headline)
-      Text("Full demo coming soon")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-    }
-    .padding()
   }
 }

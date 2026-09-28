@@ -22,7 +22,7 @@ object ConformanceTestHelper {
   val repoRoot: File by lazy { findRepoRoot() }
 
   private const val SPECIFICATION_DIR = "specification"
-  const val CONFORMANCE_DIR_PATH = "agent_sdks/conformance/"
+  const val CONFORMANCE_DIR_PATH = "conformance/"
   private const val PROP_USER_DIR = "user.dir"
 
   const val KEY_NAME = "name"
@@ -30,9 +30,9 @@ object ConformanceTestHelper {
   const val KEY_ARGS = "args"
   const val KEY_CATALOG = "catalog"
   const val KEY_STEPS = "steps"
-  const val KEY_PAYLOAD = "payload"
+  const val KEY_MESSAGES = "messages"
   const val KEY_VALIDATE = "validate"
-  const val KEY_EXPECT_ERROR = "expect_error"
+  const val KEY_EXPECT_ERROR = "expectError"
   const val KEY_EXPECT = "expect"
 
   private fun findRepoRoot(): File {

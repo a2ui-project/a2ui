@@ -96,8 +96,7 @@ fun main(args: Array<String>) {
         isEnabled
       },
       { ctx: ReadonlyContext ->
-        ctx.state()[RizzchartsAgentExecutor.A2UI_CATALOG_KEY]
-          as A2uiCatalog
+        ctx.state()[RizzchartsAgentExecutor.A2UI_CATALOG_KEY] as A2uiCatalog
       },
       { ctx: ReadonlyContext -> ctx.state()[RizzchartsAgentExecutor.A2UI_EXAMPLES_KEY] as String },
     )

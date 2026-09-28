@@ -31,11 +31,15 @@ on:
       - "requirements-docs.txt"
       - "pyproject.toml"
       - "lychee.toml"
-      - "mkdocs.yml"
+      - "mkdocs.yaml"
       - "docs/**"
   pull_request:
     branches:
       - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   changes:
@@ -47,7 +51,7 @@ jobs:
       docs: ${{ steps.filter.outputs.docs }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Check for docs changes
@@ -59,7 +63,7 @@ jobs:
               - ".github/workflows/docs.yml"
               - "requirements-docs.txt"
               - "pyproject.toml"
-              - "mkdocs.yml"
+              - "mkdocs.yaml"
               - "lychee.toml"
               - "docs/**"
               - "**.md"
@@ -75,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
@@ -103,6 +107,13 @@ jobs:
         run: |
           mkdir -p docs/public/specification/
           cp -R specification/* docs/public/specification/
+          # Catalogs live in the top-level catalogs/ directory but are published
+          # under specification/<version>/catalogs/ so that catalog $id URLs
+          # (e.g. https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json)
+          # keep resolving.
+          mkdir -p docs/public/specification/v1_0/catalogs/basic
+          cp catalogs/basic/v1/catalog.json docs/public/specification/v1_0/catalogs/basic/
+          cp -R catalogs/basic/v1/examples docs/public/specification/v1_0/catalogs/basic/
           # Flatten JSON files to version roots to support clean URLs without redirects
           for version in v0_8 v0_9 v0_9_1 v1_0; do
             if [ -d "docs/public/specification/$version/json" ]; then

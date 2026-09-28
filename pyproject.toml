@@ -27,9 +27,9 @@ a2ui-agent-sdk = ["a2ui-core"]
 
 [tool.uv.workspace]
 members = [
-  "agent_sdks/conformance",
-  "agent_sdks/python/a2ui_agent",
-  "agent_sdks/python/a2ui_core",
+  "conformance",
+  "python/a2ui_agent",
+  "python/a2ui_core",
   "eval",
   "samples/agent/adk/custom-components-example",
   "samples/agent/adk/restaurant_finder",
@@ -44,6 +44,7 @@ members = [
   "samples/community/mcp/a2ui-in-mcpapps/server",
   "samples/community/mcp/a2ui-over-mcp-recipe",
   "samples/community/mcp/mcp-apps-calculator",
+  "python/catalogs/mcp",
   "tools/build_catalog",
 ]
 
@@ -58,16 +59,16 @@ dev = [
 ]
 release = [
     "hatch>=1.14.0",
-    "twine>=6.0.1",
+    "twine>=7.0.0",
     "keyring>=25.6.0",
     "keyrings.google-artifactregistry-auth>=1.1.2",
 ]
 
 [tool.pytest.ini_options]
 testpaths = [
-    "agent_sdks/conformance/tests",
-    "agent_sdks/python/a2ui_agent/tests",
-    "agent_sdks/python/a2ui_core/tests",
+    "conformance/tests",
+    "python/a2ui_agent/tests",
+    "python/a2ui_core/tests",
     "eval/tests",
     "samples/agent/adk/tests",
     "samples/community/agent/adk/personalized_learning/tests",
@@ -112,15 +113,15 @@ pyink-annotation-pragmas = [
 strict = true
 explicit_package_bases = true
 namespace_packages = true
-mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src:blueprints:eval:eval/bin"
+mypy_path = "python/a2ui_core/src:python/a2ui_agent/src:blueprints:eval:eval/bin"
 exclude = [
-    "^agent_sdks/python/a2ui_core/tests/",
-    "^agent_sdks/python/a2ui_agent/tests/",
-    "^agent_sdks/conformance/tests/",
+    "^python/a2ui_core/tests/",
+    "^python/a2ui_agent/tests/",
+    "^conformance/tests/",
     "^eval/",
     # TODO(#1614): Typecheck all packages here.
-    "^agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/",
-    "^agent_sdks/python/a2ui_agent/pack_specs_hook\\.py$",
+    "^python/a2ui_agent/src/a2ui/inference_formats/experimental/",
+    "^python/a2ui_agent/pack_specs_hook\\.py$",
     "^samples/",
     "^tools/",
     "^docs/",
