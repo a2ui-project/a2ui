@@ -200,8 +200,10 @@ def parse_with_hard_kill_timeout(
     if hasattr(sys.stderr, "fileno"):
         try:
             if sys.stderr.fileno() < 0:
+
                 def _unsupported_fd():
                     raise io.UnsupportedOperation("Not a real file descriptor")
+
                 sys.stderr.fileno = _unsupported_fd
         except Exception:
             pass
