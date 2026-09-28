@@ -71,7 +71,7 @@ from a2ui.core import DataModel, MessageProcessor, PayloadValidator
 ### Why Deep Imports are Dangerous
 
 1. **Tight Coupling to File Layouts**: Deep imports tie external callers to internal folder structures, filenames, and module boundaries.
-2. **Refactoring Friction & LSCs**: When internal directories are restructured (e.g., modularizing submodules, reorganizing package layouts, or splitting catalogs), every deep import breaks. In monorepos (such as Google internal `google3`), fixing broken deep call sites requires large-scale changes (LSCs).
+2. **Refactoring Friction Across Codebases**: When internal directories are restructured (e.g., modularizing submodules, reorganizing package layouts, or splitting catalogs), every deep import breaks downstream call sites, requiring tedious and fragile codebase-wide migrations.
 3. **Loss of API Guarantees**: Internal submodule symbols may change behavior, be renamed, or be removed between releases without notice.
 
 ### How to Implement Public Facades
@@ -132,7 +132,7 @@ uv sync --all-packages
 
 ### 2. Format Checking (Pyink)
 
-Code must be formatted using Pyink (Google Python formatting style):
+Code must be formatted using Pyink:
 
 ```bash
 # Check formatting
