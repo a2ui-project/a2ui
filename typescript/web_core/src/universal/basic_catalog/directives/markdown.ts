@@ -83,7 +83,7 @@ class MarkdownDirective extends AsyncDirective {
 
     if (effectiveRenderer) {
       Promise.resolve(effectiveRenderer(value, markdownOptions)).then((renderedStr: string) => {
-        if (this.isConnected) {
+        if (this.isConnected && this.lastValue === value) {
           this.setValue(unsafeHTML(renderedStr));
         }
       });

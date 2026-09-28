@@ -203,8 +203,10 @@ export abstract class A2uiLitElement<
       | Catalog<WebComponentImplementation>
       | undefined;
     const catalogImpl = activeCatalog?.components.get(this.context?.componentModel?.type ?? '');
+    const elementCtor = (catalogImpl as any)?.element;
     const activeApi =
-      catalogImpl && catalogImpl.element === this.constructor
+      typeof elementCtor === 'function' &&
+      (this instanceof elementCtor || elementCtor === this.constructor)
         ? (catalogImpl as unknown as Api)
         : this.api;
     if (!activeApi) {

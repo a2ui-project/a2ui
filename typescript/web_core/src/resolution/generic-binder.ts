@@ -69,7 +69,13 @@ export type BehaviorNode =
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   const behavior = getFieldBehavior(schema);
   if (behavior.type === 'OBJECT' && !('accessibility' in behavior.shape)) {
-    behavior.shape['accessibility'] = getFieldBehavior(AccessibilityAttributesSchema);
+    return {
+      ...behavior,
+      shape: {
+        ...behavior.shape,
+        accessibility: getFieldBehavior(AccessibilityAttributesSchema),
+      },
+    };
   }
   return behavior;
 }

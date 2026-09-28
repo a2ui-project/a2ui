@@ -84,8 +84,8 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<UniversalTabsProps> 
     return html`
       <div class="a2ui-tabs">
         <div class="a2ui-tab-bar">
-          ${props.tabs.map(
-            (tab: any, i: number) => html`
+          ${props.tabs?.map(
+            (tab, i) => html`
               <button
                 class=${classMap({
                   'a2ui-tab-button': true,

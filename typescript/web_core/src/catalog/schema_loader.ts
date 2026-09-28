@@ -548,7 +548,7 @@ function collectComponentSubSchemas(
           // Protocol common properties: accessibility attributes
           result.push({
             properties: {
-              accessibility: AccessibilityAttributesSchema,
+              accessibility: AccessibilityAttributesSchema.optional(),
             },
           });
         } else if (ref.includes('common_types.json') && ref.includes('Checkable')) {
@@ -558,7 +558,8 @@ function collectComponentSubSchemas(
                 .array(CheckRuleSchema)
                 .describe(
                   'A list of checks to perform. These are function calls that evaluate to a structured validation result object.',
-                ),
+                )
+                .optional(),
             },
           });
         } else if (ref.startsWith('#/')) {
