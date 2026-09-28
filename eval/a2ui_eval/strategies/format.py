@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import asyncio
+import io
 import json
 import re
+import sys
 from typing import Any
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import (
@@ -192,6 +194,18 @@ def parse_with_hard_kill_timeout(
     completion: str,
     timeout_sec: float = 5.0,
 ) -> dict[str, Any]:
+    # When Inspect AI's Textual console captures stderr, fileno() returns -1.
+    # multiprocessing.resource_tracker tries to pass sys.stderr.fileno() to child
+    # processes, triggering "ValueError: bad value(s) in fds_to_keep" when fd < 0.
+    if hasattr(sys.stderr, "fileno"):
+        try:
+            if sys.stderr.fileno() < 0:
+                def _unsupported_fd():
+                    raise io.UnsupportedOperation("Not a real file descriptor")
+                sys.stderr.fileno = _unsupported_fd
+        except Exception:
+            pass
+
     with multiprocessing.Manager() as manager:
         return_dict = manager.dict()
         p = multiprocessing.Process(
