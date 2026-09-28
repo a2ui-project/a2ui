@@ -88,9 +88,11 @@ Map<String, ComponentRefFields> extractComponentRefFields<
           if (field.value is! SingleRef) field.key,
       },
       nested: {
+        // Every item property that references components, including child
+        // lists, not only the single references in NestedRef.keys.
         for (final field in fields.entries)
-          if (field.value case NestedRef(:final fields))
-            field.key: fields.keys.toSet(),
+          if (field.value case NestedRef(fields: final itemFields))
+            field.key: itemFields.keys.toSet(),
       },
     );
   }
