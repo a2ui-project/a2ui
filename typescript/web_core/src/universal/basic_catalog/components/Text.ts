@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -15,6 +14,9 @@ import {z} from 'zod';
  * limitations under the License.
  */
 
+import type {UniversalTextProps} from '../types.js';
+import {z} from 'zod';
+
 import {html, nothing, css} from 'lit';
 import {consume} from '@lit/context';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
@@ -25,7 +27,7 @@ import {markdown} from '../directives/directives.js';
 
 const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
-export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement {
+export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<UniversalTextProps> {
   /**
    * The styles of the text component can be customized by redefining the following
    * CSS variables:

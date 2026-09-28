@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -15,11 +14,14 @@ import {z} from 'zod';
  * limitations under the License.
  */
 
+import type {UniversalSliderProps} from '../types.js';
+import {z} from 'zod';
+
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../index.js';
 
-export class A2uiSliderElement extends BasicCatalogA2uiLitElement {
+export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSliderProps> {
   /**
    * The slider can be customized with the following CSS variables:
    *

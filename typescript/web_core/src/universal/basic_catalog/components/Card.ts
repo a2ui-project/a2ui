@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -15,11 +14,14 @@ import {z} from 'zod';
  * limitations under the License.
  */
 
+import type {UniversalCardProps} from '../types.js';
+import {z} from 'zod';
+
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../index.js';
 
-export class A2uiCardElement extends BasicCatalogA2uiLitElement {
+export class A2uiCardElement extends BasicCatalogA2uiLitElement<UniversalCardProps> {
   /**
    * The styles of the card can be customized by redefining the following
    * CSS variables:

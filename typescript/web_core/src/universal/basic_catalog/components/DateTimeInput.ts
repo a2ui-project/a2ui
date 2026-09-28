@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -14,6 +13,9 @@ import {z} from 'zod';
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import type {UniversalDateTimeInputProps} from '../types.js';
+import {z} from 'zod';
 
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
@@ -64,7 +66,7 @@ function normalizeDateTimeValue(value: string | null | undefined, type: string):
   return '';
 }
 
-export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement {
+export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<UniversalDateTimeInputProps> {
   /**
    * The styles of the datetime input can be customized by redefining the following
    * CSS variables:

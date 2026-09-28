@@ -20,3 +20,4 @@ export * from './context/context.js';
 export {type MarkdownRenderer, type MarkdownRendererOptions} from './context/markdown.js';
 export {markdown, setMarkdownRenderer, getMarkdownRenderer} from './directives/directives.js';
 export * from './theme.js';
+export * from './types.js';

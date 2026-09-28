@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -15,6 +14,9 @@ import {z} from 'zod';
  * limitations under the License.
  */
 
+import type {UniversalListProps} from '../types.js';
+import {z} from 'zod';
+
 import {html, nothing, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
@@ -26,7 +28,7 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-export class A2uiListElement extends BasicCatalogA2uiLitElement {
+export class A2uiListElement extends BasicCatalogA2uiLitElement<UniversalListProps> {
   static override styles = css`
     .a2ui-list {
       display: flex;

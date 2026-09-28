@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -15,12 +14,15 @@ import {z} from 'zod';
  * limitations under the License.
  */
 
+import type {UniversalModalProps} from '../types.js';
+import {z} from 'zod';
+
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../index.js';
 
-export class A2uiLitModal extends BasicCatalogA2uiLitElement {
+export class A2uiLitModal extends BasicCatalogA2uiLitElement<UniversalModalProps> {
   /**
    * The styles of the modal can be customized by redefining the following
    * CSS variables:

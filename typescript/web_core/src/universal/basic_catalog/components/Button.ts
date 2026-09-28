@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -15,6 +14,9 @@ import {z} from 'zod';
  * limitations under the License.
  */
 
+import type {UniversalButtonProps} from '../types.js';
+import {z} from 'zod';
+
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
@@ -23,7 +25,7 @@ import type {WebComponentImplementation} from '../../index.js';
 /**
  * A button component that can be used to trigger an action.
  */
-export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement {
+export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<UniversalButtonProps> {
   /**
    * The styles of the button can be customized by redefining the following
    * CSS variables:

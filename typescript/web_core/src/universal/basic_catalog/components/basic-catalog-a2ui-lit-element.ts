@@ -15,12 +15,23 @@
  */
 
 import {html, nothing} from 'lit';
-import {ComponentApi} from '../../../catalog/types.js';
+import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
+import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
 import {A2uiLitElement, type ResolvedChildList, type A2uiChildRef} from '../../index.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
 import {isValidCssColor} from '../theme.js';
+import type {
+  UniversalCommonProps,
+  UniversalCheckableProps,
+  UniversalAccessibilityAttributes,
+} from '../types.js';
+import type {A2uiController} from '../../a2ui-controller.js';
 
 export type {ResolvedChildList, A2uiChildRef, A2uiChildRef as ResolvedChildRef};
+
+export type InferredBasicCatalogProps<T> = T extends ComponentApi
+  ? ResolveA2uiProps<InferredComponentApiSchemaType<T>>
+  : T;
 
 /**
  * Internal base class for the built-in Basic Catalog components.
@@ -31,8 +42,13 @@ export type {ResolvedChildList, A2uiChildRef, A2uiChildRef as ResolvedChildRef};
  * @internal
  */
 export abstract class BasicCatalogA2uiLitElement<
-  Api extends ComponentApi = any,
-> extends A2uiLitElement<Api> {
+  ApiOrProps = UniversalCommonProps,
+> extends A2uiLitElement<any> {
+  override get controller(): A2uiController<any> & {
+    props: InferredBasicCatalogProps<ApiOrProps>;
+  } {
+    return super.controller as any;
+  }
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
    */
@@ -58,7 +74,7 @@ export abstract class BasicCatalogA2uiLitElement<
   override willUpdate(changedProperties: Map<string, any>) {
     super.willUpdate(changedProperties);
 
-    const props = this.controller?.props as any;
+    const props = this.controller?.props;
     if (props && props.weight !== undefined) {
       this.style.flex = String(props.weight);
     } else {
@@ -92,7 +108,7 @@ export abstract class BasicCatalogA2uiLitElement<
     this.applyAccessibilityAttributes(props?.accessibility);
   }
 
-  protected renderValidationErrors(props: any) {
+  protected renderValidationErrors(props?: UniversalCheckableProps) {
     if (props?.isValid === false && props.validationErrors?.length) {
       return props.validationErrors.map(
         (msg: string) => html`<div class="error a2ui-error-message">${msg}</div>`,
@@ -101,7 +117,7 @@ export abstract class BasicCatalogA2uiLitElement<
     return nothing;
   }
 
-  private applyAccessibilityAttributes(a11y: any): void {
+  private applyAccessibilityAttributes(a11y?: UniversalAccessibilityAttributes): void {
     this.setOrRemoveAttribute('aria-label', a11y?.label);
     this.setOrRemoveAttribute('aria-description', a11y?.description);
     this.setOrRemoveAttribute('aria-live', a11y?.live);

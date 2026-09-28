@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -14,6 +13,9 @@ import {z} from 'zod';
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import type {UniversalColumnProps} from '../types.js';
+import {z} from 'zod';
 
 import {html, nothing, css, PropertyValues} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
@@ -44,7 +46,7 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement {
+export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<UniversalColumnProps> {
   /**
    * The styles of the column can be customized by redefining the following
    * CSS variables:

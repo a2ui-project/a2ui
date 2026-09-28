@@ -1,4 +1,3 @@
-import {z} from 'zod';
 /*
  * Copyright 2024 Google LLC
  *
@@ -15,11 +14,14 @@ import {z} from 'zod';
  * limitations under the License.
  */
 
+import type {UniversalVideoProps} from '../types.js';
+import {z} from 'zod';
+
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../index.js';
 
-export class A2uiVideoElement extends BasicCatalogA2uiLitElement {
+export class A2uiVideoElement extends BasicCatalogA2uiLitElement<UniversalVideoProps> {
   /**
    * The styles of the video can be customized by redefining the following
    * CSS variables:
