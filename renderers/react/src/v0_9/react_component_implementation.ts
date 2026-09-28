@@ -26,16 +26,17 @@
 import type React from 'react';
 import type {ZodTypeAny} from 'zod';
 import type {ComponentApi, ComponentContext, ComponentNode} from '@a2ui/web_core/v0_9';
+import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
 export type NodeBuildChild = (
-  child: ComponentNode<ReactComponentImplementation> | string,
+  child: ComponentNode<ReactCatalogComponent> | string,
   basePath?: string,
 ) => React.ReactNode;
 
 /** What a component implementation's `view` receives from the node surface. */
 export type NodeViewProps = {
-  node: ComponentNode<ReactComponentImplementation>;
+  node: ComponentNode<ReactCatalogComponent>;
   buildChild: NodeBuildChild;
 };
 
@@ -59,6 +60,11 @@ export interface ReactComponentImplementation<
    */
   view?: React.FC<NodeViewProps>;
 }
+
+/** Any entry a React catalog can hold: a React component or a Web Component. */
+export type ReactCatalogComponent<Schema extends ZodTypeAny = ZodTypeAny> =
+  | ReactComponentImplementation<Schema>
+  | WebComponentImplementation<Schema>;
 
 /** What the generic binder hands a presentational React component. */
 export type ReactA2uiComponentProps<T> = {

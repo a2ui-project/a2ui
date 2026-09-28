@@ -46,7 +46,11 @@ import {
   type Signal,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
-import type {NodeBuildChild, ReactComponentImplementation} from './react_component_implementation';
+import type {
+  NodeBuildChild,
+  ReactCatalogComponent,
+  ReactComponentImplementation,
+} from './react_component_implementation';
 import {WebComponentNode} from './web_component_node';
 
 /** The context of a node a host renders. */
@@ -63,7 +67,7 @@ export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId
 );
 
 /** Unresolved-reference reports already dispatched, per surface. */
-const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation>, Set<string>>();
+const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponent>, Set<string>>();
 
 /**
  * The in-tree notice for a child reference the resolver built no node for.
@@ -74,7 +78,7 @@ const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation
  * that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
+  surface: SurfaceModel<ReactCatalogComponent>;
   id: string;
   requestedPath: string;
   detail: string;
@@ -113,13 +117,10 @@ export function useSignalValue<T>(signal: Signal<T>): T {
  * props, in prop order. `render`-only implementations pass raw component ids
  * instead; those resolve by scanning for `(componentId, dataPath)`.
  */
-type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
+type ChildIndex = Map<string, ComponentNode<ReactCatalogComponent>>;
 
 /** Registers a child and returns the token views hand back to `buildChild`. */
-function registerChild(
-  index: ChildIndex,
-  child: ComponentNode<ReactComponentImplementation>,
-): string {
+function registerChild(index: ChildIndex, child: ComponentNode<ReactCatalogComponent>): string {
   index.set(child.id, child);
   return child.id;
 }
@@ -134,8 +135,8 @@ function registerChild(
 function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): unknown {
   if (isComponentNode(value)) {
     // Every node in this surface's props came from its own resolver, whose
-    // catalog carries ReactComponentImplementation entries.
-    const token = registerChild(index, value as ComponentNode<ReactComponentImplementation>);
+    // catalog carries ReactCatalogComponent entries.
+    const token = registerChild(index, value as ComponentNode<ReactCatalogComponent>);
     if (value.dataPath !== parent.dataPath) {
       return {id: token, basePath: value.dataPath};
     }
@@ -205,7 +206,7 @@ export function useNodeView(
   rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
   const context = contextOf(node);
-  const surface = context.dataContext.surface as SurfaceModel<ReactComponentImplementation>;
+  const surface = context.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
   const resolved = useSignalValue(node.props);
 
   const {viewProps, childIndex} = useMemo(() => {
@@ -258,7 +259,7 @@ export function useNodeView(
 
 /** Renders an implementation that has no `view`: its wrapper binds itself. */
 const RenderFallback: React.FC<{
-  node: ComponentNode<ReactComponentImplementation>;
+  node: ComponentNode<ReactCatalogComponent>;
   impl: ReactComponentImplementation;
   buildChild: NodeBuildChild;
 }> = ({node, impl, buildChild}) => {
@@ -274,7 +275,7 @@ const RenderFallback: React.FC<{
  * arrived renders a `LoadingPlaceholder`; one of an unknown type renders an
  * inline error.
  */
-export const ChildElement = memo(({node}: {node: ComponentNode<ReactComponentImplementation>}) => {
+export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
   if (node.state === 'unknown-type') {
     return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
   }
@@ -290,8 +291,9 @@ ChildElement.displayName = 'ChildElement';
  * with children as their elements. Memoized so a registry update, which
  * re-renders `A2uiSurface`, leaves existing portals alone.
  */
-export const NodeContent = memo(({node}: {node: ComponentNode<ReactComponentImplementation>}) => {
-  const surface = contextOf(node).dataContext.surface as SurfaceModel<ReactComponentImplementation>;
+export const NodeContent = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
+  const surface = contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+
   const buildChild = useCallback<NodeBuildChild>(
     (child, basePath) => {
       if (isComponentNode(child)) {
@@ -320,11 +322,14 @@ export const NodeContent = memo(({node}: {node: ComponentNode<ReactComponentImpl
     [surface, node],
   );
 
+  // Only React implementations have hosts; a universal Web Component renders
+  // itself.
   const impl = node.impl;
-  if (node.disposed || !impl) {
+  if (node.disposed || !impl || !('render' in impl)) {
     return null;
   }
   const View = impl.view;
+
   if (!View) {
     return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
   }

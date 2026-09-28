@@ -1,6 +1,8 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: (v0_9) Every catalog component renders inside a custom element (`<a2ui-react-<name>>`, `display: contents`); React implementations render into it through a portal from the surface's React root. `buildChild(childNode)` returns that element. [#2849](https://github.com/a2ui-project/a2ui/pull/2849)
+- (v0_9) Render catalog entries that are universal Web Components (`WebComponentImplementation`) as their elements, so a catalog can mix React components and Web Components in either nesting order. `A2uiSurface` also defines the elements of Web Component entries. React entries made by the factories render under universal containers; hand-written ones, which carry no `tagName`, render only under React parents. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
+- (v0_9) Export the `ReactCatalogComponent` union type (a React implementation or a `WebComponentImplementation`) from `@a2ui/react/v0_9`; `A2uiSurface` and the basic catalog are typed with it. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
 
 ## 0.12.0
 

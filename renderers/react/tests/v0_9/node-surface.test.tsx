@@ -29,7 +29,12 @@ import {
   getValue,
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
-import {createComponentImplementation, type ReactComponentImplementation} from '../../src/v0_9';
+import {
+  createComponentImplementation,
+  type ReactCatalogComponent,
+  type ReactComponentImplementation,
+} from '../../src/v0_9';
+
 import type {ReactHostElement} from '../../src/v0_9/catalog/react_host_element';
 import {toWebComponent} from '../../src/v0_9/catalog/to_web_component';
 import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
@@ -505,7 +510,7 @@ describe('A2uiSurface', () => {
   });
 
   it('renders the shipped basic catalog unchanged', () => {
-    const surface = new SurfaceModel<ReactComponentImplementation>('surf-basic', basicCatalog);
+    const surface = new SurfaceModel<ReactCatalogComponent>('surf-basic', basicCatalog);
     add(surface, 'root', 'Column', {children: ['t1', 'card1']});
     add(surface, 't1', 'Text', {text: 'hello from nodes'});
     add(surface, 'card1', 'Card', {child: 't2'});

@@ -29,16 +29,17 @@ import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2u
 import {prepareCatalogs} from './catalog/prepare_catalogs';
 import {HostRegistry} from './host_registry';
 import {ChildElement, LoadingPlaceholder, NodeContent} from './node-view';
-import type {ReactComponentImplementation} from './react_component_implementation';
+import type {ReactCatalogComponent} from './react_component_implementation';
 
 export const A2uiSurface: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
+  surface: SurfaceModel<ReactCatalogComponent>;
 }> = ({surface}) => {
   // The resolver is created inside `subscribe`, which React calls only for
   // committed renders, so a discarded render never constructs one and every
   // resolver is disposed by its own unsubscribe.
   const box = useMemo(
-    () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
+    () => ({resolver: undefined as NodeResolver<ReactCatalogComponent> | undefined}),
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );
