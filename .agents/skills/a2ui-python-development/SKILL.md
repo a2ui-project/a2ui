@@ -140,23 +140,15 @@ uv sync --all-packages
 
 ### 2. Formatting (fix_format.sh / Pyink)
 
-Code must be formatted using the repository's formatting script (which checks/formats Python with Pyink, web code with Prettier, and Dart code):
+Directly run the repository's formatting script to format code in place (faster and saves tokens compared to checking first):
 
 ```bash
-# Check formatting
-./scripts/fix_format.sh --check
-
-# Auto-format in place
 ./scripts/fix_format.sh
 ```
 
-If you only want to format Python code directly:
+Or format Python code directly in place:
 
 ```bash
-# Check Python formatting
-uv run pyink --check .
-
-# Auto-format Python in place
 uv run pyink .
 ```
 
@@ -197,7 +189,7 @@ uv build --all
 - [ ] Public symbols exported through package-level `__init__.py` with explicit `__all__`.
 - [ ] No deep internal module imports in code, tests, docstrings, or READMEs.
 - [ ] Imports grouped (standard library, third-party, local) and sorted alphabetically.
-- [ ] `./scripts/fix_format.sh --check` (or `uv run pyink --check .`) passes cleanly.
+- [ ] Formatted with `./scripts/fix_format.sh` (or `uv run pyink .`).
 - [ ] `uv run mypy .` passes with zero errors.
 - [ ] `uv run pytest` passes 100%.
 - [ ] `uv build --all` completes successfully.
