@@ -125,3 +125,13 @@ ExampleDataModelExterns.prototype.phone;
 ExampleDataModelExterns.prototype.zip;
 /** @type {?|undefined} */
 ExampleDataModelExterns.prototype.message;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.sliderValue;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.sliderLabel;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.status;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.actionResult;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.currentSlider;

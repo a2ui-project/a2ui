@@ -378,6 +378,15 @@ class GenericBinder:
             return cached[1]
 
         def closure() -> None:
+            if isinstance(value, dict):
+                fc = (
+                    value["functionCall"]
+                    if isinstance(value.get("functionCall"), dict)
+                    else value
+                )
+                if isinstance(fc.get("call"), str):
+                    self.context.data_context.resolve_dynamic_value(fc)
+                    return
             resolved = self.context.data_context.resolve_action(value)
             self.context.dispatch_action(resolved)
 

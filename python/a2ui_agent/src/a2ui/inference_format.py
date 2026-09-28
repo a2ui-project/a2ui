@@ -19,8 +19,8 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import Any
 from a2ui.prompt import PromptGenerator
-from a2ui.parser.parser import Parser
-from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
+from a2ui.parser import Parser
+from a2ui.core.schema.v0_9 import V09Capabilities
 
 
 class InferenceFormat(ABC):

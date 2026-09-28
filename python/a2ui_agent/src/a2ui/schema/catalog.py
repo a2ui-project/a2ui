@@ -25,10 +25,14 @@ from dataclasses import dataclass, replace
 from functools import cached_property
 from typing import Any, TYPE_CHECKING
 from urllib.parse import urlparse
-from a2ui.core.catalog import Catalog
-from a2ui.core import A2uiCatalogError
-from a2ui.core.exceptions import A2uiErrorDetail, A2uiValidationError
-from a2ui.core.validation.payload_validator import PayloadValidator, STRICT_VALIDATION
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiErrorDetail,
+    A2uiValidationError,
+    Catalog,
+    PayloadValidator,
+    STRICT_VALIDATION,
+)
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from .constants import (
@@ -272,7 +276,7 @@ class A2uiCatalog:
 
     def validate(self, messages: Any) -> None:
         """Validates payload messages using MessageProcessor."""
-        from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
+        from a2ui.core import MessageProcessor, MessageProcessorOptions
 
         msg_list = messages if isinstance(messages, list) else [messages]
         MessageProcessor(

@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Execute `functionCall` and `call` component actions locally in `GenericBinder` and prevent `SurfaceModel.dispatch_action` from emitting them as agent-facing `on_action` events.
+
+## 0.2.0 (2026-09-28)
+
 - **BREAKING**: Module paths and validation interfaces moved or changed in v0.2.0. Deprecation shims are provided for renamed public module paths; importing them emits a `DeprecationWarning` naming the new path. These shims will be removed in `v0.3.0`.
 
   **Shimmed Modules (Deprecated; removal in v0.3.0):**

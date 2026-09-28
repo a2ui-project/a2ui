@@ -18,8 +18,8 @@ import json
 import os
 import unittest
 
-from a2ui.core.catalog import Catalog
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
+from a2ui.schema import A2uiCatalog
 from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
 from a2ui.schema.utils import find_repo_root, get_spec_dir

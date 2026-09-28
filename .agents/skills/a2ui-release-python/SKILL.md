@@ -241,8 +241,11 @@ Then ask for explicit confirmation to publish. Proceed only on a clear yes.
 ## Step 5: Publish
 
 ```bash
+AUTHOR_NAME=$(git config user.name)
+AUTHOR_EMAIL=$(git config user.email)
 gh workflow run release-pypi.yml --repo a2ui-project/a2ui --ref main \
-  -f package="${PACKAGE}" -f bump="${BUMP}" -f dry_run=false
+  -f package="${PACKAGE}" -f bump="${BUMP}" -f dry_run=false \
+  -f author_name="${AUTHOR_NAME}" -f author_email="${AUTHOR_EMAIL}"
 ```
 
 Watch it as in Step 3. The run pushes the tags, stages the artifacts, uploads

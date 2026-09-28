@@ -20,7 +20,7 @@ describe('Example: Stats Card', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Stats Card');
+    await loadExample({name: 'Stats Card'});
     textContent = getCanvas().textContent;
   });
 

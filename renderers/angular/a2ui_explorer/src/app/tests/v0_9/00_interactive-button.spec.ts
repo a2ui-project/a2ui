@@ -23,7 +23,7 @@ describe('Example: Interactive Button', () => {
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Interactive Button');
+    fixture = await loadExample({name: 'Interactive Button'});
     textContent = getCanvas().textContent || '';
   });
 

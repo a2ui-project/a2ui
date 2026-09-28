@@ -23,7 +23,7 @@ describe('Example: Financial Data Grid', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Financial Data Grid');
+    fixture = await loadExample({name: 'Financial Data Grid'});
     textContent = getCanvas().textContent;
   });
 

@@ -122,7 +122,8 @@ extension BasicCatalogComponents {
           ]
         }
         """,
-      remoteSchemas: A2UICommonSchema.allSchemas
+      remoteSchemas: A2UICommonSchema.allSchemas,
+      formatValidators: DefaultFormatValidators.all
     )
   )
 }

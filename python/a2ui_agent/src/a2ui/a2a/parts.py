@@ -14,7 +14,7 @@
 
 import logging
 from typing import Any, AsyncIterable, TYPE_CHECKING
-from a2ui.parser.parser import Parser
+from a2ui.parser import Parser
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser

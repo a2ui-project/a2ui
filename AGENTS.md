@@ -11,6 +11,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
+- **For developing Python code anywhere in the repository (libraries, agents, tools, scripts, best practices):** Read [.agents/skills/a2ui-python-development/SKILL.md](.agents/skills/a2ui-python-development/SKILL.md)
 - **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/a2ui-swift-development/SKILL.md](.agents/skills/a2ui-swift-development/SKILL.md)
 
 ---
@@ -113,3 +114,5 @@ To ensure the integrity, consistency, and high quality of the repository, all ag
 - **Maintain Agent-Agnostic Instructions**: When creating or modifying agent instruction files, skills, or guides, write them in a generic, vendor-agnostic manner. Avoid proprietary or environment-specific names (e.g., model names, specific tool terms) and use generic terms (e.g., "assistant", "subagent", "retrieval tool").
 - **Enforce Script Uniformity**: Strictly maintain Yarn workspace script hygiene. Ensure all Node/TypeScript packages implement the five canonical targets (`build`, `lint`, `lint:fix`, `test`, `format`, `format:check`).
 - **Keep Inference Formats Catalog-Agnostic**: When implementing or updating inference formats (Express, Elemental, Atom, Direct JSON, etc.), system prompt rules, compilers, and parsers must remain catalog-agnostic. Catalog-specific constraints, component property rules, or syntax hints must be defined in and derived dynamically from the component catalog JSON schema, rather than hardcoding catalog-specific logic or string filters into format generators.
+- **Export Public Facades and Ban Deep Imports**: Packages across all languages must expose their public API through root or versioned facade barrels (e.g. `__all__` in Python `__init__.py`, `exports` in Node `package.json`, `lib/*.dart` in Dart). Never expose, rely on, or demonstrate deep internal submodule import paths in code, tests, docstrings, or README examples.
+- **Sort and Group Imports**: Across all languages (Python, TypeScript, Dart, Swift), maintain clean, predictable import ordering. Group imports into standard/system libraries, external third-party dependencies, and internal/local packages, separated by a single empty line. Within each group, sort module paths and imported symbols alphabetically. Never use wildcard imports.

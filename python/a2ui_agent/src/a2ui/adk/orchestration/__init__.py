@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .a2ui_subagent_map import A2uiSubagentMap
+from .a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
-__all__ = ["A2uiSubagentMap"]
+__all__ = ["A2uiSubagentMap", "SurfaceIdAlreadyExistsError"]

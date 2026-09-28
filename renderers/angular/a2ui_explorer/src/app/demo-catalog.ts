@@ -17,6 +17,7 @@
 import {Injectable} from '@angular/core';
 import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
 import {customSliderComponentDeclaration} from './custom-slider.component';
+import {customGridComponentDeclaration} from './custom-grid.component';
 
 /**
  * A catalog specific to the demo, extending the basic catalog with custom components.
@@ -29,7 +30,7 @@ export class DemoCatalog extends AngularCatalog {
     super(
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       '0.9',
-      [...BASIC_COMPONENTS, customSliderComponentDeclaration],
+      [...BASIC_COMPONENTS, customSliderComponentDeclaration, customGridComponentDeclaration],
       BASIC_FUNCTIONS,
     );
   }
