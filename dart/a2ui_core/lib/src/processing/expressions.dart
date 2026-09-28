@@ -21,8 +21,12 @@ import '../primitives/errors.dart';
 /// digits (`5`, `5.`, `5.25`), or a decimal point followed by digits (`.5`).
 /// Every client implementation accepts a trailing point (`1.`) and none
 /// accepts a second point (`1.2.3`), so the grammar is written to keep that.
+///
+/// Every engine checks the same pattern: `NUMBER_LITERAL` in TypeScript,
+/// `_NUMBER_LITERAL` in Python, and `ExpressionParser.numberLiteralPattern` in
+/// Swift.
 final RegExp _numberLiteral = RegExp(
-  r'^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$',
+  r'^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$',
 );
 
 /// A parser for A2UI expressions, supporting string interpolation

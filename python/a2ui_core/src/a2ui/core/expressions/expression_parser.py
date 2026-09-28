@@ -20,6 +20,16 @@ from a2ui.core.exceptions import A2uiExpressionError
 MAX_EXPRESSION_TEMPLATE_LENGTH: Final[int] = 10_000
 MAX_EXPRESSION_PARTS: Final[int] = 1_000
 
+# An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
+# exponent (`e` or `E`, an optional sign, digits). Uses `[0-9]` rather than `\d`
+# because Python's `\d` matches Unicode digits from every script.
+# Every engine checks the same pattern: `NUMBER_LITERAL` in TypeScript,
+# `_numberLiteral` in Dart, and `ExpressionParser.numberLiteralPattern` in
+# Swift.
+_NUMBER_LITERAL: Final[re.Pattern[str]] = re.compile(
+    r"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+)
+
 
 class Scanner:
 
@@ -297,20 +307,28 @@ class ExpressionParser:
             self.is_digit(scanner.peek()) or scanner.peek() == "."
         ):
             scanner.advance()
-        if not scanner.is_at_end() and (scanner.peek() == "e" or scanner.peek() == "E"):
-            scanner.advance()
-            if not scanner.is_at_end() and (
-                scanner.peek() == "+" or scanner.peek() == "-"
-            ):
-                scanner.advance()
-            while not scanner.is_at_end() and self.is_digit(scanner.peek()):
-                scanner.advance()
+        self.skip_exponent(scanner)
         num_str = scanner.input[start : scanner.pos]
-        if not re.match(r"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$", num_str):
+        if not _NUMBER_LITERAL.fullmatch(num_str):
             raise A2uiExpressionError(f"Invalid number literal: '{num_str}'")
         if "." in num_str or "e" in num_str or "E" in num_str:
             return float(num_str)
         return int(num_str)
+
+    def skip_exponent(self, scanner: Scanner) -> None:
+        """Consumes an exponent suffix (`e` or `E`, an optional sign, then digits).
+
+        A malformed exponent such as `1e` or `1e+` is still consumed, so that
+        `parse_number_literal` reports it as an invalid literal instead of leaving
+        trailing characters behind.
+        """
+        if scanner.is_at_end() or scanner.peek() not in ("e", "E"):
+            return
+        scanner.advance()
+        if not scanner.is_at_end() and scanner.peek() in ("+", "-"):
+            scanner.advance()
+        while not scanner.is_at_end() and self.is_digit(scanner.peek()):
+            scanner.advance()
 
     def is_alnum(self, c: str) -> bool:
         return ("a" <= c <= "z") or ("A" <= c <= "Z") or ("0" <= c <= "9")

@@ -33,6 +33,16 @@ export const MAX_EXPRESSION_TEMPLATE_LENGTH = 10_000;
 export const MAX_EXPRESSION_PARTS = 1_000;
 
 /**
+ * An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
+ * exponent (`e` or `E`, an optional sign, digits).
+ *
+ * Every engine checks the same pattern: `_NUMBER_LITERAL` in Python,
+ * `_numberLiteral` in Dart, and `ExpressionParser.numberLiteralPattern` in
+ * Swift.
+ */
+const NUMBER_LITERAL = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
+
+/**
  * Parses A2UI expressions, supporting string interpolation and function calls.
  *
  * Converts strings with `${...}` placeholders into arrays of `DynamicValue` objects.
@@ -308,20 +318,33 @@ export class ExpressionParser {
     while (!scanner.isAtEnd() && (this.isDigit(scanner.peek()) || scanner.peek() === '.')) {
       scanner.advance();
     }
-    if (!scanner.isAtEnd() && (scanner.peek() === 'e' || scanner.peek() === 'E')) {
-      scanner.advance();
-      if (!scanner.isAtEnd() && (scanner.peek() === '+' || scanner.peek() === '-')) {
-        scanner.advance();
-      }
-      while (!scanner.isAtEnd() && this.isDigit(scanner.peek())) {
-        scanner.advance();
-      }
-    }
+    this.skipExponent(scanner);
     const text = scanner.input.substring(start, scanner.pos);
-    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) {
+    if (!NUMBER_LITERAL.test(text)) {
       throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
     }
     return Number(text);
+  }
+
+  /**
+   * Consumes an exponent suffix (`e` or `E`, an optional sign, then digits)
+   * if one is present.
+   *
+   * A malformed exponent such as `1e` or `1e+` is still consumed, so that
+   * `parseNumberLiteral` reports it as an invalid literal instead of leaving
+   * trailing characters behind.
+   */
+  private skipExponent(scanner: Scanner): void {
+    if (scanner.isAtEnd() || (scanner.peek() !== 'e' && scanner.peek() !== 'E')) {
+      return;
+    }
+    scanner.advance();
+    if (!scanner.isAtEnd() && (scanner.peek() === '+' || scanner.peek() === '-')) {
+      scanner.advance();
+    }
+    while (!scanner.isAtEnd() && this.isDigit(scanner.peek())) {
+      scanner.advance();
+    }
   }
 
   private isAlnum(c: string): boolean {

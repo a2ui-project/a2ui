@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import Foundation
 import OrderedCollections
 import OrderedJSON
 
@@ -27,6 +28,18 @@ public struct ExpressionParser: Sendable {
   /// TypeScript and Python. They must agree, or an expression one engine
   /// accepts the other rejects.
   public static let maxDepth = 100
+
+  /// An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
+  /// exponent (`e` or `E`, an optional sign, digits). Uses `[0-9]` rather than
+  /// `\d` because ICU's `\d` matches digits from every Unicode script.
+  ///
+  /// Every engine checks the same pattern: `NUMBER_LITERAL` in TypeScript,
+  /// `_NUMBER_LITERAL` in Python, and `_numberLiteral` in Dart.
+  private static let numberLiteralPattern =
+    #"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#
+
+  /// Compiled regular expression for `numberLiteralPattern`.
+  private static let numberLiteral = try? NSRegularExpression(pattern: numberLiteralPattern)
 
   public init() {}
 
@@ -319,11 +332,7 @@ public struct ExpressionParser: Sendable {
     return scanner.peek(offset: offset) == "." && Self.isDigit(scanner.peek(offset: offset + 1))
   }
 
-  /// Scans and validates a number literal.
-  ///
-  /// The accepted grammar is an optional sign, a mantissa (`5`, `5.`, `5.25` or `.5`), and an
-  /// optional exponent (`e` or `E`, an optional sign, digits). It matches the TypeScript, Python
-  /// and Dart parsers, which check the pattern `^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$`.
+  /// Scans and validates a number literal against `numberLiteralPattern`.
   private func parseNumberLiteral(_ scanner: inout Scanner) throws -> JSONValue {
     let start = scanner.pos
     if scanner.peek() == "-" || scanner.peek() == "+" {
@@ -332,15 +341,7 @@ public struct ExpressionParser: Sendable {
     while let c = scanner.peek(), Self.isDigit(c) || c == "." {
       scanner.advance(by: 1)
     }
-    if let c = scanner.peek(), c == "e" || c == "E" {
-      scanner.advance(by: 1)
-      if let sign = scanner.peek(), sign == "+" || sign == "-" {
-        scanner.advance(by: 1)
-      }
-      while Self.isDigit(scanner.peek()) {
-        scanner.advance(by: 1)
-      }
-    }
+    skipExponent(&scanner)
     let numStr = String(scanner.input[start..<scanner.pos])
     guard Self.isValidNumberLiteral(numStr) else {
       throw FunctionError.executionFailed(
@@ -361,35 +362,29 @@ public struct ExpressionParser: Sendable {
     )
   }
 
-  /// Checks `text` against `^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$`.
+  /// Consumes an exponent suffix (`e` or `E`, an optional sign, then digits)
+  /// if one is present.
+  ///
+  /// A malformed exponent such as `1e` or `1e+` is still consumed, so that
+  /// `parseNumberLiteral` reports it as an invalid literal instead of leaving
+  /// trailing characters behind.
+  private func skipExponent(_ scanner: inout Scanner) {
+    guard let c = scanner.peek(), c == "e" || c == "E" else {
+      return
+    }
+    scanner.advance(by: 1)
+    if let sign = scanner.peek(), sign == "+" || sign == "-" {
+      scanner.advance(by: 1)
+    }
+    while Self.isDigit(scanner.peek()) {
+      scanner.advance(by: 1)
+    }
+  }
+
+  /// Checks whether the entire `text` matches `numberLiteralPattern`.
   private static func isValidNumberLiteral(_ text: String) -> Bool {
-    var chars = Substring(text)
-    if let first = chars.first, first == "+" || first == "-" {
-      chars = chars.dropFirst()
-    }
-    let intDigits = chars.prefix(while: { isDigit($0) })
-    chars = chars.dropFirst(intDigits.count)
-    var fracDigits = Substring()
-    if chars.first == "." {
-      chars = chars.dropFirst()
-      fracDigits = chars.prefix(while: { isDigit($0) })
-      chars = chars.dropFirst(fracDigits.count)
-    }
-    if intDigits.isEmpty && fracDigits.isEmpty {
-      return false
-    }
-    if let e = chars.first, e == "e" || e == "E" {
-      chars = chars.dropFirst()
-      if let sign = chars.first, sign == "+" || sign == "-" {
-        chars = chars.dropFirst()
-      }
-      let expDigits = chars.prefix(while: { isDigit($0) })
-      if expDigits.isEmpty {
-        return false
-      }
-      chars = chars.dropFirst(expDigits.count)
-    }
-    return chars.isEmpty
+    let range = NSRange(text.startIndex..., in: text)
+    return numberLiteral?.firstMatch(in: text, range: range)?.range == range
   }
 
   /// Whether `c` is an ASCII digit. `Character.isNumber` also accepts non-ASCII numerals such as
