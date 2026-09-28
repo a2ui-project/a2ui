@@ -27,7 +27,6 @@ export {
   A2uiRendererService,
   A2UI_RENDERER_CONFIG,
   type RendererConfiguration,
-  provideA2Ui,
   ComponentHostComponent,
   SurfaceComponent,
   CatalogComponent,
@@ -72,6 +71,7 @@ export {
   BASIC_COMPONENTS,
   BASIC_FUNCTIONS,
   provideA2UI,
+  provideA2UI as provideA2Ui,
 } from './basic-catalog';
 
 export * from '@a2ui/web_core/v1_0';
