@@ -16,7 +16,13 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
+import {
+  AccessibilityAttributesSchema,
+  Action,
+  ChildList,
+  DataBinding,
+  childRefKindOf,
+} from '../types/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 
@@ -61,7 +67,11 @@ export type BehaviorNode =
  * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
-  return getFieldBehavior(schema);
+  const behavior = getFieldBehavior(schema);
+  if (behavior.type === 'OBJECT' && !('accessibility' in behavior.shape)) {
+    behavior.shape['accessibility'] = getFieldBehavior(AccessibilityAttributesSchema);
+  }
+  return behavior;
 }
 
 /**
@@ -325,6 +335,18 @@ export type ResolveA2uiProps<T> = (T extends object
   GenerateSetters<T> & {
     isValid?: boolean;
     validationErrors?: string[];
+    validationResults?: Array<{
+      valid: boolean;
+      message: string;
+      code?: string;
+      severity: 'error' | 'warning' | 'info';
+    }>;
+    accessibility?: {
+      label?: string;
+      description?: string;
+      live?: 'off' | 'polite' | 'assertive';
+      hidden?: boolean;
+    };
   };
 
 /**
@@ -510,7 +532,7 @@ export class GenericBinder<T> {
             ? (valObj.functionCall as Record<string, unknown>)
             : valObj;
         if (typeof fc.call === 'string') {
-          this.context.dataContext.resolveDynamicValue(fc);
+          this.context.dataContext.resolveDynamicValue(fc, 0, true);
           return;
         }
       }
@@ -569,35 +591,55 @@ export class GenericBinder<T> {
   private extractValidationResult(
     val: unknown,
     fallbackMessage: string,
-  ): {valid: boolean; message: string} {
+  ): {valid: boolean; message: string; code?: string; severity: 'error' | 'warning' | 'info'} {
     if (typeof val === 'object' && val !== null && 'valid' in val) {
-      const customMessage = (val as {message?: unknown}).message;
+      const rec = val as {valid: unknown; message?: unknown; code?: unknown; severity?: unknown};
+      const customMessage = rec.message;
+      const severity =
+        rec.severity === 'warning' || rec.severity === 'info' ? rec.severity : 'error';
+      const code = typeof rec.code === 'string' ? rec.code : undefined;
       return {
-        valid: Boolean((val as {valid: unknown}).valid),
+        valid: Boolean(rec.valid),
         message:
           customMessage !== undefined && customMessage !== null
             ? String(customMessage)
             : fallbackMessage,
+        ...(code !== undefined ? {code} : {}),
+        severity,
       };
     }
     return {
       valid: Boolean(val),
       message: fallbackMessage,
+      severity: 'error',
     };
   }
 
   private bindCheckable(value: unknown, path: string[], isSync: boolean): unknown {
     const rules = Array.isArray(value) ? value : [];
-    const ruleResults: {valid: boolean; message: string}[] = rules.map(() => ({
+    const ruleResults: {
+      valid: boolean;
+      message: string;
+      code?: string;
+      severity: 'error' | 'warning' | 'info';
+    }[] = rules.map(() => ({
       valid: true,
       message: '',
+      severity: 'error',
     }));
 
     const parentPath = path.slice(0, -1);
-    const updateValidationState = () => {
-      const errors = ruleResults.filter(r => !r.valid).map(r => r.message);
+    const applyValidationState = () => {
+      const errors = ruleResults
+        .filter(r => !r.valid && r.severity === 'error')
+        .map(r => r.message);
+      const failedResults = ruleResults.filter(r => !r.valid);
       this.updateDeepValue([...parentPath, 'isValid'], errors.length === 0);
       this.updateDeepValue([...parentPath, 'validationErrors'], errors);
+      this.updateDeepValue([...parentPath, 'validationResults'], failedResults);
+    };
+    const updateValidationState = () => {
+      applyValidationState();
       this.notify();
     };
 
@@ -623,9 +665,7 @@ export class GenericBinder<T> {
     });
 
     // Set initial state
-    const initialErrors = ruleResults.filter(r => !r.valid).map(r => r.message);
-    this.updateDeepValue([...parentPath, 'isValid'], initialErrors.length === 0);
-    this.updateDeepValue([...parentPath, 'validationErrors'], initialErrors);
+    applyValidationState();
 
     return value;
   }

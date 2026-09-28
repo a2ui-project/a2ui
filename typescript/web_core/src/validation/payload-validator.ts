@@ -19,6 +19,8 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
+import {getKnownSchemaKeys} from '../resolution/data-context.js';
+import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
 import type {ValidationConfig} from './integrity-checker.js';
@@ -114,6 +116,9 @@ export class PayloadValidator {
     }
 
     const properties = stripEnvelopeKeys(comp);
+    const knownKeys = getKnownSchemaKeys(componentApi.schema);
+    this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id);
+
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
       const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
@@ -124,6 +129,45 @@ export class PayloadValidator {
     }
 
     this.validateNestedFunctions(properties);
+  }
+
+  /**
+   * Validates `accessibility` and `metadata` from `ComponentCommon` when the
+   * component schema does not explicitly declare them, removing them from
+   * `properties` before strict component schema parsing.
+   */
+  private validateCommonEnvelopeFields(
+    properties: Record<string, unknown>,
+    knownKeys: Set<string> | null | undefined,
+    componentType: string,
+    id: string,
+  ): void {
+    if ('accessibility' in properties && !knownKeys?.has('accessibility')) {
+      const accVal = properties['accessibility'];
+      delete properties['accessibility'];
+      const accResult = AccessibilityAttributesSchema.optional().safeParse(accVal);
+      if (!accResult.success) {
+        const formattedErrors = accResult.error.errors.map(formatZodIssue).join(', ');
+        throw new A2uiValidationError(
+          `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+          accResult.error.issues,
+        );
+      }
+      this.validateNestedFunctions(accVal);
+    }
+
+    if ('metadata' in properties && !knownKeys?.has('metadata')) {
+      const metaVal = properties['metadata'];
+      delete properties['metadata'];
+      const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metaVal);
+      if (!metaResult.success) {
+        const formattedErrors = metaResult.error.errors.map(formatZodIssue).join(', ');
+        throw new A2uiValidationError(
+          `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+          metaResult.error.issues,
+        );
+      }
+    }
   }
 
   /**

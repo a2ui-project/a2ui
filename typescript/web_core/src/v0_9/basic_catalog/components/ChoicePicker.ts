@@ -126,6 +126,11 @@ class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePi
         var(--a2ui-color-primary, #007bff)
       );
     }
+    .error,
+    .a2ui-error-message {
+      color: var(--a2ui-choicepicker-color-error, red);
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
   `;
 
   @state() filter = '';
@@ -231,6 +236,7 @@ class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePi
               `,
         )}
       </div>
+      ${this.renderValidationErrors(props)}
     `;
   }
 }

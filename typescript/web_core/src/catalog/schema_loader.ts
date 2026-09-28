@@ -49,6 +49,7 @@ const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicStringList: DynamicStringListSchema,
   DynamicValue: DynamicValueSchema,
   ComponentId: ComponentIdSchema,
+  Child: ComponentIdSchema,
   ChildList: ChildListSchema,
   Action: ActionSchema,
   CheckRule: CheckRuleSchema,
@@ -343,6 +344,9 @@ function convertPropertyToZod(
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
   }
+  if (propSchema instanceof z.ZodType) {
+    return propSchema;
+  }
 
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
     const resolvedRef = convertRefToZod(
@@ -544,7 +548,17 @@ function collectComponentSubSchemas(
           // Protocol common properties: accessibility attributes
           result.push({
             properties: {
-              accessibility: AccessibilityAttributesSchema.optional(),
+              accessibility: AccessibilityAttributesSchema,
+            },
+          });
+        } else if (ref.includes('common_types.json') && ref.includes('Checkable')) {
+          result.push({
+            properties: {
+              checks: z
+                .array(CheckRuleSchema)
+                .describe(
+                  'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+                ),
             },
           });
         } else if (ref.startsWith('#/')) {

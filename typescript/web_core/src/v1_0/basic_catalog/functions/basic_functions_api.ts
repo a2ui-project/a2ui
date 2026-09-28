@@ -188,6 +188,7 @@ export const PluralizeApi = {
 export const OpenUrlApi = {
   name: 'openUrl' as const,
   returnType: 'void' as const,
+  requiresUserActivation: true as const,
   schema: z.object({
     'url': z
       .union([

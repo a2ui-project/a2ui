@@ -90,17 +90,21 @@ class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFi
 
     const classes = {'a2ui-textfield': true, invalid: isInvalid};
 
+    const placeholder = (props as any).placeholder || nothing;
+
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
       ${props.variant === 'longText'
         ? html`<textarea
             class=${classMap(classes)}
+            placeholder=${placeholder}
             .value=${props.value || ''}
             @input=${onInput}
           ></textarea>`
         : html`<input
             type=${type}
             class=${classMap(classes)}
+            placeholder=${placeholder}
             .value=${props.value || ''}
             @input=${onInput}
           />`}

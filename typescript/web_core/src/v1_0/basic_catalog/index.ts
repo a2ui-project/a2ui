@@ -14,6 +14,29 @@
  * limitations under the License.
  */
 
-export * from './components/basic_components.js';
-export * from './functions/basic_functions_api.js';
+export * from './components/index.js';
+export {basicCatalog} from './catalog.js';
+export * from '../../expressions/expression_parser.js';
 export * from './functions/basic_functions.js';
+export * from './functions/basic_functions_api.js';
+export * from '../../v0_9/basic_catalog/theme.js';
+export {
+  injectBasicCatalogStyles,
+  computeColorVariant,
+} from '../../v0_9/basic_catalog/styles/default.js';
+export type {
+  ColorVariantLightDarkOptions,
+  ColorVariantHoverOptions,
+} from '../../v0_9/basic_catalog/styles/default.js';
+export {Context} from '../../v0_9/basic_catalog/context/context.js';
+export type {
+  MarkdownRenderer,
+  MarkdownRendererOptions,
+  MarkdownRendererTagClassMap,
+} from '../../v0_9/basic_catalog/context/markdown.js';
+export {
+  markdown,
+  setMarkdownRenderer,
+  getMarkdownRenderer,
+} from '../../v0_9/basic_catalog/directives/directives.js';
+export {BasicCatalogThemeSchema as ThemeSchema} from '../../v0_9/basic_catalog/theme.js';

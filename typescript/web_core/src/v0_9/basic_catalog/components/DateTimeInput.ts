@@ -115,6 +115,11 @@ class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTim
     .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
       color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
     }
+    .error,
+    .a2ui-error-message {
+      color: var(--a2ui-datetimeinput-color-error, red);
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
   `;
 
   protected readonly api = DateTimeInputApi;
@@ -184,6 +189,7 @@ class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTim
               `
             : nothing}
         </div>
+        ${this.renderValidationErrors(props)}
       </div>
     `;
   }

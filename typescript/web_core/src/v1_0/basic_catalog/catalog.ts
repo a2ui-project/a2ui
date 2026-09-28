@@ -1,0 +1,71 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {Catalog} from '../../catalog/types.js';
+import type {WebComponentImplementation} from '../../v0_9/universal/index.js';
+import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
+import {BasicCatalogThemeSchema} from '../../v0_9/basic_catalog/theme.js';
+
+import {
+  A2uiAudioPlayer,
+  A2uiButton,
+  A2uiCard,
+  A2uiCheckBox,
+  A2uiChoicePicker,
+  A2uiColumn,
+  A2uiDateTimeInput,
+  A2uiDivider,
+  A2uiIcon,
+  A2uiImage,
+  A2uiList,
+  A2uiModal,
+  A2uiRow,
+  A2uiSlider,
+  A2uiTabs,
+  A2uiText,
+  A2uiTextField,
+  A2uiVideo,
+} from './components/index.js';
+
+/**
+ * The canonical v1.0 basic catalog of A2UI components implemented via Web Components (Custom Elements).
+ */
+export const basicCatalog = new Catalog<WebComponentImplementation>(
+  'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+  '1.0',
+  [
+    A2uiText,
+    A2uiButton,
+    A2uiTextField,
+    A2uiRow,
+    A2uiColumn,
+    A2uiList,
+    A2uiImage,
+    A2uiIcon,
+    A2uiVideo,
+    A2uiAudioPlayer,
+    A2uiCard,
+    A2uiDivider,
+    A2uiCheckBox,
+    A2uiSlider,
+    A2uiDateTimeInput,
+    A2uiChoicePicker,
+    A2uiTabs,
+    A2uiModal,
+  ],
+  BASIC_FUNCTIONS,
+  BasicCatalogThemeSchema,
+);

@@ -47,7 +47,12 @@ class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {
 
     return html`
       <div class="a2ui-video-container">
-        <video src=${props.url || nothing} controls class="a2ui-video">
+        <video
+          src=${props.url || nothing}
+          poster=${(props as any).posterUrl || (props as any).poster || nothing}
+          controls
+          class="a2ui-video"
+        >
           Your browser does not support the video tag.
         </video>
       </div>

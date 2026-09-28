@@ -194,12 +194,21 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
    * @returns A new instance of `A2uiController` matching the component API.
    */
   protected createController(): A2uiController<Api> {
-    if (!this.api) {
+    const activeCatalog = (this.context?.componentModel.catalog ??
+      this.context?.dataContext.surface.defaultCatalog) as
+      | Catalog<WebComponentImplementation>
+      | undefined;
+    const catalogImpl = activeCatalog?.components.get(this.context?.componentModel.type ?? '');
+    const activeApi =
+      catalogImpl && catalogImpl.element === this.constructor
+        ? (catalogImpl as unknown as Api)
+        : this.api;
+    if (!activeApi) {
       throw new Error(
         `[A2uiLitElement] Either define 'protected readonly api = ...' on ${this.constructor.name} or override 'createController()'.`,
       );
     }
-    return new A2uiController(this, this.api);
+    return new A2uiController(this, activeApi);
   }
 
   /**
@@ -238,10 +247,10 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
 
     path = path ?? parentPath;
 
-    return renderA2uiNode(
-      new ComponentContext(surface, componentId, path),
-      surface.defaultCatalog as Catalog<WebComponentImplementation>,
-    );
+    const childContext = new ComponentContext(surface, componentId, path);
+    const childCatalog = (childContext.componentModel.catalog ??
+      surface.defaultCatalog) as Catalog<WebComponentImplementation>;
+    return renderA2uiNode(childContext, childCatalog);
   }
 
   /**

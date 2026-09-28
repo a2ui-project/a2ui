@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {html, nothing} from 'lit';
 import {ComponentApi} from '../../../catalog/types.js';
 import {A2uiLitElement, type ResolvedChildList, type A2uiChildRef} from '../../universal/index.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
@@ -87,6 +88,35 @@ export abstract class BasicCatalogA2uiLitElement<
       this.style.removeProperty('--a2ui-color-primary-light');
       this.style.removeProperty('--a2ui-color-primary-dark');
       this.style.removeProperty('--a2ui-color-primary-hover');
+    }
+    this.applyAccessibilityAttributes(props?.accessibility);
+  }
+
+  protected renderValidationErrors(props: any) {
+    if (props?.isValid === false && props.validationErrors?.length) {
+      return props.validationErrors.map(
+        (msg: string) => html`<div class="error a2ui-error-message">${msg}</div>`,
+      );
+    }
+    return nothing;
+  }
+
+  private applyAccessibilityAttributes(a11y: any): void {
+    this.setOrRemoveAttribute('aria-label', a11y?.label);
+    this.setOrRemoveAttribute('aria-description', a11y?.description);
+    this.setOrRemoveAttribute('aria-live', a11y?.live);
+    if (typeof a11y?.hidden === 'boolean') {
+      this.setAttribute('aria-hidden', String(a11y.hidden));
+    } else {
+      this.removeAttribute('aria-hidden');
+    }
+  }
+
+  private setOrRemoveAttribute(attrName: string, value: unknown): void {
+    if (typeof value === 'string' && value) {
+      this.setAttribute(attrName, value);
+    } else {
+      this.removeAttribute(attrName);
     }
   }
 }

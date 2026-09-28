@@ -53,6 +53,11 @@ class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
       accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff));
       background: var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef));
     }
+    .error,
+    .a2ui-error-message {
+      color: var(--a2ui-slider-color-error, red);
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
   `;
 
   protected readonly api = SliderApi;
@@ -60,6 +65,11 @@ class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
+
+    const min = props.min ?? 0;
+    const max = props.max ?? 100;
+    const steps = (props as any).steps;
+    const stepVal = typeof steps === 'number' && steps > 0 ? (max - min) / steps : nothing;
 
     return html`
       <div class="a2ui-slider-container">
@@ -69,12 +79,14 @@ class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
         </div>
         <input
           type="range"
-          min=${props.min ?? 0}
-          max=${props.max ?? 100}
+          min=${min}
+          max=${max}
+          step=${stepVal}
           .value=${props.value?.toString() || '0'}
           @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
           class="a2ui-slider"
         />
+        ${this.renderValidationErrors(props)}
       </div>
     `;
   }

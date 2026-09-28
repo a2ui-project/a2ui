@@ -19,6 +19,7 @@ import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {isAtLeastVersion} from '../common/semver.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
 import {
@@ -27,6 +28,7 @@ import {
   type ComponentRefMap,
 } from './reference-map.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 
 export type {ComponentChildRefs};
 
@@ -331,10 +333,15 @@ export class Catalog<
     this.instructions = instructions;
 
     this.invoker = (name, rawArgs, ctx, abortSignal) => {
-      const fn = this.functions.get(name);
+      const fn =
+        this.functions.get(name) ??
+        (isAtLeastVersion(this.protocolVersion, '1.0') && name === '@index'
+          ? (IndexImplementation as unknown as F)
+          : undefined);
       if (!fn) {
         throw new A2uiExpressionError(`Function not found in catalog '${this.id}': ${name}`, name);
       }
+      assertUserActivation(fn, ctx);
       const execute = (fn as Partial<FunctionImplementation>).execute;
       if (typeof execute !== 'function') {
         throw new A2uiExpressionError(
@@ -375,5 +382,24 @@ export class Catalog<
     protocolVersion?: string,
   ): Catalog<ComponentApi, FunctionApi> {
     return loadCatalogFromSchema(catalogSchema, protocolVersion);
+  }
+}
+
+function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {
+  if (!fn.requiresUserActivation) return;
+  const isPassive = Boolean(
+    (ctx as {isPassiveEvaluation?: boolean} | undefined)?.isPassiveEvaluation,
+  );
+  const isActivated = Boolean((ctx as {isUserActivated?: boolean} | undefined)?.isUserActivated);
+  const browserUnactivated =
+    !isActivated &&
+    typeof navigator !== 'undefined' &&
+    'userActivation' in navigator &&
+    !navigator.userActivation.isActive;
+  if (isPassive || browserUnactivated) {
+    throw new A2uiExpressionError(
+      `Function '${fn.name}' requires user activation and cannot be evaluated without an active user gesture.`,
+      fn.name,
+    );
   }
 }
