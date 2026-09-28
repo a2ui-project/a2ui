@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export * from '../../universal/index.js';
+export * from './markdown.js';

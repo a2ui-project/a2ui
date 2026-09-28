@@ -14,4 +14,9 @@
  * limitations under the License.
  */
 
-export * from '../../universal/index.js';
+export * from './components/index.js';
+export * from './styles/default.js';
+export * from './context/context.js';
+export {type MarkdownRenderer, type MarkdownRendererOptions} from './context/markdown.js';
+export {markdown, setMarkdownRenderer, getMarkdownRenderer} from './directives/directives.js';
+export * from './theme.js';

@@ -14,173 +14,82 @@
  * limitations under the License.
  */
 
-import type {WebComponentImplementation} from '../../../v0_9/universal/index.js';
-import {
-  BASIC_COMPONENTS,
-  AudioPlayerApi,
-  ButtonApi,
-  CardApi,
-  CheckBoxApi,
-  ChoicePickerApi,
-  ColumnApi,
-  DateTimeInputApi,
-  DividerApi,
-  IconApi,
-  ImageApi,
-  ListApi,
-  ModalApi,
-  RowApi,
-  SliderApi,
-  TabsApi,
-  TextApi,
-  TextFieldApi,
-  VideoApi,
-} from './basic_components.js';
-import {A2uiAudioPlayer as V09AudioPlayer} from '../../../v0_9/basic_catalog/components/AudioPlayer.js';
-import {A2uiButton as V09Button} from '../../../v0_9/basic_catalog/components/Button.js';
-import {A2uiCard as V09Card} from '../../../v0_9/basic_catalog/components/Card.js';
-import {A2uiCheckBox as V09CheckBox} from '../../../v0_9/basic_catalog/components/CheckBox.js';
-import {A2uiChoicePicker as V09ChoicePicker} from '../../../v0_9/basic_catalog/components/ChoicePicker.js';
-import {A2uiColumn as V09Column} from '../../../v0_9/basic_catalog/components/Column.js';
-import {A2uiDateTimeInput as V09DateTimeInput} from '../../../v0_9/basic_catalog/components/DateTimeInput.js';
-import {A2uiDivider as V09Divider} from '../../../v0_9/basic_catalog/components/Divider.js';
-import {A2uiIcon as V09Icon} from '../../../v0_9/basic_catalog/components/Icon.js';
-import {A2uiImage as V09Image} from '../../../v0_9/basic_catalog/components/Image.js';
-import {A2uiList as V09List} from '../../../v0_9/basic_catalog/components/List.js';
-import {A2uiModal as V09Modal} from '../../../v0_9/basic_catalog/components/Modal.js';
-import {A2uiRow as V09Row} from '../../../v0_9/basic_catalog/components/Row.js';
-import {A2uiSlider as V09Slider} from '../../../v0_9/basic_catalog/components/Slider.js';
-import {A2uiTabs as V09Tabs} from '../../../v0_9/basic_catalog/components/Tabs.js';
-import {A2uiText as V09Text} from '../../../v0_9/basic_catalog/components/Text.js';
-import {A2uiTextField as V09TextField} from '../../../v0_9/basic_catalog/components/TextField.js';
-import {A2uiVideo as V09Video} from '../../../v0_9/basic_catalog/components/Video.js';
-
-export {
-  BASIC_COMPONENTS,
-  AudioPlayerApi,
-  ButtonApi,
-  CardApi,
-  CheckBoxApi,
-  ChoicePickerApi,
-  ColumnApi,
-  DateTimeInputApi,
-  DividerApi,
-  IconApi,
-  ImageApi,
-  ListApi,
-  ModalApi,
-  RowApi,
-  SliderApi,
-  TabsApi,
-  TextApi,
-  TextFieldApi,
-  VideoApi,
-};
+import * as universalComponents from '../../../universal/basic_catalog/components/index.js';
+import * as v1_0Apis from './basic_components.js';
+import type {WebComponentImplementation} from '../../../universal/index.js';
 
 export const A2uiAudioPlayer: WebComponentImplementation = {
-  ...AudioPlayerApi,
-  tagName: V09AudioPlayer.tagName,
-  element: V09AudioPlayer.element,
+  ...universalComponents.A2uiAudioPlayer,
+  ...v1_0Apis.AudioPlayerApi,
 };
-
 export const A2uiButton: WebComponentImplementation = {
-  ...ButtonApi,
-  tagName: V09Button.tagName,
-  element: V09Button.element,
+  ...universalComponents.A2uiButton,
+  ...v1_0Apis.ButtonApi,
 };
-
 export const A2uiCard: WebComponentImplementation = {
-  ...CardApi,
-  tagName: V09Card.tagName,
-  element: V09Card.element,
+  ...universalComponents.A2uiCard,
+  ...v1_0Apis.CardApi,
 };
-
 export const A2uiCheckBox: WebComponentImplementation = {
-  ...CheckBoxApi,
-  tagName: V09CheckBox.tagName,
-  element: V09CheckBox.element,
+  ...universalComponents.A2uiCheckBox,
+  ...v1_0Apis.CheckBoxApi,
 };
-
 export const A2uiChoicePicker: WebComponentImplementation = {
-  ...ChoicePickerApi,
-  tagName: V09ChoicePicker.tagName,
-  element: V09ChoicePicker.element,
+  ...universalComponents.A2uiChoicePicker,
+  ...v1_0Apis.ChoicePickerApi,
 };
-
 export const A2uiColumn: WebComponentImplementation = {
-  ...ColumnApi,
-  tagName: V09Column.tagName,
-  element: V09Column.element,
+  ...universalComponents.A2uiColumn,
+  ...v1_0Apis.ColumnApi,
 };
-
 export const A2uiDateTimeInput: WebComponentImplementation = {
-  ...DateTimeInputApi,
-  tagName: V09DateTimeInput.tagName,
-  element: V09DateTimeInput.element,
+  ...universalComponents.A2uiDateTimeInput,
+  ...v1_0Apis.DateTimeInputApi,
 };
-
 export const A2uiDivider: WebComponentImplementation = {
-  ...DividerApi,
-  tagName: V09Divider.tagName,
-  element: V09Divider.element,
+  ...universalComponents.A2uiDivider,
+  ...v1_0Apis.DividerApi,
 };
-
 export const A2uiIcon: WebComponentImplementation = {
-  ...IconApi,
-  tagName: V09Icon.tagName,
-  element: V09Icon.element,
+  ...universalComponents.A2uiIcon,
+  ...v1_0Apis.IconApi,
 };
-
 export const A2uiImage: WebComponentImplementation = {
-  ...ImageApi,
-  tagName: V09Image.tagName,
-  element: V09Image.element,
+  ...universalComponents.A2uiImage,
+  ...v1_0Apis.ImageApi,
 };
-
 export const A2uiList: WebComponentImplementation = {
-  ...ListApi,
-  tagName: V09List.tagName,
-  element: V09List.element,
+  ...universalComponents.A2uiList,
+  ...v1_0Apis.ListApi,
 };
-
 export const A2uiModal: WebComponentImplementation = {
-  ...ModalApi,
-  tagName: V09Modal.tagName,
-  element: V09Modal.element,
+  ...universalComponents.A2uiModal,
+  ...v1_0Apis.ModalApi,
 };
-
 export const A2uiRow: WebComponentImplementation = {
-  ...RowApi,
-  tagName: V09Row.tagName,
-  element: V09Row.element,
+  ...universalComponents.A2uiRow,
+  ...v1_0Apis.RowApi,
 };
-
 export const A2uiSlider: WebComponentImplementation = {
-  ...SliderApi,
-  tagName: V09Slider.tagName,
-  element: V09Slider.element,
+  ...universalComponents.A2uiSlider,
+  ...v1_0Apis.SliderApi,
 };
-
 export const A2uiTabs: WebComponentImplementation = {
-  ...TabsApi,
-  tagName: V09Tabs.tagName,
-  element: V09Tabs.element,
+  ...universalComponents.A2uiTabs,
+  ...v1_0Apis.TabsApi,
 };
-
 export const A2uiText: WebComponentImplementation = {
-  ...TextApi,
-  tagName: V09Text.tagName,
-  element: V09Text.element,
+  ...universalComponents.A2uiText,
+  ...v1_0Apis.TextApi,
 };
-
 export const A2uiTextField: WebComponentImplementation = {
-  ...TextFieldApi,
-  tagName: V09TextField.tagName,
-  element: V09TextField.element,
+  ...universalComponents.A2uiTextField,
+  ...v1_0Apis.TextFieldApi,
+};
+export const A2uiVideo: WebComponentImplementation = {
+  ...universalComponents.A2uiVideo,
+  ...v1_0Apis.VideoApi,
 };
 
-export const A2uiVideo: WebComponentImplementation = {
-  ...VideoApi,
-  tagName: V09Video.tagName,
-  element: V09Video.element,
-};
+export * from '../../../universal/basic_catalog/components/index.js';
+export * from './basic_components.js';

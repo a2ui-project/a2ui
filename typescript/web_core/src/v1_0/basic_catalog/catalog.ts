@@ -15,34 +15,30 @@
  */
 
 import {Catalog} from '../../catalog/types.js';
-import type {WebComponentImplementation} from '../../v0_9/universal/index.js';
+import type {WebComponentImplementation} from '../../universal/index.js';
 import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
-import {BasicCatalogThemeSchema} from '../../v0_9/basic_catalog/theme.js';
-
+import {BasicCatalogThemeSchema} from '../../universal/basic_catalog/theme.js';
 import {
-  A2uiAudioPlayer,
-  A2uiButton,
-  A2uiCard,
-  A2uiCheckBox,
-  A2uiChoicePicker,
-  A2uiColumn,
-  A2uiDateTimeInput,
-  A2uiDivider,
-  A2uiIcon,
-  A2uiImage,
-  A2uiList,
-  A2uiModal,
-  A2uiRow,
-  A2uiSlider,
-  A2uiTabs,
   A2uiText,
+  A2uiButton,
   A2uiTextField,
+  A2uiRow,
+  A2uiColumn,
+  A2uiList,
+  A2uiImage,
+  A2uiIcon,
   A2uiVideo,
+  A2uiAudioPlayer,
+  A2uiCard,
+  A2uiDivider,
+  A2uiCheckBox,
+  A2uiSlider,
+  A2uiDateTimeInput,
+  A2uiChoicePicker,
+  A2uiTabs,
+  A2uiModal,
 } from './components/index.js';
 
-/**
- * The canonical v1.0 basic catalog of A2UI components implemented via Web Components (Custom Elements).
- */
 export const basicCatalog = new Catalog<WebComponentImplementation>(
   'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
   '1.0',

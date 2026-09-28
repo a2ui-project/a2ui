@@ -14,19 +14,4 @@
  * limitations under the License.
  */
 
-import {createContext} from '@lit/context';
-
-import type {MarkdownRenderer} from '../../../common/markdown.js';
-
-export type {
-  MarkdownRenderer,
-  MarkdownRendererOptions,
-  MarkdownRendererTagClassMap,
-} from '../../../common/markdown.js';
-
-/**
- * The markdown renderer context.
- *
- * This is used by the Text widget to render markdown content.
- */
-export const markdown = createContext<MarkdownRenderer | undefined>(Symbol.for('A2UIMarkdown'));
+export * from '../../../universal/basic_catalog/context/markdown.js';

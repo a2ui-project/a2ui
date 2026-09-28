@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export * from '../../v0_9/universal/index.js';
+export * from '../../universal/index.js';

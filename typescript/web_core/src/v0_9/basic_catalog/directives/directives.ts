@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export * from './markdown.js';
+export * from '../../../universal/basic_catalog/directives/directives.js';
