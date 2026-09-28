@@ -2,16 +2,18 @@
 name: a2ui-python-development
 description: >-
   Grounding, architectural standards, Python best practices, package facade conventions, testing,
-  and verification workflows for developing in the A2UI Python codebase (a2ui_core, a2ui_agent).
-  Use whenever implementing features, writing or refactoring Python code, organizing module exports,
-  or writing tests in Python.
+  and verification workflows for developing any Python code across the entire A2UI repository (core
+  libraries, agent SDKs, evaluators, tooling, scripts, and samples). Use whenever implementing features,
+  writing or refactoring Python code, organizing module exports, or writing tests in Python.
 ---
 
 # Python Development and Best Practices Skill
 
-This skill guides AI assistants and human contributors working within the A2UI Python codebase
-(under `python/` and `agent_sdks/python/`). It outlines package boundaries, coding standards,
-facade architecture, avoidance of deep imports, and mandatory verification workflows.
+This skill guides AI assistants and human contributors writing, maintaining, or refactoring any
+Python code across the entire A2UI repository (including core state libraries, agent SDKs, builders,
+evaluation pipelines, tools, scripts, and samples). These best practices apply uniformly to all Python
+code in the codebase, not specific folders. It outlines package boundaries, coding standards, facade
+architecture, avoidance of deep imports, and mandatory verification workflows.
 
 ---
 
@@ -29,7 +31,7 @@ Before modifying or implementing Python code, consult the authoritative specific
 
 ## 2. Target Architecture & Package Boundaries
 
-The Python implementation is organized into distinct packages managed as a `uv` workspace:
+Python code across the repository spans SDK libraries, agent implementations, evaluation harnesses, tooling, and scripts. The primary SDK library packages are managed as a `uv` workspace under `python/`:
 
 - **`a2ui_core`** (`python/a2ui_core/`):
   - Framework-agnostic runtime state and processing engine.
@@ -43,6 +45,9 @@ The Python implementation is organized into distinct packages managed as a `uv` 
   - Versioned by protocol (e.g. `a2ui.builder.v0_9`) to ensure protocol immutability.
 - **`catalogs/mcp`** (`python/catalogs/mcp/`):
   - Model Context Protocol (MCP) catalog bindings.
+- **Evaluators, Tools, Scripts, and Samples** (`eval/`, `tools/`, `scripts/`, `samples/agent/`):
+  - Evaluation harnesses, developer utilities, repository automation scripts, and sample agents that consume or support the Python SDKs.
+  - Must adhere to the same architectural standards, clean facade imports, and code hygiene rules.
 
 ---
 
@@ -66,7 +71,7 @@ from a2ui.core import DataModel, MessageProcessor, PayloadValidator
 ### Why Deep Imports are Dangerous
 
 1. **Tight Coupling to File Layouts**: Deep imports tie external callers to internal folder structures, filenames, and module boundaries.
-2. **Refactoring Friction & LSCs**: When internal directories are restructured (e.g., modularizing submodules, moving `agent_sdks/python` to `python/`, or splitting catalogs), every deep import breaks. In monorepos (such as Google internal `google3`), fixing broken deep call sites requires large-scale changes (LSCs).
+2. **Refactoring Friction & LSCs**: When internal directories are restructured (e.g., modularizing submodules, reorganizing package layouts, or splitting catalogs), every deep import breaks. In monorepos (such as Google internal `google3`), fixing broken deep call sites requires large-scale changes (LSCs).
 3. **Loss of API Guarantees**: Internal submodule symbols may change behavior, be renamed, or be removed between releases without notice.
 
 ### How to Implement Public Facades
@@ -117,7 +122,7 @@ Constants that are formally part of the public protocol API (e.g., `SPEC_VERSION
 
 ## 5. Tooling & Mandatory Verification Workflow
 
-All Python code must pass formatting, type checking, and unit testing via `uv` before submission.
+All Python code across the entire repository must pass formatting, type checking, and unit testing via `uv` before submission.
 
 ### 1. Synchronize Dependencies
 
