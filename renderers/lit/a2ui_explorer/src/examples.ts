@@ -103,16 +103,37 @@ function normalizeV10Component(comp: Record<string, unknown>): Record<string, un
 
 function normalizeV10Messages(messages: ExplorerMessage[]): ExplorerMessage[] {
   return messages.map(msg => {
-    if ('updateComponents' in msg && Array.isArray(msg.updateComponents.components)) {
-      return {
-        ...msg,
-        updateComponents: {
-          ...msg.updateComponents,
-          components: msg.updateComponents.components.map(c =>
-            normalizeV10Component(c as Record<string, unknown>),
-          ),
-        },
-      } as ExplorerMessage;
+    if (msg && typeof msg === 'object') {
+      if (
+        'updateComponents' in msg &&
+        msg.updateComponents &&
+        Array.isArray(msg.updateComponents.components)
+      ) {
+        return {
+          ...msg,
+          updateComponents: {
+            ...msg.updateComponents,
+            components: msg.updateComponents.components.map(c =>
+              normalizeV10Component(c as Record<string, unknown>),
+            ),
+          },
+        } as ExplorerMessage;
+      }
+      if (
+        'createSurface' in msg &&
+        msg.createSurface &&
+        Array.isArray((msg.createSurface as any).components)
+      ) {
+        return {
+          ...msg,
+          createSurface: {
+            ...msg.createSurface,
+            components: (msg.createSurface as any).components.map((c: any) =>
+              normalizeV10Component(c as Record<string, unknown>),
+            ),
+          },
+        } as ExplorerMessage;
+      }
     }
     return msg;
   });
