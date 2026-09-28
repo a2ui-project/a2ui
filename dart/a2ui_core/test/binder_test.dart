@@ -76,6 +76,27 @@ void main() {
       expect(actionName, 'test_action');
     });
 
+    test('writes back a nested map with non-string keys', () {
+      final comp = ComponentModel('c1', 'Text', {
+        'text': {'path': '/val'},
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binding =
+          binder.resolvedProps.value['text'] as WritableBinding<Object?>;
+
+      binding.set({
+        'byName': {'a': 1},
+        'byIndex': {1: 'one'},
+      });
+
+      final written = surface.dataModel.get('/val') as Map;
+      expect(written['byName'], isA<Map<String, Object?>>());
+      expect(written['byIndex'], {1: 'one'});
+    });
+
     test('resolves structural children', () {
       final comp = ComponentModel('c1', 'Row', {
         'children': ['child1', 'child2'],

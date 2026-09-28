@@ -503,15 +503,23 @@ const int maxDynamicChildListSize = 10000;
 
 /// Copies container values handed to [WritableBinding.set], so a published
 /// unmodifiable snapshot written back, or a partial copy still holding one,
-/// is stored as a mutable container. Opaque values keep their identity.
+/// is stored as a mutable container. Maps keep their keys, and a map with only
+/// string keys is copied as a `Map<String, Object?>`. Opaque values keep their
+/// identity.
 Object? _mutableCopy(Object? value) {
   if (value is List) {
     return <Object?>[for (final Object? item in value) _mutableCopy(item)];
   }
-  if (value is Map) {
+  if (value is Map && value.keys.every((key) => key is String)) {
     return <String, Object?>{
       for (final MapEntry<Object?, Object?> entry in value.entries)
         entry.key as String: _mutableCopy(entry.value),
+    };
+  }
+  if (value is Map) {
+    return <Object?, Object?>{
+      for (final MapEntry<Object?, Object?> entry in value.entries)
+        entry.key: _mutableCopy(entry.value),
     };
   }
   return value;
