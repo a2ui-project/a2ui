@@ -489,39 +489,37 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      if validationConfig == .strict {
-        guard let schema = targetCatalog.components[type]?.schema else {
-          throw A2UICatalogError(
-            "Unknown component type '\(type)' not registered in catalog",
-            details: [
-              A2UIErrorDetail(
-                path: "/component",
-                code: "UNKNOWN_COMPONENT",
-                message: "Unknown component type '\(type)' not registered in catalog"
-              )
-            ]
-          )
-        }
-
-        let instance: JSONValue = .object(
-          OrderedDictionary(uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) })
+      guard let schema = targetCatalog.components[type]?.schema else {
+        throw A2UICatalogError(
+          "Unknown component type '\(type)' not registered in catalog",
+          details: [
+            A2UIErrorDetail(
+              path: "/component",
+              code: "UNKNOWN_COMPONENT",
+              message: "Unknown component type '\(type)' not registered in catalog"
+            )
+          ]
         )
-        let result = schema.validate(instance)
-        guard result.isValid else {
-          let specificError = result.errors?.first.map(mostSpecificError(from:))
-          let errorMessage = specificError?.message ?? "Validation failed"
-          let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
-          throw A2UIValidationError(
-            errorMessage,
-            details: [
-              A2UIErrorDetail(
-                path: errorPath.isEmpty ? "/" : errorPath,
-                code: "SCHEMA_VALIDATION_FAILED",
-                message: errorMessage
-              )
-            ]
-          )
-        }
+      }
+
+      let instance: JSONValue = .object(
+        OrderedDictionary(uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) })
+      )
+      let result = schema.validate(instance)
+      guard result.isValid else {
+        let specificError = result.errors?.first.map(mostSpecificError(from:))
+        let errorMessage = specificError?.message ?? "Validation failed"
+        let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
+        throw A2UIValidationError(
+          errorMessage,
+          details: [
+            A2UIErrorDetail(
+              path: errorPath.isEmpty ? "/" : errorPath,
+              code: "SCHEMA_VALIDATION_FAILED",
+              message: errorMessage
+            )
+          ]
+        )
       }
     }
 
