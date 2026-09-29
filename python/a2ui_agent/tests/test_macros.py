@@ -12,47 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Exhaustive unit tests for A2UI Macros and Typesafe Builders."""
+"""Exhaustive unit tests for A2UI Macros."""
 
-import pytest
 from enum import Enum
 from typing import Any, Literal, Optional, Sequence, Union
 
-from pydantic import BaseModel, ValidationError
+import pytest
 
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
-    ActionEvent,
     CheckRule,
-    Child,
-    ChildList,
     ComponentBuilderNode,
     ComponentRef,
-    ComponentTree,
     DataBinding,
     DynamicBoolean,
-    DynamicChildList,
     DynamicNumber,
     DynamicString,
     DynamicStringList,
     DynamicValue,
-    FunctionCall,
-    flatten_component_tree,
 )
-from a2ui.transformers.macros import (
-    MacroExpander,
-    macro,
-)
-from a2ui.core.schema.server_to_client import (
-    CreateSurface,
-    CreateSurfaceMessage,
-    UpdateComponents,
-    UpdateComponentsMessage,
-    UpdateDataModel,
-    UpdateDataModelMessage,
-)
-from a2ui.schema.catalog import A2uiCatalog
 from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
@@ -60,214 +39,11 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Row,
     Text,
 )
-
-
-def wire(model: BaseModel) -> dict:
-    """Dumps a builder model exactly as the transport would."""
-    return model.model_dump(by_alias=True, exclude_none=True)
-
-
-def test_data_binding():
-    # Paths reach the wire as written: a relative path resolves against the
-    # scope a collection template creates, so it must not gain a leading slash.
-    b1 = DataBinding(path="user/name")
-    assert wire(b1) == {"path": "user/name"}
-
-    b2 = DataBinding(path="/user/name")
-    assert wire(b2) == {"path": "/user/name"}
-
-
-def test_function_call_and_action():
-    fn = FunctionCall(call="formatString", args={"value": "Hello ${/user/name}"})
-    assert wire(fn) == {
-        "call": "formatString",
-        "args": {"value": "Hello ${/user/name}"},
-    }
-
-    action_fn = Action(function_call=fn)
-    assert wire(action_fn) == {
-        "functionCall": {
-            "call": "formatString",
-            "args": {"value": "Hello ${/user/name}"},
-        }
-    }
-
-    action_ev = Action(event=ActionEvent(name="submit_form", context={"id": 123}))
-    assert wire(action_ev) == {"event": {"name": "submit_form", "context": {"id": 123}}}
-
-
-def test_action_requires_exactly_one_branch():
-    with pytest.raises(ValidationError):
-        Action()
-    with pytest.raises(ValidationError):
-        Action(
-            event=ActionEvent(name="submit"),
-            function_call=FunctionCall(call="noop"),
-        )
-
-
-def test_check_rule():
-    cond = FunctionCall(call="regex", args={"pattern": "^[A-Z]"})
-    rule = CheckRule(condition=cond, message="Must start with uppercase letter")
-    assert wire(rule) == {
-        "condition": {"call": "regex", "args": {"pattern": "^[A-Z]"}},
-        "message": "Must start with uppercase letter",
-    }
-
-
-def test_dynamic_child_list():
-    template = Card(child=Text(text=DataBinding(path="item/title")))
-    dyn = DynamicChildList(data_model_path="items", template=template)
-    d = wire(dyn)
-    # Relative, so a template nested in an outer loop can address its own list.
-    assert d["path"] == "items"
-    # Outside a flatten pass the template dumps inline; inside one it collapses
-    # to the ID the template was allocated (see test_dynamic_child_list_flattens).
-    assert d["componentId"]["component"] == "Card"
-
-
-def test_dynamic_child_list_flattens_template_to_a_sibling_id():
-    template = Card(child=Text(text=DataBinding(path="item/title")))
-    parent = Column(children=DynamicChildList(path="/items", template=template))
-
-    flat = flatten_component_tree(parent, root_id="list_root")
-
-    by_id = {c["id"]: c for c in flat}
-    children = by_id["list_root"]["children"]
-    assert children["path"] == "/items"
-    # The template is emitted as an ordinary sibling and referenced by ID.
-    template_id = children["componentId"]
-    assert template_id in by_id
-    assert by_id[template_id]["component"] == "Card"
-
-
-def test_flatten_single_node():
-    txt = Text(text="Hello World", variant="h1")
-    flat = flatten_component_tree(txt, root_id="header")
-    assert len(flat) == 1
-    assert flat[0]["component"] == "Text"
-    assert flat[0]["id"] == "header"
-    assert flat[0]["text"] == "Hello World"
-    assert flat[0]["variant"] == "h1"
-
-
-def test_flatten_nested_tree_with_root_anchor_and_namespacing():
-    tree = Card(
-        child=Column(
-            children=[
-                Text(text="Profile", variant="h2"),
-                Text(text="Software Engineer", variant="caption"),
-            ]
-        )
-    )
-
-    flat = flatten_component_tree(tree, root_id="user_card_1")
-    assert len(flat) == 4
-
-    by_id = {c["id"]: c for c in flat}
-    assert "user_card_1" in by_id
-    root_comp = by_id["user_card_1"]
-    assert root_comp["component"] == "Card"
-
-    # Column child of Card
-    col_id = root_comp["child"]
-    assert col_id.startswith("user_card_1__")
-    assert col_id in by_id
-    col_comp = by_id[col_id]
-    assert col_comp["component"] == "Column"
-
-    # Children of Column
-    children_ids = col_comp["children"]
-    assert len(children_ids) == 2
-    for cid in children_ids:
-        assert cid.startswith("user_card_1__")
-        assert cid in by_id
-        assert by_id[cid]["component"] == "Text"
-
-
-def test_slot_boundary_preservation_with_component_ref():
-    external_slot = ComponentRef("caller_provided_child_42")
-
-    macro_root = Card(
-        child=Column(
-            children=[
-                Text(text="Card Header", variant="h3"),
-                external_slot,
-            ]
-        )
-    )
-
-    flat = flatten_component_tree(macro_root, root_id="modal_dialog")
-
-    by_id = {c["id"]: c for c in flat}
-    # The external component itself MUST NOT be in the flattened output list
-    assert "caller_provided_child_42" not in by_id
-
-    # The column must reference the verbatim external ID without namespacing it
-    col_comp = [c for c in flat if c["component"] == "Column"][0]
-    assert "caller_provided_child_42" in col_comp["children"]
-    # But internal Text must be namespaced
-    assert col_comp["children"][0].startswith("modal_dialog__")
-
-
-def test_flatten_sequence_of_roots():
-    rows = [
-        Row(children=[Text(text="Row 1")]),
-        Row(children=[Text(text="Row 2")]),
-    ]
-    flat = flatten_component_tree(rows, root_id="table_row")
-    assert len(flat) == 4
-    # All rows and texts are flattened
-    comps = [c["component"] for c in flat]
-    assert comps.count("Row") == 2
-    assert comps.count("Text") == 2
-
-
-def test_component_tree_serialization_and_messages():
-    tree = ComponentTree(
-        surface_id="home",
-        root=Card(child=Text(text="Welcome")),
-    )
-    comps = tree.flatten()
-    assert len(comps) == 2
-    assert tree.to_json() is not None
-
-    # Surface lifecycle envelopes packaging the component tree.
-    messages = [
-        wire(
-            CreateSurfaceMessage(
-                create_surface=CreateSurface(
-                    surface_id="home",
-                    catalog_id="org.a2ui.basic",
-                )
-            )
-        ),
-        wire(
-            UpdateComponentsMessage(
-                update_components=UpdateComponents(
-                    surface_id="home",
-                    components=tree.flatten(),
-                )
-            )
-        ),
-        wire(
-            UpdateDataModelMessage(
-                update_data_model=UpdateDataModel(
-                    surface_id="home",
-                    path="/user",
-                    value={"name": "Alice"},
-                )
-            )
-        ),
-    ]
-    assert len(messages) == 3
-    assert "createSurface" in messages[0]
-    assert messages[0]["createSurface"]["surfaceId"] == "home"
-    assert "updateComponents" in messages[1]
-    assert messages[1]["updateComponents"]["surfaceId"] == "home"
-    assert "updateDataModel" in messages[2]
-    assert messages[2]["updateDataModel"]["path"] == "/user"
-    assert messages[2]["updateDataModel"]["value"] == {"name": "Alice"}
+from a2ui.schema.catalog import A2uiCatalog
+from a2ui.transformers.macros import (
+    MacroExpander,
+    macro,
+)
 
 
 def test_macro_decorator_and_schema_synthesis():
