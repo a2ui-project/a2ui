@@ -118,8 +118,8 @@ struct IndexFunctionTests {
   }
 
   @Test func v10CatalogConfiguration() {
-    let v10 = BasicCatalog.v10Catalog
-    #expect(v10.id == BasicCatalog.v10CatalogURI)
+    let v10 = BasicCatalog.makeCatalog(version: .v10)
+    #expect(v10.id == BasicCatalog.catalogURI(version: .v10))
     #expect(v10.protocolVersion == "v1.0")
     #expect(v10.components.count == 18)
     #expect(v10.functions.count == 15)
@@ -127,6 +127,8 @@ struct IndexFunctionTests {
     #expect(v10.functions["email"]?.api.returnType == .validationResult)
 
     #expect(BasicCatalog.allCatalogs.count == 3)
-    #expect(BasicCatalog.allCatalogs.contains(where: { $0.id == BasicCatalog.v10CatalogURI }))
+    #expect(
+      BasicCatalog.allCatalogs.contains(where: { $0.id == BasicCatalog.catalogURI(version: .v10) })
+    )
   }
 }

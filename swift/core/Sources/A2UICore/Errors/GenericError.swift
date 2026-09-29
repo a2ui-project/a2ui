@@ -13,11 +13,12 @@
 // limitations under the License.
 
 /// Represents a generic processing or runtime error.
-public struct GenericError: Error, Equatable, Codable, Sendable {
+public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersioned {
   public let code: String
   public let surfaceID: String?
   public let functionCallID: String?
   public let message: String
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case code
@@ -26,38 +27,53 @@ public struct GenericError: Error, Equatable, Codable, Sendable {
     case message
   }
 
-  public init(code: String, surfaceID: String, message: String) {
+  public init(
+    code: String,
+    surfaceID: String,
+    message: String,
+    version: A2UIProtocolVersion
+  ) {
     self.code = code
     self.surfaceID = surfaceID
     self.functionCallID = nil
     self.message = message
+    self.version = version
   }
 
-  public init(code: String, functionCallID: String, message: String) {
+  public init(
+    code: String,
+    functionCallID: String,
+    message: String,
+    version: A2UIProtocolVersion
+  ) {
     self.code = code
     self.surfaceID = nil
     self.functionCallID = functionCallID
     self.message = message
+    self.version = version
   }
 
   public init(
     code: String,
     surfaceID: String? = nil,
     functionCallID: String? = nil,
-    message: String
+    message: String,
+    version: A2UIProtocolVersion
   ) {
     self.code = code
     self.surfaceID = surfaceID
     self.functionCallID = functionCallID
     self.message = message
+    self.version = version
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     code = try container.decode(String.self, forKey: .code)
     surfaceID = try container.decodeIfPresent(String.self, forKey: .surfaceID)
     functionCallID = try container.decodeIfPresent(String.self, forKey: .functionCallID)
     message = try container.decode(String.self, forKey: .message)
+    self.version = version
 
     let hasSurface = surfaceID != nil
     let hasFunctionCall = functionCallID != nil

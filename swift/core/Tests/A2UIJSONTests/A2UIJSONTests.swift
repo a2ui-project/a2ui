@@ -36,7 +36,7 @@ struct A2UIJSONTests {
     #expect(A2UICommonSchema.document != .object([:]))
     #expect(A2UICommonSchema.v10Document != .object([:]))
     #expect(A2UICommonSchema.v10CatalogDefinitionDocument != .object([:]))
-    #expect(A2UICommonSchema.allSchemas.count == 8)
+    #expect(A2UICommonSchema.allSchemas.count == 14)
   }
 
   @Test func testRegistryContextResolvesV10Refs() throws {

@@ -72,7 +72,8 @@ public final class RPCHandler {
           error: FunctionErrorPayload(
             code: .invalidFunctionCall,
             message: "Catalog not found: \(targetCatalogID)"
-          )
+          ),
+          version: message.version
         )
       }
       resolvedCatalog = found
@@ -88,7 +89,8 @@ public final class RPCHandler {
         error: FunctionErrorPayload(
           code: .invalidFunctionCall,
           message: "Could not resolve catalog for function: \(callName)"
-        )
+        ),
+        version: message.version
       )
     }
 
@@ -99,7 +101,8 @@ public final class RPCHandler {
           code: .invalidFunctionCall,
           message:
             "Catalog '\(catalog.id)' protocol version (\(catalog.protocolVersion ?? "")) does not match message protocol version."
-        )
+        ),
+        version: message.version
       )
     }
 
@@ -110,7 +113,8 @@ public final class RPCHandler {
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: errorPayload
+        error: errorPayload,
+        version: message.version
       )
     }
 
@@ -123,7 +127,8 @@ public final class RPCHandler {
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: errorPayload
+        error: errorPayload,
+        version: message.version
       )
     }
 
@@ -135,7 +140,8 @@ public final class RPCHandler {
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: errorPayload
+        error: errorPayload,
+        version: message.version
       )
     }
 
@@ -167,7 +173,8 @@ public final class RPCHandler {
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: errorPayload
+        error: errorPayload,
+        version: message.version
       )
     }
 
@@ -175,7 +182,8 @@ public final class RPCHandler {
       let result = try function.evaluate(arguments: resolvedArgs, context: effectiveContext)
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        value: result
+        value: result,
+        version: message.version
       )
     } catch {
       let errorPayload = FunctionErrorPayload(
@@ -184,7 +192,8 @@ public final class RPCHandler {
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: errorPayload
+        error: errorPayload,
+        version: message.version
       )
     }
   }
@@ -199,6 +208,7 @@ public final class RPCHandler {
   ///   - catalogID: Optional catalog identifier.
   ///   - args: Named argument dictionary.
   ///   - returnType: Expected return type name.
+  ///   - version: The A2UI protocol version for the outbound message.
   ///   - timeoutSeconds: Maximum duration to wait before timing out (default 30s).
   ///   - sendOutbound: Callback sending the outbound message.
   /// - Returns: The evaluated JSONValue returned by the agent.
@@ -209,6 +219,7 @@ public final class RPCHandler {
     functionCallID: String? = nil,
     args: [String: JSONValue]? = nil,
     returnType: String? = nil,
+    version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0,
     sendOutbound: @escaping @Sendable (RendererToAgentMessage) -> Void
   ) async throws -> JSONValue {
@@ -222,13 +233,14 @@ public final class RPCHandler {
     let message = CallAgentFunctionMessage(
       surfaceID: surfaceID,
       functionCallID: callID,
-      callFunction: payload
+      callFunction: payload,
+      version: version
     )
     let outbound = RendererToAgentMessage.callAgentFunction(message)
 
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
-        if self.pendingCalls[callID] != nil {
+        guard self.pendingCalls[callID] == nil else {
           continuation.resume(
             throwing: FunctionError.remoteError(
               code: FunctionErrorPayload.Code.invalidFunctionCall.rawValue,
@@ -310,8 +322,8 @@ private final class DummyContextFunctionHandler: FunctionHandler {
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
-    if name == "@index" && catalogID != nil {
-      return nil
+    if name == "@index" {
+      return IndexFunction()
     }
     if let catalogID {
       return catalogs[catalogID]?.functions[name]

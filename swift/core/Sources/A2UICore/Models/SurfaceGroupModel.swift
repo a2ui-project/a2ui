@@ -53,9 +53,13 @@ public final class SurfaceGroupModel: ObservableObject {
     surfacesMap[id]
   }
 
+  /// Accesses a surface by its ID.
+  public subscript(surfaceID: String) -> SurfaceViewModel? {
+    surfacesMap[surfaceID]
+  }
+
   /// Returns a snapshot of all active surfaces.
   public func allSurfaces() -> [String: SurfaceViewModel] {
     surfacesMap
   }
-
 }

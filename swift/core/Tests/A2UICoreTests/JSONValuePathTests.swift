@@ -118,4 +118,17 @@ struct JSONValuePathTests {
     try model.setThrowing("/user/name", value: "Charlie")
     #expect(observed == ["Bob"])
   }
+
+  @Test func subscriptSetRejectsArrayIndexBeyondMaxArrayIndex() {
+    var value: JSONValue = ["items": ["a", "b"]]
+    value["/items/10001"] = "too-far"
+    value["/items/999999999"] = "way-too-far"
+    #expect(value["/items"]?.arrayValue?.count == 2)
+
+    var emptyRoot: JSONValue = [:]
+    emptyRoot["/newArray/10001"] = "ignored"
+    emptyRoot["/nested/path/999999999"] = "ignored"
+    #expect(emptyRoot["/newArray"] == nil)
+    #expect(emptyRoot["/nested"] == nil)
+  }
 }

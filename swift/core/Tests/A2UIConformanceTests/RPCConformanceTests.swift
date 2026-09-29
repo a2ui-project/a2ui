@@ -185,6 +185,7 @@ struct RPCConformanceTests {
             functionName: call,
             catalogID: catID,
             functionCallID: fnCallID,
+            version: .v10,
             timeoutSeconds: 5.0,
             sendOutbound: { _ in }
           )

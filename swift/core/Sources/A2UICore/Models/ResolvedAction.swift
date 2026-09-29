@@ -25,15 +25,20 @@ public struct ResolvedAction: Sendable {
   /// The identity of this resolved action.
   public let identity: Identity
 
+  /// The ID of the component that originated this action, if known.
+  public let sourceComponentID: String?
+
   private let triggerClosure: @Sendable @MainActor () -> Void
 
   /// Creates a new resolved action with the specified identity and
   /// trigger closure.
   public init(
     identity: Identity,
+    sourceComponentID: String? = nil,
     trigger: @escaping @Sendable @MainActor () -> Void
   ) {
     self.identity = identity
+    self.sourceComponentID = sourceComponentID
     self.triggerClosure = trigger
   }
 

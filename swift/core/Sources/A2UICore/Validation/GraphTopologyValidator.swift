@@ -357,7 +357,7 @@ public enum GraphTopologyValidator {
     path: String,
     into result: inout [Reference]
   ) {
-    if isChildListSchema(schema, propertyName: path) {
+    if isChildListSchema(schema) {
       switch value {
       case .array(let array):
         for item in array {
@@ -375,7 +375,7 @@ public enum GraphTopologyValidator {
       return
     }
 
-    if isSingleChildSchema(schema, propertyName: path) {
+    if isSingleChildSchema(schema) {
       if let childID = value.stringValue {
         result.append((childID, path))
       }
@@ -415,20 +415,24 @@ public enum GraphTopologyValidator {
     }
   }
 
-  private static func isChildListSchema(_ schema: JSONValue, propertyName: String = "") -> Bool {
+  private static func isChildListSchema(_ schema: JSONValue) -> Bool {
     if let ref = schema["$ref"]?.stringValue {
       let refName = ref.split(separator: "/").last.map(String.init)
       if refName == "ChildList" { return true }
     }
-    if propertyName == "children",
-      schema["type"]?.stringValue == "array",
-      schema["items"]?["type"]?.stringValue == "string"
-    {
-      return true
+    if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:") {
+      let ref = String(desc.dropFirst(4)).split(separator: "|").first.map(String.init) ?? ""
+      let refName = ref.split(separator: "/").last.map(String.init)
+      if refName == "ChildList" { return true }
+    }
+    if schema["type"]?.stringValue == "array", let items = schema["items"] {
+      if isSingleChildSchema(items) || isChildListSchema(items) {
+        return true
+      }
     }
     for combiner in ["oneOf", "anyOf", "allOf"] {
       if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: { isChildListSchema($0, propertyName: propertyName) })
+        subSchemas.contains(where: { isChildListSchema($0) })
       {
         return true
       }
@@ -436,17 +440,19 @@ public enum GraphTopologyValidator {
     return false
   }
 
-  private static func isSingleChildSchema(_ schema: JSONValue, propertyName: String = "") -> Bool {
+  private static func isSingleChildSchema(_ schema: JSONValue) -> Bool {
     if let ref = schema["$ref"]?.stringValue {
       let refName = ref.split(separator: "/").last.map(String.init)
       if refName == "Child" || refName == "ComponentId" { return true }
     }
-    if propertyName == "child", schema["type"]?.stringValue == "string" {
-      return true
+    if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:") {
+      let ref = String(desc.dropFirst(4)).split(separator: "|").first.map(String.init) ?? ""
+      let refName = ref.split(separator: "/").last.map(String.init)
+      if refName == "Child" || refName == "ComponentId" { return true }
     }
     for combiner in ["oneOf", "anyOf", "allOf"] {
       if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: { isSingleChildSchema($0, propertyName: propertyName) })
+        subSchemas.contains(where: { isSingleChildSchema($0) })
       {
         return true
       }

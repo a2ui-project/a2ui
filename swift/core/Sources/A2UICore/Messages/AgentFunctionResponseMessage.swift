@@ -16,10 +16,11 @@ import Foundation
 import OrderedJSON
 
 /// Response returned by the agent for a function invocation requested by the renderer.
-public struct AgentFunctionResponseMessage: Codable, Sendable, Equatable {
+public struct AgentFunctionResponseMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let functionCallID: String
   public let value: JSONValue?
   public let error: FunctionErrorPayload?
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case functionCallID = "functionCallId"
@@ -27,19 +28,29 @@ public struct AgentFunctionResponseMessage: Codable, Sendable, Equatable {
     case error
   }
 
-  public init(functionCallID: String, value: JSONValue) {
+  public init(
+    functionCallID: String,
+    value: JSONValue,
+    version: A2UIProtocolVersion
+  ) {
     self.functionCallID = functionCallID
     self.value = value
     self.error = nil
+    self.version = version
   }
 
-  public init(functionCallID: String, error: FunctionErrorPayload) {
+  public init(
+    functionCallID: String,
+    error: FunctionErrorPayload,
+    version: A2UIProtocolVersion
+  ) {
     self.functionCallID = functionCallID
     self.value = nil
     self.error = error
+    self.version = version
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     functionCallID = try container.decode(String.self, forKey: .functionCallID)
     let hasError = container.contains(.error)
@@ -64,6 +75,7 @@ public struct AgentFunctionResponseMessage: Codable, Sendable, Equatable {
       )
       throw DecodingError.dataCorrupted(context)
     }
+    self.version = version
   }
 
   public func encode(to encoder: Encoder) throws {

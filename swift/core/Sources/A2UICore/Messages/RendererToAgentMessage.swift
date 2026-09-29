@@ -45,9 +45,11 @@ public enum RendererToAgentMessage: Equatable, Codable, Sendable {
 
     switch payloadKey {
     case .action:
-      self = .action(try container.decode(RendererAction.self, forKey: .action))
+      self = .action(
+        try RendererAction(from: container.superDecoder(forKey: .action), version: version)
+      )
     case .callAgentFunction:
-      guard version == .v10 else {
+      guard version.isAtLeastV10 else {
         throw DecodingError.dataCorruptedError(
           forKey: .callAgentFunction,
           in: container,
@@ -55,9 +57,13 @@ public enum RendererToAgentMessage: Equatable, Codable, Sendable {
         )
       }
       self = .callAgentFunction(
-        try container.decode(CallAgentFunctionMessage.self, forKey: .callAgentFunction))
+        try CallAgentFunctionMessage(
+          from: container.superDecoder(forKey: .callAgentFunction),
+          version: version
+        )
+      )
     case .rendererFunctionResponse:
-      guard version == .v10 else {
+      guard version.isAtLeastV10 else {
         throw DecodingError.dataCorruptedError(
           forKey: .rendererFunctionResponse,
           in: container,
@@ -65,10 +71,15 @@ public enum RendererToAgentMessage: Equatable, Codable, Sendable {
         )
       }
       self = .rendererFunctionResponse(
-        try container.decode(
-          RendererFunctionResponseMessage.self, forKey: .rendererFunctionResponse))
+        try RendererFunctionResponseMessage(
+          from: container.superDecoder(forKey: .rendererFunctionResponse),
+          version: version
+        )
+      )
     case .error:
-      self = .error(try container.decode(RendererError.self, forKey: .error))
+      self = .error(
+        try RendererError(from: container.superDecoder(forKey: .error), version: version)
+      )
     case .version:
       let context = DecodingError.Context(
         codingPath: container.codingPath,
@@ -78,9 +89,25 @@ public enum RendererToAgentMessage: Equatable, Codable, Sendable {
     }
   }
 
+  private var versionedPayload: any ProtocolVersioned {
+    switch self {
+    case .action(let payload): return payload
+    case .callAgentFunction(let payload): return payload
+    case .rendererFunctionResponse(let payload): return payload
+    case .error(let payload): return payload
+    }
+  }
+
+  /// The protocol version associated with this wire message.
+  public var version: A2UIProtocolVersion {
+    versionedPayload.version
+  }
+
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(A2UIProtocolVersion.default, forKey: .version)
+    let targetVersion =
+      (encoder.userInfo[.a2uiProtocolVersion] as? A2UIProtocolVersion) ?? self.version
+    try container.encode(targetVersion, forKey: .version)
 
     switch self {
     case .action(let action):

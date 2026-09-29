@@ -274,7 +274,8 @@ struct AgentToRendererMessageTests {
         surfaceID: "s1",
         catalogID: "default",
         theme: ["primary": "blue"],
-        shouldSendDataModel: true
+        shouldSendDataModel: true,
+        version: .v091
       )
     )
     let data = try JSONEncoder().encode(original)
@@ -291,7 +292,8 @@ struct AgentToRendererMessageTests {
         components: [
           ["id": "btn1", "type": "button"],
           ["id": "txt1", "type": "text"],
-        ]
+        ],
+        version: .v10
       )
     )
     let data = try JSONEncoder().encode(original)
@@ -303,7 +305,7 @@ struct AgentToRendererMessageTests {
 
   @Test func encodeDecodeRoundTripDeleteSurface() throws {
     let original = AgentToRendererMessage.deleteSurface(
-      DeleteSurfaceMessage(surfaceID: "s1")
+      DeleteSurfaceMessage(surfaceID: "s1", version: .v10)
     )
     let data = try JSONEncoder().encode(original)
     let decoded = try JSONDecoder().decode(
@@ -312,9 +314,9 @@ struct AgentToRendererMessageTests {
     #expect(decoded == original)
   }
 
-  @Test func encodeAlwaysIncludesVersionV10() throws {
+  @Test func encodeIncludesConfiguredVersion() throws {
     let original = AgentToRendererMessage.deleteSurface(
-      DeleteSurfaceMessage(surfaceID: "s1")
+      DeleteSurfaceMessage(surfaceID: "s1", version: .v10)
     )
     let data = try JSONEncoder().encode(original)
     let json = try #require(String(data: data, encoding: .utf8))
@@ -431,7 +433,9 @@ struct AgentToRendererMessageTests {
   }
 
   @Test func deprecatedServerToClientMessageTypealias() {
-    let msg: ServerToClientMessage = .deleteSurface(DeleteSurfaceMessage(surfaceID: "surf1"))
+    let msg: ServerToClientMessage = .deleteSurface(
+      DeleteSurfaceMessage(surfaceID: "surf1", version: .v10)
+    )
     if case .deleteSurface(let del) = msg {
       #expect(del.surfaceID == "surf1")
     } else {
@@ -523,5 +527,69 @@ struct AgentToRendererMessageTests {
     #expect(throws: A2UIValidationError.self) {
       try validator.validate(payload: both)
     }
+  }
+
+  @Test func decodeRejectsThemeInV10CreateSurface() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "default",
+          "theme": { "primaryColor": "#FF0000" }
+        }
+      }
+      """.data(using: .utf8)
+    )
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+    }
+  }
+
+  @Test func decodeRejectsMetadataInV09CreateSurface() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v0.9.1",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "default",
+          "metadata": { "key": "value" }
+        }
+      }
+      """.data(using: .utf8)
+    )
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+    }
+  }
+
+  @Test func encodePreservesMessageVersionAndSupportsUserInfoOverride() throws {
+    let v09Msg = AgentToRendererMessage.deleteSurface(
+      DeleteSurfaceMessage(surfaceID: "s1", version: .v09)
+    )
+    let v09Data = try JSONEncoder().encode(v09Msg)
+    let v09JSON = try #require(String(data: v09Data, encoding: .utf8))
+    #expect(v09JSON.contains("\"version\":\"v0.9\""))
+
+    let decoded = try JSONDecoder().decode(AgentToRendererMessage.self, from: v09Data)
+    #expect(decoded.version == .v09)
+    #expect(decoded == v09Msg)
+
+    let encoder = JSONEncoder()
+    encoder.userInfo[.a2uiProtocolVersion] = A2UIProtocolVersion.v091
+    let overriddenData = try encoder.encode(v09Msg)
+    let overriddenJSON = try #require(String(data: overriddenData, encoding: .utf8))
+    #expect(overriddenJSON.contains("\"version\":\"v0.9.1\""))
+  }
+
+  @Test func protocolVersionHelperProperties() {
+    #expect(A2UIProtocolVersion.v09.isV09Family == true)
+    #expect(A2UIProtocolVersion.v091.isV09Family == true)
+    #expect(A2UIProtocolVersion.v10.isV09Family == false)
+    #expect(A2UIProtocolVersion.v09.isAtLeastV10 == false)
+    #expect(A2UIProtocolVersion.v091.isAtLeastV10 == false)
+    #expect(A2UIProtocolVersion.v10.isAtLeastV10 == true)
   }
 }

@@ -81,7 +81,7 @@ public final class NodeResolver: Sendable {
       componentsModel: surface.componentsModel,
       dataModel: surface.dataModel,
       actionHandler: actionHandler ?? surface.actionHandler,
-      protocolVersion: protocolVersion ?? surface.protocolVersion
+      protocolVersion: protocolVersion ?? surface.protocolVersion.rawValue
     )
   }
 
@@ -164,6 +164,7 @@ public final class NodeResolver: Sendable {
     instanceID: String,
     basePath: String? = nil,
     index: Int? = nil,
+    instanceSuffix: String? = nil,
     visited: Set<String> = [],
     components: [String: ComponentModel],
     data: JSONValue
@@ -208,6 +209,7 @@ public final class NodeResolver: Sendable {
         type: propType,
         basePath: basePath,
         index: index,
+        instanceSuffix: instanceSuffix,
         componentID: instanceID,
         propertyKey: key,
         visited: visited,
@@ -357,6 +359,7 @@ public final class NodeResolver: Sendable {
     type: PropertyType,
     basePath: String?,
     index: Int? = nil,
+    instanceSuffix: String? = nil,
     componentID: String,
     propertyKey: String,
     visited: Set<String>,
@@ -391,6 +394,7 @@ public final class NodeResolver: Sendable {
         value,
         basePath: basePath,
         index: index,
+        instanceSuffix: instanceSuffix,
         componentID: componentID,
         propertyKey: propertyKey,
         visited: visited,
@@ -399,12 +403,14 @@ public final class NodeResolver: Sendable {
       )
     case .componentID:
       guard let childID = value.stringValue else { return nil }
-      let childInstanceID = index.map { "\(childID)_\($0)" } ?? childID
+      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
+      let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
       return resolveNode(
         definitionID: childID,
         instanceID: childInstanceID,
         basePath: basePath,
         index: index,
+        instanceSuffix: effectiveSuffix,
         visited: visited,
         components: components,
         data: data
@@ -427,6 +433,7 @@ public final class NodeResolver: Sendable {
             type: itemType,
             basePath: basePath,
             index: index,
+            instanceSuffix: instanceSuffix,
             componentID: componentID,
             propertyKey: propertyKey,
             visited: visited,
@@ -463,6 +470,7 @@ public final class NodeResolver: Sendable {
               type: nestedPropType,
               basePath: basePath,
               index: index,
+              instanceSuffix: instanceSuffix,
               componentID: componentID,
               propertyKey: k,
               visited: visited,
@@ -819,16 +827,22 @@ public final class NodeResolver: Sendable {
 
       return ResolvedAction(
         identity: unresolvedIdentity,
+        sourceComponentID: componentID,
         trigger: { [weak self] in
           guard let self else { return }
 
           let failedChecks = checks.filter { !$0.isValid }
           if !failedChecks.isEmpty {
             let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+            let version = self.catalog.a2uiProtocolVersion ?? .v10
             self.actionHandler?.handle(
               error: .validationFailed(
                 ValidationFailedError(
-                  surfaceID: self.surfaceID, path: componentID, message: errorMsg)
+                  surfaceID: self.surfaceID,
+                  path: componentID,
+                  message: errorMsg,
+                  version: version
+                )
               ),
               from: self.surfaceID
             )
@@ -849,6 +863,7 @@ public final class NodeResolver: Sendable {
           let triggerAction = ResolvedAction(
             identity: .event(
               name: name, context: resolvedContext, userMessage: resolvedUserMessage),
+            sourceComponentID: componentID,
             trigger: {}
           )
 
@@ -866,16 +881,22 @@ public final class NodeResolver: Sendable {
 
       return ResolvedAction(
         identity: unresolvedIdentity,
+        sourceComponentID: componentID,
         trigger: { [weak self] in
           guard let self else { return }
 
           let failedChecks = checks.filter { !$0.isValid }
           if !failedChecks.isEmpty {
             let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+            let version = self.catalog.a2uiProtocolVersion ?? .v10
             self.actionHandler?.handle(
               error: .validationFailed(
                 ValidationFailedError(
-                  surfaceID: self.surfaceID, path: componentID, message: errorMsg)
+                  surfaceID: self.surfaceID,
+                  path: componentID,
+                  message: errorMsg,
+                  version: version
+                )
               ),
               from: self.surfaceID
             )
@@ -896,6 +917,7 @@ public final class NodeResolver: Sendable {
     _ value: JSONValue,
     basePath: String?,
     index: Int? = nil,
+    instanceSuffix: String? = nil,
     componentID: String,
     propertyKey: String,
     visited: Set<String>,
@@ -904,15 +926,17 @@ public final class NodeResolver: Sendable {
   ) -> [Node]? {
     switch value {
     case .array(let arr):
+      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
       var resolvedNodes: [Node] = []
       for item in arr {
         guard let childID = item.stringValue else { continue }
-        let childInstanceID = index.map { "\(childID)_\($0)" } ?? childID
+        let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
         if let childNode = resolveNode(
           definitionID: childID,
           instanceID: childInstanceID,
           basePath: basePath,
           index: index,
+          instanceSuffix: effectiveSuffix,
           visited: visited,
           components: components,
           data: data
@@ -942,15 +966,18 @@ public final class NodeResolver: Sendable {
 
       var expandedNodes: [Node] = []
 
-      for (index, _) in dataItems.enumerated() {
-        let itemID = "\(templateID)_\(index)"
-        let itemBasePath = "\(absPath)/\(index)"
+      for (itemIndex, _) in dataItems.enumerated() {
+        let itemSuffix =
+          instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
+        let itemID = "\(templateID)_\(itemSuffix)"
+        let itemBasePath = "\(absPath)/\(itemIndex)"
 
         if let itemNode = resolveNode(
           definitionID: templateID,
           instanceID: itemID,
           basePath: itemBasePath,
-          index: index,
+          index: itemIndex,
+          instanceSuffix: itemSuffix,
           visited: visited,
           components: components,
           data: data
@@ -971,8 +998,8 @@ public final class NodeResolver: Sendable {
 
 extension NodeResolver: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
-    if name == "@index" && catalogID != nil {
-      return nil
+    if name == "@index" {
+      return IndexFunction()
     }
     let callCatalogID = catalogID ?? defaultCatalogID
     var targetFunction = getCatalog(id: callCatalogID)?.functions[name]

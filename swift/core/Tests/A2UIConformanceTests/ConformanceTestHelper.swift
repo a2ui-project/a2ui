@@ -170,13 +170,17 @@ public enum ConformanceTestHelper {
   /// and their common types at `specification/<version>/json/common_types.json`.
   public static func commonTypesSchema(forCatalogPath path: String) throws -> JSONValue? {
     let catalogDirectory = repoRoot.appendingPathComponent(path).deletingLastPathComponent()
-    let candidates = [
+    var candidates = [
       catalogDirectory.appendingPathComponent("common_types.json"),
       catalogDirectory
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .appendingPathComponent("json/common_types.json"),
     ]
+    if path.contains("/v1/") {
+      candidates.append(
+        repoRoot.appendingPathComponent("specification/v1_0/json/common_types.json"))
+    }
     guard
       let commonTypesURL = candidates.first(where: {
         FileManager.default.fileExists(atPath: $0.path)
