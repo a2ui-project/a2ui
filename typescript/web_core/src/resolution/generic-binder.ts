@@ -16,7 +16,13 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
+import {
+  Action,
+  ChildList,
+  DataBinding,
+  FunctionCall,
+  childRefKindOf,
+} from '../types/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 
@@ -164,7 +170,9 @@ function isActionOption(option: z.ZodTypeAny): boolean {
 
 function isDynamicOption(option: z.ZodTypeAny): boolean {
   const refDef = getRefDefName(option);
-  if (refDef === 'DataBinding' || refDef.startsWith('Dynamic')) return true;
+  if (refDef === 'DataBinding' || refDef === 'FunctionCall' || refDef.startsWith('Dynamic')) {
+    return true;
+  }
   const current = unwrapZodSchema(option);
   const def = (current as any)._def;
   if (def?.typeName !== 'ZodObject') return false;
@@ -172,7 +180,13 @@ function isDynamicOption(option: z.ZodTypeAny): boolean {
   const hasComponentId = Object.values(shape).some(
     prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId',
   );
-  return Boolean(shape.path) && !hasComponentId;
+  return (
+    (Boolean(shape['@path']) ||
+      Boolean(shape.path) ||
+      Boolean(shape['@call']) ||
+      Boolean(shape.call)) &&
+    !hasComponentId
+  );
 }
 
 function isChildListOption(option: z.ZodTypeAny): boolean {
@@ -188,7 +202,7 @@ function isChildListOption(option: z.ZodTypeAny): boolean {
 
 function isDynamicDef(defName: string, typeName?: string): boolean {
   return (
-    (defName === 'DataBinding' || defName.startsWith('Dynamic')) &&
+    (defName === 'DataBinding' || defName === 'FunctionCall' || defName.startsWith('Dynamic')) &&
     typeName !== 'ZodObject' &&
     typeName !== 'ZodArray'
   );
@@ -265,6 +279,7 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
 /** Types recognized as dynamic data bindings or expression function calls. */
 type DynamicTypes =
   | DataBinding
+  | FunctionCall
   | {'@path': string}
   | {path: string}
   | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string}
@@ -282,9 +297,15 @@ type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) exten
   ? true
   : ({'@path': string} extends NonNullable<T> ? true : false) extends true
     ? true
-    : DataBinding extends NonNullable<T>
+    : ({call: string} extends NonNullable<T> ? true : false) extends true
       ? true
-      : false;
+      : ({'@call': string} extends NonNullable<T> ? true : false) extends true
+        ? true
+        : DataBinding extends NonNullable<T>
+          ? true
+          : FunctionCall extends NonNullable<T>
+            ? true
+            : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.
