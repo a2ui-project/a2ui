@@ -1,0 +1,106 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Vertical response parsing: unwrapping model responses into text and raw payload blocks.
+
+- name: test_unwrap_vertical_block_with_no_surrounding_text
+  description: A response consisting only of an enclosed Vertical block yields a single raw payload part.
+  action: unwrap
+  args:
+    format: vertical
+  input: |-
+    <a2ui>
+    Text("Hello world")
+    </a2ui>
+  expect:
+    - a2ui_raw: 'Text("Hello world")'
+
+- name: test_unwrap_vertical_response_without_tags_is_one_text_part
+  description: A response with no sentinel tags is treated as conversational text.
+  action: unwrap
+  args:
+    format: vertical
+  input: "I have prepared the weather card for you."
+  expect:
+    - text: "I have prepared the weather card for you."
+
+- name: test_unwrap_vertical_empty_response_has_no_parts
+  description: An empty response yields no parts.
+  action: unwrap
+  args:
+    format: vertical
+  input: ""
+  expect: []
+
+- name: test_unwrap_vertical_unterminated_block_is_not_final
+  description: An unclosed sentinel block indicates that the part is not final.
+  action: unwrap
+  args:
+    format: vertical
+  input: |-
+    <a2ui>
+    Text("Streaming...")
+  expect:
+    - a2ui_raw: 'Text("Streaming...")'
+      is_final: false
+
+- name: test_unwrap_vertical_close_tag_inside_a_string_does_not_end_the_block
+  description: A closing sentinel string inside quotes does not prematurely close the block.
+  action: unwrap
+  args:
+    format: vertical
+  input: |-
+    <a2ui>
+    Text("</a2ui>")
+    </a2ui>
+  expect:
+    - a2ui_raw: 'Text("</a2ui>")'
+
+- name: test_unwrap_vertical_explicit_sentinel_tags
+  description: Unwraps blocks enclosed in explicit <a2ui-vertical> sentinel tags.
+  action: unwrap
+  args:
+    format: vertical
+  input: |-
+    <a2ui-vertical>
+    Text("Explicit vertical tag")
+    </a2ui-vertical>
+  expect:
+    - a2ui_raw: 'Text("Explicit vertical tag")'
+
+- name: test_parse_response_vertical
+  description: Unwraps and compiles a mixed response of conversational text and a Vertical block.
+  action: parse_response
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Here is your component:
+    <a2ui>
+    Text("Parsed successfully")
+    </a2ui>
+    Done!
+  expect:
+    - text: "Here is your component:"
+      a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "default_surface"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Parsed successfully"
+    - text: "Done!"
+

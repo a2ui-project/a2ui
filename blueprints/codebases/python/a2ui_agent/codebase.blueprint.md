@@ -5,6 +5,7 @@ module_blueprint_commit: null
 implemented_features:
   - skill_generator
   - typesafe_builder_api
+  - vertical_format
 local_development:
   test_command: 'uv run pytest'
   lint_command: 'uv run pyink --check .'
@@ -19,6 +20,7 @@ The reference Python implementation of the A2UI Agent SDK (`a2ui_agent`).
 
 - **Inference Formats & Prompt Engineering**: Decouples input prompt generation and output response parsing via format strategy facades (`InferenceFormat` / `InferenceFormatFactory`). Each strategy coordinates a format-specific `PromptGenerator` (which outputs instruction snippets and catalog schemas) and a `Parser` (which tokenizes, unwraps, and compiles responses).
 - **Response Parsing**: Employs format-specific `Parser` engines to unwrap sentinel-tagged content, tokenize LLM responses into conversational text and raw payload blocks, and compile format expressions into standard A2UI payload messages.
+- **Vertical Format Implementation**: Implements `VerticalFormat` under `a2ui.inference_formats.experimental.vertical`, providing a surface-per-component multi-component model, catalog child-component pruning, schema coercion, and streaming support.
 - **Validation**: Structural layout and schema validation are delegated directly to core `a2ui.core.validation.PayloadValidator` to enforce contract compliance across all inference formats.
 - **Framework Independence**: The SDK is completely agent-framework agnostic. It provides pure Python primitives and processor facades without hardcoded dependencies on specific agent frameworks like ADK or LangChain.
 - **Typesafe Builder API**: `a2ui.builder` is the authoring counterpart to the inference formats, letting application code construct A2UI directly against native types. It splits into a hand-written runtime (`core/` for child-slot flattening and ID allocation, `<version>/` for protocol models) and `<version>/catalogs/`, which is generated from the catalog JSON schema by the Dart CLI and never edited by hand.
