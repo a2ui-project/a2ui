@@ -22,8 +22,8 @@ A2UI supports multiple protocol versions to ensure backward compatibility as the
 To use the v0.9 implementation, import from the versioned path:
 
 ```typescript
-import { A2uiRendererService, A2UI_RENDERER_CONFIG } from '@a2ui/angular/v0_9';
-import { BasicCatalog } from '@a2ui/angular/v0_9';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular/v0_9';
+import {BasicCatalog} from '@a2ui/angular/v0_9';
 ```
 
 ## Basic Setup
@@ -31,8 +31,8 @@ import { BasicCatalog } from '@a2ui/angular/v0_9';
 Configure the renderer in your `app.config.ts` using the `A2UI_RENDER_CONFIG` injection token:
 
 ```typescript
-import { ApplicationConfig } from '@angular/core';
-import { A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog } from '@a2ui/angular/v0_9';
+import {ApplicationConfig} from '@angular/core';
+import {A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog} from '@a2ui/angular/v0_9';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -40,7 +40,7 @@ export const appConfig: ApplicationConfig = {
       provide: A2UI_RENDERER_CONFIG,
       useValue: {
         catalogs: [new BasicCatalog()],
-        actionHandler: (action) => {
+        actionHandler: action => {
           console.log('Action received:', action);
         },
       },
@@ -57,8 +57,8 @@ export const appConfig: ApplicationConfig = {
 The simplest way to render an A2UI surface is using the `SurfaceComponent`. This component handles setting up the root `ComponentHost` for you.
 
 ```typescript
-import { Component } from '@angular/core';
-import { SurfaceComponent } from '@a2ui/angular/v0_9';
+import {Component} from '@angular/core';
+import {SurfaceComponent} from '@a2ui/angular/v0_9';
 
 @Component({
   selector: 'app-root',
@@ -74,8 +74,8 @@ export class AppComponent {}
 For more fine-grained control, use the `ComponentHostComponent` to render specific components within a surface:
 
 ```typescript
-import { Component } from '@angular/core';
-import { ComponentHostComponent } from '@a2ui/angular/v0_9';
+import {Component} from '@angular/core';
+import {ComponentHostComponent} from '@a2ui/angular/v0_9';
 
 @Component({
   selector: 'app-custom-layout',

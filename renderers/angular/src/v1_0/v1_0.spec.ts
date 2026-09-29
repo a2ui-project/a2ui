@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { TestBed } from '@angular/core/testing';
+import {TestBed} from '@angular/core/testing';
 import {
   A2uiRendererService,
   BasicCatalog,
@@ -24,7 +24,7 @@ import {
   provideA2UI,
   SurfaceComponent,
 } from './index';
-import { isWebComponentImplementation } from '@a2ui/web_core/v1_0';
+import {isWebComponentImplementation} from '@a2ui/web_core/v1_0';
 
 describe('@a2ui/angular/v1_0', () => {
   describe('BasicCatalog', () => {
@@ -81,7 +81,7 @@ describe('@a2ui/angular/v1_0', () => {
     beforeEach(() => {
       TestBed.configureTestingModule({
         imports: [SurfaceComponent],
-        providers: [provideA2UI({ catalogs: [new BasicCatalog()] })],
+        providers: [provideA2UI({catalogs: [new BasicCatalog()]})],
       });
     });
 
@@ -139,10 +139,10 @@ describe('@a2ui/angular/v1_0', () => {
                   component: 'TextField',
                   label: 'Full Name',
                   placeholder: 'Jane Doe',
-                  value: { path: '/user/name' },
+                  value: {path: '/user/name'},
                   checks: [
                     {
-                      condition: { path: '/user/nameCheck' },
+                      condition: {path: '/user/nameCheck'},
                       message: 'Fallback name error',
                     },
                   ],

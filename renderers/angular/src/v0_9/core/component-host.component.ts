@@ -28,20 +28,20 @@ import {
   signal,
   NgZone,
 } from '@angular/core';
-import { NgComponentOutlet } from '@angular/common';
-import { ComponentContext, ComponentModel, SurfaceModel, Subscription } from '@a2ui/web_core/v0_9';
+import {NgComponentOutlet} from '@angular/common';
+import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
 import {
   isWebComponentImplementation,
   registerUniversalElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
-import { A2uiRendererService } from './a2ui-renderer.service';
-import { ComponentBinder } from './component-binder.service';
-import { BoundProperty } from './types';
+import {A2uiRendererService} from './a2ui-renderer.service';
+import {ComponentBinder} from './component-binder.service';
+import {BoundProperty} from './types';
 
-import type { AngularCatalog, AngularComponentImplementation } from '../catalog/types';
-import { UniversalOnlyComponent } from '../catalog/universal_only.component';
-import { CatalogComponentInstance } from './catalog_component_instance';
+import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
+import {UniversalOnlyComponent} from '../catalog/universal_only.component';
+import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   context: ComponentContext;
@@ -85,7 +85,7 @@ interface UniversalComponentHostElement extends HTMLElement {
 })
 export class ComponentHostComponent {
   /** The key of the component to render, either an ID string or an object with ID and basePath. Defaults to 'root'. */
-  componentKey = input<string | { id: string; basePath: string }>('root');
+  componentKey = input<string | {id: string; basePath: string}>('root');
 
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
@@ -126,7 +126,7 @@ export class ComponentHostComponent {
     });
   }
 
-  private setupComponent(key: string | { id: string; basePath: string }, surfaceId: string) {
+  private setupComponent(key: string | {id: string; basePath: string}, surfaceId: string) {
     this.resetState();
 
     const surface = this.rendererService.surfaceGroup?.getSurface(surfaceId);
@@ -136,10 +136,10 @@ export class ComponentHostComponent {
       return;
     }
 
-    const { id, basePath } = this.resolveKey(key);
+    const {id, basePath} = this.resolveKey(key);
     this.resolvedComponentId = id;
 
-    this.deleteSub = surface.componentsModel.onDeleted?.subscribe((deletedId) => {
+    this.deleteSub = surface.componentsModel.onDeleted?.subscribe(deletedId => {
       if (deletedId === id) {
         this.ngZone.run(() => {
           this.handleComponentDeleted(surface, id, basePath);
@@ -158,21 +158,21 @@ export class ComponentHostComponent {
     this.initializeComponent(surface, componentModel, id, basePath);
   }
 
-  private resolveKey(key: string | { id: string; basePath: string }): {
+  private resolveKey(key: string | {id: string; basePath: string}): {
     id: string;
     basePath: string;
   } {
     if (typeof key === 'object' && key !== null && 'id' in key) {
-      return { id: key.id, basePath: key.basePath || '/' };
+      return {id: key.id, basePath: key.basePath || '/'};
     }
-    return { id: key, basePath: '/' };
+    return {id: key, basePath: '/'};
   }
 
-  private waitForSurface(key: string | { id: string; basePath: string }, surfaceId: string): void {
+  private waitForSurface(key: string | {id: string; basePath: string}, surfaceId: string): void {
     console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
     this.surfaceSub?.unsubscribe();
     let unsubscribed = false;
-    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe((s) => {
+    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe(s => {
       if (s.id === surfaceId) {
         unsubscribed = true;
         this.surfaceSub?.unsubscribe();
@@ -195,7 +195,7 @@ export class ComponentHostComponent {
     basePath: string,
   ): void {
     this.createSub?.unsubscribe();
-    const sub = surface.componentsModel.onCreated.subscribe((comp) => {
+    const sub = surface.componentsModel.onCreated.subscribe(comp => {
       if (comp.id === id) {
         this.initializeComponent(surface, comp, id, basePath);
         sub.unsubscribe();

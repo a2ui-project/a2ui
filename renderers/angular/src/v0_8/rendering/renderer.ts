@@ -24,12 +24,12 @@ import {
   PLATFORM_ID,
   ComponentRef,
 } from '@angular/core';
-import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-import { structuralStyles } from '@a2ui/web_core/styles/index';
-import { Catalog } from './catalog';
-import { MessageProcessor } from '../data';
-import type { AnyComponentNode, SurfaceID } from '../types';
-import { DynamicComponent } from './dynamic-component';
+import {DOCUMENT, isPlatformBrowser} from '@angular/common';
+import {structuralStyles} from '@a2ui/web_core/styles/index';
+import {Catalog} from './catalog';
+import {MessageProcessor} from '../data';
+import type {AnyComponentNode, SurfaceID} from '../types';
+import {DynamicComponent} from './dynamic-component';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -120,7 +120,7 @@ export class Renderer {
     const componentTypeOrPromise = this.resolveComponentType(config);
 
     if (componentTypeOrPromise instanceof Promise) {
-      componentTypeOrPromise.then((componentType) => {
+      componentTypeOrPromise.then(componentType => {
         // Ensure we are still supposed to render this component
         if (this.currentId === node.id && this.currentType === node.type) {
           const componentRef = container.createComponent(componentType) as ComponentRef<

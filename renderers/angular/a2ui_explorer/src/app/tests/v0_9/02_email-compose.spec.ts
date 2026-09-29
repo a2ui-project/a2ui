@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample, wait } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('Example: Email Compose', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -24,7 +24,7 @@ describe('Example: Email Compose', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Email Compose' });
+    fixture = await loadExample({name: 'Email Compose'});
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });
@@ -50,7 +50,7 @@ describe('Example: Email Compose', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const sendBtn = buttons.find((b) => b.textContent.includes('Send'))!;
+    const sendBtn = buttons.find(b => b.textContent.includes('Send'))!;
     expect(sendBtn).withContext('Should find Send button').toBeTruthy();
 
     sendBtn.click();
@@ -66,7 +66,7 @@ describe('Example: Email Compose', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const discardBtn = buttons.find((b) => b.textContent.includes('Discard'))!;
+    const discardBtn = buttons.find(b => b.textContent.includes('Discard'))!;
     expect(discardBtn).withContext('Should find Discard button').toBeTruthy();
 
     discardBtn.click();

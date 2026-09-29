@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import type { AnyComponentNode, MultipleChoiceNode, StringValue } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import type {AnyComponentNode, MultipleChoiceNode, StringValue} from '../types';
 
 @Component({
   selector: 'a2ui-multiple-choice',
@@ -49,7 +49,7 @@ import type { AnyComponentNode, MultipleChoiceNode, StringValue } from '../types
 })
 export class MultipleChoice extends DynamicComponent<MultipleChoiceNode> {
   readonly label = input<StringValue | null>(null);
-  readonly options = input.required<{ label: StringValue; value: string }[]>();
+  readonly options = input.required<{label: StringValue; value: string}[]>();
   readonly selections = input.required<AnyComponentNode | null>();
 
   protected readonly selectId = super.getUniqueId('a2ui-multiple-choice');
@@ -57,7 +57,7 @@ export class MultipleChoice extends DynamicComponent<MultipleChoiceNode> {
   protected readonly resolvedLabel = computed(() => this.resolvePrimitive(this.label()));
 
   protected readonly resolvedOptions = computed(() =>
-    this.options().map((opt) => ({
+    this.options().map(opt => ({
       label: this.resolvePrimitive(opt.label),
       value: opt.value,
     })),
@@ -89,12 +89,12 @@ export class MultipleChoice extends DynamicComponent<MultipleChoiceNode> {
               selectionsNode.path as string,
               this.component().dataContextPath,
             ),
-            contents: [{ key: '.', valueString: JSON.stringify({ literalArray: [value] }) }],
+            contents: [{key: '.', valueString: JSON.stringify({literalArray: [value]})}],
           },
         },
       ]);
     } else {
-      this.handleAction('change', { value });
+      this.handleAction('change', {value});
     }
   }
 
@@ -103,7 +103,7 @@ export class MultipleChoice extends DynamicComponent<MultipleChoiceNode> {
       name,
       context: Object.entries(context).map(([key, val]) => ({
         key,
-        value: typeof val === 'number' ? { literalNumber: val } : { literalString: String(val) },
+        value: typeof val === 'number' ? {literalNumber: val} : {literalString: String(val)},
       })),
     });
   }

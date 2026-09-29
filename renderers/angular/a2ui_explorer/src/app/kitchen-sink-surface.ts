@@ -93,13 +93,13 @@ export const KITCHEN_SINK_SURFACE = [
           id: 'name-field',
           component: 'TextField',
           label: 'Your Name',
-          value: { path: '/user/name' },
+          value: {path: '/user/name'},
         },
         {
           id: 'satisfaction-slider',
           component: 'CustomSlider',
           label: 'Satisfaction Level',
-          value: { path: '/user/satisfaction' },
+          value: {path: '/user/satisfaction'},
           min: 0,
           max: 10,
         },
@@ -107,7 +107,7 @@ export const KITCHEN_SINK_SURFACE = [
           id: 'email-field',
           component: 'TextField',
           label: 'Email Address',
-          value: { path: '/user/email' },
+          value: {path: '/user/email'},
           variant: 'shortText',
         },
         {
@@ -119,8 +119,8 @@ export const KITCHEN_SINK_SURFACE = [
             event: {
               name: 'submit_form',
               context: {
-                name: { path: '/user/name' },
-                email: { path: '/user/email' },
+                name: {path: '/user/name'},
+                email: {path: '/user/email'},
               },
             },
           },
@@ -133,7 +133,7 @@ export const KITCHEN_SINK_SURFACE = [
         {
           id: 'result-msg',
           component: 'Text',
-          text: { path: '/form/responseMessage' },
+          text: {path: '/form/responseMessage'},
         },
         {
           id: 'footer',

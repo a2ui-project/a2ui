@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Component, input, signal } from '@angular/core';
-import { ColumnComponent } from './column.component';
-import { ComponentModel } from '@a2ui/web_core/v0_9';
-import { A2uiRendererService } from '../../core/a2ui-renderer.service';
-import { ComponentBinder } from '../../core/component-binder.service';
-import { By } from '@angular/platform-browser';
-import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Component, input, signal} from '@angular/core';
+import {ColumnComponent} from './column.component';
+import {ComponentModel} from '@a2ui/web_core/v0_9';
+import {A2uiRendererService} from '../../core/a2ui-renderer.service';
+import {ComponentBinder} from '../../core/component-binder.service';
+import {By} from '@angular/platform-browser';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 @Component({
   standalone: true,
@@ -47,7 +47,7 @@ describe('ColumnComponent', () => {
   beforeEach(async () => {
     const mockCatalog = {
       id: 'test-catalog',
-      components: new Map([['Child', { component: DummyChild }]]),
+      components: new Map([['Child', {component: DummyChild}]]),
     } as any;
 
     mockSurface = {
@@ -69,13 +69,13 @@ describe('ColumnComponent', () => {
     };
 
     mockBinder = jasmine.createSpyObj('ComponentBinder', ['bind']);
-    mockBinder.bind.and.returnValue({ text: { value: () => 'bound' } });
+    mockBinder.bind.and.returnValue({text: {value: () => 'bound'}});
 
     await TestBed.configureTestingModule({
       imports: [ColumnComponent],
       providers: [
-        { provide: A2uiRendererService, useValue: mockRendererService },
-        { provide: ComponentBinder, useValue: mockBinder },
+        {provide: A2uiRendererService, useValue: mockRendererService},
+        {provide: ComponentBinder, useValue: mockBinder},
       ],
     }).compileComponents();
 
@@ -87,8 +87,8 @@ describe('ColumnComponent', () => {
       justify: createBoundProperty('start' as const),
       align: createBoundProperty('stretch' as const),
       children: createBoundProperty([
-        { id: 'child1', basePath: '/' },
-        { id: 'child2', basePath: '/' },
+        {id: 'child1', basePath: '/'},
+        {id: 'child2', basePath: '/'},
       ]),
     };
     setComponentProps(fixture, defaultProps);
@@ -141,8 +141,8 @@ describe('ColumnComponent', () => {
     fixture.detectChanges();
     const hosts = fixture.debugElement.queryAll(By.css('a2ui-v09-component-host'));
     expect(hosts.length).toBe(2);
-    expect(hosts[0].componentInstance.componentKey()).toEqual({ id: 'child1', basePath: '/' });
-    expect(hosts[1].componentInstance.componentKey()).toEqual({ id: 'child2', basePath: '/' });
+    expect(hosts[0].componentInstance.componentKey()).toEqual({id: 'child1', basePath: '/'});
+    expect(hosts[1].componentInstance.componentKey()).toEqual({id: 'child2', basePath: '/'});
   });
 
   it('should render repeating children', () => {
@@ -150,8 +150,8 @@ describe('ColumnComponent', () => {
       ...defaultProps,
       children: {
         value: signal([
-          { id: 'template1', basePath: '/items/0' },
-          { id: 'template1', basePath: '/items/1' },
+          {id: 'template1', basePath: '/items/0'},
+          {id: 'template1', basePath: '/items/1'},
         ]),
         raw: {
           componentId: 'template1',
@@ -180,7 +180,7 @@ describe('ColumnComponent', () => {
 
   it('should handle missing justify and align properties', () => {
     setComponentProps(fixture, {
-      children: createBoundProperty([{ id: 'child1', basePath: '/' }]),
+      children: createBoundProperty([{id: 'child1', basePath: '/'}]),
     });
     fixture.detectChanges();
     const div = fixture.debugElement;

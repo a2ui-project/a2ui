@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { Component } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { BasicCatalogComponent } from './basic-catalog-component';
-import { A2uiRendererService, A2UI_RENDERER_CONFIG } from '../../core/a2ui-renderer.service';
-import { BasicCatalog } from './basic-catalog';
-import { ComponentApi } from '@a2ui/web_core/v0_9';
+import {Component} from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../../core/a2ui-renderer.service';
+import {BasicCatalog} from './basic-catalog';
+import {ComponentApi} from '@a2ui/web_core/v0_9';
 import z from 'zod';
 
 export const TestComponentApi = {
@@ -78,7 +78,7 @@ describe('BasicCatalogComponent', () => {
         createSurface: {
           surfaceId: 'surface-6char',
           catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-          theme: { primaryColor: '#00FF00' },
+          theme: {primaryColor: '#00FF00'},
         },
       },
     ]);
@@ -97,7 +97,7 @@ describe('BasicCatalogComponent', () => {
         createSurface: {
           surfaceId: 'surface-3char',
           catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-          theme: { primaryColor: '#17e' },
+          theme: {primaryColor: '#17e'},
         },
       },
     ]);
@@ -116,7 +116,7 @@ describe('BasicCatalogComponent', () => {
         createSurface: {
           surfaceId: 'surface-8char',
           catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-          theme: { primaryColor: '#00FF0080' },
+          theme: {primaryColor: '#00FF0080'},
         },
       },
     ]);
@@ -135,7 +135,7 @@ describe('BasicCatalogComponent', () => {
         createSurface: {
           surfaceId: 'surface-named',
           catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-          theme: { primaryColor: 'red' },
+          theme: {primaryColor: 'red'},
         },
       },
     ]);
@@ -154,7 +154,7 @@ describe('BasicCatalogComponent', () => {
         createSurface: {
           surfaceId: 'surface-rgb',
           catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-          theme: { primaryColor: 'rgb(255, 0, 0)' },
+          theme: {primaryColor: 'rgb(255, 0, 0)'},
         },
       },
     ]);
@@ -176,7 +176,7 @@ describe('BasicCatalogComponent', () => {
 
   it('should ignore invalid primaryColor values on host style', () => {
     const surface = rendererService.surfaceGroup.getSurface('test-surface');
-    (surface as any).theme = { primaryColor: 'url(https://attacker.example/beacon)' };
+    (surface as any).theme = {primaryColor: 'url(https://attacker.example/beacon)'};
 
     fixture.componentRef.setInput('surfaceId', 'test-surface');
     fixture.detectChanges();

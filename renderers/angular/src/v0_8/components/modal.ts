@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
-import type { AnyComponentNode, ModalNode } from '../types';
+import {ChangeDetectionStrategy, Component, input, signal} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
+import type {AnyComponentNode, ModalNode} from '../types';
 
 @Component({
   selector: 'a2ui-modal',

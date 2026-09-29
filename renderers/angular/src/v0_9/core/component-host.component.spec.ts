@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
-import { ComponentHostComponent } from './component-host.component';
-import { A2uiRendererService } from './a2ui-renderer.service';
+import {TestBed, ComponentFixture} from '@angular/core/testing';
+import {By} from '@angular/platform-browser';
+import {ComponentHostComponent} from './component-host.component';
+import {A2uiRendererService} from './a2ui-renderer.service';
 import {
   ComponentApi,
   ComponentModel,
   SurfaceComponentsModel,
   SurfaceModel,
 } from '@a2ui/web_core/v0_9';
-import { A2uiText } from '@a2ui/web_core/v0_9/basic_catalog';
-import { WebComponentImplementation } from '@a2ui/web_core/v0_9/universal';
-import { Component, EnvironmentInjector, EventEmitter, Input, NgZone, Type } from '@angular/core';
-import { CatalogComponentInstance } from './catalog_component_instance';
-import { AngularCatalog, createComponentImplementation } from '../catalog/types';
-import { UniversalOnlyComponent } from '../catalog/universal_only.component';
-import { initializeAngularReactivity } from './reactivity';
-import { z } from 'zod';
+import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
+import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import {Component, EnvironmentInjector, EventEmitter, Input, NgZone, Type} from '@angular/core';
+import {CatalogComponentInstance} from './catalog_component_instance';
+import {AngularCatalog, createComponentImplementation} from '../catalog/types';
+import {UniversalOnlyComponent} from '../catalog/universal_only.component';
+import {initializeAngularReactivity} from './reactivity';
+import {z} from 'zod';
 
 @Component({
   selector: 'test-child',
@@ -56,12 +56,12 @@ describe('ComponentHostComponent', () => {
   beforeEach(async () => {
     mockCatalog = {
       id: 'test-catalog',
-      components: new Map([['TestType', { component: TestChildComponent }]]),
+      components: new Map([['TestType', {component: TestChildComponent}]]),
     };
 
     const mockSurfaceComponentsModel = new SurfaceComponentsModel();
     mockSurfaceComponentsModel.addComponent(
-      new ComponentModel('comp1', 'TestType', { text: 'Hello' }, mockCatalog),
+      new ComponentModel('comp1', 'TestType', {text: 'Hello'}, mockCatalog),
     );
 
     mockSurface = {
@@ -88,14 +88,14 @@ describe('ComponentHostComponent', () => {
 
     TestBed.configureTestingModule({
       imports: [ComponentHostComponent],
-      providers: [{ provide: A2uiRendererService, useValue: mockRendererService }],
+      providers: [{provide: A2uiRendererService, useValue: mockRendererService}],
     });
 
     initializeAngularReactivity(TestBed.inject(EnvironmentInjector));
 
     fixture = TestBed.createComponent(ComponentHostComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('componentKey', { id: 'comp1', basePath: '/' });
+    fixture.componentRef.setInput('componentKey', {id: 'comp1', basePath: '/'});
     fixture.componentRef.setInput('surfaceId', 'surf1');
   });
 
@@ -121,7 +121,7 @@ describe('ComponentHostComponent', () => {
     });
 
     it('should use provided dataContextPath for ComponentContext', () => {
-      fixture.componentRef.setInput('componentKey', { id: 'comp1', basePath: '/nested/path' });
+      fixture.componentRef.setInput('componentKey', {id: 'comp1', basePath: '/nested/path'});
       fixture.detectChanges();
 
       const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
@@ -141,7 +141,7 @@ describe('ComponentHostComponent', () => {
 
       const compModel = mockSurface.componentsModel.get('comp1')!;
       // This properties assignment triggers the update.
-      compModel.properties = { text: 'Hello', newProp: 'new value' };
+      compModel.properties = {text: 'Hello', newProp: 'new value'};
 
       fixture.detectChanges(); // Propagate changes
 
@@ -177,7 +177,7 @@ describe('ComponentHostComponent', () => {
     });
 
     it('should handle synchronous surface creation and unsubscribe cleanly', () => {
-      const mockSubscription = { unsubscribe: jasmine.createSpy('unsubscribe') };
+      const mockSubscription = {unsubscribe: jasmine.createSpy('unsubscribe')};
       mockSurfaceGroup.onSurfaceCreated = {
         subscribe: jasmine
           .createSpy('subscribe')
@@ -256,7 +256,7 @@ describe('ComponentHostComponent', () => {
       const runSpy = spyOn(ngZone, 'run').and.callThrough();
 
       const compModel = mockSurface.componentsModel.get('comp1')!;
-      compModel.properties = { text: 'Hello', newProp: 'new value' };
+      compModel.properties = {text: 'Hello', newProp: 'new value'};
 
       expect(runSpy).toHaveBeenCalled();
     });
@@ -270,7 +270,7 @@ describe('ComponentHostComponent', () => {
       expect(compiled.innerHTML).toContain('Child Component');
     });
     it('should pass dataContextPath to the rendered component', () => {
-      fixture.componentRef.setInput('componentKey', { id: 'comp1', basePath: '/some/path' });
+      fixture.componentRef.setInput('componentKey', {id: 'comp1', basePath: '/some/path'});
       fixture.detectChanges();
 
       const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
@@ -296,12 +296,12 @@ describe('ComponentHostComponent', () => {
 
       mockCatalog.components.set('WcType', mockWcImpl);
       mockSurface.componentsModel.addComponent(
-        new ComponentModel('wc1', 'WcType', { label: 'Click me' }),
+        new ComponentModel('wc1', 'WcType', {label: 'Click me'}),
       );
       mockRendererConfig.useUniversalComponents = true;
 
       const testFixture = TestBed.createComponent(ComponentHostComponent);
-      testFixture.componentRef.setInput('componentKey', { id: 'wc1', basePath: '/test/wc' });
+      testFixture.componentRef.setInput('componentKey', {id: 'wc1', basePath: '/test/wc'});
       testFixture.componentRef.setInput('surfaceId', 'surf1');
       testFixture.detectChanges();
 
@@ -313,7 +313,7 @@ describe('ComponentHostComponent', () => {
 
       // Update component model properties
       const wcModel = mockSurface.componentsModel.get('wc1')!;
-      wcModel.properties = { label: 'Updated label' };
+      wcModel.properties = {label: 'Updated label'};
       testFixture.detectChanges();
 
       expect(wcEl.context).toBeTruthy();
@@ -325,7 +325,7 @@ describe('ComponentHostComponent', () => {
       mockSurface.componentsModel.addComponent(new ComponentModel('wc1', 'WcType', {}));
       mockRendererConfig.useUniversalComponents = false;
 
-      fixture.componentRef.setInput('componentKey', { id: 'wc1', basePath: '/' });
+      fixture.componentRef.setInput('componentKey', {id: 'wc1', basePath: '/'});
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('mock-host-wc')).toBeTruthy();
@@ -341,10 +341,10 @@ describe('ComponentHostComponent', () => {
         },
       ]);
       mockSurface.componentsModel.addComponent(
-        new ComponentModel('sec1', 'SecondaryType', { text: 'From Secondary' }, secondaryCatalog),
+        new ComponentModel('sec1', 'SecondaryType', {text: 'From Secondary'}, secondaryCatalog),
       );
 
-      fixture.componentRef.setInput('componentKey', { id: 'sec1', basePath: '/' });
+      fixture.componentRef.setInput('componentKey', {id: 'sec1', basePath: '/'});
       fixture.detectChanges();
 
       const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
@@ -365,7 +365,7 @@ describe('ComponentHostComponent', () => {
 
       // Re-add comp1 with updated properties
       mockSurface.componentsModel.addComponent(
-        new ComponentModel('comp1', 'TestType', { text: 'Re-created' }, mockCatalog),
+        new ComponentModel('comp1', 'TestType', {text: 'Re-created'}, mockCatalog),
       );
       fixture.detectChanges();
 
@@ -379,13 +379,13 @@ describe('ComponentHostComponent', () => {
       mockCatalog.components.set(
         'TestType',
         createComponentImplementation(
-          { name: 'TestType', schema: z.object({}) },
+          {name: 'TestType', schema: z.object({})},
           TestChildComponent as unknown as Type<CatalogComponentInstance>,
         ),
       );
       mockRendererConfig.useUniversalComponents = true;
       const testFixture = TestBed.createComponent(ComponentHostComponent);
-      testFixture.componentRef.setInput('componentKey', { id: 'comp1', basePath: '/' });
+      testFixture.componentRef.setInput('componentKey', {id: 'comp1', basePath: '/'});
       testFixture.componentRef.setInput('surfaceId', 'surf1');
       testFixture.detectChanges();
 
@@ -398,13 +398,13 @@ describe('ComponentHostComponent', () => {
       mockCatalog.components.set(
         'TestType',
         createComponentImplementation(
-          { name: 'TestType', schema: z.object({}) },
+          {name: 'TestType', schema: z.object({})},
           TestChildComponent as unknown as Type<CatalogComponentInstance>,
         ),
       );
       mockRendererConfig.useUniversalComponents = false;
       const testFixture = TestBed.createComponent(ComponentHostComponent);
-      testFixture.componentRef.setInput('componentKey', { id: 'comp1', basePath: '/' });
+      testFixture.componentRef.setInput('componentKey', {id: 'comp1', basePath: '/'});
       testFixture.componentRef.setInput('surfaceId', 'surf1');
       testFixture.detectChanges();
 
@@ -417,10 +417,10 @@ describe('ComponentHostComponent', () => {
         A2uiText,
         TestChildComponent as unknown as Type<CatalogComponentInstance>,
       );
-      mockCatalog.components.set('TestType', { ...basicImpl, name: 'TestType' });
+      mockCatalog.components.set('TestType', {...basicImpl, name: 'TestType'});
       mockRendererConfig.useUniversalComponents = true;
       const testFixture = TestBed.createComponent(ComponentHostComponent);
-      testFixture.componentRef.setInput('componentKey', { id: 'comp1', basePath: '/' });
+      testFixture.componentRef.setInput('componentKey', {id: 'comp1', basePath: '/'});
       testFixture.componentRef.setInput('surfaceId', 'surf1');
       testFixture.detectChanges();
 

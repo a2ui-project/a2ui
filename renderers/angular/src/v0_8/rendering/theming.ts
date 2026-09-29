@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Injectable } from '@angular/core';
-import type { Theme as ThemeType } from '../types';
+import {Injectable} from '@angular/core';
+import type {Theme as ThemeType} from '../types';
 
 @Injectable({
   providedIn: 'root',
