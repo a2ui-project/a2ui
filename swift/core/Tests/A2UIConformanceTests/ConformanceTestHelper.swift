@@ -91,7 +91,8 @@ public enum ConformanceTestHelper {
   /// specification version.
   public static func buildCatalogs(for testCase: ConformanceTestCase) throws -> [AnyCatalog] {
     if let inlineCatalog = testCase.inlineCatalog {
-      return [buildCatalog(catalogSchema: inlineCatalog, commonTypes: nil)]
+      let commonTypes = try? commonTypesSchema(forProtocolVersion: testCase.protocolVersion ?? "v0.9")
+      return [buildCatalog(catalogSchema: inlineCatalog, commonTypes: commonTypes)]
     }
     return try testCase.catalogPaths.map { path in
       buildCatalog(
@@ -101,11 +102,19 @@ public enum ConformanceTestHelper {
     }
   }
 
+  /// Finds the `common_types.json` schema for a given protocol version.
+  public static func commonTypesSchema(forProtocolVersion version: String) throws -> JSONValue? {
+    let subpath = version.hasPrefix("v1") ? "v1_0" : (version.hasPrefix("v0.8") ? "v0_8" : "v0_9")
+    let fileURL = repoRoot.appendingPathComponent("specification/\(subpath)/json/common_types.json")
+    guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+    return try JSONValue.parse(try Data(contentsOf: fileURL))
+  }
+
   /// Finds the `common_types.json` schema that a catalog file references.
   ///
   /// Specification catalogs live at `specification/<version>/catalogs/<name>/catalog.json`,
   /// and their common types at `specification/<version>/json/common_types.json`.
-  private static func commonTypesSchema(forCatalogPath path: String) throws -> JSONValue? {
+  public static func commonTypesSchema(forCatalogPath path: String) throws -> JSONValue? {
     let catalogDirectory = repoRoot.appendingPathComponent(path).deletingLastPathComponent()
     let candidates = [
       catalogDirectory.appendingPathComponent("common_types.json"),
@@ -162,8 +171,13 @@ public enum ConformanceTestHelper {
       }
     }
 
+    var themeSchema: Schema?
+    if let rawTheme = catalogSchema["theme"] {
+      themeSchema = try? Schema(rawSchema: rawTheme, context: context)
+    }
+
     let catalogID = catalogSchema["catalogId"]?.stringValue ?? "test_catalog"
-    return Catalog(id: catalogID, components: components)
+    return Catalog(id: catalogID, components: components, themeSchema: themeSchema)
   }
 
   /// Recursively converts arbitrary YAML data (`[String: Any]`, `[Any]`, primitives)

@@ -65,58 +65,99 @@ struct MessageProcessorConformanceTests {
   }
 
   private func buildProcessorCatalogs(from testCase: [String: Any]) throws -> [AnyCatalog] {
+    let pVer = (testCase["protocolVersion"] as? String) ?? "v0.9"
+    let commonTypes = try? ConformanceTestHelper.commonTypesSchema(forProtocolVersion: pVer)
+
+    var catalogs: [AnyCatalog] = []
+
     if let catalogList = testCase["catalogs"] as? [[String: Any]] {
-      return catalogList.map { dict in
+      catalogs = catalogList.map { dict in
         ConformanceTestHelper.buildCatalog(
           catalogSchema: ConformanceTestHelper.toJSONValue(dict),
-          commonTypes: nil
+          commonTypes: commonTypes
         )
       }
-    }
-    var catalogPaths = testCase["catalogPaths"] as? [String] ?? []
-    if let catalogPath = testCase["catalogPath"] as? String {
-      catalogPaths.append(catalogPath)
-    }
-    if !catalogPaths.isEmpty {
-      return try catalogPaths.map { path in
-        ConformanceTestHelper.buildCatalog(
-          catalogSchema: try ConformanceTestHelper.loadRepositoryJSON(path: path),
-          commonTypes: nil
-        )
+    } else {
+      var catalogPaths = testCase["catalogPaths"] as? [String] ?? []
+      if let catalogPath = testCase["catalogPath"] as? String {
+        catalogPaths.append(catalogPath)
       }
-    }
-    let textSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "text": { "type": "string" }
-          }
+      if !catalogPaths.isEmpty {
+        catalogs = try catalogPaths.map { path in
+          ConformanceTestHelper.buildCatalog(
+            catalogSchema: try ConformanceTestHelper.loadRepositoryJSON(path: path),
+            commonTypes: commonTypes
+          )
         }
-        """
-    )
-    let containerSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "children": {
-              "type": "array",
-              "items": { "type": "string" }
+      }
+    }
+
+    if catalogs.isEmpty {
+      let textSchema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" }
             }
           }
-        }
-        """
-    )
-    return [
-      Catalog(
-        id: "basic",
-        components: [
-          AnyComponentAPI(name: "Text", schema: textSchema),
-          AnyComponentAPI(name: "Container", schema: containerSchema),
-        ]
+          """
       )
-    ]
+      let containerSchema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+          """
+      )
+      catalogs = [
+        Catalog(
+          id: "basic",
+          components: [
+            AnyComponentAPI(name: "Text", schema: textSchema),
+            AnyComponentAPI(name: "Container", schema: containerSchema),
+          ]
+        )
+      ]
+    }
+
+    let rawMessages = testCase["messages"] as? [[String: Any]] ?? []
+    var neededIDs = Set<String>()
+    for msg in rawMessages {
+      if let create = msg["createSurface"] as? [String: Any],
+        let cId = create["catalogId"] as? String,
+        cId != "unknown-catalog"
+      {
+        neededIDs.insert(cId)
+      }
+      if let begin = msg["beginRendering"] as? [String: Any],
+        let cId = begin["catalogId"] as? String,
+        cId != "unknown-catalog"
+      {
+        neededIDs.insert(cId)
+      }
+    }
+
+    let existingIDs = Set(catalogs.map { $0.id })
+    for neededID in neededIDs where !existingIDs.contains(neededID) {
+      if let base = catalogs.first {
+        catalogs.append(
+          Catalog(
+            id: neededID,
+            components: base.components.map { $0.value },
+            themeSchema: base.themeSchema
+          )
+        )
+      }
+    }
+
+    return catalogs
   }
 
   private func decodeMessages(from rawMessages: [[String: Any]]) throws -> [ServerToClientMessage] {
