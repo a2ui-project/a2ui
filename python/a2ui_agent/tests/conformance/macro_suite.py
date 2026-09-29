@@ -48,6 +48,8 @@ from a2ui.transformers.macros import (
     MacroExpander,
     macro,
 )
+from a2ui.core import A2uiValidationError
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
     COMMON_TYPES_SCHEMA_KEY,
@@ -55,6 +57,11 @@ from a2ui.schema.constants import (
     SPEC_VERSION_MAP,
 )
 from a2ui.schema.utils import load_from_bundled_resource
+from pydantic import TypeAdapter
+
+_message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
+    AgentToRendererMessage
+)
 
 CONFORMANCE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../../../conformance/agent/macros")
@@ -295,8 +302,10 @@ def run_case(case: Case) -> Any:
                 "components": raw_components,
             },
         }
+        typed_msg = _message_adapter.validate_python(msg)
         expander = MacroExpander(SUITE_MACROS)
-        return expander.transform_to_inference(msg)
+        lowered = expander.transform_to_inference([typed_msg])
+        return [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
 
     version_str = case.envelope_version or "v0.9"
     raw_components = case.input if isinstance(case.input, list) else [case.input]
@@ -327,11 +336,14 @@ def run_case(case: Case) -> Any:
             },
         }]
 
+    try:
+        typed_raw_msgs = [_message_adapter.validate_python(m) for m in raw_msgs]
+    except Exception as e:
+        raise A2uiValidationError(f"Invalid message envelope: {e}") from e
+
     expander = MacroExpander(SUITE_MACROS)
-    expanded_msgs = []
-    for msg in raw_msgs:
-        expanded_msgs.extend(expander.transform_to_transport(msg))
-    return expanded_msgs
+    expanded_msgs = expander.transform_to_transport(typed_raw_msgs)
+    return [m.model_dump(by_alias=True, exclude_none=True) for m in expanded_msgs]
 
 
 # =============================================================================
