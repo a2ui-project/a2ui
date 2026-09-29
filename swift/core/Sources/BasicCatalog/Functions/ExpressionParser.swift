@@ -29,6 +29,12 @@ public struct ExpressionParser: Sendable {
   /// accepts the other rejects.
   public static let maxDepth = 100
 
+  /// Maximum allowed length for expression template strings.
+  public static let maxTemplateLength = 10_000
+
+  /// Maximum allowed number of parts in an expression template.
+  public static let maxTemplateParts = 1_000
+
   /// An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
   /// exponent (`e` or `E`, an optional sign, digits). Uses `[0-9]` rather than
   /// `\d` because ICU's `\d` matches digits from every Unicode script.
@@ -57,6 +63,13 @@ public struct ExpressionParser: Sendable {
         message: "Max recursion depth reached in parse"
       )
     }
+    if input.count > Self.maxTemplateLength {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message:
+          "Expression template length (\(input.count)) exceeds maximum limit (\(Self.maxTemplateLength))"
+      )
+    }
     if input.isEmpty || !input.contains("${") {
       return input.isEmpty ? [] : [.string(input)]
     }
@@ -65,6 +78,12 @@ public struct ExpressionParser: Sendable {
     var scanner = Scanner(input)
 
     while !scanner.isAtEnd {
+      if parts.count >= Self.maxTemplateParts {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Expression parts count exceeds maximum limit (\(Self.maxTemplateParts))"
+        )
+      }
       if scanner.matches("${") {
         scanner.advance(by: 2)
         let content = try extractInterpolationContent(&scanner)

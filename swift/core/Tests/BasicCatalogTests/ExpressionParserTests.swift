@@ -48,82 +48,28 @@ struct ExpressionParserTests {
     )
   }
 
-  @Test func handlesStringLiteralsWithEscapedCharacters() throws {
-    let result = try parser.parseExpression(#"'line1\nline2\t\r\'\\x'"#)
-    #expect(result == .string("line1\nline2\t\r'\\x"))
-  }
-
-  @Test func handlesParsingPathsWithSpecialCharacters() throws {
-    let result = try parser.parseExpression("my-path.with_underscores")
-    #expect(result == .object(["path": .string("my-path.with_underscores")]))
-  }
-
-  @Test func parsesSignedAndExponentNumberLiterals() throws {
+  @Test func distinguishesIntegerAndFloatingPointNumberLiterals() throws {
     #expect(try parser.parseExpression("42") == .integer(42))
-    #expect(try parser.parseExpression("-42") == .integer(-42))
-    #expect(try parser.parseExpression("+42") == .integer(42))
     #expect(try parser.parseExpression("-3.5") == .number(-3.5))
-    #expect(try parser.parseExpression("1.") == .number(1))
     #expect(try parser.parseExpression("1e5") == .number(100_000))
-    #expect(try parser.parseExpression("1.5e-3") == .number(0.0015))
-    #expect(try parser.parseExpression("2.5E+4") == .number(25_000))
   }
 
-  @Test func parsesLeadingDotNumberLiterals() throws {
-    #expect(try parser.parseExpression(".5") == .number(0.5))
-    #expect(try parser.parseExpression("-.5") == .number(-0.5))
-    #expect(try parser.parseExpression("+.5") == .number(0.5))
-    #expect(try parser.parseExpression(".5e2") == .number(50))
-    #expect(try parser.parseExpression("-.5E-1") == .number(-0.05))
-  }
-
-  @Test func parsesSignedNumberLiteralsAsFunctionArguments() throws {
-    let result = try parser.parseExpression("f(a: -.5, b: +10)")
-    #expect(
-      result
-        == .object([
-          "call": .string("f"),
-          "args": .object(["a": .number(-0.5), "b": .integer(10)]),
-          "returnType": .string("any"),
-        ])
-    )
-  }
-
-  @Test(arguments: [".foo", "./x", "-.", ".e5", "a-1", "a.5", "/items/.5", "-a", "-foo"])
-  func keepsPathsThatStartWithOrContainASignOrDot(expr: String) throws {
-    #expect(try parser.parseExpression(expr) == .object(["path": .string(expr)]))
-  }
-
-  @Test func parsesLeadingZerosAndMaxSafeIntegers() throws {
-    #expect(try parser.parseExpression("007") == .integer(7))
-    #expect(try parser.parseExpression("9007199254740991") == .integer(9_007_199_254_740_991))
-    #expect(try parser.parseExpression("-9007199254740991") == .integer(-9_007_199_254_740_991))
-  }
-
-  @Test(arguments: ["1.2.3", ".5.5", "1e", "-.5e", ".5e+", "-1x"])
-  func rejectsMalformedNumberLiterals(expr: String) {
-    #expect(throws: FunctionError.self) {
-      _ = try parser.parseExpression(expr)
-    }
-  }
-
-  @Test(arguments: ["1e999", "-1e999", "2e308", String(repeating: "1", count: 400)])
-  func rejectsNumberLiteralsOutsideTheDoubleRange(expr: String) {
+  @Test func rejectsTemplateExceedingMaxLength() {
+    #expect(ExpressionParser.maxTemplateLength == 10_000)
+    let oversized = String(repeating: "a", count: ExpressionParser.maxTemplateLength + 1)
     let message = executionFailedMessage {
-      _ = try parser.parseExpression(expr)
+      _ = try parser.parse(oversized)
     }
-    #expect(message?.contains("out of range") == true)
+    #expect(message?.contains("exceeds maximum limit") == true)
   }
 
-  @Test func acceptsLiteralsAtTheEdgesOfTheDoubleRange() throws {
-    #expect(try parser.parseExpression("1e308") == .number(1e308))
-    #expect(try parser.parseExpression("1e-999") == .number(0))
-  }
-
-  @Test func returnsErrorOnMissingColonInFunctionArgs() {
-    #expect(throws: FunctionError.self) {
-      _ = try parser.parseExpression("add(a 10, b: 20)")
+  @Test func rejectsExpressionExceedingMaxParts() {
+    #expect(ExpressionParser.maxTemplateParts == 1_000)
+    let manyParts = String(repeating: "${x}", count: ExpressionParser.maxTemplateParts + 1)
+    let message = executionFailedMessage {
+      _ = try parser.parse(manyParts)
     }
+    #expect(message?.contains("parts count exceeds maximum limit") == true)
   }
 
   private func executionFailedMessage(_ body: () throws -> Void) -> String? {

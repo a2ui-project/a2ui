@@ -43,7 +43,7 @@ struct ExpressionsConformanceTests {
 
       executed += 1
 
-      if let expectError = testCase["expect_error"] as? [String: Any] {
+      if let expectError = (testCase["expect_error"] ?? testCase["expectError"]) as? [String: Any] {
         let expectedMessage = expectError["message"] as? String
 
         #expect(

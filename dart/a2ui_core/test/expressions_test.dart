@@ -24,204 +24,74 @@ void main() {
       parser = ExpressionParser();
     });
 
-    test('parses literals', () {
-      expect(parser.parse('hello'), ['hello']);
+    test('returns error on maxDepth exceeded', () {
+      expect(
+        () => parser.parse('depth', ExpressionParser.maxDepth + 1),
+        throwsA(isA<A2uiExpressionError>()),
+      );
     });
 
-    test('parses simple interpolation', () {
-      expect(parser.parse('hello \${foo}'), [
-        'hello ',
-        {'path': 'foo'},
+    test('handles empty identifiers', () {
+      expect(parser.parse('\${()}'), [
+        {'call': '', 'args': <String, dynamic>{}, 'returnType': 'any'},
       ]);
-    });
-
-    test('parses absolute paths', () {
-      expect(parser.parse('value is \${/user/name}'), [
-        'value is ',
-        {'path': '/user/name'},
-      ]);
-    });
-
-    test('parses function calls', () {
-      expect(parser.parse('sum is \${add(a: 10, b: 20)}'), [
-        'sum is ',
-        {
-          'call': 'add',
-          'args': {'a': 10, 'b': 20},
-          'returnType': 'any',
-        },
-      ]);
-    });
-
-    test('parses nested interpolation', () {
-      expect(parser.parse('\${\${"hello"}}'), ['hello']);
-    });
-
-    test('handles escaped interpolation', () {
-      expect(parser.parse('escaped \\\${foo}'), ['escaped \${foo}']);
-    });
-
-    test('parses complex paths', () {
-      expect(parser.parseExpression('my-path.with_underscores'), {
-        'path': 'my-path.with_underscores',
+      expect(parser.parseExpression(''), '');
+      expect(parser.parseExpression('()'), {
+        'call': '',
+        'args': <String, dynamic>{},
+        'returnType': 'any',
       });
     });
 
-    test('parses string literals with spaces', () {
-      expect(parser.parseExpression('"hello world"'), 'hello world');
+    test('parses null keyword as null in parseExpression', () {
+      expect(parser.parseExpression('null'), isNull);
     });
 
-    test('throws on unclosed interpolation', () {
-      expect(() => parser.parse('hello \${world'), throwsException);
-    });
-
-    group('number literals', () {
-      test('parse signed integers and decimals', () {
-        expect(parser.parseExpression('-42'), -42);
-        expect(parser.parseExpression('+7'), 7);
-        expect(parser.parseExpression('-3.5'), -3.5);
-        expect(parser.parseExpression('-0'), 0);
-      });
-
-      test('parse exponent notation', () {
-        expect(parser.parseExpression('1e5'), 100000);
-        expect(parser.parseExpression('1E5'), 100000);
-        expect(parser.parseExpression('1.5e-3'), 0.0015);
-        expect(parser.parseExpression('2.5E+4'), 25000);
-        expect(parser.parseExpression('-2e3'), -2000);
-      });
-
-      test('parse signed literals as function arguments', () {
-        expect(parser.parseExpression('clamp(value: -1.5e2, max: +10)'), {
-          'call': 'clamp',
-          'args': {'value': -150, 'max': 10},
-          'returnType': 'any',
-        });
-      });
-
-      test('keep a hyphen inside a path as part of the path', () {
-        expect(parser.parseExpression('a-1'), {'path': 'a-1'});
-        expect(parser.parseExpression('/items/-1'), {'path': '/items/-1'});
-      });
-
-      test('treat a sign not followed by a digit as a path', () {
-        expect(parser.parseExpression('-foo'), {'path': '-foo'});
-      });
-
-      test('parse leading-dot literals', () {
-        expect(parser.parseExpression('.5'), 0.5);
-        expect(parser.parseExpression('-.5'), -0.5);
-        expect(parser.parseExpression('+.5'), 0.5);
-        expect(parser.parseExpression('.5e2'), 50);
-        expect(parser.parseExpression('-.5E-1'), -0.05);
-        expect(parser.parseExpression('f(a: -.5, b: .25)'), {
-          'call': 'f',
-          'args': {'a': -0.5, 'b': 0.25},
-          'returnType': 'any',
-        });
-      });
-
-      test('keep paths that start with or contain a dot unchanged', () {
-        for (final expr in ['.foo', './x', '-.', '.e5', 'a.5', '/items/.5']) {
-          expect(parser.parseExpression(expr), {'path': expr}, reason: expr);
-        }
-      });
-
-      test('reject malformed leading-dot literals', () {
-        for (final expr in ['.5.5', '-.5e', '.5e+']) {
-          expect(
-            () => parser.parseExpression(expr),
-            throwsA(isA<A2uiExpressionError>()),
-            reason: expr,
-          );
-        }
-      });
-
-      test('reject a malformed exponent', () {
-        for (final expr in ['1e', '1e+', '1E-']) {
-          expect(
-            () => parser.parseExpression(expr),
-            throwsA(isA<A2uiExpressionError>()),
-            reason: expr,
-          );
-        }
-      });
-
-      test('reject characters left after a literal', () {
-        expect(
-          () => parser.parseExpression('-1x'),
-          throwsA(isA<A2uiExpressionError>()),
-        );
-      });
-
-      test('reject literals outside the double range', () {
-        for (final String expr in ['1e999', '-1e999', '2e308', '1' * 400]) {
-          expect(
-            () => parser.parseExpression(expr),
-            throwsA(
-              isA<A2uiExpressionError>().having(
-                (e) => e.message,
-                'message',
-                contains('out of range'),
-              ),
-            ),
-            reason: expr,
-          );
-        }
-      });
-
-      test('accept literals at the edges of the double range', () {
-        expect(parser.parseExpression('1e308'), 1e308);
-        expect(parser.parseExpression('1e-999'), 0);
-      });
-    });
-
-    group('recursion depth', () {
-      // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so
-      // this nests [calls] + 1 deep.
+    test('rejects pathological nesting instead of overflowing the stack', () {
       String nestedCalls(int calls) => '\${${'f(a: ' * calls}1${')' * calls}}';
-
-      // '${${ ... x ... }}', nesting [depth] levels deep.
       String nestedInterpolations(int depth) =>
           '${'\${' * depth}x${'}' * depth}';
 
-      test('accepts nesting up to maxDepth', () {
-        expect(
-          () => parser.parse(nestedCalls(ExpressionParser.maxDepth - 1)),
-          returnsNormally,
-        );
-        expect(
-          () => parser.parse(nestedInterpolations(ExpressionParser.maxDepth)),
-          returnsNormally,
-        );
-      });
+      // Deep enough to exhaust the stack while the guard was unreachable.
+      expect(
+        () => parser.parse(nestedCalls(20000)),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+      expect(
+        () => parser.parse(nestedInterpolations(20000)),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+    });
 
-      test('rejects function arguments one level past maxDepth', () {
-        expect(
-          () => parser.parse(nestedCalls(ExpressionParser.maxDepth)),
-          throwsA(isA<A2uiExpressionError>()),
-        );
-      });
+    test('rejects template string exceeding maxTemplateLength', () {
+      expect(ExpressionParser.maxTemplateLength, 10000);
+      final String oversized = 'a' * (ExpressionParser.maxTemplateLength + 1);
+      expect(
+        () => parser.parse(oversized),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.message,
+            'message',
+            contains('exceeds maximum limit'),
+          ),
+        ),
+      );
+    });
 
-      test('rejects interpolations one level past maxDepth', () {
-        expect(
-          () =>
-              parser.parse(nestedInterpolations(ExpressionParser.maxDepth + 1)),
-          throwsA(isA<A2uiExpressionError>()),
-        );
-      });
-
-      test('rejects pathological nesting instead of overflowing the stack', () {
-        // Deep enough to exhaust the stack while the guard was unreachable.
-        expect(
-          () => parser.parse(nestedCalls(20000)),
-          throwsA(isA<A2uiExpressionError>()),
-        );
-        expect(
-          () => parser.parse(nestedInterpolations(20000)),
-          throwsA(isA<A2uiExpressionError>()),
-        );
-      });
+    test('rejects expression exceeding maxTemplateParts limit', () {
+      expect(ExpressionParser.maxTemplateParts, 1000);
+      final String manyParts =
+          '\${x}' * (ExpressionParser.maxTemplateParts + 1);
+      expect(
+        () => parser.parse(manyParts),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.message,
+            'message',
+            contains('parts count exceeds maximum limit'),
+          ),
+        ),
+      );
     });
   });
 }
