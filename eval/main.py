@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
 import argparse
+import os
+import re
+import sys
 from inspect_ai import eval_set
 from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
 from a2ui_eval.strategies import STRATEGIES
@@ -141,7 +142,8 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool, express,"
-            " elemental, atom). Can be comma-separated or specified multiple times."
+            " elemental, atom, vertical). Can be comma-separated or specified multiple"
+            " times."
         ),
     )
     parser.add_argument(
@@ -155,6 +157,13 @@ def main() -> None:
         type=int,
         default=None,
         help="Number of epochs/repetitions to run for each evaluation sample",
+    )
+    parser.add_argument(
+        "--version",
+        type=str,
+        default=None,
+        choices=["0.9.1", "1.0"],
+        help="A2UI specification version to evaluate (0.9.1 or 1.0)",
     )
     args = parser.parse_args()
     if args.sanity:
@@ -198,11 +207,36 @@ def main() -> None:
                 f"Unknown evaluation strategy: {strat}. Valid choices:"
                 f" {', '.join(STRATEGIES.keys())}"
             )
-        task_func = (
-            a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom", "direct"]
-            else a2ui_v0_9_1_eval
+
+        def parse_version(v: str) -> tuple[int, ...]:
+            clean = v.lstrip("v").replace("_", ".").strip()
+            return tuple(int(p) for p in clean.split(".") if p.isdigit())
+
+        dataset_version_match = re.search(
+            r"v(\d+)[_.](\d+)(?:[_.](\d+))?", selected_dataset or ""
         )
+
+        if args.version:
+            task_func = (
+                a2ui_v1_0_eval
+                if parse_version(args.version) >= (1, 0)
+                else a2ui_v0_9_1_eval
+            )
+        elif dataset_version_match:
+            version_str = ".".join(
+                g for g in dataset_version_match.groups() if g is not None
+            )
+            task_func = (
+                a2ui_v1_0_eval
+                if parse_version(version_str) >= (1, 0)
+                else a2ui_v0_9_1_eval
+            )
+        else:
+            task_func = (
+                a2ui_v1_0_eval
+                if strat in ["express", "elemental", "atom", "direct", "vertical"]
+                else a2ui_v0_9_1_eval
+            )
         task_obj = task_func(
             strategy=strat,
             grading_model=grading_model,
