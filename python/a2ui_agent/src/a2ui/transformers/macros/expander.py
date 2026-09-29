@@ -27,12 +27,10 @@ from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import CATALOG_COMPONENTS_KEY
 from a2ui.transformers.macros.macro import _MacroMetadata
 from a2ui.transformers.macros.processor import _MacroProcessor
-from google.adk.utils.feature_decorator import experimental
 
 logger = logging.getLogger(__name__)
 
 
-@experimental
 class MacroExpander:
     """Expands composite macro components into standard A2UI primitive component subtrees.
 
