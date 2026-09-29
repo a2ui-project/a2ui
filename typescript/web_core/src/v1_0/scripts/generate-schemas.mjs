@@ -75,52 +75,12 @@ function generateCommonTypes() {
       code = `export const ChildListSchema = markChildRef(\n  ${schemaExp},\n  'child-list',\n);\nexport type ${typePart}`;
     } else if (name === 'Child') {
       code = `export const ChildSchema = ComponentIdSchema;\nexport type Child = z.infer<typeof ChildSchema>;`;
-    } else if (name === 'DataBinding') {
-      code = `export const DataBindingSchema = z
-  .object({
-    '@path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-    'path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-  })
-  .refine(data => data['@path'] !== undefined || data.path !== undefined, {
-    message: "Either '@path' or 'path' must be provided.",
-  })
-  .describe('REF:#/$defs/DataBinding');
-export type DataBinding = z.infer<typeof DataBindingSchema>;`;
-    } else if (name === 'FunctionCommon') {
-      code = `export const FunctionCommonSchema = z
-  .object({
-    '@call': z.string().describe('The name of the function to call.').optional(),
-    'call': z.string().describe('The name of the function to call.').optional(),
-    'catalogId': z
-      .string()
-      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-      .optional(),
-  })
-  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
-    message: "Either '@call' or 'call' must be provided.",
-  })
-  .describe(
-    "REF:#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
-  );
-export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;`;
-    } else if (name === 'IndexSystemFunction') {
-      code = `export const IndexSystemFunctionSchema = z
-  .object({
-    '@call': z.literal('@index').optional(),
-    'call': z.literal('@index').optional(),
-    'args': z.object({'offset': DynamicNumberSchema.optional()}).optional(),
-  })
-  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
-    message: "Either '@call' or 'call' must be '@index'.",
-  })
-  .describe('REF:#/$defs/IndexSystemFunction');
-export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
     }
 
     if (recursiveSchemas.has(name)) {
       if (name === 'FunctionCall') {
         code =
-          `export interface FunctionCall {\n  call?: string;\n  '@call'?: string;\n  args?: Record<string, unknown>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
+          `export interface FunctionCall {\n  call: string;\n  args?: Record<string, unknown>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
           code;
         code = code.replace(
           'export const FunctionCallSchema =',
@@ -148,7 +108,7 @@ export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
     if (name === 'DynamicValue') {
       code = code.replace(
         'z.record(z.string(), z.any())',
-        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)))",
+        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('path' in obj) && !('call' in obj)))",
       );
     }
 
