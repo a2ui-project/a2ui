@@ -88,7 +88,7 @@ The adapter consumes these Core SDK types:
 
 ### `NodeResolver`
 
-Constructed from a `SurfaceModel` and a catalog set:
+Constructed for a `SurfaceModel`:
 
 - Exposes `rootNode`: a reactive signal/observable holding the root `ComponentNode` (or empty if the root component has not arrived).
 - Exposes `dispose()`: tears down all active subscriptions and child node records.
@@ -155,9 +155,9 @@ class A2uiSurface extends StatefulWidget {
 
 #### Responsibilities & Behavior:
 
-1. **Resolver Lifecycle**: Instantiates and retains a `NodeResolver(surface, surface.catalog)` for the lifetime of the view. If the `surface` prop changes identity, disposes the old resolver and creates a new one. Disposes the resolver when the view unmounts.
+1. **Resolver Lifecycle**: Instantiates and retains a `NodeResolver` for the surface for the lifetime of the view. If the `surface` prop changes identity, disposes the old resolver and creates a new one. Disposes the resolver when the view unmounts.
 2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty or pending, renders a framework-appropriate loading placeholder. Once `rootNode` resolves, renders the root `NodeView`.
-3. **Ambient Context Injection**: Publishes the surface instance (which exposes `surface.catalog`, `surface.theme`, and event dispatchers) into the framework's ambient DI/context mechanism (React Context, Flutter `InheritedWidget`, SwiftUI `Environment`, Angular DI).
+3. **Ambient Context Injection**: Publishes the surface instance (which exposes the surface's catalogs, `surface.theme`, and event dispatchers) into the framework's ambient DI/context mechanism (React Context, Flutter `InheritedWidget`, SwiftUI `Environment`, Angular DI).
 
 ---
 
@@ -350,7 +350,7 @@ A framework adapter coordinates two distinct lifecycles: the **Node lifecycle** 
 
 ### When is a native view destroyed?
 
-1. **Child removal from a parent**: When an inbound message deletes a child component or shrinks a dynamic array, `NodeResolver` disposes that `ComponentNode` and emits an updated children list on the parent. When the parent re-renders its children (keyed by `node.instanceId`), the native framework unmounts and destroys the view for the dropped child.
+1. **Child removal from a parent**: When a parent stops referencing a child, or a dynamic array shrinks, `NodeResolver` disposes that `ComponentNode` and emits an updated children list on the parent. A deleted component that is still referenced becomes a pending placeholder at its position instead. When the parent re-renders its children (keyed by `node.instanceId`), the native framework unmounts and destroys the view for the dropped child.
 2. **Placeholder replacement**: When a component definition arrives after being referenced, `NodeResolver` replaces the placeholder node in place and emits a new parent props object containing the concrete `ComponentNode`. The native framework unmounts the placeholder view and mounts the concrete component view.
 3. **Surface unmount**: When the host application removes the `Surface` view/widget (e.g. user navigates away), the adapter MUST invoke `nodeResolver.dispose()`. This recursively disposes all living `ComponentNode` instances, cancels data model subscriptions, and drops internal listeners.
 
@@ -381,15 +381,15 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 
 ### Required Adapter Test Suite
 
-| Test Area                      | Assertion                                                                                                                                                                    |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Tree Hierarchy**             | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                             |
-| **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders a placeholder, then upgrades to the real component in place without remounting the parent. |
-| **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings.                                                |
-| **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                             |
-| **Action Execution**           | Triggering native events (clicks, taps) executes the action closure and dispatches the client event with correct scoped data context.                                        |
-| **Fallback States**            | Unknown component types and cyclic references render visual diagnostics without crashing, and the adapter reports nothing itself.                                            |
-| **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                            |
+| Test Area                      | Assertion                                                                                                                                                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tree Hierarchy**             | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                                                                            |
+| **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders a placeholder, then upgrades to the real component in place without remounting the parent.                                                |
+| **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings.                                                                                               |
+| **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                                                                            |
+| **Action Execution**           | Triggering native events (clicks, taps) executes the action closure. An `event` action dispatches the client event with correctly scoped context; a `functionCall` action runs the function locally and dispatches nothing. |
+| **Fallback States**            | Unknown component types and cyclic references render visual diagnostics without crashing, and the adapter reports nothing itself.                                                                                           |
+| **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
 
 ---
 
@@ -431,5 +431,5 @@ Consult existing implementations for concrete language mechanics:
 | [`renderers/react`](../../renderers/react)     | React     | Direct `SurfaceModel` dependency, `NodeResolver` surface, schema-typed props inference, hook-based signal bridging. |
 | [`renderers/angular`](../../renderers/angular) | Angular   | `SurfaceModel` integration, Angular Signals, dependency-injected catalog resolution.                                |
 | [`renderers/lit`](../../renderers/lit)         | Lit       | Custom element dispatch over shared web core.                                                                       |
-| [`dart/a2ui_flutter`](../../dart/a2ui_flutter) | Flutter   | Planned Flutter adapter based on PR #2669 Node API in `a2ui_core`.                                                  |
+| [`dart/a2ui_flutter`](../../dart/a2ui_flutter) | Flutter   | Planned Flutter adapter based on the Node API in the Dart `a2ui_core`.                                              |
 | [`swift/swiftui`](../../swift/swiftui)         | SwiftUI   | SwiftUI `View` integration, `@Environment` propagation, `Binding<T>` bridging.                                      |
