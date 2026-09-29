@@ -97,15 +97,16 @@ Constructed from a `SurfaceModel` and a catalog set:
 
 Represents one resolved component instance in the tree:
 
-| Property                     | Type / Meaning      | Usage in Adapter                                                                                        |
-| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
-| `instanceId`                 | `string`            | Unique key among siblings. Use as native reconciliation key (React `key`, Flutter `Key`, SwiftUI `id`). |
-| `componentId`                | `string`            | Raw ID from payload. Used for logs, debug tools, and error messages.                                    |
-| `type`                       | `string`            | Component type name (e.g. `"Button"`, `"Text"`). Used for catalog lookup.                               |
-| `catalogId`                  | `string?`           | Specific catalog declaring this type (v1.0+).                                                           |
-| `state`                      | `NodeState`         | Enum: `resolved`, `pending`, `unknownType`, `cyclic`.                                                   |
-| `props`                      | `Signal<NodeProps>` | Reactive map of resolved properties.                                                                    |
-| `onDestroyed` / `addCleanup` | Lifecycle hook      | Attaches cleanup closures run when the node is disposed.                                                |
+| Property                     | Type / Meaning      | Usage in Adapter                                                                            |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------- |
+| `instanceId`                 | `string`            | Unique among siblings. A node that replaces another at the same position keeps it (see §5). |
+| `componentId`                | `string`            | Raw ID from payload. Used for logs, debug tools, and error messages.                        |
+| `type`                       | `string`            | Component type name (e.g. `"Button"`, `"Text"`).                                            |
+| `impl`                       | `ComponentApi?`     | The catalog entry the resolver chose for `type`. Render it; do not look the type up again.  |
+| `dataPath`                   | `string`            | The data scope the node's bindings resolve against.                                         |
+| `state`                      | `NodeState`         | `resolved`, `pending`, `unknown-type` or `cyclic`.                                          |
+| `props`                      | `Signal<NodeProps>` | Reactive map of resolved properties.                                                        |
+| `onDestroyed` / `addCleanup` | Lifecycle hook      | Attaches cleanup closures run when the node is disposed.                                    |
 
 ### Resolved Props Contract
 
@@ -168,7 +169,7 @@ class A2uiSurface extends StatefulWidget {
 interface ComponentImplementation extends ComponentApi {
   readonly name: string;
   readonly schema: Schema;
-  build(node: ComponentNode, buildChild: BuildChild): NativeView;
+  build(node: ComponentNode, props: NodeProps, buildChild: BuildChild): NativeView;
 }
 ```
 
@@ -348,13 +349,13 @@ function NodeView(node: ComponentNode): NativeView;
 ### Execution Steps:
 
 1. **Check `node.state`**:
-   - `resolved`: Look up the `ComponentImplementation` in active catalogs by `node.type` (and `node.catalogId` if set).
+   - `resolved`: Render `node.impl`, the implementation the resolver already chose.
    - `pending`: Render a non-blocking loading placeholder.
-   - `unknownType`: Render a visible diagnostic warning and dispatch an `UNKNOWN_COMPONENT_TYPE` surface error (at most once per node).
-   - `cyclic`: Halt recursion, render a cycle indicator, and dispatch a `CYCLIC_REFERENCE` surface error.
-2. **Invoke Builder**: Pass `node` and a `buildChild` callback to the implementation.
-3. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)`.
-4. **Preserve Identity**: Assign `node.instanceId` as the native reconciliation key to ensure sibling reorders do not tear down native elements.
+   - `unknown-type` and `cyclic`: Render a visible diagnostic. The resolver has already reported `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE` to the surface, so the adapter does not report it again.
+2. **Subscribe to `node.props`**: Rebuild the view when the node's props emit, and pass the current props to the implementation. Unsubscribe when the view unmounts.
+3. **Invoke Builder**: Pass `node`, its current props and a `buildChild` callback to the implementation.
+4. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)`.
+5. **Preserve Identity**: Key each child's view so that a sibling reorder does not tear down native elements. A node that replaces another at the same position, on a placeholder's arrival or a type change, keeps its `instanceId`. A view keyed by `instanceId` therefore survives the replacement: it must move its subscriptions to the new node, and a type change must reset its view state. Keying by the node object does both; in Flutter that is `ObjectKey(node)`.
 
 ---
 
@@ -407,7 +408,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings.                                                |
 | **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                             |
 | **Action Execution**           | Triggering native events (clicks, taps) executes the action closure and dispatches the client event with correct scoped data context.                                        |
-| **Fallback States**            | Unknown component types and cyclic references render visual diagnostics and dispatch error events without crashing.                                                          |
+| **Fallback States**            | Unknown component types and cyclic references render visual diagnostics without crashing, and the adapter reports nothing itself.                                            |
 | **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                            |
 
 ---
