@@ -19,6 +19,7 @@ import type {ComponentApi} from '../catalog/types.js';
 import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 import type {ComponentContext} from './component-context.js';
+import {nextNodeId} from './node-id.js';
 
 /** The component type name used for pending and cyclic placeholder nodes. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
@@ -65,6 +66,13 @@ export interface ComponentNode<
    * insertions or reorders.
    */
   readonly instanceId: string;
+  /**
+   * Identifies this node instance across the whole document, so it can serve
+   * as a DOM id, a rendering key, or an ARIA reference target. Assigned when
+   * the node is created; a replaced node (type or catalog change, re-add,
+   * sibling reorder) gets a new one. Never persist it.
+   */
+  readonly id: string;
   /** The component id from the payload. */
   readonly componentId: string;
   /**
@@ -130,8 +138,10 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   TProps
 > {
   readonly instanceId: string;
+  readonly id = nextNodeId();
   readonly componentId: string;
   readonly type: string;
+
   readonly dataPath: string;
   readonly impl: ComponentApi | undefined;
   readonly context: ComponentContext | undefined;
