@@ -32,3 +32,18 @@ extension A2UIError {
     message
   }
 }
+
+/// Raised when a JSON Pointer path or data model mutation is invalid.
+public struct A2UIDataError: A2UIError, Equatable, Sendable {
+  /// The error message.
+  public let message: String
+
+  /// Specific structured diagnostic failure details.
+  public let details: [A2UIErrorDetail]
+
+  /// Creates a data model error with an optional list of structured details.
+  public init(_ message: String, details: [A2UIErrorDetail] = []) {
+    self.message = message
+    self.details = details
+  }
+}

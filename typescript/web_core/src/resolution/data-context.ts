@@ -247,22 +247,31 @@ export class DataContext {
   readonly explicitIndex?: number;
   private readonly warnedPaths: Set<string>;
 
+  readonly surface: SurfaceModel<any>;
+
   /**
    * Initializes a new DataContext instance.
    *
-   * @param surface The surface model this context belongs to.
+   * @param surface The surface model or data model this context belongs to.
    * @param path The absolute path in the DataModel that this context is scoped to.
    * @param index Optional explicit collection iteration index.
    * @param parent Optional parent DataContext in the scope chain.
    */
   constructor(
-    readonly surface: SurfaceModel<any>,
+    surface: SurfaceModel<any> | DataModel,
     readonly path: string,
     index?: number,
     parent?: DataContext,
   ) {
-    this.dataModel = surface.dataModel;
-    this.functionInvoker = surface.defaultCatalog.invoker;
+    if (surface instanceof DataModel) {
+      this.surface = undefined as any;
+      this.dataModel = surface;
+      this.functionInvoker = () => undefined;
+    } else {
+      this.surface = surface;
+      this.dataModel = surface.dataModel;
+      this.functionInvoker = surface.defaultCatalog?.invoker;
+    }
     this.explicitIndex = index;
     this.parent = parent;
     this.warnedPaths = parent ? parent.warnedPaths : new Set<string>();
@@ -804,17 +813,16 @@ export class DataContext {
     return new DataContext(this.surface, newPath, index, this);
   }
 
-  private resolvePath(path: string): string {
+  resolvePath(path: string): string {
     if (path.startsWith('/')) {
       return path;
     }
-    if (path === '' || path === '.') {
-      return this.path;
-    }
-
     let base = this.path;
     if (base.endsWith('/') && base.length > 1) {
       base = base.slice(0, -1);
+    }
+    if (path === '' || path === '.') {
+      return base || '/';
     }
     if (base === '/') base = '';
 

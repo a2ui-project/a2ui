@@ -41,11 +41,12 @@ class DataContext {
 
   String resolvePath(String relativePath) {
     if (relativePath.startsWith('/')) return relativePath;
-    if (relativePath == '' || relativePath == '.') return path;
+    final String trimmedBase = path.length > 1 && path.endsWith('/')
+        ? path.substring(0, path.length - 1)
+        : (path.isEmpty ? '/' : path);
+    if (relativePath.isEmpty || relativePath == '.') return trimmedBase;
 
-    final String base = path == '/'
-        ? ''
-        : (path.endsWith('/') ? path.substring(0, path.length - 1) : path);
+    final base = trimmedBase == '/' ? '' : trimmedBase;
     return '$base/$relativePath';
   }
 

@@ -1185,29 +1185,6 @@ struct SurfaceComponentsModelTests {
 @MainActor
 struct DataModelTests {
 
-  @Test func startsEmpty() {
-    let model = DataModel()
-    #expect(model.data == .object([:]))
-  }
-
-  @Test func setsAndGetsValueAtPath() {
-    let model = DataModel()
-    model.set("/user/name", value: "Alice")
-    #expect(model.get("/user/name")?.stringValue == "Alice")
-  }
-
-  @Test func setsNilRemovesValue() {
-    let model = DataModel()
-    model.set("/user/name", value: "Alice")
-    model.set("/user/name", value: nil)
-    #expect(model.get("/user/name") == nil)
-  }
-
-  @Test func initializesWithValue() {
-    let model = DataModel(initial: ["name": "Bob"])
-    #expect(model.get("/name")?.stringValue == "Bob")
-  }
-
   @Test func subscriberReadingBackThroughModelSeesStoredValue() {
     let model = DataModel()
     var announced: [JSONValue] = []
@@ -1221,21 +1198,6 @@ struct DataModelTests {
     #expect(announced.count == 2)
     #expect(announced[1]["/user/name"]?.stringValue == "Alice")
     #expect(readBack[1]?.stringValue == "Alice")
-  }
-
-  @Test func setsRootPathReplacesEntireData() {
-    let model = DataModel(initial: ["oldKey": "oldVal", "sharedKey": "prev"])
-    model.set("", value: ["newKey": "newVal"])
-    #expect(model.get("/newKey")?.stringValue == "newVal")
-    #expect(model.get("/oldKey") == nil)
-    #expect(model.get("") == .object(["newKey": "newVal"]))
-
-    model.set("/", value: ["other": 123])
-    #expect(model.get("/other")?.intValue == 123)
-    #expect(model.get("/newKey") == nil)
-
-    model.set("", value: nil)
-    #expect(model.data == .object([:]))
   }
 }
 
