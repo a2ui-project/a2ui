@@ -26,7 +26,7 @@ class ComponentModel {
   EventListenable<ComponentModel> get onUpdated => _onUpdated;
 
   ComponentModel(this.id, this.type, Map<String, dynamic> initialProperties)
-    : _properties = Map.from(initialProperties);
+      : _properties = Map.from(initialProperties);
 
   /// The current properties of the component.
   Map<String, dynamic> get properties => _properties;

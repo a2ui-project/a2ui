@@ -29,9 +29,9 @@ const String childListRef =
     'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/ChildList';
 
 Map<String, Object?> createSurface({String version = 'v0.9'}) => {
-  'version': version,
-  'createSurface': {'surfaceId': 's1', 'catalogId': catalogId},
-};
+      'version': version,
+      'createSurface': {'surfaceId': 's1', 'catalogId': catalogId},
+    };
 
 Map<String, Object?> updateComponents(List<Map<String, Object?>> components) =>
     {
@@ -42,77 +42,77 @@ Map<String, Object?> updateComponents(List<Map<String, Object?>> components) =>
 /// A catalog exercising every way a component can reference another: a single
 /// id, a `ChildList`, and an array of objects with id-bearing keys.
 Map<String, Object?> testCatalogDocument() => {
-  'catalogId': catalogId,
-  'components': {
-    'Card': {
-      'type': 'object',
-      'properties': {
-        'component': {'const': 'Card'},
-        'child': {r'$ref': componentIdRef},
-      },
-      'required': ['component'],
-    },
-    'Text': {
-      'type': 'object',
-      'properties': {
-        'component': {'const': 'Text'},
-        'text': {'type': 'string'},
-      },
-      'required': ['component', 'text'],
-    },
-    'Column': {
-      'type': 'object',
-      'properties': {
-        'component': {'const': 'Column'},
-        'children': {r'$ref': childListRef},
-      },
-      'required': ['component', 'children'],
-    },
-    'Tabs': {
-      'type': 'object',
-      'properties': {
-        'component': {'const': 'Tabs'},
-        'items': {
-          'type': 'array',
-          'items': {
-            'type': 'object',
-            'properties': {
-              'label': {'type': 'string'},
-              'child': {r'$ref': componentIdRef},
+      'catalogId': catalogId,
+      'components': {
+        'Card': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Card'},
+            'child': {r'$ref': componentIdRef},
+          },
+          'required': ['component'],
+        },
+        'Text': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Text'},
+            'text': {'type': 'string'},
+          },
+          'required': ['component', 'text'],
+        },
+        'Column': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Column'},
+            'children': {r'$ref': childListRef},
+          },
+          'required': ['component', 'children'],
+        },
+        'Tabs': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Tabs'},
+            'items': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'label': {'type': 'string'},
+                  'child': {r'$ref': componentIdRef},
+                },
+              },
             },
           },
+          'required': ['component'],
         },
       },
-      'required': ['component'],
-    },
-  },
-};
+    };
 
 SchemaCatalog testCatalog() => Catalog.fromJson(testCatalogDocument());
 
 /// The parts of `common_types.json` this catalog references.
 Map<String, Object?> commonTypes() => {
-  r'$defs': {
-    'ComponentId': {'type': 'string'},
-    'ChildList': {
-      'oneOf': [
-        {
-          'type': 'array',
-          'items': {r'$ref': '#/\$defs/ComponentId'},
+      r'$defs': {
+        'ComponentId': {'type': 'string'},
+        'ChildList': {
+          'oneOf': [
+            {
+              'type': 'array',
+              'items': {r'$ref': '#/\$defs/ComponentId'},
+            },
+            {
+              'type': 'object',
+              'properties': {
+                'componentId': {r'$ref': '#/\$defs/ComponentId'},
+                'path': {'type': 'string'},
+              },
+              'required': ['componentId', 'path'],
+              'additionalProperties': false,
+            },
+          ],
         },
-        {
-          'type': 'object',
-          'properties': {
-            'componentId': {r'$ref': '#/\$defs/ComponentId'},
-            'path': {'type': 'string'},
-          },
-          'required': ['componentId', 'path'],
-          'additionalProperties': false,
-        },
-      ],
-    },
-  },
-};
+      },
+    };
 
 /// A validator over [testCatalog].
 ///
@@ -121,11 +121,12 @@ Map<String, Object?> commonTypes() => {
 /// unresolvable, which is the case the SDK skips rather than rejects.
 PayloadValidator<ComponentApi, FunctionApi> newValidator({
   bool withCommonTypes = false,
-}) => PayloadValidator(
-  catalog: testCatalog(),
-  protocolVersion: A2uiProtocolVersion.v0_9,
-  commonTypesSchema: withCommonTypes ? commonTypes() : const {},
-);
+}) =>
+    PayloadValidator(
+      catalog: testCatalog(),
+      protocolVersion: A2uiProtocolVersion.v0_9,
+      commonTypesSchema: withCommonTypes ? commonTypes() : const {},
+    );
 
 /// A processor over [testCatalog], for the payload-level checks.
 ///
@@ -135,12 +136,13 @@ PayloadValidator<ComponentApi, FunctionApi> newValidator({
 MessageProcessor<ComponentApi> newProcessor({
   bool withCommonTypes = false,
   ValidationConfig validationConfig = ValidationConfig.strict,
-}) => MessageProcessor<ComponentApi>(
-  catalogs: [rendererCatalog(testCatalogDocument())],
-  protocolVersion: A2uiProtocolVersion.v0_9,
-  validationConfig: validationConfig,
-  commonTypesSchema: withCommonTypes ? commonTypes() : const {},
-);
+}) =>
+    MessageProcessor<ComponentApi>(
+      catalogs: [rendererCatalog(testCatalogDocument())],
+      protocolVersion: A2uiProtocolVersion.v0_9,
+      validationConfig: validationConfig,
+      commonTypesSchema: withCommonTypes ? commonTypes() : const {},
+    );
 
 /// A processor for a surface that arrives across several payloads.
 ///
@@ -169,16 +171,16 @@ AgentToRendererMessagePayload parse(List<Map<String, Object?>> payload) =>
     );
 
 Map<String, Object?> text(String id, [String value = 'x']) => {
-  'id': id,
-  'component': 'Text',
-  'text': value,
-};
+      'id': id,
+      'component': 'Text',
+      'text': value,
+    };
 
 Map<String, Object?> card(String id, String child) => {
-  'id': id,
-  'component': 'Card',
-  'child': child,
-};
+      'id': id,
+      'component': 'Card',
+      'child': child,
+    };
 
 void main() {
   group('PayloadValidator version gating', () {
@@ -559,10 +561,10 @@ void main() {
         throwsA(
           isA<A2uiRecursionError>()
               .having(
-                (e) => e.message,
-                'message',
-                contains('Self-reference detected'),
-              )
+            (e) => e.message,
+            'message',
+            contains('Self-reference detected'),
+          )
               .having((e) => e.cycle, 'cycle', ['root']),
         ),
       );
@@ -1051,28 +1053,29 @@ void main() {
 
   group('MessageProcessor catalog resolution', () {
     Map<String, Object?> namedCatalogDocument(String id, String component) => {
-      'catalogId': id,
-      'components': {
-        component: {
-          'type': 'object',
-          'properties': {
-            'id': {'type': 'string'},
-            'component': {'const': component},
-            // v1.0 lets a component name a catalog of its own, overriding the
-            // surface-level default.
-            'catalogId': {'type': 'string'},
-            'a': {'type': 'string'},
+          'catalogId': id,
+          'components': {
+            component: {
+              'type': 'object',
+              'properties': {
+                'id': {'type': 'string'},
+                'component': {'const': component},
+                // v1.0 lets a component name a catalog of its own,
+                // overriding the surface-level default.
+                'catalogId': {'type': 'string'},
+                'a': {'type': 'string'},
+              },
+              'required': ['component', 'a'],
+              'additionalProperties': false,
+            },
           },
-          'required': ['component', 'a'],
-          'additionalProperties': false,
-        },
-      },
-    };
+        };
 
     Catalog<ComponentApi, FunctionImplementation> namedCatalog(
       String id,
       String component,
-    ) => rendererCatalog(namedCatalogDocument(id, component));
+    ) =>
+        rendererCatalog(namedCatalogDocument(id, component));
 
     /// A processor supporting [ids], each with one component named after it.
     MessageProcessor<ComponentApi> over(List<String> ids) =>
@@ -1106,14 +1109,14 @@ void main() {
     /// An incremental payload: v0.9 declares `catalogId` on `createSurface`
     /// only, so this carries none.
     List<Map<String, Object?>> incremental(Map<String, Object?> component) => [
-      {
-        'version': 'v0.9',
-        'updateComponents': {
-          'surfaceId': 's1',
-          'components': [component],
-        },
-      },
-    ];
+          {
+            'version': 'v0.9',
+            'updateComponents': {
+              'surfaceId': 's1',
+              'components': [component],
+            },
+          },
+        ];
 
     /// A payload creating [surfaceId] against [catalogId] and putting
     /// [component] on it.
@@ -1121,32 +1124,33 @@ void main() {
       String surfaceId,
       String catalogId,
       Map<String, Object?> component,
-    ) => [
-      {
-        'version': 'v0.9',
-        'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
-      },
-      {
-        'version': 'v0.9',
-        'updateComponents': {
-          'surfaceId': surfaceId,
-          'components': [component],
-        },
-      },
-    ];
+    ) =>
+        [
+          {
+            'version': 'v0.9',
+            'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
+          },
+          {
+            'version': 'v0.9',
+            'updateComponents': {
+              'surfaceId': surfaceId,
+              'components': [component],
+            },
+          },
+        ];
 
     Map<String, Object?> alpha({String? catalogId}) => {
-      'id': 'root',
-      'component': 'Alpha',
-      'catalogId': ?catalogId,
-      'a': 'x',
-    };
+          'id': 'root',
+          'component': 'Alpha',
+          if (catalogId != null) 'catalogId': catalogId,
+          'a': 'x',
+        };
     Map<String, Object?> beta({String? catalogId}) => {
-      'id': 'root',
-      'component': 'Beta',
-      'catalogId': ?catalogId,
-      'a': 'x',
-    };
+          'id': 'root',
+          'component': 'Beta',
+          if (catalogId != null) 'catalogId': catalogId,
+          'a': 'x',
+        };
     final Map<String, Object?> bogus = {
       'id': 'root',
       'component': 'Nonexistent',
