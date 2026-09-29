@@ -41,9 +41,12 @@
       "command": "prettier --write .",
       "files": [
         "src/**/*.ts",
+        "tests/**/*.ts",
+        "vitest.config.ts",
         "eslint.config.mjs",
         "package.json",
         "tsconfig.json",
+        "tsconfig.check.json",
         "README.md"
       ]
     },
@@ -51,9 +54,12 @@
       "command": "prettier --check .",
       "files": [
         "src/**/*.ts",
+        "tests/**/*.ts",
+        "vitest.config.ts",
         "eslint.config.mjs",
         "package.json",
         "tsconfig.json",
+        "tsconfig.check.json",
         "README.md"
       ]
     }
@@ -68,6 +74,7 @@
     "@types/express": "^5.0.6",
     "eslint": "^10.4.1",
     "typescript": "5.9.3",
+    "vitest": "^4.1.8",
     "wireit": "^0.15.0-pre.2"
   }
 }
