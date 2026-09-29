@@ -286,47 +286,20 @@ def test_canonical_protocol_types_schema():
     props = schema["properties"]
 
     assert props["title"]["type"] == "string"
-    assert (
-        props["dynamic_title"]["$ref"]
-        == "common_types.json#/$defs/DynamicString"
-    )
-    assert (
-        props["metric"]["$ref"]
-        == "common_types.json#/$defs/DynamicNumber"
-    )
-    assert (
-        props["is_active"]["$ref"]
-        == "common_types.json#/$defs/DynamicBoolean"
-    )
-    assert (
-        props["tags"]["$ref"]
-        == "common_types.json#/$defs/DynamicStringList"
-    )
-    assert (
-        props["anything"]["$ref"]
-        == "common_types.json#/$defs/DynamicValue"
-    )
-    assert (
-        props["on_click"]["$ref"]
-        == "common_types.json#/$defs/Action"
-    )
+    assert props["dynamic_title"]["$ref"] == "common_types.json#/$defs/DynamicString"
+    assert props["metric"]["$ref"] == "common_types.json#/$defs/DynamicNumber"
+    assert props["is_active"]["$ref"] == "common_types.json#/$defs/DynamicBoolean"
+    assert props["tags"]["$ref"] == "common_types.json#/$defs/DynamicStringList"
+    assert props["anything"]["$ref"] == "common_types.json#/$defs/DynamicValue"
+    assert props["on_click"]["$ref"] == "common_types.json#/$defs/Action"
     assert props["checks"]["type"] == "array"
-    assert (
-        props["checks"]["items"]["$ref"]
-        == "common_types.json#/$defs/CheckRule"
-    )
+    assert props["checks"]["items"]["$ref"] == "common_types.json#/$defs/CheckRule"
     assert (
         props["accessibility"]["$ref"]
         == "common_types.json#/$defs/AccessibilityAttributes"
     )
-    assert (
-        props["footer"]["$ref"]
-        == "common_types.json#/$defs/ComponentId"
-    )
-    assert (
-        props["items"]["$ref"]
-        == "common_types.json#/$defs/ChildList"
-    )
+    assert props["footer"]["$ref"] == "common_types.json#/$defs/ComponentId"
+    assert props["items"]["$ref"] == "common_types.json#/$defs/ChildList"
     assert props["theme"] == {
         "type": "string",
         "enum": ["primary", "secondary"],
@@ -699,9 +672,7 @@ def test_macro_expander_detects_common_ref_prefix():
     cat_v09 = make_test_catalog({
         "Text": {
             "type": "object",
-            "properties": {
-                "text": {"$ref": f"{v09_prefix}DynamicString"}
-            },
+            "properties": {"text": {"$ref": f"{v09_prefix}DynamicString"}},
         }
     })
     exp_v09 = MacroExpander([DynCard])
@@ -715,9 +686,7 @@ def test_macro_expander_detects_common_ref_prefix():
     cat_rel = make_test_catalog({
         "Text": {
             "type": "object",
-            "properties": {
-                "text": {"$ref": "common_types.json#/$defs/DynamicString"}
-            },
+            "properties": {"text": {"$ref": "common_types.json#/$defs/DynamicString"}},
         }
     })
     exp_rel = MacroExpander([DynCard])
