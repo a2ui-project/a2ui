@@ -25,7 +25,7 @@ Before transmitting messages to the client renderer, `MacroExpander` expands `<P
 The `@macro` decorator inspects a Python function's type annotations and docstring to synthesize a catalog component JSON schema and an execution wrapper.
 
 ```python
-from a2ui.catalog_transformers.macros import macro
+from a2ui.transformers.macros import macro
 from a2ui.builder.v0_9 import Action
 from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
 
@@ -97,7 +97,7 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in the shared core SDK, developers wire `MacroExpander` manually in two simple steps:
 
 ```python
-from a2ui.catalog_transformers.macros import MacroExpander, macro
+from a2ui.transformers.macros import MacroExpander, macro
 from a2ui.inference_formats.express.format import ExpressFormat
 
 # 1. Initialize the expander with your macros

@@ -12,28 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Macros (Programmatic Components and Typesafe Builders)."""
+"""Catalog and message transformation layer for A2UI."""
 
-from a2ui.catalog_transformers.macros.expander import MacroExpander
-from a2ui.catalog_transformers.macros.macro import (
-    MacroMetadata,
-    MacroParameter,
-    clear_macros,
-    get_macro,
-    list_macros,
+from a2ui.transformers.macros import (
+    MacroExpander,
     macro,
-    register_macro,
 )
-from a2ui.catalog_transformers.macros.processor import MacroProcessor
 
 __all__ = [
-    "macro",
-    "register_macro",
-    "get_macro",
-    "list_macros",
-    "clear_macros",
-    "MacroMetadata",
-    "MacroParameter",
-    "MacroProcessor",
     "MacroExpander",
+    "macro",
 ]

@@ -27,7 +27,7 @@ from a2ui.builder.v0_9 import (
     DataBinding,
     flatten_component_tree,
 )
-from a2ui.catalog_transformers.macros.macro import get_macro
+from a2ui.transformers.macros.macro import _MacroMetadata
 
 
 def _is_component_type(t: Any) -> bool:
@@ -107,12 +107,15 @@ def _coerce_action(value: dict[str, Any]) -> Action:
     return Action.model_validate(value)
 
 
-class MacroProcessor:
+class _MacroProcessor:
     """Executes registered macros and flattens them into standard A2UI components."""
+
+    def __init__(self, macros: Optional[dict[str, _MacroMetadata]] = None):
+        self._macros = macros or {}
 
     def has_macro(self, macro_name: str) -> bool:
         """Checks if a macro is registered by name."""
-        return get_macro(macro_name) is not None
+        return macro_name in self._macros
 
     def expand(
         self,
@@ -131,7 +134,7 @@ class MacroProcessor:
             List of standard A2UI component dictionaries ready for surfaceUpdate.
         """
         root_id = instance_id
-        meta = get_macro(macro_name)
+        meta = self._macros.get(macro_name)
         if meta is None:
             raise KeyError(f"Macro '{macro_name}' is not registered.")
 
@@ -203,7 +206,7 @@ class MacroProcessor:
         # Flatten into primitive components with ID namespacing and root stitching
         return flatten_component_tree(result, root_id=root_id)
 
+MacroProcessor = _MacroProcessor
 
-_MacroProcessor = MacroProcessor
+__all__ = ["_MacroProcessor", "MacroProcessor"]
 
-__all__ = ["MacroProcessor", "_MacroProcessor"]

@@ -21,10 +21,10 @@ from dataclasses import replace
 import logging
 from typing import Any, Callable, Optional, Sequence, Union
 
-from a2ui.catalog_transformers.macros.macro import MacroMetadata, get_macro
-from a2ui.catalog_transformers.macros.processor import MacroProcessor
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import CATALOG_COMPONENTS_KEY
+from a2ui.transformers.macros.macro import _MacroMetadata
+from a2ui.transformers.macros.processor import _MacroProcessor
 from google.adk.utils.feature_decorator import experimental
 
 logger = logging.getLogger(__name__)
@@ -44,30 +44,27 @@ class MacroExpander:
 
     def __init__(
         self,
-        macros: Optional[Sequence[Union[Callable[..., Any], MacroMetadata]]] = None,
-        *,
-        protocol_version: Optional[str] = None,
+        macros: Optional[Sequence[Union[Callable[..., Any], _MacroMetadata]]] = None,
     ):
         """Initializes the macro expander.
 
         Args:
-            macros: Explicit sequence of macro functions or MacroMetadata objects.
-            protocol_version: Optional A2UI protocol version override.
+            macros: Explicit sequence of macro functions decorated with @macro.
         """
-        self.macros: list[MacroMetadata] = []
+        self.macros: list[_MacroMetadata] = []
         if macros:
             for m in macros:
-                if isinstance(m, MacroMetadata):
+                if isinstance(m, _MacroMetadata):
                     self.macros.append(m)
                 elif hasattr(m, "__a2ui_macro__"):
                     self.macros.append(getattr(m, "__a2ui_macro__"))
                 elif callable(m):
-                    meta = get_macro(m.__name__) or get_macro(m.__name__.title())
-                    if meta:
-                        self.macros.append(meta)
+                    raise ValueError(
+                        f"Callable '{m.__name__}' is not decorated with @macro."
+                    )
 
-        self.protocol_version = protocol_version
-        self.processor = MacroProcessor()
+        macro_map = {m.name: m for m in self.macros}
+        self.processor = _MacroProcessor(macro_map)
 
     def transform_to_inference_catalog(self, base_catalog: A2uiCatalog) -> A2uiCatalog:
         """Derives an authoring/inference catalog by augmenting the base catalog with macro schemas.
