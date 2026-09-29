@@ -31,11 +31,8 @@ from pydantic import BaseModel
 import json
 
 from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.catalog_transformers.macros import MacroExpander, macro
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.macros import (
-    MacroInferenceFormat,
-    macro,
-)
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
     COMMON_TYPES_SCHEMA_KEY,
@@ -278,11 +275,27 @@ server_catalog = A2uiCatalog(
     ),
 )
 
-base_format = ExpressFormat(catalog=server_catalog, surface_id="main", version="v0.9.1")
-format_instance = MacroInferenceFormat(
-    base_format=base_format,
-    macros=active_macros,
+macro_expander = MacroExpander(active_macros)
+inference_catalog = macro_expander.transform_to_inference_catalog(server_catalog)
+format_instance = ExpressFormat(
+    catalog=inference_catalog, surface_id="main", version="v0.9.1"
 )
+
+
+def compile_dsl_with_macros(
+    dsl: str, surface_id: str = "main"
+) -> List[Dict[str, Any]]:
+    """Compiles Express DSL containing macros and lowers output messages to transport."""
+    target_format = ExpressFormat(
+        catalog=inference_catalog, surface_id=surface_id, version="v0.9.1"
+    )
+    raw_messages = target_format.parser.compile(dsl)
+    return [
+        lowered
+        for raw_msg in raw_messages
+        for lowered in macro_expander.transform_to_transport(raw_msg)
+    ]
+
 
 ROLE_DESCRIPTION = """You are an A2UI interface assistant. When helpful, respond with visual UI using the compact A2UI Express DSL inside `<a2ui>` tags.
 
@@ -515,12 +528,12 @@ SAMPLE_PARAMS = {
 @app.get("/api/templates")
 def list_macros():
     res = []
-    for m in format_instance.macros:
+    for m in macro_expander.macros:
         m_name = m.name
         sample_params = SAMPLE_PARAMS.get(m_name, {})
         schema = m.to_json_schema()
         try:
-            expanded_components = format_instance.processor.expand(
+            expanded_components = macro_expander.processor.expand(
                 m_name, sample_params, instance_id="root"
             )
             sample_messages = [
@@ -610,11 +623,11 @@ def list_macros():
 @app.post("/templates/{template_id}/resolve")
 @app.post("/api/templates/{template_id}/resolve")
 def resolve_macro(template_id: str, req: DynamicResolveRequest):
-    if not format_instance.processor.has_macro(template_id):
+    if not macro_expander.processor.has_macro(template_id):
         raise HTTPException(status_code=404, detail="Macro not found")
 
     try:
-        expanded_components = format_instance.processor.expand(
+        expanded_components = macro_expander.processor.expand(
             template_id, req.params, instance_id="root"
         )
         sample_messages = [
@@ -662,13 +675,7 @@ async def chat(req: ChatRequest):
     # 1. Preset shortcut responses for instant offline evaluation
     if prompt_lower in PRESET_RESPONSES:
         dsl = PRESET_RESPONSES[prompt_lower]
-        target_format = MacroInferenceFormat(
-            base_format=ExpressFormat(
-                catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"
-            ),
-            macros=active_macros,
-        )
-        messages = target_format.parser.compile(dsl)
+        messages = compile_dsl_with_macros(dsl, surface_id=req.surfaceId)
         latency = round(time.perf_counter() - start_time, 3)
         return {
             "messages": messages,
@@ -698,21 +705,26 @@ async def chat(req: ChatRequest):
             )
             latency = round(time.perf_counter() - start_time, 2)
             raw_text = response.text or ""
-            target_format = MacroInferenceFormat(
-                base_format=ExpressFormat(
-                    catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"
-                ),
-                macros=active_macros,
+            target_format = ExpressFormat(
+                catalog=inference_catalog,
+                surface_id=req.surfaceId,
+                version="v0.9.1",
             )
             parts = target_format.parser.parse_response(raw_text)
 
-            messages = []
+            raw_messages = []
             text_parts = []
             for part in parts:
                 if part.text:
                     text_parts.append(part.text)
                 if part.a2ui_json:
-                    messages.extend(part.a2ui_json)
+                    raw_messages.extend(part.a2ui_json)
+
+            messages = [
+                lowered
+                for raw_msg in raw_messages
+                for lowered in macro_expander.transform_to_transport(raw_msg)
+            ]
 
             thinking_tokens = 0
             candidates_tokens = 0

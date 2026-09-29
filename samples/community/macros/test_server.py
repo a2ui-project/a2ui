@@ -23,7 +23,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from server import (
     app,
-    format_instance,
+    compile_dsl_with_macros,
+    macro_expander,
     PRESET_RESPONSES,
     render_payroll_summary,
     EMPLOYEE_COMPENSATION_DB,
@@ -70,7 +71,7 @@ def test_payroll_summary_dynamic_builder():
     """Verifies programmatic dynamic template returns typesafe card and expands cleanly."""
     card = render_payroll_summary(department="AI Research", includeBonus=True)
     assert card.component_name == "Card"
-    expanded = format_instance.processor.expand(
+    expanded = macro_expander.processor.expand(
         "PayrollSummary",
         {"department": "AI Research", "includeBonus": True},
         instance_id="root",
@@ -86,7 +87,7 @@ def test_payroll_summary_dynamic_builder():
 
 def test_employee_salary_card_resolver():
     """Verifies data binding resolver mode for confidential employee salary."""
-    expanded = format_instance.processor.expand(
+    expanded = macro_expander.processor.expand(
         "EmployeeSalaryCard", {"employeeId": "emp_102"}, instance_id="root"
     )
     assert len(expanded) > 0
@@ -102,7 +103,7 @@ def test_employee_salary_card_resolver():
 def test_preset_responses_compilation():
     """Verifies that all predefined preset DSL prompts compile and expand into valid A2UI envelopes."""
     for preset_name, dsl_snippet in PRESET_RESPONSES.items():
-        messages = format_instance.parser.compile(dsl_snippet)
+        messages = compile_dsl_with_macros(dsl_snippet)
         assert len(messages) >= 1, f"Preset '{preset_name}' failed compilation"
         # Find updateComponents or surfaceUpdate message
         update_msg = [
@@ -178,7 +179,7 @@ def test_team_feedback_board_with_referenced_feedback_items():
     root = Card(board)
     </a2ui>
     """
-    messages = format_instance.parser.compile(dsl)
+    messages = compile_dsl_with_macros(dsl)
     update_msg = [m for m in messages if "updateComponents" in m][0]
     comps = update_msg["updateComponents"]["components"]
     comp_by_id = {c["id"]: c for c in comps}
@@ -215,7 +216,7 @@ def test_team_goal_list_with_referenced_goal_items():
     root = Card(goals)
     </a2ui>
     """
-    messages = format_instance.parser.compile(dsl)
+    messages = compile_dsl_with_macros(dsl)
     update_msg = [m for m in messages if "updateComponents" in m][0]
     comps = update_msg["updateComponents"]["components"]
     comp_by_id = {c["id"]: c for c in comps}
@@ -236,7 +237,7 @@ def test_team_card_with_referenced_members():
     root = Card(team)
     </a2ui>
     """
-    messages = format_instance.parser.compile(dsl)
+    messages = compile_dsl_with_macros(dsl)
     update_msg = [m for m in messages if "updateComponents" in m][0]
     comps = update_msg["updateComponents"]["components"]
     comp_by_id = {c["id"]: c for c in comps}

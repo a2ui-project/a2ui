@@ -26,5 +26,9 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-a2ui-agent-sdk = { path = "../../../agent_sdks/python/a2ui_agent", editable = true }
-a2ui-core = { path = "../../../agent_sdks/python/a2ui_core", editable = true }
+a2ui-agent-sdk = { path = "../../../python/a2ui_agent", editable = true }
+a2ui-core = { path = "../../../python/a2ui_core", editable = true }
+
+[tool.uv.extra-build-dependencies]
+a2ui-agent-sdk = ["pydantic"]
+
