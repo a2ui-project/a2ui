@@ -84,7 +84,7 @@ graph LR
 
 ## 3. The Node API Contract
 
-The adapter consumes these Core SDK types:
+The adapter consumes these Core SDK types, defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md#interfaces):
 
 ### `NodeResolver`
 

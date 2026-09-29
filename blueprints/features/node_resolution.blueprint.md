@@ -161,12 +161,7 @@ class NodeResolver<C extends ComponentApi> {
 
 ### **Changes to the framework adapter contract**
 
-A node-based adapter reads children from the resolver instead of calling the `buildChild` helper of the adapter blueprint's structural-props section. It:
-
-1. **Owns one resolver per surface.** It constructs a `NodeResolver` when the surface mounts, renders from its `rootNode`, and disposes the resolver when the surface unmounts.
-2. **Subscribes per node.** Each node's `props` is subscribed separately.
-3. **Renders placeholders.** The adapter supplies the view for any node whose `state` is not `resolved`.
-4. **Unwraps bindings at the control boundary.** A control reads a binding's value and, for a writable binding, writes through its `set`.
+The [framework adapter blueprint](../modules/a2ui_framework_adapter.blueprint.md) describes how an adapter renders the node tree: one resolver per surface, a view per node that subscribes to the node's `props`, a view for every node that is not resolved, and bindings unwrapped at the control boundary.
 
 ---
 
@@ -174,7 +169,7 @@ A node-based adapter reads children from the resolver instead of calling the `bu
 
 - Design thread: [Issue #1282](https://github.com/a2ui-project/a2ui/issues/1282)
 - Core blueprint, resolution layer: [`a2ui_core.blueprint.md`](../modules/a2ui_core.blueprint.md#f-resolution-layer-a2uicoreresolution)
-- Framework adapter blueprint, structural props: [`a2ui_framework_adapter.blueprint.md`](../modules/a2ui_framework_adapter.blueprint.md#data-props-vs-structural-props)
+- Framework adapter blueprint: [`a2ui_framework_adapter.blueprint.md`](../modules/a2ui_framework_adapter.blueprint.md)
 
 ---
 
@@ -211,5 +206,5 @@ The shared cases for this feature belong in `conformance/core/node_resolution.ya
 1. **Bindings.** Introduce `ResolvedBinding` and its writable variant, and publish one per dynamic property.
 2. **Node and resolver.** Implement `ComponentNode` and `NodeResolver` over `SurfaceModel`: root tracking, schema-derived classification of child references, per-position identity, template expansion, placeholder replacement, per-node `props` emission and subtree disposal.
 3. **Actions.** Resolve action payloads at dispatch in the node's data scope, execute function calls there, and restrict the surface's action stream to events.
-4. **Adapter.** Render from `rootNode` with per-node subscriptions and placeholder rendering, and unwrap bindings at control boundaries.
+4. **Adapter.** Render the node tree as the framework adapter blueprint describes.
 5. **Conformance.** Cover the cases above, list the file in `conformance/README.md`, and record the feature in the codebase blueprint's `implemented_features`.
