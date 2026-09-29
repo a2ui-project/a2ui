@@ -135,17 +135,7 @@ const SKIP_TEST_NAMES = new Set([
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map([
-  [
-    'core/node_resolution.yaml',
-    new Map([
-      [
-        'function_action_without_event',
-        'web_core emits a functionCall action as an onAction event',
-      ],
-    ]),
-  ],
-]);
+const KNOWN_DIVERGENCES = new Map();
 
 /** Suites that must be discovered and contain at least one case. */
 const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
