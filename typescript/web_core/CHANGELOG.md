@@ -1,5 +1,12 @@
 ## Unreleased
 
+- `Catalog.fromSchema` no longer drops properties mixed in through an external
+  `allOf` reference, so Checkable components in the basic catalogs now accept
+  `checks`.
+- (v1_0) `Catalog.fromSchema` resolves `common_types.json#/$defs/Child`, so
+  single-child properties such as `Card.child` are now recognised as child
+  references.
+
 ## 0.12.0
 
 - Fix: Execute component `functionCall` actions locally via catalog functions at invocation time instead of emitting them as `onAction` events, aligning with the A2UI specification for local actions ([#2837](https://github.com/a2ui-project/a2ui/issues/2837)).
