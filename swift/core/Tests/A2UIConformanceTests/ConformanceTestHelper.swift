@@ -146,6 +146,9 @@ public enum ConformanceTestHelper {
         remoteSchemas[identifierString] = commonTypes
       }
       remoteSchemas["common_types.json"] = commonTypes
+      remoteSchemas["https://swift-json-schema.invalid/common_types.json"] = commonTypes
+      remoteSchemas["https://a2ui.org/specification/v0_9/common_types.json"] = commonTypes
+      remoteSchemas["https://a2ui.org/schemas/v0_9_1/common.json"] = commonTypes
       for (key, definition) in commonTypes["$defs"]?.objectValue ?? [:] {
         allDefinitions[key] = definition
       }

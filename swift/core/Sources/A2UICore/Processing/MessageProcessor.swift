@@ -27,6 +27,7 @@ public final class MessageProcessor: ObservableObject {
 
   private let catalogs: [String: AnyCatalog]
   private let validator: A2UIValidator
+  private let validationConfig: ValidationConfig
   private weak var actionHandler: (any ActionHandling)?
   private let errorMapper = MessageErrorMapper()
 
@@ -48,6 +49,7 @@ public final class MessageProcessor: ObservableObject {
       uniquingKeysWith: { _, last in last }
     )
     self.validator = A2UIValidator(catalogs: anyCatalogs, config: validationConfig)
+    self.validationConfig = validationConfig
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
   }
@@ -369,7 +371,7 @@ public final class MessageProcessor: ObservableObject {
     _ theme: [String: JSONValue]?,
     against catalog: AnyCatalog
   ) throws {
-    guard let theme, let themeSchema = catalog.themeSchema else { return }
+    guard validationConfig == .strict, let theme, let themeSchema = catalog.themeSchema else { return }
 
     let themeInstance: JSONValue = .object(
       OrderedDictionary(uniqueKeysWithValues: theme)
@@ -487,37 +489,39 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      guard let schema = targetCatalog.components[type]?.schema else {
-        throw A2UICatalogError(
-          "Unknown component type '\(type)' not registered in catalog",
-          details: [
-            A2UIErrorDetail(
-              path: "/component",
-              code: "UNKNOWN_COMPONENT",
-              message: "Unknown component type '\(type)' not registered in catalog"
-            )
-          ]
-        )
-      }
+      if validationConfig == .strict {
+        guard let schema = targetCatalog.components[type]?.schema else {
+          throw A2UICatalogError(
+            "Unknown component type '\(type)' not registered in catalog",
+            details: [
+              A2UIErrorDetail(
+                path: "/component",
+                code: "UNKNOWN_COMPONENT",
+                message: "Unknown component type '\(type)' not registered in catalog"
+              )
+            ]
+          )
+        }
 
-      let instance: JSONValue = .object(
-        OrderedDictionary(uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) })
-      )
-      let result = schema.validate(instance)
-      guard result.isValid else {
-        let specificError = result.errors?.first.map(mostSpecificError(from:))
-        let errorMessage = specificError?.message ?? "Validation failed"
-        let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
-        throw A2UIValidationError(
-          errorMessage,
-          details: [
-            A2UIErrorDetail(
-              path: errorPath.isEmpty ? "/" : errorPath,
-              code: "SCHEMA_VALIDATION_FAILED",
-              message: errorMessage
-            )
-          ]
+        let instance: JSONValue = .object(
+          OrderedDictionary(uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) })
         )
+        let result = schema.validate(instance)
+        guard result.isValid else {
+          let specificError = result.errors?.first.map(mostSpecificError(from:))
+          let errorMessage = specificError?.message ?? "Validation failed"
+          let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
+          throw A2UIValidationError(
+            errorMessage,
+            details: [
+              A2UIErrorDetail(
+                path: errorPath.isEmpty ? "/" : errorPath,
+                code: "SCHEMA_VALIDATION_FAILED",
+                message: errorMessage
+              )
+            ]
+          )
+        }
       }
     }
 

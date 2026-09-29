@@ -236,9 +236,8 @@ struct MessageProcessorConformanceTests {
     processor.process(messages: messages)
 
     let actual = processor.getRendererDataModel()
-    if let expected = testCase["expectedDataModel"] as? [String: Any],
-      let expectedSurfaces = expected["surfaces"]
-    {
+    let expectedDict = (testCase["expect"] as? [String: Any]) ?? (testCase["expectedDataModel"] as? [String: Any])
+    if let expectedSurfaces = expectedDict?["surfaces"] {
       #expect(
         actual == ConformanceTestHelper.toJSONValue(expectedSurfaces),
         "[\(name)] Expected renderer data model \(expectedSurfaces), got \(String(describing: actual))"
