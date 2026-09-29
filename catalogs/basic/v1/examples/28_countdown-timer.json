@@ -30,7 +30,7 @@
             "id": "event_name",
             "component": "Text",
             "text": {
-              "path": "/eventName"
+              "@path": "/eventName"
             }
           },
           {
@@ -49,7 +49,7 @@
             "id": "days_value",
             "component": "Text",
             "text": {
-              "path": "/days"
+              "@path": "/days"
             }
           },
           {
@@ -68,7 +68,7 @@
             "id": "hours_value",
             "component": "Text",
             "text": {
-              "path": "/hours"
+              "@path": "/hours"
             }
           },
           {
@@ -87,7 +87,7 @@
             "id": "minutes_value",
             "component": "Text",
             "text": {
-              "path": "/minutes"
+              "@path": "/minutes"
             }
           },
           {
@@ -100,10 +100,10 @@
             "id": "target_date",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/targetDate"
+                  "@path": "/targetDate"
                 },
                 "format": "MMMM d, yyyy"
               }

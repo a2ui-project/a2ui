@@ -265,17 +265,26 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
 /** Types recognized as dynamic data bindings or expression function calls. */
 type DynamicTypes =
   | DataBinding
+  | {'@path': string}
   | {path: string}
-  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
+  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string}
+  | {'@call': string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
 
 /** Types recognized as user actions or function call events. */
 type ActionLike =
   | Action
   | {event: {name: string; context?: Record<string, unknown>}}
-  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}};
+  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}}
+  | {functionCall: {'@call': string; catalogId?: string; args?: Record<string, unknown>}};
 
 /** Evaluates to true if type T can contain a dynamic binding. */
-type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
+type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) extends true
+  ? true
+  : ({'@path': string} extends NonNullable<T> ? true : false) extends true
+    ? true
+    : DataBinding extends NonNullable<T>
+      ? true
+      : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.
@@ -304,10 +313,14 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
  * Generates two-way binding setters for dynamic properties.
  *
  * For example, a `value: DynamicString` property produces a `setValue(val: string)` setter.
+ * A property declared as a binding with no literal branch has no such value type, so its setter
+ * falls back to `unknown`.
  */
 export type GenerateSetters<T> = {
   [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: (
-    value: Exclude<NonNullable<T[K]>, DynamicTypes>,
+    value: [Exclude<NonNullable<T[K]>, DynamicTypes>] extends [never]
+      ? unknown
+      : Exclude<NonNullable<T[K]>, DynamicTypes>,
   ) => void;
 };
 
