@@ -985,6 +985,16 @@ describe('GenericBinder Checkable Trait', () => {
       const value: unknown = {selected: true};
       bindingOnly.setValue(value);
 
+      const dataBindingOnly: GenerateSetters<{value: DataBinding}> = {
+        setValue: () => {},
+      };
+      dataBindingOnly.setValue('anything');
+
+      const functionCallOnly: GenerateSetters<{value: FunctionCall}> = {
+        setValue: () => {},
+      };
+      functionCallOnly.setValue('anything');
+
       const withLiteral: GenerateSetters<{value: string | DataBinding | FunctionCall}> = {
         setValue: () => {},
       };
