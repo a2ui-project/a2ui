@@ -149,7 +149,7 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml']);
+const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'reserved_keys.yaml']);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.

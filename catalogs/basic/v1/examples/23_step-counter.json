@@ -46,10 +46,10 @@
             "id": "steps_display",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "/steps"
+                  "@path": "/steps"
                 }
               }
             }
@@ -58,7 +58,7 @@
             "id": "goal_text",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "${/progress}% of ${formatNumber(value: ${/goal})} goal"
               }
@@ -85,7 +85,7 @@
             "id": "distance_value",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "${/distance} mi"
               }
@@ -107,10 +107,10 @@
             "id": "calories_value",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "/calories"
+                  "@path": "/calories"
                 }
               }
             }

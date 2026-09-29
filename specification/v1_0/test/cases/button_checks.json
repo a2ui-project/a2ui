@@ -21,34 +21,34 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "and",
+                    "@call": "and",
                     "args": {
                       "values": [
                         {
-                          "call": "required",
+                          "@call": "required",
                           "args": {
                             "value": {
-                              "path": "/formData/terms"
+                              "@path": "/formData/terms"
                             }
                           }
                         },
                         {
-                          "call": "or",
+                          "@call": "or",
                           "args": {
                             "values": [
                               {
-                                "call": "required",
+                                "@call": "required",
                                 "args": {
                                   "value": {
-                                    "path": "/formData/email"
+                                    "@path": "/formData/email"
                                   }
                                 }
                               },
                               {
-                                "call": "required",
+                                "@call": "required",
                                 "args": {
                                   "value": {
-                                    "path": "/formData/phone"
+                                    "@path": "/formData/phone"
                                   }
                                 }
                               }
@@ -89,7 +89,7 @@
                 }
               },
               "enabled": {
-                "path": "/some/path"
+                "@path": "/some/path"
               }
             },
             {
@@ -121,7 +121,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {
                       "value": "foo"
                     },
@@ -160,7 +160,7 @@
               "checks": [
                 {
                   "condition": {
-                    "call": "and",
+                    "@call": "and",
                     "args": {
                       "values": []
                     }
@@ -290,7 +290,7 @@
                 "event": {
                   "name": "submit_deal",
                   "userMessage": {
-                    "path": "/form/userMsg"
+                    "@path": "/form/userMsg"
                   }
                 }
               }
