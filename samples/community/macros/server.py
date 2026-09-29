@@ -282,9 +282,7 @@ format_instance = ExpressFormat(
 )
 
 
-def compile_dsl_with_macros(
-    dsl: str, surface_id: str = "main"
-) -> List[Dict[str, Any]]:
+def compile_dsl_with_macros(dsl: str, surface_id: str = "main") -> List[Dict[str, Any]]:
     """Compiles Express DSL containing macros and lowers output messages to transport."""
     target_format = ExpressFormat(
         catalog=inference_catalog, surface_id=surface_id, version="v0.9.1"
