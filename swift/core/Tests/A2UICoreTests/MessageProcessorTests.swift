@@ -180,4 +180,3 @@ struct MessageProcessorTests {
     #expect(processor.surfaceGroupModel.surfacesMap["unknown"] == nil)
   }
 }
-

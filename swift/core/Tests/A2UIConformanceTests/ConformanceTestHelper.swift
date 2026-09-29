@@ -91,7 +91,9 @@ public enum ConformanceTestHelper {
   /// specification version.
   public static func buildCatalogs(for testCase: ConformanceTestCase) throws -> [AnyCatalog] {
     if let inlineCatalog = testCase.inlineCatalog {
-      let commonTypes = try? commonTypesSchema(forProtocolVersion: testCase.protocolVersion ?? "v0.9")
+      let commonTypes = try? commonTypesSchema(
+        forProtocolVersion: testCase.protocolVersion ?? "v0.9"
+      )
       return [buildCatalog(catalogSchema: inlineCatalog, commonTypes: commonTypes)]
     }
     return try testCase.catalogPaths.map { path in

@@ -125,6 +125,8 @@ struct MessageProcessorConformanceTests {
           ]
         )
       ]
+    }
+
     let openSchema = try Schema(instance: "{\"type\": \"object\"}")
     for i in 0..<catalogs.count {
       var comps = catalogs[i].components

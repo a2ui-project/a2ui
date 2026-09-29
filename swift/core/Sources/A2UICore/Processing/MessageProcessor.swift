@@ -371,7 +371,10 @@ public final class MessageProcessor: ObservableObject {
     _ theme: [String: JSONValue]?,
     against catalog: AnyCatalog
   ) throws {
-    guard validationConfig == .strict, let theme, let themeSchema = catalog.themeSchema else { return }
+    guard validationConfig == .strict,
+      let theme,
+      let themeSchema = catalog.themeSchema
+    else { return }
 
     let themeInstance: JSONValue = .object(
       OrderedDictionary(uniqueKeysWithValues: theme)
