@@ -26,11 +26,7 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import {
-  type FunctionCall,
-  type Action,
-  MAX_FUNCTION_CALL_ARGS,
-} from '../types/common-types.js';
+import {type FunctionCall, type Action, MAX_FUNCTION_CALL_ARGS} from '../types/common-types.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
