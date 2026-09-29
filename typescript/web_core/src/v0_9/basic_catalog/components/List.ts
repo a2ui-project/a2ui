@@ -50,7 +50,7 @@ class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
     }
   `;
 
-  protected readonly api = ListApi;
+  protected override readonly api = ListApi;
 
   override render() {
     const props = this.controller.props;

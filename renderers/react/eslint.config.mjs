@@ -16,4 +16,24 @@
 
 import preset from '../../eslint.preset.mjs';
 
-export default [...preset, {ignores: ['visual-parity/**']}];
+export default [
+  ...preset,
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/react', '@a2ui/react/*'],
+              message:
+                'Use relative imports within @a2ui/react instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {ignores: ['visual-parity/**']},
+];

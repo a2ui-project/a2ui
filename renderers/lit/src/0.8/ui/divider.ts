@@ -32,7 +32,7 @@ export class Divider extends Root {
   @property({type: Number})
   accessor thickness: number | null = null;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       :host {
@@ -59,7 +59,7 @@ export class Divider extends Root {
     `,
   ];
 
-  render() {
+  override render() {
     const dividerTheme =
       typeof this.theme?.components?.Divider === 'string'
         ? {[this.theme.components.Divider]: true}

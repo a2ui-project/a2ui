@@ -80,6 +80,25 @@ export default tseslint.config(
     },
   },
 
+  // Prevent self-package imports inside src/
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/react', '@a2ui/react/*'],
+              message:
+                'Use relative imports within @a2ui/react instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Test files - relaxed rules
   {
     files: ['tests/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],

@@ -45,7 +45,7 @@ class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> {
     }
   `;
 
-  protected readonly api = CardApi;
+  protected override readonly api = CardApi;
 
   override render() {
     const props = this.controller.props;

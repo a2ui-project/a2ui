@@ -59,7 +59,7 @@ class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
     }
   `;
 
-  protected readonly api = ImageApi;
+  protected override readonly api = ImageApi;
 
   override render() {
     const props = this.controller.props;

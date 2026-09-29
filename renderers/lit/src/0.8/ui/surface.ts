@@ -24,15 +24,15 @@ import {styleMap} from 'lit/directives/style-map.js';
 @customElement('a2ui-surface')
 export class Surface extends Root {
   @property()
-  accessor surfaceId: Types.SurfaceID | null = null;
+  override accessor surfaceId: Types.SurfaceID | null = null;
 
   @property()
   accessor surface: Types.Surface | null = null;
 
   @property()
-  accessor processor: A2uiMessageProcessor | null = null;
+  override accessor processor: A2uiMessageProcessor | null = null;
 
-  static styles = [
+  static override styles = [
     css`
       :host {
         display: flex;
@@ -69,7 +69,7 @@ export class Surface extends Root {
   }
 
   @property()
-  accessor enableCustomElements = false;
+  override accessor enableCustomElements = false;
 
   #renderSurface() {
     const styles: Record<string, string> = {};
@@ -126,7 +126,7 @@ export class Surface extends Root {
     ></a2ui-root>`;
   }
 
-  render() {
+  override render() {
     if (!this.surface) {
       return nothing;
     }

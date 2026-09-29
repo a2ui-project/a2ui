@@ -16,4 +16,82 @@
 
 import preset from '../../eslint.preset.mjs';
 
-export default [...preset];
+export default [
+  ...preset,
+  {
+    files: ['src/v0_8/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@a2ui/angular',
+              message:
+                'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the package.',
+            },
+            {
+              name: '@a2ui/angular/v0_8',
+              message:
+                'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/v0_9/**/*.ts'],
+    ignores: ['src/v0_9/testing/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@a2ui/angular',
+              message:
+                'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the package.',
+            },
+            {
+              name: '@a2ui/angular/v0_9',
+              message:
+                'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the package.',
+            },
+            {
+              name: '@a2ui/angular/v0_8',
+              message: 'Do not import @a2ui/angular/v0_8 from @a2ui/angular/v0_9.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/v0_9/testing/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@a2ui/angular',
+              message:
+                'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
+            },
+            {
+              name: '@a2ui/angular/testing',
+              message:
+                'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
+            },
+            {
+              name: '@a2ui/angular/v0_9/testing',
+              message:
+                'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+];

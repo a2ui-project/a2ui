@@ -76,7 +76,7 @@ class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFi
     }
   `;
 
-  protected readonly api = TextFieldApi;
+  protected override readonly api = TextFieldApi;
 
   override render() {
     const props = this.controller.props;

@@ -19,6 +19,9 @@ import parentConfig from '../eslint.config.js';
 export default [
   ...parentConfig,
   {
+    rules: {
+      'no-restricted-imports': 'off',
+    },
     languageOptions: {
       parserOptions: {
         project: ['./tsconfig.app.json', './tsconfig.spec.json', './tsconfig.node.json'],

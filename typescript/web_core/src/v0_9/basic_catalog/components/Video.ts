@@ -39,7 +39,7 @@ class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {
     }
   `;
 
-  protected readonly api = VideoApi;
+  protected override readonly api = VideoApi;
 
   override render() {
     const props = this.controller.props;

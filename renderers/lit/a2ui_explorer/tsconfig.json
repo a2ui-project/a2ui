@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "strict": true,
+    "noImplicitOverride": true,
     "skipLibCheck": true,
     "useDefineForClassFields": false,
     "rootDir": ".",

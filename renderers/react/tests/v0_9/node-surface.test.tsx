@@ -196,11 +196,11 @@ const UnmarkedParentImpl = createComponentImplementation(
 
 /** Catches an expected render error so it stays out of the test output. */
 class CatchBoundary extends React.Component<{children: React.ReactNode}, {error: Error | null}> {
-  state: {error: Error | null} = {error: null};
+  override state: {error: Error | null} = {error: null};
   static getDerivedStateFromError(error: Error) {
     return {error};
   }
-  render() {
+  override render() {
     return this.state.error ? <div>caught: {this.state.error.message}</div> : this.props.children;
   }
 }
