@@ -28,6 +28,7 @@ export default [
       // Common monorepo rule relaxations
       eqeqeq: ['error', 'always', {null: 'ignore'}],
       'no-undef': 'off',
+      quotes: ['warn', 'single', {avoidEscape: true, allowTemplateLiterals: true}],
     },
   },
   {

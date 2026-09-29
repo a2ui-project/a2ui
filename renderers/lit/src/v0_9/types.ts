@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9';
+import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 
 /**
  * Interface representing an A2UI component implementation in Lit / Web Components.

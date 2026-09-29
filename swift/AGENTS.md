@@ -27,6 +27,10 @@ respect target boundaries:
    - **Purpose**: Component APIs, schema builders, and standard function handlers for the Basic
      Catalog.
    - **Dependencies**: `A2UICore`, `JSONSchema`, `JSONSchemaBuilder`.
+   - **Plural rules**: `PluralizeFunction` uses Foundation and the bundled
+     `Resources/PluralCategories.stringsdict`. Keep this category-marker table unlocalized and
+     preserve its SwiftPM resource declaration. Rules follow the OS; never format server text
+     as a Foundation template.
 
 4. **`A2UISwiftUI`** (`swift/swiftui/Sources/A2UISwiftUI/`):
    - **Purpose**: Thin SwiftUI rendering adapter layer.
@@ -74,7 +78,7 @@ consistency against authoritative specifications:
    rules for pointer resolution, auto-vivification, and sparse array semantics.
 3. **Framework adapter blueprint** (`blueprints/modules/a2ui_framework_adapter.blueprint.md`):
    Component instantiation, dynamic child lists, and lifecycle subscription rules.
-4. **Reference implementation** (`renderers/web_core/`): Canonical TypeScript implementation
+4. **Reference implementation** (`typescript/web_core/`): Canonical TypeScript implementation
    for cross-checking edge-case semantics.
 
 ---

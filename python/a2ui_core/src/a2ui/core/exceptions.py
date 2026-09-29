@@ -1,0 +1,131 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Custom exceptions for the A2UI SDK."""
+
+import dataclasses
+import enum
+import re
+
+
+@dataclasses.dataclass(frozen=True)
+class A2uiErrorDetail:
+    """Represents a single structured error or diagnostic detail."""
+
+    path: str
+    code: str
+    message: str
+
+    def to_dict(self) -> dict[str, str]:
+        return dataclasses.asdict(self)
+
+
+class A2uiError(ValueError):
+    """Base exception class for all A2UI SDK failures."""
+
+    def __init__(
+        self, message: str, details: list[A2uiErrorDetail] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.details = details or []
+
+
+class A2uiParseError(A2uiError):
+    """Exception raised when failing to parse or extract A2UI payloads."""
+
+    pass
+
+
+class A2uiValidationError(A2uiError):
+    """Exception raised when A2UI payload violates schema constraints."""
+
+    pass
+
+
+class A2uiCatalogError(A2uiError):
+    """Exception raised during catalog management or loading."""
+
+    pass
+
+
+class A2uiStateError(A2uiError):
+    """Exception raised for UI tree structural errors."""
+
+    pass
+
+
+class A2uiIntegrityError(A2uiValidationError):
+    """Exception raised when layout graph integrity or relationship checks fail."""
+
+    pass
+
+
+class A2uiRecursionError(A2uiValidationError):
+    """Exception raised when recursive or traversal limits are exceeded."""
+
+    pass
+
+
+class A2uiDataError(A2uiError):
+    """Exception raised when accessing or mutating data model with invalid paths or types."""
+
+    def __init__(
+        self,
+        message: str,
+        path: str | None = None,
+        details: list[A2uiErrorDetail] | None = None,
+    ) -> None:
+        super().__init__(message, details=details)
+        self.path: str | None = path
+
+
+class A2uiExpressionError(A2uiError):
+    """Exception raised when parsing or evaluating expressions and functions."""
+
+    pass
+
+
+class RpcErrorCode(str, enum.Enum):
+    """RPC error codes matching A2UI protocol specification."""
+
+    INVALID_FUNCTION_CALL = "INVALID_FUNCTION_CALL"
+    EXECUTION_ERROR = "EXECUTION_ERROR"
+    UNKNOWN_FUNCTION = "UNKNOWN_FUNCTION"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+    CANCELLED = "CANCELLED"
+    TIMEOUT = "TIMEOUT"
+    DISPOSED = "DISPOSED"
+    NO_LISTENER = "NO_LISTENER"
+    DUPLICATE = "DUPLICATE"
+
+
+class A2uiRpcError(A2uiError):
+    """Exception raised when an RPC function execution fails."""
+
+    def __init__(
+        self,
+        message: str | RpcErrorCode,
+        code: str | RpcErrorCode = RpcErrorCode.UNKNOWN_ERROR,
+        function_call_id: str | None = None,
+        details: list[A2uiErrorDetail] | None = None,
+    ) -> None:
+        code_str = code.value if isinstance(code, RpcErrorCode) else str(code)
+        msg_str = message.value if isinstance(message, RpcErrorCode) else str(message)
+        is_first_known_code = msg_str in RpcErrorCode._value2member_map_
+        is_second_like_message = bool(re.search(r"[a-z\s]", code_str)) or code_str == ""
+        if is_first_known_code and is_second_like_message:
+            msg_str, code_str = code_str, msg_str
+        super().__init__(msg_str, details=details)
+        self.code: str = code_str
+        self.function_call_id: str | None = function_call_id

@@ -1,0 +1,217 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Express prompt snippets: the system prompt text the Express format renders
+# for the catalogs that are active in a session.
+#
+# A case names the catalogs the agent registered along with the transformers
+# applied to them, and optionally the prompt examples. It then states substrings
+# the snippet carries and substrings it does not. The wording around a catalog
+# is an implementation's own, so a case never states a whole text. What it
+# states is the material the model has to be told: the component and function
+# names it may use, the catalog ids when more than one catalog is active, the
+# sentinel tag it writes payloads inside, and the payload of any example.
+#
+# A prompt example is named by a path to a JSON file under
+# `test_data/examples/`, holding the messages of one turn, the same way a
+# catalog is named by a path. Nothing about the example is free text, so a case
+# asserts the rendered payload rather than a label. The cases assert content
+# unique to the example, such as its surface id, rather than envelope names the
+# snippet would carry anyway.
+#
+# The catalogs a case names are the pristine documents, and the snippet is
+# written from the transformed ones. A transformer is therefore visible in the
+# snippet: a component a transformer removed is a component the model is never
+# told about, which is what `expect_absent` checks.
+#
+# An Express snippet has to describe each component as a positional signature,
+# because Express omits property keys and the model has to know the order. The
+# cases check for the opening of such a signature, `Text(`, rather than a whole
+# parameter list, since the parameter list is the implementation's own. This is
+# also why the Express cases assert `Text(` where the direct JSON ones assert
+# `Text`: a bare name in an Express snippet could be prose, while the open
+# parenthesis is the signature the model has to copy.
+#
+# One name has to be handled carefully. The simplified catalog declares a
+# function called `required`, and `required` is also a JSON Schema keyword that
+# appears throughout any embedded catalog document. No case asserts anything
+# about `required` in either direction. Its absence could never be observed,
+# and its presence would be satisfied by any snippet that embeds the catalog
+# document, whether or not the function was ever named. The cases assert
+# `formatString` and `openUrl` instead, and the function pruning case prunes to
+# `formatString` and checks that `openUrl` is gone.
+#
+# Express payloads sit inside `<a2ui>` tags, per the Express specification under
+# `specification/proposals/express/`.
+#
+# Two settled decisions are worth stating outright. Active catalogs are the
+# transformed catalogs, so the snippet and the payloads the session will accept
+# describe the same components. Generating a snippet with no active catalogs is
+# a `CatalogError`, because there is nothing the model could be told to write.
+#
+# The direct JSON counterpart of this suite is
+# `agent/direct_json/prompt_generator.yaml`. The two are deliberately parallel:
+# a rule that holds for both formats has a case in each, written against that
+# format's own output, rather than one shared case that a harness has to gate.
+#
+# Every case here is written against v1.0. A case states no version of its own:
+# the version it runs under is the one its catalog document declares, or the one
+# `args` hands the implementation.
+
+# --- What the catalog contributes ---
+
+- name: test_express_snippet_names_every_function_of_the_catalog
+  description: The snippet names each function of the active catalog alongside its components, since a function the model is not given is a function it cannot call. `required` is left out of the assertion because it is also a JSON Schema keyword, so asserting it would pass for any snippet that embeds the catalog document.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["formatString", "openUrl"]
+
+- name: test_express_snippet_omits_a_pruned_component
+  description: Pruning reads the same in Express as in direct JSON, since both snippets are written from the transformed catalog.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text"]
+  expect_contains: ["Text("]
+  expect_absent: ["Button(", "Card(", "Column("]
+
+- name: test_express_snippet_omits_a_pruned_function
+  description: A function a transformer removed never reaches the model either.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - function_pruning: ["formatString"]
+  expect_contains: ["formatString"]
+  expect_absent: ["openUrl"]
+
+- name: test_express_snippet_names_both_catalogs_and_their_ids
+  description: With two catalogs active the snippet names both sets of members and both catalog ids, so the model can say which catalog a component came from.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  expect_contains:
+    - "conformance/simplified"
+    - "conformance/custom"
+    - "Text("
+    - "Column("
+    - "Chart("
+    - "Gauge("
+    - "openUrl"
+    - "percent"
+
+# --- Examples ---
+
+- name: test_express_snippet_renders_supplied_examples
+  description: An example is supplied as messages but has to reach the model in the notation it is being asked to write, so the Express snippet carries the decompiled Express of its payload rather than the messages themselves.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+  expect_contains:
+    - 'surface("s1")'
+    - 'root = Text("Hello")'
+
+- name: test_express_snippet_without_examples_carries_no_example
+  description: The same catalog without examples carries none of the example payload. The whole statement is asserted absent rather than the bare name, since the signature block legitimately carries `Text(`.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["Text("]
+  expect_absent:
+    - 'surface("s1")'
+    - 'root = Text("Hello")'
+
+# --- Format specifics ---
+
+- name: test_express_snippet_names_its_sentinel_tag
+  description: An Express snippet uses the a2ui tags of the Express specification rather than the direct JSON ones.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["<a2ui>", "</a2ui>"]
+  expect_absent: ["<a2ui-json>"]
+
+- name: test_express_snippet_describes_positional_signatures
+  description: An Express snippet gives each component as a call signature, because Express omits property keys and the model has to know the argument order.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["Text(", "Button(", "Card(", "Column("]
+
+- name: test_express_snippet_describes_only_the_allowed_envelopes
+  description: An allowlist of payload envelopes decides which of them the snippet describes, and Express describes an envelope by the statement that compiles to it.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    allowed_messages: ["createSurface", "updateComponents"]
+  expect_contains: ["surface("]
+  expect_absent: ["deleteSurface("]
+
+- name: test_express_snippet_describes_every_envelope_without_an_allowlist
+  description: Without an allowlist the snippet describes the envelopes of its protocol version, so leaving the allowlist out is how an agent asks for all of them.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["surface(", "deleteSurface(", "$/"]
+
+# --- Determinism ---
+
+- name: test_express_snippet_is_deterministic
+  description: The Express snippet is stable across calls, including the order it lists two catalogs in and the rendering of an example, which is the part most likely to vary if a decompiler walks an unordered map.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+  expect_contains: ["Text(", "Chart("]
+  expect_deterministic: true
+
+# --- Errors ---
+
+- name: test_express_no_active_catalogs_is_an_error
+  description: Generating a snippet with no active catalogs fails, because there is no component the model could be told to write.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs: []
+  expect_error:
+    category: CatalogError

@@ -133,7 +133,7 @@ export const A2uiSurface: React.FC<{
   );
   const subscribe = useCallback(
     (onChange: () => void) => {
-      const resolver = new NodeResolver(surface, surface.catalog);
+      const resolver = new NodeResolver(surface, surface.defaultCatalog);
       box.resolver = resolver;
       const stopEffect = effect(() => {
         getValue(resolver.rootNode);

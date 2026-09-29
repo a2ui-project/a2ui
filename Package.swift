@@ -44,7 +44,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/ajevans99/swift-json-schema",
-      from: "0.13.1"
+      .upToNextMinor(from: "0.13.1")
     ),
     .package(
       url: "https://github.com/jpsim/Yams",
@@ -77,7 +77,8 @@ let package = Package(
         .product(name: "JSONSchema", package: "swift-json-schema"),
         .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
       ],
-      path: "swift/core/Sources/BasicCatalog"
+      path: "swift/core/Sources/BasicCatalog",
+      resources: [.process("Resources")]
     ),
 
     // ── SwiftUI ──

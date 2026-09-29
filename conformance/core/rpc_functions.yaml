@@ -1,0 +1,386 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_rpc_call_renderer_function_success
+  description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=rendererOrAgent.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-101"
+        callFunction:
+          call: "playMedia"
+          catalogId: "media_catalog"
+          args:
+            mediaId: "video-789"
+            autoplay: true
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-101"
+        value:
+          playing: true
+          timestamp: 0
+
+- name: test_rpc_call_renderer_function_unauthorized_caller
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when allowedCallers is rendererOnly.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-102"
+        callFunction:
+          call: "internalStateReset"
+          catalogId: "system_catalog"
+          args: {}
+    functionMetadata:
+      internalStateReset:
+        allowedCallers: "rendererOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-102"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'internalStateReset' cannot be called by agent (allowedCallers is rendererOnly)."
+
+- name: test_rpc_call_renderer_function_requires_user_activation
+  description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    userActivationPresent: true
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-103"
+        callFunction:
+          call: "openExternalUrl"
+          catalogId: "basic"
+          args:
+            url: "https://example.com/details"
+    functionMetadata:
+      openExternalUrl:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-103"
+        value:
+          opened: true
+
+- name: test_rpc_call_agent_function_dispatch
+  description: Verifies renderer-initiated callAgentFunction message generation and response correlation via functionCallId.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "agent-call-55"
+      callFunction:
+        call: "queryInventory"
+        catalogId: "store_catalog"
+        args:
+          sku: "ITEM-404"
+    inboundResponse:
+      version: "v1.0"
+      agentFunctionResponse:
+        functionCallId: "agent-call-55"
+        value:
+          inStock: 12
+          price: "$29.99"
+  expect:
+    correlatedCallId: "agent-call-55"
+    result:
+      inStock: 12
+      price: "$29.99"
+
+- name: test_rpc_call_renderer_function_user_activation_denied
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    userActivationPresent: false
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-104"
+        callFunction:
+          call: "openExternalUrl"
+          catalogId: "basic"
+          args:
+            url: "https://example.com/details"
+    functionMetadata:
+      openExternalUrl:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-104"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'openExternalUrl' requires user activation context to execute."
+
+- name: test_rpc_call_renderer_function_execution_exception
+  description: Verifies callRendererFunction handles runtime function execution exceptions and returns EXECUTION_ERROR.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-105"
+        callFunction:
+          call: "failingFunction"
+          catalogId: "basic"
+          args: {}
+    functionMetadata:
+      failingFunction:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-105"
+        error:
+          code: "EXECUTION_ERROR"
+          message: "An error occurred during function execution."
+
+- name: test_rpc_call_renderer_function_agent_only_boundary
+  description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=agentOnly.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-106"
+        callFunction:
+          call: "syncState"
+          catalogId: "basic"
+          args: {}
+    functionMetadata:
+      syncState:
+        allowedCallers: "agentOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-106"
+        value: null
+
+- name: test_rpc_call_renderer_function_unregistered_function
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when calling an unregistered function.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-107"
+        callFunction:
+          call: "unknownFunc"
+          catalogId: "basic"
+          args: {}
+    functionMetadata: {}
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-107"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function not found: unknownFunc"
+
+- name: test_rpc_call_renderer_function_unregistered_catalog
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when specifying an unregistered catalogId.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-108"
+        callFunction:
+          call: "playMedia"
+          catalogId: "non_existent_catalog"
+          args: {}
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-108"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Catalog not found: non_existent_catalog"
+
+- name: test_rpc_call_renderer_function_invalid_payload_missing_call_function
+  description: Verifies envelope/schema validation error when callRendererFunction is missing required callFunction property.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-109"
+  expect:
+    error:
+      message: "callFunction"
+
+- name: test_rpc_agent_function_response_inbound
+  description: Verifies inbound agentFunctionResponse message processing by MessageProcessor.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      agentFunctionResponse:
+        functionCallId: "call-201"
+        value:
+          status: "verified"
+  expect:
+    response: null
+
+- name: test_rpc_call_renderer_function_invalid_argument_schema
+  description: Verifies callRendererFunction returns INVALID_FUNCTION_CALL when argument schema validation fails.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-301"
+        callFunction:
+          call: "calculateTax"
+          catalogId: "basic"
+          args:
+            amount: "invalid_string_amount"
+    functionMetadata:
+      calculateTax:
+        allowedCallers: "rendererOrAgent"
+        parameters:
+          type: "object"
+          properties:
+            amount:
+              type: "number"
+          required: ["amount"]
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-301"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Invalid"
+
+- name: test_rpc_call_renderer_function_protocol_version_mismatch
+  description: Verifies callRendererFunction returns INVALID_FUNCTION_CALL when catalog protocol version mismatches message protocol version.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    catalogId: "legacy_cat"
+    catalogVersion: "v0.9"
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-302"
+        callFunction:
+          call: "playMedia"
+          catalogId: "legacy_cat"
+          args:
+            mediaId: "vid1"
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-302"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "does not match message protocol version"
+
+- name: test_rpc_call_agent_function_timeout_handling
+  description: Verifies callAgentFunction timeout emitting TIMEOUT error code.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-timeout-1"
+      timeoutMs: 10
+      callFunction:
+        call: "longRunningTask"
+        catalogId: "basic"
+        args: {}
+  expectError:
+    code: "TIMEOUT"
+
+- name: test_rpc_call_agent_function_duplicate_call_id_error
+  description: Verifies callAgentFunction rejecting duplicate pending functionCallId with DUPLICATE error code.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-dup-1"
+      callFunction:
+        call: "fetchData"
+        catalogId: "basic"
+        args: {}
+    secondOutboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-dup-1"
+      callFunction:
+        call: "fetchData"
+        catalogId: "basic"
+        args: {}
+  expectError:
+    code: "DUPLICATE"

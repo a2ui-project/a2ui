@@ -23,7 +23,7 @@ describe('Example: Email Compose (v0.8)', () => {
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Email Compose', Version.V0_8);
+    fixture = await loadExample({name: 'Email Compose', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

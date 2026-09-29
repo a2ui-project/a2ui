@@ -48,6 +48,7 @@ import type {LitComponentApi} from '../../types.js';
  */
 export const basicCatalog = new Catalog<LitComponentApi>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+  '0.9',
   [
     A2uiAudioPlayer,
     A2uiButton,

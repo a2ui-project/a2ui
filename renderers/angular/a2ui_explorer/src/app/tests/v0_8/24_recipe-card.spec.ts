@@ -20,7 +20,7 @@ describe('Example: Recipe Card (basic) (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Recipe Card (basic)', Version.V0_8);
+    await loadExample({name: 'Recipe Card (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

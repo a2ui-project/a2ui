@@ -1,0 +1,617 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "fs-browser",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "fs-browser",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["title", "subtitle", "body"],
+          "accessibility": {
+            "description": {
+              "call": "updateDataModel",
+              "args": {
+                "updates": {
+                  "path": "/startup"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "text": "Local files over MCP",
+          "variant": "h2"
+        },
+        {
+          "id": "subtitle",
+          "component": "Text",
+          "text": "Every control on this page is a callMcpTool call against the reference filesystem MCP server. The payload carries the JMESPath that turns each response into data model updates.",
+          "variant": "caption"
+        },
+        {
+          "id": "body",
+          "component": "Row",
+          "children": ["left_pane", "right_pane"]
+        },
+        {
+          "id": "left_pane",
+          "component": "Column",
+          "weight": 1,
+          "children": ["top_card", "entries_card"]
+        },
+        {
+          "id": "top_card",
+          "component": "Card",
+          "child": "controls_row"
+        },
+        {
+          "id": "controls_row",
+          "component": "Row",
+          "children": ["nav_column", "search_column"]
+        },
+        {
+          "id": "nav_column",
+          "component": "Column",
+          "weight": 1,
+          "children": ["path_field", "nav_row"]
+        },
+        {
+          "id": "path_field",
+          "component": "TextField",
+          "label": "Directory",
+          "value": {
+            "path": "/dir"
+          }
+        },
+        {
+          "id": "nav_row",
+          "component": "Row",
+          "children": ["open_button", "parent_button", "home_button"]
+        },
+        {
+          "id": "open_button",
+          "component": "Button",
+          "variant": "primary",
+          "child": "open_button_text",
+          "action": {
+            "functionCall": {
+              "call": "updateDataModel",
+              "args": {
+                "updates": {
+                  "call": "jmespath",
+                  "args": {
+                    "expression": {
+                      "path": "/expr/list"
+                    },
+                    "data": {
+                      "dir": {
+                        "path": "/dir"
+                      },
+                      "nl": "\n",
+                      "rows": {
+                        "call": "regexCapture",
+                        "args": {
+                          "value": {
+                            "call": "split",
+                            "args": {
+                              "value": {
+                                "call": "jmespath",
+                                "args": {
+                                  "expression": "join(nl, result.content[?type == 'text'].text)",
+                                  "data": {
+                                    "nl": "\n",
+                                    "result": {
+                                      "call": "callMcpTool",
+                                      "args": {
+                                        "name": "list_directory_with_sizes",
+                                        "arguments": {
+                                          "call": "jmespath",
+                                          "args": {
+                                            "expression": "{path: @}",
+                                            "data": {
+                                              "path": "/dir"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "separator": "\n"
+                            }
+                          },
+                          "pattern": "^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "open_button_text",
+          "component": "Text",
+          "text": "List directory"
+        },
+        {
+          "id": "parent_button",
+          "component": "Button",
+          "child": "parent_button_text",
+          "action": {
+            "functionCall": {
+              "call": "updateDataModel",
+              "args": {
+                "updates": {
+                  "call": "jmespath",
+                  "args": {
+                    "expression": {
+                      "path": "/expr/list"
+                    },
+                    "data": {
+                      "dir": {
+                        "call": "regexReplace",
+                        "args": {
+                          "value": {
+                            "path": "/dir"
+                          },
+                          "pattern": "/[^/]+$",
+                          "replacement": ""
+                        }
+                      },
+                      "nl": "\n",
+                      "rows": {
+                        "call": "regexCapture",
+                        "args": {
+                          "value": {
+                            "call": "split",
+                            "args": {
+                              "value": {
+                                "call": "jmespath",
+                                "args": {
+                                  "expression": "join(nl, result.content[?type == 'text'].text)",
+                                  "data": {
+                                    "nl": "\n",
+                                    "result": {
+                                      "call": "callMcpTool",
+                                      "args": {
+                                        "name": "list_directory_with_sizes",
+                                        "arguments": {
+                                          "call": "jmespath",
+                                          "args": {
+                                            "expression": "{path: @}",
+                                            "data": {
+                                              "call": "regexReplace",
+                                              "args": {
+                                                "value": {
+                                                  "path": "/dir"
+                                                },
+                                                "pattern": "/[^/]+$",
+                                                "replacement": ""
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "separator": "\n"
+                            }
+                          },
+                          "pattern": "^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "parent_button_text",
+          "component": "Text",
+          "text": "Parent"
+        },
+        {
+          "id": "home_button",
+          "component": "Button",
+          "child": "home_button_text",
+          "action": {
+            "functionCall": {
+              "call": "updateDataModel",
+              "args": {
+                "updates": {
+                  "call": "jmespath",
+                  "args": {
+                    "expression": {
+                      "path": "/expr/list"
+                    },
+                    "data": {
+                      "dir": "~",
+                      "nl": "\n",
+                      "rows": {
+                        "call": "regexCapture",
+                        "args": {
+                          "value": {
+                            "call": "split",
+                            "args": {
+                              "value": {
+                                "call": "jmespath",
+                                "args": {
+                                  "expression": "join(nl, result.content[?type == 'text'].text)",
+                                  "data": {
+                                    "nl": "\n",
+                                    "result": {
+                                      "call": "callMcpTool",
+                                      "args": {
+                                        "name": "list_directory_with_sizes",
+                                        "arguments": {
+                                          "call": "jmespath",
+                                          "args": {
+                                            "expression": "{path: @}",
+                                            "data": "~"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "separator": "\n"
+                            }
+                          },
+                          "pattern": "^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "home_button_text",
+          "component": "Text",
+          "text": "Home"
+        },
+        {
+          "id": "search_column",
+          "component": "Column",
+          "weight": 1,
+          "children": ["search_field", "search_button"]
+        },
+        {
+          "id": "search_field",
+          "component": "TextField",
+          "label": "Search in directory (glob)",
+          "value": {
+            "path": "/search_pattern"
+          }
+        },
+        {
+          "id": "search_button",
+          "component": "Button",
+          "child": "search_button_text",
+          "action": {
+            "functionCall": {
+              "call": "updateDataModel",
+              "args": {
+                "updates": {
+                  "call": "jmespath",
+                  "args": {
+                    "expression": {
+                      "path": "/expr/search"
+                    },
+                    "data": {
+                      "dir": {
+                        "path": "/dir"
+                      },
+                      "nl": "\n",
+                      "pattern": {
+                        "path": "/search_pattern"
+                      },
+                      "rows": {
+                        "call": "regexCapture",
+                        "args": {
+                          "value": {
+                            "call": "split",
+                            "args": {
+                              "value": {
+                                "call": "jmespath",
+                                "args": {
+                                  "expression": "join(nl, result.content[?type == 'text'].text)",
+                                  "data": {
+                                    "nl": "\n",
+                                    "result": {
+                                      "call": "callMcpTool",
+                                      "args": {
+                                        "name": "search_files",
+                                        "arguments": {
+                                          "call": "jmespath",
+                                          "args": {
+                                            "expression": "{path: dir, pattern: pattern}",
+                                            "data": {
+                                              "dir": {
+                                                "path": "/dir"
+                                              },
+                                              "pattern": {
+                                                "path": "/search_pattern"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "separator": "\n"
+                            }
+                          },
+                          "pattern": "^(.*)$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "search_button_text",
+          "component": "Text",
+          "text": "Search in directory"
+        },
+        {
+          "id": "entries_card",
+          "component": "Card",
+          "child": "entries_column"
+        },
+        {
+          "id": "entries_column",
+          "component": "Column",
+          "children": ["entries_title", "entries_list"]
+        },
+        {
+          "id": "entries_title",
+          "component": "Text",
+          "text": {
+            "path": "/entries_title"
+          },
+          "variant": "h5"
+        },
+        {
+          "id": "entries_list",
+          "component": "List",
+          "children": {
+            "componentId": "entry_row",
+            "path": "/entries"
+          }
+        },
+        {
+          "id": "entry_row",
+          "component": "Row",
+          "children": ["entry_icon", "entry_button", "entry_size"]
+        },
+        {
+          "id": "entry_icon",
+          "component": "Icon",
+          "name": {
+            "path": "icon"
+          }
+        },
+        {
+          "id": "entry_button",
+          "component": "Button",
+          "variant": "borderless",
+          "weight": 1,
+          "child": "entry_name",
+          "action": {
+            "functionCall": {
+              "call": "updateDataModel",
+              "args": {
+                "updates": {
+                  "call": "jmespath",
+                  "args": {
+                    "expression": {
+                      "path": "expr"
+                    },
+                    "data": {
+                      "dir": {
+                        "call": "formatString",
+                        "args": {
+                          "value": "${/row_base}${name}"
+                        }
+                      },
+                      "nl": "\n",
+                      "rows": {
+                        "call": "regexCapture",
+                        "args": {
+                          "value": {
+                            "call": "split",
+                            "args": {
+                              "value": {
+                                "call": "jmespath",
+                                "args": {
+                                  "expression": "join(nl, result.content[?type == 'text'].text)",
+                                  "data": {
+                                    "nl": "\n",
+                                    "result": {
+                                      "call": "callMcpTool",
+                                      "args": {
+                                        "name": {
+                                          "path": "tool"
+                                        },
+                                        "arguments": {
+                                          "call": "jmespath",
+                                          "args": {
+                                            "expression": "{path: @}",
+                                            "data": {
+                                              "call": "formatString",
+                                              "args": {
+                                                "value": "${/row_base}${name}"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "separator": "\n"
+                            }
+                          },
+                          "pattern": {
+                            "path": "pattern"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "entry_name",
+          "component": "Text",
+          "text": {
+            "path": "name"
+          }
+        },
+        {
+          "id": "entry_size",
+          "component": "Text",
+          "text": {
+            "path": "size"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "right_pane",
+          "component": "Column",
+          "weight": 1,
+          "children": ["viewer_card"]
+        },
+        {
+          "id": "viewer_card",
+          "component": "Card",
+          "child": "viewer_column"
+        },
+        {
+          "id": "viewer_column",
+          "component": "Column",
+          "children": ["viewer_title", "viewer_body"]
+        },
+        {
+          "id": "viewer_title",
+          "component": "Text",
+          "text": {
+            "path": "/viewer_title"
+          },
+          "variant": "h5"
+        },
+        {
+          "id": "viewer_body",
+          "component": "Text",
+          "text": {
+            "path": "/viewer_body"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "fs-browser",
+      "value": {
+        "entries": [],
+        "entries_title": "Loading your home directory",
+        "viewer_title": "No file open",
+        "viewer_body": "Choose a file on the left to read it.",
+        "startup": {
+          "call": "jmespath",
+          "args": {
+            "expression": {
+              "path": "/expr/list"
+            },
+            "data": {
+              "once": {
+                "call": "updateDataModel",
+                "args": {
+                  "updates": {
+                    "/startup": null
+                  }
+                }
+              },
+              "dir": "~",
+              "nl": "\n",
+              "rows": {
+                "call": "regexCapture",
+                "args": {
+                  "value": {
+                    "call": "split",
+                    "args": {
+                      "value": {
+                        "call": "jmespath",
+                        "args": {
+                          "expression": "join(nl, result.content[?type == 'text'].text)",
+                          "data": {
+                            "nl": "\n",
+                            "result": {
+                              "call": "callMcpTool",
+                              "args": {
+                                "name": "list_directory_with_sizes",
+                                "arguments": {
+                                  "call": "jmespath",
+                                  "args": {
+                                    "expression": "{path: @}",
+                                    "data": "~"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "separator": "\n"
+                    }
+                  },
+                  "pattern": "^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$"
+                }
+              }
+            }
+          }
+        },
+        "expr": {
+          "list": "{dir: dir, rows: rows[?@ != null]} | {\n  \"/dir\": dir,\n  \"/row_base\": join('', [dir, '/']),\n  \"/entries\": rows[*].{\n    name: [1],\n    size: [2] || '',\n    icon: ([0] == 'DIR' && 'folder') || 'attachFile',\n    tool: ([0] == 'DIR' && 'list_directory_with_sizes') || 'read_text_file',\n    expr: {path: ([0] == 'DIR' && '/expr/list') || '/expr/read'},\n    pattern: ([0] == 'DIR' && '^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$') || '^(.*)$'\n  },\n  \"/entries_title\": join('', [\n    to_string(length(rows)),\n    (length(rows) == `1` && ' entry') || ' entries'\n  ]),\n  \"/viewer_title\": (dir == '~' && 'Home Directory (~)') || dir,\n  \"/viewer_body\": 'Choose a file on the left to read it.'\n}",
+          "read": "{\n  \"/viewer_title\": dir,\n  \"/viewer_body\": join('', ['```', nl, join(nl, rows[*][0] | [0:200]), nl, '```'])\n}",
+          "search": "{\n  dir: dir,\n  pattern: pattern,\n  hits: rows[*][0] | [?@ != '' && !contains(@, 'No matches')]\n} | {\n  \"/dir\": dir,\n  \"/row_base\": '',\n  \"/entries\": hits[*].{\n    name: @,\n    size: '',\n    icon: 'attachFile',\n    tool: 'read_text_file',\n    expr: {path: '/expr/read'},\n    pattern: '^(.*)$'\n  },\n  \"/entries_title\": join('', [\n    'Search: ',\n    to_string(length(hits)),\n    (length(hits) == `1` && ' match') || ' matches',\n    ' in `', dir, '`'\n  ]),\n  \"/viewer_title\": join('', ['Search in ', dir]),\n  \"/viewer_body\": (length(hits) > `0` && join('', [\n    'Found ',\n    to_string(length(hits)),\n    (length(hits) == `1` && ' match') || ' matches',\n    ' for glob `', pattern, '` in `', dir, '`. Select a file on the left to read it.'\n  ])) || join('', ['No matches found for glob `', pattern, '` in `', dir, '`.'])\n}"
+        },
+        "dir": "~",
+        "row_base": "~/",
+        "search_pattern": "**/*.md"
+      }
+    }
+  }
+]

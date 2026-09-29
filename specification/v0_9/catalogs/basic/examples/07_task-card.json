@@ -99,7 +99,7 @@
           "description": "Review and approve the authentication module changes.",
           "dueDate": "2025-12-15T17:00:00Z",
           "project": "Backend",
-          "priorityIcon": "priority_high"
+          "priorityIcon": "warning"
         }
       }
     }

@@ -10,7 +10,7 @@ We will mirror the structure used by A2UI Express.
 
 ```
 main/
-├── agent_sdks/python/a2ui_agent/src/a2ui/experimental/elemental/
+├── python/a2ui_agent/src/a2ui/experimental/elemental/
 │   ├── __init__.py
 │   ├── compiler.py          # Compiles HTML5 to standard A2UI v1.0 JSON
 │   ├── decompiler.py        # Decompiles A2UI JSON back to HTML5

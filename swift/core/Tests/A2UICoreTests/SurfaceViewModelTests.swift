@@ -624,6 +624,71 @@ struct SurfaceViewModelTests {
     #expect(funcCallJSON["call"]?.stringValue == "submit")
   }
 
+  @Test func actionTriggersLocalFunctionCall() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "onClick": [
+            "functionCall": [
+              "call": "concat",
+              "args": ["a": "hello ", "b": "world"],
+            ]
+          ],
+        ]
+      ]
+    )
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+    let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
+    action()
+    #expect(handler.capturedActions.isEmpty)
+  }
+
+  @Test func actionTriggersUnwrappedLocalCall() async throws {
+    let (_, surface, handler) = try makeProcessor()
+    let component = ComponentModel(
+      id: "root",
+      type: "button",
+      properties: [
+        "onClick": [
+          "call": "concat",
+          "args": ["a": "foo ", "b": "bar"],
+        ]
+      ]
+    )
+    surface.componentsModel.addComponent(component)
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+    let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
+    action()
+    #expect(handler.capturedActions.isEmpty)
+  }
+
+  @Test func actionDispatchesDirectNameEvent() async throws {
+    let (_, surface, handler) = try makeProcessor()
+    let component = ComponentModel(
+      id: "root",
+      type: "button",
+      properties: [
+        "onClick": [
+          "name": "submit_direct",
+          "context": ["userId": "u123"],
+        ]
+      ]
+    )
+    surface.componentsModel.addComponent(component)
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+    let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
+    action()
+    #expect(handler.capturedActions.count == 1)
+    #expect(
+      handler.capturedActions.first?.identity
+        == .event(name: "submit_direct", context: ["userId": .string("u123")])
+    )
+  }
+
   // MARK: - Validation Checks
 
   @Test func checksResolveAndReflectInNodeValidationErrors() async throws {

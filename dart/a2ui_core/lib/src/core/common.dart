@@ -49,10 +49,10 @@ class FunctionCall {
   }
 
   Map<String, dynamic> toJson() => {
-    'call': call,
-    'args': args,
-    'returnType': returnType.jsonValue,
-  };
+        'call': call,
+        'args': args,
+        'returnType': returnType.jsonValue,
+      };
 }
 
 /// Triggers a server-side event or a local client-side function.
@@ -76,9 +76,9 @@ class Action {
   }
 
   Map<String, dynamic> toJson() => {
-    if (event != null) 'event': event,
-    if (functionCall != null) 'functionCall': functionCall!.toJson(),
-  };
+        if (event != null) 'event': event,
+        if (functionCall != null) 'functionCall': functionCall!.toJson(),
+      };
 }
 
 /// A template for generating a dynamic list of children.

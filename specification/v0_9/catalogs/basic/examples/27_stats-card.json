@@ -94,10 +94,10 @@
       "updateDataModel": {
         "surfaceId": "gallery-stats-card",
         "value": {
-          "icon": "trending_up",
+          "icon": "payment",
           "metricName": "Monthly Revenue",
           "value": 48294,
-          "trendIcon": "arrow_upward",
+          "trendIcon": "arrowForward",
           "trendPercent": 12.5
         }
       }

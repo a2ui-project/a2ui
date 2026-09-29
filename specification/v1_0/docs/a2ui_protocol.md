@@ -125,7 +125,7 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
-- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `path` string ([JSON Pointer]), or a `FunctionCall` (function call).
+- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`).
 - **`ChildList`**: Defines how containers hold children. It supports:
   - `array`: A static array of `ComponentId` component references.
   - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
@@ -566,6 +566,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
    - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
+     - `Child`
      - `ChildList`
      - `DynamicString`
      - `DynamicNumber`
@@ -576,6 +577,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `CheckRule`
      - `Checkable`
      - `Action`
+     - `DataBinding`
+     - `FunctionCall`
 
    > [!NOTE]
    > **Catalog Evolution and Protocol Compatibility**
@@ -1173,7 +1176,15 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 
 ### Functions
 
-> **System Namespace Rule (`@` Prefix)**: Function names beginning with `@` (e.g., `@index`) represent universal system context evaluations available across all catalogs. Custom catalogs MUST NOT define functions prefixed with `@`.
+> **Reserved Protocol Directives (`@` Prefix)**: The `@` prefix is strictly reserved for protocol-level directives and system context functions:
+>
+> - **`@path`**: Represents a dynamic data binding to a path in the data model (e.g. `{"@path": "/user/name"}`).
+> - **`@call`**: Represents a catalog or system function invocation (e.g. `{"@call": "formatString", "args": {...}}`).
+> - **`@index`**: Represents the universal system context function returning the 0-based iteration index during list template rendering (`{"@call": "@index"}`). Custom catalogs MUST NOT define functions prefixed with `@`.
+>
+> **Single-`@` Directive Rule**: Any key in a dynamic object matching `^@([^@]|$)` (a leading `@` that is not doubled, including a key consisting of `@` alone) that is not a recognized protocol directive is disallowed and rejected by renderers and validators. This reserves the single-`@` namespace for future protocol extensions without breaking backward compatibility.
+>
+> **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with `"path"` and `"call"` keys are literal objects and are never intercepted as dynamic bindings.
 
 | Function           | Description                                                              |
 | :----------------- | :----------------------------------------------------------------------- |
@@ -1497,6 +1508,8 @@ An agent advertises its capabilities using the [`agent_capabilities.json`] schem
 
 The `a2uiRendererCapabilities` object in the transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
 
+If `a2uiRendererCapabilities` is carried on message metadata (eg, in A2A), it should be scoped to that conversation turn, and omitting it on subsequent messages should withdraw A2UI support for those turns. If `a2uiRendererCapabilities` is carried on session metadata (eg, in MCP initialize) it should be scoped to the session.
+
 **Properties:**
 
 - `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
@@ -1549,7 +1562,7 @@ Renderers and client SDKs expose surface and component metadata using uniform ac
 [`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`agent_to_renderer.json`]: ../json/agent_to_renderer.json
 [`catalog_definition.json`]: ../json/catalog_definition.json
-[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
+[`catalogs/basic/catalog.json`]: ../../../catalogs/basic/v1/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
 [`renderer_data_model.json`]: ../json/renderer_data_model.json

@@ -23,7 +23,7 @@
     "build": {
       "command": "yarn generate-examples && tsc && vite build",
       "dependencies": [
-        "../../web_core:build",
+        "../../../typescript/web_core:build",
         "../../markdown/markdown-it:build",
         "../:build"
       ]

@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export {A2uiController} from '@a2ui/web_core/v0_9';
+export {A2uiController} from '@a2ui/web_core/v0_9/universal';

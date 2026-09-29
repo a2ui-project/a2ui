@@ -73,10 +73,64 @@ def run_ajv(schema_path, data_paths, refs=None):
     return result.returncode == 0, result.stdout + result.stderr
 
 
+def extend_catalog_with_custom_components(
+    catalog_alias_path, custom_components, out_path
+):
+    """Writes a copy of the aliased catalog that also accepts the given custom components.
+
+    Some examples showcase components that the host application registers on top of the basic
+    catalog (for example a custom container component). Those examples declare the component
+    names in a top-level `customComponents` list. Each declared component is accepted with the
+    common component properties (`id`, `accessibility`, `weight`), a matching `component` name
+    and any additional properties, while every other component and message stays strictly
+    validated against the basic catalog.
+    """
+    with open(catalog_alias_path, "r") as f:
+        catalog = json.load(f)
+
+    components = catalog.setdefault("components", {})
+    any_component = catalog.setdefault("$defs", {}).setdefault(
+        "anyComponent", {"oneOf": []}
+    )
+    # Reuse the shared `$ref`s (ComponentCommon, CatalogComponentCommon) of an existing component
+    # so the custom definitions follow the catalog's own conventions.
+    common_refs = []
+    for existing in components.values():
+        common_refs = [item for item in existing.get("allOf", []) if "$ref" in item]
+        if common_refs:
+            break
+
+    for name in custom_components:
+        if name in components:
+            continue
+        components[name] = {
+            "type": "object",
+            "allOf": (
+                common_refs
+                + [{
+                    "type": "object",
+                    "properties": {"component": {"const": name}},
+                    "required": ["component"],
+                }]
+            ),
+        }
+        any_component.setdefault("oneOf", []).append({"$ref": f"#/components/{name}"})
+
+    with open(out_path, "w") as f:
+        json.dump(catalog, f)
+    return out_path
+
+
 def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"):
-    """Validates a list of JSON files where each file contains a list of messages."""
+    """Validates a list of JSON files where each file contains a list of messages.
+
+    Examples are batched per set of declared `customComponents` (see
+    `extend_catalog_with_custom_components`), so canonical examples share one Ajv invocation
+    against the basic catalog and each custom set gets its own extended catalog.
+    """
     os.makedirs(temp_dir, exist_ok=True)
-    all_data_paths = []
+    refs = list(refs or [])
+    # example -> (list of message paths, tuple of custom component names)
     file_map = []
 
     for example_file in sorted(example_files):
@@ -90,11 +144,22 @@ def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"
                 )
                 return False
 
+        custom_components = ()
         if (
             isinstance(messages, dict)
             and "messages" in messages
             and isinstance(messages["messages"], list)
         ):
+            declared = messages.get("customComponents", [])
+            if not isinstance(declared, list) or not all(
+                isinstance(name, str) for name in declared
+            ):
+                print(
+                    f"  Validating {os.path.basename(example_file)}...\n    [FAIL]"
+                    " `customComponents` must be a list of component names"
+                )
+                return False
+            custom_components = tuple(sorted(declared))
             messages = messages["messages"]
         elif not isinstance(messages, list):
             messages = [messages]
@@ -107,24 +172,180 @@ def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"
             with open(temp_data_path, "w") as f:
                 json.dump(msg, f)
             msg_paths.append(temp_data_path)
-            all_data_paths.append(temp_data_path)
 
-        file_map.append((example_file, msg_paths))
+        file_map.append((example_file, msg_paths, custom_components))
 
-    if not all_data_paths:
+    if not file_map:
         return True
 
-    # Validate all example messages in a single batched Ajv invocation
-    is_valid, output = run_ajv(root_schema, all_data_paths, refs)
-    if not is_valid:
-        print(f"  [FAIL] Validation failed:")
-        print(output.strip())
-        return False
+    catalog_alias = next(
+        (ref for ref in refs if os.path.basename(ref) == "catalog.json"), None
+    )
 
-    for example_file, _ in file_map:
-        print(f"  Validating {os.path.basename(example_file)}... [PASS]")
+    # Validate all example messages of a group in a single batched Ajv invocation
+    groups = sorted({custom for _, _, custom in file_map})
+    for group_index, custom_components in enumerate(groups):
+        group_refs = refs
+        if custom_components:
+            if not catalog_alias:
+                print(
+                    "  [FAIL] `customComponents` is only supported for versions with a"
+                    " catalog"
+                )
+                return False
+            extended_path = os.path.join(temp_dir, f"catalog_custom_{group_index}.json")
+            extend_catalog_with_custom_components(
+                catalog_alias, custom_components, extended_path
+            )
+            group_refs = [
+                extended_path if ref == catalog_alias else ref for ref in refs
+            ]
+
+        data_paths = [
+            path
+            for _, msg_paths, custom in file_map
+            if custom == custom_components
+            for path in msg_paths
+        ]
+        if not data_paths:
+            continue
+        is_valid, output = run_ajv(root_schema, data_paths, group_refs)
+        if not is_valid:
+            print(f"  [FAIL] Validation failed:")
+            print(output.strip())
+            return False
+
+    for example_file, _, custom_components in file_map:
+        suffix = ""
+        if custom_components:
+            suffix = f" (custom components: {', '.join(custom_components)})"
+        print(f"  Validating {os.path.basename(example_file)}... [PASS]{suffix}")
 
     return True
+
+
+def validate_example_icons(catalog_path, example_files):
+    """Validates that any icon referenced in example files exists in the basic catalog."""
+    if not os.path.exists(catalog_path):
+        return True
+
+    with open(catalog_path, "r") as f:
+        catalog = json.load(f)
+
+    valid_icons = set()
+    icon_def = catalog.get("components", {}).get("Icon", {})
+    if "allOf" in icon_def:
+        for item in icon_def["allOf"]:
+            props = item.get("properties", {})
+            if "name" in props:
+                for branch in props["name"].get("oneOf", []):
+                    if "enum" in branch:
+                        valid_icons.update(branch["enum"])
+    elif "properties" in icon_def:
+        props = icon_def["properties"]
+        if "name" in props:
+            for branch in props["name"].get("oneOf", []):
+                if "enum" in branch:
+                    valid_icons.update(branch["enum"])
+
+    if not valid_icons:
+        return True
+
+    def resolve_path(data, path_str):
+        parts = [p for p in path_str.strip("/").split("/") if p]
+        cur = data
+        for p in parts:
+            if isinstance(cur, dict) and p in cur:
+                cur = cur[p]
+            elif isinstance(cur, list) and p.isdigit() and int(p) < len(cur):
+                cur = cur[int(p)]
+            else:
+                return None
+        return cur
+
+    all_valid = True
+    for example_file in sorted(example_files):
+        with open(example_file, "r") as f:
+            try:
+                data = json.load(f)
+            except Exception:
+                continue
+
+        messages = data if isinstance(data, list) else data.get("messages", [data])
+        data_models = [
+            m["updateDataModel"].get("value", {})
+            for m in messages
+            if isinstance(m, dict) and "updateDataModel" in m
+        ]
+
+        def check_element(elem):
+            nonlocal all_valid
+            if isinstance(elem, dict):
+                if elem.get("component") == "Icon":
+                    name = elem.get("name")
+                    if isinstance(name, str):
+                        if name not in valid_icons:
+                            print(
+                                f"  [FAIL] {os.path.basename(example_file)}: Invalid"
+                                f" icon '{name}'. Must be defined in catalog."
+                            )
+                            all_valid = False
+                    elif isinstance(name, dict) and ("@path" in name or "path" in name):
+                        path_str = name.get("@path") or name.get("path")
+                        resolved_val = None
+                        for dm in data_models:
+                            val = resolve_path(dm, path_str)
+                            if val is not None:
+                                resolved_val = val
+                                break
+                        if resolved_val is None:
+                            key = path_str.strip("/").split("/")[-1]
+
+                            def deep_find(d):
+                                if isinstance(d, dict):
+                                    for k, v in d.items():
+                                        if k == key and isinstance(v, str):
+                                            return v
+                                        res = deep_find(v)
+                                        if res is not None:
+                                            return res
+                                elif isinstance(d, list):
+                                    for x in d:
+                                        res = deep_find(x)
+                                        if res is not None:
+                                            return res
+                                return None
+
+                            for dm in data_models:
+                                resolved_val = deep_find(dm)
+                                if resolved_val is not None:
+                                    break
+
+                        if (
+                            isinstance(resolved_val, str)
+                            and resolved_val not in valid_icons
+                        ):
+                            print(
+                                f"  [FAIL] {os.path.basename(example_file)}: Bound icon"
+                                f" '{path_str}' resolved to invalid icon"
+                                f" '{resolved_val}'."
+                            )
+                            all_valid = False
+
+                for v in elem.values():
+                    check_element(v)
+            elif isinstance(elem, list):
+                for item in elem:
+                    check_element(item)
+
+        check_element(messages)
+
+    if all_valid:
+        print(
+            f"  Validating example icons against {os.path.basename(catalog_path)}..."
+            " [PASS]"
+        )
+    return all_valid
 
 
 def compare_schemas(subset_path, standard_path):
@@ -252,6 +473,7 @@ def main():
         },
         "v0_9": {
             "root_schema": "specification/v0_9/json/server_to_client.json",
+            "catalog": "specification/v0_9/catalogs/basic/catalog.json",
             "refs": [
                 "specification/v0_9/json/common_types.json",
                 "specification/v0_9/catalogs/basic/catalog.json",
@@ -260,11 +482,12 @@ def main():
         },
         "v1_0": {
             "root_schema": "specification/v1_0/json/agent_to_renderer.json",
+            "catalog": "specification/v1_0/catalogs/basic/catalog.json",
             "refs": [
                 "specification/v1_0/json/common_types.json",
-                "specification/v1_0/catalogs/basic/catalog.json",
+                "catalogs/basic/v1/catalog.json",
             ],
-            "examples": "specification/v1_0/catalogs/basic/examples/*.json",
+            "examples": "catalogs/basic/v1/examples/*.json",
         },
     }
 
@@ -306,6 +529,11 @@ def main():
         if "subset_schema" in config:
             subset_path = os.path.join(repo_root, config["subset_schema"])
             if not compare_schemas(subset_path, root_schema):
+                overall_success = False
+
+        if "catalog" in config:
+            catalog_path = os.path.join(repo_root, config["catalog"])
+            if not validate_example_icons(catalog_path, example_files):
                 overall_success = False
 
         if not example_files:

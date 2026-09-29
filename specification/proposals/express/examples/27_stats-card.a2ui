@@ -1,6 +1,6 @@
-$/icon = "trending_up"
+$/icon = "payment"
 $/metricName = "Monthly Revenue"
-$/trendIcon = "arrow_upward"
+$/trendIcon = "arrowForward"
 $/trendPercent = 12.5
 $/value = 48294
 root = Card(main_column)

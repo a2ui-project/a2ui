@@ -47,7 +47,7 @@
               "component": "TextField",
               "label": "First Name",
               "value": {
-                "path": "/contact/firstName"
+                "@path": "/contact/firstName"
               },
               "variant": "shortText"
             },
@@ -61,7 +61,7 @@
               "component": "TextField",
               "label": "Last Name",
               "value": {
-                "path": "/contact/lastName"
+                "@path": "/contact/lastName"
               },
               "variant": "shortText"
             },
@@ -75,16 +75,16 @@
               "component": "TextField",
               "label": "Email",
               "value": {
-                "path": "/contact/email"
+                "@path": "/contact/email"
               },
               "variant": "shortText",
               "checks": [
                 {
                   "condition": {
-                    "call": "email",
+                    "@call": "email",
                     "args": {
                       "value": {
-                        "path": "/contact/email"
+                        "@path": "/contact/email"
                       }
                     }
                   },
@@ -102,7 +102,7 @@
               "component": "TextField",
               "label": "Phone",
               "value": {
-                "path": "/contact/phone"
+                "@path": "/contact/phone"
               },
               "variant": "shortText"
             },
@@ -116,7 +116,7 @@
               "component": "TextField",
               "label": "Notes",
               "value": {
-                "path": "/contact/notes"
+                "@path": "/contact/notes"
               },
               "variant": "longText"
             },

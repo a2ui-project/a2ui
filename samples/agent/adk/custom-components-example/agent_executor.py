@@ -33,7 +33,7 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 from agent import ContactAgent
-from a2ui.a2a.extension import try_activate_a2ui_extension
+from a2ui.a2a import try_activate_a2ui_extension
 
 logger = logging.getLogger(__name__)
 

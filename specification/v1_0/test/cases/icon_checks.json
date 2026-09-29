@@ -50,7 +50,7 @@
               "component": "Icon",
               "name": {
                 "svgPath": {
-                  "path": "/custom/svg/path"
+                  "@path": "/custom/svg/path"
                 }
               }
             }
@@ -70,7 +70,7 @@
               "id": "icon_name_bound",
               "component": "Icon",
               "name": {
-                "path": "/dynamic/icon/name"
+                "@path": "/dynamic/icon/name"
               }
             }
           ]
@@ -109,7 +109,7 @@
               "component": "Icon",
               "name": {
                 "svgPath": {
-                  "path": "/custom/svg/path",
+                  "@path": "/custom/svg/path",
                   "extra": 1
                 }
               }

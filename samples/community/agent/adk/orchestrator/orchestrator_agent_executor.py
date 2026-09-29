@@ -18,7 +18,7 @@ import asyncio
 import re
 import os
 import httpx
-from typing import Optional, Any, List, override, Union
+from typing import Any, override
 
 from google.adk.agents.invocation_context import new_invocation_context_id, InvocationContext
 from google.adk.events.event_actions import EventActions
@@ -59,7 +59,7 @@ from a2ui.a2a.extension import (
     AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
     AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
 )
-from a2ui.a2a.parts import is_a2ui_part
+from a2ui.a2a import is_a2ui_part
 from a2ui.schema.constants import (
     A2UI_CLIENT_CAPABILITIES_KEY,
     A2UI_CLIENT_DATA_MODEL_KEY,
@@ -74,7 +74,7 @@ from a2ui.schema.constants import (
     A2UI_DELETE_SURFACE_KEY,
 )
 
-from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+from a2ui.adk.orchestration import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +190,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
     @classmethod
     async def create(
-        cls, base_url: str, subagent_urls: List[str]
+        cls, base_url: str, subagent_urls: list[str]
     ) -> tuple["OrchestratorAgentExecutor", AgentCard]:
         """Creates the OrchestratorAgentExecutor and AgentCard."""
         orchestrator_agent, agent_card = await cls._build_agent(
@@ -201,7 +201,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
     @classmethod
     async def _build_agent(
-        cls, base_url: str, subagent_urls: List[str]
+        cls, base_url: str, subagent_urls: list[str]
     ) -> tuple[LlmAgent, AgentCard]:
         """Builds the LLM agent for the orchestrator_agent agent."""
 
@@ -286,7 +286,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
                 logger.info(f"Created remote agent with description: {description}")
 
-        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
+        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
         agent = LlmAgent(
             model=LiteLlm(model=LITELLM_MODEL),
             name="orchestrator_agent",
@@ -348,7 +348,7 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
         executor_context: ExecutorContext,
         a2a_event: A2AEvent,
         event: Event,
-    ) -> Union[A2AEvent, list[A2AEvent], None]:
+    ) -> A2AEvent | list[A2AEvent] | None:
         invocation_context = executor_context.invocation_context
 
         # Try to populate subagent agent card if available.

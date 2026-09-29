@@ -70,9 +70,8 @@ class DataModel {
 
           if (current is Map<String, Object?>) {
             if (!current.containsKey(segment) || current[segment] == null) {
-              current[segment] = isNextNumeric
-                  ? <Object?>[]
-                  : <String, Object?>{};
+              current[segment] =
+                  isNextNumeric ? <Object?>[] : <String, Object?>{};
             }
             current = current[segment];
           } else if (current is List<Object?>) {
@@ -93,9 +92,8 @@ class DataModel {
               current.add(null);
             }
             if (current[index] == null) {
-              current[index] = isNextNumeric
-                  ? <Object?>[]
-                  : <String, Object?>{};
+              current[index] =
+                  isNextNumeric ? <Object?>[] : <String, Object?>{};
             }
             current = current[index];
           } else {
@@ -128,10 +126,16 @@ class DataModel {
               path: path,
             );
           }
-          while (current.length <= index) {
-            current.add(null);
+          // A delete of an index that does not exist leaves the list
+          // unchanged. Only a write may extend a list.
+          if (value != null) {
+            while (current.length <= index) {
+              current.add(null);
+            }
+            current[index] = value;
+          } else if (index < current.length) {
+            current[index] = null;
           }
-          current[index] = value;
         } else {
           // The parent resolved to a primitive, so there is nothing to
           // write into. Dropping the write would hide a malformed path.
