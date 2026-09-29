@@ -91,6 +91,9 @@ function normalizeId(id: unknown): unknown {
 }
 
 function normalizeV10Component(comp: Record<string, unknown>): Record<string, unknown> {
+  if (!comp || typeof comp !== 'object') {
+    return comp;
+  }
   const next: Record<string, unknown> = {...comp, id: normalizeId(comp.id)};
   if (typeof next.child === 'string') {
     next.child = normalizeId(next.child);

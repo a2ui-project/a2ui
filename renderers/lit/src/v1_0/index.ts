@@ -16,5 +16,12 @@
 
 export * from '@a2ui/web_core/v1_0';
 export * from '@a2ui/web_core/v1_0/universal';
-export {A2uiSurface, renderA2uiNode, Context, provideMarkdown} from '../v0_9/index.js';
+export {
+  A2uiSurface,
+  renderA2uiNode,
+  A2uiLitElement,
+  A2uiController,
+  Context,
+  provideMarkdown,
+} from '../v0_9/index.js';
 export * from './catalogs/basic/index.js';

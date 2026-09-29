@@ -17,7 +17,8 @@
 import {LitElement, html, nothing} from 'lit';
 import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor, A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {MessageProcessor} from '@a2ui/web_core/v1_0';
+import {A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {basicCatalog as basicCatalogV09, Context} from '@a2ui/lit/v0_9';
 import {basicCatalog as basicCatalogV10} from '@a2ui/lit/v1_0';
 import {renderMarkdown} from '@a2ui/markdown-it';
