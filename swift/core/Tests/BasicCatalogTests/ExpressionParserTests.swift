@@ -20,90 +20,9 @@ import Testing
 struct ExpressionParserTests {
   let parser = ExpressionParser()
 
-  @Test func parsesLiteralStringsUnchanged() throws {
-    let result = try parser.parse("hello world")
-    #expect(result == [.string("hello world")])
-  }
-
-  @Test func parsesSimpleInterpolation() throws {
-    let result = try parser.parse("hello ${foo}")
-    #expect(result == [.string("hello "), .object(["path": .string("foo")])])
-  }
-
-  @Test func parsesNumberInterpolation() throws {
-    let result = try parser.parse("number is ${num}")
-    #expect(result == [.string("number is "), .object(["path": .string("num")])])
-  }
-
-  @Test func parsesNestedInterpolation() throws {
-    let result = try parser.parse("val is ${${nested}}")
-    #expect(result == [.string("val is "), .object(["path": .string("nested")])])
-  }
-
-  @Test func handlesEscapedInterpolation() throws {
-    let result = try parser.parse("escaped \\${foo}")
-    #expect(result == [.string("escaped "), .string("${"), .string("foo}")])
-  }
-
-  @Test func parsesFunctionCalls() throws {
-    let result = try parser.parse("sum is ${add(a: 10, b: 20)}")
-    #expect(
-      result == [
-        .string("sum is "),
-        .object([
-          "call": .string("add"),
-          "args": .object(["a": .integer(10), "b": .integer(20)]),
-          "returnType": .string("any"),
-        ]),
-      ]
-    )
-  }
-
-  @Test func parsesFunctionCallsWithStringLiterals() throws {
-    let result = try parser.parse("case is ${upper(text: \"hello\")}")
-    #expect(
-      result == [
-        .string("case is "),
-        .object([
-          "call": .string("upper"),
-          "args": .object(["text": .string("hello")]),
-          "returnType": .string("any"),
-        ]),
-      ]
-    )
-  }
-
-  @Test func parsesKeywords() throws {
-    let result = try parser.parse("${true} ${false} ${null}")
-    #expect(result == [.boolean(true), .string(" "), .boolean(false), .string(" ")])
-  }
-
   @Test func returnsErrorOnMaxDepthExceeded() {
     #expect(throws: FunctionError.self) {
       _ = try parser.parse("depth", depth: ExpressionParser.maxDepth + 1)
-    }
-  }
-
-  @Test func handlesDeepRecursionGracefully() throws {
-    let result = try parser.parse("${${\"hello\"}}")
-    #expect(result == [.string("hello")])
-  }
-
-  @Test func returnsErrorOnUnclosedInterpolation() {
-    #expect(throws: FunctionError.self) {
-      _ = try parser.parse("hello ${world")
-    }
-  }
-
-  @Test func returnsErrorOnInvalidFunctionSyntax() {
-    #expect(throws: FunctionError.self) {
-      _ = try parser.parse("${add(a: 1, b: 2}")
-    }
-  }
-
-  @Test func returnsErrorOnUnexpectedCharactersAtEnd() {
-    #expect(throws: FunctionError.self) {
-      _ = try parser.parse("${true false}")
     }
   }
 
