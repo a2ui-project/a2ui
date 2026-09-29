@@ -288,44 +288,44 @@ def test_canonical_protocol_types_schema():
     assert props["title"]["type"] == "string"
     assert (
         props["dynamic_title"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+        == "common_types.json#/$defs/DynamicString"
     )
     assert (
         props["metric"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+        == "common_types.json#/$defs/DynamicNumber"
     )
     assert (
         props["is_active"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+        == "common_types.json#/$defs/DynamicBoolean"
     )
     assert (
         props["tags"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList"
+        == "common_types.json#/$defs/DynamicStringList"
     )
     assert (
         props["anything"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+        == "common_types.json#/$defs/DynamicValue"
     )
     assert (
         props["on_click"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+        == "common_types.json#/$defs/Action"
     )
     assert props["checks"]["type"] == "array"
     assert (
         props["checks"]["items"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"
+        == "common_types.json#/$defs/CheckRule"
     )
     assert (
         props["accessibility"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/AccessibilityAttributes"
+        == "common_types.json#/$defs/AccessibilityAttributes"
     )
     assert (
         props["footer"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+        == "common_types.json#/$defs/ComponentId"
     )
     assert (
         props["items"]["$ref"]
-        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+        == "common_types.json#/$defs/ChildList"
     )
     assert props["theme"] == {
         "type": "string",
@@ -337,6 +337,14 @@ def test_canonical_protocol_types_schema():
         "enum": ["light", "dark"],
         "description": "Theme enum",
     }
+
+    # Verify custom/versioned prefix can also be supplied
+    custom_prefix = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
+    custom_schema = meta.to_json_schema(ref_prefix=custom_prefix)
+    assert (
+        custom_schema["properties"]["dynamic_title"]["$ref"]
+        == f"{custom_prefix}DynamicString"
+    )
 
 
 def test_processor_argument_coercion():
@@ -679,3 +687,42 @@ def test_macro_expander_passthrough_components():
     assert "Button" not in inf_only_macros.catalog_schema["components"]
     assert "Card" not in inf_only_macros.catalog_schema["components"]
     assert "Text" not in inf_only_macros.catalog_schema["components"]
+
+
+def test_macro_expander_detects_common_ref_prefix():
+    @macro
+    def DynCard(label: DynamicString) -> Card:
+        return Card(child=Text(text="hi"))
+
+    # 1. Base catalog with versioned prefix
+    v09_prefix = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
+    cat_v09 = make_test_catalog({
+        "Text": {
+            "type": "object",
+            "properties": {
+                "text": {"$ref": f"{v09_prefix}DynamicString"}
+            },
+        }
+    })
+    exp_v09 = MacroExpander([DynCard])
+    inf_v09 = exp_v09.transform_to_inference_catalog(cat_v09)
+    assert (
+        inf_v09.catalog_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
+        == f"{v09_prefix}DynamicString"
+    )
+
+    # 2. Base catalog with relative unversioned prefix
+    cat_rel = make_test_catalog({
+        "Text": {
+            "type": "object",
+            "properties": {
+                "text": {"$ref": "common_types.json#/$defs/DynamicString"}
+            },
+        }
+    })
+    exp_rel = MacroExpander([DynCard])
+    inf_rel = exp_rel.transform_to_inference_catalog(cat_rel)
+    assert (
+        inf_rel.catalog_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
+        == "common_types.json#/$defs/DynamicString"
+    )
