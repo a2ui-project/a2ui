@@ -20,13 +20,25 @@ import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
 
 import type {MessageProcessor, ComponentContext, Catalog, SurfaceModel} from '../index.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
-import type {TextApi as TextApiType} from '../v0_9/basic_catalog/components/basic_components.js';
 import type {A2uiLitElement as A2uiLitElementType} from './a2ui-lit-element.js';
 import type {A2uiController as A2uiControllerType} from './a2ui-controller.js';
+import {z} from 'zod';
+import type {ComponentApi} from '../catalog/types.js';
+
+const MockTextApi = {
+  name: 'Text',
+  schema: z.object({
+    text: z
+      .union([z.string(), z.record(z.string(), z.any())])
+      .describe('REF:#/$defs/DynamicString')
+      .default(''),
+  }),
+};
+type MockTextApiType = typeof MockTextApi;
 
 interface TestMockHostElement extends HTMLElement {
   context: ComponentContext;
-  testController: A2uiControllerType<typeof TextApiType>;
+  testController: A2uiControllerType<MockTextApiType>;
   addController(controller: unknown): void;
   requestUpdate(): void;
 }
@@ -38,9 +50,9 @@ interface TestMockHostElement extends HTMLElement {
  * - Safely cleaning up subscriptions when the host is disconnected or the controller is disposed.
  */
 describe('A2uiController', () => {
-  let basicCatalog: Catalog<WebComponentImplementation>;
+  let basicCatalog: Catalog<any>;
   let A2uiController: typeof A2uiControllerType;
-  let TextApi: typeof TextApiType;
+  let TextApi: MockTextApiType;
   let MessageProcessorClass: typeof MessageProcessor;
   let ComponentContextClass: typeof ComponentContext;
   let TestMockHostClass: CustomElementConstructor;
@@ -80,9 +92,10 @@ describe('A2uiController', () => {
     const webCore = await import('../index.js');
     MessageProcessorClass = webCore.MessageProcessor;
     ComponentContextClass = webCore.ComponentContext;
-    const webCoreBasic = await import('../v0_9/basic_catalog/index.js');
-    basicCatalog = webCoreBasic.basicCatalog;
-    TextApi = webCoreBasic.TextApi;
+    basicCatalog = new webCore.Catalog('test-catalog', '1.0', [
+      MockTextApi as unknown as ComponentApi,
+    ]);
+    TextApi = MockTextApi;
 
     /**
      * A real Lit element registered as `test-mock-host` in JSDOM.
@@ -90,14 +103,14 @@ describe('A2uiController', () => {
      * using the `createMockHost` helper function defined above.
      */
     class TestMockHost
-      extends (A2uiLitElement as typeof A2uiLitElementType)<typeof TextApiType>
+      extends (A2uiLitElement as typeof A2uiLitElementType)<MockTextApiType>
       implements TestMockHostElement
     {
-      public testController!: A2uiControllerType<typeof TextApiType>;
+      public testController!: A2uiControllerType<MockTextApiType>;
 
       override createController() {
-        // Automatically create and store the controller using the imported TextApi catalog.
-        this.testController = new A2uiController(this, TextApi);
+        // Automatically create and store the controller using the local MockTextApi catalog.
+        this.testController = new A2uiController(this, TextApi as any);
         return this.testController;
       }
     }
@@ -116,19 +129,19 @@ describe('A2uiController', () => {
     // Initialize the test surface and seed an initial text component
     processor.processMessages([
       {
-        version: 'v0.9',
+        version: 'v1.0',
         createSurface: {
           surfaceId: 'test-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v0.9',
+        version: 'v1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [
             {
-              id: 'test-comp',
+              id: 'test_comp',
               component: 'Text',
               text: 'Initial',
             },
@@ -138,7 +151,7 @@ describe('A2uiController', () => {
     ]);
 
     surface = processor.model.getSurface('test-surface')!;
-    context = new ComponentContextClass(surface, 'test-comp');
+    context = new ComponentContextClass(surface, 'test_comp');
   });
 
   afterEach(() => {
@@ -176,12 +189,12 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v0.9',
+          version: 'v1.0',
           updateComponents: {
             surfaceId: 'test-surface',
             components: [
               {
-                id: 'test-comp-2',
+                id: 'test_comp_2',
                 component: 'Text',
                 text: {path: '/myText'},
               },
@@ -189,11 +202,10 @@ describe('A2uiController', () => {
           },
         },
         {
-          version: 'v0.9',
+          version: 'v1.0',
           updateDataModel: {
             surfaceId: 'test-surface',
-            path: '/myText',
-            value: 'Updated',
+            value: {myText: 'Updated'},
           },
         },
       ]),
@@ -202,7 +214,7 @@ describe('A2uiController', () => {
     // Simulate what happens when a component's ID changes or it gets recycled by
     // disposing the old controller and replacing the host context instance.
     controller.dispose();
-    const context2 = new ComponentContextClass(surface, 'test-comp-2');
+    const context2 = new ComponentContextClass(surface, 'test_comp_2');
 
     const mockHost2 = await createMockHost(context2);
     const controller2 = mockHost2.testController;
@@ -220,11 +232,10 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v0.9',
+          version: 'v1.0',
           updateDataModel: {
             surfaceId: 'test-surface',
-            path: '/myText',
-            value: 'Update2',
+            value: {myText: 'Update2'},
           },
         },
       ]),
@@ -252,12 +263,12 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v0.9',
+          version: 'v1.0',
           updateComponents: {
             surfaceId: 'test-surface',
             components: [
               {
-                id: 'test-comp',
+                id: 'test_comp',
                 component: 'Text',
                 text: 'Another',
               },

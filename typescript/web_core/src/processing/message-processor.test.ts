@@ -2308,4 +2308,110 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.componentsModel.has('custom_entry'), true);
     });
   });
+
+  describe('surface and component metadata and default catalog resolution', () => {
+    it('propagates surface metadata from createSurface op to surface.metadata', () => {
+      const proc = new MessageProcessor<ComponentApi>([new Catalog('default', '1.0', [])]);
+
+      proc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'meta_surface',
+            metadata: {extensions: {vendor_app: {author: 'test_agent', priority: 'high'}}},
+          },
+        },
+      ]);
+
+      const surface = proc.getSurface('meta_surface');
+      assert.ok(surface);
+      assert.deepStrictEqual(surface.metadata, {
+        extensions: {vendor_app: {author: 'test_agent', priority: 'high'}},
+      });
+    });
+
+    it('extracts and propagates component metadata on component creation and update', () => {
+      const proc = new MessageProcessor<ComponentApi>([new Catalog('default', '1.0', [])]);
+
+      proc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'comp_meta_surface',
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'comp_meta_surface',
+            components: [
+              {
+                id: 'btn1',
+                component: 'Button',
+                metadata: {
+                  extensions: {vendor_app: {analyticsId: 'track_btn_1', role: 'primary'}},
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.getSurface('comp_meta_surface');
+      assert.ok(surface);
+      const btn1 = surface.componentsModel.get('btn1');
+      assert.ok(btn1);
+      assert.deepStrictEqual(btn1.metadata, {
+        extensions: {vendor_app: {analyticsId: 'track_btn_1', role: 'primary'}},
+      });
+
+      // Update component metadata
+      proc.processMessages([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'comp_meta_surface',
+            components: [
+              {
+                id: 'btn1',
+                component: 'Button',
+                metadata: {
+                  extensions: {
+                    vendor_app: {analyticsId: 'track_btn_1_updated', role: 'secondary'},
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      assert.deepStrictEqual(btn1.metadata, {
+        extensions: {
+          vendor_app: {analyticsId: 'track_btn_1_updated', role: 'secondary'},
+        },
+      });
+    });
+
+    it('resolves version-compatible default catalog when catalogId is omitted', () => {
+      const catV09 = new Catalog('cat-09', '0.9', []);
+      const catV10A = new Catalog('cat-10-a', '1.0', []);
+      const catV10B = new Catalog('cat-10-b', '1.0', []);
+      const proc = new MessageProcessor<ComponentApi>([catV09, catV10A, catV10B]);
+
+      // Message version v1.0 should skip incompatible catV09 (index 0) and select catV10A
+      proc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's_v10',
+          },
+        },
+      ]);
+
+      const surfaceV10 = proc.getSurface('s_v10');
+      assert.ok(surfaceV10);
+      assert.strictEqual(surfaceV10.defaultCatalog.id, 'cat-10-a');
+    });
+  });
 });

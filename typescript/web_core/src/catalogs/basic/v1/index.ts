@@ -15,10 +15,48 @@
  */
 
 export * from './components/index.js';
-export * from './functions/basic_functions.js';
-export * from './functions/basic_functions_api.js';
-export * from './catalog.js';
-export * from '../../../universal/basic_catalog/theme.js';
+export {
+  BASIC_FUNCTIONS,
+  createBasicCatalogFunctions,
+  AndImplementation,
+  OrImplementation,
+  NotImplementation,
+  FormatStringImplementation,
+  FormatNumberImplementation,
+  createFormatNumberImplementation,
+  FormatCurrencyImplementation,
+  createFormatCurrencyImplementation,
+  FormatDateImplementation,
+  createFormatDateImplementation,
+  PluralizeImplementation,
+  createPluralizeImplementation,
+  OpenUrlImplementation,
+} from './functions/basic_functions.js';
+export {
+  RequiredApi,
+  RegexApi,
+  LengthApi,
+  NumericApi,
+  EmailApi,
+  FormatStringApi,
+  FormatNumberApi,
+  FormatCurrencyApi,
+  FormatDateApi,
+  PluralizeApi,
+  OpenUrlApi,
+  AndApi,
+  OrApi,
+  NotApi,
+  BASIC_FUNCTION_APIS,
+  V10_SPEC_FUNCTION_APIS,
+} from './functions/basic_functions_api.js';
+export {basicCatalog} from './catalog.js';
+export {
+  BasicCatalogThemeSchema,
+  BasicCatalogThemeSchema as ThemeSchema,
+  type BasicCatalogTheme,
+  isValidCssColor,
+} from '../../../universal/basic_catalog/theme.js';
 export {
   injectBasicCatalogStyles,
   computeColorVariant,
@@ -35,4 +73,3 @@ export {
   type MarkdownRenderer,
   type MarkdownRendererOptions,
 } from '../../../universal/basic_catalog/index.js';
-export {BasicCatalogThemeSchema as ThemeSchema} from '../../../universal/basic_catalog/theme.js';

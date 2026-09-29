@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-export {
-  A2uiLitElement,
-  type ResolvedChildList,
-  type A2uiChildRef,
-  type ResolvedChildRef,
-  A2uiController,
-  type A2uiWebComponentElement,
-  registerUniversalElement,
-  isWebComponentImplementation,
-  renderA2uiNode,
-  type WebComponentImplementation,
-} from '../../universal/index.js';
+/**
+ * Standard protocol versions supported by the A2UI specification and runtime.
+ */
+export enum SpecVersion {
+  V0_8 = 'v0.8',
+  V0_9 = 'v0.9',
+  V0_9_1 = 'v0.9.1',
+  V1_0 = 'v1.0',
+}

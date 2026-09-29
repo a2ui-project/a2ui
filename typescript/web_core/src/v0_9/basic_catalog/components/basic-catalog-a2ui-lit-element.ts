@@ -14,4 +14,10 @@
  * limitations under the License.
  */
 
-export * from '../../../universal/basic_catalog/components/basic-catalog-a2ui-lit-element.js';
+export {
+  BasicCatalogA2uiLitElement,
+  type ResolvedChildList,
+  type A2uiChildRef,
+  type ResolvedChildRef,
+  type InferredBasicCatalogProps,
+} from '../../../universal/basic_catalog/components/basic-catalog-a2ui-lit-element.js';

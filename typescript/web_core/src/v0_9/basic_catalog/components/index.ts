@@ -112,5 +112,24 @@ export const A2uiVideo: WebComponentImplementation<typeof v0_9Apis.VideoApi.sche
   element: universal.A2uiVideoElement,
 };
 
-export * from '../../../universal/basic_catalog/components/index.js';
-export * from './basic_components.js';
+export {
+  BASIC_COMPONENTS,
+  AudioPlayerApi,
+  ButtonApi,
+  CardApi,
+  CheckBoxApi,
+  ChoicePickerApi,
+  ColumnApi,
+  DateTimeInputApi,
+  DividerApi,
+  IconApi,
+  ImageApi,
+  ListApi,
+  ModalApi,
+  RowApi,
+  SliderApi,
+  TabsApi,
+  TextApi,
+  TextFieldApi,
+  VideoApi,
+} from './basic_components.js';

@@ -15,9 +15,23 @@
  */
 
 export * from './components/index.js';
-export * from './styles/default.js';
-export * from './context/context.js';
-export {type MarkdownRenderer, type MarkdownRendererOptions} from './context/markdown.js';
+export {
+  injectBasicCatalogStyles,
+  computeColorVariant,
+  type ColorVariantLightDarkOptions,
+  type ColorVariantHoverOptions,
+} from './styles/default.js';
+export {Context} from './context/context.js';
+export {
+  type MarkdownRenderer,
+  type MarkdownRendererOptions,
+  type MarkdownRendererTagClassMap,
+} from './context/markdown.js';
 export {markdown, setMarkdownRenderer, getMarkdownRenderer} from './directives/directives.js';
-export * from './theme.js';
+export {
+  BasicCatalogThemeSchema,
+  BasicCatalogThemeSchema as ThemeSchema,
+  type BasicCatalogTheme,
+  isValidCssColor,
+} from './theme.js';
 export * from './types.js';

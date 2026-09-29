@@ -14,22 +14,28 @@
  * limitations under the License.
  */
 
-export * from './basic-catalog-a2ui-lit-element.js';
-export * from './AudioPlayer.js';
-export * from './Button.js';
-export * from './Card.js';
-export * from './CheckBox.js';
-export * from './ChoicePicker.js';
-export * from './Column.js';
-export * from './DateTimeInput.js';
-export * from './Divider.js';
-export * from './Icon.js';
-export * from './Image.js';
-export * from './List.js';
-export * from './Modal.js';
-export * from './Row.js';
-export * from './Slider.js';
-export * from './Tabs.js';
-export * from './Text.js';
-export * from './TextField.js';
-export * from './Video.js';
+export {
+  BasicCatalogA2uiLitElement,
+  type ResolvedChildList,
+  type A2uiChildRef,
+  type ResolvedChildRef,
+  type InferredBasicCatalogProps,
+} from './basic-catalog-a2ui-lit-element.js';
+export {AUDIO_PLAYER_TAG_NAME, A2uiAudioPlayerElement} from './AudioPlayer.js';
+export {BUTTON_TAG_NAME, A2uiBasicButtonElement} from './Button.js';
+export {CARD_TAG_NAME, A2uiCardElement} from './Card.js';
+export {CHECK_BOX_TAG_NAME, A2uiCheckBoxElement} from './CheckBox.js';
+export {CHOICE_PICKER_TAG_NAME, A2uiChoicePickerElement} from './ChoicePicker.js';
+export {COLUMN_TAG_NAME, A2uiBasicColumnElement} from './Column.js';
+export {DATE_TIME_INPUT_TAG_NAME, A2uiDateTimeInputElement} from './DateTimeInput.js';
+export {DIVIDER_TAG_NAME, A2uiDividerElement} from './Divider.js';
+export {ICON_TAG_NAME, A2uiIconElement} from './Icon.js';
+export {IMAGE_TAG_NAME, A2uiImageElement} from './Image.js';
+export {LIST_TAG_NAME, A2uiListElement} from './List.js';
+export {MODAL_TAG_NAME, A2uiLitModal, A2uiModalElement} from './Modal.js';
+export {ROW_TAG_NAME, A2uiBasicRowElement} from './Row.js';
+export {SLIDER_TAG_NAME, A2uiSliderElement} from './Slider.js';
+export {TABS_TAG_NAME, A2uiLitTabs, A2uiTabsElement} from './Tabs.js';
+export {TEXT_TAG_NAME, A2uiBasicTextElement} from './Text.js';
+export {TEXT_FIELD_TAG_NAME, A2uiBasicTextFieldElement} from './TextField.js';
+export {VIDEO_TAG_NAME, A2uiVideoElement} from './Video.js';

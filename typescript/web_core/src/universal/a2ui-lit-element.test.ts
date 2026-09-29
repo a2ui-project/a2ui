@@ -21,8 +21,16 @@ import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {MessageProcessor} from '../processing/message-processor.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
-import {basicCatalog} from '../v0_9/basic_catalog/catalog.js';
-import {TextApi} from '../v0_9/basic_catalog/components/basic_components.js';
+import {z} from 'zod';
+import {Catalog, ComponentApi} from '../catalog/index.js';
+
+const MockTextApi = {
+  name: 'Text',
+  schema: z.object({
+    text: z.string().default(''),
+  }),
+};
+const testCatalog = new Catalog<ComponentApi>('test-catalog', '1.0', [MockTextApi]);
 
 /**
  * These tests ensure that:
@@ -67,17 +75,17 @@ describe('A2uiLitElement', () => {
   beforeEach(() => {
     controllerCreatedCount = 0;
     disposedCount = 0;
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([testCatalog]);
     processor.processMessages([
       {
-        version: 'v0.9',
+        version: 'v1.0',
         createSurface: {
           surfaceId: 'test-surface',
-          catalogId: basicCatalog.id,
+          catalogId: testCatalog.id,
         },
       },
       {
-        version: 'v0.9',
+        version: 'v1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [
@@ -95,19 +103,13 @@ describe('A2uiLitElement', () => {
         },
       },
       {
-        version: 'v0.9',
+        version: 'v1.0',
         updateDataModel: {
           surfaceId: 'test-surface',
-          path: '/',
-          value: {myData: 'hello'},
-        },
-      },
-      {
-        version: 'v0.9',
-        updateDataModel: {
-          surfaceId: 'test-surface',
-          path: '/child_id',
-          value: {myData: 'world'},
+          value: {
+            myData: 'hello',
+            child_id: {myData: 'world'},
+          },
         },
       },
     ]);
@@ -207,8 +209,8 @@ describe('A2uiLitElement', () => {
   });
 
   it('should automatically instantiate controller when api property is defined', async () => {
-    class TestApiElement extends A2uiLitElement<typeof TextApi> {
-      protected override readonly api = TextApi;
+    class TestApiElement extends A2uiLitElement<typeof MockTextApi> {
+      protected override readonly api = MockTextApi;
     }
     customElements.define('test-api-element', TestApiElement);
 
@@ -228,8 +230,8 @@ describe('A2uiLitElement', () => {
 
   it('should safely skip update and render when context or controller is not set', async () => {
     let renderCalled = false;
-    class TestUnboundElement extends A2uiLitElement<typeof TextApi> {
-      protected override readonly api = TextApi;
+    class TestUnboundElement extends A2uiLitElement<typeof MockTextApi> {
+      protected override readonly api = MockTextApi;
       override render() {
         renderCalled = true;
         return this.controller.props.text;

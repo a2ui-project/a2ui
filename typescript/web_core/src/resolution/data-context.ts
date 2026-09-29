@@ -39,6 +39,7 @@ import {SurfaceModel} from '../state/surface-model.js';
 
 import {Catalog, CatalogInterface} from '../catalog/types.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {SpecVersion} from '../spec_versions.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
 
 const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
@@ -154,7 +155,7 @@ export function validateFunctionArgs(
     catalog?.functions?.get?.(functionName) ??
     (functionName === '@index' &&
     catalog?.protocolVersion &&
-    isAtLeastVersion(catalog.protocolVersion, '1.0')
+    isAtLeastVersion(catalog.protocolVersion, SpecVersion.V1_0)
       ? IndexApi
       : undefined);
   if (!fn?.schema) {
@@ -611,13 +612,13 @@ export class DataContext {
 
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
-        const result = this.evaluateFunctionPassive<V>(
-          call.call,
-          {},
-          abortController.signal,
-          call.catalogId,
-          targetCatalog.invoker,
-        );
+        const result = this.evaluateFunctionPassive<V>({
+          name: call.call,
+          args: {},
+          abortSignal: abortController.signal,
+          catalogId: call.catalogId,
+          resolvedInvoker: targetCatalog.invoker,
+        });
         const sig = isSignal(result) ? result : signal(result as V);
         sig.unsubscribe = () => abortController.abort();
         return sig;
@@ -647,13 +648,13 @@ export class DataContext {
           }
           abortController = new AbortController();
 
-          const res = this.evaluateFunctionPassive<V>(
-            call.call,
+          const res = this.evaluateFunctionPassive<V>({
+            name: call.call,
             args,
-            abortController.signal,
-            call.catalogId,
-            targetCatalog.invoker,
-          );
+            abortSignal: abortController.signal,
+            catalogId: call.catalogId,
+            resolvedInvoker: targetCatalog.invoker,
+          });
 
           if (isSignal(res)) {
             innerUnsubscribe = effect(() => {
@@ -754,13 +755,14 @@ export class DataContext {
     return target;
   }
 
-  private evaluateFunctionPassive<V>(
-    name: string,
-    args: Record<string, unknown>,
-    abortSignal?: AbortSignal,
-    catalogId?: string,
-    resolvedInvoker?: FunctionInvoker,
-  ): Signal<V> | V {
+  private evaluateFunctionPassive<V>(options: {
+    name: string;
+    args: Record<string, unknown>;
+    abortSignal?: AbortSignal;
+    catalogId?: string;
+    resolvedInvoker?: FunctionInvoker;
+  }): Signal<V> | V {
+    const {name, args, abortSignal, catalogId, resolvedInvoker} = options;
     const prevPassive = this._isPassiveEvaluation;
     this._isPassiveEvaluation = true;
     try {

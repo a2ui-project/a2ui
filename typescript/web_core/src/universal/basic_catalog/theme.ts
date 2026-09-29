@@ -26,12 +26,14 @@ export const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})
  * browser environments, and falls back to standard CSS color syntax validation
  * (via validate-color) in server-side / Node.js environments.
  */
+const CSS_VAR_REGEX = /^var\(\s*--[a-zA-Z0-9_-]+(?:\s*,\s*[^)]+)?\s*\)$/;
+
 export function isValidCssColor(color: unknown): boolean {
   if (typeof color !== 'string' || !color.trim()) {
     return false;
   }
   const trimmed = color.trim();
-  if (trimmed.startsWith('var(') && trimmed.endsWith(')')) {
+  if (CSS_VAR_REGEX.test(trimmed)) {
     return true;
   }
   if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
