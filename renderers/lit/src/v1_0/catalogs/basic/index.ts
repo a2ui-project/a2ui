@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-export * from '@a2ui/web_core/v1_0/basic_catalog';
+export * from '@a2ui/web_core/catalogs/basic/v1';
 export type {
   WebComponentImplementation as A2uiLitComponent,
   WebComponentImplementation as LitComponentApi,
