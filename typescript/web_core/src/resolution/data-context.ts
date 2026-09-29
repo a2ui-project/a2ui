@@ -27,7 +27,6 @@ import {
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
 import {
-  type DataBinding,
   type FunctionCall,
   type Action,
   MAX_FUNCTION_CALL_ARGS,
