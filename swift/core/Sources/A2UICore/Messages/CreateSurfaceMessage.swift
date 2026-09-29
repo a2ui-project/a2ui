@@ -15,7 +15,7 @@
 import OrderedJSON
 
 /// A message commanding the renderer to initialize a new active surface.
-public struct CreateSurfaceMessage: Codable, Sendable, Equatable {
+public struct CreateSurfaceMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let surfaceID: String
   public let catalogID: String?
   public let theme: [String: JSONValue]?
@@ -23,6 +23,7 @@ public struct CreateSurfaceMessage: Codable, Sendable, Equatable {
   public let components: [[String: JSONValue]]?
   public let dataModel: [String: JSONValue]?
   public let metadata: [String: JSONValue]?
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case surfaceID = "surfaceId"
@@ -41,7 +42,8 @@ public struct CreateSurfaceMessage: Codable, Sendable, Equatable {
     shouldSendDataModel: Bool? = nil,
     components: [[String: JSONValue]]? = nil,
     dataModel: [String: JSONValue]? = nil,
-    metadata: [String: JSONValue]? = nil
+    metadata: [String: JSONValue]? = nil,
+    version: A2UIProtocolVersion
   ) {
     self.surfaceID = surfaceID
     self.catalogID = catalogID
@@ -50,9 +52,10 @@ public struct CreateSurfaceMessage: Codable, Sendable, Equatable {
     self.components = components
     self.dataModel = dataModel
     self.metadata = metadata
+    self.version = version
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     surfaceID = try container.decode(String.self, forKey: .surfaceID)
     catalogID = try container.decodeIfPresent(String.self, forKey: .catalogID)
@@ -65,6 +68,7 @@ public struct CreateSurfaceMessage: Codable, Sendable, Equatable {
     components = try container.decodeIfPresent([[String: JSONValue]].self, forKey: .components)
     dataModel = try container.decodeIfPresent([String: JSONValue].self, forKey: .dataModel)
     metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata)
+    self.version = version
   }
 
   public func encode(to encoder: Encoder) throws {

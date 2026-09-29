@@ -182,13 +182,20 @@ struct RendererToAgentMessageTests {
 
   // MARK: - Encoding
 
+  private func makeVersionedDecoder(_ version: A2UIProtocolVersion = .v10) -> JSONDecoder {
+    let decoder = JSONDecoder()
+    decoder.userInfo[.a2uiProtocolVersion] = version
+    return decoder
+  }
+
   @Test func encodeActionRoundTrip() throws {
     let action = RendererAction(
       name: "submit",
       surfaceID: "main",
       sourceComponentID: "btn_submit",
       timestamp: "2023-10-27T10:00:00Z",
-      context: ["foo": .string("bar")]
+      context: ["foo": .string("bar")],
+      version: .v10
     )
     let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
@@ -205,7 +212,8 @@ struct RendererToAgentMessageTests {
           code: code,
           surfaceID: "surface-1",
           path: "/components/0",
-          message: "Validation message for \(code.rawValue)"
+          message: "Validation message for \(code.rawValue)",
+          version: .v10
         )
       )
       let message = RendererToAgentMessage.error(error)
@@ -229,12 +237,13 @@ struct RendererToAgentMessageTests {
       """.data(using: .utf8)
     )
 
+    let decoder = makeVersionedDecoder(.v10)
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ValidationFailedError.self, from: invalidJSON)
+      try decoder.decode(ValidationFailedError.self, from: invalidJSON)
     }
 
     // When decoded through RendererError, unknown codes fall back to generic error
-    let rendererError = try JSONDecoder().decode(RendererError.self, from: invalidJSON)
+    let rendererError = try decoder.decode(RendererError.self, from: invalidJSON)
     if case .generic(let generic) = rendererError {
       #expect(generic.code == "SOME_UNKNOWN_CODE")
       #expect(generic.surfaceID == "surface-1")
@@ -244,13 +253,14 @@ struct RendererToAgentMessageTests {
     }
   }
 
-  @Test func encodeAlwaysUsesV10Version() throws {
+  @Test func encodeIncludesConfiguredVersion() throws {
     let action = RendererAction(
       name: "click",
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
-      context: [:]
+      context: [:],
+      version: .v10
     )
     let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
@@ -264,7 +274,8 @@ struct RendererToAgentMessageTests {
       surfaceID: "main",
       sourceComponentID: "btn_submit",
       timestamp: "2023-10-27T10:00:00Z",
-      context: ["foo": .string("bar")]
+      context: ["foo": .string("bar")],
+      version: .v10
     )
     let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
@@ -289,14 +300,16 @@ struct RendererToAgentMessageTests {
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
-      context: ["key": .string("val")]
+      context: ["key": .string("val")],
+      version: .v10
     )
     let b = RendererAction(
       name: "click",
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
-      context: ["key": .string("val")]
+      context: ["key": .string("val")],
+      version: .v10
     )
     #expect(a == b)
   }
@@ -307,14 +320,16 @@ struct RendererToAgentMessageTests {
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
-      context: [:]
+      context: [:],
+      version: .v10
     )
     let b = RendererAction(
       name: "submit",
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
-      context: [:]
+      context: [:],
+      version: .v10
     )
     #expect(a != b)
   }
@@ -369,6 +384,7 @@ struct RendererToAgentMessageTests {
   }
 
   @Test func genericErrorEnforcesSurfaceOrFunctionCallID() throws {
+    let decoder = makeVersionedDecoder(.v10)
     // Valid with surfaceId
     let validSurfaceJSON = try #require(
       """
@@ -379,7 +395,7 @@ struct RendererToAgentMessageTests {
       }
       """.data(using: .utf8)
     )
-    let err1 = try JSONDecoder().decode(GenericError.self, from: validSurfaceJSON)
+    let err1 = try decoder.decode(GenericError.self, from: validSurfaceJSON)
     #expect(err1.surfaceID == "surf_1")
     #expect(err1.functionCallID == nil)
 
@@ -393,7 +409,7 @@ struct RendererToAgentMessageTests {
       }
       """.data(using: .utf8)
     )
-    let err2 = try JSONDecoder().decode(GenericError.self, from: validFnJSON)
+    let err2 = try decoder.decode(GenericError.self, from: validFnJSON)
     #expect(err2.surfaceID == nil)
     #expect(err2.functionCallID == "call_1")
 
@@ -407,7 +423,7 @@ struct RendererToAgentMessageTests {
       """.data(using: .utf8)
     )
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(GenericError.self, from: neitherJSON)
+      try decoder.decode(GenericError.self, from: neitherJSON)
     }
 
     // Invalid: both surfaceId and functionCallId
@@ -422,11 +438,12 @@ struct RendererToAgentMessageTests {
       """.data(using: .utf8)
     )
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(GenericError.self, from: bothJSON)
+      try decoder.decode(GenericError.self, from: bothJSON)
     }
   }
 
   @Test func rendererFunctionResponseEnforcesValueXorError() throws {
+    let decoder = makeVersionedDecoder(.v10)
     // Both value and error present should fail
     let bothJSON = try #require(
       """
@@ -438,10 +455,10 @@ struct RendererToAgentMessageTests {
       """.data(using: .utf8)
     )
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(RendererFunctionResponseMessage.self, from: bothJSON)
+      try decoder.decode(RendererFunctionResponseMessage.self, from: bothJSON)
     }
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(AgentFunctionResponseMessage.self, from: bothJSON)
+      try decoder.decode(AgentFunctionResponseMessage.self, from: bothJSON)
     }
 
     // Neither value nor error present should fail
@@ -453,7 +470,7 @@ struct RendererToAgentMessageTests {
       """.data(using: .utf8)
     )
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(RendererFunctionResponseMessage.self, from: neitherJSON)
+      try decoder.decode(RendererFunctionResponseMessage.self, from: neitherJSON)
     }
   }
 
@@ -473,7 +490,8 @@ struct RendererToAgentMessageTests {
       surfaceID: "s1",
       sourceComponentID: "c1",
       timestamp: "2024-01-01T00:00:00Z",
-      context: [:]
+      context: [:],
+      version: .v10
     )
     let msg: ClientToServerMessage = .action(action)
     if case .action(let act) = msg {
@@ -483,8 +501,48 @@ struct RendererToAgentMessageTests {
     }
 
     let err: ClientServerError = .generic(
-      GenericError(code: "ERR", surfaceID: "s1", message: "msg")
+      GenericError(code: "ERR", surfaceID: "s1", message: "msg", version: .v10)
     )
-    #expect(err == .generic(GenericError(code: "ERR", surfaceID: "s1", message: "msg")))
+    #expect(
+      err == .generic(GenericError(code: "ERR", surfaceID: "s1", message: "msg", version: .v10))
+    )
+  }
+
+  @Test func encodeActionAndErrorPreserveProtocolVersion() throws {
+    for targetVersion in A2UIProtocolVersion.allCases {
+      let action = RendererAction(
+        name: "click",
+        surfaceID: "s1",
+        sourceComponentID: "btn1",
+        timestamp: "2024-01-01T00:00:00Z",
+        context: [:],
+        version: targetVersion
+      )
+      let actionMsg = RendererToAgentMessage.action(action)
+      #expect(actionMsg.version == targetVersion)
+      let actionData = try JSONEncoder().encode(actionMsg)
+      let actionJSON = try #require(String(data: actionData, encoding: .utf8))
+      #expect(actionJSON.contains("\"version\":\"\(targetVersion.rawValue)\""))
+      let decodedAction = try JSONDecoder().decode(RendererToAgentMessage.self, from: actionData)
+      #expect(decodedAction == actionMsg)
+      #expect(decodedAction.version == targetVersion)
+
+      let error = RendererError.validationFailed(
+        ValidationFailedError(
+          surfaceID: "s1",
+          path: "/components/0",
+          message: "Invalid",
+          version: targetVersion
+        )
+      )
+      let errorMsg = RendererToAgentMessage.error(error)
+      #expect(errorMsg.version == targetVersion)
+      let errorData = try JSONEncoder().encode(errorMsg)
+      let errorJSON = try #require(String(data: errorData, encoding: .utf8))
+      #expect(errorJSON.contains("\"version\":\"\(targetVersion.rawValue)\""))
+      let decodedError = try JSONDecoder().decode(RendererToAgentMessage.self, from: errorData)
+      #expect(decodedError == errorMsg)
+      #expect(decodedError.version == targetVersion)
+    }
   }
 }

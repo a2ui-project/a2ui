@@ -26,15 +26,19 @@ public final class MessageProcessor: ObservableObject {
   public let surfaceGroupModel: SurfaceGroupModel
 
   /// The RPC handler managing function invocations.
-  public let rpcHandler: RPCHandler
+  let rpcHandler: RPCHandler
 
   /// Listener for outbound messages destined to the agent.
   public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)?
 
+  private let registeredCatalogs: [AnyCatalog]
   private let catalogs: [String: AnyCatalog]
   private let validator: A2UIValidator
   private weak var actionHandler: (any ActionHandling)?
+  private let actionForwarder = ProcessorActionForwarder()
   private let errorMapper = MessageErrorMapper()
+  private let adapterFactory: VersionAdapterFactory
+  private var activeRPCTasks: [String: Task<Void, Never>] = [:]
 
   /// Creates a new message processor with an array of catalogs.
   ///
@@ -43,14 +47,20 @@ public final class MessageProcessor: ObservableObject {
   ///   - actionHandler: An optional handler for client-side actions and errors.
   ///   - validationConfig: The validation configuration controlling strictness.
   ///     Defaults to `.relaxed` for streaming updates.
+  ///   - adapterFactory: Optional version adapter factory. Defaults to `.shared`.
   public init(
     catalogs: [any CatalogProtocol],
     actionHandler: (any ActionHandling)? = nil,
-    validationConfig: ValidationConfig = .relaxed
+    validationConfig: ValidationConfig = .relaxed,
+    adapterFactory: VersionAdapterFactory = .shared
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
+    var uniqueCatalogs: [AnyCatalog] = []
     var catalogMap: [String: AnyCatalog] = [:]
     for cat in anyCatalogs {
+      if catalogMap[cat.id] == nil {
+        uniqueCatalogs.append(cat)
+      }
       catalogMap[cat.id] = cat
     }
     for cat in anyCatalogs {
@@ -63,11 +73,14 @@ public final class MessageProcessor: ObservableObject {
       }
       catalogMap[shorthand] = cat
     }
+    self.registeredCatalogs = uniqueCatalogs
     self.catalogs = catalogMap
     self.validator = A2UIValidator(catalogs: anyCatalogs, config: validationConfig)
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
     self.rpcHandler = RPCHandler()
+    self.adapterFactory = adapterFactory
+    self.actionForwarder.processor = self
   }
 
   /// Creates a new message processor with a single catalog.
@@ -85,16 +98,59 @@ public final class MessageProcessor: ObservableObject {
     self.init(catalogs: [catalog], actionHandler: actionHandler, validationConfig: validationConfig)
   }
 
-  /// Returns the aggregated data model for surfaces with `sendDataModel` enabled.
-  public func getRendererDataModel() -> JSONValue? {
-    var result: OrderedDictionary<String, JSONValue> = [:]
-    for (surfaceID, vm) in surfaceGroupModel.surfacesMap {
-      if vm.sendDataModel {
-        result[surfaceID] = vm.dataModel.data
+  /// Returns the aggregated data model for active surfaces with `sendDataModel` enabled.
+  ///
+  /// - If `version` is provided, returns data models only for surfaces compatible with that
+  ///   protocol version.
+  /// - If `version` is omitted (`nil`), automatically derives the protocol version from the active
+  ///   surfaces with `sendDataModel` enabled, or throws `A2UIValidationError` if active surfaces
+  ///   have conflicting protocol versions.
+  ///
+  /// - Parameter version: Optional target protocol version to filter surfaces.
+  /// - Returns: A `JSONValue` containing `"version"` and `"surfaces"`, or `nil` if no matching
+  ///   surfaces have `sendDataModel` enabled.
+  public func getRendererDataModel(
+    version: A2UIProtocolVersion? = nil
+  ) throws -> JSONValue? {
+    let enabledEntries = surfaceGroupModel.surfacesMap
+      .filter { $0.value.sendDataModel }
+      .sorted { $0.key < $1.key }
+    guard !enabledEntries.isEmpty else { return nil }
+
+    if let version {
+      var surfacesDict: OrderedDictionary<String, JSONValue> = [:]
+      for (surfaceID, vm) in enabledEntries {
+        if areVersionsCompatible(vm.protocolVersion, version)
+          && isCatalogCompatible(vm.catalog, with: version)
+        {
+          surfacesDict[surfaceID] = vm.dataModel.data
+        }
       }
+      guard !surfacesDict.isEmpty else { return nil }
+      return .object([
+        "version": .string(version.rawValue),
+        "surfaces": .object(surfacesDict),
+      ])
     }
-    guard !result.isEmpty else { return nil }
-    return .object(result)
+
+    let versionsSet = Set(enabledEntries.map(\.value.protocolVersion))
+    if versionsSet.count > 1 {
+      let sortedVersions = versionsSet.map(\.rawValue).sorted().joined(separator: ", ")
+      throw A2UIValidationError(
+        "Multiple protocol versions detected among active surfaces: \(sortedVersions). "
+          + "Specify a target protocol version in getRendererDataModel(version:)."
+      )
+    }
+
+    let inferredVersion = enabledEntries.first?.value.protocolVersion ?? .v10
+    var surfacesDict: OrderedDictionary<String, JSONValue> = [:]
+    for (surfaceID, vm) in enabledEntries {
+      surfacesDict[surfaceID] = vm.dataModel.data
+    }
+    return .object([
+      "version": .string(inferredVersion.rawValue),
+      "surfaces": .object(surfacesDict),
+    ])
   }
 
   /// Returns the data model for a specific surface ID, if it exists.
@@ -104,104 +160,87 @@ public final class MessageProcessor: ObservableObject {
 
   /// Returns the `SurfaceViewModel` for the specified surface ID.
   public func surface(id: String) -> SurfaceViewModel? {
-    surfaceGroupModel.surfacesMap[id]
+    surfaceGroupModel[id]
   }
 
   // MARK: - Capabilities Generation
 
-  /// Options for generating client capabilities.
+  /// Options for generating renderer capabilities.
   public struct CapabilitiesOptions: Sendable {
+    /// Protocol versions to generate capabilities for. Must contain at least one version.
+    public var versions: [A2UIProtocolVersion]
+
     /// If true, full definitions of all catalogs will be included as inline catalogs.
     public var includeInlineCatalogs: Bool
 
-    /// The protocol version to generate capabilities for.
-    public var version: String
-
-    /// The protocol version as an `A2UIProtocolVersion` enum.
-    public var protocolVersion: A2UIProtocolVersion {
-      get { A2UIProtocolVersion(rawValue: version) ?? .v091 }
-      set { version = newValue.rawValue }
-    }
-
-    /// Creates a capabilities option instance with an explicit protocol version.
+    /// Creates a capabilities option instance with explicit protocol versions.
     ///
     /// - Parameters:
+    ///   - versions: Protocol versions to generate capabilities for (must not be empty).
     ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - version: The protocol version string (e.g., "v0.9.1").
     public init(
-      includeInlineCatalogs: Bool = false,
-      version: String
-    ) {
-      self.includeInlineCatalogs = includeInlineCatalogs
-      self.version = version
-    }
-
-    /// Creates a capabilities option instance with an `A2UIProtocolVersion`.
-    ///
-    /// - Parameters:
-    ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - protocolVersion: The `A2UIProtocolVersion` enum case.
-    public init(
-      includeInlineCatalogs: Bool = false,
-      protocolVersion: A2UIProtocolVersion
-    ) {
-      self.includeInlineCatalogs = includeInlineCatalogs
-      self.version = protocolVersion.rawValue
-    }
-
-    /// Creates a capabilities option instance defaulting to protocol version "v0.9.1".
-    ///
-    /// - Parameter includeInlineCatalogs: Whether to include inline catalog definitions.
-    @available(
-      *,
-      deprecated,
-      message: "Specify the protocol version explicitly using init(includeInlineCatalogs:version:)"
-    )
-    public init(
+      versions: [A2UIProtocolVersion],
       includeInlineCatalogs: Bool = false
     ) {
+      self.versions = versions
       self.includeInlineCatalogs = includeInlineCatalogs
-      self.version = "v0.9.1"
+    }
+
+    /// Creates a capabilities option instance with a single `A2UIProtocolVersion`.
+    ///
+    /// - Parameters:
+    ///   - protocolVersion: The `A2UIProtocolVersion` enum case.
+    ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
+    public init(
+      protocolVersion: A2UIProtocolVersion,
+      includeInlineCatalogs: Bool = false
+    ) {
+      self.versions = [protocolVersion]
+      self.includeInlineCatalogs = includeInlineCatalogs
     }
   }
 
-  /// Generates the `a2uiClientCapabilities` object for all registered catalogs.
+  /// Generates the `a2uiRendererCapabilities` / `a2uiClientCapabilities` object for all
+  /// registered catalogs across the requested protocol versions.
   ///
   /// - Parameter options: Configuration options for capability generation.
-  /// - Returns: A `JSONValue` representing the capabilities structure.
+  /// - Returns: A `JSONValue` representing the capabilities structure keyed by protocol version.
+  /// - Throws: `A2UIValidationError` if `options.versions` is empty.
   public func getRendererCapabilities(
     options: CapabilitiesOptions
-  ) -> JSONValue {
-    let supportedCatalogIDs = Array(catalogs.keys).sorted()
-    var versionCaps: OrderedDictionary<String, JSONValue> = [
-      "supportedCatalogIds": .array(supportedCatalogIDs.map { .string($0) })
-    ]
-
-    if options.includeInlineCatalogs {
-      let inlineCatalogs = catalogs.values.map { generateInlineCatalog($0) }
-      versionCaps["inlineCatalogs"] = .array(inlineCatalogs)
+  ) throws -> JSONValue {
+    guard !options.versions.isEmpty else {
+      throw A2UIValidationError(
+        "At least one protocol version must be provided in CapabilitiesOptions "
+          + "to generate renderer capabilities."
+      )
     }
 
-    return .object([
-      options.version: .object(versionCaps)
-    ])
+    var result: OrderedDictionary<String, JSONValue> = [:]
+    for version in options.versions {
+      let compatibleCatalogs = registeredCatalogs.filter {
+        isCatalogCompatible($0, with: version)
+      }
+      let supportedCatalogIDs = compatibleCatalogs.map(\.id).sorted()
+      var versionCaps: OrderedDictionary<String, JSONValue> = [
+        "supportedCatalogIds": .array(supportedCatalogIDs.map { .string($0) })
+      ]
+
+      if options.includeInlineCatalogs {
+        let inlineCatalogs = compatibleCatalogs.map { generateInlineCatalog($0, for: version) }
+        versionCaps["inlineCatalogs"] = .array(inlineCatalogs)
+      }
+
+      result[version.rawValue] = .object(versionCaps)
+    }
+
+    return .object(result)
   }
 
-  /// Generates `a2uiClientCapabilities` using default options for protocol version "v0.9.1".
-  ///
-  /// - Returns: A `JSONValue` representing the capabilities structure.
-  @available(
-    *,
-    deprecated,
-    message: "Specify capabilities options explicitly using getRendererCapabilities(options:)"
-  )
-  public func getRendererCapabilities() -> JSONValue {
-    getRendererCapabilities(
-      options: CapabilitiesOptions(includeInlineCatalogs: false, version: "v0.9.1")
-    )
-  }
-
-  private func generateInlineCatalog(_ catalog: AnyCatalog) -> JSONValue {
+  private func generateInlineCatalog(
+    _ catalog: AnyCatalog,
+    for version: A2UIProtocolVersion
+  ) -> JSONValue {
     var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
 
     for (name, componentAPI) in catalog.components {
@@ -238,29 +277,48 @@ public final class MessageProcessor: ObservableObject {
       componentsDictionary[name] = componentSchema
     }
 
-    var functionsArray: [JSONValue] = []
-    for (_, functionImplementation) in catalog.functions {
-      let functionAPI = functionImplementation.api
-      let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
-      let processedParameters = processRefs(schemaJSON)
-
-      var functionDictionary: OrderedDictionary<String, JSONValue> = [
-        "name": .string(functionAPI.name),
-        "returnType": .string(functionAPI.returnType.rawValue),
-      ]
-      if let functionDescription = processedParameters["description"]?.stringValue {
-        functionDictionary["description"] = .string(functionDescription)
-      }
-      functionDictionary["parameters"] = processedParameters
-      functionsArray.append(.object(functionDictionary))
-    }
-
     var catalogDictionary: OrderedDictionary<String, JSONValue> = [
       "catalogId": .string(catalog.id),
       "components": .object(componentsDictionary),
     ]
-    if !functionsArray.isEmpty {
-      catalogDictionary["functions"] = .array(functionsArray)
+
+    if !catalog.functions.isEmpty {
+      if version.isAtLeastV10 {
+        var functionsDict: OrderedDictionary<String, JSONValue> = [:]
+        for (_, functionImplementation) in catalog.functions {
+          let functionAPI = functionImplementation.api
+          let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
+          let processedParameters = processRefs(schemaJSON)
+
+          var functionDefinition: OrderedDictionary<String, JSONValue> = [
+            "returnType": .string(functionAPI.returnType.rawValue)
+          ]
+          if let functionDescription = processedParameters["description"]?.stringValue {
+            functionDefinition["description"] = .string(functionDescription)
+          }
+          functionDefinition["parameters"] = processedParameters
+          functionsDict[functionAPI.name] = .object(functionDefinition)
+        }
+        catalogDictionary["functions"] = .object(functionsDict)
+      } else {
+        var functionsArray: [JSONValue] = []
+        for (_, functionImplementation) in catalog.functions {
+          let functionAPI = functionImplementation.api
+          let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
+          let processedParameters = processRefs(schemaJSON)
+
+          var functionDictionary: OrderedDictionary<String, JSONValue> = [
+            "name": .string(functionAPI.name),
+            "returnType": .string(functionAPI.returnType.rawValue),
+          ]
+          if let functionDescription = processedParameters["description"]?.stringValue {
+            functionDictionary["description"] = .string(functionDescription)
+          }
+          functionDictionary["parameters"] = processedParameters
+          functionsArray.append(.object(functionDictionary))
+        }
+        catalogDictionary["functions"] = .array(functionsArray)
+      }
     }
 
     if let themeSchema = catalog.themeSchema {
@@ -315,17 +373,21 @@ public final class MessageProcessor: ObservableObject {
 
   // MARK: - Message Processing
 
-  /// Processes a single agent-to-renderer message.
+  /// Processes a single agent-to-renderer message by adapting it into version-neutral
+  /// ``InternalOperation`` values and executing them.
   ///
   /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
   /// and reported to `ActionHandling`.
   public func process(message: AgentToRendererMessage) {
     do {
-      try validateAndProcess(message)
+      let operations = try adaptToOperations(message)
+      for operation in operations {
+        try processOperation(operation)
+      }
     } catch {
       let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID ?? "")
-      let clientError = errorMapper.map(error, surfaceID: surfaceID)
-      actionHandler?.handle(error: clientError, from: surfaceID)
+      let clientError = errorMapper.map(error, surfaceID: surfaceID, version: message.version)
+      forwardError(clientError, from: surfaceID)
     }
   }
 
@@ -337,6 +399,88 @@ public final class MessageProcessor: ObservableObject {
     for message in messages {
       process(message: message)
     }
+  }
+
+  /// Processes a single version-neutral ``InternalOperation``.
+  public func process(operation: InternalOperation) {
+    do {
+      try processOperation(operation)
+    } catch {
+      let surfaceID = extractSurfaceID(from: error, fallback: operation.surfaceID ?? "")
+      let version = resolveVersion(for: operation, surfaceID: surfaceID)
+      let clientError = errorMapper.map(error, surfaceID: surfaceID, version: version)
+      forwardError(clientError, from: surfaceID)
+    }
+  }
+
+  /// Processes an array of version-neutral ``InternalOperation`` values.
+  public func process(operations: [InternalOperation]) {
+    for operation in operations {
+      process(operation: operation)
+    }
+  }
+
+  /// Resolves a version adapter from a raw JSON payload, normalizes it into
+  /// ``InternalOperation`` values, and executes them.
+  public func process(payload: JSONValue) {
+    do {
+      let adapter = try adapterFactory.resolveFromPayload(payload)
+      let operations = try adapter.extractOperations(from: payload)
+      for operation in operations {
+        try processOperation(operation)
+      }
+    } catch {
+      let surfaceID = extractSurfaceID(from: error, fallback: "")
+      let version = resolveVersion(for: payload, surfaceID: surfaceID)
+      let clientError = errorMapper.map(error, surfaceID: surfaceID, version: version)
+      forwardError(clientError, from: surfaceID)
+    }
+  }
+
+  private func resolveVersion(
+    for operation: InternalOperation,
+    surfaceID: String
+  ) -> A2UIProtocolVersion {
+    switch operation {
+    case .createSurface(let op):
+      if let version = op.version { return version }
+    case .callRendererFunction(let op):
+      return op.version
+    case .agentFunctionResponse(let op):
+      return op.version
+    case .updateComponents, .updateDataModel, .deleteSurface:
+      break
+    }
+    if let surfaceVersion = surface(id: surfaceID)?.protocolVersion {
+      return surfaceVersion
+    }
+    return catalogs.values.first?.a2uiProtocolVersion ?? .v10
+  }
+
+  private func resolveVersion(
+    for payload: JSONValue,
+    surfaceID: String
+  ) -> A2UIProtocolVersion {
+    if let versionStr = payload["version"]?.stringValue,
+      let version = A2UIProtocolVersion(rawValue: versionStr)
+    {
+      return version
+    }
+    if let firstItem = payload.arrayValue?.first,
+      let versionStr = firstItem["version"]?.stringValue,
+      let version = A2UIProtocolVersion(rawValue: versionStr)
+    {
+      return version
+    }
+    if let surfaceVersion = surface(id: surfaceID)?.protocolVersion {
+      return surfaceVersion
+    }
+    return catalogs.values.first?.a2uiProtocolVersion ?? .v10
+  }
+
+  private func adaptToOperations(_ message: AgentToRendererMessage) throws -> [InternalOperation] {
+    let adapter = adapterFactory.getAdapter(for: message.version)
+    return try adapter.adaptMessage(message)
   }
 
   private func extractSurfaceID(from error: Error, fallback: String) -> String {
@@ -356,41 +500,41 @@ public final class MessageProcessor: ObservableObject {
     return error
   }
 
-  // MARK: - Private Validation & Processing
+  // MARK: - Version-Neutral Operation Execution
 
-  private func validateAndProcess(_ message: AgentToRendererMessage) throws {
-    switch message {
-    case .createSurface(let msg):
-      try processCreateSurface(msg)
-    case .updateComponents(let msg):
-      try processUpdateComponents(msg)
-    case .updateDataModel(let msg):
-      try processUpdateDataModel(msg)
-    case .deleteSurface(let msg):
-      try processDeleteSurface(msg)
-    case .callRendererFunction(let msg):
-      try processCallRendererFunction(msg)
-    case .agentFunctionResponse(let msg):
-      try processAgentFunctionResponse(msg)
+  private func processOperation(_ operation: InternalOperation) throws {
+    switch operation {
+    case .createSurface(let op):
+      try processCreateSurfaceOp(op)
+    case .updateComponents(let op):
+      try processUpdateComponentsOp(op)
+    case .updateDataModel(let op):
+      try processUpdateDataModelOp(op)
+    case .deleteSurface(let op):
+      try processDeleteSurfaceOp(op)
+    case .callRendererFunction(let op):
+      try processCallRendererFunctionOp(op)
+    case .agentFunctionResponse(let op):
+      try processAgentFunctionResponseOp(op)
     }
   }
 
-  private func processCreateSurface(_ msg: CreateSurfaceMessage) throws {
-    guard surfaceGroupModel.surfacesMap[msg.surfaceID] == nil else {
+  private func processCreateSurfaceOp(_ op: InternalCreateSurfaceOp) throws {
+    guard surfaceGroupModel.surfacesMap[op.surfaceID] == nil else {
       throw A2UIIntegrityError(
-        "Surface \(msg.surfaceID) already exists.",
+        "Surface \(op.surfaceID) already exists.",
         details: [
           A2UIErrorDetail(
             path: "createSurface.surfaceId",
             code: "SURFACE_EXISTS",
-            message: "Surface \(msg.surfaceID) already exists."
+            message: "Surface \(op.surfaceID) already exists."
           )
         ]
       )
     }
     var targetCatalog: AnyCatalog?
-    if let catalogID = msg.catalogID {
-      guard let cat = findCatalog(catalogID) else {
+    if let catalogID = op.catalogID {
+      guard let cat = findCatalog(catalogID, preferredVersion: op.version) else {
         throw A2UICatalogError(
           "Catalog not found: \(catalogID)",
           details: [
@@ -402,29 +546,45 @@ public final class MessageProcessor: ObservableObject {
           ]
         )
       }
+      if let opVersion = op.version, !isCatalogCompatible(cat, with: opVersion) {
+        let catVerStr = cat.protocolVersion ?? "unknown"
+        let msg =
+          "Catalog '\(catalogID)' (version \(catVerStr)) is incompatible with surface version \(opVersion.rawValue)."
+        throw A2UICatalogError(
+          msg,
+          details: [
+            A2UIErrorDetail(
+              path: "createSurface.catalogId",
+              code: "INCOMPATIBLE_CATALOG_VERSION",
+              message: msg
+            )
+          ]
+        )
+      }
       targetCatalog = cat
     }
 
     if let targetCatalog {
-      try validateSurfaceTheme(msg.theme, against: targetCatalog)
+      try validateSurfaceTheme(op.theme, against: targetCatalog)
     }
 
     let vm = SurfaceViewModel(
-      surfaceID: msg.surfaceID,
+      surfaceID: op.surfaceID,
       catalogs: catalogs,
-      defaultCatalogID: msg.catalogID,
-      theme: msg.theme,
-      actionHandler: actionHandler,
-      sendDataModel: msg.shouldSendDataModel
+      defaultCatalogID: op.catalogID,
+      theme: op.theme,
+      actionHandler: actionForwarder,
+      sendDataModel: op.sendDataModel,
+      protocolVersion: op.version ?? targetCatalog?.a2uiProtocolVersion
     )
 
-    if let dataModel = msg.dataModel {
+    if let dataModel = op.dataModel {
       for (key, value) in dataModel {
         vm.dataModel.set("/\(key)", value: value)
       }
     }
 
-    if let components = msg.components {
+    if let components = op.components {
       try validateComponentsBatch(components, on: vm)
       applyComponentsBatch(components, to: vm)
     }
@@ -432,21 +592,53 @@ public final class MessageProcessor: ObservableObject {
     surfaceGroupModel.addSurface(vm)
   }
 
-  private func processCallRendererFunction(_ msg: CallRendererFunctionMessage) throws {
-    Task { @MainActor [weak self] in
+  private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {
+    let msg = CallRendererFunctionMessage(
+      functionCallID: op.functionCallID,
+      callFunction: CallFunctionPayload(
+        call: op.call,
+        catalogID: op.catalogID,
+        args: op.args,
+        returnType: op.returnType
+      ),
+      version: op.version
+    )
+    let userActivated = op.isUserActivated
+    let (dataContext, defaultCatalogID) = resolveRPCDataContext(catalogID: op.catalogID)
+    let callID = op.functionCallID
+    activeRPCTasks[callID]?.cancel()
+    let task = Task { @MainActor [weak self] in
       guard let self else { return }
+      defer { self.activeRPCTasks.removeValue(forKey: callID) }
       let response = await self.rpcHandler.handleIncomingCall(
         msg,
         catalogs: self.catalogs,
-        defaultCatalogID: nil,
-        dataContext: nil
+        defaultCatalogID: defaultCatalogID,
+        dataContext: dataContext,
+        userActivationPresent: userActivated
       )
+      guard !Task.isCancelled else { return }
       let outbound = RendererToAgentMessage.rendererFunctionResponse(response)
       self.outboundListener?(outbound)
     }
+    activeRPCTasks[callID] = task
   }
 
-  private func processAgentFunctionResponse(_ msg: AgentFunctionResponseMessage) throws {
+  private func processAgentFunctionResponseOp(_ op: InternalAgentFunctionResponseOp) throws {
+    let msg: AgentFunctionResponseMessage
+    if let error = op.error {
+      msg = AgentFunctionResponseMessage(
+        functionCallID: op.functionCallID,
+        error: error,
+        version: op.version
+      )
+    } else {
+      msg = AgentFunctionResponseMessage(
+        functionCallID: op.functionCallID,
+        value: op.value ?? .null,
+        version: op.version
+      )
+    }
     rpcHandler.handleAgentResponse(msg)
   }
 
@@ -458,6 +650,7 @@ public final class MessageProcessor: ObservableObject {
   ///   - catalogID: Optional catalog identifier.
   ///   - args: Named argument dictionary.
   ///   - returnType: Expected return type name.
+  ///   - version: The A2UI protocol version for the outbound message.
   ///   - timeoutSeconds: Maximum duration to wait before timing out (default 30s).
   /// - Returns: The evaluated JSONValue returned by the agent.
   @discardableResult
@@ -468,6 +661,7 @@ public final class MessageProcessor: ObservableObject {
     functionCallID: String? = nil,
     args: [String: JSONValue]? = nil,
     returnType: String? = nil,
+    version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0
   ) async throws -> JSONValue {
     guard let listener = outboundListener else {
@@ -483,6 +677,7 @@ public final class MessageProcessor: ObservableObject {
       functionCallID: functionCallID,
       args: args,
       returnType: returnType,
+      version: version,
       timeoutSeconds: timeoutSeconds,
       sendOutbound: listener
     )
@@ -523,54 +718,54 @@ public final class MessageProcessor: ObservableObject {
     )
   }
 
-  private func processUpdateComponents(_ msg: UpdateComponentsMessage) throws {
-    guard let surface = surfaceGroupModel.surfacesMap[msg.surfaceID] else {
+  private func processUpdateComponentsOp(_ op: InternalUpdateComponentsOp) throws {
+    guard let surface = surfaceGroupModel.surfacesMap[op.surfaceID] else {
       throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
+        "Surface not found: \(op.surfaceID)",
         details: [
           A2UIErrorDetail(
             path: "updateComponents.surfaceId",
             code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
+            message: "Surface not found: \(op.surfaceID)"
           )
         ]
       )
     }
 
-    try validateComponentsBatch(msg.components, on: surface)
-    applyComponentsBatch(msg.components, to: surface)
+    try validateComponentsBatch(op.components, on: surface)
+    applyComponentsBatch(op.components, to: surface)
   }
 
-  private func processUpdateDataModel(_ msg: UpdateDataModelMessage) throws {
-    guard let surface = surfaceGroupModel.surfacesMap[msg.surfaceID] else {
+  private func processUpdateDataModelOp(_ op: InternalUpdateDataModelOp) throws {
+    guard let surface = surfaceGroupModel.surfacesMap[op.surfaceID] else {
       throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
+        "Surface not found: \(op.surfaceID)",
         details: [
           A2UIErrorDetail(
             path: "updateDataModel.surfaceId",
             code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
+            message: "Surface not found: \(op.surfaceID)"
           )
         ]
       )
     }
-    try surface.dataModel.setThrowing(msg.path, value: msg.value)
+    try surface.dataModel.setThrowing(op.path, value: op.value)
   }
 
-  private func processDeleteSurface(_ msg: DeleteSurfaceMessage) throws {
-    guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {
+  private func processDeleteSurfaceOp(_ op: InternalDeleteSurfaceOp) throws {
+    guard surfaceGroupModel.surfacesMap[op.surfaceID] != nil else {
       throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
+        "Surface not found: \(op.surfaceID)",
         details: [
           A2UIErrorDetail(
             path: "deleteSurface.surfaceId",
             code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
+            message: "Surface not found: \(op.surfaceID)"
           )
         ]
       )
     }
-    surfaceGroupModel.removeSurface(id: msg.surfaceID)
+    surfaceGroupModel.removeSurface(id: op.surfaceID)
   }
 
   private func validateComponentsBatch(
@@ -615,6 +810,22 @@ public final class MessageProcessor: ObservableObject {
               path: "/catalogId",
               code: "CATALOG_NOT_FOUND",
               message: "Catalog not found: \(resolvedCatalogID)"
+            )
+          ]
+        )
+      }
+
+      guard isCatalogCompatible(targetCatalog, with: surface.protocolVersion) else {
+        let catVerStr = targetCatalog.protocolVersion ?? "unknown"
+        let msg =
+          "Catalog '\(resolvedCatalogID)' (version \(catVerStr)) is incompatible with surface version \(surface.protocolVersion.rawValue)."
+        throw A2UICatalogError(
+          msg,
+          details: [
+            A2UIErrorDetail(
+              path: "/catalogId",
+              code: "INCOMPATIBLE_CATALOG_VERSION",
+              message: msg
             )
           ]
         )
@@ -724,17 +935,150 @@ public final class MessageProcessor: ObservableObject {
     }
   }
 
-  private func findCatalog(_ catalogID: String?) -> AnyCatalog? {
+  private func findCatalog(
+    _ catalogID: String?,
+    preferredVersion: A2UIProtocolVersion? = nil
+  ) -> AnyCatalog? {
     guard let catalogID else { return catalogs.values.first }
     if let cat = catalogs[catalogID] { return cat }
+    if let preferredVersion,
+      let cat = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(catalogID)/catalog.json")
+          && isCatalogCompatible($0, with: preferredVersion)
+      })
+    {
+      return cat
+    }
     if let cat = catalogs.values.first(where: {
       $0.id.hasSuffix("/\(catalogID)/catalog.json")
-        && ($0.protocolVersion == "v1.0" || $0.protocolVersion == "1.0")
+        && $0.isAtLeastV10
     }) {
       return cat
     }
     return catalogs.values.first {
       $0.id.hasSuffix("/\(catalogID)/catalog.json")
+    }
+  }
+
+  /// Cancels all in-flight incoming and outgoing RPC function calls.
+  public func cancelPendingCalls() {
+    for (_, task) in activeRPCTasks {
+      task.cancel()
+    }
+    activeRPCTasks.removeAll()
+    rpcHandler.cancelAllPendingCalls()
+  }
+
+  /// Disposes the processor, cancelling all pending RPC tasks and clearing active surfaces.
+  public func dispose() {
+    cancelPendingCalls()
+    for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
+      surfaceGroupModel.removeSurface(id: surfaceID)
+    }
+  }
+
+  private func resolveRPCDataContext(catalogID: String?) -> (DataContext?, String?) {
+    let sortedSurfaces = surfaceGroupModel.surfacesMap
+      .sorted { $0.key < $1.key }
+      .map(\.value)
+    guard !sortedSurfaces.isEmpty else { return (nil, nil) }
+
+    let matchedSurface: SurfaceViewModel?
+    if let catalogID {
+      matchedSurface =
+        sortedSurfaces.first(where: {
+          $0.defaultCatalogID == catalogID
+            || $0.catalog.id == catalogID
+            || $0.catalog.id.hasSuffix("/\(catalogID)/catalog.json")
+        })
+        ?? sortedSurfaces.first
+    } else {
+      matchedSurface = sortedSurfaces.first
+    }
+
+    guard let surface = matchedSurface else { return (nil, nil) }
+    let context = DataContext(
+      dataModel: surface.dataModel,
+      path: "",
+      functionHandler: surface
+    )
+    return (context, surface.defaultCatalogID)
+  }
+
+  fileprivate func forwardAction(_ action: ResolvedAction, from surfaceID: String) {
+    actionHandler?.handle(action: action, from: surfaceID)
+    if case .event(let name, let context, let userMessage) = action.identity {
+      let version =
+        surface(id: surfaceID)?.protocolVersion
+        ?? catalogs.values.first?.a2uiProtocolVersion
+        ?? .v10
+      let rendererAction = RendererAction(
+        name: name,
+        surfaceID: surfaceID,
+        sourceComponentID: action.sourceComponentID ?? "",
+        timestamp: ISO8601DateFormatter().string(from: Date()),
+        context: context ?? [:],
+        userMessage: userMessage,
+        version: version
+      )
+      outboundListener?(.action(rendererAction))
+    }
+  }
+
+  fileprivate func forwardError(_ error: RendererError, from surfaceID: String) {
+    actionHandler?.handle(error: error, from: surfaceID)
+    outboundListener?(.error(error))
+  }
+
+  private func isCatalogCompatible(
+    _ catalog: AnyCatalog,
+    with version: A2UIProtocolVersion
+  ) -> Bool {
+    guard let catVersion = catalog.a2uiProtocolVersion else {
+      return true
+    }
+    return areVersionsCompatible(catVersion, version)
+  }
+
+  private func areVersionsCompatible(
+    _ lhs: A2UIProtocolVersion,
+    _ rhs: A2UIProtocolVersion
+  ) -> Bool {
+    if lhs == rhs { return true }
+    if lhs.isV09Family && rhs.isV09Family { return true }
+    if lhs.isAtLeastV10 && rhs.isAtLeastV10 { return true }
+    return false
+  }
+}
+
+private final class ProcessorActionForwarder: ActionHandling, @unchecked Sendable {
+  weak var processor: MessageProcessor?
+
+  init(processor: MessageProcessor? = nil) {
+    self.processor = processor
+  }
+
+  func handle(action: ResolvedAction, from surfaceID: String) {
+    if Thread.isMainThread {
+      MainActor.assumeIsolated {
+        processor?.forwardAction(action, from: surfaceID)
+      }
+    } else {
+      Task { @MainActor [weak self] in
+        self?.processor?.forwardAction(action, from: surfaceID)
+      }
+    }
+  }
+
+  func handle(error: RendererError, from surfaceID: String) {
+    if Thread.isMainThread {
+      MainActor.assumeIsolated {
+        processor?.forwardError(error, from: surfaceID)
+      }
+    } else {
+      Task { @MainActor [weak self] in
+        self?.processor?.forwardError(error, from: surfaceID)
+      }
     }
   }
 }

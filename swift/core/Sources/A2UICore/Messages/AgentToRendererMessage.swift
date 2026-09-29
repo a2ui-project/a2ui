@@ -51,17 +51,57 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
 
     switch actionKey {
     case .createSurface:
-      self = .createSurface(try container.decode(CreateSurfaceMessage.self, forKey: .createSurface))
+      let message = try CreateSurfaceMessage(
+        from: container.superDecoder(forKey: .createSurface),
+        version: version
+      )
+      if version.isAtLeastV10, message.theme != nil {
+        throw DecodingError.dataCorruptedError(
+          forKey: .createSurface,
+          in: container,
+          debugDescription: "Property 'theme' is not allowed in \(version.rawValue) createSurface"
+        )
+      }
+      if version.isV09Family {
+        if message.metadata != nil {
+          throw DecodingError.dataCorruptedError(
+            forKey: .createSurface,
+            in: container,
+            debugDescription: "Property 'metadata' requires protocol version v1.0"
+          )
+        }
+        if message.components != nil || message.dataModel != nil {
+          throw DecodingError.dataCorruptedError(
+            forKey: .createSurface,
+            in: container,
+            debugDescription: "Inline 'components' and 'dataModel' require protocol version v1.0"
+          )
+        }
+      }
+      self = .createSurface(message)
     case .updateComponents:
       self = .updateComponents(
-        try container.decode(UpdateComponentsMessage.self, forKey: .updateComponents))
+        try UpdateComponentsMessage(
+          from: container.superDecoder(forKey: .updateComponents),
+          version: version
+        )
+      )
     case .updateDataModel:
       self = .updateDataModel(
-        try container.decode(UpdateDataModelMessage.self, forKey: .updateDataModel))
+        try UpdateDataModelMessage(
+          from: container.superDecoder(forKey: .updateDataModel),
+          version: version
+        )
+      )
     case .deleteSurface:
-      self = .deleteSurface(try container.decode(DeleteSurfaceMessage.self, forKey: .deleteSurface))
+      self = .deleteSurface(
+        try DeleteSurfaceMessage(
+          from: container.superDecoder(forKey: .deleteSurface),
+          version: version
+        )
+      )
     case .callRendererFunction:
-      guard version == .v10 else {
+      guard version.isAtLeastV10 else {
         throw DecodingError.dataCorruptedError(
           forKey: .callRendererFunction,
           in: container,
@@ -69,9 +109,13 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
         )
       }
       self = .callRendererFunction(
-        try container.decode(CallRendererFunctionMessage.self, forKey: .callRendererFunction))
+        try CallRendererFunctionMessage(
+          from: container.superDecoder(forKey: .callRendererFunction),
+          version: version
+        )
+      )
     case .agentFunctionResponse:
-      guard version == .v10 else {
+      guard version.isAtLeastV10 else {
         throw DecodingError.dataCorruptedError(
           forKey: .agentFunctionResponse,
           in: container,
@@ -79,7 +123,11 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
         )
       }
       self = .agentFunctionResponse(
-        try container.decode(AgentFunctionResponseMessage.self, forKey: .agentFunctionResponse))
+        try AgentFunctionResponseMessage(
+          from: container.superDecoder(forKey: .agentFunctionResponse),
+          version: version
+        )
+      )
     case .version:
       let context = DecodingError.Context(
         codingPath: container.codingPath,
@@ -91,7 +139,9 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(A2UIProtocolVersion.default, forKey: .version)
+    let targetVersion =
+      (encoder.userInfo[.a2uiProtocolVersion] as? A2UIProtocolVersion) ?? self.version
+    try container.encode(targetVersion, forKey: .version)
     switch self {
     case .createSurface(let message):
       try container.encode(message, forKey: .createSurface)
@@ -106,6 +156,22 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
     case .agentFunctionResponse(let message):
       try container.encode(message, forKey: .agentFunctionResponse)
     }
+  }
+
+  private var versionedPayload: any ProtocolVersioned {
+    switch self {
+    case .createSurface(let payload): return payload
+    case .updateComponents(let payload): return payload
+    case .updateDataModel(let payload): return payload
+    case .deleteSurface(let payload): return payload
+    case .callRendererFunction(let payload): return payload
+    case .agentFunctionResponse(let payload): return payload
+    }
+  }
+
+  /// The protocol version associated with this wire message.
+  public var version: A2UIProtocolVersion {
+    versionedPayload.version
   }
 
   /// The surface ID targeted by this message, if applicable.

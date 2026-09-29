@@ -54,6 +54,7 @@ public final class SurfaceViewModel: ObservableObject {
   }
   public let theme: [String: JSONValue]?
   public let sendDataModel: Bool
+  public let protocolVersion: A2UIProtocolVersion
 
   public let dataModel: DataModel
   public let componentsModel: SurfaceComponentsModel
@@ -79,11 +80,13 @@ public final class SurfaceViewModel: ObservableObject {
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    sendDataModel: Bool = false
+    sendDataModel: Bool = false,
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    let resolvedDefaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
@@ -92,11 +95,23 @@ public final class SurfaceViewModel: ObservableObject {
     self.nodeResolver = NodeResolver(
       surfaceID: surfaceID,
       catalogs: catalogs,
-      defaultCatalogID: self.defaultCatalogID,
+      defaultCatalogID: resolvedDefaultCatalogID,
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
       actionHandler: actionHandler
     )
+    if let protocolVersion {
+      self.protocolVersion = protocolVersion
+    } else if let resolvedDefaultCatalogID,
+      let defaultCat = catalogs[resolvedDefaultCatalogID],
+      let catVer = defaultCat.a2uiProtocolVersion
+    {
+      self.protocolVersion = catVer
+    } else if let firstCatVer = catalogs.values.first?.a2uiProtocolVersion {
+      self.protocolVersion = firstCatVer
+    } else {
+      self.protocolVersion = .v10
+    }
 
     setUpSubscriptions()
   }
@@ -107,7 +122,8 @@ public final class SurfaceViewModel: ObservableObject {
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    sendDataModel: Bool = false
+    sendDataModel: Bool = false,
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
@@ -117,7 +133,8 @@ public final class SurfaceViewModel: ObservableObject {
       defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
       theme: theme,
       actionHandler: actionHandler,
-      sendDataModel: sendDataModel
+      sendDataModel: sendDataModel,
+      protocolVersion: protocolVersion
     )
   }
 
@@ -126,7 +143,8 @@ public final class SurfaceViewModel: ObservableObject {
     catalog: any CatalogProtocol,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    sendDataModel: Bool = false
+    sendDataModel: Bool = false,
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalog = catalog.eraseToAnyCatalog()
     self.init(
@@ -135,7 +153,8 @@ public final class SurfaceViewModel: ObservableObject {
       defaultCatalogID: anyCatalog.id,
       theme: theme,
       actionHandler: actionHandler,
-      sendDataModel: sendDataModel
+      sendDataModel: sendDataModel,
+      protocolVersion: protocolVersion
     )
   }
 

@@ -47,6 +47,23 @@ struct A2UIIconTests {
     )
 
     let view = A2UIIcon(node: node)
+    #expect(view.iconSource == .svg("M10 10 H 90 V 90 H 10 Z"))
+    _ = view.body
+  }
+
+  @Test func iconInitializesWithLegacyPathKey() {
+    let node = Node(
+      id: "iconLegacyPath",
+      type: "Icon",
+      properties: [
+        "name": ResolvedDictionary([
+          "path": "M0 0 L10 10 Z"
+        ])
+      ]
+    )
+
+    let view = A2UIIcon(node: node)
+    #expect(view.iconSource == .svg("M0 0 L10 10 Z"))
     _ = view.body
   }
 

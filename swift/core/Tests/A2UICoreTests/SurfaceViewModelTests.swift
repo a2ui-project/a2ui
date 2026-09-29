@@ -1208,7 +1208,7 @@ extension MessageProcessor {
   ) {
     process(
       message: .updateComponents(
-        UpdateComponentsMessage(surfaceID: surfaceID, components: components)
+        UpdateComponentsMessage(surfaceID: surfaceID, components: components, version: .v091)
       )
     )
   }
@@ -1220,7 +1220,7 @@ extension MessageProcessor {
   ) {
     process(
       message: .updateDataModel(
-        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value)
+        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value, version: .v091)
       )
     )
   }

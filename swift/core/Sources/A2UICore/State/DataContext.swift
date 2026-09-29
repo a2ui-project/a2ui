@@ -70,9 +70,6 @@ public final class DataContext {
         return dataModel.get(absPath) ?? .null
       } else if let callName = dict["call"]?.stringValue {
         let catalogID = dict["catalogId"]?.stringValue
-        guard !(callName == "@index" && catalogID != nil) else {
-          return .null
-        }
         guard
           let function = functionHandler?.function(named: callName, catalogID: catalogID)
             ?? (callName == "@index" ? IndexFunction() : nil)

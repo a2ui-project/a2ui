@@ -18,7 +18,7 @@ import OrderedJSON
 ///
 /// Matches the `action` property in
 /// `specification/v1_0/json/renderer_to_agent.json`.
-public struct RendererAction: Equatable, Codable, Sendable {
+public struct RendererAction: Equatable, Codable, Sendable, ProtocolVersioned {
   /// The name of the action, taken from the component's
   /// `action.event.name` property.
   public let name: String
@@ -42,6 +42,9 @@ public struct RendererAction: Equatable, Codable, Sendable {
   /// Optional client-side metadata to send back to the agent with the action.
   public let metadata: [String: JSONValue]?
 
+  /// The protocol version for the outbound message envelope.
+  public var version: A2UIProtocolVersion
+
   private enum CodingKeys: String, CodingKey {
     case name
     case surfaceID = "surfaceId"
@@ -60,7 +63,8 @@ public struct RendererAction: Equatable, Codable, Sendable {
     timestamp: String,
     context: [String: JSONValue],
     userMessage: String? = nil,
-    metadata: [String: JSONValue]? = nil
+    metadata: [String: JSONValue]? = nil,
+    version: A2UIProtocolVersion
   ) {
     self.name = name
     self.surfaceID = surfaceID
@@ -69,6 +73,19 @@ public struct RendererAction: Equatable, Codable, Sendable {
     self.context = context
     self.userMessage = userMessage
     self.metadata = metadata
+    self.version = version
+  }
+
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    name = try container.decode(String.self, forKey: .name)
+    surfaceID = try container.decode(String.self, forKey: .surfaceID)
+    sourceComponentID = try container.decode(String.self, forKey: .sourceComponentID)
+    timestamp = try container.decode(String.self, forKey: .timestamp)
+    context = try container.decode([String: JSONValue].self, forKey: .context)
+    userMessage = try container.decodeIfPresent(String.self, forKey: .userMessage)
+    metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata)
+    self.version = version
   }
 }
 

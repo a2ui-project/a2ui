@@ -15,10 +15,11 @@
 import Foundation
 
 /// Signals the agent to execute a function remotely on behalf of the renderer.
-public struct CallAgentFunctionMessage: Codable, Sendable, Equatable {
+public struct CallAgentFunctionMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let surfaceID: String
   public let functionCallID: String
   public let callFunction: CallFunctionPayload
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case surfaceID = "surfaceId"
@@ -29,10 +30,20 @@ public struct CallAgentFunctionMessage: Codable, Sendable, Equatable {
   public init(
     surfaceID: String,
     functionCallID: String,
-    callFunction: CallFunctionPayload
+    callFunction: CallFunctionPayload,
+    version: A2UIProtocolVersion
   ) {
     self.surfaceID = surfaceID
     self.functionCallID = functionCallID
     self.callFunction = callFunction
+    self.version = version
+  }
+
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    surfaceID = try container.decode(String.self, forKey: .surfaceID)
+    functionCallID = try container.decode(String.self, forKey: .functionCallID)
+    callFunction = try container.decode(CallFunctionPayload.self, forKey: .callFunction)
+    self.version = version
   }
 }

@@ -14,19 +14,22 @@
 
 /// A message commanding the client to dismantle and delete an active
 /// surface.
-public struct DeleteSurfaceMessage: Codable, Sendable, Equatable {
+public struct DeleteSurfaceMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let surfaceID: String
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case surfaceID = "surfaceId"
   }
 
-  public init(surfaceID: String) {
+  public init(surfaceID: String, version: A2UIProtocolVersion) {
     self.surfaceID = surfaceID
+    self.version = version
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     surfaceID = try container.decode(String.self, forKey: .surfaceID)
+    self.version = version
   }
 }

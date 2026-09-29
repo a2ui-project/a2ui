@@ -15,17 +15,30 @@
 import Foundation
 
 /// A message commanding the renderer to execute a function locally on behalf of the agent.
-public struct CallRendererFunctionMessage: Codable, Sendable, Equatable {
+public struct CallRendererFunctionMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let functionCallID: String
   public let callFunction: CallFunctionPayload
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case functionCallID = "functionCallId"
     case callFunction
   }
 
-  public init(functionCallID: String, callFunction: CallFunctionPayload) {
+  public init(
+    functionCallID: String,
+    callFunction: CallFunctionPayload,
+    version: A2UIProtocolVersion
+  ) {
     self.functionCallID = functionCallID
     self.callFunction = callFunction
+    self.version = version
+  }
+
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    functionCallID = try container.decode(String.self, forKey: .functionCallID)
+    callFunction = try container.decode(CallFunctionPayload.self, forKey: .callFunction)
+    self.version = version
   }
 }

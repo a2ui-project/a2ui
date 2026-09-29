@@ -18,8 +18,15 @@ public enum A2UIProtocolVersion: String, Codable, Sendable, CaseIterable, Compar
   case v091 = "v0.9.1"
   case v10 = "v1.0"
 
-  /// The default active protocol version for outgoing messages.
-  public static let `default`: A2UIProtocolVersion = .v10
+  /// Whether this protocol version is v1.0 or newer.
+  public var isAtLeastV10: Bool {
+    self >= .v10
+  }
+
+  /// Whether this protocol version belongs to the v0.9 family (`v0.9` or `v0.9.1`).
+  public var isV09Family: Bool {
+    self == .v09 || self == .v091
+  }
 
   public static func < (lhs: A2UIProtocolVersion, rhs: A2UIProtocolVersion) -> Bool {
     guard let lhsIndex = allCases.firstIndex(of: lhs),
@@ -29,4 +36,12 @@ public enum A2UIProtocolVersion: String, Codable, Sendable, CaseIterable, Compar
     }
     return lhsIndex < rhsIndex
   }
+}
+
+extension CodingUserInfoKey {
+  /// Optional user info key used to supply an explicit `A2UIProtocolVersion`
+  /// when encoding or decoding wire messages.
+  public static let a2uiProtocolVersion = CodingUserInfoKey(
+    rawValue: "org.a2ui.protocolVersion"
+  )!
 }

@@ -143,15 +143,6 @@ struct StateEngineV10Tests {
     )
     let res = context.resolveDynamicValue(.object(["call": .string("@index")]))
     #expect(res == .null)
-
-    // With catalogId should also return .null (disallowed for system functions)
-    let resWithCatalog = context.resolveDynamicValue(
-      .object([
-        "call": .string("@index"),
-        "catalogId": .string("basic"),
-      ])
-    )
-    #expect(resWithCatalog == .null)
   }
 
   @Test func validationResultChecksResolution() throws {
@@ -417,7 +408,8 @@ struct StateEngineV10Tests {
         components: [
           ["id": "root", "component": "Text"],
           ["id": "root", "component": "Text"],
-        ]
+        ],
+        version: .v10
       )
     )
 

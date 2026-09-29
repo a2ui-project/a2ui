@@ -56,7 +56,8 @@ struct RPCHandlerTests {
     )
     let callMsg = CallRendererFunctionMessage(
       functionCallID: "call_1",
-      callFunction: callPayload
+      callFunction: callPayload,
+      version: .v10
     )
 
     let response = await handler.handleIncomingCall(
@@ -76,7 +77,8 @@ struct RPCHandlerTests {
     let callPayload = CallFunctionPayload(call: "nonexistent")
     let callMsg = CallRendererFunctionMessage(
       functionCallID: "call_2",
-      callFunction: callPayload
+      callFunction: callPayload,
+      version: .v10
     )
 
     let response = await handler.handleIncomingCall(
@@ -98,7 +100,8 @@ struct RPCHandlerTests {
     let callPayload = CallFunctionPayload(call: "echo")
     let callMsg = CallRendererFunctionMessage(
       functionCallID: "call_3",
-      callFunction: callPayload
+      callFunction: callPayload,
+      version: .v10
     )
 
     let response = await handler.handleIncomingCall(
@@ -120,6 +123,7 @@ struct RPCHandlerTests {
         surfaceID: "surf1",
         functionName: "fetchProfile",
         args: ["userID": .string("u123")],
+        version: .v10,
         timeoutSeconds: 5.0,
         sendOutbound: { msg in
           box.value = msg
@@ -143,7 +147,8 @@ struct RPCHandlerTests {
     handler.handleAgentResponse(
       AgentFunctionResponseMessage(
         functionCallID: callMsg.functionCallID,
-        value: .object(["name": .string("Alice")])
+        value: .object(["name": .string("Alice")]),
+        version: .v10
       )
     )
 
@@ -159,6 +164,7 @@ struct RPCHandlerTests {
       try await handler.callAgentFunction(
         surfaceID: "surf1",
         functionName: "failingFunction",
+        version: .v10,
         timeoutSeconds: 5.0,
         sendOutbound: { msg in
           if case .callAgentFunction(let callMsg) = msg {
@@ -174,7 +180,8 @@ struct RPCHandlerTests {
     handler.handleAgentResponse(
       AgentFunctionResponseMessage(
         functionCallID: callID,
-        error: FunctionErrorPayload(code: "INVALID_USER", message: "User does not exist")
+        error: FunctionErrorPayload(code: "INVALID_USER", message: "User does not exist"),
+        version: .v10
       )
     )
 
@@ -193,6 +200,7 @@ struct RPCHandlerTests {
       _ = try await handler.callAgentFunction(
         surfaceID: "surf1",
         functionName: "slowFunction",
+        version: .v10,
         timeoutSeconds: 0.05,
         sendOutbound: { _ in }
       )

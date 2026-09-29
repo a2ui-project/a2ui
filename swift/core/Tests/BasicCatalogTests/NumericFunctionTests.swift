@@ -43,7 +43,7 @@ struct NumericFunctionTests {
     #expect(v10Numeric.api.name == "numeric")
     #expect(v10Numeric.api.returnType == .validationResult)
 
-    let catalogFn = BasicCatalog.v10Catalog.functions["numeric"]
+    let catalogFn = BasicCatalog.makeCatalog(version: .v10).functions["numeric"]
     #expect(catalogFn?.api.returnType == FunctionReturnType.validationResult)
   }
 

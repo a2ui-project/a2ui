@@ -91,7 +91,7 @@ struct StressTests {
     ])
 
     let updateMsg = AgentToRendererMessage.updateComponents(
-      UpdateComponentsMessage(surfaceID: "s1", components: components)
+      UpdateComponentsMessage(surfaceID: "s1", components: components, version: .v091)
     )
     processor.process(message: updateMsg)
 
