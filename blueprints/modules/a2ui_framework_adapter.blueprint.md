@@ -97,16 +97,16 @@ Constructed for a `SurfaceModel`:
 
 Represents one resolved component instance in the tree:
 
-| Property                     | Type / Meaning      | Usage in Adapter                                                                            |
-| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------- |
-| `instanceId`                 | `string`            | Unique among siblings. A node that replaces another at the same position keeps it (see §5). |
-| `componentId`                | `string`            | Raw ID from payload. Used for logs, debug tools, and error messages.                        |
-| `type`                       | `string`            | Component type name (e.g. `"Button"`, `"Text"`).                                            |
-| `impl`                       | `ComponentApi?`     | The catalog entry the resolver chose for `type`. Render it; do not look the type up again.  |
-| `dataPath`                   | `string`            | The data scope the node's bindings resolve against.                                         |
-| `state`                      | `NodeState`         | `resolved`, `pending`, `unknown-type` or `cyclic`.                                          |
-| `props`                      | `Signal<NodeProps>` | Reactive map of resolved properties.                                                        |
-| `onDestroyed` / `addCleanup` | Lifecycle hook      | Attaches cleanup closures run when the node is disposed.                                    |
+| Property                     | Type / Meaning      | Usage in Adapter                                                                           |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+| `instanceId`                 | `string`            | Unique among siblings. A node that replaces another keeps it (see §5).                     |
+| `componentId`                | `string`            | Raw ID from payload. Used for logs, debug tools, and error messages.                       |
+| `type`                       | `string`            | Component type name (e.g. `"Button"`, `"Text"`).                                           |
+| `impl`                       | `ComponentApi?`     | The catalog entry the resolver chose for `type`. Render it; do not look the type up again. |
+| `dataPath`                   | `string`            | The data scope the node's bindings resolve against.                                        |
+| `state`                      | `NodeState`         | `resolved`, `pending`, `unknown-type` or `cyclic`.                                         |
+| `props`                      | `Signal<NodeProps>` | Reactive map of resolved properties.                                                       |
+| `onDestroyed` / `addCleanup` | Lifecycle hook      | Attaches cleanup closures run when the node is disposed.                                   |
 
 ### Resolved Props Contract
 
@@ -337,7 +337,7 @@ function NodeView(node: ComponentNode): NativeView;
 2. **Subscribe to `node.props`**: Rebuild the view when the node's props emit, and pass the current props to the implementation. Unsubscribe when the view unmounts.
 3. **Invoke Builder**: Pass `node`, its current props and a `buildChild` callback to the implementation.
 4. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)`.
-5. **Preserve Identity**: Key each child's view by `node.instanceId`, so the framework keeps the native element at each position. The node object at a position can change while its `instanceId` stays the same: when a placeholder's component arrives, when the component's type changes, and when an explicit child list is reordered, since a child's position is identified by its index. A view keyed by `instanceId` therefore moves its subscriptions to the new node, and resets its view state when the type changes.
+5. **Preserve Identity**: Key each child's view by `node.instanceId`. An `instanceId` names a component at a data scope, so in an explicit child list the view follows its component through a reorder, and in a template it stays with an index. The node object behind an `instanceId` can change while the id stays: when a placeholder's component arrives, when the component's type changes, and when an explicit child list is reordered. A view keyed by `instanceId` therefore moves its subscriptions to the new node, and resets its view state when the type changes.
 
 ---
 
