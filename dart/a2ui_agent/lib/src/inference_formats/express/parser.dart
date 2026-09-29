@@ -45,12 +45,13 @@ class ExpressParser extends Parser {
   ///
   /// A direct JSON block (`<a2ui-json>`) is not Express content.
   @override
+  @override
   bool hasFormatContent(String content, {bool complete = false}) {
+    if (content.contains(_directJsonOpenTag)) return false;
     final Match? open = _openTag.firstMatch(content);
     if (open == null) return false;
     return !complete || _blockEnd(content, open.end) != null;
   }
-
   /// Writes each part on its own line, with the `<a2ui>` and `</a2ui>` tags
   /// on lines of their own. See
   /// `conformance/agent/express/response_parser.yaml`.
