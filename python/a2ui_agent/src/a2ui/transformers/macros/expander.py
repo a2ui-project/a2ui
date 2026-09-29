@@ -21,6 +21,7 @@ from dataclasses import replace
 import logging
 from typing import Any, Callable, Optional, Sequence, Union
 
+from a2ui.core import A2uiCatalogError, A2uiRecursionError
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import CATALOG_COMPONENTS_KEY
 from a2ui.transformers.macros.macro import _MacroMetadata
@@ -76,7 +77,7 @@ class MacroExpander:
             A new A2uiCatalog containing macro component schemas.
 
         Raises:
-            ValueError: If a macro component collides with an existing component in the base catalog.
+            A2uiCatalogError: If a macro component collides with an existing component in the base catalog.
         """
         schema_copy = copy.deepcopy(base_catalog.catalog_schema)
         comps_map = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
@@ -88,7 +89,7 @@ class MacroExpander:
 
         for name, comp_schema in macro_components.items():
             if name in comps_map:
-                raise ValueError(
+                raise A2uiCatalogError(
                     f"Macro component '{name}' collides with an existing component in"
                     " the base catalog."
                 )
@@ -134,9 +135,18 @@ class MacroExpander:
         return [message]
 
     def _expand_component_list(
-        self, components: list[dict[str, Any]]
+        self,
+        components: list[dict[str, Any]],
+        *,
+        depth: int = 0,
+        max_depth: int = 16,
     ) -> list[dict[str, Any]]:
         """Recursively expands macro components in a flat component list."""
+        if depth > max_depth:
+            raise A2uiRecursionError(
+                f"Macro expansion exceeded maximum recursion depth of {max_depth}."
+            )
+
         expanded: list[dict[str, Any]] = []
         for comp in components:
             if not isinstance(comp, dict):
@@ -153,7 +163,15 @@ class MacroExpander:
                         c_name, params, instance_id=c_id
                     )
                     # Spliced components may themselves contain macros
-                    expanded.extend(self._expand_component_list(expanded_macro))
+                    expanded.extend(
+                        self._expand_component_list(
+                            expanded_macro, depth=depth + 1, max_depth=max_depth
+                        )
+                    )
+                except (A2uiRecursionError, RecursionError):
+                    raise A2uiRecursionError(
+                        f"Macro expansion exceeded maximum recursion depth of {max_depth}."
+                    )
                 except Exception as e:
                     logger.error(
                         "Failed to expand macro %r: %s", c_name, e, exc_info=True

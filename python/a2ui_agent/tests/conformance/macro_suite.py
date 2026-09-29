@@ -85,14 +85,19 @@ class Case:
 
     id: str
     description: str
-    golden: str
     surface_id: str
     input: Any
+    golden: Optional[str] = None
     catalog_id: Optional[str] = None
     validation: ValidationProfile = field(default_factory=ValidationProfile)
+    expect_error: Optional[dict[str, Any]] = None
+    action: Optional[str] = None
+    colliding_macro: Optional[str] = None
 
     @property
     def golden_path(self) -> str:
+        if not self.golden:
+            return ""
         return os.path.join(GOLDEN_DIR, self.golden)
 
     def load_golden(self) -> Any:
@@ -108,11 +113,14 @@ def load_cases() -> list[Case]:
         Case(
             id=raw["id"],
             description=raw["description"],
-            golden=raw["golden"],
-            surface_id=raw["surface_id"],
-            input=raw["input"],
+            golden=raw.get("golden"),
+            surface_id=raw.get("surface_id", "conformance"),
+            input=raw.get("input"),
             catalog_id=raw.get("catalog_id"),
             validation=ValidationProfile(**(raw.get("validation") or {})),
+            expect_error=raw.get("expect_error"),
+            action=raw.get("action"),
+            colliding_macro=raw.get("colliding_macro"),
         )
         for raw in suite["tests"]
     ]
@@ -203,6 +211,11 @@ def get_suite_macros() -> list[Any]:
             )
         )
 
+    @macro
+    def RecursiveCard(title: str) -> Card:
+        """Macro composing itself recursively."""
+        return Card(child=RecursiveCard(title=title))
+
     return [
         StatusBadge,
         SlotContainer,
@@ -211,6 +224,7 @@ def get_suite_macros() -> list[Any]:
         BoundMetric,
         ConfigCard,
         NestedMacroCard,
+        RecursiveCard,
     ]
 
 
@@ -224,6 +238,15 @@ SUITE_MACROS = get_suite_macros()
 
 def run_case(case: Case) -> list[dict[str, Any]]:
     """Runs a conformance case through MacroExpander and returns the expanded wire messages."""
+    if case.action == "transform_catalog" and case.colliding_macro:
+        @macro(name=case.colliding_macro)
+        def CollidingMacro() -> Card:
+            return Card(child=Text(text="colliding"))
+
+        expander = MacroExpander([CollidingMacro])
+        expander.transform_to_inference_catalog(basic_catalog_schema())
+        return []
+
     raw_components = case.input if isinstance(case.input, list) else [case.input]
 
     if case.catalog_id:

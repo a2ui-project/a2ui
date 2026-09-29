@@ -154,6 +154,17 @@ macros:
           - component: "StatusBadge"
             status: {$param: "status"}
             title: "${title} Status"
+  - name: "RecursiveCard"
+    description: "Macro composing itself recursively"
+    parameters:
+      title: {type: "string"}
+    # Native builder:
+    #   Card(child=RecursiveCard(title=title))
+    template:
+      component: "Card"
+      child:
+        component: "RecursiveCard"
+        title: {$param: "title"}
 
 tests:
   - id: "01_status_badge_expansion"
@@ -256,3 +267,21 @@ tests:
       id: "root"
       status: "ready"
       title: "System"
+
+  - id: "09_error_cyclic_macro_recursion"
+    description: "Cyclic macro expansion exceeding max depth raises RecursionError"
+    surface_id: "conformance"
+    input:
+      component: "RecursiveCard"
+      id: "root"
+      title: "Cycle"
+    expect_error:
+      category: "RecursionError"
+
+  - id: "10_error_macro_catalog_collision"
+    description: "Macro name colliding with a base catalog component raises CatalogError"
+    action: "transform_catalog"
+    colliding_macro: "Text"
+    expect_error:
+      category: "CatalogError"
+

@@ -30,23 +30,20 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any
 
-import builder_suite
-import macro_suite
+from builder_suite import load_cases, run_case, validate_payload
 
 
-def _run_suite(suite_name: str, module: Any) -> tuple[list[str], list[str], list[str]]:
+def main() -> int:
     failures: list[str] = []
     written: list[str] = []
     unchanged: list[str] = []
 
-    print(f"\n--- Suite: {suite_name} ---")
-    for case in module.load_cases():
-        payload = module.run_case(case)
+    for case in load_cases():
+        payload = run_case(case)
 
         try:
-            module.validate_payload(payload, case)
+            validate_payload(payload, case)
         except Exception as exc:  # noqa: BLE001 - reported, not handled
             failures.append(f"{case.id}: {str(exc).splitlines()[0]}")
             continue
@@ -71,27 +68,12 @@ def _run_suite(suite_name: str, module: Any) -> tuple[list[str], list[str], list
     for failure in failures:
         print(f"INVALID    {failure}")
 
-    return written, unchanged, failures
-
-
-def main() -> int:
-    total_failures: list[str] = []
-    total_written: int = 0
-    total_unchanged: int = 0
-
-    for name, mod in [("builder", builder_suite), ("macros", macro_suite)]:
-        w, u, f = _run_suite(name, mod)
-        total_written += len(w)
-        total_unchanged += len(u)
-        total_failures.extend(f)
-
-    if total_failures:
+    if failures:
         print(
-            f"\n{len(total_failures)} case(s) produced invalid payloads and were not"
-            " written."
+            f"\n{len(failures)} case(s) produced invalid payloads and were not written."
         )
         return 1
-    print(f"\nTotal: {total_written} written, {total_unchanged} unchanged.")
+    print(f"\n{len(written)} written, {len(unchanged)} unchanged.")
     return 0
 
 
