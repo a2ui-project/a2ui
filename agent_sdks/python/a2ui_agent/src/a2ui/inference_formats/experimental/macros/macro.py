@@ -73,6 +73,24 @@ def _parse_docstring(doc: Optional[str]) -> tuple[Optional[str], dict[str, str]]
     for line in lines:
         stripped = line.strip()
         lowered = stripped.lower()
+
+        # Handle Sphinx style ":param name: description"
+        if stripped.startswith((":param ", ":parameter ")):
+            if current_param:
+                param_descriptions[current_param] = " ".join(current_desc).strip()
+                current_param = None
+                current_desc = []
+            parts = stripped.split(":", 2)
+            if len(parts) >= 3:
+                p_name = parts[1].strip().split()[-1]
+                p_desc = parts[2].strip()
+                if p_name.isidentifier():
+                    param_descriptions[p_name] = p_desc
+            continue
+
+        if stripped.startswith((":type ", ":return:", ":returns:", ":rtype:")):
+            continue
+
         if lowered in ("args:", "arguments:", "parameters:"):
             in_args = True
             continue
@@ -85,6 +103,7 @@ def _parse_docstring(doc: Optional[str]) -> tuple[Optional[str], dict[str, str]]
                     current_param = None
                     current_desc = []
                 in_args = False
+                main_lines.append(line)
                 continue
 
             # Match "param_name: description" or "param_name (type): description"
@@ -381,7 +400,7 @@ def _map_type_hint_to_schema(
 
 
 @dataclass(frozen=True)
-class _MacroParameter:
+class MacroParameter:
     """Describes a parameter accepted by a macro."""
 
     name: str
@@ -391,17 +410,17 @@ class _MacroParameter:
     description: Optional[str] = None
 
 
-MacroParameter = _MacroParameter
+_MacroParameter = MacroParameter
 
 
 @dataclass
-class _MacroMetadata:
+class MacroMetadata:
     """Metadata for a registered macro."""
 
     name: str
     description: Optional[str]
     func: Callable[..., Any]
-    parameters: dict[str, _MacroParameter]
+    parameters: dict[str, MacroParameter]
     return_type: Any
 
     def to_json_schema(self) -> dict[str, Any]:
@@ -426,10 +445,8 @@ class _MacroMetadata:
         return schema
 
 
-MacroMetadata = _MacroMetadata
-
-
-_MACRO_REGISTRY: dict[str, _MacroMetadata] = {}
+_MacroMetadata = MacroMetadata
+_MACRO_REGISTRY: dict[str, MacroMetadata] = {}
 
 
 def register_macro(
@@ -515,11 +532,6 @@ def macro(
     return decorator
 
 
-# Backward-compatible aliases
-macro_component = macro
-dynamic_template = macro
-
-
 def get_macro(name: str) -> Optional[MacroMetadata]:
     """Retrieves a registered macro by name."""
     return _MACRO_REGISTRY.get(name)
@@ -534,11 +546,6 @@ def list_macros() -> list[MacroMetadata]:
             seen.add(m.name)
             res.append(m)
     return res
-
-
-def get_all_macros() -> list[MacroMetadata]:
-    """Alias for list_macros()."""
-    return list_macros()
 
 
 def clear_macros() -> None:

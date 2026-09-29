@@ -34,17 +34,14 @@ from a2ui.schema.utils import load_from_bundled_resource
 from google.adk.utils.feature_decorator import experimental
 
 from a2ui.inference_formats.experimental.macros.macro import (
-    _MacroMetadata,
     MacroMetadata,
     get_macro,
     list_macros,
 )
 from a2ui.inference_formats.experimental.macros.parser import (
-    _MacroParser,
     MacroParser,
 )
 from a2ui.inference_formats.experimental.macros.processor import (
-    _MacroProcessor,
     MacroProcessor,
 )
 
@@ -68,6 +65,9 @@ def _combine_catalog_with_macros(
 
     Returns:
         A new A2uiCatalog with macro components registered and hidden components removed.
+
+    Raises:
+        ValueError: If a macro component collides with an existing component in the base catalog.
     """
     schema_copy = copy.deepcopy(base_catalog.catalog_schema)
     comps_map = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
@@ -87,6 +87,11 @@ def _combine_catalog_with_macros(
         ]
 
     for name, comp_schema in macro_components.items():
+        if name in comps_map:
+            raise ValueError(
+                f"Macro component '{name}' collides with an existing component in the"
+                " base catalog."
+            )
         comps_map[name] = comp_schema
         ref_entry = {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{name}"}
         if ref_entry not in any_comp_refs:
@@ -111,9 +116,10 @@ class MacroInferenceFormat(InferenceFormat):
         base_format: Optional[InferenceFormat] = None,
         *,
         catalog: Optional[Union[A2uiCatalog, dict[str, Any]]] = None,
-        macros: Optional[Sequence[Union[Callable[..., Any], _MacroMetadata]]] = None,
+        macros: Optional[Sequence[Union[Callable[..., Any], MacroMetadata]]] = None,
         hidden_components: Optional[Sequence[str]] = None,
         surface_id: Optional[str] = None,
+        protocol_version: Optional[str] = None,
         version: Optional[str] = None,
     ):
         """Initializes the macro inference format.
@@ -121,11 +127,12 @@ class MacroInferenceFormat(InferenceFormat):
         Args:
             base_format: The underlying syntax format to wrap (e.g., ExpressFormat).
             catalog: Optional override catalog. If omitted, uses base_format.catalog.
-            macros: Explicit sequence of macro functions or _MacroMetadata objects.
-                If None, defaults to all globally registered macros.
+            macros: Explicit sequence of macro functions or MacroMetadata objects.
+                If None, defaults to an empty list (no macros).
             hidden_components: Optional component names from base catalog to hide.
             surface_id: Target surface identifier for emitted envelopes.
-            version: A2UI protocol version (defaults to '0.9.1').
+            protocol_version: A2UI protocol version (defaults to '0.9.1').
+            version: Alias for protocol_version.
 
         Raises:
             ValueError: If base_format or a valid catalog is not provided.
@@ -138,19 +145,25 @@ class MacroInferenceFormat(InferenceFormat):
             )
 
         self.surface_id = surface_id or getattr(base_format, "surface_id", "main")
-        raw_version = version or getattr(base_format, "version", "v0.9.1")
+        raw_version = (
+            protocol_version
+            or version
+            or getattr(base_format, "protocol_version", None)
+            or getattr(base_format, "version", "v0.9.1")
+        )
         clean_v = _clean_version(raw_version)
         if clean_v not in ("0.9", "0.9.1", "0.8", "1.0"):
             clean_v = "0.9.1"
+        self.protocol_version = raw_version
         self.version = raw_version
         self.hidden_components = list(hidden_components) if hidden_components else []
-        self.processor = _MacroProcessor()
+        self.processor = MacroProcessor()
 
         # Ingest macros
         if macros is not None:
-            self.macros: list[_MacroMetadata] = []
+            self.macros: list[MacroMetadata] = []
             for m in macros:
-                if isinstance(m, _MacroMetadata):
+                if isinstance(m, MacroMetadata):
                     self.macros.append(m)
                 elif hasattr(m, "__a2ui_macro__"):
                     self.macros.append(getattr(m, "__a2ui_macro__"))
@@ -159,7 +172,7 @@ class MacroInferenceFormat(InferenceFormat):
                     if meta:
                         self.macros.append(meta)
         else:
-            self.macros = list_macros()
+            self.macros = []
 
         # 1. Resolve base catalog from base_format or catalog parameter
         extracted_catalog = catalog or getattr(base_format, "catalog", None)
@@ -220,7 +233,7 @@ class MacroInferenceFormat(InferenceFormat):
     @property
     def parser(self) -> Parser:
         """Returns the MacroParser wrapping the underlying syntax parser."""
-        return _MacroParser(self.underlying_format.parser, processor=self.processor)
+        return MacroParser(self.underlying_format.parser, processor=self.processor)
 
 
 __all__ = ["MacroInferenceFormat"]

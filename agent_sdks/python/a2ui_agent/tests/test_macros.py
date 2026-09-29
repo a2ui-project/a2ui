@@ -870,3 +870,92 @@ def test_macro_expansion_failure_logs_error(caplog):
         "Failed to expand macro 'FailingMacro'" in record.message
         for record in caplog.records
     )
+
+
+def test_macro_sphinx_docstring_parsing():
+    @macro
+    def SphinxItem(title: str, count: int) -> Card:
+        """Card item documented with Sphinx style.
+
+        :param title: The title of the item.
+        :param count: Quantity in stock.
+        :type count: int
+        :return: A Card component.
+        """
+        return Card(child=Text(text=f"{title}: {count}"))
+
+    meta = get_macro("SphinxItem")
+    assert meta is not None
+    assert meta.description == "Card item documented with Sphinx style."
+    assert meta.parameters["title"].description == "The title of the item."
+    assert meta.parameters["count"].description == "Quantity in stock."
+    schema = meta.to_json_schema()
+    assert schema["properties"]["title"]["description"] == "The title of the item."
+    assert schema["properties"]["count"]["description"] == "Quantity in stock."
+
+
+def test_macro_base_catalog_collision_raises_error():
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    @macro(name="Text")
+    def CollidingText(content: str) -> Card:
+        """Collides with primitive Text in catalog."""
+        return Card(child=Text(text=content))
+
+    base_format = ExpressFormat(
+        catalog={"components": {"Text": {"type": "object"}}},
+        surface_id="main",
+    )
+
+    with pytest.raises(ValueError, match="collides with an existing component"):
+        MacroInferenceFormat(base_format=base_format, macros=[CollidingText])
+
+
+def test_macro_format_default_macros_empty():
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    base_format = ExpressFormat(
+        catalog={"components": {"Card": {"type": "object"}}},
+        surface_id="main",
+    )
+    fmt = MacroInferenceFormat(base_format=base_format)
+    # When macros is None, it should default to empty list, not all global macros
+    assert fmt.macros == []
+
+
+def test_macro_format_protocol_version_parameter():
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    base_format = ExpressFormat(
+        catalog={"components": {}},
+        surface_id="main",
+    )
+    fmt = MacroInferenceFormat(base_format=base_format, protocol_version="v0.9.1")
+    assert fmt.protocol_version == "v0.9.1"
+    assert fmt.version == "v0.9.1"
+
+
+def test_macro_action_and_accessibility_coercion():
+    @macro
+    def InteractiveBanner(
+        on_click: Optional[Action] = None,
+        a11y: Optional[AccessibilityAttributes] = None,
+    ) -> Card:
+        return Card(
+            child=Text(
+                text="Click me",
+                accessibility=a11y,
+            )
+        )
+
+    processor = MacroProcessor()
+    # Test action string coercion and a11y dict coercion with Optional/Union
+    expanded = processor.expand(
+        "InteractiveBanner",
+        {
+            "on_click": "banner_clicked",
+            "a11y": {"label": "Clickable banner", "description": "Banner description"},
+        },
+        instance_id="banner_1",
+    )
+    assert len(expanded) >= 1

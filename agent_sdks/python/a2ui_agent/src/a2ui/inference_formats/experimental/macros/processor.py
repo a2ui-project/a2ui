@@ -14,6 +14,7 @@
 
 """Runtime expansion processor for A2UI macros."""
 
+import types
 from collections.abc import Sequence as AbcSequence
 from typing import Any, Optional, Sequence, Union, get_args, get_origin
 
@@ -32,7 +33,7 @@ from a2ui.inference_formats.experimental.macros.macro import get_macro
 def _is_component_type(t: Any) -> bool:
     origin = get_origin(t)
     args = get_args(t)
-    if origin is Union:
+    if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) == 1:
             return _is_component_type(non_none[0])
@@ -47,7 +48,7 @@ def _is_component_type(t: Any) -> bool:
 def _is_component_sequence_type(t: Any) -> bool:
     origin = get_origin(t)
     args = get_args(t)
-    if origin is Union:
+    if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) == 1:
             return _is_component_sequence_type(non_none[0])
@@ -60,6 +61,32 @@ def _is_component_sequence_type(t: Any) -> bool:
         )
     ) and args:
         return _is_component_type(args[0])
+    return False
+
+
+def _is_action_type(t: Any) -> bool:
+    origin = get_origin(t)
+    args = get_args(t)
+    if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
+        non_none = [a for a in args if a is not type(None)]
+        return any(_is_action_type(a) for a in non_none)
+    if t is Action:
+        return True
+    if isinstance(t, type) and issubclass(t, Action):
+        return True
+    return False
+
+
+def _is_accessibility_type(t: Any) -> bool:
+    origin = get_origin(t)
+    args = get_args(t)
+    if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
+        non_none = [a for a in args if a is not type(None)]
+        return any(_is_accessibility_type(a) for a in non_none)
+    if t is AccessibilityAttributes:
+        return True
+    if isinstance(t, type) and issubclass(t, AccessibilityAttributes):
+        return True
     return False
 
 
@@ -80,7 +107,7 @@ def _coerce_action(value: dict[str, Any]) -> Action:
     return Action.model_validate(value)
 
 
-class _MacroProcessor:
+class MacroProcessor:
     """Executes registered macros and flattens them into standard A2UI components."""
 
     def has_macro(self, macro_name: str) -> bool:
@@ -142,11 +169,11 @@ class _MacroProcessor:
                 # before-validator accepting one would be invisible to a type
                 # checker. Inference output is not type-checked, though, so the
                 # shorthands an LLM naturally emits are mapped here instead.
-                elif isinstance(p_val, str) and t in (Action, Optional[Action]):
+                elif isinstance(p_val, str) and _is_action_type(t):
                     coerced_args[p_name] = Action(event=ActionEvent(name=p_val))
                 elif (
                     isinstance(p_val, dict)
-                    and t in (Action, Optional[Action])
+                    and _is_action_type(t)
                     and not isinstance(p_val, Action)
                 ):
                     coerced_args[p_name] = _coerce_action(p_val)
@@ -154,8 +181,7 @@ class _MacroProcessor:
                 # 5. Coerce AccessibilityAttributes
                 elif (
                     isinstance(p_val, dict)
-                    and t
-                    in (AccessibilityAttributes, Optional[AccessibilityAttributes])
+                    and _is_accessibility_type(t)
                     and not isinstance(p_val, AccessibilityAttributes)
                 ):
                     coerced_args[p_name] = AccessibilityAttributes(**p_val)
@@ -178,6 +204,6 @@ class _MacroProcessor:
         return flatten_component_tree(result, root_id=root_id)
 
 
-MacroProcessor = _MacroProcessor
+_MacroProcessor = MacroProcessor
 
-__all__ = ["_MacroProcessor", "MacroProcessor"]
+__all__ = ["MacroProcessor", "_MacroProcessor"]

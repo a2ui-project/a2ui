@@ -30,7 +30,7 @@ from a2ui.inference_formats.experimental.macros.processor import (
 logger = logging.getLogger(__name__)
 
 
-class _MacroParser(Parser):
+class MacroParser(Parser):
     """Parser decorator that intercepts parsed A2UI messages and expands macros.
 
     Wraps an underlying inference format parser (such as ExpressParser or
@@ -43,17 +43,17 @@ class _MacroParser(Parser):
     def __init__(
         self,
         underlying_parser: Parser,
-        processor: Optional[_MacroProcessor] = None,
+        processor: Optional[MacroProcessor] = None,
     ):
         """Initializes the macro parser.
 
         Args:
             underlying_parser: The base syntax parser producing raw A2UI messages.
             processor: The macro execution processor. If None, a new
-                _MacroProcessor is instantiated.
+                MacroProcessor is instantiated.
         """
         self.underlying_parser = underlying_parser
-        self.processor = processor or _MacroProcessor()
+        self.processor = processor or MacroProcessor()
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Checks whether the input text contains recognizable format markup.
@@ -197,6 +197,7 @@ class _MacroParser(Parser):
         return expanded_msgs
 
 
-MacroParser = _MacroParser
+MacroParser = MacroParser
+_MacroParser = MacroParser
 
-__all__ = ["_MacroParser", "MacroParser"]
+__all__ = ["MacroParser", "_MacroParser"]

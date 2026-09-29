@@ -18,22 +18,22 @@ from a2ui.inference_formats.experimental.macros.format import (
     MacroInferenceFormat,
 )
 from a2ui.inference_formats.experimental.macros.macro import (
+    MacroMetadata,
+    MacroParameter,
     clear_macros,
-    dynamic_template,
     get_macro,
     list_macros,
     macro,
-    macro_component,
     register_macro,
 )
 
 __all__ = [
     "macro",
-    "macro_component",
-    "dynamic_template",
     "register_macro",
     "get_macro",
     "list_macros",
     "clear_macros",
+    "MacroMetadata",
+    "MacroParameter",
     "MacroInferenceFormat",
 ]
