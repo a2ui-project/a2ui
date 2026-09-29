@@ -40,7 +40,7 @@ export function findPackages(dir = ROOT_DIR, packageList = []) {
   const files = readdirSync(dir);
 
   for (const file of files) {
-    if (file === 'node_modules' || file === '.git' || file === 'dist') continue;
+    if (file === 'node_modules' || file === '.git' || file === 'dist' || file === '.next' || file === '.wireit') continue;
 
     const fullPath = join(dir, file);
     const stat = statSync(fullPath);
@@ -64,6 +64,7 @@ export function getPackageGraph() {
 
   for (const path of packagePaths) {
     const pkg = JSON.parse(readFileSync(path, 'utf8'));
+    if (!pkg.name) continue;
     const dir = dirname(path);
 
     // If we have a duplicate name, prioritize packages in 'renderers/'

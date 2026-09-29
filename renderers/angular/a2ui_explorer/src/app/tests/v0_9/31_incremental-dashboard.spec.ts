@@ -23,7 +23,7 @@ describe('Example: Incremental Dashboard', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Incremental Dashboard');
+    fixture = await loadExample({name: 'Incremental Dashboard'});
 
     // Wait a bit longer to ensure all incremental updates are processed
     await wait(500);

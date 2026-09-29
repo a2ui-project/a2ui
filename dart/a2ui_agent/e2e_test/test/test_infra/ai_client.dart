@@ -28,11 +28,25 @@ class AiClient {
 
   /// Sends [userMessage] under [systemPrompt] and returns the complete
   /// response.
+  ///
+  /// Retries a failed request twice, since the API sometimes rejects one
+  /// under load (HTTP 503), and rethrows the last failure.
   Future<String> send(String systemPrompt, String userMessage) async {
-    final dartantic.ChatResult<String> result = await _agent.send(
-      userMessage,
-      history: [dartantic.ChatMessage.system(systemPrompt)],
-    );
-    return result.output;
+    for (var attempt = 1; ; attempt++) {
+      try {
+        final dartantic.ChatResult<String> result = await _agent.send(
+          userMessage,
+          history: [dartantic.ChatMessage.system(systemPrompt)],
+        );
+        if (result.finishReason != dartantic.FinishReason.stop) {
+          // ignore: avoid_print
+          print('The model stopped early: ${result.finishReason}.');
+        }
+        return result.output;
+      } on Exception {
+        if (attempt == 3) rethrow;
+        await Future<void>.delayed(Duration(seconds: 5 * attempt));
+      }
+    }
   }
 }

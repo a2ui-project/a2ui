@@ -1,0 +1,209 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_pointer_escape_characters
+  description: Verifies RFC 6901 JSON Pointer escape sequence resolution (~0 for ~ and ~1 for /).
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              "a/b":
+                "c~d": "original_value"
+              "slash/key": 100
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/a~1b/c~0d"
+            value: "escaped_value"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          "a/b":
+            "c~d": "escaped_value"
+          "slash/key": 100
+
+- name: test_pointer_array_indexing
+  description: Verifies numeric array indexing in JSON Pointers (/items/0, /items/1).
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              items: ["first", "second", "third"]
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/items/1"
+            value: "updated_second"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          items: ["first", "updated_second", "third"]
+
+- name: test_pointer_auto_vivification
+  description: Verifies automatic intermediate object creation when setting deep uncreated JSON Pointer paths.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel: {}
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/deeply/nested/structure/key"
+            value: "vivified_value"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          deeply:
+            nested:
+              structure:
+                key: "vivified_value"
+
+- name: test_pointer_extended_escape_sequences
+  description: Verifies advanced RFC 6901 escape sequence combinations (~10 for /0, ~00 for ~0, ~11 for /1, and ~01 for ~1).
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              "m~0": "val0"
+              "m/1": "val1"
+              "m~1": "val2"
+              "m/0": "val3"
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/m~00"
+            value: "updated0"
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/m~11"
+            value: "updated1"
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/m~01"
+            value: "updated2"
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/m~10"
+            value: "updated3"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          "m~0": "updated0"
+          "m/1": "updated1"
+          "m~1": "updated2"
+          "m/0": "updated3"
+
+- name: test_pointer_reject_leading_zero_array_index
+  description: Verifies rejection of leading zero array indices (e.g. /items/01) per RFC 6901 §4.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              items: ["a", "b", "c"]
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/items/01"
+            value: "invalid"
+      expectError:
+        category: "DataError"
+        message: "non-numeric segment"
+
+- name: test_pointer_reject_write_through_primitive
+  description: Verifies DataError when writing nested path through primitive intermediate node.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              user: "Alice"
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/user/name/first"
+            value: "Alice"
+      expectError:
+        category: "DataError"
+        message: "Cannot set path"
+
+- name: test_pointer_reject_non_numeric_array_segment
+  description: Verifies DataError when setting non-numeric key on array target.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              items: ["a", "b", "c"]
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/items/invalidKey"
+            value: "value"
+      expectError:
+        category: "DataError"
+        message: "non-numeric segment"

@@ -23,7 +23,7 @@ describe('Example: Restaurant Card (basic) (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Restaurant Card (basic)', Version.V0_8);
+    fixture = await loadExample({name: 'Restaurant Card (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

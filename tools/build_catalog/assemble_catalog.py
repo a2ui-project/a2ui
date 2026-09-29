@@ -28,7 +28,7 @@ import traceback
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.error import URLError
 
 try:
@@ -99,8 +99,8 @@ class CatalogAssembler:
     def __init__(
         self,
         version: str,
-        local_basic_catalog_path: Optional[str] = None,
-        local_common_types_path: Optional[str] = None,
+        local_basic_catalog_path: str | None = None,
+        local_common_types_path: str | None = None,
         max_depth: int = 50,
     ):
         self.version = version
@@ -112,7 +112,7 @@ class CatalogAssembler:
         self.used_def_keys: set[str] = set()
         self.file_cache: dict[str, dict[str, Any]] = {}
 
-    def fetch_json(self, uri: str, referrer: Optional[str] = None) -> dict[str, Any]:
+    def fetch_json(self, uri: str, referrer: str | None = None) -> dict[str, Any]:
         """Fetches and caches JSON content from a local file or remote URL."""
         if uri in self.file_cache:
             return self.file_cache[uri]
@@ -306,7 +306,7 @@ class CatalogAssembler:
         base_name: str,
         file_name: str,
         input_uris: list[str],
-        custom_catalog_id: Optional[str] = None,
+        custom_catalog_id: str | None = None,
     ) -> dict[str, Any]:
         """Initializes the skeleton for the newly combined catalog."""
         catalog_id = (
@@ -406,8 +406,8 @@ class CatalogAssembler:
         name: str,
         input_uris: list[str],
         extend_basic: bool = False,
-        catalog_id: Optional[str] = None,
-        additional_instructions: Optional[list[Path]] = None,
+        catalog_id: str | None = None,
+        additional_instructions: list[Path] | None = None,
     ) -> dict[str, Any]:
         """Assembles a list of catalog URIs into a single, unified catalog JSON."""
         if not input_uris:
@@ -480,7 +480,7 @@ def validate_catalog(catalog: dict[str, Any]):
         logger.error(f"❌ Validation error: {e}")
 
 
-def detect_local_overrides(inputs: list[str]) -> tuple[Optional[str], Optional[str]]:
+def detect_local_overrides(inputs: list[str]) -> tuple[str | None, str | None]:
     """Detects if any core catalogs are provided locally in the inputs list."""
     local_basic = None
     local_common = None

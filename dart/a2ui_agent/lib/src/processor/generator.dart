@@ -41,9 +41,8 @@ class A2uiGenerator {
   /// not accepted, so any the renderer sends are ignored.
   ///
   /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
-  /// for v0.9, [A2uiCatalogError] if no registered catalog is supported by the
-  /// renderer, and [UnsupportedError] if [inferenceFormatFactory] is not
-  /// Express.
+  /// for v0.9, and [A2uiCatalogError] if no registered catalog is supported by
+  /// the renderer.
   A2uiRequestProcessor createProcessor(
     A2uiRendererCapabilities rendererCapabilities,
   ) {

@@ -16,6 +16,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -207,30 +208,48 @@ class PendingMarkerTest(unittest.TestCase):
         self.assertEqual(recovered, "- Fixed a thing.")
 
 
-class DiscoverPendingTest(unittest.TestCase):
+class GetReleaseBodyTest(unittest.TestCase):
 
     @mock.patch("subprocess.run")
-    def test_parses_releases_and_filters_pending(self, mock_run):
+    def test_fetches_body(self, mock_run):
+        mock_run.return_value = mock.Mock(stdout=json.dumps({"body": "Some notes"}))
+        body = cp.get_release_body("python/a2ui-core/v0.1.2")
+        self.assertEqual(body, "Some notes")
+        self.assertEqual(
+            mock_run.call_args.args[0],
+            ["gh", "release", "view", "python/a2ui-core/v0.1.2", "--json", "body"],
+        )
+
+    @mock.patch("subprocess.run")
+    def test_handles_missing_body_or_error(self, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(1, ["gh"])
+        self.assertEqual(cp.get_release_body("bad-tag"), "")
+
+
+class DiscoverPendingTest(unittest.TestCase):
+
+    @mock.patch.object(cp, "get_release_body")
+    @mock.patch("subprocess.run")
+    def test_parses_releases_and_filters_pending(self, mock_run, mock_get_body):
         mock_releases = [
-            {
-                "tagName": "python/a2ui-core/v0.1.2",
-                "body": "- Fixed bug.\n---\n" + cp.PENDING_MARKER,
-            },
-            {
-                "tagName": "python/a2ui-core/v0.1.1",
-                "body": "- Older release.\n---\nPublished to PyPI.",
-            },
-            {
-                "tagName": "v0.9",
-                "body": "Spec release.\n---\n" + cp.PENDING_MARKER,
-            },
+            {"tagName": "python/a2ui-core/v0.1.2"},
+            {"tagName": "python/a2ui-core/v0.1.1"},
+            {"tagName": "v0.9"},
         ]
         mock_run.return_value = mock.Mock(stdout=json.dumps(mock_releases))
+        bodies = {
+            "python/a2ui-core/v0.1.2": "- Fixed bug.\n---\n" + cp.PENDING_MARKER,
+            "python/a2ui-core/v0.1.1": "- Older release.\n---\nPublished to PyPI.",
+        }
+        mock_get_body.side_effect = lambda tag: bodies.get(tag, "")
         pending = cp.discover_pending(limit=50)
         self.assertEqual(len(pending), 1)
         self.assertEqual(pending[0]["pypi_name"], "a2ui-core")
         self.assertEqual(pending[0]["version"], "0.1.2")
         self.assertEqual(pending[0]["notes"], "- Fixed bug.")
+        self.assertIn("python/a2ui-core/v0.1.2", mock_get_body.call_args_list[0][0])
+        self.assertIn("python/a2ui-core/v0.1.1", mock_get_body.call_args_list[1][0])
+        self.assertEqual(mock_get_body.call_count, 2)
 
     @mock.patch("subprocess.run")
     def test_handles_invalid_json(self, mock_run):

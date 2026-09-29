@@ -225,6 +225,7 @@ const myCheckFunc = createFunctionImplementation(
 // 2. Compose the catalog
 export const myCatalog = new Catalog(
   'https://example.com/catalogs/v1.json',
+  'v0.9', // Protocol version the catalog targets
   [MyProfile, RawInspector], // List of ReactComponentImplementation
   [myCheckFunc], // List of FunctionImplementation
 );
