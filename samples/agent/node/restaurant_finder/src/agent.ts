@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import * as crypto from 'crypto';
-
-import type {DataPart, Message, Part, Task, TaskStatusUpdateEvent} from '@a2a-js/sdk';
+import type {Part} from '@a2a-js/sdk';
 import type {AgentExecutor, ExecutionEventBus, RequestContext} from '@a2a-js/sdk/server';
 import {
   A2uiGenerator,
@@ -25,9 +23,9 @@ import {
   CatalogConfig,
   DirectJsonStreamProcessorImpl,
   ExpressFormatFactory,
-  type ResponsePart,
 } from '@a2ui/agent';
 
+import {TaskEvents, toA2aParts} from './a2a.js';
 import type {A2uiFormat} from './config.js';
 import {loadExamples} from './examples.js';
 import {LruCache} from './lru_cache.js';
@@ -37,25 +35,8 @@ import {getUiDescription, ROLE_DESCRIPTION} from './prompt.js';
 import {parseUserQuery} from './user_query.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
-/** The MIME type of every A2UI data part, in v0.9.1 and v1.0. */
-const A2UI_MIME_TYPE = 'application/a2ui+json';
-
 /** How many times a turn is retried after its A2UI fails validation, as in Python. */
 const MAX_RETRIES = 1;
-
-/** Converts a parsed response part to A2A parts, one data part per A2UI message. */
-function toA2aParts(part: ResponsePart): Part[] {
-  if (part.type === 'text') {
-    return [{kind: 'text', text: part.text}];
-  }
-  return part.a2ui.map(
-    (msg): DataPart => ({
-      kind: 'data',
-      data: msg as unknown as Record<string, unknown>,
-      metadata: {mimeType: A2UI_MIME_TYPE},
-    }),
-  );
-}
 
 /** The follow-up query sent after a response failed validation. */
 function retryQuery(format: A2uiFormat, error: string, query: string): string {
@@ -101,29 +82,20 @@ export class RestaurantExecutor implements AgentExecutor {
   }
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
+    const events = new TaskEvents(eventBus, requestContext);
     try {
-      await this.run(requestContext, eventBus);
+      await this.run(requestContext, events);
     } catch (e) {
       console.error(`Task ${requestContext.taskId} failed:`, e);
       const detail = e instanceof Error ? e.message : String(e);
-      this.publishStatus(eventBus, requestContext, 'failed', true, [
+      events.status('failed', true, [
         {kind: 'text', text: `The agent could not answer this request: ${detail}`},
       ]);
     }
   }
 
-  private async run(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
-    const {taskId, contextId, userMessage, task} = requestContext;
-    if (!task) {
-      const initialTask: Task = {
-        kind: 'task',
-        id: taskId,
-        contextId,
-        status: {state: 'submitted', timestamp: new Date().toISOString()},
-        history: [userMessage],
-      };
-      eventBus.publish(initialTask);
-    }
+  private async run({contextId, userMessage}: RequestContext, events: TaskEvents): Promise<void> {
+    events.start();
 
     // 1. Pick the version and catalogs from the renderer's capabilities.
     const {profile, catalogIds} = pickA2ui(userMessage);
@@ -136,7 +108,7 @@ export class RestaurantExecutor implements AgentExecutor {
       includeSchema: true,
       includeExamples: true,
     });
-    this.publishStatus(eventBus, requestContext, 'working', false);
+    events.status('working', false);
 
     // Express is parsed only once the whole response is in; Direct JSON streams.
     const streamProcessor =
@@ -166,7 +138,7 @@ export class RestaurantExecutor implements AgentExecutor {
         if (parts.length > 0) {
           partsStreamed = true;
           if (useStreaming) {
-            this.publishStatus(eventBus, requestContext, 'working', false, parts);
+            events.status('working', false, parts);
           }
         }
       }
@@ -177,7 +149,7 @@ export class RestaurantExecutor implements AgentExecutor {
           .parseResponse(fullText)
           .flatMap(toA2aParts);
         if (!streamProcessor && useStreaming) {
-          this.publishStatus(eventBus, requestContext, 'working', false, parts);
+          events.status('working', false, parts);
           partsStreamed = true;
         }
         finalParts = parts;
@@ -202,35 +174,7 @@ export class RestaurantExecutor implements AgentExecutor {
     // 6. End the turn. Streamed parts are not repeated in the final status.
     const finalState = actionName === 'submit_booking' ? 'completed' : 'input-required';
     const omitParts = useStreaming && partsStreamed;
-    this.publishStatus(eventBus, requestContext, finalState, true, omitParts ? [] : finalParts);
-  }
-
-  /**
-   * Publishes a status update for this task, with a message when there are parts.
-   *
-   * Failures go through here too. The A2A SDK publishes its own failure when `execute`
-   * rejects, but in a stream it labels a first turn's failure with a new random task id,
-   * which the client cannot match to the task this executor already announced.
-   */
-  private publishStatus(
-    eventBus: ExecutionEventBus,
-    {taskId, contextId}: RequestContext,
-    state: TaskStatusUpdateEvent['status']['state'],
-    final: boolean,
-    parts: Part[] = [],
-  ): void {
-    const message: Message | undefined =
-      parts.length > 0
-        ? {kind: 'message', role: 'agent', messageId: crypto.randomUUID(), taskId, contextId, parts}
-        : undefined;
-    const event: TaskStatusUpdateEvent = {
-      kind: 'status-update',
-      taskId,
-      contextId,
-      status: {state, timestamp: new Date().toISOString(), ...(message ? {message} : {})},
-      final,
-    };
-    eventBus.publish(event);
+    events.status(finalState, true, omitParts ? [] : finalParts);
   }
 
   async cancelTask(taskId: string, _eventBus: ExecutionEventBus): Promise<void> {
