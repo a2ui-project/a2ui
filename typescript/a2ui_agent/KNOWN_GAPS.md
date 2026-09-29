@@ -99,6 +99,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** The copy falls behind silently. It already has once: it lacked `Child`, so every v1.0 single-child reference resolved to nothing and the basic catalog lost its child references with no test noticing. That was fixed by adding the entry, not by removing the duplication, so the next new common type will hit the same wall.
 - **Done looks like:** The loader resolves against `CommonSchemas` directly and the local table is deleted.
 
+### No v0.9.1 basic catalog
+
+- **What it is:** `basicCatalog('v0.9.1')` throws "No basic catalog is available for protocol version 'v0.9.1'. Supported: 'v0.9', 'v1.0'." `web_core` ships the v0.9 and v1.0 basic catalogs only, and `CATALOG_DIRECTORY_BY_VERSION` in `@a2ui/agent`'s `src/utils/catalog_path.ts` lists only those two.
+- **Why it exists:** Neither package has been extended to v0.9.1 yet.
+- **What it risks:** An agent cannot answer fully in v0.9.1. The Node sample sends v0.9 messages and the v0.9 catalog id with the v0.9.1 MIME type (`application/a2ui+json`), which v0.9.1 renderers accept. Moving to `"version": "v0.9.1"` would also break the Flutter sample client: genui 0.8.0 accepts only `"v0.9"` (`lib/src/model/a2ui_message.dart`).
+- **Done looks like:** `web_core` ships the v0.9.1 basic catalog, `@a2ui/agent` maps it, and the Node sample's `V0_9` entry becomes v0.9.1 once the sample clients accept it.
+
 ## 3. Specification & Blueprints
 
 ### Truncation signal lost at compile boundary (Sharp edge)
@@ -264,12 +271,19 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it was:** `@a2a-js/sdk` ends the SSE stream at the first `message` event (`dist/server/index.js:290`: `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample published one `message` per chunk, so with a live model only the first reached the client.
 - **Resolution:** The sample now publishes each batch of parts as a non-final `working` status update carrying `status.message`, as the Python sample does, and ends the turn with one final status update.
 
-### The sample answers in A2UI when no A2UI extension is requested
+### The sample picks the A2UI version from capabilities, not from the A2A extension
 
-- **What it is:** Python's sample answers with plain text when the client does not request an A2UI extension. The Node sample logs a warning and answers in its configured A2UI version, so curl works without the `X-A2A-Extensions` header. A request for a different A2UI version fails the task with a message that says how to restart the agent.
-- **Why it exists:** Porting the text-only agent would double the sample for a path no sample client uses. Telling "none requested" from "another version requested" also needs a workaround: `DefaultRequestHandler` drops requested extensions the agent card does not advertise, so `index.ts` copies the header into `message.extensions`.
-- **What it risks:** A client that wants text gets A2UI.
+- **What it is:** Python's sample picks the A2UI version from the A2UI extension the client activates, and answers with plain text when the client activates none. The Node sample does not advertise or activate the extension. It reads the version and catalogs from the renderer capabilities in the message metadata (`a2uiRendererCapabilities` for v1.0, `a2uiClientCapabilities` for v0.9), and answers in v0.9 when there are none.
+- **Why it exists:** The A2UI extension specification makes activation optional, and no sample client reads the activation result. The lit, angular and react clients send no capabilities and render v0.9, so a v0.9 default serves them without configuration.
+- **What it risks:** A client that wants text gets A2UI, and a client that only activates the v1.0 extension gets v0.9 unless it also sends v1.0 capabilities.
 - **Done looks like:** A text-only mode, if a client needs one.
+
+### Python sends the draft MIME type for v0.9
+
+- **What it is:** The Node sample labels every A2UI data part `application/a2ui+json`, the v0.9.1 and v1.0 MIME type. Python's `create_a2ui_part` (`python/a2ui_agent/src/a2ui/a2a/parts.py`) still sends the draft `application/json+a2ui` for v0.9 and v0.8.
+- **Why it exists:** v0.9.1 renamed the MIME type; the Python SDK kept the old one for older versions.
+- **What it risks:** Nothing for the sample clients, which ignore the MIME type on responses. A client that filters on one of the two types sees only one agent's parts.
+- **Done looks like:** Python sends `application/a2ui+json` for v0.9 too, keeping the draft type only for v0.8.
 
 ### `input-required` turns end with `final: true`
 
