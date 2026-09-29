@@ -21,7 +21,7 @@ import {ComponentHostComponent} from './component-host.component';
 import {By} from '@angular/platform-browser';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {ComponentBinder} from './component-binder.service';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
+import {ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
 
 @Component({
   selector: 'test-text',
@@ -48,12 +48,15 @@ describe('SurfaceComponent', () => {
       components: new Map([['Text', {type: 'Text', component: TestTextComponent}]]),
     } as any;
 
+    const componentsModel = new SurfaceComponentsModel();
+    componentsModel.addComponent(
+      new ComponentModel('root', 'Text', {text: {value: 'Hello'}}, mockCatalog),
+    );
+
     mockRendererService = {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
-          componentsModel: new Map([
-            ['root', new ComponentModel('root', 'Text', {text: {value: 'Hello'}}, mockCatalog)],
-          ]),
+          componentsModel,
           defaultCatalog: mockCatalog,
           availableCatalogs: new Map(),
         }),

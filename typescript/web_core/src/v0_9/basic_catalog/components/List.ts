@@ -27,6 +27,7 @@ function getChildKey(child: any): string {
 }
 
 class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
+  /** @nocollapse */
   static override styles = css`
     .a2ui-list {
       display: flex;

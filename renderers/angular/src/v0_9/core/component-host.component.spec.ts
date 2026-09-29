@@ -31,6 +31,7 @@ import {CatalogComponentInstance} from './catalog_component_instance';
 import {AngularCatalog, createComponentImplementation} from '../catalog/types';
 import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {initializeAngularReactivity} from './reactivity';
+import {ComponentBinder} from './component-binder.service';
 import {z} from 'zod';
 
 @Component({
@@ -39,6 +40,17 @@ import {z} from 'zod';
 })
 class TestChildComponent {
   @Input() props: any;
+  @Input() surfaceId?: string;
+  @Input() componentId?: string;
+  @Input() dataContextPath?: string;
+}
+
+@Component({
+  selector: 'test-other-child',
+  template: '<div>Other Child Component</div>',
+})
+class TestOtherChildComponent {
+  @Input() props!: {text: {value: () => string}};
   @Input() surfaceId?: string;
   @Input() componentId?: string;
   @Input() dataContextPath?: string;
@@ -56,7 +68,10 @@ describe('ComponentHostComponent', () => {
   beforeEach(async () => {
     mockCatalog = {
       id: 'test-catalog',
-      components: new Map([['TestType', {component: TestChildComponent}]]),
+      components: new Map<string, unknown>([
+        ['TestType', {component: TestChildComponent}],
+        ['OtherType', {component: TestOtherChildComponent}],
+      ]),
     };
 
     const mockSurfaceComponentsModel = new SurfaceComponentsModel();
@@ -146,6 +161,59 @@ describe('ComponentHostComponent', () => {
       fixture.detectChanges(); // Propagate changes
 
       expect(childInstance.props.newProp.value()).toBe('new value');
+    });
+
+    // MessageProcessor handles a type change by replacing the ComponentModel under the same id.
+    function replaceComp1(type: string, props: Record<string, unknown>) {
+      mockSurface.componentsModel.removeComponent('comp1');
+      mockSurface.componentsModel.addComponent(
+        new ComponentModel('comp1', type, props, mockCatalog),
+      );
+    }
+
+    it('should re-resolve the rendered component when its type changes in place', () => {
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeTruthy();
+
+      replaceComp1('OtherType', {text: 'World'});
+      fixture.detectChanges();
+
+      expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeFalsy();
+      const other = fixture.debugElement.query(By.directive(TestOtherChildComponent));
+      expect(other).toBeTruthy();
+      expect((other.componentInstance as TestOtherChildComponent).props.text.value()).toBe('World');
+    });
+
+    it('should settle after one re-setup when its onDeleted listener is not the first one', async () => {
+      // Other hosts on the same surface usually subscribe first, which delivers this host's
+      // listener asynchronously. A handler that re-triggers itself would hang this test.
+      mockSurface.componentsModel.onDeleted.subscribe(() => {});
+      mockSurface.componentsModel.onCreated.subscribe(() => {});
+      fixture.detectChanges();
+
+      const bindSpy = spyOn(TestBed.inject(ComponentBinder), 'bind').and.callThrough();
+      replaceComp1('OtherType', {text: 'World'});
+      await new Promise<void>(resolve => setTimeout(resolve));
+      fixture.detectChanges();
+
+      expect(bindSpy).toHaveBeenCalledTimes(1);
+      expect(fixture.debugElement.query(By.directive(TestOtherChildComponent))).toBeTruthy();
+    });
+
+    it('should still re-resolve after a type change to a type missing from the catalog', () => {
+      fixture.detectChanges();
+      const consoleErrorSpy = spyOn(console, 'error');
+
+      replaceComp1('UnknownType', {});
+      fixture.detectChanges();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Component type "UnknownType" not found in catalog "test-catalog"',
+      );
+      expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeFalsy();
+
+      replaceComp1('OtherType', {text: 'World'});
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.directive(TestOtherChildComponent))).toBeTruthy();
     });
 
     it('should warn and return if surface not found', () => {
@@ -247,6 +315,20 @@ describe('ComponentHostComponent', () => {
       surfaceCreatedEmitter.emit(mockSurface);
 
       expect(runSpy).toHaveBeenCalled();
+    });
+
+    it('should initialize a component created later inside the Angular Zone', () => {
+      fixture.componentRef.setInput('componentKey', {id: 'later', basePath: '/'});
+      fixture.detectChanges();
+
+      const runSpy = spyOn(TestBed.inject(NgZone), 'run').and.callThrough();
+      mockSurface.componentsModel.addComponent(
+        new ComponentModel('later', 'TestType', {text: 'Hi'}, mockCatalog),
+      );
+
+      expect(runSpy).toHaveBeenCalled();
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeTruthy();
     });
 
     it('should run property updates inside the Angular Zone when component model updates', () => {
