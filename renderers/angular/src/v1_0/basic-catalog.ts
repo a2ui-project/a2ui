@@ -53,9 +53,9 @@ import {
   A2uiChoicePicker,
   A2uiSlider,
   A2uiDateTimeInput,
-} from '@a2ui/web_core/v1_0/basic_catalog';
-import { FunctionImplementation } from '@a2ui/web_core/v1_0';
-import { z } from 'zod';
+} from '@a2ui/web_core/catalogs/basic/v1';
+import {FunctionImplementation} from '@a2ui/web_core/v1_0';
+import {z} from 'zod';
 
 /**
  * The set of default Angular universal implementations for each component in the v1.0 basic catalog.
