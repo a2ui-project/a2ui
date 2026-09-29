@@ -201,7 +201,10 @@ def generate_common_types(
                 fn_spec = {
                     "description": spec.get("description", "Invokes a named function."),
                     "properties": fn_props,
-                    "required": spec.get("required", [call_key]),
+                    "required": [
+                        call_key if r in ("call", "@call") else r
+                        for r in spec.get("required", [call_key])
+                    ],
                 }
                 common_blocks.append(
                     codegen.compile_object_def("FunctionCall", fn_spec)
@@ -229,7 +232,10 @@ def generate_common_types(
                 fn_spec = {
                     "description": "Invokes a named function.",
                     "properties": fn_props,
-                    "required": fn_common.get("required", [call_key]),
+                    "required": [
+                        call_key if r in ("call", "@call") else r
+                        for r in fn_common.get("required", [call_key])
+                    ],
                 }
                 common_blocks.append(
                     codegen.compile_object_def("FunctionCall", fn_spec)
