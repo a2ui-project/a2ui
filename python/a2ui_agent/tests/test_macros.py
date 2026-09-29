@@ -40,18 +40,15 @@ from a2ui.builder.v0_9 import (
     FunctionCall,
     flatten_component_tree,
 )
-from a2ui.inference_formats.experimental.macros import (
-    MacroInferenceFormat,
+from a2ui.catalog_transformers.macros import (
+    MacroExpander,
+    MacroMetadata,
+    MacroParameter,
+    MacroProcessor,
     clear_macros,
     get_macro,
     list_macros,
     macro,
-)
-from a2ui.inference_formats.experimental.macros.parser import (
-    _MacroParser as MacroParser,
-)
-from a2ui.inference_formats.experimental.macros.processor import (
-    _MacroProcessor as MacroProcessor,
 )
 from a2ui.core.schema.server_to_client import (
     CreateSurface,
@@ -427,30 +424,47 @@ def test_macro_naming_conventions():
     assert meta2.name == "CustomAlert"
 
 
-def test_macro_inference_format_pipeline():
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+def make_test_catalog(components: Optional[dict[str, Any]] = None) -> A2uiCatalog:
+    from a2ui.basic_catalog.provider import BasicCatalog
+    from a2ui.schema.catalog import A2uiCatalog
+    from a2ui.schema.constants import (
+        COMMON_TYPES_SCHEMA_KEY,
+        SERVER_TO_CLIENT_SCHEMA_KEY,
+        SPEC_VERSION_MAP,
+    )
+    from a2ui.schema.utils import load_from_bundled_resource
 
+    basic_config = BasicCatalog.get_config("0.9.1")
+    cat_schema = (
+        {"components": components}
+        if components is not None
+        else basic_config.provider.load()
+    )
+    return A2uiCatalog(
+        version="0.9.1",
+        name="test",
+        catalog_schema=cat_schema,
+        s2c_schema=load_from_bundled_resource(
+            "0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+        ),
+        common_types_schema=load_from_bundled_resource(
+            "0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+        ),
+    )
+
+
+def test_macro_expander_pipeline():
     @macro("QuickAlert")
     def quick_alert(msg: str) -> Card:
         return Card(child=Text(text=msg, variant="h4"))
 
-    # Verify base_format is required
-    with pytest.raises(ValueError, match="requires a base_format to be passed"):
-        MacroInferenceFormat(macros=[quick_alert])  # type: ignore
+    expander = MacroExpander([quick_alert])
+    base = make_test_catalog({})
+    inf_cat = expander.transform_to_inference_catalog(base)
+    assert "QuickAlert" in inf_cat.catalog_schema["components"]
 
-    # Verify catalog is required and does NOT default to basic catalog
-    base_no_catalog = ExpressFormat(surface_id="main")
-    with pytest.raises(
-        ValueError, match="A catalog must be provided to MacroInferenceFormat"
-    ):
-        MacroInferenceFormat(base_format=base_no_catalog, macros=[quick_alert])
-
-    base = ExpressFormat(catalog={"components": {}}, surface_id="main")
-    inf_format = MacroInferenceFormat(base_format=base, macros=[quick_alert])
-    assert "QuickAlert" in inf_format.combined_catalog.catalog_schema["components"]
-
-    # Test parser compilation and macro expansion
-    raw_message = [{
+    # Test lowering of macro components to transport primitives
+    raw_message = {
         "surfaceUpdate": {
             "surfaceId": "main",
             "components": [{
@@ -459,37 +473,9 @@ def test_macro_inference_format_pipeline():
                 "msg": "Payment received!",
             }],
         }
-    }]
+    }
 
-    from a2ui.parser.parser import Parser
-
-    class MockUnderlyingParser(Parser):
-
-        def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-            return True
-
-        def unwrap(self, content: str):
-            return []
-
-        def compile(self, format_content: str, *, is_final: bool = True):
-            return raw_message
-
-        def parse_response(self, content: str):
-            return []
-
-        @property
-        def supports_streaming(self) -> bool:
-            return False
-
-        def decompile(self, val: Any) -> str:
-            return ""
-
-        def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-            return ""
-
-    macro_parser = MacroParser(MockUnderlyingParser(), processor=MacroProcessor())
-    expanded = macro_parser.compile("dummy")
-
+    expanded = expander.transform_to_transport(raw_message)
     assert len(expanded) == 1
     surf_update = expanded[0]["surfaceUpdate"]
     comps = surf_update["components"]
@@ -498,6 +484,9 @@ def test_macro_inference_format_pipeline():
     text_comp = [c for c in comps if c["component"] == "Text"][0]
     assert card_comp["id"] == "alert_instance_1"
     assert text_comp["text"] == "Payment received!"
+
+    # Test reverse pass-through
+    assert expander.transform_to_inference(raw_message) == [raw_message]
 
 
 def test_canonical_protocol_types_schema():
@@ -667,12 +656,10 @@ def test_macro_parser_parse_response():
         ),
     )
 
-    fmt = MacroInferenceFormat(
-        base_format=ExpressFormat(
-            catalog=cat, surface_id="test_surf", version="v0.9.1"
-        ),
-        macros=[UserInfoCard],
-    )
+    expander = MacroExpander([UserInfoCard])
+    inference_cat = expander.transform_to_inference_catalog(cat)
+
+    fmt = ExpressFormat(catalog=inference_cat, surface_id="test_surf", version="v0.9.1")
 
     llm_output = (
         "Here is the requested user profile card:\n"
@@ -688,9 +675,14 @@ def test_macro_parser_parse_response():
     assert parts[0].a2ui_raw is not None
     assert parts[0].a2ui_json is not None
 
-    # Verify that the macro was expanded into primitive components
+    # Verify that the macro was expanded into primitive components via transform_to_transport
+    lowered_messages = [
+        t_msg
+        for raw_msg in parts[0].a2ui_json
+        for t_msg in expander.transform_to_transport(raw_msg)
+    ]
     components = []
-    for msg in parts[0].a2ui_json:
+    for msg in lowered_messages:
         if "updateComponents" in msg:
             components.extend(msg["updateComponents"].get("components", []))
         elif "surfaceUpdate" in msg:
@@ -710,54 +702,26 @@ def test_macro_parser_parse_response():
     assert parts[1].a2ui_json is None
 
 
-def test_macro_hidden_components():
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
-
+def test_macro_catalog_pruning():
     @macro
     def MiniBadge(label: str) -> Card:
         return Card(child=Text(text=label))
 
-    base_cat = {
-        "components": {
-            "Button": {"type": "object", "properties": {"variant": {"type": "string"}}},
-            "Card": {"type": "object", "properties": {"child": {"type": "string"}}},
-            "Text": {"type": "object", "properties": {"text": {"type": "string"}}},
-        },
-        "$defs": {
-            "anyComponent": {
-                "oneOf": [
-                    {"$ref": "#/components/Button"},
-                    {"$ref": "#/components/Card"},
-                    {"$ref": "#/components/Text"},
-                ]
-            }
-        },
-    }
+    base_cat = make_test_catalog({
+        "Button": {"type": "object", "properties": {"variant": {"type": "string"}}},
+        "Card": {"type": "object", "properties": {"child": {"type": "string"}}},
+        "Text": {"type": "object", "properties": {"text": {"type": "string"}}},
+    })
 
-    base = ExpressFormat(catalog=base_cat, surface_id="main")
-    fmt = MacroInferenceFormat(
-        base_format=base,
-        macros=[MiniBadge],
-        hidden_components=["Button", "Card"],
-    )
-
-    combined_schema = fmt.combined_catalog.catalog_schema
-    comps = combined_schema["components"]
-    # Button and Card should be hidden
+    expander = MacroExpander([MiniBadge])
+    inference_cat = expander.transform_to_inference_catalog(base_cat)
+    # Prune primitives so model only sees MiniBadge and Text:
+    pruned_cat = inference_cat.with_pruning(allowed_components=["MiniBadge", "Text"])
+    comps = pruned_cat.catalog_schema["components"]
     assert "Button" not in comps
     assert "Card" not in comps
-    # Text should remain
     assert "Text" in comps
-    # MiniBadge should be added
     assert "MiniBadge" in comps
-
-    # Check anyComponent.oneOf
-    one_of = combined_schema["$defs"]["anyComponent"]["oneOf"]
-    refs = [ref["$ref"] for ref in one_of if isinstance(ref, dict) and "$ref" in ref]
-    assert "#/components/Button" not in refs
-    assert "#/components/Card" not in refs
-    assert "#/components/Text" in refs
-    assert "#/components/MiniBadge" in refs
 
 
 def test_macro_schema_any_and_dict_types():
@@ -821,7 +785,7 @@ def test_macro_expansion_failure_logs_error(caplog):
     def FailingMacro(bad_arg: str) -> Card:
         raise RuntimeError("Something exploded inside macro expansion")
 
-    raw_message = [{
+    raw_message = {
         "surfaceUpdate": {
             "surfaceId": "main",
             "components": [{
@@ -830,35 +794,11 @@ def test_macro_expansion_failure_logs_error(caplog):
                 "bad_arg": "test",
             }],
         }
-    }]
+    }
 
-    class DummyParser(Parser):
-
-        def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-            return True
-
-        def unwrap(self, content: str):
-            return []
-
-        def compile(self, format_content: str, *, is_final: bool = True):
-            return raw_message
-
-        def parse_response(self, content: str):
-            return []
-
-        @property
-        def supports_streaming(self) -> bool:
-            return False
-
-        def decompile(self, val: Any) -> str:
-            return ""
-
-        def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-            return ""
-
-    parser = MacroParser(DummyParser(), processor=MacroProcessor())
+    expander = MacroExpander([FailingMacro])
     with caplog.at_level(logging.ERROR):
-        result = parser.compile("dummy")
+        result = expander.transform_to_transport(raw_message)
 
     # Should retain unexpanded component rather than crashing
     assert len(result) == 1
@@ -895,44 +835,27 @@ def test_macro_sphinx_docstring_parsing():
 
 
 def test_macro_base_catalog_collision_raises_error():
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
-
     @macro(name="Text")
     def CollidingText(content: str) -> Card:
         """Collides with primitive Text in catalog."""
         return Card(child=Text(text=content))
 
-    base_format = ExpressFormat(
-        catalog={"components": {"Text": {"type": "object"}}},
-        surface_id="main",
-    )
+    base_cat = make_test_catalog({"Text": {"type": "object"}})
 
+    expander = MacroExpander([CollidingText])
     with pytest.raises(ValueError, match="collides with an existing component"):
-        MacroInferenceFormat(base_format=base_format, macros=[CollidingText])
+        expander.transform_to_inference_catalog(base_cat)
 
 
-def test_macro_format_default_macros_empty():
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
-
-    base_format = ExpressFormat(
-        catalog={"components": {"Card": {"type": "object"}}},
-        surface_id="main",
-    )
-    fmt = MacroInferenceFormat(base_format=base_format)
+def test_macro_expander_default_macros_empty():
+    expander = MacroExpander()
     # When macros is None, it should default to empty list, not all global macros
-    assert fmt.macros == []
+    assert expander.macros == []
 
 
-def test_macro_format_protocol_version_parameter():
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
-
-    base_format = ExpressFormat(
-        catalog={"components": {}},
-        surface_id="main",
-    )
-    fmt = MacroInferenceFormat(base_format=base_format, protocol_version="v0.9.1")
-    assert fmt.protocol_version == "v0.9.1"
-    assert fmt.version == "v0.9.1"
+def test_macro_expander_protocol_version_parameter():
+    expander = MacroExpander(protocol_version="0.9.1")
+    assert expander.protocol_version == "0.9.1"
 
 
 def test_macro_action_and_accessibility_coercion():

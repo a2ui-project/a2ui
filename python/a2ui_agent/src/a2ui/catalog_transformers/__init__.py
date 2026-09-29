@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Macros (Programmatic Components and Typesafe Builders)."""
+"""Catalog and message transformation layer for A2UI."""
 
-from a2ui.inference_formats.experimental.macros.format import (
-    MacroInferenceFormat,
-)
-from a2ui.inference_formats.experimental.macros.macro import (
+from a2ui.catalog_transformers.macros import (
+    MacroExpander,
     MacroMetadata,
     MacroParameter,
+    MacroProcessor,
     clear_macros,
     get_macro,
     list_macros,
@@ -28,6 +27,7 @@ from a2ui.inference_formats.experimental.macros.macro import (
 )
 
 __all__ = [
+    "MacroExpander",
     "macro",
     "register_macro",
     "get_macro",
@@ -35,5 +35,5 @@ __all__ = [
     "clear_macros",
     "MacroMetadata",
     "MacroParameter",
-    "MacroInferenceFormat",
+    "MacroProcessor",
 ]

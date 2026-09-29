@@ -27,7 +27,7 @@ from a2ui.builder.v0_9 import (
     DataBinding,
     flatten_component_tree,
 )
-from a2ui.inference_formats.experimental.macros.macro import get_macro
+from a2ui.catalog_transformers.macros.macro import get_macro
 
 
 def _is_component_type(t: Any) -> bool:

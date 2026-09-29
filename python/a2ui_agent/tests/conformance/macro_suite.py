@@ -37,10 +37,12 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Text,
 )
 from a2ui.core.validation import ValidationConfig
-from a2ui.inference_formats.experimental.macros import clear_macros, macro
-from a2ui.inference_formats.experimental.macros.parser import MacroParser, _MacroParser
-from a2ui.inference_formats.experimental.macros.processor import MacroProcessor, _MacroProcessor
-from a2ui.parser.parser import Parser
+from a2ui.catalog_transformers.macros import (
+    MacroExpander,
+    clear_macros,
+    list_macros,
+    macro,
+)
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
     COMMON_TYPES_SCHEMA_KEY,
@@ -210,35 +212,6 @@ def register_suite_macros() -> None:
 # =============================================================================
 
 
-class _MockUnderlyingParser(Parser):
-    """Stub parser that returns pre-configured raw messages."""
-
-    def __init__(self, messages: list[dict[str, Any]]):
-        self._messages = messages
-
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        return True
-
-    def unwrap(self, content: str):
-        return []
-
-    def compile(self, format_content: str, *, is_final: bool = True):
-        return self._messages
-
-    def parse_response(self, content: str):
-        return []
-
-    @property
-    def supports_streaming(self) -> bool:
-        return False
-
-    def decompile(self, val: Any) -> str:
-        return ""
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        return ""
-
-
 def run_case(case: Case) -> list[dict[str, Any]]:
     """Runs a conformance case through MacroParser and returns the expanded wire messages."""
     register_suite_macros()
@@ -270,8 +243,11 @@ def run_case(case: Case) -> list[dict[str, Any]]:
             },
         }]
 
-    parser = _MacroParser(_MockUnderlyingParser(raw_msgs), processor=_MacroProcessor())
-    return parser.compile("dummy")
+    expander = MacroExpander(list_macros())
+    expanded_msgs = []
+    for msg in raw_msgs:
+        expanded_msgs.extend(expander.transform_to_transport(msg))
+    return expanded_msgs
 
 
 # =============================================================================
