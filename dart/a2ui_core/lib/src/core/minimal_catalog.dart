@@ -21,127 +21,128 @@ import 'contexts.dart';
 
 class MinimalTextApi extends ComponentApi {
   MinimalTextApi()
-    : super(
-        name: 'Text',
-        schema: Schema.object(
-          properties: {
-            'text': CommonSchemas.dynamicString,
-            'variant': Schema.string(
-              enumValues: ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'],
-            ),
-          },
-          required: ['text'],
-        ),
-      );
+      : super(
+          name: 'Text',
+          schema: Schema.object(
+            properties: {
+              'text': CommonSchemas.dynamicString,
+              'variant': Schema.string(
+                enumValues: ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'],
+              ),
+            },
+            required: ['text'],
+          ),
+        );
 }
 
 class MinimalRowApi extends ComponentApi {
   MinimalRowApi()
-    : super(
-        name: 'Row',
-        schema: Schema.object(
-          properties: {
-            'children': CommonSchemas.childList,
-            'justify': Schema.string(
-              enumValues: [
-                'center',
-                'end',
-                'spaceAround',
-                'spaceBetween',
-                'spaceEvenly',
-                'start',
-                'stretch',
-              ],
-            ),
-            'align': Schema.string(
-              enumValues: ['start', 'center', 'end', 'stretch'],
-            ),
-          },
-          required: ['children'],
-        ),
-      );
+      : super(
+          name: 'Row',
+          schema: Schema.object(
+            properties: {
+              'children': CommonSchemas.childList,
+              'justify': Schema.string(
+                enumValues: [
+                  'center',
+                  'end',
+                  'spaceAround',
+                  'spaceBetween',
+                  'spaceEvenly',
+                  'start',
+                  'stretch',
+                ],
+              ),
+              'align': Schema.string(
+                enumValues: ['start', 'center', 'end', 'stretch'],
+              ),
+            },
+            required: ['children'],
+          ),
+        );
 }
 
 class MinimalColumnApi extends ComponentApi {
   MinimalColumnApi()
-    : super(
-        name: 'Column',
-        schema: Schema.object(
-          properties: {
-            'children': CommonSchemas.childList,
-            'justify': Schema.string(
-              enumValues: [
-                'start',
-                'center',
-                'end',
-                'spaceBetween',
-                'spaceAround',
-                'spaceEvenly',
-                'stretch',
-              ],
-            ),
-            'align': Schema.string(
-              enumValues: ['center', 'end', 'start', 'stretch'],
-            ),
-          },
-          required: ['children'],
-        ),
-      );
+      : super(
+          name: 'Column',
+          schema: Schema.object(
+            properties: {
+              'children': CommonSchemas.childList,
+              'justify': Schema.string(
+                enumValues: [
+                  'start',
+                  'center',
+                  'end',
+                  'spaceBetween',
+                  'spaceAround',
+                  'spaceEvenly',
+                  'stretch',
+                ],
+              ),
+              'align': Schema.string(
+                enumValues: ['center', 'end', 'start', 'stretch'],
+              ),
+            },
+            required: ['children'],
+          ),
+        );
 }
 
 class MinimalButtonApi extends ComponentApi {
   MinimalButtonApi()
-    : super(
-        name: 'Button',
-        schema: Schema.combined(
-          allOf: [
-            CommonSchemas.checkable,
-            Schema.object(
-              properties: {
-                'child': CommonSchemas.componentId,
-                'variant': Schema.string(enumValues: ['primary', 'borderless']),
-                'action': CommonSchemas.action,
-              },
-              required: ['child', 'action'],
-            ),
-          ],
-        ),
-      );
+      : super(
+          name: 'Button',
+          schema: Schema.combined(
+            allOf: [
+              CommonSchemas.checkable,
+              Schema.object(
+                properties: {
+                  'child': CommonSchemas.componentId,
+                  'variant':
+                      Schema.string(enumValues: ['primary', 'borderless']),
+                  'action': CommonSchemas.action,
+                },
+                required: ['child', 'action'],
+              ),
+            ],
+          ),
+        );
 }
 
 class MinimalTextFieldApi extends ComponentApi {
   MinimalTextFieldApi()
-    : super(
-        name: 'TextField',
-        schema: Schema.combined(
-          allOf: [
-            CommonSchemas.checkable,
-            Schema.object(
-              properties: {
-                'label': CommonSchemas.dynamicString,
-                'value': CommonSchemas.dynamicString,
-                'variant': Schema.string(
-                  enumValues: ['longText', 'number', 'shortText', 'obscured'],
-                ),
-                'validationRegexp': Schema.string(),
-              },
-              required: ['label'],
-            ),
-          ],
-        ),
-      );
+      : super(
+          name: 'TextField',
+          schema: Schema.combined(
+            allOf: [
+              CommonSchemas.checkable,
+              Schema.object(
+                properties: {
+                  'label': CommonSchemas.dynamicString,
+                  'value': CommonSchemas.dynamicString,
+                  'variant': Schema.string(
+                    enumValues: ['longText', 'number', 'shortText', 'obscured'],
+                  ),
+                  'validationRegexp': Schema.string(),
+                },
+                required: ['label'],
+              ),
+            ],
+          ),
+        );
 }
 
 class CapitalizeFunction extends FunctionImplementation {
   CapitalizeFunction()
-    : super(
-        name: 'capitalize',
-        returnType: A2uiReturnType.string,
-        argumentSchema: Schema.object(
-          properties: {'value': CommonSchemas.dynamicString},
-          required: ['value'],
-        ),
-      );
+      : super(
+          name: 'capitalize',
+          returnType: A2uiReturnType.string,
+          argumentSchema: Schema.object(
+            properties: {'value': CommonSchemas.dynamicString},
+            required: ['value'],
+          ),
+        );
 
   @override
   Object? execute(
@@ -157,21 +158,21 @@ class CapitalizeFunction extends FunctionImplementation {
 
 class MinimalCatalog extends Catalog<ComponentApi, FunctionImplementation> {
   MinimalCatalog()
-    : super(
-        id: 'https://a2ui.org/specification/v0_9/catalogs/minimal/minimal_catalog.json',
-        components: [
-          MinimalTextApi(),
-          MinimalRowApi(),
-          MinimalColumnApi(),
-          MinimalButtonApi(),
-          MinimalTextFieldApi(),
-        ],
-        functions: [CapitalizeFunction()],
-        themeSchema: Schema.object(
-          properties: {
-            'primaryColor': Schema.string(pattern: r'^#[0-9a-fA-F]{6}$'),
-          },
-          additionalProperties: true,
-        ),
-      );
+      : super(
+          id: 'https://a2ui.org/specification/v0_9/catalogs/minimal/minimal_catalog.json',
+          components: [
+            MinimalTextApi(),
+            MinimalRowApi(),
+            MinimalColumnApi(),
+            MinimalButtonApi(),
+            MinimalTextFieldApi(),
+          ],
+          functions: [CapitalizeFunction()],
+          themeSchema: Schema.object(
+            properties: {
+              'primaryColor': Schema.string(pattern: r'^#[0-9a-fA-F]{6}$'),
+            },
+            additionalProperties: true,
+          ),
+        );
 }

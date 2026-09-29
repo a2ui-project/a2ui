@@ -17,7 +17,7 @@
 from typing import Any, Optional, Union
 
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema import A2uiCatalog
 from a2ui.skill.skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
 
 

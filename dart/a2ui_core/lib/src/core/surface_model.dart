@@ -44,8 +44,8 @@ class SurfaceModel<T extends ComponentApi> {
     required this.catalog,
     this.theme = const {},
     this.sendDataModel = false,
-  }) : dataModel = DataModel(),
-       componentsModel = SurfaceComponentsModel();
+  })  : dataModel = DataModel(),
+        componentsModel = SurfaceComponentsModel();
 
   /// Dispatches an action from this surface.
   Future<void> dispatchAction(

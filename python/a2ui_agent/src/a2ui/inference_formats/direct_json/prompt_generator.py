@@ -17,10 +17,10 @@
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
 from a2ui.prompt import PromptGenerator
-from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
+from a2ui.core.schema.v0_9 import V09Capabilities
 
 if TYPE_CHECKING:
-    from a2ui.inference_formats.direct_json.format import DirectJsonFormat
+    from a2ui.inference_formats.direct_json import DirectJsonFormat
     from a2ui.schema.catalog import A2uiCatalog
 
 

@@ -117,7 +117,7 @@ class DirectJsonParser(Parser):
         json_data = parse_and_fix(format_content)
         # TODO: Leverage MessageProcessor to validate the json data.
         if self._validator:
-            from a2ui.core.exceptions import A2uiValidationError
+            from a2ui.core import A2uiValidationError
 
             errs = self._validator(json_data)
             if isinstance(errs, list) and errs:

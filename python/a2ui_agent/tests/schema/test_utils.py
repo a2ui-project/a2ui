@@ -16,9 +16,12 @@
 
 import unittest
 from unittest.mock import patch
-from a2ui.core.exceptions import A2uiCatalogError
-from a2ui.schema.catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
-from a2ui.schema.common_modifiers import remove_strict_validation
+from a2ui.core import A2uiCatalogError
+from a2ui.schema import (
+    A2uiCatalogProvider,
+    FileSystemCatalogProvider,
+    remove_strict_validation,
+)
 from a2ui.schema.utils import (
     find_repo_root,
     get_basic_catalog_path,

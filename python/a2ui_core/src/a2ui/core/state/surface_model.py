@@ -73,20 +73,22 @@ class SurfaceModel(Generic[TComponent, TFunction]):
 
         event_payload = payload
         catalog_id: str | None = payload.get("catalogId")
-        if "event" in payload:
+        if "event" in payload and isinstance(payload["event"], dict):
             event_payload = payload["event"]
-        elif "functionCall" in payload:
-            event_payload = payload["functionCall"]
+        elif "name" in payload:
+            event_payload = payload
+        else:
+            return
 
         event_dict = event_payload if isinstance(event_payload, dict) else {}
-        name = event_dict.get("name", event_dict.get("call", ""))
+        name = event_dict.get("name")
         if not name or not isinstance(name, str):
             return
 
         if not catalog_id:
             catalog_id = event_dict.get("catalogId")
 
-        raw_context = event_dict.get("context", event_dict.get("args", {}))
+        raw_context = event_dict.get("context")
         context = raw_context if isinstance(raw_context, dict) else {}
 
         action_event: dict[str, Any] = {
@@ -103,7 +105,7 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         if catalog_id and isinstance(catalog_id, str):
             action_event["catalogId"] = catalog_id
         user_message = event_dict.get("userMessage")
-        if isinstance(user_message, str):
+        if isinstance(user_message, str) and user_message:
             action_event["userMessage"] = user_message
 
         self.on_action.emit(action_event)

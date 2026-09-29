@@ -62,14 +62,41 @@ def test_data_context_resolve_action():
         "event": {
             "name": "save",
             "context": {"user": {"path": "/username"}},
+            "userMessage": {"path": "/username"},
         }
     }
     res = ctx.resolve_action(action)
-    assert res == {"event": {"name": "save", "context": {"user": "Alice"}}}
+    assert res == {
+        "event": {
+            "name": "save",
+            "context": {"user": "Alice"},
+            "userMessage": "Alice",
+        }
+    }
 
-    # Resolve function call action
+    # Resolve direct name action containing dynamic context binding and userMessage
+    direct_action = {
+        "name": "saveDirect",
+        "context": {"user": {"path": "/username"}},
+        "userMessage": {"path": "/username"},
+    }
+    direct_res = ctx.resolve_action(direct_action)
+    assert direct_res == {
+        "name": "saveDirect",
+        "context": {"user": "Alice"},
+        "userMessage": "Alice",
+    }
+
+    # Resolve function call action (wrapped and unwrapped)
     func_act = {"functionCall": {"path": "/username"}}
     assert ctx.resolve_action(func_act) == "Alice"
+
+    unwrapped_func_act = {
+        "call": "formatString",
+        "args": {"value": {"path": "/username"}},
+    }
+    # formatString with value returns the string
+    assert ctx.resolve_action(unwrapped_func_act) == "Alice"
 
     surface.dispose()
 
@@ -564,6 +591,150 @@ def test_generic_binder_action_closure():
     assert dispatched_actions[0]["name"] == "submit_form"
     assert dispatched_actions[0]["context"] == {"userId": "u123"}
     assert dispatched_actions[0]["sourceComponentId"] == "btn_submit"
+    binder.dispose()
+
+
+def test_generic_binder_function_call_action_closure():
+    executed_calls: list[dict[str, Any]] = []
+
+    def mock_submit(args: dict[str, Any]) -> str:
+        executed_calls.append(args)
+        return "order_placed"
+
+    from a2ui.core.catalog import FunctionImplementation
+
+    func_impl = FunctionImplementation(
+        name="submitOrder",
+        execute=mock_submit,
+        schema={"type": "object", "properties": {"orderId": {"type": "string"}}},
+        return_type="string",
+    )
+    cat = BasicCatalog()
+    cat.functions["submitOrder"] = func_impl
+    data_model = DataModel({"order": {"id": "ORD-123"}})
+    comp = ComponentModel(
+        "btn_order",
+        "Button",
+        cat,
+        {
+            "onClick": {
+                "functionCall": {
+                    "call": "submitOrder",
+                    "args": {"orderId": {"path": "/order/id"}},
+                }
+            }
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    dispatched_actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched_actions.append(act))
+
+    action_schema = {
+        "type": "object",
+        "properties": {
+            "onClick": {"$ref": "common_types.json#/$defs/Action"},
+        },
+    }
+    binder = GenericBinder(context, schema=action_schema)
+
+    # Invoking action closure should execute catalog function locally with resolved args
+    # and MUST NOT emit an on_action event.
+    binder.current_props["onClick"]()
+    assert len(executed_calls) == 1
+    assert executed_calls[0] == {"orderId": "ORD-123"}
+    assert len(dispatched_actions) == 0
+
+    binder.dispose()
+
+
+def test_generic_binder_unwrapped_call_action_closure():
+    executed_calls: list[dict[str, Any]] = []
+
+    def mock_submit(args: dict[str, Any]) -> None:
+        executed_calls.append(args)
+
+    from a2ui.core.catalog import FunctionImplementation
+
+    func_impl = FunctionImplementation(
+        name="submitDirect",
+        execute=mock_submit,
+        schema={"type": "object", "properties": {"orderId": {"type": "string"}}},
+        return_type="string",
+    )
+    cat = BasicCatalog()
+    cat.functions["submitDirect"] = func_impl
+    data_model = DataModel({"order": {"id": "ORD-456"}})
+    comp = ComponentModel(
+        "btn_direct",
+        "Button",
+        cat,
+        {
+            "onClick": {
+                "call": "submitDirect",
+                "args": {"orderId": {"path": "/order/id"}},
+            }
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    dispatched_actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched_actions.append(act))
+
+    action_schema = {
+        "type": "object",
+        "properties": {
+            "onClick": {"$ref": "common_types.json#/$defs/Action"},
+        },
+    }
+    binder = GenericBinder(context, schema=action_schema)
+
+    binder.current_props["onClick"]()
+    assert len(executed_calls) == 1
+    assert executed_calls[0] == {"orderId": "ORD-456"}
+    assert len(dispatched_actions) == 0
+
+    binder.dispose()
+
+
+def test_generic_binder_direct_name_action_with_user_message():
+    cat = BasicCatalog()
+    data_model = DataModel({"msg": "Feedback submitted"})
+    comp = ComponentModel(
+        "btn_feedback",
+        "Button",
+        cat,
+        {
+            "onClick": {
+                "name": "sendFeedback",
+                "userMessage": {"path": "/msg"},
+            }
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    dispatched_actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched_actions.append(act))
+
+    action_schema = {
+        "type": "object",
+        "properties": {
+            "onClick": {"$ref": "common_types.json#/$defs/Action"},
+        },
+    }
+    binder = GenericBinder(context, schema=action_schema)
+
+    binder.current_props["onClick"]()
+    assert len(dispatched_actions) == 1
+    assert dispatched_actions[0]["name"] == "sendFeedback"
+    assert dispatched_actions[0]["userMessage"] == "Feedback submitted"
+
     binder.dispose()
 
 
