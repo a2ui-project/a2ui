@@ -40,7 +40,7 @@
             "id": "store_name",
             "component": "Text",
             "text": {
-              "path": "/storeName"
+              "@path": "/storeName"
             }
           },
           {
@@ -67,7 +67,7 @@
             "id": "item_name",
             "component": "Text",
             "text": {
-              "path": "name"
+              "@path": "name"
             },
             "variant": "body"
           },
@@ -75,7 +75,7 @@
             "id": "item_size",
             "component": "Text",
             "text": {
-              "path": "size"
+              "@path": "size"
             },
             "variant": "caption"
           },
@@ -83,10 +83,10 @@
             "id": "item_price",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "price"
+                  "@path": "price"
                 },
                 "currency": "USD"
               }
@@ -118,10 +118,10 @@
             "id": "subtotal_value",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/subtotal"
+                  "@path": "/subtotal"
                 },
                 "currency": "USD"
               }
@@ -144,10 +144,10 @@
             "id": "tax_value",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/tax"
+                  "@path": "/tax"
                 },
                 "currency": "USD"
               }
@@ -169,10 +169,10 @@
             "id": "total_value",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/total"
+                  "@path": "/total"
                 },
                 "currency": "USD"
               }

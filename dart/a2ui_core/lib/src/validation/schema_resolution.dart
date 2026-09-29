@@ -166,7 +166,7 @@ class _RefResolver {
   String _defName(String key) {
     final String base = key.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
     if (!defs.containsKey(base)) return base;
-    for (var i = 2; ; i++) {
+    for (var i = 2;; i++) {
       final candidate = '$base$i';
       if (!defs.containsKey(candidate)) return candidate;
     }

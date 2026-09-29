@@ -1,11 +1,18 @@
 ## Unreleased
 
+- Fix the setter `GenericBinder` generates for a property declared as a binding with no literal branch: its parameter resolved to `never`, making the setter uncallable. It now falls back to `unknown`, matching the fallback `ResolveA2uiProp` already applies to the resolved property ([#2529](https://github.com/a2ui-project/a2ui/pull/2529)).
 - `Catalog.fromSchema` no longer drops properties mixed in through an external
   `allOf` reference, so Checkable components in the basic catalogs now accept
   `checks`.
 - (v1_0) `Catalog.fromSchema` resolves `common_types.json#/$defs/Child`, so
   single-child properties such as `Card.child` are now recognised as child
   references.
+- `ExpressionParser` accepts number literals with a leading decimal point
+  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
+  and `./x` are still paths.
+- `ExpressionParser` rejects a number literal outside the double range, such as
+  `1e999`, with `Number literal is out of range`. It used to return `Infinity`,
+  which JSON can't represent.
 
 ## 0.12.0
 

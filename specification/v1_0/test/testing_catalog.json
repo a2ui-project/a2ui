@@ -33,7 +33,7 @@
       "description": "Opens the specified URL in a browser or handler. This function has no return value.",
       "returnType": "void",
       "properties": {
-        "call": {
+        "@call": {
           "const": "openUrl"
         },
         "args": {
@@ -49,18 +49,18 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "pingAgent": {
       "type": "object",
       "description": "Pings the agent from the renderer side.",
       "returnType": "void",
       "properties": {
-        "call": {
+        "@call": {
           "const": "pingAgent"
         }
       },
-      "required": ["call"]
+      "required": ["@call"]
     }
   },
   "$defs": {

@@ -77,7 +77,11 @@ SUPPORTED_PROTOCOL_VERSIONS = {
 SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
-SKIP_TEST_SUITES: set[str] = set()
+SKIP_TEST_SUITES: set[str] = {
+    # Reserved protocol directives (@path, @call, @index) are specified in protocol v1.0.
+    # Runtime SDK resolution in a2ui_core is implemented in Part 2 (issue #2692).
+    "core/reserved_keys.yaml",
+}
 
 # Suites the core library cannot meaningfully execute, with the reason for each.
 # The core library has no access to the UI frameworks that apply accessibility

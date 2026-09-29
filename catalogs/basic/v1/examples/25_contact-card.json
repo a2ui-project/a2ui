@@ -30,7 +30,7 @@
             "id": "avatar_image",
             "component": "Image",
             "url": {
-              "path": "/avatar"
+              "@path": "/avatar"
             },
             "fit": "cover",
             "variant": "avatar"
@@ -39,14 +39,14 @@
             "id": "name",
             "component": "Text",
             "text": {
-              "path": "/name"
+              "@path": "/name"
             }
           },
           {
             "id": "title",
             "component": "Text",
             "text": {
-              "path": "/title"
+              "@path": "/title"
             },
             "variant": "body"
           },
@@ -74,7 +74,7 @@
             "id": "phone_text",
             "component": "Text",
             "text": {
-              "path": "/phone"
+              "@path": "/phone"
             },
             "variant": "body"
           },
@@ -93,7 +93,7 @@
             "id": "email_text",
             "component": "Text",
             "text": {
-              "path": "/email"
+              "@path": "/email"
             },
             "variant": "body"
           },
@@ -112,7 +112,7 @@
             "id": "location_text",
             "component": "Text",
             "text": {
-              "path": "/location"
+              "@path": "/location"
             },
             "variant": "body"
           },
