@@ -116,3 +116,13 @@ To ensure the integrity, consistency, and high quality of the repository, all ag
 - **Keep Inference Formats Catalog-Agnostic**: When implementing or updating inference formats (Express, Elemental, Atom, Direct JSON, etc.), system prompt rules, compilers, and parsers must remain catalog-agnostic. Catalog-specific constraints, component property rules, or syntax hints must be defined in and derived dynamically from the component catalog JSON schema, rather than hardcoding catalog-specific logic or string filters into format generators.
 - **Export Public Facades and Ban Deep Imports**: Packages across all languages must expose their public API through root or versioned facade barrels (e.g. `__all__` in Python `__init__.py`, `exports` in Node `package.json`, `lib/*.dart` in Dart). Never expose, rely on, or demonstrate deep internal submodule import paths in code, tests, docstrings, or README examples.
 - **Sort and Group Imports**: Across all languages (Python, TypeScript, Dart, Swift), maintain clean, predictable import ordering. Group imports into standard/system libraries, external third-party dependencies, and internal/local packages, separated by a single empty line. Within each group, sort module paths and imported symbols alphabetically. Never use wildcard imports.
+
+---
+
+## 9. Presubmits, Branches, and Conformance Standards
+
+- **Copyright Header Enforcement**: The license header checker (`scripts/fix_licenses.py --check`) strictly requires `Copyright 2024 Google LLC` for Google-authored files. Later years (2025, 2026) cause CI static checks to fail. Run `./scripts/fix_licenses.py` to format headers before committing.
+- **Code Formatting**: Run `./scripts/fix_format.sh` before pushing code changes to satisfy Prettier formatting checks.
+- **GitHub Ruleset API**: Branch protection queries for `main` must use `gh api repos/a2ui-project/a2ui/rules/branches/main`. The classic `branches/main/protection` endpoint returns 404 because protections are managed via repository rulesets.
+- **Squash-Merge Ancestry Recording**: When merging branches where GitHub uses squash merges (e.g. `main` into a feature branch), run `git merge -s ours <previous-main-commit>` before merging to record ancestry and prevent false merge conflicts.
+- **Conformance Test Integrity**: Conformance test runners in TypeScript and Python silently skip missing `catalogPaths` or nonexistent test files. Always verify that test counts match expected totals.
