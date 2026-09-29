@@ -39,3 +39,18 @@ export const UI_DESCRIPTION_EXPRESS = `
 export function getUiDescription(format: 'direct_json' | 'express'): string {
   return format === 'express' ? UI_DESCRIPTION_EXPRESS : UI_DESCRIPTION_DIRECT_JSON;
 }
+
+/** The answer when no attempt produced valid A2UI. */
+export const FALLBACK_TEXT =
+  "I'm sorry, I'm having trouble generating the interface for that request right now. Please try again in a moment.";
+
+/** The follow-up query sent after a response failed validation. */
+export function retryQuery(
+  format: 'direct_json' | 'express',
+  error: string,
+  query: string,
+): string {
+  return format === 'direct_json'
+    ? `Your previous response was invalid. Validation failed: ${error}. You MUST generate a valid response that strictly follows the A2UI JSON SCHEMA. The response MUST be a JSON list of A2UI messages. Ensure each JSON part is wrapped in '<a2ui-json>' and '</a2ui-json>' tags. Please retry the original request: '${query}'`
+    : `Your previous response was invalid. Validation failed: ${error}. You MUST generate a valid response that is valid A2UI Express wrapped in the '<a2ui>' and '</a2ui>' tags. Please retry the original request: '${query}'`;
+}

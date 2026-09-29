@@ -31,25 +31,19 @@ import {loadExamples} from './examples.js';
 import {LruCache} from './lru_cache.js';
 import type {ModelBackend, TurnInput} from './model.js';
 import {pickA2ui} from './pick_a2ui.js';
-import {getUiDescription, ROLE_DESCRIPTION} from './prompt.js';
+import {FALLBACK_TEXT, getUiDescription, retryQuery, ROLE_DESCRIPTION} from './prompt.js';
 import {parseUserQuery} from './user_query.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** How many times a turn is retried after its A2UI fails validation, as in Python. */
 const MAX_RETRIES = 1;
 
-/** The answer when no attempt produced valid A2UI. */
-const FALLBACK_TEXT =
-  "I'm sorry, I'm having trouble generating the interface for that request right now. Please try again in a moment.";
-
-/** The follow-up query sent after a response failed validation. */
-function retryQuery(format: A2uiFormat, error: string, query: string): string {
-  return format === 'direct_json'
-    ? `Your previous response was invalid. Validation failed: ${error}. You MUST generate a valid response that strictly follows the A2UI JSON SCHEMA. The response MUST be a JSON list of A2UI messages. Ensure each JSON part is wrapped in '<a2ui-json>' and '</a2ui-json>' tags. Please retry the original request: '${query}'`
-    : `Your previous response was invalid. Validation failed: ${error}. You MUST generate a valid response that is valid A2UI Express wrapped in the '<a2ui>' and '</a2ui>' tags. Please retry the original request: '${query}'`;
-}
-
-/** Answers restaurant requests with A2UI, in the version the renderer asks for. */
+/**
+ * Answers restaurant requests with A2UI, in the version the renderer asks for.
+ *
+ * The A2A SDK calls `execute` once per incoming message. `run` holds the steps of one
+ * turn, so start reading there; the private methods after it do the work of each step.
+ */
 export class RestaurantExecutor implements AgentExecutor {
   /** One generator per served version, holding its basic catalog and examples. */
   private readonly generators = new Map<string, A2uiGenerator>();
@@ -76,15 +70,7 @@ export class RestaurantExecutor implements AgentExecutor {
     }
   }
 
-  /** Creates a processor for one parse; it keeps state, so it is not reused. */
-  private createProcessor(profile: VersionProfile, catalogIds: string[]): A2uiRequestProcessor {
-    const formatFactory =
-      this.format === 'express' ? new ExpressFormatFactory({surfaceId: 'default'}) : undefined;
-    return this.generators
-      .get(profile.version)!
-      .createProcessor({supportedCatalogIds: catalogIds}, formatFactory);
-  }
-
+  /** Entry point for each incoming message; reports any error as a failed task. */
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const events = new TaskEvents(eventBus, requestContext);
     try {
@@ -98,6 +84,7 @@ export class RestaurantExecutor implements AgentExecutor {
     }
   }
 
+  /** The steps of one turn: the part of this sample to read first. */
   private async run({contextId, userMessage}: RequestContext, events: TaskEvents): Promise<void> {
     events.start();
 
@@ -118,6 +105,10 @@ export class RestaurantExecutor implements AgentExecutor {
     // 6. End the turn. Published parts are not repeated in the final status.
     const finalState = actionName === 'submit_booking' ? 'completed' : 'input-required';
     events.status(finalState, true, published ? [] : parts);
+  }
+
+  async cancelTask(taskId: string, _eventBus: ExecutionEventBus): Promise<void> {
+    console.log('Cancellation requested for', taskId);
   }
 
   /** Builds the system prompt. Creating the processor also rejects unknown catalogs. */
@@ -205,7 +196,12 @@ export class RestaurantExecutor implements AgentExecutor {
     return this.createProcessor(profile, catalogIds).parseResponse(fullText).flatMap(toA2aParts);
   }
 
-  async cancelTask(taskId: string, _eventBus: ExecutionEventBus): Promise<void> {
-    console.log('Cancellation requested for', taskId);
+  /** Creates a processor for one parse; it keeps state, so it is not reused. */
+  private createProcessor(profile: VersionProfile, catalogIds: string[]): A2uiRequestProcessor {
+    const formatFactory =
+      this.format === 'express' ? new ExpressFormatFactory({surfaceId: 'default'}) : undefined;
+    return this.generators
+      .get(profile.version)!
+      .createProcessor({supportedCatalogIds: catalogIds}, formatFactory);
   }
 }
