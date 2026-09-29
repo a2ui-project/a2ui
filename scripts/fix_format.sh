@@ -104,10 +104,10 @@ if command -v dart >/dev/null 2>&1; then
 
   if [ "$CHECK_ONLY" = true ]; then
     dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter dart/a2ui_agent
-    (cd dart/a2ui_core && dart format --output=none --set-exit-if-changed .)
+    dart format --language-version=3.5 --output=none --set-exit-if-changed dart/a2ui_core
   else
     dart format --language-version=3.10 samples/client/flutter dart/a2ui_agent
-    (cd dart/a2ui_core && dart format .)
+    dart format --language-version=3.5 dart/a2ui_core
   fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."
