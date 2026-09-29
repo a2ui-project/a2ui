@@ -22,12 +22,13 @@ import {
   getSafeChildList,
   MAX_DYNAMIC_CHILD_LIST_SIZE,
   scrapeSchemaBehavior,
+  type GenerateSetters,
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
-import {CommonSchemas} from '../types/common-types.js';
+import {CommonSchemas, type DataBinding, type FunctionCall} from '../types/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {
@@ -973,6 +974,24 @@ describe('GenericBinder Checkable Trait', () => {
       }),
     ]);
     assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
+  });
+
+  describe('Generated setter types', () => {
+    it('keeps the setter callable for a property declared with no literal branch', () => {
+      const bindingOnly: GenerateSetters<{value: DataBinding | FunctionCall}> = {
+        setValue: () => {},
+      };
+      bindingOnly.setValue('anything');
+      const value: unknown = {selected: true};
+      bindingOnly.setValue(value);
+
+      const withLiteral: GenerateSetters<{value: string | DataBinding | FunctionCall}> = {
+        setValue: () => {},
+      };
+      withLiteral.setValue('ok');
+      // @ts-expect-error a literal branch must still constrain the setter.
+      withLiteral.setValue(123);
+    });
   });
 });
 

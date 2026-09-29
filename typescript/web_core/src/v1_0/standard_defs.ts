@@ -140,12 +140,12 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
   'DataBinding': {
     'type': 'object',
     'properties': {
-      'path': {
+      '@path': {
         'type': 'string',
         'description': 'A JSON Pointer path to a value in the data model.',
       },
     },
-    'required': ['path'],
+    'required': ['@path'],
     'additionalProperties': false,
   },
   'DynamicValue': {
@@ -165,13 +165,18 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
       },
       {
         'type': 'object',
+        'propertyNames': {
+          'not': {
+            'pattern': '^@([^@]|$)',
+          },
+        },
         'not': {
           'anyOf': [
             {
-              'required': ['path'],
+              'required': ['@path'],
             },
             {
-              'required': ['call'],
+              'required': ['@call'],
             },
           ],
         },
@@ -251,7 +256,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     'description':
       "Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
     'properties': {
-      'call': {
+      '@call': {
         'type': 'string',
         'description': 'The name of the function to call.',
       },
@@ -261,7 +266,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
           'The catalog ID for this function, overriding any surface-level default catalogId.',
       },
     },
-    'required': ['call'],
+    'required': ['@call'],
   },
   'IndexSystemFunction': {
     'type': 'object',
@@ -269,7 +274,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
       'Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
     'returnType': 'number',
     'properties': {
-      'call': {
+      '@call': {
         'const': '@index',
       },
       'args': {
@@ -285,7 +290,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
         'unevaluatedProperties': false,
       },
     },
-    'required': ['call'],
+    'required': ['@call'],
     'unevaluatedProperties': false,
   },
   'FunctionCall': {

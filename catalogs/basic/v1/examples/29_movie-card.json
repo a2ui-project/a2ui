@@ -29,7 +29,7 @@
             "id": "poster",
             "component": "Image",
             "url": {
-              "path": "/poster"
+              "@path": "/poster"
             },
             "fit": "cover"
           },
@@ -48,14 +48,14 @@
             "id": "movie_title",
             "component": "Text",
             "text": {
-              "path": "/title"
+              "@path": "/title"
             }
           },
           {
             "id": "year",
             "component": "Text",
             "text": {
-              "path": "/year"
+              "@path": "/year"
             },
             "variant": "caption"
           },
@@ -63,7 +63,7 @@
             "id": "genre",
             "component": "Text",
             "text": {
-              "path": "/genre"
+              "@path": "/genre"
             },
             "variant": "caption"
           },
@@ -82,7 +82,7 @@
             "id": "rating_value",
             "component": "Text",
             "text": {
-              "path": "/rating"
+              "@path": "/rating"
             },
             "variant": "body"
           },
@@ -101,7 +101,7 @@
             "id": "runtime_text",
             "component": "Text",
             "text": {
-              "path": "/runtime"
+              "@path": "/runtime"
             },
             "variant": "caption"
           },
@@ -130,7 +130,7 @@
             "id": "trailer_video",
             "component": "Video",
             "url": {
-              "path": "/trailerUrl"
+              "@path": "/trailerUrl"
             }
           }
         ]

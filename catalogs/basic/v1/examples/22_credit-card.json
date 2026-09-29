@@ -41,14 +41,14 @@
             "id": "card_type",
             "component": "Text",
             "text": {
-              "path": "/cardType"
+              "@path": "/cardType"
             }
           },
           {
             "id": "card_number",
             "component": "Text",
             "text": {
-              "path": "/cardNumber"
+              "@path": "/cardNumber"
             }
           },
           {
@@ -72,7 +72,7 @@
             "id": "holder_name",
             "component": "Text",
             "text": {
-              "path": "/holderName"
+              "@path": "/holderName"
             },
             "variant": "body"
           },
@@ -92,7 +92,7 @@
             "id": "expiry_date",
             "component": "Text",
             "text": {
-              "path": "/expiryDate"
+              "@path": "/expiryDate"
             },
             "variant": "body"
           }

@@ -148,7 +148,8 @@ export class RpcHandler {
 
     const {version, callRendererFunction} = message;
     const {functionCallId, callFunction} = callRendererFunction;
-    const {call, catalogId, args} = callFunction;
+    const call = ((callFunction as any)['@call'] ?? callFunction.call) as string;
+    const {catalogId, args} = callFunction;
 
     const resolved = this.resolveFunctionImplementation(catalogId, call, context, version);
     if ('error' in resolved) {

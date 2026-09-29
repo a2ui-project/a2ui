@@ -40,17 +40,17 @@
             "id": "account_name",
             "component": "Text",
             "text": {
-              "path": "/accountName"
+              "@path": "/accountName"
             }
           },
           {
             "id": "balance",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/balance"
+                  "@path": "/balance"
                 },
                 "currency": "USD"
               }
@@ -60,7 +60,7 @@
             "id": "updated",
             "component": "Text",
             "text": {
-              "path": "/lastUpdated"
+              "@path": "/lastUpdated"
             },
             "variant": "caption"
           },
