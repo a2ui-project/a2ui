@@ -14,17 +14,10 @@
  * limitations under the License.
  */
 
-import preset from '../../../../eslint.preset.mjs';
+import {defineConfig} from 'vitest/config';
 
-export default [
-  ...preset,
-  {
-    files: ['tests/**/*.ts', 'vitest.config.ts'],
-    languageOptions: {
-      parserOptions: {
-        project: 'tsconfig.check.json',
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
+export default defineConfig({
+  test: {
+    include: ['tests/**/*.test.ts'],
   },
-];
+});
