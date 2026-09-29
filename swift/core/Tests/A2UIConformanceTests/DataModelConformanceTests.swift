@@ -20,6 +20,7 @@ import Testing
 /// Runs the shared `conformance/core/data_model.yaml` suite.
 @MainActor
 struct DataModelConformanceTests {
+  @MainActor
   private final class Observer {
     let path: String
     var changeCount = 0
