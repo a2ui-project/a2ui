@@ -20,7 +20,7 @@ import json
 import unittest
 from typing import Any
 
-from a2ui.core.catalog import Catalog
+from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
 from a2ui.inference_formats.experimental.express.schema_helper import (

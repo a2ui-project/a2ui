@@ -1,5 +1,21 @@
 ## Unreleased
 
+- `Catalog.fromSchema` no longer drops properties mixed in through an external
+  `allOf` reference, so Checkable components in the basic catalogs now accept
+  `checks`.
+- (v1_0) `Catalog.fromSchema` resolves `common_types.json#/$defs/Child`, so
+  single-child properties such as `Card.child` are now recognised as child
+  references.
+- `ExpressionParser` accepts number literals with a leading decimal point
+  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
+  and `./x` are still paths.
+- `ExpressionParser` rejects a number literal outside the double range, such as
+  `1e999`, with `Number literal is out of range`. It used to return `Infinity`,
+  which JSON can't represent.
+
+## 0.12.0
+
+- Fix: Execute component `functionCall` actions locally via catalog functions at invocation time instead of emitting them as `onAction` events, aligning with the A2UI specification for local actions ([#2837](https://github.com/a2ui-project/a2ui/issues/2837)).
 - **BREAKING CHANGE**: The package directory moved from `renderers/web_core/` to `typescript/web_core/`.
 - **BREAKING CHANGE**: The root package export (`@a2ui/web_core`) now provides the shared core state, validation, catalog, expressions, RPC, and resolution APIs across protocol versions. Consumers using v0.8 protocol APIs should import from `@a2ui/web_core/v0_8`.
 - **BREAKING CHANGE**: The `Catalog` constructor now requires `protocolVersion` as its second parameter: `Catalog(id, protocolVersion, ...)`.
@@ -10,12 +26,6 @@
 - Add `PayloadValidator` (`@a2ui/web_core/validation`) for single-catalog component and function schema validation.
 - Add `A2uiRpcError` and `RpcErrorCode` (`@a2ui/web_core/rpc`) for structured RPC error responses.
 - Re-export `DataBindingType` and `FunctionCallType` (from `types/common-types.js`) and `MAX_FUNCTION_CALL_ARGS` (from `types/helpers.js`) from `@a2ui/web_core/v0_9`.
-- `ExpressionParser` accepts number literals with a leading decimal point
-  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
-  and `./x` are still paths.
-- `ExpressionParser` rejects a number literal outside the double range, such as
-  `1e999`, with `Number literal is out of range`. It used to return `Infinity`,
-  which JSON can't represent.
 - Factor out basic catalog function implementations shared between v0.9 and v1.0
   into a common module (`src/common/basic_functions.ts`). Both versions now
   share implementation logic for logical operations, string formatting, number

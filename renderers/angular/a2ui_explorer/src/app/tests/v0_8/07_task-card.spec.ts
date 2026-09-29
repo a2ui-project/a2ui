@@ -20,7 +20,7 @@ describe('Example: Task Card (basic) (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Task Card (basic)', Version.V0_8);
+    await loadExample({name: 'Task Card (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

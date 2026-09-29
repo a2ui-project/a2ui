@@ -180,10 +180,11 @@ export class SurfaceModel<
   /**
    * Dispatches an action from this surface to registered listeners.
    *
-   * Resolves action payload details (event or function call), propagates any
-   * explicit `catalogId`, and emits an `ActionPayload` via `onAction`.
+   * Resolves event action payload details, propagates any explicit `catalogId`,
+   * and emits an `ActionPayload` via `onAction`. Local function actions (`functionCall`)
+   * are executed locally and are not emitted as agent actions.
    *
-   * @param payload Action payload (name/call and context/args) to dispatch.
+   * @param payload Action payload (name and context) to dispatch.
    * @param sourceComponentId Identifier of the component that triggered the action.
    * @returns A promise that resolves once all registered listeners have processed the action.
    */
@@ -197,12 +198,12 @@ export class SurfaceModel<
       return;
     }
 
-    const name = eventPayload.name || eventPayload.call;
+    const name = eventPayload.name;
     if (!name || typeof name !== 'string') {
       return;
     }
 
-    const rawContext = eventPayload.context ?? eventPayload.args;
+    const rawContext = eventPayload.context;
     const context =
       rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)
         ? (rawContext as Record<string, unknown>)
@@ -218,8 +219,9 @@ export class SurfaceModel<
 
     // Only set the key when the payload named a catalog, so listeners can
     // distinguish an explicit override from default-catalog resolution.
-    if (typeof eventPayload.catalogId === 'string' && eventPayload.catalogId) {
-      actionToDispatch.catalogId = eventPayload.catalogId;
+    const catalogId = eventPayload.catalogId ?? payload.catalogId;
+    if (typeof catalogId === 'string' && catalogId) {
+      actionToDispatch.catalogId = catalogId;
     }
 
     if (typeof eventPayload.userMessage === 'string' && eventPayload.userMessage.length > 0) {
@@ -268,7 +270,7 @@ export class SurfaceModel<
 }
 
 /**
- * Extracts the inner action target payload (`event`, `functionCall`, or direct action payload).
+ * Extracts the inner action target payload (`event` or direct action payload).
  *
  * @param payload Raw action payload object.
  * @returns The unwrapped action object, or `null` if none is present.
@@ -277,14 +279,7 @@ function extractActionTarget(payload: Record<string, any>): Record<string, any> 
   if ('event' in payload && payload.event && typeof payload.event === 'object') {
     return payload.event;
   }
-  if (
-    'functionCall' in payload &&
-    payload.functionCall &&
-    typeof payload.functionCall === 'object'
-  ) {
-    return payload.functionCall;
-  }
-  if ('name' in payload || 'call' in payload) {
+  if ('name' in payload && typeof payload.name === 'string') {
     return payload;
   }
   return null;

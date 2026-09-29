@@ -2,20 +2,32 @@
 
 ## Unreleased
 
+- Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
-- `ExpressionParser` accepts signed number literals (`-42`, `+1`, `-3.5`),
-  exponent notation (`1e5`, `1E5`, `1.5e-3`, `2.5E+4`) and a leading decimal
-  point (`.5`, `-.5`, `.5e2`), including as function-call arguments.
-  Previously `-42` parsed as the path `-42` and `1e5` failed with
-  `Unexpected characters at end of expression`. A `-` or `.` inside a path such
-  as `a-1` or `a.5` is still part of the path, and `.foo` is still a path. This
-  matches the TypeScript, Python and Swift parsers.
+- `ExpressionParser` accepts number literals with a leading decimal point
+  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. A `.`
+  inside a path such as `a.5` is still part of the path, and `.foo` is still a
+  path. This matches the TypeScript, Python and Swift parsers.
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+
+## 0.2.2
+
+- `ExpressionParser` accepts signed number literals (`-42`, `+1`, `-3.5`) and
+  exponent notation (`1e5`, `1E5`, `1.5e-3`, `2.5E+4`), including as
+  function-call arguments. Previously `-42` parsed as the path `-42` and `1e5`
+  failed with `Unexpected characters at end of expression`. A `-` inside a path
+  such as `a-1` is still part of the path. This matches the TypeScript and
+  Python parsers.
 - Fixed `DataModel.set` with a `null` value (a delete) at a list index at or
   past the end of the list padding the list with `null` up to that index. It
   now leaves the list unchanged; only a write extends a list.
+- Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
+- Validate that catalog function definitions have a non-empty `name` string in `Catalog.fromJson`, throwing `A2uiCatalogError` if missing or empty.
+- Validate that message object fields and `theme` maps have string keys in `AgentToRendererMessage.fromJson`, throwing `A2uiValidationError` when encountering non-string keys.
+- Enhanced child reference detection in `ComponentRefs` to recognize string-typed `child` properties and string list `children` properties as component references.
+- Expanded conformance test coverage for validator, expressions, and data model suites across protocol versions v0.8, v0.9, and v1.0.
 
 ## 0.2.1
 

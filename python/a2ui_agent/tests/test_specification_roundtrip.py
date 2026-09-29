@@ -20,7 +20,7 @@ import os
 import pytest
 
 from a2ui.basic_catalog import BasicCatalog
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema import A2uiCatalog
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 from a2ui.inference_formats.experimental.atom.format import AtomFormat
@@ -129,6 +129,12 @@ class TestSpecificationRoundtripAllFormats:
         """Loads specification example JSON, decompiles across formats, and recompiles back to A2UI payload."""
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
+
+        if data.get("customComponents"):
+            pytest.skip(
+                f"{os.path.basename(json_file)} uses custom components not in the basic"
+                " catalog"
+            )
 
         messages = data.get("messages", [data])
 

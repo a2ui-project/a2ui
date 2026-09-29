@@ -26,15 +26,15 @@ from a2a.types import (
     Part,
     TextPart,
 )
-from a2ui.a2a.extension import get_a2ui_agent_extension
-from a2ui.a2a.parts import parse_response_to_parts, stream_response_to_parts
-from a2ui.parser.parser import parse_response
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.schema.constants import (
+from a2ui.a2a import get_a2ui_agent_extension
+from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
+from a2ui.parser import parse_response
+from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
+    CatalogConfig,
     VERSION_0_9,
+    remove_strict_validation,
 )
 from a2ui.schema.manager import A2uiSchemaManager
 from google.adk.agents import run_config

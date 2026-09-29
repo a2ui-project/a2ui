@@ -41,13 +41,13 @@ from a2ui.builder.v0_9 import (
     FunctionCall,
     flatten_component_tree,
 )
-from a2ui.core.schema.v0_9.server_to_client import (
+from a2ui.core.schema.v0_9 import (
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,
     UpdateComponentsMessage,
 )
-from a2ui.builder.v0_9.catalogs.basic import (
+from a2ui.builder.v0_9 import (
     OpenUrl,
     Regex,
     Required,
@@ -441,7 +441,7 @@ def test_check_condition_accepts_any_dynamic_boolean():
 
 def test_reused_core_models_stay_identical_to_core():
     """Verifies shared builder models are re-exports of core's models and do not emit unset defaults."""
-    from a2ui.core.schema.v0_9.common_types import (
+    from a2ui.core.schema.v0_9 import (
         AccessibilityAttributes as CoreAccessibilityAttributes,
         ActionEvent as CoreActionEvent,
         CheckRule as CoreCheckRule,
@@ -486,11 +486,11 @@ def test_locally_defined_models_still_serialize_as_core_models():
     """Verifies locally defined Action and DynamicChildList serialize into valid core wire schemas."""
     from pydantic import TypeAdapter
 
-    from a2ui.core.schema.common_types import TemplateChildList
-    from a2ui.core.schema.v0_9.common_types import (
+    from a2ui.core.schema.v0_9 import (
         Action as CoreAction,
         ActionEventWrapper,
         ActionFunctionCallWrapper,
+        TemplateChildList,
     )
 
     action_adapter = TypeAdapter(CoreAction)
@@ -637,7 +637,7 @@ def test_open_enum_context_naming():
 
 def test_tab_item_and_choice_option_models():
     """Verifies typed item models resolve nested children through the Child serializer."""
-    from a2ui.builder.v0_9.catalogs.basic import (
+    from a2ui.builder.v0_9 import (
         ChoicePickerOption,
         ChoicePicker,
         TabItem,
@@ -705,7 +705,7 @@ def test_static_typechecker_compiler_rejections():
         pytest.skip("mypy is not installed in the environment")
 
     preamble = (
-        "from a2ui.builder.v0_9.catalogs.basic import Button, Text\n"
+        "from a2ui.builder.v0_9 import Button, Text\n"
         "from a2ui.builder.v0_9 import event\n"
     )
 
@@ -745,7 +745,7 @@ def test_accessibility_attributes_match_the_v0_9_1_schema():
     import json
     import pathlib
 
-    from a2ui.core.schema.v0_9.common_types import (
+    from a2ui.core.schema.v0_9 import (
         AccessibilityAttributes as CoreAccessibilityAttributes,
     )
 

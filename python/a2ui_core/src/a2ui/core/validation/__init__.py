@@ -14,6 +14,7 @@
 
 from ..catalog.catalog import is_valid_uax31_identifier
 from .payload_validator import (
+    JSON_SCHEMA_DRAFT_2020_12,
     MAX_FUNCTION_CALL_ARGS,
     PayloadValidator,
     ValidationConfig,
@@ -28,6 +29,7 @@ from ..state.validation_helpers import (
 )
 
 __all__ = [
+    "JSON_SCHEMA_DRAFT_2020_12",
     "MAX_FUNCTION_CALL_ARGS",
     "is_valid_uax31_identifier",
     "ValidationConfig",
