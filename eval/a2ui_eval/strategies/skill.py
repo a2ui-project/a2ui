@@ -104,7 +104,7 @@ def skill_preloaded_prompt(format_name: str, version: str) -> Solver:
         )
 
         # Pre-load skill content directly into turn context (Antigravity / Vertex AI Harness Proxy)
-        if state.messages and hasattr(state.messages[-1], "content"):
+        if len(state.messages) > 1 and hasattr(state.messages[-1], "content"):
             user_msg = state.messages[-1]
             user_msg.content = (
                 "Here are the pre-loaded A2UI UI generation rules and component"
