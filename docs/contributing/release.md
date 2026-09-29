@@ -50,7 +50,8 @@ workflow. There is no version file to edit and no script to run locally.
 
 2. Run the [Release Python SDKs](../../.github/workflows/release-pypi.yml)
    workflow from the Actions tab, on `main`. Pick the package, pick a bump
-   level, and leave `dry_run` enabled for the first run. A dry run stages the
+   level, optionally provide your name and CLA-signed email for the changelog
+   commit, and leave `dry_run` enabled for the first run. A dry run stages the
    build in the Artifact Registry, removes it again, and pushes nothing.
 
 3. Check the dry run output, then run it again with `dry_run` disabled.

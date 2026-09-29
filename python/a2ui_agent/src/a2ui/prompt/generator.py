@@ -17,7 +17,7 @@
 from collections.abc import Mapping, Sequence
 from abc import ABC, abstractmethod
 from typing import Any
-from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
+from a2ui.core.schema.v0_9 import V09Capabilities
 
 
 class PromptGenerator(ABC):

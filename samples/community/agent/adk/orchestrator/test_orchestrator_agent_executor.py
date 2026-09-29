@@ -26,7 +26,7 @@ from orchestrator_agent_executor import (
     OrchestratorAgentExecutor,
     A2UIMetadataInterceptor,
 )
-from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+from a2ui.adk.orchestration import A2uiSubagentMap
 from a2ui.schema.constants import (
     A2UI_CLIENT_DATA_MODEL_KEY,
     A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,

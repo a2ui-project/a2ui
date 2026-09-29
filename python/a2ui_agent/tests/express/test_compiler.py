@@ -30,8 +30,8 @@ import json
 import os
 import unittest
 
-from a2ui.core.catalog import Catalog
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.core import Catalog
+from a2ui.schema import A2uiCatalog, CatalogConfig
 from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
@@ -77,7 +77,7 @@ text1 = Text("Hello Thread 1")
 """
         dsl_2 = """
 root = Column([button2])
-button2 = Button(btnLabel)
+button2 = Button(btnLabel, action=Event("click"))
 btnLabel = Text("Click Thread 2")
 """
 
@@ -114,7 +114,7 @@ btnLabel = Text("Click Thread 2")
         # 1. Test optional semicolons at the end of statements
         semicolon_dsl = """
     root = Column([btn1]);
-    btn1 = Button("Click Me");
+    btn1 = Button("Click Me", action=Event("click"));
     """
         envelope = compiler.compile(semicolon_dsl)[0]
         self.assertEqual(len(envelope["createSurface"]["components"]), 2)

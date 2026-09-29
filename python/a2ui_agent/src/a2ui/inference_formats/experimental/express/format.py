@@ -15,10 +15,9 @@
 import json
 import re
 from typing import Any
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
-from a2ui.parser.parser import Parser
+from a2ui.parser import Parser, ResponsePart
+from a2ui.schema import A2uiCatalog
 from google.adk.utils.feature_decorator import experimental
 
 from .prompt_generator import ExpressPromptGenerator

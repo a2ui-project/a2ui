@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import pytest
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import VERSION_0_9
+from a2ui.schema import A2uiCatalog, VERSION_0_9
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
-from a2ui.adk.a2a.part_converter import A2uiPartConverter
+from a2ui.adk import A2uiPartConverter
 from google.genai import types as genai_types
 from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
@@ -49,8 +48,7 @@ def test_catalog():
 
 
 def test_schema_strategy_prompt_generation(test_catalog):
-    from a2ui.schema.catalog import CatalogConfig
-    from a2ui.schema.catalog_provider import A2uiCatalogProvider
+    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
 
     class MemoryCatalogProvider(A2uiCatalogProvider):
 
@@ -126,8 +124,7 @@ def test_strategy_based_converters(test_catalog, monkeypatch):
 
 @pytest.mark.skip(reason="TODO: validation package was removed from a2ui_agent library")
 def test_supports_streaming_property(test_catalog):
-    from a2ui.schema.catalog import CatalogConfig
-    from a2ui.schema.catalog_provider import A2uiCatalogProvider
+    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
 
     class MemoryCatalogProvider(A2uiCatalogProvider):
 
@@ -172,8 +169,7 @@ def test_process_chunk_raises_not_implemented(test_catalog):
 
 @pytest.mark.skip(reason="TODO: validation package was removed from a2ui_agent library")
 def test_decompiler_delegation(test_catalog):
-    from a2ui.schema.catalog import CatalogConfig
-    from a2ui.schema.catalog_provider import A2uiCatalogProvider
+    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
 
     class DummyProvider(A2uiCatalogProvider):
 
@@ -234,7 +230,7 @@ def test_decompiler_delegation(test_catalog):
         common_types_schema={},
         catalog_schema={"catalogId": 12345},
     )
-    from a2ui.core.exceptions import A2uiCatalogError
+    from a2ui.core import A2uiCatalogError
 
     with pytest.raises(A2uiCatalogError) as ctx:
         _ = bad_catalog.catalog_id
