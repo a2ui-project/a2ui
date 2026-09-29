@@ -126,8 +126,8 @@ export abstract class BasicCatalogA2uiLitElement<
   }
 
   private setOrRemoveAttribute(attrName: string, value: unknown): void {
-    if (typeof value === 'string' && value) {
-      this.setAttribute(attrName, value);
+    if (value !== undefined && value !== null && value !== '') {
+      this.setAttribute(attrName, String(value));
     } else {
       this.removeAttribute(attrName);
     }

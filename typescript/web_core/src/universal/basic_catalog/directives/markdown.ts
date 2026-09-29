@@ -82,11 +82,19 @@ class MarkdownDirective extends AsyncDirective {
     const effectiveRenderer = markdownRenderer ?? globalMarkdownRenderer;
 
     if (effectiveRenderer) {
-      Promise.resolve(effectiveRenderer(value, markdownOptions)).then((renderedStr: string) => {
-        if (this.isConnected && this.lastValue === value) {
-          this.setValue(unsafeHTML(renderedStr));
-        }
-      });
+      try {
+        Promise.resolve(effectiveRenderer(value, markdownOptions))
+          .then((renderedStr: string) => {
+            if (this.isConnected && this.lastValue === value) {
+              this.setValue(unsafeHTML(renderedStr));
+            }
+          })
+          .catch((err) => {
+            console.error('[MarkdownDirective] Error rendering markdown:', err);
+          });
+      } catch (err) {
+        console.error('[MarkdownDirective] Synchronous error rendering markdown:', err);
+      }
       return html`<span class="no-markdown-renderer">${value}</span>`;
     }
 

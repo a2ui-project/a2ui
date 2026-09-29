@@ -31,6 +31,9 @@ export function isValidCssColor(color: unknown): boolean {
     return false;
   }
   const trimmed = color.trim();
+  if (trimmed.startsWith('var(') && trimmed.endsWith(')')) {
+    return true;
+  }
   if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
     return CSS.supports('color', trimmed);
   }
