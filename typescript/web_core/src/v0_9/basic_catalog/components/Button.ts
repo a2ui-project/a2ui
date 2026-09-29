@@ -38,6 +38,8 @@ class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof ButtonApi
    * - `--a2ui-button-border-radius`: The border radius of the button. Defaults to `--a2ui-border-radius`.
    * - `--a2ui-button-padding`: The padding of the button. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-button-margin`: The outer margin of the button. Defaults to `--a2ui-spacing-m`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-button {

@@ -30,6 +30,8 @@ class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
    * - `--a2ui-modal-border-radius`: Controls the border radius of the modal content.
    * - `--a2ui-modal-box-shadow`: Controls the box shadow of the modal content.
    * - `--a2ui-modal-backdrop-bg`: Controls the background of the backdrop.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,

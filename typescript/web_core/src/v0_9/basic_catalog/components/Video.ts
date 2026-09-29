@@ -25,6 +25,8 @@ class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {
    * CSS variables:
    *
    * - `--a2ui-video-border-radius`: Controls the rounded corners of the video. Defaults to `0`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-video-container {

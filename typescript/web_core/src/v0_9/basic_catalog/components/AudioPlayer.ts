@@ -20,6 +20,7 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {WebComponentImplementation} from '../../universal/index.js';
 
 class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlayerApi> {
+  /** @nocollapse */
   static override styles = css`
     .a2ui-audio-player {
       display: flex;
