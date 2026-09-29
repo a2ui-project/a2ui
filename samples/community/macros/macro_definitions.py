@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any, List, Sequence
 
-from a2ui.catalog_transformers.macros import macro
+from a2ui.transformers.macros import macro
 from a2ui.builder.v0_9 import Action, ActionEvent, ComponentBuilderNode, ComponentRef
 from a2ui.builder.v0_9.catalogs.basic import (
     Button,

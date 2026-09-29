@@ -31,7 +31,7 @@ from pydantic import BaseModel
 import json
 
 from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.catalog_transformers.macros import MacroExpander, macro
+from a2ui.transformers.macros import MacroExpander, macro
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
@@ -524,8 +524,6 @@ SAMPLE_PARAMS = {
 
 @app.get("/macros")
 @app.get("/api/macros")
-@app.get("/templates")
-@app.get("/api/templates")
 def list_macros():
     res = []
     for m in macro_expander.macros:
@@ -568,7 +566,6 @@ def list_macros():
             "description": m.description or "",
             "parameters": schema.get("properties", {}),
             "pythonCode": python_code,
-            "yamlContent": python_code,
             "sampleData": sample_params,
             "sampleMessages": sample_messages,
         }
@@ -605,7 +602,6 @@ def list_macros():
                     salary_card_py = inspect.getsource(SalaryCard)
                 except Exception:
                     salary_card_py = python_code
-                t_dict["layoutTemplateYaml"] = salary_card_py
                 t_dict["layoutTemplatePython"] = salary_card_py
             except Exception:
                 t_dict["resolvedData"] = {}
@@ -618,42 +614,40 @@ def list_macros():
     return res
 
 
-@app.post("/macros/{template_id}/resolve")
-@app.post("/api/macros/{template_id}/resolve")
-@app.post("/templates/{template_id}/resolve")
-@app.post("/api/templates/{template_id}/resolve")
-def resolve_macro(template_id: str, req: DynamicResolveRequest):
-    if not macro_expander.processor.has_macro(template_id):
+@app.post("/macros/{macro_id}/resolve")
+@app.post("/api/macros/{macro_id}/resolve")
+def resolve_macro(macro_id: str, req: DynamicResolveRequest):
+    if not macro_expander.processor.has_macro(macro_id):
         raise HTTPException(status_code=404, detail="Macro not found")
 
     try:
         expanded_components = macro_expander.processor.expand(
-            template_id, req.params, instance_id="root"
+            macro_id, req.params, instance_id="root"
         )
         sample_messages = [
             {
                 "version": "v0.9.1",
                 "createSurface": {
-                    "surfaceId": f"preview_{template_id}",
+                    "surfaceId": f"preview_{macro_id}",
                     "catalogId": BASIC_CATALOG_ID,
                 },
             },
             {
                 "version": "v0.9.1",
                 "updateComponents": {
-                    "surfaceId": f"preview_{template_id}",
+                    "surfaceId": f"preview_{macro_id}",
                     "components": expanded_components,
                 },
             },
         ]
         resolved_data = {}
-        if template_id == "PayrollSummary":
+        if macro_id == "PayrollSummary":
             resolved_data = {
                 "execution": "Python Programmatic Render Function",
                 "generatedComponentCount": len(expanded_components),
                 "appliedParams": req.params,
             }
-        elif template_id == "EmployeeSalaryCard":
+        elif macro_id == "EmployeeSalaryCard":
             emp_id = req.params.get("employeeId", "emp_101")
             resolved_data = fetch_employee_compensation(emp_id)
 

@@ -49,11 +49,6 @@ def test_list_macros(client):
     assert "GoalItem" in macro_ids
     assert "FeedbackItem" in macro_ids
 
-    # Verify backward compatibility on /templates
-    compat_response = client.get("/templates")
-    assert compat_response.status_code == 200
-    assert len(compat_response.json()) == len(data)
-
 
 def test_resolve_macro_endpoint(client):
     """Verifies POST /macros/{id}/resolve endpoint."""
