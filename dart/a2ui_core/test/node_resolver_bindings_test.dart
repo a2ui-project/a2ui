@@ -21,29 +21,29 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 Schema _groupSchema() => Schema.object(
-  properties: {
-    'title': CommonSchemas.dynamicString,
-    'group': Schema.object(
       properties: {
-        'value': CommonSchemas.dynamicString,
-        'label': Schema.string(),
-      },
-    ),
-    'items': Schema.list(
-      items: Schema.object(
-        properties: {
-          'value': CommonSchemas.dynamicString,
-          'details': Schema.object(
-            properties: {'value': CommonSchemas.dynamicString},
+        'title': CommonSchemas.dynamicString,
+        'group': Schema.object(
+          properties: {
+            'value': CommonSchemas.dynamicString,
+            'label': Schema.string(),
+          },
+        ),
+        'items': Schema.list(
+          items: Schema.object(
+            properties: {
+              'value': CommonSchemas.dynamicString,
+              'details': Schema.object(
+                properties: {'value': CommonSchemas.dynamicString},
+              ),
+            },
           ),
-        },
-      ),
-    ),
-    'values': Schema.list(items: CommonSchemas.dynamicString),
-    'label': Schema.string(),
-    'action': CommonSchemas.action,
-  },
-);
+        ),
+        'values': Schema.list(items: CommonSchemas.dynamicString),
+        'label': Schema.string(),
+        'action': CommonSchemas.action,
+      },
+    );
 
 typedef _Fixture = ({
   SurfaceModel<ComponentApi> surface,
@@ -82,7 +82,8 @@ void _expectReadOnlyNull(Object? value) {
 
 void main() {
   group('NodeResolver absent dynamic properties', () {
-    test('represents omitted dynamic properties as read-only bindings at '
+    test(
+        'represents omitted dynamic properties as read-only bindings at '
         'every level', () {
       final _Fixture fixture = _setup({
         'group': {'label': 'x'},

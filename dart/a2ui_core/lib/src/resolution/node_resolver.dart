@@ -606,28 +606,26 @@ class NodeResolver<T extends ComponentApi> {
     }
     if (existing != null && !existing.disposed) {
       final ComponentModel? model = _surface.componentsModel.get(componentId);
-      final T? api = model == null
-          ? null
-          : _surface.catalog.components[model.type];
+      final T? api =
+          model == null ? null : _surface.catalog.components[model.type];
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
       // either kind resolves when the type gains a catalog entry. Resolved
       // and unknown-type nodes must still refer to the current model. A node
       // whose sibling ordinal changed is rebuilt to keep ids distinct.
-      final bool upToDate =
-          existing.componentId == componentId &&
+      final bool upToDate = existing.componentId == componentId &&
           existing.dataPath == dataPath &&
           _records[existing]?.occurrence == occurrence &&
           (existing.isPlaceholder
               ? (model == null && existing.state == NodeState.pending) ||
-                    (model != null &&
-                        api == null &&
-                        existing.state == NodeState.unknownType &&
-                        identical(_records[existing]?.componentModel, model))
+                  (model != null &&
+                      api == null &&
+                      existing.state == NodeState.unknownType &&
+                      identical(_records[existing]?.componentModel, model))
               : model != null &&
-                    existing.type == model.type &&
-                    identical(_records[existing]?.componentModel, model));
+                  existing.type == model.type &&
+                  identical(_records[existing]?.componentModel, model));
       if (upToDate) {
         if (existing.state == NodeState.pending) {
           // Another creation listener may have removed the component before
@@ -653,11 +651,9 @@ class NodeResolver<T extends ComponentApi> {
     String dataPath,
     MutableComponentNode<T> parent,
   ) {
-    for (
-      MutableComponentNode<T>? node = parent;
-      node != null;
-      node = _records[node]?.parent
-    ) {
+    for (MutableComponentNode<T>? node = parent;
+        node != null;
+        node = _records[node]?.parent) {
       if (node.componentId == componentId && node.dataPath == dataPath) {
         return true;
       }
@@ -936,9 +932,9 @@ const _idPartEscapes = {
 /// Escapes id parts in one pass so literal suffixes and scopes cannot collide
 /// with composed ids.
 String _escapeIdPart(String part) => part.replaceAllMapped(
-  RegExp(r'[~#\[\]>@]'),
-  (match) => _idPartEscapes[match[0]]!,
-);
+      RegExp(r'[~#\[\]>@]'),
+      (match) => _idPartEscapes[match[0]]!,
+    );
 
 String _instanceIdFor(String componentId, String dataPath, int occurrence) {
   String trimmed = dataPath.replaceAll(RegExp(r'/+$'), '');

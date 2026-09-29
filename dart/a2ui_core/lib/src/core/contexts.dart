@@ -22,12 +22,11 @@ import 'messages.dart';
 import 'surface_model.dart';
 
 /// A function that invokes a catalog function by name.
-typedef FunctionInvoker =
-    Object? Function(
-      String name,
-      Map<String, dynamic> args,
-      DataContext context,
-    );
+typedef FunctionInvoker = Object? Function(
+  String name,
+  Map<String, dynamic> args,
+  DataContext context,
+);
 
 /// Reports a failed function evaluation without depending on a surface.
 typedef ExpressionErrorReporter = void Function(A2uiExpressionError error);
@@ -158,9 +157,8 @@ class DataContext {
       if (!_containsDynamicValue(value)) {
         return signal(value);
       }
-      final List<ReadonlySignal<Object?>> elements = value
-          .map(resolveListenable)
-          .toList();
+      final List<ReadonlySignal<Object?>> elements =
+          value.map(resolveListenable).toList();
       return computed(() => elements.map((element) => element.value).toList());
     }
     return signal(value);
@@ -213,22 +211,21 @@ class ComponentContext {
     String? basePath,
     ExpressionErrorReporter? onError,
   }) : dataContext = DataContext(
-         surface.dataModel,
-         surface.catalog.invoke,
-         basePath ?? '/',
-         onError:
-             onError ??
-             (error) {
-               surface.dispatchError(
-                 A2uiClientError(
-                   code: 'EXPRESSION_ERROR',
-                   surfaceId: surface.id,
-                   message: error.message,
-                   details: error.details,
-                 ),
-               );
-             },
-       );
+          surface.dataModel,
+          surface.catalog.invoke,
+          basePath ?? '/',
+          onError: onError ??
+              (error) {
+                surface.dispatchError(
+                  A2uiClientError(
+                    code: 'EXPRESSION_ERROR',
+                    surfaceId: surface.id,
+                    message: error.message,
+                    details: error.details,
+                  ),
+                );
+              },
+        );
 
   /// Dispatches an action from the component.
   Future<void> dispatchAction(Map<String, dynamic> action) {

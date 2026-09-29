@@ -40,9 +40,9 @@ final class NestedRef extends RefKind {
 
   /// The item properties holding a single reference.
   Set<String> get keys => {
-    for (final entry in fields.entries)
-      if (entry.value is SingleRef) entry.key,
-  };
+        for (final entry in fields.entries)
+          if (entry.value is SingleRef) entry.key,
+      };
 }
 
 typedef RefFields = Map<String, RefKind>;
@@ -74,9 +74,8 @@ class ReferenceSchemaReader {
     final visited = HashSet<Object>.identity();
     void collect(Object? value) {
       if (value is! Map || !visited.add(value)) return;
-      final Map<String, Object?> node = value is Map<String, Object?>
-          ? value
-          : value.cast<String, Object?>();
+      final Map<String, Object?> node =
+          value is Map<String, Object?> ? value : value.cast<String, Object?>();
       result.add(node);
       final Object? ref = node[r'$ref'];
       if (ref is String && (ref == '#' || ref.startsWith('#/'))) {

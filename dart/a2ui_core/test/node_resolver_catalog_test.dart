@@ -24,11 +24,11 @@ class _RecordingFunction extends FunctionImplementation {
   final List<Map<String, Object?>> calls = [];
 
   _RecordingFunction(FunctionApi api)
-    : super(
-        name: api.name,
-        argumentSchema: api.argumentSchema,
-        returnType: api.returnType,
-      );
+      : super(
+          name: api.name,
+          argumentSchema: api.argumentSchema,
+          returnType: api.returnType,
+        );
 
   @override
   Object? execute(
@@ -51,13 +51,12 @@ void main() {
     setUp(() {
       final SchemaCatalog parsed = Catalog.fromJson(
         jsonDecode(
-              File(
-                resolveConformancePath(
-                  '../specification/v0_9_1/catalogs/basic/catalog.json',
-                ),
-              ).readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File(
+            resolveConformancePath(
+              '../specification/v0_9_1/catalogs/basic/catalog.json',
+            ),
+          ).readAsStringSync(),
+        ) as Map<String, Object?>,
       );
       openUrl = _RecordingFunction(parsed.functions['openUrl']!);
       final catalog = Catalog<ComponentApi, FunctionImplementation>(

@@ -30,15 +30,13 @@ void main() {
     test('suite is not empty', () => expect(cases, isNotEmpty));
     for (final testCase in cases) {
       test(testCase['name']! as String, () async {
-        final fixture =
-            normalizeYaml(
-                  loadYaml(
-                    File(
-                      resolveConformancePath(testCase['fixture']! as String),
-                    ).readAsStringSync(),
-                  ),
-                )!
-                as _Json;
+        final fixture = normalizeYaml(
+          loadYaml(
+            File(
+              resolveConformancePath(testCase['fixture']! as String),
+            ).readAsStringSync(),
+          ),
+        )! as _Json;
         final runner = _Runner(fixture);
         addTearDown(runner.close);
         runner.check(testCase['expect']! as _Json, {}, 'initial');
@@ -118,11 +116,11 @@ class _RecordingFunction extends FunctionImplementation {
   final List<_Json> calls;
 
   _RecordingFunction(FunctionApi api, this.calls)
-    : super(
-        name: api.name,
-        argumentSchema: api.argumentSchema,
-        returnType: api.returnType,
-      );
+      : super(
+          name: api.name,
+          argumentSchema: api.argumentSchema,
+          returnType: api.returnType,
+        );
 
   @override
   Object? execute(
@@ -150,11 +148,10 @@ class _Runner {
   _Runner(_Json fixture) {
     final SchemaCatalog parsed = Catalog.fromJson(
       jsonDecode(
-            File(
-              resolveConformancePath(fixture['catalog']! as String),
-            ).readAsStringSync(),
-          )
-          as _Json,
+        File(
+          resolveConformancePath(fixture['catalog']! as String),
+        ).readAsStringSync(),
+      ) as _Json,
     );
     final catalog = Catalog<ComponentApi, FunctionImplementation>(
       id: parsed.id,
@@ -276,13 +273,13 @@ class _Runner {
           step['component_id']! as String,
         );
       case 'write':
-        final Object? binding = before[step['node']]!.props
-            .peek()[step['property']];
+        final Object? binding =
+            before[step['node']]!.props.peek()[step['property']];
         expect(binding, isA<WritableBinding<Object?>>());
         (binding! as WritableBinding<Object?>).set(_copy(step['value']));
       case 'invoke':
-        final Object? action = before[step['node']]!.props
-            .peek()[step['property']];
+        final Object? action =
+            before[step['node']]!.props.peek()[step['property']];
         expect(action, isA<Future<void> Function()>());
         await (action! as Future<void> Function())();
       case 'dispose':

@@ -21,34 +21,36 @@ import 'package:test/test.dart';
 
 Catalog<ComponentApi, FunctionImplementation> _catalog({
   List<FunctionImplementation> functions = const [],
-}) => Catalog(
-  id: 'reentrant-node-test',
-  functions: functions,
-  components: [
-    ComponentApi(
-      name: 'Text',
-      schema: Schema.object(
-        properties: {
-          'text': CommonSchemas.dynamicString,
-          'after': CommonSchemas.dynamicString,
-        },
-      ),
-    ),
-    ComponentApi(
-      name: 'Card',
-      schema: Schema.object(
-        properties: {
-          'child': CommonSchemas.componentId,
-          'label': CommonSchemas.dynamicString,
-        },
-      ),
-    ),
-    ComponentApi(
-      name: 'Column',
-      schema: Schema.object(properties: {'children': CommonSchemas.childList}),
-    ),
-  ],
-);
+}) =>
+    Catalog(
+      id: 'reentrant-node-test',
+      functions: functions,
+      components: [
+        ComponentApi(
+          name: 'Text',
+          schema: Schema.object(
+            properties: {
+              'text': CommonSchemas.dynamicString,
+              'after': CommonSchemas.dynamicString,
+            },
+          ),
+        ),
+        ComponentApi(
+          name: 'Card',
+          schema: Schema.object(
+            properties: {
+              'child': CommonSchemas.componentId,
+              'label': CommonSchemas.dynamicString,
+            },
+          ),
+        ),
+        ComponentApi(
+          name: 'Column',
+          schema:
+              Schema.object(properties: {'children': CommonSchemas.childList}),
+        ),
+      ],
+    );
 
 void _add(
   SurfaceModel<ComponentApi> surface,
@@ -103,7 +105,8 @@ void main() {
   _cleanupRegistrationTests();
   group('NodeResolver reentrant lifecycle', () {
     for (final existingRoot in [false, true]) {
-      test('an error listener removes an unknown child '
+      test(
+          'an error listener removes an unknown child '
           '(${existingRoot ? 'existing' : 'new'} root)', () {
         final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -156,7 +159,8 @@ void main() {
     });
 
     for (final constructFromExistingSurface in [false, true]) {
-      test('an error listener removes the root before '
+      test(
+          'an error listener removes the root before '
           '${constructFromExistingSurface ? 'constructor' : 'creation'} '
           'returns', () {
         final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
@@ -228,7 +232,8 @@ void main() {
     });
 
     for (final replaceRoot in [false, true]) {
-      test('an earlier delete listener replaces a same-type '
+      test(
+          'an earlier delete listener replaces a same-type '
           '${replaceRoot ? 'root' : 'child'} model', () {
         final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
         final id = replaceRoot ? 'root' : 'text';
@@ -355,13 +360,13 @@ class _FailingFunction extends FunctionImplementation {
   int calls = 0;
 
   _FailingFunction()
-    : super(
-        name: 'maybeFail',
-        returnType: A2uiReturnType.string,
-        argumentSchema: Schema.object(
-          properties: {'flag': Schema.boolean(), 'tick': Schema.integer()},
-        ),
-      );
+      : super(
+          name: 'maybeFail',
+          returnType: A2uiReturnType.string,
+          argumentSchema: Schema.object(
+            properties: {'flag': Schema.boolean(), 'tick': Schema.integer()},
+          ),
+        );
 
   @override
   Object? execute(
@@ -376,13 +381,13 @@ class _FailingFunction extends FunctionImplementation {
 }
 
 Map<String, Object?> _expression() => {
-  'call': 'maybeFail',
-  'args': {
-    'flag': {'path': '/flag'},
-    'tick': {'path': '/tick'},
-  },
-  'returnType': 'string',
-};
+      'call': 'maybeFail',
+      'args': {
+        'flag': {'path': '/flag'},
+        'tick': {'path': '/tick'},
+      },
+      'returnType': 'string',
+    };
 
 void _commitBoundaryTests() {
   group('NodeResolver commit boundary', () {
@@ -444,7 +449,8 @@ void _commitBoundaryTests() {
     });
 
     for (final disposeResolver in [false, true]) {
-      test('initial expression error '
+      test(
+          'initial expression error '
           '${disposeResolver ? 'disposes resolver' : 'removes root'} '
           'after ownership is complete', () {
         final function = _FailingFunction();
@@ -528,8 +534,8 @@ void _commitBoundaryTests() {
           throw StateError('renderer teardown failed');
         });
         children[0].onDestroyed.addListener(
-          (_) => events.add('second listener'),
-        );
+              (_) => events.add('second listener'),
+            );
 
         expect(resolver.dispose, returnsNormally);
         await Future<void>.delayed(Duration.zero);
@@ -635,7 +641,8 @@ void _commitBoundaryTests() {
 
     for (final componentRebuild in [false, true]) {
       for (final disposeResolver in [false, true]) {
-        test('${componentRebuild ? 'component rebuild' : 'data write'} '
+        test(
+            '${componentRebuild ? 'component rebuild' : 'data write'} '
             'expression error '
             '${disposeResolver ? 'disposes resolver' : 'removes root'} '
             'without later evaluation', () async {
@@ -700,7 +707,8 @@ void _commitBoundaryTests() {
       final outcome = disposeBeforeFallback
           ? 'is canceled on disposal'
           : 'uses one fallback microtask';
-      test('unchanged-null expression error '
+      test(
+          'unchanged-null expression error '
           '$outcome', () async {
         final function = _FailingFunction();
         final surface = SurfaceModel<ComponentApi>(

@@ -27,4 +27,5 @@ export '../primitives/reference_schema.dart'
 RefFields extractRefFields(
   Schema schema, {
   Map<String, Object?> document = const {},
-}) => ReferenceSchemaReader(schema.value, document: document).fields();
+}) =>
+    ReferenceSchemaReader(schema.value, document: document).fields();

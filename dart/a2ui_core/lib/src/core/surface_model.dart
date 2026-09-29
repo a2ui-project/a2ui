@@ -59,9 +59,8 @@ class SurfaceModel<T extends ComponentApi> {
         surfaceId: id,
         sourceComponentId: sourceComponentId,
         timestamp: DateTime.now(),
-        context:
-            _detach((event['context'] ?? <String, dynamic>{}) as Map)
-                as Map<String, dynamic>,
+        context: _detach((event['context'] ?? <String, dynamic>{}) as Map)
+            as Map<String, dynamic>,
       );
       _onAction.emit(action);
     }
@@ -86,14 +85,14 @@ class SurfaceModel<T extends ComponentApi> {
 /// Copies maps and lists, so an action listener cannot reach the component or
 /// data model the payload was resolved from.
 Object? _detach(Object? value) => switch (value) {
-  Map() when value.keys.every((key) => key is String) => <String, dynamic>{
-    for (final MapEntry<Object?, Object?> entry in value.entries)
-      entry.key as String: _detach(entry.value),
-  },
-  Map() => <Object?, Object?>{
-    for (final MapEntry<Object?, Object?> entry in value.entries)
-      entry.key: _detach(entry.value),
-  },
-  List() => <Object?>[for (final Object? item in value) _detach(item)],
-  _ => value,
-};
+      Map() when value.keys.every((key) => key is String) => <String, dynamic>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key as String: _detach(entry.value),
+        },
+      Map() => <Object?, Object?>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key: _detach(entry.value),
+        },
+      List() => <Object?>[for (final Object? item in value) _detach(item)],
+      _ => value,
+    };

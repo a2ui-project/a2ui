@@ -155,7 +155,8 @@ void main() {
         Exception('failed'),
         A2uiExpressionError('failed', expression: 'inner'),
       ]) {
-        test('without a reporter does not normalize the original '
+        test(
+            'without a reporter does not normalize the original '
             '${original.runtimeType}', () {
           context = DataContext(
             dataModel,

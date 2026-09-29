@@ -17,19 +17,21 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
-  id: 'diagnostic-test',
-  components: [
-    ComponentApi(name: 'Text', schema: Schema.object()),
-    ComponentApi(
-      name: 'Card',
-      schema: Schema.object(properties: {'child': CommonSchemas.componentId}),
-    ),
-    ComponentApi(
-      name: 'Column',
-      schema: Schema.object(properties: {'children': CommonSchemas.childList}),
-    ),
-  ],
-);
+      id: 'diagnostic-test',
+      components: [
+        ComponentApi(name: 'Text', schema: Schema.object()),
+        ComponentApi(
+          name: 'Card',
+          schema:
+              Schema.object(properties: {'child': CommonSchemas.componentId}),
+        ),
+        ComponentApi(
+          name: 'Column',
+          schema:
+              Schema.object(properties: {'children': CommonSchemas.childList}),
+        ),
+      ],
+    );
 
 void _add(
   SurfaceModel<ComponentApi> surface,
