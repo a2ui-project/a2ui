@@ -13,6 +13,9 @@
 // limitations under the License.
 
 import A2UICore
+#if canImport(Combine)
+import Combine
+#endif
 import Foundation
 import OrderedJSON
 import Testing
@@ -25,14 +28,19 @@ struct DataModelConformanceTests {
     let path: String
     var changeCount = 0
     var currentValue: JSONValue?
+    #if canImport(Combine)
+    private var cancellable: AnyCancellable?
+    #endif
 
     init(model: DataModel, path: String) throws {
       self.path = path
       self.currentValue = model.get(path)
-      try model.watch(path) { [weak self] newValue in
+      #if canImport(Combine)
+      self.cancellable = try model.watch(path) { [weak self] newValue in
         self?.changeCount += 1
         self?.currentValue = newValue
       }
+      #endif
     }
   }
 

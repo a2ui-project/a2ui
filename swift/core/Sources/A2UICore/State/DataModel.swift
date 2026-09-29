@@ -120,7 +120,6 @@ public final class DataModel: ObservableObject {
   /// Subscribes a listener to changes at a specific JSON Pointer path.
   ///
   /// - Returns: An `AnyCancellable` token that unsubscribes the listener when cancelled.
-  @discardableResult
   public func watch(_ path: String, _ listener: @escaping (JSONValue?) -> Void) throws
     -> AnyCancellable
   {
