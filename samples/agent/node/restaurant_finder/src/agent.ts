@@ -29,7 +29,7 @@ import {TaskEvents, toA2aParts} from './a2a.js';
 import type {A2uiFormat} from './config.js';
 import {loadExamples} from './examples.js';
 import {LruCache} from './lru_cache.js';
-import type {ModelBackend} from './model.js';
+import type {ModelBackend, TurnInput} from './model.js';
 import {pickA2ui} from './pick_a2ui.js';
 import {getUiDescription, ROLE_DESCRIPTION} from './prompt.js';
 import {parseUserQuery} from './user_query.js';
@@ -37,6 +37,10 @@ import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** How many times a turn is retried after its A2UI fails validation, as in Python. */
 const MAX_RETRIES = 1;
+
+/** The answer when no attempt produced valid A2UI. */
+const FALLBACK_TEXT =
+  "I'm sorry, I'm having trouble generating the interface for that request right now. Please try again in a moment.";
 
 /** The follow-up query sent after a response failed validation. */
 function retryQuery(format: A2uiFormat, error: string, query: string): string {
@@ -101,80 +105,104 @@ export class RestaurantExecutor implements AgentExecutor {
     const {profile, catalogIds} = pickA2ui(userMessage);
     // 2. Turn the message, or the UI action it carries, into a query.
     const {query, actionName, useStreaming} = parseUserQuery(userMessage, profile);
-    // Creating the processor also rejects catalogs the agent does not have.
-    const systemPrompt = this.createProcessor(profile, catalogIds).generatePrompt({
+    const systemPrompt = this.buildSystemPrompt(profile, catalogIds);
+    events.status('working', false);
+
+    // 3-5. Generate the UI, publishing parts as they arrive when the client streams.
+    const publish = useStreaming
+      ? (parts: Part[]) => events.status('working', false, parts)
+      : undefined;
+    const turn = {contextId, query, actionName, profile, systemPrompt};
+    const {parts, published} = await this.generateUi(turn, catalogIds, publish);
+
+    // 6. End the turn. Published parts are not repeated in the final status.
+    const finalState = actionName === 'submit_booking' ? 'completed' : 'input-required';
+    events.status(finalState, true, published ? [] : parts);
+  }
+
+  /** Builds the system prompt. Creating the processor also rejects unknown catalogs. */
+  private buildSystemPrompt(profile: VersionProfile, catalogIds: string[]): string {
+    return this.createProcessor(profile, catalogIds).generatePrompt({
       roleDescription: ROLE_DESCRIPTION,
       uiDescription: getUiDescription(this.format),
       includeSchema: true,
       includeExamples: true,
     });
-    events.status('working', false);
+  }
 
-    // Express is parsed only once the whole response is in; Direct JSON streams.
-    const streamProcessor =
-      this.format === 'direct_json'
-        ? this.streamProcessors.getOrCreate(
-            `${contextId}:${profile.version}`,
-            () =>
-              new DirectJsonStreamProcessorImpl(basicCatalog(profile.version), {
-                progressiveKeys: ['text', 'literalString'],
-              }),
-          )
-        : undefined;
+  /**
+   * Asks the backend for A2UI and validates it, retrying once with the validation error,
+   * as the Python sample does. Answers with a text apology when every attempt fails.
+   */
+  private async generateUi(
+    turn: TurnInput,
+    catalogIds: string[],
+    publish?: (parts: Part[]) => void,
+  ): Promise<{parts: Part[]; published: boolean}> {
+    let published = false;
+    const track = publish
+      ? (parts: Part[]) => {
+          published = true;
+          publish(parts);
+        }
+      : undefined;
 
-    let partsStreamed = false;
-    let finalParts: Part[] | undefined;
-    let turnQuery = query;
-    for (let attempt = 1; attempt <= MAX_RETRIES + 1 && !finalParts; attempt++) {
+    let query = turn.query;
+    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
       console.log(`--- RestaurantExecutor: Attempt ${attempt}/${MAX_RETRIES + 1} ---`);
-
-      // 3. Stream the backend's text through the A2UI stream processor.
-      let fullText = '';
-      const turn = {contextId, query: turnQuery, actionName, profile, systemPrompt};
-      for await (const chunk of this.backend.streamTurn(turn)) {
-        fullText += chunk;
-        const parts = (streamProcessor?.processChunk(chunk) ?? []).flatMap(toA2aParts);
-        // 4. Publish the parts as they arrive.
-        if (parts.length > 0) {
-          partsStreamed = true;
-          if (useStreaming) {
-            events.status('working', false, parts);
-          }
-        }
-      }
-
-      // 5. Validate the full text with a fresh processor, and retry once if it fails.
+      const fullText = await this.streamText({...turn, query}, track);
       try {
-        const parts = this.createProcessor(profile, catalogIds)
-          .parseResponse(fullText)
-          .flatMap(toA2aParts);
-        if (!streamProcessor && useStreaming) {
-          events.status('working', false, parts);
-          partsStreamed = true;
+        const parts = this.validate(fullText, turn.profile, catalogIds);
+        // Express is parsed only once the whole response is in, so its parts go out now.
+        if (this.format === 'express') {
+          track?.(parts);
         }
-        finalParts = parts;
+        return {parts, published};
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
         console.warn(`--- A2UI validation failed: ${error} (Attempt ${attempt}) ---`);
-        turnQuery = retryQuery(this.format, error, query);
+        query = retryQuery(this.format, error, turn.query);
       }
     }
 
-    if (!finalParts) {
-      console.error('--- Max retries exhausted. Sending text-only error. ---');
-      finalParts = [
-        {
-          kind: 'text',
-          text: "I'm sorry, I'm having trouble generating the interface for that request right now. Please try again in a moment.",
-        },
-      ];
-      partsStreamed = false;
-    }
+    console.error('--- Max retries exhausted. Sending text-only error. ---');
+    return {parts: [{kind: 'text', text: FALLBACK_TEXT}], published: false};
+  }
 
-    // 6. End the turn. Streamed parts are not repeated in the final status.
-    const finalState = actionName === 'submit_booking' ? 'completed' : 'input-required';
-    const omitParts = useStreaming && partsStreamed;
-    events.status(finalState, true, omitParts ? [] : finalParts);
+  /** Streams one attempt's text. In Direct JSON, parts are published as they arrive. */
+  private async streamText(turn: TurnInput, publish?: (parts: Part[]) => void): Promise<string> {
+    const processor = this.streamProcessorFor(turn.contextId, turn.profile);
+    let fullText = '';
+    for await (const chunk of this.backend.streamTurn(turn)) {
+      fullText += chunk;
+      const parts = (processor?.processChunk(chunk) ?? []).flatMap(toA2aParts);
+      if (parts.length > 0) {
+        publish?.(parts);
+      }
+    }
+    return fullText;
+  }
+
+  /** Returns the conversation's Direct JSON stream processor; Express does not stream. */
+  private streamProcessorFor(
+    contextId: string,
+    profile: VersionProfile,
+  ): DirectJsonStreamProcessorImpl | undefined {
+    if (this.format !== 'direct_json') {
+      return undefined;
+    }
+    return this.streamProcessors.getOrCreate(
+      `${contextId}:${profile.version}`,
+      () =>
+        new DirectJsonStreamProcessorImpl(basicCatalog(profile.version), {
+          progressiveKeys: ['text', 'literalString'],
+        }),
+    );
+  }
+
+  /** Validates the full text with a fresh processor and returns its A2A parts. */
+  private validate(fullText: string, profile: VersionProfile, catalogIds: string[]): Part[] {
+    return this.createProcessor(profile, catalogIds).parseResponse(fullText).flatMap(toA2aParts);
   }
 
   async cancelTask(taskId: string, _eventBus: ExecutionEventBus): Promise<void> {
