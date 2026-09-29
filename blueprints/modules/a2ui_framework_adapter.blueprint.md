@@ -97,16 +97,16 @@ Constructed for a `SurfaceModel`:
 
 Represents one resolved component instance in the tree:
 
-| Property                     | Type / Meaning      | Usage in Adapter                                                                           |
-| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
-| `instanceId`                 | `string`            | Unique among siblings. A node that replaces another keeps it (see §5).                     |
-| `componentId`                | `string`            | Raw ID from payload. Used for logs, debug tools, and error messages.                       |
-| `type`                       | `string`            | Component type name (e.g. `"Button"`, `"Text"`).                                           |
-| `impl`                       | `ComponentApi?`     | The catalog entry the resolver chose for `type`. Render it; do not look the type up again. |
-| `dataPath`                   | `string`            | The data scope the node's bindings resolve against.                                        |
-| `state`                      | `NodeState`         | `resolved`, `pending`, `unknown-type` or `cyclic`.                                         |
-| `props`                      | `Signal<NodeProps>` | Reactive map of resolved properties.                                                       |
-| `onDestroyed` / `addCleanup` | Lifecycle hook      | Attaches cleanup closures run when the node is disposed.                                   |
+| Property                     | Type / Meaning      | Usage in Adapter                                                                                            |
+| ---------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `instanceId`                 | `string`            | Unique among siblings. Names a component at a data scope, so the node object behind it can change (see §5). |
+| `componentId`                | `string`            | Raw ID from payload. Used for logs, debug tools, and error messages.                                        |
+| `type`                       | `string`            | Component type name (e.g. `"Button"`, `"Text"`).                                                            |
+| `impl`                       | `ComponentApi?`     | The catalog entry the resolver chose for `type`. Render it; do not look the type up again.                  |
+| `dataPath`                   | `string`            | The data scope the node's bindings resolve against.                                                         |
+| `state`                      | `NodeState`         | `resolved`, `pending`, `unknown-type` or `cyclic`.                                                          |
+| `props`                      | `Signal<NodeProps>` | Reactive map of resolved properties.                                                                        |
+| `onDestroyed` / `addCleanup` | Lifecycle hook      | Attaches cleanup closures run when the node is disposed.                                                    |
 
 ### Resolved Props Contract
 
