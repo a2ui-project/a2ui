@@ -48,7 +48,8 @@ void main() {
       );
     });
 
-    test('rebuilding bindings disposes old ComputedNotifiers '
+    test(
+        'rebuilding bindings disposes old ComputedNotifiers '
         'from function calls', () {
       var callCount = 0;
       final trackingCatalog = _TrackingCatalog(onExecute: () => callCount++);
@@ -91,8 +92,7 @@ void main() {
       expect(
         callCount,
         1,
-        reason:
-            'Old ComputedNotifiers should be disposed '
+        reason: 'Old ComputedNotifiers should be disposed '
             'after rebuild, but function was called '
             '$callCount times',
       );
@@ -126,8 +126,7 @@ void main() {
       expect(
         callCount,
         1,
-        reason:
-            'Function should be evaluated once during '
+        reason: 'Function should be evaluated once during '
             'construction, not $callCount times',
       );
     });
@@ -146,13 +145,13 @@ class _TrackingFunction extends FunctionImplementation {
   final void Function() _onExecute;
 
   _TrackingFunction(this._onExecute)
-    : super(
-        name: 'trackingFn',
-        argumentSchema: Schema.object(
-          properties: {'value': CommonSchemas.dynamicString},
-          required: ['value'],
-        ),
-      );
+      : super(
+          name: 'trackingFn',
+          argumentSchema: Schema.object(
+            properties: {'value': CommonSchemas.dynamicString},
+            required: ['value'],
+          ),
+        );
 
   @override
   Object? execute(

@@ -131,8 +131,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     this.schemaId,
     this.title,
     this.description,
-  }) : components = {for (final c in components) c.name: c},
-       functions = {for (final f in functions) f.name: f};
+  })  : components = {for (final c in components) c.name: c},
+        functions = {for (final f in functions) f.name: f};
 
   /// Parses a catalog document into a schema-only [Catalog].
   ///
@@ -205,8 +205,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         for (final Object? entry in raw)
           if (entry is Map)
             FunctionApi(
-              name:
-                  (entry['name'] is String &&
+              name: (entry['name'] is String &&
                       (entry['name'] as String).isNotEmpty)
                   ? entry['name'] as String
                   : throw A2uiCatalogError(
@@ -240,10 +239,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         null => const <String, Object?>{},
         final Map<Object?, Object?> map => map.cast<String, Object?>(),
         _ => throw A2uiCatalogError(
-          "Catalog function '${entry.key}' has a non-object 'properties' "
-          '(got ${rawProperties.runtimeType}).',
-          catalogId: catalogId,
-        ),
+            "Catalog function '${entry.key}' has a non-object 'properties' "
+            '(got ${rawProperties.runtimeType}).',
+            catalogId: catalogId,
+          ),
       };
       final Object? args = properties['args'];
       final Object? returnType = properties['returnType'];
@@ -289,52 +288,52 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// when the parsed document declared them, so a document round trips through
   /// [Catalog.fromJson] with its identity intact.
   Map<String, Object?> get catalogSchema => {
-    r'$schema': jsonSchemaDialect,
-    if (schemaId != null) r'$id': schemaId,
-    if (title != null) 'title': title,
-    if (description != null) 'description': description,
-    'catalogId': id,
-    'components': {
-      for (final MapEntry<String, C> entry in components.entries)
-        entry.key: _deepCopyValue(entry.value.schema.value),
-    },
-    if (functions.isNotEmpty)
-      'functions': {
-        // The document form of a function is the schema of a call to it, so
-        // this rebuilds that shape rather than listing the parts: `anyFunction`
-        // and every `DynamicString` reach these through `#/functions/<name>`,
-        // and a different shape would silently stop matching.
-        for (final MapEntry<String, F> entry in functions.entries)
-          entry.key: <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'call': <String, Object?>{'const': entry.key},
-              'args': _deepCopyValue(entry.value.argumentSchema.value),
-              'returnType': <String, Object?>{
-                'const': entry.value.returnType.jsonValue,
-              },
-            },
-            'required': <Object?>['call', 'args'],
-            'unevaluatedProperties': false,
-          },
-      },
-    r'$defs': {
-      if (themeSchema != null) 'theme': _deepCopyValue(themeSchema!.value),
-      'anyComponent': {
-        'oneOf': [
-          for (final String name in components.keys)
-            {r'$ref': '#/components/$name'},
-        ],
-      },
-      if (functions.isNotEmpty)
-        'anyFunction': {
-          'oneOf': [
-            for (final String name in functions.keys)
-              {r'$ref': '#/functions/$name'},
-          ],
+        r'$schema': jsonSchemaDialect,
+        if (schemaId != null) r'$id': schemaId,
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+        'catalogId': id,
+        'components': {
+          for (final MapEntry<String, C> entry in components.entries)
+            entry.key: _deepCopyValue(entry.value.schema.value),
         },
-    },
-  };
+        if (functions.isNotEmpty)
+          'functions': {
+            // The document form of a function is the schema of a call to it, so
+            // this rebuilds that shape rather than listing the parts: `anyFunction`
+            // and every `DynamicString` reach these through `#/functions/<name>`,
+            // and a different shape would silently stop matching.
+            for (final MapEntry<String, F> entry in functions.entries)
+              entry.key: <String, Object?>{
+                'type': 'object',
+                'properties': <String, Object?>{
+                  'call': <String, Object?>{'const': entry.key},
+                  'args': _deepCopyValue(entry.value.argumentSchema.value),
+                  'returnType': <String, Object?>{
+                    'const': entry.value.returnType.jsonValue,
+                  },
+                },
+                'required': <Object?>['call', 'args'],
+                'unevaluatedProperties': false,
+              },
+          },
+        r'$defs': {
+          if (themeSchema != null) 'theme': _deepCopyValue(themeSchema!.value),
+          'anyComponent': {
+            'oneOf': [
+              for (final String name in components.keys)
+                {r'$ref': '#/components/$name'},
+            ],
+          },
+          if (functions.isNotEmpty)
+            'anyFunction': {
+              'oneOf': [
+                for (final String name in functions.keys)
+                  {r'$ref': '#/functions/$name'},
+              ],
+            },
+        },
+      };
 
   /// A copy of this catalog with the given components and functions.
   ///
@@ -344,15 +343,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Iterable<C>? components,
     Iterable<F>? functions,
     Schema? themeSchema,
-  }) => Catalog<C, F>(
-    id: id,
-    components: (components ?? this.components.values).toList(),
-    functions: (functions ?? this.functions.values).toList(),
-    themeSchema: themeSchema ?? this.themeSchema,
-    schemaId: schemaId,
-    title: title,
-    description: description,
-  );
+  }) =>
+      Catalog<C, F>(
+        id: id,
+        components: (components ?? this.components.values).toList(),
+        functions: (functions ?? this.functions.values).toList(),
+        themeSchema: themeSchema ?? this.themeSchema,
+        schemaId: schemaId,
+        title: title,
+        description: description,
+      );
 
   static Object? _deepCopyValue(Object? value) {
     if (value is Map) {
