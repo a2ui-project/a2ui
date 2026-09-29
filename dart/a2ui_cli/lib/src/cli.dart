@@ -74,22 +74,24 @@ Future<int> runCli(List<String> args) async {
 
   // Check for unknown options before running to format errors consistently
   for (final arg in args) {
-    if (arg.startsWith('-') &&
-        ![
-          '--catalog',
-          '-c',
-          '--out',
-          '-o',
-          '--lang',
-          '--base-import',
-          '--catalog-name',
-          '--help',
-          '-h',
-          '--version',
-          '-v',
-        ].contains(arg)) {
-      stderr.writeln("error: unknown option '$arg'");
-      return 1;
+    if (arg.startsWith('-')) {
+      final opt = arg.split('=').first;
+      if (![
+        '--catalog',
+        '-c',
+        '--out',
+        '-o',
+        '--lang',
+        '--base-import',
+        '--catalog-name',
+        '--help',
+        '-h',
+        '--version',
+        '-v',
+      ].contains(opt)) {
+        stderr.writeln("error: unknown option '$arg'");
+        return 1;
+      }
     }
   }
 

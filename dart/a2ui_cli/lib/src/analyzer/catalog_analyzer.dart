@@ -89,7 +89,7 @@ class CatalogAnalyzer {
 
       final isRequired = reqSet.contains(propName);
       if (isRequired) {
-        requiredProps.push(propName);
+        requiredProps.add(propName);
       }
 
       final analyzed = _analyzePropertySchema(
@@ -129,7 +129,7 @@ class CatalogAnalyzer {
 
       final isRequired = reqSet.contains(paramName);
       if (isRequired) {
-        requiredParams.push(paramName);
+        requiredParams.add(paramName);
       }
 
       final analyzed = _analyzePropertySchema(
@@ -363,7 +363,10 @@ class CatalogAnalyzer {
     }
 
     // Check type
-    final typeStr = schema['type'] as String?;
+    final typeRaw = schema['type'];
+    final typeStr = typeRaw is List
+        ? typeRaw.firstWhere((t) => t != 'null', orElse: () => 'any') as String?
+        : typeRaw as String?;
     if (typeStr == 'string') {
       return PropertyDescriptor(
         name: propName,
@@ -592,8 +595,4 @@ class CatalogAnalyzer {
         return const PrimitiveType(PrimitiveKind.any);
     }
   }
-}
-
-extension _ListExt<T> on List<T> {
-  void push(T val) => add(val);
 }

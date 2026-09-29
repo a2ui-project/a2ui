@@ -40,7 +40,10 @@ class DataPath {
     }
 
     final List<String> segments = normalized.split('/').map((s) {
-      return s.replaceAll('~1', '/').replaceAll('~0', '~');
+      return s.replaceAllMapped(
+        RegExp(r'~([01])'),
+        (m) => m[1] == '1' ? '/' : '~',
+      );
     }).toList();
 
     return DataPath(segments);

@@ -876,3 +876,21 @@
           - "def open_url("
           - '"create_surface"'
           - '"update_components"'
+
+- name: test_codegen_gnu_style_option_syntax
+  description: Tests running code generation using GNU-style --option=value syntax.
+  catalog_schema:
+    catalogId: minimal_catalog
+    components:
+      Heading:
+        description: Heading component.
+        properties:
+          text:
+            type: string
+  args: ["codegen", "--catalog=${CATALOG_PATH}", "--out=${OUT_DIR}", "--lang=python"]
+  expect:
+    exit_code: 0
+    files:
+      minimal_catalog.py:
+        content_contains:
+          - "class Heading(ComponentBuilderNode):"

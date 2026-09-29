@@ -88,7 +88,12 @@ class CodegenCatalog {
     final segments = pointer
         .substring(2)
         .split('/')
-        .map((s) => s.replaceAll('~1', '/').replaceAll('~0', '~'));
+        .map(
+          (s) => s.replaceAllMapped(
+            RegExp(r'~([01])'),
+            (m) => m[1] == '1' ? '/' : '~',
+          ),
+        );
     dynamic curr = rootDoc;
     for (final seg in segments) {
       if (curr is Map && curr.containsKey(seg)) {

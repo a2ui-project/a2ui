@@ -203,7 +203,10 @@ Iterable<String> _localRefs(Object? node) sync* {
 bool _resolves(String ref, Map<String, Object?> document) {
   Object? current = document;
   for (final String raw in ref.substring(2).split('/')) {
-    final String segment = raw.replaceAll('~1', '/').replaceAll('~0', '~');
+    final String segment = raw.replaceAllMapped(
+      RegExp(r'~([01])'),
+      (m) => m[1] == '1' ? '/' : '~',
+    );
     if (current is! Map || !current.containsKey(segment)) return false;
     current = current[segment];
   }

@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_cli/src/analyzer/catalog_reader.dart';
 import 'package:a2ui_core/a2ui_core.dart' show A2uiReturnType;
 import 'package:test/test.dart';
+
+import 'package:a2ui_cli/src/analyzer/catalog_analyzer.dart';
+import 'package:a2ui_cli/src/analyzer/catalog_reader.dart';
+import 'package:a2ui_cli/src/analyzer/types.dart';
 
 void main() {
   group('CodegenCatalog.fromJson', () {
@@ -92,6 +95,57 @@ void main() {
       expect(fn.returnType, equals(A2uiReturnType.boolean));
       expect(fn.parameters.keys, containsAll(['url', 'target']));
       expect(fn.requiredParameters, contains('url'));
+    });
+
+    test('resolves local JSON pointer with ~01 and ~1 RFC 6901 escapes', () {
+      final json = {
+        'catalogId': 'pointer_catalog',
+        'components': {
+          'Custom': {
+            'allOf': [
+              {r'$ref': r'#/$defs/special~01key~1slash'},
+            ],
+          },
+        },
+        r'$defs': {
+          'special~1key/slash': {
+            'description': 'Resolved definition',
+            'properties': {
+              'foo': {'type': 'string'},
+            },
+          },
+        },
+      };
+
+      final catalog = CodegenCatalog.fromJson(json);
+      final custom = catalog.components['Custom']!;
+      expect(custom.description, equals('Resolved definition'));
+      expect(custom.properties.keys, contains('foo'));
+    });
+
+    test('handles schema with nullable type list', () {
+      final json = {
+        'catalogId': 'nullable_catalog',
+        'components': {
+          'NullableBox': {
+            'properties': {
+              'label': {
+                'type': ['string', 'null'],
+              },
+            },
+          },
+        },
+      };
+
+      final catalog = CodegenCatalog.fromJson(json);
+      final analysed = CatalogAnalyzer.analyze(catalog);
+      final box = analysed.components['NullableBox']!;
+      final labelProp = box.properties['label']!;
+      expect(labelProp.type, isA<PrimitiveType>());
+      expect(
+        (labelProp.type as PrimitiveType).primitive,
+        equals(PrimitiveKind.string),
+      );
     });
   });
 }
