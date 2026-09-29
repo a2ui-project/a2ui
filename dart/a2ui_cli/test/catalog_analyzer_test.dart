@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/a2ui_core.dart' show A2uiReturnType;
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'package:a2ui_cli/src/analyzer/catalog_analyzer.dart';
-import 'package:a2ui_cli/src/analyzer/catalog_reader.dart';
 import 'package:a2ui_cli/src/analyzer/types.dart';
 
 void main() {
-  group('CodegenCatalog.fromJson', () {
+  group('Catalog.fromJson & CatalogAnalyzer', () {
     test('parses components and functions from catalog schema', () {
       final json = {
         'catalogId': 'test_catalog',
@@ -70,10 +69,10 @@ void main() {
         },
       };
 
-      final catalog = CodegenCatalog.fromJson(json);
+      final catalog = Catalog.fromJson(json);
 
       expect(catalog.id, equals('test_catalog'));
-      expect(catalog.version, equals('v0.9.1'));
+      expect(catalog.protocolVersion, equals('v0.9.1'));
       expect(catalog.components.keys, containsAll(['Heading', 'ComplexCard']));
 
       final heading = catalog.components['Heading']!;
@@ -117,7 +116,7 @@ void main() {
         },
       };
 
-      final catalog = CodegenCatalog.fromJson(json);
+      final catalog = Catalog.fromJson(json);
       final custom = catalog.components['Custom']!;
       expect(custom.description, equals('Resolved definition'));
       expect(custom.properties.keys, contains('foo'));
@@ -137,7 +136,7 @@ void main() {
         },
       };
 
-      final catalog = CodegenCatalog.fromJson(json);
+      final catalog = Catalog.fromJson(json);
       final analysed = CatalogAnalyzer.analyze(catalog);
       final box = analysed.components['NullableBox']!;
       final labelProp = box.properties['label']!;

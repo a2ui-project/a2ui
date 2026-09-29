@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/a2ui_core.dart' show A2uiReturnType;
-import 'catalog_reader.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+
 import 'types.dart';
 
 String capitalize(String s) {
@@ -33,12 +33,12 @@ class CatalogAnalyzer {
   /// SVG object, produces exactly that clash.
   final Set<String> _reservedNames = {};
 
-  static AnalysedCatalog analyze(CodegenCatalog catalog) {
+  static AnalysedCatalog analyze(Catalog<ComponentApi, FunctionApi> catalog) {
     final analyzer = CatalogAnalyzer();
     return analyzer.analyzeCatalog(catalog);
   }
 
-  AnalysedCatalog analyzeCatalog(CodegenCatalog catalog) {
+  AnalysedCatalog analyzeCatalog(Catalog<ComponentApi, FunctionApi> catalog) {
     _enums.clear();
     _objectModels.clear();
     _reservedNames
@@ -57,7 +57,7 @@ class CatalogAnalyzer {
 
     return AnalysedCatalog(
       catalogId: catalog.id,
-      specVersion: catalog.version,
+      specVersion: catalog.protocolVersion,
       components: components,
       functions: functions,
       enums: Map.unmodifiable(_enums),
@@ -65,10 +65,7 @@ class CatalogAnalyzer {
     );
   }
 
-  AnalysedComponentApi _analyzeComponent(
-    String name,
-    CatalogComponentDefinition comp,
-  ) {
+  AnalysedComponentApi _analyzeComponent(String name, ComponentApi comp) {
     final properties = <String, PropertyDescriptor>{};
     final requiredProps = <String>[];
     bool isCheckable = false;
@@ -110,10 +107,7 @@ class CatalogAnalyzer {
     );
   }
 
-  AnalysedFunctionApi _analyzeFunction(
-    String name,
-    CatalogFunctionDefinition fn,
-  ) {
+  AnalysedFunctionApi _analyzeFunction(String name, FunctionApi fn) {
     final parameters = <String, PropertyDescriptor>{};
     final requiredParams = <String>[];
 

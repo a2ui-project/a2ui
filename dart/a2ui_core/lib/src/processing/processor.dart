@@ -98,10 +98,9 @@ class MessageProcessor<T extends ComponentApi> {
     this.validationConfig = ValidationConfig.strict,
     Map<String, Object?>? commonTypesSchema,
     void Function(A2uiClientAction)? onAction,
-  }) : commonTypesSchema =
-           commonTypesSchema ??
-           PayloadValidator.commonTypesFor(protocolVersion),
-       groupModel = SurfaceGroupModel<T>() {
+  })  : commonTypesSchema = commonTypesSchema ??
+            PayloadValidator.commonTypesFor(protocolVersion),
+        groupModel = SurfaceGroupModel<T>() {
     if (onAction != null) {
       groupModel.onAction.addListener(onAction);
     }
@@ -120,14 +119,15 @@ class MessageProcessor<T extends ComponentApi> {
   /// every message.
   PayloadValidator<T, FunctionImplementation> validatorFor(
     Catalog<T, FunctionImplementation> catalog,
-  ) => _validators.putIfAbsent(
-    catalog.id,
-    () => PayloadValidator<T, FunctionImplementation>(
-      catalog: catalog,
-      commonTypesSchema: commonTypesSchema,
-      protocolVersion: protocolVersion,
-    ),
-  );
+  ) =>
+      _validators.putIfAbsent(
+        catalog.id,
+        () => PayloadValidator<T, FunctionImplementation>(
+          catalog: catalog,
+          commonTypesSchema: commonTypesSchema,
+          protocolVersion: protocolVersion,
+        ),
+      );
 
   /// The supported catalog with [catalogId].
   ///
@@ -216,9 +216,8 @@ class MessageProcessor<T extends ComponentApi> {
       requireRoot: !validationConfig.allowMissingRoot,
       // An empty set, not null: every reference must be satisfied by the
       // surface itself. Null would skip reference checking altogether.
-      knownIds: validationConfig.allowDanglingReferences
-          ? null
-          : const <String>{},
+      knownIds:
+          validationConfig.allowDanglingReferences ? null : const <String>{},
     );
     checkComponentTopology(
       components,
@@ -267,16 +266,15 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Map<String, Object?> component in components)
         if (component['catalogId'] case final String id) id,
     };
-    final Iterable<Catalog<T, FunctionImplementation>> involved = ids.isEmpty
-        ? catalogs
-        : ids.map(catalogFor);
+    final Iterable<Catalog<T, FunctionImplementation>> involved =
+        ids.isEmpty ? catalogs : ids.map(catalogFor);
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
       validatorFor(catalog).componentRefFields.forEach(
-        (String type, ComponentRefFields fields) =>
-            merged.putIfAbsent(type, () => fields),
-      );
+            (String type, ComponentRefFields fields) =>
+                merged.putIfAbsent(type, () => fields),
+          );
     }
     return merged;
   }
@@ -486,19 +484,23 @@ class MessageProcessor<T extends ComponentApi> {
       final Map<String, dynamic> jsonSchema = entry.value.schema.toJsonMap();
       _processRefs(jsonSchema);
 
-      // Wrap in A2UI envelope
-      components[entry.key] = {
-        'allOf': [
-          {'\$ref': 'common_types.json#/\$defs/ComponentCommon'},
-          {
-            'properties': {
-              'component': {'const': entry.key},
-              ...?(jsonSchema['properties'] as Map<String, dynamic>?),
+      if (_isEnveloped(jsonSchema)) {
+        components[entry.key] = jsonSchema;
+      } else {
+        // Wrap in A2UI envelope
+        components[entry.key] = {
+          'allOf': [
+            {'\$ref': 'common_types.json#/\$defs/ComponentCommon'},
+            {
+              'properties': {
+                'component': {'const': entry.key},
+                ...?(jsonSchema['properties'] as Map<String, dynamic>?),
+              },
+              'required': ['component', ...?(jsonSchema['required'] as List?)],
             },
-            'required': ['component', ...?(jsonSchema['required'] as List?)],
-          },
-        ],
-      };
+          ],
+        };
+      }
     }
 
     final List<Map<String, Object>> functions = catalog.functions.values.map((
@@ -528,6 +530,25 @@ class MessageProcessor<T extends ComponentApi> {
     };
   }
 
+  static bool _isEnveloped(Map<String, dynamic> schema) {
+    if (schema['allOf'] is List) {
+      for (final item in schema['allOf'] as List) {
+        if (item is Map && item[r'$ref'] is String) {
+          final ref = item[r'$ref'] as String;
+          if (ref.endsWith('ComponentCommon')) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  static String _canonicalRef(String ref) {
+    if (ref.contains('common_types.json#/\$defs/')) {
+      return 'common_types.json#/\$defs/${ref.split('#/\$defs/').last}';
+    }
+    return ref;
+  }
+
   void _processRefs(Object? node) {
     if (node is! Map) return;
 
@@ -539,11 +560,15 @@ class MessageProcessor<T extends ComponentApi> {
       final String? actualDesc = parts.length > 1 ? parts[1] : null;
 
       node.clear();
-      node['\$ref'] = ref;
-      if (actualDesc != null) {
+      node['\$ref'] = _canonicalRef(ref);
+      if (actualDesc != null && actualDesc.isNotEmpty) {
         node['description'] = actualDesc;
       }
       return;
+    }
+
+    if (node[r'$ref'] is String) {
+      node[r'$ref'] = _canonicalRef(node[r'$ref'] as String);
     }
 
     node.forEach((key, value) {
