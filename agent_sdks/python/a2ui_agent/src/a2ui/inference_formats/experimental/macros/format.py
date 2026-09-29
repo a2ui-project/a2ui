@@ -120,7 +120,6 @@ class MacroInferenceFormat(InferenceFormat):
         hidden_components: Optional[Sequence[str]] = None,
         surface_id: Optional[str] = None,
         protocol_version: Optional[str] = None,
-        version: Optional[str] = None,
     ):
         """Initializes the macro inference format.
 
@@ -132,7 +131,6 @@ class MacroInferenceFormat(InferenceFormat):
             hidden_components: Optional component names from base catalog to hide.
             surface_id: Target surface identifier for emitted envelopes.
             protocol_version: A2UI protocol version (defaults to '0.9.1').
-            version: Alias for protocol_version.
 
         Raises:
             ValueError: If base_format or a valid catalog is not provided.
@@ -147,7 +145,6 @@ class MacroInferenceFormat(InferenceFormat):
         self.surface_id = surface_id or getattr(base_format, "surface_id", "main")
         raw_version = (
             protocol_version
-            or version
             or getattr(base_format, "protocol_version", None)
             or getattr(base_format, "version", "v0.9.1")
         )
