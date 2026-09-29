@@ -40,14 +40,8 @@ from a2ui.builder.v0_9 import (
     FunctionCall,
     flatten_component_tree,
 )
-from a2ui.catalog_transformers.macros import (
+from a2ui.transformers.macros import (
     MacroExpander,
-    MacroMetadata,
-    MacroParameter,
-    MacroProcessor,
-    clear_macros,
-    get_macro,
-    list_macros,
     macro,
 )
 from a2ui.core.schema.server_to_client import (
@@ -66,13 +60,6 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Row,
     Text,
 )
-
-
-@pytest.fixture(autouse=True)
-def cleanup_macros():
-    clear_macros()
-    yield
-    clear_macros()
 
 
 def wire(model: BaseModel) -> dict:
@@ -296,7 +283,7 @@ def test_macro_decorator_and_schema_synthesis():
             )
         )
 
-    meta = get_macro("profile_card")
+    meta = profile_card.__a2ui_macro__
     assert meta is not None
     assert meta.name == "ProfileCard"
     assert meta.description == "A user summary card."
@@ -324,9 +311,9 @@ def test_macro_processor_expansion():
             )
         )
 
-    processor = MacroProcessor()
-    flat = processor.expand(
-        "status_badge",
+    expander = MacroExpander([status_badge])
+    flat = expander.processor.expand(
+        "StatusBadge",
         args={"status": "active", "title": "Server 1"},
         instance_id="badge_main",
     )
@@ -357,10 +344,10 @@ def test_macro_processor_slot_coercion():
             )
         )
 
-    processor = MacroProcessor()
+    expander = MacroExpander([slot_container])
     # Pass a string ID into the ComponentBuilderNode slot parameter
-    flat = processor.expand(
-        "slot_container",
+    flat = expander.processor.expand(
+        "SlotContainer",
         args={"title": "My Title", "content": "external_child_id"},
         instance_id="container_1",
     )
@@ -387,7 +374,7 @@ def test_macro_docstring_parameter_parsing():
         """
         return Card(child=Column(children=[Text(text=title), Text(text=str(value))]))
 
-    meta = get_macro("MetricCard")
+    meta = MetricCard.__a2ui_macro__
     assert meta is not None
     assert meta.name == "MetricCard"
     assert meta.description == "Dashboard metric counter."
@@ -410,7 +397,7 @@ def test_macro_naming_conventions():
     def employee_roster(team: str) -> Column:
         return Column(children=[Text(text=team)])
 
-    meta = get_macro("EmployeeRoster")
+    meta = employee_roster.__a2ui_macro__
     assert meta is not None
     assert meta.name == "EmployeeRoster"
 
@@ -419,7 +406,7 @@ def test_macro_naming_conventions():
     def alert_fn(msg: str) -> Card:
         return Card(child=Text(text=msg))
 
-    meta2 = get_macro("CustomAlert")
+    meta2 = alert_fn.__a2ui_macro__
     assert meta2 is not None
     assert meta2.name == "CustomAlert"
 
@@ -513,7 +500,7 @@ def test_canonical_protocol_types_schema():
         """Card testing all protocol common types."""
         return Card(child=Text(text="hello"))
 
-    meta = get_macro("ComplexCard")
+    meta = ComplexCard.__a2ui_macro__
     assert meta is not None
     schema = meta.to_json_schema()
     props = schema["properties"]
@@ -590,8 +577,8 @@ def test_processor_argument_coercion():
             )
         )
 
-    processor = MacroProcessor()
-    expanded = processor.expand(
+    expander = MacroExpander([BoundCard])
+    expanded = expander.processor.expand(
         "BoundCard",
         {
             "status": {"path": "/servers/primary/status"},
@@ -734,7 +721,7 @@ def test_macro_schema_any_and_dict_types():
         """Macro accepting Any and dictionary data."""
         return Card(child=Text(text="flexible"))
 
-    meta = get_macro("FlexibleMacro")
+    meta = FlexibleMacro.__a2ui_macro__
     assert meta is not None
     schema = meta.to_json_schema()
     props = schema["properties"]
@@ -758,8 +745,8 @@ def test_macro_component_subclass_parameter_coercion():
         children.extend(cards)
         return Column(children=children)
 
-    processor = MacroProcessor()
-    expanded = processor.expand(
+    expander = MacroExpander([CardWrapper])
+    expanded = expander.processor.expand(
         "CardWrapper",
         {
             "header": "header_row_id",
@@ -824,7 +811,7 @@ def test_macro_sphinx_docstring_parsing():
         """
         return Card(child=Text(text=f"{title}: {count}"))
 
-    meta = get_macro("SphinxItem")
+    meta = SphinxItem.__a2ui_macro__
     assert meta is not None
     assert meta.description == "Card item documented with Sphinx style."
     assert meta.parameters["title"].description == "The title of the item."
@@ -849,13 +836,8 @@ def test_macro_base_catalog_collision_raises_error():
 
 def test_macro_expander_default_macros_empty():
     expander = MacroExpander()
-    # When macros is None, it should default to empty list, not all global macros
+    # When macros is None, it should default to empty list
     assert expander.macros == []
-
-
-def test_macro_expander_protocol_version_parameter():
-    expander = MacroExpander(protocol_version="0.9.1")
-    assert expander.protocol_version == "0.9.1"
 
 
 def test_macro_action_and_accessibility_coercion():
@@ -871,9 +853,9 @@ def test_macro_action_and_accessibility_coercion():
             )
         )
 
-    processor = MacroProcessor()
+    expander = MacroExpander([InteractiveBanner])
     # Test action string coercion and a11y dict coercion with Optional/Union
-    expanded = processor.expand(
+    expanded = expander.processor.expand(
         "InteractiveBanner",
         {
             "on_click": "banner_clicked",

@@ -400,7 +400,7 @@ def _map_type_hint_to_schema(
 
 
 @dataclass(frozen=True)
-class MacroParameter:
+class _MacroParameter:
     """Describes a parameter accepted by a macro."""
 
     name: str
@@ -410,17 +410,14 @@ class MacroParameter:
     description: Optional[str] = None
 
 
-_MacroParameter = MacroParameter
-
-
 @dataclass
-class MacroMetadata:
-    """Metadata for a registered macro."""
+class _MacroMetadata:
+    """Metadata for an A2UI macro."""
 
     name: str
     description: Optional[str]
     func: Callable[..., Any]
-    parameters: dict[str, MacroParameter]
+    parameters: dict[str, _MacroParameter]
     return_type: Any
 
     def to_json_schema(self) -> dict[str, Any]:
@@ -445,64 +442,6 @@ class MacroMetadata:
         return schema
 
 
-_MacroMetadata = MacroMetadata
-_MACRO_REGISTRY: dict[str, MacroMetadata] = {}
-
-
-def register_macro(
-    func: Callable[..., Any],
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-) -> Callable[..., Any]:
-    """Registers a Python function as an A2UI macro."""
-    macro_name = name or _to_pascal_case(func.__name__)
-    raw_doc = inspect.getdoc(func)
-    parsed_main_desc, param_docs = _parse_docstring(raw_doc)
-    doc = description or parsed_main_desc
-
-    sig = inspect.signature(func)
-    try:
-        hints = get_type_hints(func, include_extras=True)
-    except Exception:
-        hints = {}
-
-    params: dict[str, MacroParameter] = {}
-    for p_name, param in sig.parameters.items():
-        if param.kind in (
-            inspect.Parameter.VAR_POSITIONAL,
-            inspect.Parameter.VAR_KEYWORD,
-        ):
-            continue
-        type_hint = hints.get(p_name, Any)
-        is_req = param.default is inspect.Parameter.empty
-        param_desc = (
-            param_docs.get(p_name)
-            or param_docs.get(p_name.lower())
-            or p_name.replace("_", " ").capitalize()
-        )
-        params[p_name] = MacroParameter(
-            name=p_name,
-            type_hint=type_hint,
-            required=is_req,
-            default=param.default,
-            description=param_desc,
-        )
-
-    ret_type = hints.get("return", sig.return_annotation)
-
-    meta = MacroMetadata(
-        name=macro_name,
-        description=doc,
-        func=func,
-        parameters=params,
-        return_type=ret_type,
-    )
-    _MACRO_REGISTRY[macro_name] = meta
-    _MACRO_REGISTRY[func.__name__] = meta
-    func.__a2ui_macro__ = meta  # type: ignore[attr-defined]
-    return func
-
-
 def macro(
     name: Optional[Union[str, Callable[..., Any]]] = None,
     description: Optional[str] = None,
@@ -523,31 +462,60 @@ def macro(
             '''
             return Card(child=Column(children=[Text(text=name), Text(text=role)]))
     """
+
+    def _decorate(
+        func: Callable[..., Any], explicit_name: Optional[str] = None
+    ) -> Callable[..., Any]:
+        macro_name = explicit_name or _to_pascal_case(func.__name__)
+        raw_doc = inspect.getdoc(func)
+        parsed_main_desc, param_docs = _parse_docstring(raw_doc)
+        doc = description or parsed_main_desc
+
+        sig = inspect.signature(func)
+        try:
+            hints = get_type_hints(func, include_extras=True)
+        except Exception:
+            hints = {}
+
+        params: dict[str, _MacroParameter] = {}
+        for p_name, param in sig.parameters.items():
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
+            type_hint = hints.get(p_name, Any)
+            is_req = param.default is inspect.Parameter.empty
+            param_desc = (
+                param_docs.get(p_name)
+                or param_docs.get(p_name.lower())
+                or p_name.replace("_", " ").capitalize()
+            )
+            params[p_name] = _MacroParameter(
+                name=p_name,
+                type_hint=type_hint,
+                required=is_req,
+                default=param.default,
+                description=param_desc,
+            )
+
+        ret_type = hints.get("return", sig.return_annotation)
+
+        meta = _MacroMetadata(
+            name=macro_name,
+            description=doc,
+            func=func,
+            parameters=params,
+            return_type=ret_type,
+        )
+        func.__a2ui_macro__ = meta  # type: ignore[attr-defined]
+        return func
+
     if callable(name):
-        return register_macro(name)
+        return _decorate(name)
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        return register_macro(func, name=name, description=description)
+        return _decorate(func, explicit_name=name)
 
     return decorator
 
-
-def get_macro(name: str) -> Optional[MacroMetadata]:
-    """Retrieves a registered macro by name."""
-    return _MACRO_REGISTRY.get(name)
-
-
-def list_macros() -> list[MacroMetadata]:
-    """Returns all currently registered unique macros."""
-    seen: set[str] = set()
-    res: list[MacroMetadata] = []
-    for m in _MACRO_REGISTRY.values():
-        if m.name not in seen:
-            seen.add(m.name)
-            res.append(m)
-    return res
-
-
-def clear_macros() -> None:
-    """Clears the global macro registry."""
-    _MACRO_REGISTRY.clear()

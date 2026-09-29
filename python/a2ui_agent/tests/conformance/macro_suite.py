@@ -37,10 +37,8 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Text,
 )
 from a2ui.core.validation import ValidationConfig
-from a2ui.catalog_transformers.macros import (
+from a2ui.transformers.macros import (
     MacroExpander,
-    clear_macros,
-    list_macros,
     macro,
 )
 from a2ui.schema.catalog import A2uiCatalog
@@ -125,9 +123,8 @@ def load_cases() -> list[Case]:
 # =============================================================================
 
 
-def register_suite_macros() -> None:
-    """Registers the suite's standard reference macros."""
-    clear_macros()
+def get_suite_macros() -> list[Any]:
+    """Builds and returns the suite's standard reference macros."""
 
     @macro
     def StatusBadge(status: str, title: str) -> Card:
@@ -206,6 +203,19 @@ def register_suite_macros() -> None:
             )
         )
 
+    return [
+        StatusBadge,
+        SlotContainer,
+        MultiSlotContainer,
+        ActionButton,
+        BoundMetric,
+        ConfigCard,
+        NestedMacroCard,
+    ]
+
+
+SUITE_MACROS = get_suite_macros()
+
 
 # =============================================================================
 # Execution
@@ -213,8 +223,7 @@ def register_suite_macros() -> None:
 
 
 def run_case(case: Case) -> list[dict[str, Any]]:
-    """Runs a conformance case through MacroParser and returns the expanded wire messages."""
-    register_suite_macros()
+    """Runs a conformance case through MacroExpander and returns the expanded wire messages."""
     raw_components = case.input if isinstance(case.input, list) else [case.input]
 
     if case.catalog_id:
@@ -243,7 +252,7 @@ def run_case(case: Case) -> list[dict[str, Any]]:
             },
         }]
 
-    expander = MacroExpander(list_macros())
+    expander = MacroExpander(SUITE_MACROS)
     expanded_msgs = []
     for msg in raw_msgs:
         expanded_msgs.extend(expander.transform_to_transport(msg))
