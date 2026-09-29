@@ -30,8 +30,10 @@ export default [
               message:
                 'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the package.',
             },
+          ],
+          patterns: [
             {
-              name: '@a2ui/angular/v0_8',
+              group: ['@a2ui/angular/v0_8', '@a2ui/angular/v0_8/*'],
               message:
                 'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the package.',
             },
@@ -53,14 +55,18 @@ export default [
               message:
                 'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the package.',
             },
+          ],
+          patterns: [
             {
-              name: '@a2ui/angular/v0_9',
+              group: [
+                '@a2ui/angular/v0_8',
+                '@a2ui/angular/v0_8/*',
+                '@a2ui/angular/v0_9',
+                '@a2ui/angular/v0_9/*',
+                '!@a2ui/angular/v0_9/testing',
+              ],
               message:
                 'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the package.',
-            },
-            {
-              name: '@a2ui/angular/v0_8',
-              message: 'Do not import @a2ui/angular/v0_8 from @a2ui/angular/v0_9.',
             },
           ],
         },
@@ -79,13 +85,15 @@ export default [
               message:
                 'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
             },
+          ],
+          patterns: [
             {
-              name: '@a2ui/angular/testing',
-              message:
-                'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
-            },
-            {
-              name: '@a2ui/angular/v0_9/testing',
+              group: [
+                '@a2ui/angular/testing',
+                '@a2ui/angular/testing/*',
+                '@a2ui/angular/v0_9/testing',
+                '@a2ui/angular/v0_9/testing/*',
+              ],
               message:
                 'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
             },

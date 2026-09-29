@@ -29,7 +29,7 @@ export class Surface extends Root {
   @property()
   accessor surface: Types.Surface | null = null;
 
-  @property()
+  @property({attribute: false})
   override accessor processor: A2uiMessageProcessor | null = null;
 
   static override styles = [

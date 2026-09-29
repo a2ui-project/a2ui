@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import parentConfig from '../eslint.config.js';
+import parentConfig from '../eslint.config.mjs';
 
 export default [
   ...parentConfig,
