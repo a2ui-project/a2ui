@@ -28,8 +28,9 @@ class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
    * - `--a2ui-slider-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-slider-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   *
+   * @nocollapse
    */
-  /** @nocollapse */
   static override styles = css`
     .a2ui-slider-container {
       width: 100%;

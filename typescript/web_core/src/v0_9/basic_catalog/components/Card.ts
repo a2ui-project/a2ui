@@ -29,8 +29,9 @@ class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> {
    * - `--a2ui-card-padding`: The padding of the card. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-card-box-shadow`: The box shadow of the card. Defaults to `0 2px 4px rgba(0,0,0,0.1)`.
    * - `--a2ui-card-margin`: The outer margin of the card. Defaults to `--a2ui-spacing-m`.
+   *
+   * @nocollapse
    */
-  /** @nocollapse */
   static override styles = css`
     .a2ui-card {
       padding: var(--a2ui-card-padding, var(--a2ui-spacing-m, 16px));

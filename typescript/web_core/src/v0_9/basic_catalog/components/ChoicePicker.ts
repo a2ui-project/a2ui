@@ -33,8 +33,9 @@ class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePi
    * - `--a2ui-choicepicker-filter-padding`: Padding for the filter input. Defaults to `--a2ui-spacing-xs` and `--a2ui-spacing-s` (4px 8px).
    * - `--a2ui-choicepicker-chip-padding`: Padding for chips. Defaults to `--a2ui-spacing-s` and `--a2ui-spacing-m` (4px 8px).
    * - `--a2ui-choicepicker-chip-border-radius`: Border radius for chips. Defaults to `999px`.
+   *
+   * @nocollapse
    */
-  /** @nocollapse */
   static override styles = css`
     :host,
     .a2ui-choice-picker {
