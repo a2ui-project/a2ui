@@ -73,6 +73,7 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 ### Docstring Contract
 
 `@macro` supports both Google-style (`Args:`) and Sphinx-style (`:param name: description`) docstrings:
+
 - The top-level summary becomes the `description` of the generated component in the catalog schema.
 - Per-parameter descriptions are parsed and assigned as `description` attributes on each property schema.
 - Plain docstrings without structured sections are also supported gracefully without errors.

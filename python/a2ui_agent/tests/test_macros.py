@@ -676,4 +676,3 @@ def test_macro_expander_passthrough_components():
     assert "Button" not in inf_only_macros.catalog_schema["components"]
     assert "Card" not in inf_only_macros.catalog_schema["components"]
     assert "Text" not in inf_only_macros.catalog_schema["components"]
-
