@@ -197,10 +197,11 @@ def generate_common_types(
                             )
                         ),
                     }
+                call_key = "@call" if "@call" in fn_props else "call"
                 fn_spec = {
                     "description": spec.get("description", "Invokes a named function."),
                     "properties": fn_props,
-                    "required": spec.get("required", ["call"]),
+                    "required": spec.get("required", [call_key]),
                 }
                 common_blocks.append(
                     codegen.compile_object_def("FunctionCall", fn_spec)
@@ -208,10 +209,13 @@ def generate_common_types(
             else:
                 fn_common = defs.get("FunctionCommon", {})
                 fn_props = {}
-                if "call" in fn_common.get("properties", {}):
-                    fn_props["call"] = fn_common["properties"]["call"]
+                call_key = (
+                    "@call" if "@call" in fn_common.get("properties", {}) else "call"
+                )
+                if call_key in fn_common.get("properties", {}):
+                    fn_props[call_key] = fn_common["properties"][call_key]
                 else:
-                    fn_props["call"] = {
+                    fn_props[call_key] = {
                         "type": "string",
                         "description": "The name of the function to call.",
                     }
@@ -220,12 +224,12 @@ def generate_common_types(
                     "description": "Arguments passed to the function.",
                 }
                 for k, v in fn_common.get("properties", {}).items():
-                    if k != "call":
+                    if k not in ("call", "@call"):
                         fn_props[k] = v
                 fn_spec = {
                     "description": "Invokes a named function.",
                     "properties": fn_props,
-                    "required": fn_common.get("required", ["call"]),
+                    "required": fn_common.get("required", [call_key]),
                 }
                 common_blocks.append(
                     codegen.compile_object_def("FunctionCall", fn_spec)
