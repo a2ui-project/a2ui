@@ -123,11 +123,12 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Object? version, {
     required Catalog<C, F> catalog,
     Map<String, Object?>? commonTypesSchema,
-  }) => PayloadValidator<C, F>(
-    catalog: catalog,
-    commonTypesSchema: commonTypesSchema,
-    protocolVersion: A2uiProtocolVersion.fromJson(version),
-  );
+  }) =>
+      PayloadValidator<C, F>(
+        catalog: catalog,
+        commonTypesSchema: commonTypesSchema,
+        protocolVersion: A2uiProtocolVersion.fromJson(version),
+      );
 
   /// Checks the `version` field of one payload envelope.
   ///
@@ -242,20 +243,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _refFields ??= extractComponentRefFields(catalog);
 
   Map<String, Schema> get _resolvedComponentSchemas => _resolvedComponents ??= {
-    for (final MapEntry<String, C> entry in catalog.components.entries)
-      entry.key: _resolve(entry.value.schema),
-  };
+        for (final MapEntry<String, C> entry in catalog.components.entries)
+          entry.key: _resolve(entry.value.schema),
+      };
 
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
-    for (final MapEntry<String, F> entry in catalog.functions.entries)
-      entry.key: _resolve(entry.value.argumentSchema),
-  };
+        for (final MapEntry<String, F> entry in catalog.functions.entries)
+          entry.key: _resolve(entry.value.argumentSchema),
+      };
 
   Schema _resolve(Schema schema) => Schema.fromMap(
-    resolveSchemaRefs(
-      schema.value,
-      catalog.catalogSchema,
-      commonTypes: commonTypesSchema,
-    ),
-  );
+        resolveSchemaRefs(
+          schema.value,
+          catalog.catalogSchema,
+          commonTypes: commonTypesSchema,
+        ),
+      );
 }

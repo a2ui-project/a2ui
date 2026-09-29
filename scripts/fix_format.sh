@@ -99,14 +99,13 @@ if command -v dart >/dev/null 2>&1; then
     dart pub get >/dev/null 2>&1 || true
   fi
 
-  DIRS_TO_FORMAT=$(find samples/client/flutter dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
-  for dir in $DIRS_TO_FORMAT; do
-    if [ "$CHECK_ONLY" = true ]; then
-      (cd "$dir" && dart format --output=none --set-exit-if-changed .)
-    else
-      (cd "$dir" && dart format .)
-    fi
-  done
+  if [ "$CHECK_ONLY" = true ]; then
+    dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter dart/a2ui_agent
+    (cd dart/a2ui_core && dart format --output=none --set-exit-if-changed .)
+  else
+    dart format --language-version=3.10 samples/client/flutter dart/a2ui_agent
+    (cd dart/a2ui_core && dart format .)
+  fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."
 fi
