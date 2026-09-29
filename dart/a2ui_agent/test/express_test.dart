@@ -360,6 +360,10 @@ surface("s1")
 
     test('does not take a direct JSON block for Express', () {
       expect(parser.hasFormatContent('<a2ui-json>[]</a2ui-json>'), isFalse);
+      expect(
+        parser.hasFormatContent('<a2ui-json>[]</a2ui-json>\n<a2ui>\n</a2ui>'),
+        isFalse,
+      );
       expect(parser.hasFormatContent('Which city?'), isFalse);
     });
 
