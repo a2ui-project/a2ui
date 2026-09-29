@@ -206,7 +206,7 @@ class _MacroProcessor:
         # Flatten into primitive components with ID namespacing and root stitching
         return flatten_component_tree(result, root_id=root_id)
 
+
 MacroProcessor = _MacroProcessor
 
 __all__ = ["_MacroProcessor", "MacroProcessor"]
-

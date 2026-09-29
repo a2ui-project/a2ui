@@ -191,7 +191,6 @@ macros:
         component: "Text"
         text: {$param: "title"}
 
-
 tests:
   - id: "01_status_badge_expansion"
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
@@ -336,14 +335,27 @@ tests:
       component_properties:
         ComplexCard:
           title: {type: "string"}
-          dynamic_title: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"}
-          metric: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"}
-          is_active: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"}
-          tags: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList"}
-          anything: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"}
+          dynamic_title:
+            {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"}
+          metric:
+            {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"}
+          is_active:
+            {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"}
+          tags:
+            {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList"}
+          anything:
+            {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"}
           on_click: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"}
-          checks: {type: "array", items: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"}}
-          accessibility: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/AccessibilityAttributes"}
+          checks:
+            {
+              type: "array",
+              items:
+                {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"},
+            }
+          accessibility:
+            {
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/AccessibilityAttributes",
+            }
           footer: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"}
           items: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"}
           theme: {type: "string", enum: ["primary", "secondary"]}
@@ -464,6 +476,3 @@ tests:
         - "Card"
         - "Button"
         - "Text"
-
-
-

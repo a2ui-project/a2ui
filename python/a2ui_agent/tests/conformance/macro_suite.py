@@ -271,6 +271,7 @@ SUITE_MACROS = get_suite_macros()
 def run_case(case: Case) -> Any:
     """Runs a conformance case through MacroExpander."""
     if case.action == "transform_catalog" and case.colliding_macro:
+
         @macro(name=case.colliding_macro)
         def CollidingMacro() -> Card:
             return Card(child=Text(text="colliding"))

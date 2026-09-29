@@ -518,4 +518,3 @@ def macro(
         return _decorate(func, explicit_name=name)
 
     return decorator
-

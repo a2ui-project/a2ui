@@ -195,7 +195,8 @@ class MacroExpander:
                     )
                 except (A2uiRecursionError, RecursionError):
                     raise A2uiRecursionError(
-                        f"Macro expansion exceeded maximum recursion depth of {max_depth}."
+                        "Macro expansion exceeded maximum recursion depth of"
+                        f" {max_depth}."
                     )
                 except Exception as e:
                     logger.error(
