@@ -640,3 +640,40 @@ def test_macro_action_and_accessibility_coercion():
         instance_id="banner_1",
     )
     assert len(expanded) >= 1
+
+
+def test_macro_expander_passthrough_components():
+    @macro
+    def AlertBadge(msg: str) -> Card:
+        return Card(child=Text(text=msg))
+
+    base_cat = make_test_catalog({
+        "Button": {"type": "object"},
+        "Card": {"type": "object"},
+        "Text": {"type": "object"},
+    })
+
+    # 1. Default (None) passes through all base components
+    exp_default = MacroExpander([AlertBadge])
+    inf_default = exp_default.transform_to_inference_catalog(base_cat)
+    assert "Button" in inf_default.catalog_schema["components"]
+    assert "Card" in inf_default.catalog_schema["components"]
+    assert "Text" in inf_default.catalog_schema["components"]
+    assert "AlertBadge" in inf_default.catalog_schema["components"]
+
+    # 2. Selective passthrough retains only allowed base components
+    exp_selective = MacroExpander([AlertBadge], passthrough_components=["Text"])
+    inf_selective = exp_selective.transform_to_inference_catalog(base_cat)
+    assert "Text" in inf_selective.catalog_schema["components"]
+    assert "AlertBadge" in inf_selective.catalog_schema["components"]
+    assert "Button" not in inf_selective.catalog_schema["components"]
+    assert "Card" not in inf_selective.catalog_schema["components"]
+
+    # 3. Empty list retains exclusively the macros
+    exp_only_macros = MacroExpander([AlertBadge], passthrough_components=[])
+    inf_only_macros = exp_only_macros.transform_to_inference_catalog(base_cat)
+    assert "AlertBadge" in inf_only_macros.catalog_schema["components"]
+    assert "Button" not in inf_only_macros.catalog_schema["components"]
+    assert "Card" not in inf_only_macros.catalog_schema["components"]
+    assert "Text" not in inf_only_macros.catalog_schema["components"]
+

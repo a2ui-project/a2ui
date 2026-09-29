@@ -74,11 +74,25 @@ def test_expect_assertion(case: Case) -> None:
         for comp in expect["augmented_components"]:
             assert comp in components, f"Expected {comp} in synthesized catalog components"
 
+    if "absent_components" in expect:
+        catalog_schema = result.catalog_schema
+        components = catalog_schema.get("components", {})
+        for comp in expect["absent_components"]:
+            assert comp not in components, f"Expected {comp} to be absent from catalog components"
+
     if "any_component_references" in expect:
         refs = result.catalog_schema.get("$defs", {}).get("anyComponent", {}).get("oneOf", [])
         ref_targets = [r.get("$ref") for r in refs if isinstance(r, dict)]
         for ref in expect["any_component_references"]:
             assert ref in ref_targets, f"Expected {ref} in anyComponent.oneOf"
+
+    if "absent_any_component_references" in expect:
+        refs = result.catalog_schema.get("$defs", {}).get("anyComponent", {}).get("oneOf", [])
+        ref_targets = [r.get("$ref", "") for r in refs if isinstance(r, dict)]
+        for name in expect["absent_any_component_references"]:
+            assert not any(
+                r.endswith(f"/{name}") for r in ref_targets
+            ), f"Expected reference to {name} to be absent from anyComponent.oneOf"
 
     if "component_properties" in expect:
         components = result.catalog_schema.get("components", {})

@@ -102,6 +102,7 @@ class Case:
     colliding_macro: Optional[str] = None
     expect: Optional[dict[str, Any]] = None
     envelope_version: Optional[str] = None
+    passthrough_components: Optional[list[str]] = None
 
     @property
     def golden_path(self) -> str:
@@ -132,6 +133,7 @@ def load_cases() -> list[Case]:
             colliding_macro=raw.get("colliding_macro"),
             expect=raw.get("expect"),
             envelope_version=raw.get("envelope_version"),
+            passthrough_components=raw.get("passthrough_components"),
         )
         for raw in suite["tests"]
     ]
@@ -278,7 +280,9 @@ def run_case(case: Case) -> Any:
         return []
 
     if case.action == "transform_to_inference_catalog":
-        expander = MacroExpander(SUITE_MACROS)
+        expander = MacroExpander(
+            SUITE_MACROS, passthrough_components=case.passthrough_components
+        )
         return expander.transform_to_inference_catalog(basic_catalog_schema())
 
     if case.action == "transform_to_inference":

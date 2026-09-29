@@ -407,4 +407,63 @@ tests:
       id: "card_1"
       child: "child_1"
 
+  - id: "17_passthrough_components_selective"
+    description: "passthrough_components filters base catalog to only allowed primitives while retaining all macros"
+    action: "transform_to_inference_catalog"
+    passthrough_components: ["Text"]
+    expect:
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+        - "Text"
+      absent_components:
+        - "Button"
+        - "Card"
+        - "Column"
+        - "Row"
+        - "Divider"
+        - "Icon"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/Text"
+      absent_any_component_references:
+        - "Card"
+        - "Button"
+
+  - id: "18_passthrough_components_only_macros"
+    description: "passthrough_components=[] prunes all base catalog primitives leaving exclusively the macros"
+    action: "transform_to_inference_catalog"
+    passthrough_components: []
+    expect:
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+      absent_components:
+        - "Button"
+        - "Card"
+        - "Column"
+        - "Row"
+        - "Divider"
+        - "Icon"
+        - "Text"
+      any_component_references:
+        - "#/components/StatusBadge"
+      absent_any_component_references:
+        - "Card"
+        - "Button"
+        - "Text"
+
+
 
