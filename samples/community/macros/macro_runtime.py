@@ -18,7 +18,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, Tuple, Type
 
+from pydantic import TypeAdapter
+
 from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
@@ -71,6 +74,9 @@ class MacroAgentRuntime:
             surface_id="main",
             version=protocol_version,
         )
+        self.message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
+            AgentToRendererMessage
+        )
 
     @property
     def macros(self) -> Sequence[Any]:
@@ -88,11 +94,9 @@ class MacroAgentRuntime:
         """Compiles Express DSL containing macros and lowers output messages to transport."""
         self.format.surface_id = surface_id
         raw_messages = self.format.parser.compile(dsl)
-        return [
-            lowered
-            for raw_msg in raw_messages
-            for lowered in self.expander.transform_to_transport(raw_msg)
-        ]
+        typed_msgs = [self.message_adapter.validate_python(m) for m in raw_messages]
+        lowered_models = self.expander.transform_to_transport(typed_msgs)
+        return [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_models]
 
     def parse_response(
         self, raw_text: str, surface_id: str = "main"
@@ -109,10 +113,10 @@ class MacroAgentRuntime:
             if part.a2ui_json:
                 raw_messages.extend(part.a2ui_json)
 
+        typed_msgs = [self.message_adapter.validate_python(m) for m in raw_messages]
+        lowered_models = self.expander.transform_to_transport(typed_msgs)
         messages = [
-            lowered
-            for raw_msg in raw_messages
-            for lowered in self.expander.transform_to_transport(raw_msg)
+            m.model_dump(by_alias=True, exclude_none=True) for m in lowered_models
         ]
         return "\n".join(text_parts).strip(), messages
 
