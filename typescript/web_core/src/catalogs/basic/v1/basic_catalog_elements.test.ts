@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, before, after, afterEach} from 'node:test';
 import {z} from 'zod';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {
   ComponentContext,
   MessageProcessor,
@@ -26,13 +26,13 @@ import {
   A2uiExpressionError,
   PayloadValidator,
   getValue,
-} from '../index.js';
+} from '../../../v1_0/index.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
   A2uiLitElement,
   type WebComponentImplementation,
-} from '../universal/index.js';
+} from '../../../universal/index.js';
 import {html, nothing} from 'lit';
 import {SliderApi} from './index.js';
 
@@ -632,7 +632,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('extractFunctionDefinition preserves first argsSchema in allOf while scanning requiresUserActivation', async () => {
-    const modulePath = '../../../../scripts/generate-catalog-schemas.mjs';
+    const modulePath = '../../../../../scripts/generate-catalog-schemas.mjs';
     const {extractFunctionDefinition} = (await import(modulePath)) as {
       extractFunctionDefinition: (
         funcName: string,

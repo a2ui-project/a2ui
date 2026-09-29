@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import * as universal from '../../../universal/basic_catalog/components/index.js';
+import * as universal from '../../../../universal/basic_catalog/components/index.js';
 import * as v1_0Apis from './basic_components.js';
-import type {WebComponentImplementation} from '../../../universal/index.js';
+import type {WebComponentImplementation} from '../../../../universal/index.js';
 
 export const A2uiAudioPlayer: WebComponentImplementation<typeof v1_0Apis.AudioPlayerApi.schema> = {
   ...v1_0Apis.AudioPlayerApi,
@@ -112,5 +112,5 @@ export const A2uiVideo: WebComponentImplementation<typeof v1_0Apis.VideoApi.sche
   element: universal.A2uiVideoElement,
 };
 
-export * from '../../../universal/basic_catalog/components/index.js';
+export * from '../../../../universal/basic_catalog/components/index.js';
 export * from './basic_components.js';

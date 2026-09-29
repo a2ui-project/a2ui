@@ -35,7 +35,7 @@ import {
 import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
-} from '../../dist/src/v1_0/basic_catalog/index.js';
+} from '../../dist/src/catalogs/basic/v1/index.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../dist/src/errors.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';

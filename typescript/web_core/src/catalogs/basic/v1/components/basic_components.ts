@@ -17,7 +17,7 @@
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
 import {z} from 'zod';
-import {ComponentApi} from '../../../catalog/types.js';
+import {ComponentApi} from '../../../../catalog/types.js';
 import {
   ActionSchema,
   CheckRuleSchema,
@@ -28,7 +28,7 @@ import {
   DynamicNumberSchema,
   DynamicStringListSchema,
   DynamicStringSchema,
-} from '../../schema/common-types.js';
+} from '../../../../v1_0/schema/common-types.js';
 
 export const TextApi = {
   name: 'Text',

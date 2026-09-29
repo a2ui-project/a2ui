@@ -30,5 +30,5 @@ export * from '../rpc/index.js';
 export * from '../validation/index.js';
 export * from '../errors.js';
 export * from '../common/events.js';
-export * from './basic_catalog/index.js';
+export * from '../catalogs/basic/v1/index.js';
 export * from './universal/index.js';

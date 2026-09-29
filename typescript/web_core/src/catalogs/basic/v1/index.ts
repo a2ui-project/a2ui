@@ -18,21 +18,21 @@ export * from './components/index.js';
 export * from './functions/basic_functions.js';
 export * from './functions/basic_functions_api.js';
 export * from './catalog.js';
-export * from '../../universal/basic_catalog/theme.js';
+export * from '../../../universal/basic_catalog/theme.js';
 export {
   injectBasicCatalogStyles,
   computeColorVariant,
-} from '../../universal/basic_catalog/styles/default.js';
+} from '../../../universal/basic_catalog/styles/default.js';
 export type {
   ColorVariantLightDarkOptions,
   ColorVariantHoverOptions,
-} from '../../universal/basic_catalog/styles/default.js';
-export {Context} from '../../universal/basic_catalog/context/context.js';
+} from '../../../universal/basic_catalog/styles/default.js';
+export {Context} from '../../../universal/basic_catalog/context/context.js';
 export {
   markdown,
   setMarkdownRenderer,
   getMarkdownRenderer,
   type MarkdownRenderer,
   type MarkdownRendererOptions,
-} from '../../universal/basic_catalog/index.js';
-export {BasicCatalogThemeSchema as ThemeSchema} from '../../universal/basic_catalog/theme.js';
+} from '../../../universal/basic_catalog/index.js';
+export {BasicCatalogThemeSchema as ThemeSchema} from '../../../universal/basic_catalog/theme.js';

@@ -32,7 +32,7 @@ import {
 } from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../v0_9/basic_catalog/theme.js';
-import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
+import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 

@@ -18,9 +18,9 @@
  * Function implementations for the v1.0 basic catalog.
  */
 
-import {FunctionImplementation} from '../../../catalog/types.js';
-import {V10_VALIDATION_FUNCTION_IMPLEMENTATIONS} from '../../functions/validation_functions.js';
-import {IndexImplementation} from '../../functions/system_functions.js';
+import {FunctionImplementation} from '../../../../catalog/types.js';
+import {V10_VALIDATION_FUNCTION_IMPLEMENTATIONS} from '../../../../v1_0/functions/validation_functions.js';
+import {IndexImplementation} from '../../../../v1_0/functions/system_functions.js';
 import {
   AndApi,
   OrApi,
@@ -42,7 +42,7 @@ import {
   createFormatDateImplementation as createCommonFormatDate,
   createPluralizeImplementation as createCommonPluralize,
   createOpenUrlImplementation,
-} from '../../../common/basic_functions.js';
+} from '../../../../common/basic_functions.js';
 
 // Logical
 export const AndImplementation = createAndImplementation(AndApi);

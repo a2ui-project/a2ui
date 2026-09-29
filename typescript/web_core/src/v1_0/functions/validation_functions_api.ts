@@ -20,7 +20,7 @@ import {
   LengthApi,
   NumericApi,
   EmailApi,
-} from '../basic_catalog/functions/basic_functions_api.js';
+} from '../../catalogs/basic/v1/functions/basic_functions_api.js';
 
 import type {ValidationResultInput} from '../schema/catalog-definition.js';
 
