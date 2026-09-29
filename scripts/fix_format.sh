@@ -98,6 +98,9 @@ if command -v dart >/dev/null 2>&1; then
   if [ ! -f ".dart_tool/package_config.json" ]; then
     dart pub get >/dev/null 2>&1 || true
   fi
+  if [ ! -f "dart/a2ui_core/.dart_tool/package_config.json" ]; then
+    (cd dart/a2ui_core && dart pub get >/dev/null 2>&1 || true)
+  fi
 
   if [ "$CHECK_ONLY" = true ]; then
     dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter dart/a2ui_agent
