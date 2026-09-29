@@ -89,7 +89,7 @@ class MarkdownDirective extends AsyncDirective {
               this.setValue(unsafeHTML(renderedStr));
             }
           })
-          .catch((err) => {
+          .catch(err => {
             console.error('[MarkdownDirective] Error rendering markdown:', err);
           });
       } catch (err) {
