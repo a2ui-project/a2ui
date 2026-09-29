@@ -43,7 +43,7 @@ async function runE2ETest() {
       await btn.click();
 
       // Wait for assistant response and surface to render
-      await page.waitForTimeout(1000);
+      await page.locator(`body:has-text('${expectedContents[0]}')`).waitFor({state: 'visible'});
 
       const bodyText = await page.textContent('body');
       if (

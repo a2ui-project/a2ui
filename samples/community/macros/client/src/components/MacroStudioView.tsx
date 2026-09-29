@@ -147,11 +147,11 @@ export function MacroStudioView() {
 
     if (selectedTemplate.templateId === 'PayrollSummary') {
       const dept =
-        typeof paramInput === 'object' && paramInput.department !== undefined
+        paramInput && typeof paramInput === 'object' && paramInput.department !== undefined
           ? paramInput.department
           : payrollDept;
       const bonus =
-        typeof paramInput === 'object' && paramInput.includeBonus !== undefined
+        paramInput && typeof paramInput === 'object' && paramInput.includeBonus !== undefined
           ? paramInput.includeBonus
           : payrollIncludeBonus;
       sendParams = {department: dept, includeBonus: bonus};

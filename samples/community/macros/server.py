@@ -30,26 +30,6 @@ from pydantic import BaseModel
 
 import json
 
-from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.transformers.macros import MacroExpander, macro
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import (
-    COMMON_TYPES_SCHEMA_KEY,
-    SERVER_TO_CLIENT_SCHEMA_KEY,
-    SPEC_VERSION_MAP,
-)
-from a2ui.schema.utils import load_from_bundled_resource
-from a2ui.builder.v0_9 import ComponentBuilderNode
-from a2ui.builder.v0_9.catalogs.basic import (
-    Button,
-    Card,
-    Column,
-    Divider,
-    Icon,
-    Row,
-    Text,
-)
 from macro_definitions import (
     ALL_MACROS,
     EMPLOYEE_COMPENSATION_DB,
@@ -57,6 +37,7 @@ from macro_definitions import (
     fetch_employee_compensation,
     render_payroll_summary,
 )
+from macro_runtime import MacroAgentRuntime
 
 app = FastAPI(title="A2UI Macros Community Demo Server")
 
@@ -71,39 +52,19 @@ app.add_middleware(
 MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
 BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 
-active_macros = ALL_MACROS
-
-basic_config = BasicCatalog.get_config("0.9.1")
-server_catalog = A2uiCatalog(
-    version="0.9.1",
-    name="basic",
-    catalog_schema=basic_config.provider.load(),
-    s2c_schema=load_from_bundled_resource(
-        "0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
-    ),
-    common_types_schema=load_from_bundled_resource(
-        "0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
-    ),
+# Centralized Macro & Inference Format Runtime
+runtime = MacroAgentRuntime(
+    macros=ALL_MACROS,
+    catalog_version="0.9.1",
+    protocol_version="v0.9.1",
 )
-
-macro_expander = MacroExpander(active_macros)
-inference_catalog = macro_expander.transform_to_inference_catalog(server_catalog)
-format_instance = ExpressFormat(
-    catalog=inference_catalog, surface_id="main", version="v0.9.1"
-)
+macro_expander = runtime.expander
+format_instance = runtime.format
 
 
 def compile_dsl_with_macros(dsl: str, surface_id: str = "main") -> List[Dict[str, Any]]:
     """Compiles Express DSL containing macros and lowers output messages to transport."""
-    target_format = ExpressFormat(
-        catalog=inference_catalog, surface_id=surface_id, version="v0.9.1"
-    )
-    raw_messages = target_format.parser.compile(dsl)
-    return [
-        lowered
-        for raw_msg in raw_messages
-        for lowered in macro_expander.transform_to_transport(raw_msg)
-    ]
+    return runtime.compile_dsl(dsl, surface_id=surface_id)
 
 
 ROLE_DESCRIPTION = """You are an A2UI interface assistant. When helpful, respond with visual UI using the compact A2UI Express DSL inside `<a2ui>` tags.
@@ -122,10 +83,7 @@ You can compose high-level templates and primitive components together:
 
 For complex queries requiring multiple sections (such as a performance review or project status), you can invent appropriate composite layouts—for instance, grouping a `TeamMemberKnowledgePanel`, `TeamFeedbackBoard`, and `TeamGoalList` within a `Column` or `TwoColumnLayout`."""
 
-SYSTEM_PROMPT = format_instance.prompt_generator.generate(
-    role_description=ROLE_DESCRIPTION,
-    include_schema=True,
-)
+SYSTEM_PROMPT = runtime.generate_system_prompt(role_description=ROLE_DESCRIPTION)
 
 
 class ChatRequest(BaseModel):
@@ -335,12 +293,12 @@ SAMPLE_PARAMS = {
 @app.get("/api/macros")
 def list_macros():
     res = []
-    for m in macro_expander.macros:
+    for m in runtime.macros:
         m_name = m.name
         sample_params = SAMPLE_PARAMS.get(m_name, {})
         schema = m.to_json_schema()
         try:
-            expanded_components = macro_expander.processor.expand(
+            expanded_components = runtime.expand(
                 m_name, sample_params, instance_id="root"
             )
             sample_messages = [
@@ -426,13 +384,11 @@ def list_macros():
 @app.post("/macros/{macro_id}/resolve")
 @app.post("/api/macros/{macro_id}/resolve")
 def resolve_macro(macro_id: str, req: DynamicResolveRequest):
-    if not macro_expander.processor.has_macro(macro_id):
+    if not runtime.has_macro(macro_id):
         raise HTTPException(status_code=404, detail="Macro not found")
 
     try:
-        expanded_components = macro_expander.processor.expand(
-            macro_id, req.params, instance_id="root"
-        )
+        expanded_components = runtime.expand(macro_id, req.params, instance_id="root")
         sample_messages = [
             {
                 "version": "v0.9.1",
@@ -508,26 +464,7 @@ async def chat(req: ChatRequest):
             )
             latency = round(time.perf_counter() - start_time, 2)
             raw_text = response.text or ""
-            target_format = ExpressFormat(
-                catalog=inference_catalog,
-                surface_id=req.surfaceId,
-                version="v0.9.1",
-            )
-            parts = target_format.parser.parse_response(raw_text)
-
-            raw_messages = []
-            text_parts = []
-            for part in parts:
-                if part.text:
-                    text_parts.append(part.text)
-                if part.a2ui_json:
-                    raw_messages.extend(part.a2ui_json)
-
-            messages = [
-                lowered
-                for raw_msg in raw_messages
-                for lowered in macro_expander.transform_to_transport(raw_msg)
-            ]
+            text, messages = runtime.parse_response(raw_text, surface_id=req.surfaceId)
 
             thinking_tokens = 0
             candidates_tokens = 0
@@ -555,7 +492,7 @@ async def chat(req: ChatRequest):
             return {
                 "messages": messages,
                 "raw": raw_text.strip(),
-                "text": "\n".join(text_parts).strip() or "UI generated successfully.",
+                "text": text or "UI generated successfully.",
                 "surfaceId": actual_surface_id,
                 "metrics": {
                     "latency": latency,

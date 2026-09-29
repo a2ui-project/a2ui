@@ -435,11 +435,16 @@ def TeamFeedbackBoard(
         elif isinstance(f, str):
             fb_nodes.append(ComponentRef(id=f))
         elif isinstance(f, dict):
+            rating_val = f.get("rating")
+            try:
+                rating = int(float(rating_val)) if rating_val is not None else 5
+            except (ValueError, TypeError):
+                rating = 5
             fb_nodes.append(
                 FeedbackItem(
                     author=f.get("author", "Anonymous"),
                     note=f.get("note", ""),
-                    rating=int(f.get("rating", 5)),
+                    rating=rating,
                 )
             )
 
