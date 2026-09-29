@@ -1,0 +1,28 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "outer_card__intro_text",
+          "text": "Header",
+          "variant": "body"
+        },
+        {
+          "component": "Column",
+          "id": "outer_card__inner_col",
+          "children": ["outer_card__intro_text", "existing_surface_widget"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "outer_card",
+          "child": "outer_card__inner_col"
+        }
+      ]
+    }
+  }
+]

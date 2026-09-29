@@ -20,7 +20,7 @@
   description: >-
     Valid v1.0 DataBinding using the reserved @path prefix.
   catalog:
-    version: "1.0"
+    protocolVersion: "v1.0"
   action: validate
   payload:
     - version: "v1.0"
@@ -36,7 +36,7 @@
   description: >-
     Valid v1.0 FunctionCall using the reserved @call prefix.
   catalog:
-    version: "1.0"
+    protocolVersion: "v1.0"
   action: validate
   payload:
     - version: "v1.0"
@@ -54,7 +54,7 @@
   description: >-
     Valid v1.0 FunctionCall invoking the @index system context function within a List template.
   catalog:
-    version: "1.0"
+    protocolVersion: "v1.0"
   action: validate
   payload:
     - version: "v1.0"
@@ -78,7 +78,7 @@
     A plain object containing 'path' and 'call' keys is valid in v1.0 and is not
     intercepted as a dynamic DataBinding or FunctionCall directive.
   catalog:
-    version: "1.0"
+    protocolVersion: "v1.0"
   action: validate
   payload:
     - version: "v1.0"
@@ -96,7 +96,7 @@
     Literal @ keys escaped with prefix doubling (@@path, @@type) validate successfully
     as plain object keys.
   catalog:
-    version: "1.0"
+    protocolVersion: "v1.0"
   action: validate
   payload:
     - version: "v1.0"
@@ -114,7 +114,7 @@
     Dynamic objects containing unknown single-@ keys (^@([^@]|$)) are disallowed to preserve
     backward compatibility for future directives.
   catalog:
-    version: "1.0"
+    protocolVersion: "v1.0"
   action: validate
   payload:
     - version: "v1.0"
@@ -134,7 +134,7 @@
     A key consisting of a single @ with no following character is also reserved and
     disallowed. It must be escaped as "@@" to appear as literal data.
   catalog:
-    version: "1.0"
+    protocolVersion: "v1.0"
   action: validate
   payload:
     - version: "v1.0"

@@ -81,6 +81,7 @@ const processor = new MessageProcessor(catalogs, async action => {
 catalogs.push(
   new Catalog(
     MCP_CATALOG_ID,
+    'v0.9',
     [],
     createMcpCatalogFunctions(() => client, processor),
   ),
@@ -93,7 +94,7 @@ To mix MCP tools with Basic Catalog components, build one composite catalog inst
 
 ```typescript
 catalogs.push(
-  new Catalog(MY_COMPOSITE_CATALOG_ID, Array.from(basicCatalog.components.values()), [
+  new Catalog(MY_COMPOSITE_CATALOG_ID, 'v0.9', Array.from(basicCatalog.components.values()), [
     ...Array.from(basicCatalog.functions.values()),
     ...createMcpCatalogFunctions(() => client, processor),
   ]),

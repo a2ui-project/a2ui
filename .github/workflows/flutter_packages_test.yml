@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Flutter CI, except 'e2e_test'
+name: Flutter CI
 
 on:
   workflow_dispatch:
@@ -124,3 +124,38 @@ jobs:
           else
             echo "No 'test' directory found in ${{ matrix.package.path }}, skipping tests."
           fi
+
+  # The e2e_test packages are excluded from the matrix above because their
+  # tests call a live Gemini model, which needs credentials and quota that are
+  # unavailable on pull requests from forks. Those tests run nightly in
+  # e2e_test.yml instead. Their formatting and analysis, however, need no
+  # credentials, so they are checked here on every change.
+  analyze_e2e:
+    name: ${{ matrix.package.name }} (stable, analysis only)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - name: dart_a2ui_agent_e2e_test
+            path: dart/a2ui_agent/e2e_test
+          - name: samples_client_flutter_restaurant_finder_e2e_test
+            path: samples/client/flutter/restaurant_finder/e2e_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-dart
+        with:
+          channel: stable
+      - name: Print Flutter version
+        run: flutter --version
+      - name: Install dependencies
+        working-directory: ${{ matrix.package.path }}
+        run: dart pub get
+      - name: Check formatting
+        working-directory: ${{ matrix.package.path }}
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Analyze code
+        working-directory: ${{ matrix.package.path }}
+        run: flutter analyze --fatal-infos

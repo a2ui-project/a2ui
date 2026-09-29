@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    // Markdown Preview Mermaid Support: renders Mermaid diagrams (used across
+    // docs/, blueprints/, and specification/ markdown) in VS Code's preview.
+    "bierner.markdown-mermaid"
+  ]
+}

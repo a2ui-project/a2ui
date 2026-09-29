@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
+import {Injectable} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
+import {BasicCatalog} from '../catalog/basic/basic-catalog';
+import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {MarkdownRenderer} from './markdown';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -53,8 +58,85 @@ describe('A2uiRendererService', () => {
   });
 
   describe('initialization', () => {
+    beforeEach(() => {
+      setMarkdownRenderer(undefined);
+    });
+
+    afterEach(() => {
+      setMarkdownRenderer(undefined);
+    });
+
     it('should create surfaceGroup', () => {
       expect(service.surfaceGroup).toBeDefined();
+    });
+
+    it('should configure web_core setMarkdownRenderer when MarkdownRenderer is in the injector', async () => {
+      const mockRenderer: MarkdownRenderer = {
+        render: jasmine.createSpy('render').and.resolveTo('<p>rendered</p>'),
+      };
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          A2uiRendererService,
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [mockCatalog], useUniversalComponents: true},
+          },
+          {
+            provide: MarkdownRenderer,
+            useValue: mockRenderer,
+          },
+        ],
+      });
+
+      const svc = TestBed.inject(A2uiRendererService);
+      expect(svc).toBeTruthy();
+
+      const registeredFn = getMarkdownRenderer();
+      expect(registeredFn).toBeDefined();
+
+      const result = await registeredFn!('# heading', {tagClassMap: {h1: ['custom-h1']}});
+      expect(result).toBe('<p>rendered</p>');
+      expect(mockRenderer.render).toHaveBeenCalledWith('# heading', {
+        tagClassMap: {h1: ['custom-h1']},
+      });
+    });
+
+    it('should leave the web_core markdown renderer untouched when MarkdownRenderer is not in the injector', () => {
+      const existing = async (markdown: string) => markdown;
+      setMarkdownRenderer(existing);
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          A2uiRendererService,
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [mockCatalog], useUniversalComponents: true},
+          },
+        ],
+      });
+      TestBed.inject(A2uiRendererService);
+
+      expect(getMarkdownRenderer()).toBe(existing);
+    });
+
+    it('should not configure web_core setMarkdownRenderer when universal components are disabled', () => {
+      const existing = async (markdown: string) => markdown;
+      setMarkdownRenderer(existing);
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          A2uiRendererService,
+          {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: [mockCatalog]}},
+          {provide: MarkdownRenderer, useValue: {render: async () => '<p>rendered</p>'}},
+        ],
+      });
+      TestBed.inject(A2uiRendererService);
+
+      expect(getMarkdownRenderer()).toBe(existing);
     });
   });
 
@@ -114,5 +196,61 @@ describe('provideA2Ui', () => {
 
     const service = TestBed.inject(A2uiRendererService);
     expect(service).toBeTruthy();
+  });
+
+  it('should provide BasicCatalog in configuration', () => {
+    const basicCat = new BasicCatalog();
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({catalogs: [basicCat]})],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config.catalogs).toBeDefined();
+    expect(config.catalogs!.length).toBe(1);
+    const catalog = config.catalogs![0];
+    expect(catalog.components.size).toBeGreaterThan(1);
+    for (const comp of catalog.components.values()) {
+      expect(comp.component).toEqual(jasmine.any(Function));
+    }
+  });
+
+  it('should support useUniversalComponents option in configuration', () => {
+    const basicCat = new BasicCatalog();
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: true})],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config.useUniversalComponents).toBeTrue();
+    expect(TestBed.inject(A2uiRendererService).useUniversalComponents).toBeTrue();
+  });
+
+  it('should keep basic catalog entries renderable both natively and as Web Components regardless of the flag', () => {
+    const basicCat = new BasicCatalog();
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: false})],
+    });
+    TestBed.inject(A2uiRendererService);
+    expect(basicCat.components.size).toBeGreaterThan(1);
+    for (const comp of basicCat.components.values()) {
+      expect(comp.component).toEqual(jasmine.any(Function));
+      expect(isWebComponentImplementation(comp)).toBeTrue();
+    }
+  });
+
+  it('should support custom catalogs extending BasicCatalog', () => {
+    @Injectable()
+    class CustomCatalog extends BasicCatalog {}
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideA2Ui({catalogs: [new CustomCatalog()], useUniversalComponents: true}),
+        {provide: CustomCatalog, useClass: CustomCatalog},
+      ],
+    });
+
+    const customCatalog = TestBed.inject(CustomCatalog);
+    expect(customCatalog.components.size).toBeGreaterThan(1);
+    for (const comp of customCatalog.components.values()) {
+      expect(comp.component).toEqual(jasmine.any(Function));
+    }
   });
 });

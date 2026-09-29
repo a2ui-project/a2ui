@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import Foundation
 import OrderedCollections
 import OrderedJSON
 
@@ -22,7 +23,23 @@ import OrderedJSON
 /// items representing literals, data-model paths, and nested function calls.
 public struct ExpressionParser: Sendable {
   /// Maximum recursion depth allowed during expression parsing.
-  public static let maxDepth = 10
+  ///
+  /// Every engine uses the same number: `ExpressionParser.MAX_DEPTH` in
+  /// TypeScript and Python. They must agree, or an expression one engine
+  /// accepts the other rejects.
+  public static let maxDepth = 100
+
+  /// An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
+  /// exponent (`e` or `E`, an optional sign, digits). Uses `[0-9]` rather than
+  /// `\d` because ICU's `\d` matches digits from every Unicode script.
+  ///
+  /// Every engine checks the same pattern: `NUMBER_LITERAL` in TypeScript,
+  /// `_NUMBER_LITERAL` in Python, and `_numberLiteral` in Dart.
+  private static let numberLiteralPattern =
+    #"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#
+
+  /// Compiled regular expression for `numberLiteralPattern`.
+  private static let numberLiteral = try? NSRegularExpression(pattern: numberLiteralPattern)
 
   public init() {}
 
@@ -152,6 +169,14 @@ public struct ExpressionParser: Sendable {
   }
 
   private func parseExpressionInternal(_ scanner: inout Scanner, depth: Int) throws -> JSONValue {
+    // Both recursive paths pass through here: interpolations nested inside an interpolation,
+    // and function-call arguments that are themselves expressions. Checking here counts both.
+    if depth > Self.maxDepth {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Max recursion depth reached in parse"
+      )
+    }
     scanner.skipWhitespace()
     if scanner.isAtEnd {
       return .string("")
@@ -170,10 +195,8 @@ public struct ExpressionParser: Sendable {
     }
 
     // 2. Number literals
-    if let char = scanner.peek() {
-      if char.isNumber || (char == "-" && (scanner.peek(offset: 1)?.isNumber ?? false)) {
-        return parseNumberLiteral(&scanner)
-      }
+    if isNumberStart(scanner) {
+      return try parseNumberLiteral(&scanner)
     }
 
     // 3. Keywords
@@ -222,7 +245,7 @@ public struct ExpressionParser: Sendable {
       }
       scanner.skipWhitespace()
 
-      let argVal = try parseExpressionInternal(&scanner, depth: depth)
+      let argVal = try parseExpressionInternal(&scanner, depth: depth + 1)
       args[argName] = argVal
 
       scanner.skipWhitespace()
@@ -294,31 +317,81 @@ public struct ExpressionParser: Sendable {
     return result
   }
 
-  private func parseNumberLiteral(_ scanner: inout Scanner) -> JSONValue {
+  /// Whether the scanner is at the start of a number literal: a digit, a `.` followed by a digit,
+  /// or a `-` or `+` sign followed by either of those.
+  ///
+  /// The grammar has no arithmetic operators, so a sign here can only belong to a literal. A `-`
+  /// or `.` inside a path such as `a-1` or `a.5` never reaches this check, because the path
+  /// scanner consumes it as part of the token.
+  private func isNumberStart(_ scanner: Scanner) -> Bool {
+    let first = scanner.peek()
+    let offset = (first == "-" || first == "+") ? 1 : 0
+    if Self.isDigit(scanner.peek(offset: offset)) {
+      return true
+    }
+    return scanner.peek(offset: offset) == "." && Self.isDigit(scanner.peek(offset: offset + 1))
+  }
+
+  /// Scans and validates a number literal against `numberLiteralPattern`.
+  private func parseNumberLiteral(_ scanner: inout Scanner) throws -> JSONValue {
     let start = scanner.pos
-    if scanner.peek() == "-" {
-      _ = scanner.advance(by: 1)
+    if scanner.peek() == "-" || scanner.peek() == "+" {
+      scanner.advance(by: 1)
     }
-    var hasDot = false
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isNumber {
-        _ = scanner.advance(by: 1)
-      } else if c == "." && !hasDot {
-        hasDot = true
-        _ = scanner.advance(by: 1)
-      } else {
-        break
-      }
+    while let c = scanner.peek(), Self.isDigit(c) || c == "." {
+      scanner.advance(by: 1)
     }
+    skipExponent(&scanner)
     let numStr = String(scanner.input[start..<scanner.pos])
-    if hasDot, let d = Double(numStr) {
-      return .number(d)
-    } else if let i = Int(numStr) {
-      return .integer(i)
-    } else if let d = Double(numStr) {
-      return .number(d)
+    guard Self.isValidNumberLiteral(numStr) else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Invalid number literal: '\(numStr)'"
+      )
     }
-    return .string(numStr)
+    let isInteger = !numStr.contains(where: { $0 == "." || $0 == "e" || $0 == "E" })
+    if isInteger, let i = Int(numStr) {
+      return .integer(i)
+    }
+    guard let d = Double(numStr), d.isFinite else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Number literal is out of range: '\(numStr)'"
+      )
+    }
+    return .number(d)
+  }
+
+  /// Consumes an exponent suffix (`e` or `E`, an optional sign, then digits)
+  /// if one is present.
+  ///
+  /// A malformed exponent such as `1e` or `1e+` is still consumed, so that
+  /// `parseNumberLiteral` reports it as an invalid literal instead of leaving
+  /// trailing characters behind.
+  private func skipExponent(_ scanner: inout Scanner) {
+    guard let c = scanner.peek(), c == "e" || c == "E" else {
+      return
+    }
+    scanner.advance(by: 1)
+    if let sign = scanner.peek(), sign == "+" || sign == "-" {
+      scanner.advance(by: 1)
+    }
+    while Self.isDigit(scanner.peek()) {
+      scanner.advance(by: 1)
+    }
+  }
+
+  /// Checks whether the entire `text` matches `numberLiteralPattern`.
+  private static func isValidNumberLiteral(_ text: String) -> Bool {
+    let range = NSRange(text.startIndex..., in: text)
+    return numberLiteral?.firstMatch(in: text, range: range)?.range == range
+  }
+
+  /// Whether `c` is an ASCII digit. `Character.isNumber` also accepts non-ASCII numerals such as
+  /// `½`, which no other engine treats as part of a number literal.
+  private static func isDigit(_ c: Character?) -> Bool {
+    guard let c else { return false }
+    return c >= "0" && c <= "9"
   }
 
   // MARK: - Nested Scanner

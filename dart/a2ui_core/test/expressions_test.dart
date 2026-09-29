@@ -75,6 +75,107 @@ void main() {
       expect(() => parser.parse('hello \${world'), throwsException);
     });
 
+    group('number literals', () {
+      test('parse signed integers and decimals', () {
+        expect(parser.parseExpression('-42'), -42);
+        expect(parser.parseExpression('+7'), 7);
+        expect(parser.parseExpression('-3.5'), -3.5);
+        expect(parser.parseExpression('-0'), 0);
+      });
+
+      test('parse exponent notation', () {
+        expect(parser.parseExpression('1e5'), 100000);
+        expect(parser.parseExpression('1E5'), 100000);
+        expect(parser.parseExpression('1.5e-3'), 0.0015);
+        expect(parser.parseExpression('2.5E+4'), 25000);
+        expect(parser.parseExpression('-2e3'), -2000);
+      });
+
+      test('parse signed literals as function arguments', () {
+        expect(parser.parseExpression('clamp(value: -1.5e2, max: +10)'), {
+          'call': 'clamp',
+          'args': {'value': -150, 'max': 10},
+          'returnType': 'any',
+        });
+      });
+
+      test('keep a hyphen inside a path as part of the path', () {
+        expect(parser.parseExpression('a-1'), {'path': 'a-1'});
+        expect(parser.parseExpression('/items/-1'), {'path': '/items/-1'});
+      });
+
+      test('treat a sign not followed by a digit as a path', () {
+        expect(parser.parseExpression('-foo'), {'path': '-foo'});
+      });
+
+      test('parse leading-dot literals', () {
+        expect(parser.parseExpression('.5'), 0.5);
+        expect(parser.parseExpression('-.5'), -0.5);
+        expect(parser.parseExpression('+.5'), 0.5);
+        expect(parser.parseExpression('.5e2'), 50);
+        expect(parser.parseExpression('-.5E-1'), -0.05);
+        expect(parser.parseExpression('f(a: -.5, b: .25)'), {
+          'call': 'f',
+          'args': {'a': -0.5, 'b': 0.25},
+          'returnType': 'any',
+        });
+      });
+
+      test('keep paths that start with or contain a dot unchanged', () {
+        for (final expr in ['.foo', './x', '-.', '.e5', 'a.5', '/items/.5']) {
+          expect(parser.parseExpression(expr), {'path': expr}, reason: expr);
+        }
+      });
+
+      test('reject malformed leading-dot literals', () {
+        for (final expr in ['.5.5', '-.5e', '.5e+']) {
+          expect(
+            () => parser.parseExpression(expr),
+            throwsA(isA<A2uiExpressionError>()),
+            reason: expr,
+          );
+        }
+      });
+
+      test('reject a malformed exponent', () {
+        for (final expr in ['1e', '1e+', '1E-']) {
+          expect(
+            () => parser.parseExpression(expr),
+            throwsA(isA<A2uiExpressionError>()),
+            reason: expr,
+          );
+        }
+      });
+
+      test('reject characters left after a literal', () {
+        expect(
+          () => parser.parseExpression('-1x'),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
+      test('reject literals outside the double range', () {
+        for (final String expr in ['1e999', '-1e999', '2e308', '1' * 400]) {
+          expect(
+            () => parser.parseExpression(expr),
+            throwsA(
+              isA<A2uiExpressionError>().having(
+                (e) => e.message,
+                'message',
+                contains('out of range'),
+              ),
+            ),
+            reason: expr,
+          );
+        }
+      });
+
+      test('accept literals at the edges of the double range', () {
+        expect(parser.parseExpression('1e308'), 1e308);
+        expect(parser.parseExpression('1e-999'), 0);
+      });
+    });
+
     group('recursion depth', () {
       // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so
       // this nests [calls] + 1 deep.

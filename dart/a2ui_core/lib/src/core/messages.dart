@@ -49,12 +49,13 @@ abstract class AgentToRendererMessage {
   static AgentToRendererMessagePayload parseAll(
     List<Map<String, Object?>> payload, {
     required A2uiProtocolVersion protocolVersion,
-  }) => AgentToRendererMessagePayload([
-    for (final Map<String, Object?> envelope in payload)
-      AgentToRendererMessage.fromJson(
-        _checkedEnvelope(envelope, protocolVersion),
-      ),
-  ]);
+  }) =>
+      AgentToRendererMessagePayload([
+        for (final Map<String, Object?> envelope in payload)
+          AgentToRendererMessage.fromJson(
+            _checkedEnvelope(envelope, protocolVersion),
+          ),
+      ]);
 
   /// Deserializes a JSON envelope into a typed [AgentToRendererMessage].
   ///
@@ -71,9 +72,8 @@ abstract class AgentToRendererMessage {
       'updateDataModel',
       'deleteSurface',
     };
-    final List<String> presentKeys = messageBodyKeys
-        .where(json.containsKey)
-        .toList();
+    final List<String> presentKeys =
+        messageBodyKeys.where(json.containsKey).toList();
     if (presentKeys.length > 1) {
       throw A2uiValidationError(
         'A2UI message must contain exactly one of '
@@ -91,7 +91,20 @@ abstract class AgentToRendererMessage {
             version: version,
             surfaceId: _required<String>(body, 'surfaceId', key),
             catalogId: _required<String>(body, 'catalogId', key),
-            theme: _optional<Map<String, dynamic>>(body, 'theme', key),
+            theme: () {
+              final Map<dynamic, dynamic>? themeMap =
+                  _optional<Map<dynamic, dynamic>>(body, 'theme', key);
+              if (themeMap != null) {
+                if (themeMap.keys.any((k) => k is! String)) {
+                  throw A2uiValidationError(
+                    "Field '$key.theme' must have string keys.",
+                    details: body,
+                  );
+                }
+                return themeMap.cast<String, dynamic>();
+              }
+              return null;
+            }(),
             sendDataModel: _optional<bool>(body, 'sendDataModel', key) ?? false,
           );
         case 'updateComponents':
@@ -271,6 +284,12 @@ Map<String, dynamic> _object(
       details: body,
     );
   }
+  if (value.keys.any((key) => key is! String)) {
+    throw A2uiValidationError(
+      "Field '$messageType.$field' must have string keys.",
+      details: body,
+    );
+  }
   return value.cast<String, dynamic>();
 }
 
@@ -337,14 +356,14 @@ class CreateSurfaceMessage extends AgentToRendererMessage {
 
   @override
   Map<String, dynamic> toJson() => {
-    'version': version,
-    'createSurface': {
-      'surfaceId': surfaceId,
-      'catalogId': catalogId,
-      if (theme != null) 'theme': theme,
-      'sendDataModel': sendDataModel,
-    },
-  };
+        'version': version,
+        'createSurface': {
+          'surfaceId': surfaceId,
+          'catalogId': catalogId,
+          if (theme != null) 'theme': theme,
+          'sendDataModel': sendDataModel,
+        },
+      };
 }
 
 /// Updates a surface with a new set of components.
@@ -360,9 +379,9 @@ class UpdateComponentsMessage extends AgentToRendererMessage {
 
   @override
   Map<String, dynamic> toJson() => {
-    'version': version,
-    'updateComponents': {'surfaceId': surfaceId, 'components': components},
-  };
+        'version': version,
+        'updateComponents': {'surfaceId': surfaceId, 'components': components},
+      };
 }
 
 /// Updates the data model for an existing surface.
@@ -380,13 +399,13 @@ class UpdateDataModelMessage extends AgentToRendererMessage {
 
   @override
   Map<String, dynamic> toJson() => {
-    'version': version,
-    'updateDataModel': {
-      'surfaceId': surfaceId,
-      if (path != null) 'path': path,
-      if (value != null) 'value': value,
-    },
-  };
+        'version': version,
+        'updateDataModel': {
+          'surfaceId': surfaceId,
+          if (path != null) 'path': path,
+          if (value != null) 'value': value,
+        },
+      };
 }
 
 /// Signals the client to delete a surface.
@@ -397,9 +416,9 @@ class DeleteSurfaceMessage extends AgentToRendererMessage {
 
   @override
   Map<String, dynamic> toJson() => {
-    'version': version,
-    'deleteSurface': {'surfaceId': surfaceId},
-  };
+        'version': version,
+        'deleteSurface': {'surfaceId': surfaceId},
+      };
 }
 
 /// A whole agent-to-renderer payload, normalized to the messages it carries.
@@ -431,11 +450,11 @@ class AgentToRendererMessagePayload {
 
   /// A payload of already parsed [messages].
   AgentToRendererMessagePayload(Iterable<AgentToRendererMessage> messages)
-    : messages = List<AgentToRendererMessage>.unmodifiable(messages);
+      : messages = List<AgentToRendererMessage>.unmodifiable(messages);
 
   /// A payload carrying [message] alone.
   AgentToRendererMessagePayload.of(AgentToRendererMessage message)
-    : messages = List<AgentToRendererMessage>.unmodifiable([message]);
+      : messages = List<AgentToRendererMessage>.unmodifiable([message]);
 
   /// Parses decoded JSON into a payload.
   ///
@@ -448,10 +467,11 @@ class AgentToRendererMessagePayload {
   factory AgentToRendererMessagePayload.fromJson(
     Object? payload, {
     required A2uiProtocolVersion protocolVersion,
-  }) => AgentToRendererMessage.parseAll(
-    _envelopesOf(payload),
-    protocolVersion: protocolVersion,
-  );
+  }) =>
+      AgentToRendererMessage.parseAll(
+        _envelopesOf(payload),
+        protocolVersion: protocolVersion,
+      );
 
   /// The payload as the `{messages: [...]}` wrapper, matching
   /// `server_to_client_list_wrapper.json`.
@@ -460,8 +480,8 @@ class AgentToRendererMessagePayload {
   /// The payload as a bare list of envelopes, matching
   /// `server_to_client_list.json`.
   List<Map<String, dynamic>> toJsonList() => [
-    for (final AgentToRendererMessage message in messages) message.toJson(),
-  ];
+        for (final AgentToRendererMessage message in messages) message.toJson(),
+      ];
 }
 
 /// Reports a user-initiated action from a component.
@@ -502,12 +522,12 @@ class A2uiClientAction {
       );
 
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'surfaceId': surfaceId,
-    'sourceComponentId': sourceComponentId,
-    'timestamp': timestamp.toIso8601String(),
-    'context': context,
-  };
+        'name': name,
+        'surfaceId': surfaceId,
+        'sourceComponentId': sourceComponentId,
+        'timestamp': timestamp.toIso8601String(),
+        'context': context,
+      };
 }
 
 /// Reports a client-side error.
@@ -538,9 +558,9 @@ class A2uiClientError {
     this.path,
     this.details,
   }) : assert(
-         code != validationFailedCode || path != null,
-         "A '$validationFailedCode' error must name the 'path' that failed.",
-       );
+          code != validationFailedCode || path != null,
+          "A '$validationFailedCode' error must name the 'path' that failed.",
+        );
 
   /// The error code whose variant requires [path].
   static const String validationFailedCode = 'VALIDATION_FAILED';
@@ -569,12 +589,12 @@ class A2uiClientError {
   }
 
   Map<String, dynamic> toJson() => {
-    'code': code,
-    'surfaceId': surfaceId,
-    'message': message,
-    if (path != null) 'path': path,
-    if (details != null) 'details': details,
-  };
+        'code': code,
+        'surfaceId': surfaceId,
+        'message': message,
+        if (path != null) 'path': path,
+        if (details != null) 'details': details,
+      };
 }
 
 /// Base class for the messages a renderer sends an agent.
@@ -606,12 +626,13 @@ abstract class RendererToAgentMessage {
   static RendererToAgentMessagePayload parseAll(
     List<Map<String, Object?>> payload, {
     required A2uiProtocolVersion protocolVersion,
-  }) => RendererToAgentMessagePayload([
-    for (final Map<String, Object?> envelope in payload)
-      RendererToAgentMessage.fromJson(
-        _checkedEnvelope(envelope, protocolVersion),
-      ),
-  ]);
+  }) =>
+      RendererToAgentMessagePayload([
+        for (final Map<String, Object?> envelope in payload)
+          RendererToAgentMessage.fromJson(
+            _checkedEnvelope(envelope, protocolVersion),
+          ),
+      ]);
 
   /// Deserializes a JSON envelope into a typed [RendererToAgentMessage].
   ///
@@ -624,9 +645,8 @@ abstract class RendererToAgentMessage {
     ).jsonValue;
 
     const messageBodyKeys = {'action', 'error'};
-    final List<String> presentKeys = messageBodyKeys
-        .where(json.containsKey)
-        .toList();
+    final List<String> presentKeys =
+        messageBodyKeys.where(json.containsKey).toList();
     if (presentKeys.length > 1) {
       throw A2uiValidationError(
         'A2UI message must contain exactly one of '
@@ -667,9 +687,9 @@ class ActionMessage extends RendererToAgentMessage {
 
   @override
   Map<String, dynamic> toJson() => {
-    'version': version,
-    'action': action.toJson(),
-  };
+        'version': version,
+        'action': action.toJson(),
+      };
 }
 
 /// Carries a client-side error to the agent.
@@ -681,9 +701,9 @@ class ErrorMessage extends RendererToAgentMessage {
 
   @override
   Map<String, dynamic> toJson() => {
-    'version': version,
-    'error': error.toJson(),
-  };
+        'version': version,
+        'error': error.toJson(),
+      };
 }
 
 /// A whole renderer-to-agent payload, normalized to the messages it carries.
@@ -706,11 +726,11 @@ class RendererToAgentMessagePayload {
 
   /// A payload of already built [messages].
   RendererToAgentMessagePayload(Iterable<RendererToAgentMessage> messages)
-    : messages = List<RendererToAgentMessage>.unmodifiable(messages);
+      : messages = List<RendererToAgentMessage>.unmodifiable(messages);
 
   /// A payload carrying [message] alone.
   RendererToAgentMessagePayload.of(RendererToAgentMessage message)
-    : messages = List<RendererToAgentMessage>.unmodifiable([message]);
+      : messages = List<RendererToAgentMessage>.unmodifiable([message]);
 
   /// Parses decoded JSON into a payload.
   ///
@@ -723,10 +743,11 @@ class RendererToAgentMessagePayload {
   factory RendererToAgentMessagePayload.fromJson(
     Object? payload, {
     required A2uiProtocolVersion protocolVersion,
-  }) => RendererToAgentMessage.parseAll(
-    _envelopesOf(payload),
-    protocolVersion: protocolVersion,
-  );
+  }) =>
+      RendererToAgentMessage.parseAll(
+        _envelopesOf(payload),
+        protocolVersion: protocolVersion,
+      );
 
   /// The payload as the `{messages: [...]}` wrapper, matching
   /// `client_to_server_list_wrapper.json`.
@@ -735,6 +756,6 @@ class RendererToAgentMessagePayload {
   /// The payload as a bare list of envelopes, matching
   /// `client_to_server_list.json`.
   List<Map<String, dynamic>> toJsonList() => [
-    for (final RendererToAgentMessage message in messages) message.toJson(),
-  ];
+        for (final RendererToAgentMessage message in messages) message.toJson(),
+      ];
 }

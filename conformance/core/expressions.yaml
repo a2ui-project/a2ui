@@ -100,6 +100,36 @@
   input: "${1.5}"
   expect: [1.5]
 
+- name: test_expr_negative_integer_literal
+  description: Negative integer literals parse to negative numbers.
+  action: parse_expression_template
+  input: "${-42}"
+  expect: [-42]
+
+- name: test_expr_negative_decimal_literal
+  description: Negative decimal literals parse to negative numbers.
+  action: parse_expression_template
+  input: "${-3.14}"
+  expect: [-3.14]
+
+- name: test_expr_exponential_notation_positive
+  description: Scientific/exponential notation parses to numbers.
+  action: parse_expression_template
+  input: "${1e5}"
+  expect: [100000]
+
+- name: test_expr_exponential_notation_negative_exponent
+  description: Scientific notation with negative exponent parses to floating point numbers.
+  action: parse_expression_template
+  input: "${1.5e-3}"
+  expect: [0.0015]
+
+- name: test_expr_exponential_notation_capital_e
+  description: Scientific notation with capital E and plus sign parses correctly.
+  action: parse_expression_template
+  input: "${2.5E+4}"
+  expect: [25000]
+
 - name: test_expr_leading_zeros
   description: Leading zeros do not change the value.
   action: parse_expression_template
@@ -129,6 +159,12 @@
   action: parse_expression_template
   input: "sum is ${add(a: 10, b: 20)}"
   expect: ["sum is ", {call: "add", args: {a: 10, b: 20}, returnType: "any"}]
+
+- name: test_expr_function_call_negative_args
+  description: Function arguments may be negative numeric literals.
+  action: parse_expression_template
+  input: "${add(a: -5, b: 10)}"
+  expect: [{call: "add", args: {a: -5, b: 10}, returnType: "any"}]
 
 - name: test_expr_function_call_mixed_arg_types
   description: Arguments may be literals, paths or nested calls.
@@ -230,3 +266,314 @@
   expect_error:
     category: "ParseError"
     message: "Invalid number literal"
+
+- name: test_expr_leading_dot_decimal_literal
+  description: A decimal literal may omit the digits before the decimal point.
+  action: parse_expression_template
+  input: "${.5}"
+  expect: [0.5]
+
+- name: test_expr_negative_leading_dot_decimal_literal
+  description: A leading-dot decimal literal may carry a minus sign.
+  action: parse_expression_template
+  input: "${-.5}"
+  expect: [-0.5]
+
+- name: test_expr_positive_leading_dot_decimal_literal
+  description: A leading-dot decimal literal may carry a plus sign.
+  action: parse_expression_template
+  input: "${+.5}"
+  expect: [0.5]
+
+- name: test_expr_leading_dot_exponential_notation
+  description: A leading-dot decimal literal may carry an exponent.
+  action: parse_expression_template
+  input: "${.5e2}"
+  expect: [50]
+
+- name: test_expr_function_call_leading_dot_args
+  description: Function arguments may be signed leading-dot decimal literals.
+  action: parse_expression_template
+  input: "${scale(by: -.5, offset: .25)}"
+  expect: [{call: "scale", args: {by: -0.5, offset: 0.25}, returnType: "any"}]
+
+- name: test_expr_leading_dot_path_is_not_a_number
+  description: >
+    A leading dot starts a number only when a digit follows it. Otherwise the
+    token stays a path, as does a sign followed by a dot and no digit.
+  action: parse_expression_template
+  input: "${.foo} ${-.}"
+  expect: [{path: ".foo"}, " ", {path: "-."}]
+
+- name: test_expr_error_leading_dot_number_two_points
+  description: A leading-dot number literal with a second decimal point is rejected.
+  action: parse_expression_template
+  input: "${.5.5}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
+
+- name: test_expr_error_leading_dot_number_empty_exponent
+  description: A signed leading-dot number literal with an empty exponent is rejected.
+  action: parse_expression_template
+  input: "${-.5e}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
+
+- name: test_expr_positive_integer_literal
+  description: An integer literal with a leading plus sign is parsed as a number.
+  action: parse_expression_template
+  input: "${+1}"
+  expect: [1]
+
+- name: test_expr_hyphen_inside_path
+  description: A hyphen after an identifier character stays part of the path token.
+  action: parse_expression_template
+  input: "${a-1}"
+  expect: [{path: "a-1"}]
+
+- name: test_expr_hyphen_before_non_digit_is_a_path
+  description: A leading hyphen not followed by a digit or a dot-and-digit stays a path.
+  action: parse_expression_template
+  input: "${-a}"
+  expect: [{path: "-a"}]
+
+- name: test_expr_error_exponent_without_digits
+  description: A number literal whose exponent has no digits is rejected.
+  action: parse_expression_template
+  input: "${1e}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
+
+# Number literal range. Every engine returns an integer literal within
+# ±(2^53 - 1) exactly; RFC 8259 section 6 names that range as the one JSON
+# implementations agree on. Larger integers are not portable: TypeScript
+# rounds them to the nearest double, Dart and Swift keep them exact up to
+# 2^63 - 1, and Python keeps them exact at any size. A literal outside the
+# double range is an error in every engine.
+
+- name: test_expr_max_safe_integer_literals
+  description: Integer literals at ±(2^53 - 1) are returned with exact value in every engine.
+  action: parse_expression_template
+  input: "${9007199254740991} ${-9007199254740991}"
+  expect: [9007199254740991, " ", -9007199254740991]
+
+- name: test_expr_largest_exponent_literal
+  description: A number literal near the top of the double range is accepted.
+  action: parse_expression_template
+  input: "${1e308}"
+  expect: [1.0e+308]
+
+- name: test_expr_exponent_underflow_is_zero
+  description: A number literal that underflows the double range evaluates to zero.
+  action: parse_expression_template
+  input: "${1e-999}"
+  expect: [0]
+
+- name: test_expr_error_exponent_out_of_range
+  description: A positive exponent literal that overflows the double range is rejected.
+  action: parse_expression_template
+  input: "${1e999}"
+  expect_error:
+    category: "ParseError"
+    message: "out of range"
+
+- name: test_expr_error_negative_exponent_out_of_range
+  description: A negative number literal that overflows the double range is rejected.
+  action: parse_expression_template
+  input: "${-1e999}"
+  expect_error:
+    category: "ParseError"
+    message: "out of range"
+
+- name: test_expr_error_integer_out_of_range
+  description: An integer literal of 10^309 is outside the double range and is rejected.
+  action: parse_expression_template
+  input: "${1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}"
+  expect_error:
+    category: "ParseError"
+    message: "out of range"
+
+- name: test_expression_parser_string_interpolation_multiple_bindings
+  description: Verifies ${/path} interpolation across multiple variables and static text.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            dataModel:
+              user:
+                name: "Alice"
+                unreadCount: 5
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "Hello, ${/user/name}! You have ${/user/unreadCount} unread messages."
+  expect:
+    surfaces:
+      main:
+        components:
+          root:
+            component: "Text"
+            text: "Hello, Alice! You have 5 unread messages."
+
+- name: test_expression_parser_escaped_interpolation_sequence
+  description: Verifies \${...} renders literal ${...} without evaluation.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            dataModel:
+              amount: 100
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "Price is \\${/amount} USD"
+  expect:
+    surfaces:
+      main:
+        components:
+          root:
+            component: "Text"
+            text: "Price is ${/amount} USD"
+
+- name: test_expression_parser_nested_function_call
+  description: Verifies evaluating nested function calls with named arguments inside ${...}.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            dataModel:
+              price: 49.99
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "Total: ${formatCurrency(value: /price, currency: 'USD')}"
+  expect:
+    surfaces:
+      main:
+        components:
+          root:
+            component: "Text"
+            text: "Total: $49.99"
+
+- name: test_expression_parser_data_type_coercion_matrix
+  description: Verifies expression string coercion for booleans, numbers, and missing values.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            dataModel:
+              isActive: true
+              score: 98.5
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "Active: ${/isActive}, Score: ${/score}, Missing: ${/nonexistent}"
+  expect:
+    surfaces:
+      main:
+        components:
+          root:
+            component: "Text"
+            text: "Active: true, Score: 98.5, Missing: "
+
+- name: test_expression_parser_syntax_error_unclosed_brace
+  description: Verifies error when expression contains unclosed interpolation brace.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "Hello ${/unclosed"
+      expectError:
+        category: "ValidationError"
+        message: "Unclosed interpolation"
+
+- name: test_expression_parser_max_depth_exceeded_error
+  description: >-
+    Verifies error when expression nesting exceeds the maximum recursion depth.
+    The value nests 101 interpolations, one past the limit of 100 that every
+    engine applies.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+      expectError:
+        category: "ValidationError"
+        message: "Max recursion depth"
+
+- name: test_expr_error_max_depth_nested_interpolations
+  description: >-
+    An interpolation nested past the recursion limit of 100 is rejected. This
+    template nests 101 deep.
+  action: parse_expression_template
+  input: "${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+  expect_error:
+    category: "ParseError"
+    message: "Max recursion depth"
+
+- name: test_expr_error_max_depth_function_arguments
+  description: >-
+    A function-call argument counts toward the recursion limit, not just a
+    nested interpolation. This template nests 101 calls, one past the limit.
+  action: parse_expression_template
+  input: "${f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: f(a: 1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))}"
+  expect_error:
+    category: "ParseError"
+    message: "Max recursion depth"

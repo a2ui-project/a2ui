@@ -20,7 +20,7 @@ import {Root} from './root.js';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Types from '@a2ui/web_core/types/types';
-import {Events} from '@a2ui/web_core';
+import {Events} from '@a2ui/web_core/v0_8';
 import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {extractStringValue} from './utils/utils.js';

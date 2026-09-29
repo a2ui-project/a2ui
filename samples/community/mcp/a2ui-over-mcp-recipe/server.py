@@ -19,8 +19,7 @@ from typing import Any
 import anyio
 import click
 import mcp.types as types
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.schema.constants import VERSION_0_9
+from a2ui.schema import CatalogConfig, VERSION_0_9
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from mcp.server.lowlevel import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
@@ -72,12 +71,12 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
     recipe_a2ui_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_a2ui.json").read_text()
     )
-    selected_catalog.validator.validate(recipe_a2ui_json)
+    selected_catalog.validate_components(recipe_a2ui_json)
 
     recipe_form_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_form.json").read_text()
     )
-    selected_catalog.validator.validate(recipe_form_json)
+    selected_catalog.validate_components(recipe_form_json)
 
     app = Server("a2ui-mcp-recipe-demo")
 
