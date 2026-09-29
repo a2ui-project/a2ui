@@ -300,9 +300,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         if (functions.isNotEmpty)
           'functions': {
             // The document form of a function is the schema of a call to it, so
-            // this rebuilds that shape rather than listing the parts: `anyFunction`
-            // and every `DynamicString` reach these through `#/functions/<name>`,
-            // and a different shape would silently stop matching.
+            // this rebuilds that shape rather than listing the parts:
+            // `anyFunction` and every `DynamicString` reach these through
+            // `#/functions/<name>`, and a different shape would silently stop
+            // matching.
             for (final MapEntry<String, F> entry in functions.entries)
               entry.key: <String, Object?>{
                 'type': 'object',

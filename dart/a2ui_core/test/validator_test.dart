@@ -1060,8 +1060,8 @@ void main() {
               'properties': {
                 'id': {'type': 'string'},
                 'component': {'const': component},
-                // v1.0 lets a component name a catalog of its own, overriding the
-                // surface-level default.
+                // v1.0 lets a component name a catalog of its own,
+                // overriding the surface-level default.
                 'catalogId': {'type': 'string'},
                 'a': {'type': 'string'},
               },
