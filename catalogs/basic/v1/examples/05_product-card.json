@@ -29,7 +29,7 @@
             "id": "image",
             "component": "Image",
             "url": {
-              "path": "/imageUrl"
+              "@path": "/imageUrl"
             },
             "fit": "cover"
           },
@@ -42,7 +42,7 @@
             "id": "name",
             "component": "Text",
             "text": {
-              "path": "/name"
+              "@path": "/name"
             }
           },
           {
@@ -55,7 +55,7 @@
             "id": "stars",
             "component": "Text",
             "text": {
-              "path": "/stars"
+              "@path": "/stars"
             },
             "variant": "body"
           },
@@ -63,7 +63,7 @@
             "id": "reviews",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "(${formatNumber(value: ${/reviewCount})} ${pluralize(value: ${/reviewCount}, one: 'review', other: 'reviews')})"
               }
@@ -80,10 +80,10 @@
             "id": "price",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/price"
+                  "@path": "/price"
                 },
                 "currency": "USD"
               }
@@ -93,10 +93,10 @@
             "id": "original_price",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/originalPrice"
+                  "@path": "/originalPrice"
                 },
                 "currency": "USD"
               }

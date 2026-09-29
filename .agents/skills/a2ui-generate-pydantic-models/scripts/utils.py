@@ -84,6 +84,8 @@ def to_snake_case(name: str) -> str:
         return "defs"
     if name.startswith("$"):
         name = name[1:]
+    if name.startswith("@"):
+        name = name.lstrip("@") or "at"
     if re.match(r"^v\d+(?:_\d+)*$", name):
         return name
     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
