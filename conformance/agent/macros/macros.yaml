@@ -166,6 +166,32 @@ macros:
         component: "RecursiveCard"
         title: {$param: "title"}
 
+  - name: "ComplexCard"
+    description: "Card testing protocol common types in macro parameter schemas"
+    parameters:
+      title: {type: "string"}
+      dynamic_title: {type: "dynamic_string"}
+      metric: {type: "dynamic_number"}
+      is_active: {type: "dynamic_boolean"}
+      tags: {type: "dynamic_string_list"}
+      anything: {type: "dynamic_value"}
+      on_click: {type: "action"}
+      checks: {type: "check_rule_list"}
+      accessibility: {type: "accessibility"}
+      footer: {type: "component"}
+      items: {type: "component_list"}
+      theme:
+        type: "string"
+        enum: ["primary", "secondary"]
+    # Native builder:
+    #   Card(child=Text(text=title))
+    template:
+      component: "Card"
+      child:
+        component: "Text"
+        text: {$param: "title"}
+
+
 tests:
   - id: "01_status_badge_expansion"
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
@@ -284,4 +310,101 @@ tests:
     colliding_macro: "Text"
     expect_error:
       category: "CatalogError"
+
+  - id: "11_synthetic_catalog_generation"
+    description: "Deriving an inference catalog synthesizes valid schemas for all parameter types and augments anyComponent"
+    action: "transform_to_inference_catalog"
+    expect:
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/SlotContainer"
+        - "#/components/MultiSlotContainer"
+        - "#/components/ActionButton"
+        - "#/components/BoundMetric"
+        - "#/components/ConfigCard"
+        - "#/components/NestedMacroCard"
+        - "#/components/ComplexCard"
+      component_properties:
+        ComplexCard:
+          title: {type: "string"}
+          dynamic_title: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"}
+          metric: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"}
+          is_active: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"}
+          tags: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList"}
+          anything: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"}
+          on_click: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"}
+          checks: {type: "array", items: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"}}
+          accessibility: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/AccessibilityAttributes"}
+          footer: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"}
+          items: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"}
+          theme: {type: "string", enum: ["primary", "secondary"]}
+
+  - id: "12_catalog_version_preservation"
+    description: "Inference catalog preserves exact protocol version of the base catalog"
+    action: "transform_to_inference_catalog"
+    expect:
+      protocol_version: "0.9.1"
+
+  - id: "13_error_envelope_version_mismatch"
+    description: "Envelope with unsupported/incompatible protocol version fails validation"
+    surface_id: "conformance"
+    envelope_version: "v0.8"
+    input:
+      component: "StatusBadge"
+      id: "badge_1"
+      status: "active"
+      title: "Server 1"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "14_multiple_macro_instances_namespacing"
+    description: "Multiple instances of the same macro in one envelope generate collision-free namespaced IDs"
+    golden: "14_multiple_macro_instances_namespacing.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      - component: "StatusBadge"
+        id: "badge_1"
+        status: "active"
+        title: "DB"
+      - component: "StatusBadge"
+        id: "badge_2"
+        status: "idle"
+        title: "Cache"
+
+  - id: "15_mixed_primitive_and_macro_envelope"
+    description: "Envelope containing both primitives and macros preserves primitives and expands macros in-place"
+    golden: "15_mixed_primitive_and_macro_envelope.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      - component: "Text"
+        id: "title_1"
+        text: "System Dashboard"
+        variant: "h1"
+      - component: "StatusBadge"
+        id: "badge_1"
+        status: "ready"
+        title: "API Gateway"
+
+  - id: "16_reverse_passthrough"
+    description: "transform_to_inference returns transport messages untouched as identity pass-through"
+    action: "transform_to_inference"
+    surface_id: "conformance"
+    input:
+      component: "Card"
+      id: "card_1"
+      child: "child_1"
+
 
