@@ -24,7 +24,7 @@
  * const processor = new MessageProcessor(catalogs, onAction);
  *
  * const functions = createMcpCatalogFunctions(toolName => clientFor(toolName), processor);
- * catalogs.push(new Catalog(MCP_CATALOG_ID, [], functions));
+ * catalogs.push(new Catalog(MCP_CATALOG_ID, '0.9', [], functions));
  * ```
  */
 

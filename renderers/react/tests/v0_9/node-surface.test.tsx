@@ -206,7 +206,7 @@ class CatchBoundary extends React.Component<{children: React.ReactNode}, {error:
 }
 
 function setup() {
-  const catalog = new Catalog<ReactComponentImplementation>('node-react-test', [
+  const catalog = new Catalog<ReactComponentImplementation>('node-react-test', '0.9', [
     TextImpl,
     ColumnImpl,
     CardImpl,
@@ -224,7 +224,7 @@ function setup() {
 }
 
 function add(surface: SurfaceModel, id: string, type: string, props: Record<string, unknown>) {
-  surface.componentsModel.addComponent(new ComponentModel(id, type, props));
+  surface.componentsModel.addComponent(new ComponentModel(id, type, props, surface.defaultCatalog));
 }
 
 beforeEach(() => {
@@ -343,7 +343,7 @@ describe('A2uiSurface', () => {
         return <div>{childId ? buildChild(childId) : null}</div>;
       },
     };
-    const catalog = new Catalog<ReactComponentImplementation>('render-only', [
+    const catalog = new Catalog<ReactComponentImplementation>('render-only', '0.9', [
       RenderOnly,
       TextImpl,
     ]);
@@ -371,7 +371,10 @@ describe('A2uiSurface', () => {
         </div>
       ),
     );
-    const catalog = new Catalog<ReactComponentImplementation>('plain-list', [PlainList, TextImpl]);
+    const catalog = new Catalog<ReactComponentImplementation>('plain-list', '0.9', [
+      PlainList,
+      TextImpl,
+    ]);
     const surface = new SurfaceModel<ReactComponentImplementation>('surf-plain-list', catalog);
     add(surface, 'root', 'PlainList', {children: ['a', 'b']});
     add(surface, 'a', 'Text', {text: 'first child'});
@@ -448,7 +451,7 @@ describe('A2uiSurface', () => {
         return <div>{childId ? buildChild(childId, '/somewhere/else') : null}</div>;
       },
     };
-    const catalog = new Catalog<ReactComponentImplementation>('scoper', [Scoper, TextImpl]);
+    const catalog = new Catalog<ReactComponentImplementation>('scoper', '0.9', [Scoper, TextImpl]);
     const surface = new SurfaceModel<ReactComponentImplementation>('surf-scoper', catalog);
     add(surface, 'root', 'Scoper', {child: 'kid'});
     add(surface, 'kid', 'Text', {text: 'scoped child'});
@@ -629,7 +632,7 @@ describe('A2uiSurface', () => {
     surface.componentsModel.onDeleted.subscribe(async () => {
       await Promise.resolve();
     });
-    const resolver = new NodeResolver(surface, surface.catalog);
+    const resolver = new NodeResolver(surface, surface.defaultCatalog);
     add(surface, 'root', 'Text', {text: 'hi'});
     const root = getValue(resolver.rootNode);
     expect(root).toBeDefined();
@@ -647,7 +650,7 @@ describe('A2uiSurface', () => {
 
   it('throws a named error when a view renders outside A2uiSurface', () => {
     const surface = setup();
-    const resolver = new NodeResolver(surface, surface.catalog);
+    const resolver = new NodeResolver(surface, surface.defaultCatalog);
     add(surface, 'root', 'Text', {text: 'hi'});
     const root = getValue(resolver.rootNode);
     const View = root!.impl!.view!;
@@ -694,7 +697,7 @@ describe('A2uiSurface', () => {
         );
       },
     );
-    const catalog = new Catalog<ReactComponentImplementation>('grouped', [Grouped]);
+    const catalog = new Catalog<ReactComponentImplementation>('grouped', '0.9', [Grouped]);
     const surface = new SurfaceModel<ReactComponentImplementation>('surf-grouped', catalog);
     add(surface, 'root', 'Grouped', {group: {}});
 

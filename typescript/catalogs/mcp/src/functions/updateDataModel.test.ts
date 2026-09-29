@@ -41,6 +41,7 @@ const AsyncSourceImplementation: FunctionImplementation = createFunctionImplemen
 
 const catalog = new Catalog<any>(
   'https://a2ui.org/test/updateDataModel',
+  '0.9',
   [],
   [...DATA_FUNCTIONS, AsyncSourceImplementation],
 );
@@ -52,7 +53,7 @@ const createTestDataContext = (
 ) => {
   const mockSurface = {
     dataModel: model,
-    catalog: {invoker: catalog.invoker},
+    defaultCatalog: {invoker: catalog.invoker},
     dispatchError: onError,
   } as any;
   return new DataContext(mockSurface, path);

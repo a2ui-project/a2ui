@@ -15,6 +15,9 @@
 name: E2E Tests
 
 on:
+  # Lets the tests run on demand, for example on a PR branch, from the Actions
+  # tab or with `gh workflow run e2e_test.yml --ref <branch>`. PRs do not run
+  # them otherwise. A manual run does not file an issue when it fails.
   workflow_dispatch:
   schedule:
     - cron: "0 0 * * *" # daily

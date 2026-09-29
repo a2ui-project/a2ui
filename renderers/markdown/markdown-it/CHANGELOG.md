@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.2.0
+
+- Re-export `MarkdownRenderer`, `MarkdownRendererOptions`, and `MarkdownRendererTagClassMap` directly from `@a2ui/web_core`.
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.12.0`.
+
 ## 0.1.2
 
 - Bump dependencies so the package is compatible with `@a2ui/web_core: ^0.11.0`.

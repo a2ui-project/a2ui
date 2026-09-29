@@ -18,7 +18,7 @@ import os
 from collections import OrderedDict
 from collections.abc import AsyncIterable
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import jsonschema
 
@@ -43,13 +43,22 @@ from google.genai import types
 from prompt_builder import get_text_prompt, ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 from tools import get_contact_info
 
-from a2ui.schema.constants import VERSION_0_8, VERSION_0_9, A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-from a2ui.schema.common_modifiers import remove_strict_validation
+from a2ui.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
-from a2ui.parser.parser import parse_response, ResponsePart
-from a2ui.basic_catalog.provider import BasicCatalog
-from a2ui.a2a.extension import get_a2ui_agent_extension
-from a2ui.a2a.parts import create_a2ui_part, parse_response_to_parts, stream_response_to_parts
+from a2ui.parser import ResponsePart, parse_response
+from a2ui.schema import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    VERSION_0_8,
+    VERSION_0_9,
+    remove_strict_validation,
+)
+from a2ui.a2a import (
+    create_a2ui_part,
+    get_a2ui_agent_extension,
+    parse_response_to_parts,
+    stream_response_to_parts,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +72,10 @@ class ContactAgent:
         self.base_url = base_url
         self._agent_name = "contact_agent"
         self._user_id = "remote_agent"
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: Dict[str, DirectJsonFormat] = {}
-        self._ui_runners: Dict[str, Runner] = {}
+        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._ui_runners: dict[str, Runner] = {}
         self._parsers: OrderedDict[str, DirectJsonStreamParser] = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
@@ -84,9 +91,7 @@ class ContactAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def get_inference_format(
-        self, version: Optional[str]
-    ) -> Optional[DirectJsonFormat]:
+    def get_inference_format(self, version: str | None) -> DirectJsonFormat | None:
         if version is None:
             return None
         return self._inference_formats[version]
@@ -158,10 +163,10 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[DirectJsonFormat] = None
+        self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
+        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
 
         instruction = (
             inference_format.generate_system_prompt(
@@ -185,7 +190,7 @@ class ContactAgent:
         )
 
     async def _handle_action(
-        self, query: str, ui_version: Optional[str] = None
+        self, query: str, ui_version: str | None = None
     ) -> dict[str, Any] | None:
         """Handles simulated UI actions like close_modal or view_location."""
         if not query.startswith("ACTION:"):
@@ -292,7 +297,7 @@ class ContactAgent:
         query,
         session_id,
         client_ui_capabilities: dict[str, Any] | None = None,
-        ui_version: Optional[str] = None,
+        ui_version: str | None = None,
     ) -> AsyncIterable[dict[str, Any]]:
         session_state = {"base_url": self.base_url}
 
@@ -506,7 +511,7 @@ class ContactAgent:
                                 "--- ContactAgent.stream: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validator.validate(parsed_json_data)
+                            selected_catalog.validate_components(parsed_json_data)
 
                             logger.info(
                                 "--- ContactAgent.stream: UI JSON successfully parsed"

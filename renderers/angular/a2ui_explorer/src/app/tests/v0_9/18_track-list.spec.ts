@@ -23,7 +23,7 @@ describe('Example: Track List', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Track List');
+    fixture = await loadExample({name: 'Track List'});
     textContent = getCanvas().textContent;
   });
 

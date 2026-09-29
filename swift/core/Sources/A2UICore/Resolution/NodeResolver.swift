@@ -47,15 +47,15 @@ public final class NodeResolver: Sendable {
     surfaceID: String,
     catalogs: [String: AnyCatalog],
     defaultCatalogID: String? = nil,
-    componentsModel: SurfaceComponentsModel = SurfaceComponentsModel(),
-    dataModel: DataModel = DataModel(),
+    componentsModel: SurfaceComponentsModel? = nil,
+    dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
     self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
-    self.componentsModel = componentsModel
-    self.dataModel = dataModel
+    self.componentsModel = componentsModel ?? SurfaceComponentsModel()
+    self.dataModel = dataModel ?? DataModel()
     self.actionHandler = actionHandler
   }
 
@@ -77,8 +77,8 @@ public final class NodeResolver: Sendable {
     surfaceID: String,
     catalogs: [any CatalogProtocol],
     defaultCatalogID: String? = nil,
-    componentsModel: SurfaceComponentsModel = SurfaceComponentsModel(),
-    dataModel: DataModel = DataModel(),
+    componentsModel: SurfaceComponentsModel? = nil,
+    dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
@@ -643,9 +643,25 @@ public final class NodeResolver: Sendable {
   ) -> ResolvedAction? {
     guard let dict = value.dictionaryValue else { return nil }
 
-    if let eventObj = dict["event"]?.dictionaryValue,
-      let name = eventObj["name"]?.stringValue
-    {
+    let eventObj: [String: JSONValue]?
+    if let wrapped = dict["event"]?.dictionaryValue {
+      eventObj = wrapped
+    } else if dict["name"]?.stringValue != nil {
+      eventObj = dict
+    } else {
+      eventObj = nil
+    }
+
+    let funcCallVal: JSONValue?
+    if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil {
+      funcCallVal = wrapped
+    } else if dict["call"]?.stringValue != nil {
+      funcCallVal = value
+    } else {
+      funcCallVal = nil
+    }
+
+    if let eventObj, let name = eventObj["name"]?.stringValue {
       let contextDict = eventObj["context"]?.dictionaryValue
       let unresolvedIdentity = ResolvedAction.Identity.event(
         name: name,
@@ -685,10 +701,10 @@ public final class NodeResolver: Sendable {
           self.actionHandler?.handle(action: triggerAction, from: self.surfaceID)
         }
       )
-    } else if let funcCallObj = dict["functionCall"]?.dictionaryValue,
-      let call = funcCallObj["call"]?.stringValue
+    } else if let funcCallVal, let funcCallDict = funcCallVal.dictionaryValue,
+      let call = funcCallDict["call"]?.stringValue
     {
-      let argsDict = funcCallObj["args"]?.dictionaryValue
+      let argsDict = funcCallDict["args"]?.dictionaryValue
       let unresolvedIdentity = ResolvedAction.Identity.function(
         call: call,
         args: argsDict
@@ -712,19 +728,7 @@ public final class NodeResolver: Sendable {
             return
           }
 
-          var resolvedArgs: [String: JSONValue] = [:]
-          if let argsDict {
-            for (argKey, argVal) in argsDict {
-              resolvedArgs[argKey] = self.evaluateDynamicValue(argVal, basePath: basePath)
-            }
-          }
-
-          let triggerAction = ResolvedAction(
-            identity: .function(call: call, args: resolvedArgs),
-            trigger: {}
-          )
-
-          self.actionHandler?.handle(action: triggerAction, from: self.surfaceID)
+          _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath)
         }
       )
     }

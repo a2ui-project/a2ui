@@ -48,6 +48,40 @@ void main() {
       expect(cs.sendDataModel, false);
     });
 
+    test('parses createSurface with generic Map theme', () {
+      final msg = AgentToRendererMessage.fromJson({
+        'version': 'v0.9',
+        'createSurface': {
+          'surfaceId': 's1',
+          'catalogId': 'cat1',
+          'theme': <dynamic, dynamic>{'primaryColor': '#FF0000'},
+        },
+      });
+
+      final cs = msg as CreateSurfaceMessage;
+      expect(cs.theme, {'primaryColor': '#FF0000'});
+    });
+
+    test('rejects createSurface with non-string keys in theme', () {
+      expect(
+        () => AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': 'cat1',
+            'theme': <dynamic, dynamic>{123: '#FF0000'},
+          },
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("Field 'createSurface.theme' must have string keys."),
+          ),
+        ),
+      );
+    });
+
     test('parses updateComponents', () {
       final msg = AgentToRendererMessage.fromJson({
         'version': 'v0.9',
@@ -537,6 +571,28 @@ void main() {
           },
         }),
         throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('throws when an object field contains non-string keys', () {
+      expect(
+        () => RendererToAgentMessage.fromJson({
+          'version': 'v0.9',
+          'action': {
+            'name': 'submit',
+            'surfaceId': 's1',
+            'sourceComponentId': 'button',
+            'timestamp': '2026-09-16T10:30:00.000Z',
+            'context': <dynamic, dynamic>{123: 'val'},
+          },
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("Field 'action.context' must have string keys."),
+          ),
+        ),
       );
     });
 

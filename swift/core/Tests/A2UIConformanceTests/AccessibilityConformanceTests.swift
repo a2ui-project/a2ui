@@ -27,9 +27,11 @@ struct AccessibilityConformanceTests {
 
     #expect(!testCases.isEmpty, "Should find test cases in accessibility.yaml")
 
+    var checkedComponents = 0
+
     for testCase in testCases {
       guard let surfaceDictionary = testCase.surface else { continue }
-      let assertions = testCase.assertions?["accessibility_tree"]?.objectValue ?? [:]
+      let assertions = testCase.assertions?["accessibilityTree"]?.objectValue ?? [:]
 
       let rootComponentType = surfaceDictionary["component"]?.stringValue ?? "Column"
       let rootID = surfaceDictionary["id"]?.stringValue ?? "root"
@@ -94,6 +96,7 @@ struct AccessibilityConformanceTests {
           properties: resolvedProperties
         )
         let accessibilityAttributes = node.accessibilityAttributes
+        checkedComponents += 1
 
         if let expectedLabel = expectedDictionary["label"]?.stringValue {
           #expect(
@@ -136,5 +139,7 @@ struct AccessibilityConformanceTests {
         }
       }
     }
+
+    #expect(checkedComponents > 0, "no accessibilityTree assertion of the suite was checked")
   }
 }

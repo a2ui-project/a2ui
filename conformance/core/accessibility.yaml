@@ -14,8 +14,8 @@
 
 - name: test_accessibility_attributes_plumbing
   description: Verifies plumbing of AccessibilityAttributes (label, description, live, hidden) to accessibility node trees and axe-core rules.
-  catalog:
-    version: "1.0"
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -34,11 +34,11 @@
         accessibility:
           live: "polite"
   assertions:
-    axe_core:
+    axeCore:
       - "button-name"
       - "aria-valid-attr-value"
       - "aria-allowed-attr"
-    accessibility_tree:
+    accessibilityTree:
       btn1:
         label: "Mute Notifications"
         description: "Silences notifications about this conversation"
@@ -47,8 +47,8 @@
 
 - name: test_accessibility_live_region_assertive
   description: Verifies assertive live region announcement for critical alert banner updates.
-  catalog:
-    version: "1.0"
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -62,17 +62,17 @@
           label: "Critical Alert"
           live: "assertive"
   assertions:
-    axe_core:
+    axeCore:
       - "aria-valid-attr-value"
-    accessibility_tree:
+    accessibilityTree:
       alert_box:
         label: "Critical Alert"
         live: "assertive"
 
 - name: test_accessibility_hidden_subtree
   description: Verifies that setting hidden=true hides the component and its children from assistive technologies.
-  catalog:
-    version: "1.0"
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -88,16 +88,16 @@
         component: Icon
         name: "star"
   assertions:
-    axe_core:
+    axeCore:
       - "aria-hidden-focus"
-    accessibility_tree:
+    accessibilityTree:
       root:
         hidden: true
 
 - name: test_accessibility_implicit_label_inference
   description: Verifies default screen reader semantic inference from visible text properties when explicit accessibility attributes are omitted.
-  catalog:
-    version: "1.0"
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -108,8 +108,102 @@
         component: Button
         title: "Submit Form"
   assertions:
-    axe_core:
+    axeCore:
       - "button-name"
-    accessibility_tree:
+    accessibilityTree:
       submit_btn:
         label: "Submit Form"
+
+- name: test_accessibility_interactive_roles_and_states
+  description: Verifies accessibility role mapping and ARIA states for Button, TextField, CheckBox, ChoicePicker.
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Column
+    children: [btn, text_input, check_box, choice_picker]
+    components:
+      btn:
+        component: Button
+        title: "Submit"
+        accessibility:
+          label: "Submit Feedback"
+      text_input:
+        component: TextField
+        label: "Your Email"
+        accessibility:
+          description: "Enter a valid email address"
+      check_box:
+        component: CheckBox
+        label: "I agree to terms"
+        checked: true
+        accessibility:
+          label: "Accept Terms and Conditions"
+      choice_picker:
+        component: ChoicePicker
+        options:
+          - label: "Option 1"
+            value: "1"
+          - label: "Option 2"
+            value: "2"
+        selectedIndex: 0
+        accessibility:
+          label: "Select Preference"
+  assertions:
+    axeCore:
+      - "button-name"
+      - "aria-valid-attr-value"
+      - "aria-allowed-attr"
+    accessibilityTree:
+      btn:
+        label: "Submit Feedback"
+        role: "button"
+      text_input:
+        description: "Enter a valid email address"
+        role: "textbox"
+      check_box:
+        label: "Accept Terms and Conditions"
+        role: "checkbox"
+        checked: true
+      choice_picker:
+        label: "Select Preference"
+        role: "radiogroup"
+
+- name: test_accessibility_dynamic_label_and_hidden_binding
+  description: Verifies dynamic data bindings in accessibility attributes (label, hidden) reactively update accessibility trees.
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Column
+    children: [dynamic_btn, dynamic_status]
+    components:
+      dynamic_btn:
+        component: Button
+        title: "Dynamic Action"
+        accessibility:
+          label:
+            path: "/buttonLabel"
+          hidden:
+            path: "/isButtonHidden"
+      dynamic_status:
+        component: Text
+        text: "Status"
+        accessibility:
+          hidden:
+            path: "/isStatusHidden"
+  assertions:
+    axeCore:
+      - "button-name"
+      - "aria-hidden-focus"
+    accessibilityTree:
+      dynamic_btn:
+        label:
+          path: "/buttonLabel"
+        hidden:
+          path: "/isButtonHidden"
+      dynamic_status:
+        hidden:
+          path: "/isStatusHidden"
