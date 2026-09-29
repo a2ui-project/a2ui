@@ -27,9 +27,11 @@ const String basicCatalogPath =
 const String basicCatalogId =
     'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 
-Map<String, Object?> loadBasicCatalogJson() => jsonDecode(
-      File(resolveConformancePath(basicCatalogPath)).readAsStringSync(),
-    ) as Map<String, Object?>;
+Map<String, Object?> loadBasicCatalogJson() =>
+    jsonDecode(
+          File(resolveConformancePath(basicCatalogPath)).readAsStringSync(),
+        )
+        as Map<String, Object?>;
 
 void main() {
   group('Catalog.fromJson', () {
@@ -234,8 +236,9 @@ void main() {
       final Map<String, Object?> rendered = pruned.catalogSchema;
       expect((rendered['components']! as Map).keys.toSet(), {'Text', 'Card'});
 
-      final oneOf = ((rendered[r'$defs']! as Map)['anyComponent']!
-          as Map)['oneOf']! as List;
+      final oneOf =
+          ((rendered[r'$defs']! as Map)['anyComponent']! as Map)['oneOf']!
+              as List;
       expect(oneOf.map((e) => (e! as Map)[r'$ref']).toSet(), {
         '#/components/Text',
         '#/components/Card',
@@ -251,8 +254,9 @@ void main() {
       final Map<String, Object?> rendered = pruned.catalogSchema;
       expect((rendered['functions']! as Map).keys.toSet(), {'required'});
 
-      final oneOf = ((rendered[r'$defs']! as Map)['anyFunction']!
-          as Map)['oneOf']! as List;
+      final oneOf =
+          ((rendered[r'$defs']! as Map)['anyFunction']! as Map)['oneOf']!
+              as List;
       expect(oneOf.map((e) => (e! as Map)[r'$ref']).toSet(), {
         '#/functions/required',
       });

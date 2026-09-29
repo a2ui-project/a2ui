@@ -30,7 +30,8 @@ void main() {
       expect(
         commonTypesV0_9Json,
         specification,
-        reason: 'lib/src/validation/common_types.g.dart has drifted from the '
+        reason:
+            'lib/src/validation/common_types.g.dart has drifted from the '
             'specification. Run `dart run tool/generate_common_types.dart`.',
       );
     });

@@ -54,8 +54,8 @@ class SurfaceGroupModel<T extends ComponentApi> {
   void deleteSurface(String id) {
     final SurfaceModel<T>? surface = _surfaces.remove(id);
     if (surface != null) {
-      final void Function(A2uiClientAction)? forwarder =
-          _actionForwarders.remove(id);
+      final void Function(A2uiClientAction)? forwarder = _actionForwarders
+          .remove(id);
       if (forwarder != null) {
         surface.onAction.removeListener(forwarder);
       }

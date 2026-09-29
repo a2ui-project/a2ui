@@ -92,7 +92,8 @@ void _runCase(Map<String, Object?> testCase) {
     // fail as "surface not found" rather than on what it means to test.
     _seedReferencedSurfaces(processor, payload, surfaceCatalogs);
 
-    final Object? expectError = step['expectError'] ??
+    final Object? expectError =
+        step['expectError'] ??
         step['expect_error'] ??
         testCase['expectError'] ??
         testCase['expect_error'];
@@ -256,10 +257,10 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
 
 /// The catalog ids the `createSurface` messages in [payload] name.
 Set<String> _catalogIdsNamedBy(List<Map<String, Object?>> payload) => <String>{
-      for (final Map<String, Object?> envelope in payload)
-        if (envelope['createSurface'] case final Map<String, Object?> body)
-          if (body['catalogId'] case final String id) id,
-    };
+  for (final Map<String, Object?> envelope in payload)
+    if (envelope['createSurface'] case final Map<String, Object?> body)
+      if (body['catalogId'] case final String id) id,
+};
 
 /// Matches the error a case expects, by category and message.
 ///
@@ -270,8 +271,8 @@ Matcher _matchesError(Object? expectError) {
   if (expectError is String) {
     return _messageMatches(expectError);
   }
-  final Map<String, Object?> expected =
-      (expectError! as Map).cast<String, Object?>();
+  final Map<String, Object?> expected = (expectError! as Map)
+      .cast<String, Object?>();
   final Matcher category = _categoryMatches(expected['category'] as String?);
   final Object? message = expected['message'];
   if (message is! String) return category;
@@ -279,26 +280,26 @@ Matcher _matchesError(Object? expectError) {
 }
 
 Matcher _categoryMatches(String? category) => switch (category) {
-      'ParseError' => isA<A2uiParseError>(),
-      'ValidationError' => anyOf(
-          isA<A2uiValidationError>(),
-          isA<A2uiIntegrityError>(),
-          isA<A2uiRecursionError>(),
-          isA<A2uiCatalogError>(),
-        ),
-      'CatalogError' => isA<A2uiCatalogError>(),
-      'IntegrityError' => isA<A2uiIntegrityError>(),
-      'RecursionError' => isA<A2uiRecursionError>(),
-      'DataError' => isA<A2uiDataError>(),
-      'StateError' => isA<A2uiStateError>(),
-      _ => isA<A2uiError>(),
-    };
+  'ParseError' => isA<A2uiParseError>(),
+  'ValidationError' => anyOf(
+    isA<A2uiValidationError>(),
+    isA<A2uiIntegrityError>(),
+    isA<A2uiRecursionError>(),
+    isA<A2uiCatalogError>(),
+  ),
+  'CatalogError' => isA<A2uiCatalogError>(),
+  'IntegrityError' => isA<A2uiIntegrityError>(),
+  'RecursionError' => isA<A2uiRecursionError>(),
+  'DataError' => isA<A2uiDataError>(),
+  'StateError' => isA<A2uiStateError>(),
+  _ => isA<A2uiError>(),
+};
 
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
-      (e) => e.message,
-      'message',
-      matches(RegExp(_align(pattern), caseSensitive: false)),
-    );
+  (e) => e.message,
+  'message',
+  matches(RegExp(_align(pattern), caseSensitive: false)),
+);
 
 /// Widens a case's expected message to the wording this SDK uses.
 ///

@@ -22,18 +22,18 @@ import 'expressions.dart';
 
 class FormatStringFunction extends FunctionImplementation {
   FormatStringFunction()
-      : super(
-          name: 'formatString',
-          returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(
-            properties: {
-              'value': Schema.string(
-                description: 'The string template to interpolate.',
-              ),
-            },
-            required: ['value'],
-          ),
-        );
+    : super(
+        name: 'formatString',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.object(
+          properties: {
+            'value': Schema.string(
+              description: 'The string template to interpolate.',
+            ),
+          },
+          required: ['value'],
+        ),
+      );
 
   @override
   Object? execute(

@@ -51,15 +51,15 @@ MessageProcessor<ComponentApi> basicProcessor() =>
 
 /// A payload declaring one surface against the basic catalog.
 List<Map<String, Object?>> render(List<Map<String, Object?>> components) => [
-      {
-        'version': 'v0.9',
-        'createSurface': {'surfaceId': 's', 'catalogId': basicCatalogId},
-      },
-      {
-        'version': 'v0.9',
-        'updateComponents': {'surfaceId': 's', 'components': components},
-      },
-    ];
+  {
+    'version': 'v0.9',
+    'createSurface': {'surfaceId': 's', 'catalogId': basicCatalogId},
+  },
+  {
+    'version': 'v0.9',
+    'updateComponents': {'surfaceId': 's', 'components': components},
+  },
+];
 
 void main() {
   group('the basic catalog', () {
@@ -91,8 +91,7 @@ void main() {
     );
     final List<File> files = examples.listSync().whereType<File>().where((f) {
       return f.path.endsWith('.json');
-    }).toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    }).toList()..sort((a, b) => a.path.compareTo(b.path));
 
     test('the examples are present', () {
       expect(files, isNotEmpty, reason: examples.path);
@@ -102,8 +101,9 @@ void main() {
       final String name = file.uri.pathSegments.last;
       test(name, () async {
         final Object? document = jsonDecode(file.readAsStringSync());
-        final Object? messages =
-            document is Map ? document['messages'] : document;
+        final Object? messages = document is Map
+            ? document['messages']
+            : document;
         expect(
           messages,
           isA<List<Object?>>(),

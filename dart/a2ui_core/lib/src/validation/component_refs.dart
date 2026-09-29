@@ -67,9 +67,10 @@ class ComponentReference {
 /// documents write it, and the `REF:` description pointer that catalogs built
 /// in Dart carry (see `CommonSchemas`). Local `$ref`s are followed first
 /// against the component's own `$defs`, then against the catalog document.
-Map<String, ComponentRefFields>
-    extractComponentRefFields<C extends ComponentApi, F extends FunctionApi>(
-        Catalog<C, F> catalog) {
+Map<String, ComponentRefFields> extractComponentRefFields<
+  C extends ComponentApi,
+  F extends FunctionApi
+>(Catalog<C, F> catalog) {
   final Map<String, Object?> document = catalog.catalogSchema;
   final result = <String, ComponentRefFields>{};
 
@@ -282,8 +283,9 @@ Iterable<ComponentReference> _pointers(
   if (value is List) {
     for (var index = 0; index < value.length; index++) {
       final Object? item = value[index];
-      final itemPath =
-          item is String && !path.contains('[') ? path : '$path[$index]';
+      final itemPath = item is String && !path.contains('[')
+          ? path
+          : '$path[$index]';
       yield* _pointers(item, itemPath, fields);
     }
     return;

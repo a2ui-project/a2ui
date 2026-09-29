@@ -71,13 +71,13 @@ class A2uiVersionCapabilities {
   }
 
   Map<String, Object?> toJson() => {
-        'supportedCatalogIds': supportedCatalogIds,
-        if (inlineCatalogs.isNotEmpty)
-          'inlineCatalogs': [
-            for (final SchemaCatalog catalog in inlineCatalogs)
-              catalog.catalogSchema,
-          ],
-      };
+    'supportedCatalogIds': supportedCatalogIds,
+    if (inlineCatalogs.isNotEmpty)
+      'inlineCatalogs': [
+        for (final SchemaCatalog catalog in inlineCatalogs)
+          catalog.catalogSchema,
+      ],
+  };
 }
 
 /// The rendering capabilities a renderer advertises, mirroring
@@ -110,15 +110,14 @@ class A2uiRendererCapabilities {
     List<String> supportedCatalogIds, {
     List<SchemaCatalog> inlineCatalogs = const [],
     A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
-  }) =>
-      A2uiRendererCapabilities(
-        versions: {
-          version: A2uiVersionCapabilities(
-            supportedCatalogIds: supportedCatalogIds,
-            inlineCatalogs: inlineCatalogs,
-          ),
-        },
-      );
+  }) => A2uiRendererCapabilities(
+    versions: {
+      version: A2uiVersionCapabilities(
+        supportedCatalogIds: supportedCatalogIds,
+        inlineCatalogs: inlineCatalogs,
+      ),
+    },
+  );
 
   /// Parses an `a2uiClientCapabilities` object.
   ///
@@ -168,8 +167,8 @@ class A2uiRendererCapabilities {
       versions[version];
 
   Map<String, Object?> toJson() => {
-        for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
-            in versions.entries)
-          entry.key.jsonValue: entry.value.toJson(),
-      };
+    for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
+        in versions.entries)
+      entry.key.jsonValue: entry.value.toJson(),
+  };
 }

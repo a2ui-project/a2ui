@@ -98,9 +98,10 @@ class MessageProcessor<T extends ComponentApi> {
     this.validationConfig = ValidationConfig.strict,
     Map<String, Object?>? commonTypesSchema,
     void Function(A2uiClientAction)? onAction,
-  })  : commonTypesSchema = commonTypesSchema ??
-            PayloadValidator.commonTypesFor(protocolVersion),
-        groupModel = SurfaceGroupModel<T>() {
+  }) : commonTypesSchema =
+           commonTypesSchema ??
+           PayloadValidator.commonTypesFor(protocolVersion),
+       groupModel = SurfaceGroupModel<T>() {
     if (onAction != null) {
       groupModel.onAction.addListener(onAction);
     }
@@ -119,15 +120,14 @@ class MessageProcessor<T extends ComponentApi> {
   /// every message.
   PayloadValidator<T, FunctionImplementation> validatorFor(
     Catalog<T, FunctionImplementation> catalog,
-  ) =>
-      _validators.putIfAbsent(
-        catalog.id,
-        () => PayloadValidator<T, FunctionImplementation>(
-          catalog: catalog,
-          commonTypesSchema: commonTypesSchema,
-          protocolVersion: protocolVersion,
-        ),
-      );
+  ) => _validators.putIfAbsent(
+    catalog.id,
+    () => PayloadValidator<T, FunctionImplementation>(
+      catalog: catalog,
+      commonTypesSchema: commonTypesSchema,
+      protocolVersion: protocolVersion,
+    ),
+  );
 
   /// The supported catalog with [catalogId].
   ///
@@ -216,8 +216,9 @@ class MessageProcessor<T extends ComponentApi> {
       requireRoot: !validationConfig.allowMissingRoot,
       // An empty set, not null: every reference must be satisfied by the
       // surface itself. Null would skip reference checking altogether.
-      knownIds:
-          validationConfig.allowDanglingReferences ? null : const <String>{},
+      knownIds: validationConfig.allowDanglingReferences
+          ? null
+          : const <String>{},
     );
     checkComponentTopology(
       components,
@@ -266,15 +267,16 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Map<String, Object?> component in components)
         if (component['catalogId'] case final String id) id,
     };
-    final Iterable<Catalog<T, FunctionImplementation>> involved =
-        ids.isEmpty ? catalogs : ids.map(catalogFor);
+    final Iterable<Catalog<T, FunctionImplementation>> involved = ids.isEmpty
+        ? catalogs
+        : ids.map(catalogFor);
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
       validatorFor(catalog).componentRefFields.forEach(
-            (String type, ComponentRefFields fields) =>
-                merged.putIfAbsent(type, () => fields),
-          );
+        (String type, ComponentRefFields fields) =>
+            merged.putIfAbsent(type, () => fields),
+      );
     }
     return merged;
   }
