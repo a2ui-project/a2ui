@@ -30,8 +30,7 @@ struct ExpressionsConformanceTests {
     var executed = 0
 
     for testCase in cases {
-      let action = testCase["action"] as? String
-      if action != nil && action != "parse_expression_template" {
+      guard let action = testCase["action"] as? String, action == "parse_expression_template" else {
         continue
       }
 
@@ -46,29 +45,28 @@ struct ExpressionsConformanceTests {
       if let expectError = (testCase["expect_error"] ?? testCase["expectError"]) as? [String: Any] {
         let expectedMessage = expectError["message"] as? String
 
-        #expect(
-          throws: FunctionError.self,
-          "\(name): expected an error for input: \(input)"
-        ) {
+        do {
           _ = try parser.parse(input)
-        }
-
-        if let expectedMessage {
-          do {
-            _ = try parser.parse(input)
-          } catch FunctionError.executionFailed(_, let message) {
-            let matches =
-              (try? NSRegularExpression(pattern: expectedMessage).firstMatch(
-                in: message,
-                range: NSRange(message.startIndex..., in: message)
-              )) != nil || message.localizedCaseInsensitiveContains(expectedMessage)
-            #expect(
-              matches,
-              "\(name): message '\(message)' does not match pattern '\(expectedMessage)'"
-            )
-          } catch {
-            Issue.record("\(name): threw unexpected error \(error)")
+          Issue.record("\(name): expected an error for input: \(input)")
+        } catch let error as FunctionError {
+          if let expectedMessage {
+            switch error {
+            case .executionFailed(_, let message):
+              let matches =
+                (try? NSRegularExpression(pattern: expectedMessage).firstMatch(
+                  in: message,
+                  range: NSRange(message.startIndex..., in: message)
+                )) != nil || message.localizedCaseInsensitiveContains(expectedMessage)
+              #expect(
+                matches,
+                "\(name): message '\(message)' does not match pattern '\(expectedMessage)'"
+              )
+            default:
+              Issue.record("\(name): expected executionFailed error, but got \(error)")
+            }
           }
+        } catch {
+          Issue.record("\(name): threw unexpected error \(error)")
         }
       } else if let expectedRaw = testCase["expect"] as? [Any] {
         let actual = try parser.parse(input)

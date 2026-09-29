@@ -26,6 +26,15 @@ struct ExpressionParserTests {
     }
   }
 
+  @Test func acceptsMaxDepthNestedFunctionArguments() throws {
+    let count = ExpressionParser.maxDepth - 1
+    let expr =
+      "${" + String(repeating: "f(a: ", count: count) + "1" + String(repeating: ")", count: count)
+      + "}"
+    let result = try parser.parse(expr)
+    #expect(result.count == 1)
+  }
+
   @Test func handlesEmptyIdentifiers() throws {
     let result = try parser.parse("${()}")
     #expect(

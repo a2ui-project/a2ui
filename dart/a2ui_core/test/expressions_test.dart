@@ -52,6 +52,11 @@ void main() {
       String nestedInterpolations(int depth) =>
           '${'\${' * depth}x${'}' * depth}';
 
+      expect(
+        parser.parse(nestedCalls(ExpressionParser.maxDepth - 1)),
+        hasLength(1),
+      );
+
       // Deep enough to exhaust the stack while the guard was unreachable.
       expect(
         () => parser.parse(nestedCalls(20000)),

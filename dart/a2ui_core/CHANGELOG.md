@@ -11,6 +11,9 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+- `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template
+  length (`maxTemplateLength = 10000`), and template parts (`maxTemplateParts =
+1000`) limits across nested interpolations and function arguments.
 
 ## 0.2.2
 
