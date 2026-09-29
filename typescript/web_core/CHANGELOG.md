@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v0_9) Basic catalog component styles now survive Closure-optimized builds.
+  The `static styles` of each component are marked `/** @nocollapse */`
+  ([#2869](https://github.com/a2ui-project/a2ui/pull/2869)).
 - `Catalog.fromSchema` no longer drops properties mixed in through an external
   `allOf` reference, so Checkable components in the basic catalogs now accept
   `checks`.

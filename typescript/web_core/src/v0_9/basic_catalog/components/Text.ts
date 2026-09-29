@@ -33,6 +33,7 @@ class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof TextApi> {
    * - `--a2ui-text-color-text`: The color of the text. Defaults to `--a2ui-color-on-background`.
    * - `--a2ui-text-caption-color`: The color for caption text. Defaults to `light-dark(#666, #aaa)`.
    */
+  /** @nocollapse */
   static override styles = css`
     :host {
       display: contents;

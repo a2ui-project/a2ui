@@ -38,6 +38,7 @@ class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFi
    * - `--a2ui-color-input`: Background color.
    * - `--a2ui-color-on-input`: Text color.
    */
+  /** @nocollapse */
   static override styles = css`
     :host,
     a2ui-basic-textfield {
