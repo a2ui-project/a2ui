@@ -1,6 +1,13 @@
 ## Unreleased
 
 - Execute `functionCall` and `call` component actions locally in `GenericBinder` and prevent `SurfaceModel.dispatch_action` from emitting them as agent-facing `on_action` events.
+- `ExpressionParser` accepts number literals with a leading decimal point
+  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
+  and `./x` are still paths.
+- `ExpressionParser` raises `A2uiExpressionError` for a number literal outside
+  the double range, such as `1e999` or a 400-digit integer. It used to return
+  `inf` for float literals and an exact `int` for integer literals. Integer
+  literals longer than 4,300 digits no longer raise a bare `ValueError`.
 
 ## 0.2.0 (2026-09-28)
 

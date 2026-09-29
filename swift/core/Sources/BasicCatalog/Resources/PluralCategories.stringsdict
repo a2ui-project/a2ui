@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+Copyright 2024 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Internal category markers, not translatable text. Keep this resource outside .lproj folders;
+the resolver supplies the locale explicitly. "f" receives a Double, including fractional counts.
+-->
+<plist version="1.0">
+<dict>
+  <key>category</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@count@</string>
+    <key>count</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>f</string>
+      <key>few</key>
+      <string>few</string>
+      <key>many</key>
+      <string>many</string>
+      <key>one</key>
+      <string>one</string>
+      <key>other</key>
+      <string>other</string>
+      <key>two</key>
+      <string>two</string>
+      <key>zero</key>
+      <string>zero</string>
+    </dict>
+  </dict>
+</dict>
+</plist>
