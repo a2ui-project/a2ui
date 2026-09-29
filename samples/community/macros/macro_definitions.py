@@ -565,6 +565,208 @@ def TwoColumnLayout(
     )
 
 
+# ---------------------------------------------------------------------------
+# Dynamic Database & Programmatic Resolvers
+# ---------------------------------------------------------------------------
+
+EMPLOYEE_COMPENSATION_DB = {
+    "emp_101": {
+        "employeeName": "Dr. Elena Vance",
+        "role": "Principal Systems Architect",
+        "baseSalary": "$215,000",
+        "annualBonus": "$45,000",
+        "equity": "3,500 RSUs",
+        "clearanceLevel": "Level 5 - Confidential",
+        "verifiedAt": "2026-08-13",
+    },
+    "emp_102": {
+        "employeeName": "Marcus Vance",
+        "role": "Streaming & Protocols Lead",
+        "baseSalary": "$195,000",
+        "annualBonus": "$38,000",
+        "equity": "2,800 RSUs",
+        "clearanceLevel": "Level 4 - Confidential",
+        "verifiedAt": "2026-08-13",
+    },
+    "emp_103": {
+        "employeeName": "Aria Chen",
+        "role": "Head of Design Systems",
+        "baseSalary": "$205,000",
+        "annualBonus": "$42,000",
+        "equity": "3,100 RSUs",
+        "clearanceLevel": "Level 5 - Confidential",
+        "verifiedAt": "2026-08-13",
+    },
+    "emp_104": {
+        "employeeName": "Liam Kjell",
+        "role": "Senior Framework Engineer",
+        "baseSalary": "$180,000",
+        "annualBonus": "$32,000",
+        "equity": "2,200 RSUs",
+        "clearanceLevel": "Level 3 - Internal",
+        "verifiedAt": "2026-08-13",
+    },
+}
+
+
+def fetch_employee_compensation(employee_id: str) -> dict[str, Any]:
+    """Fetches verified confidential compensation package from internal HR database."""
+    if employee_id not in EMPLOYEE_COMPENSATION_DB:
+        raise ValueError(
+            f"Employee ID '{employee_id}' not found in HR compensation records."
+            f" Available: {list(EMPLOYEE_COMPENSATION_DB.keys())}"
+        )
+    return EMPLOYEE_COMPENSATION_DB[employee_id]
+
+
+def render_payroll_summary(
+    department: str = "Global Engineering",
+    includeBonus: bool = True,
+    include_bonus: bool | None = None,
+) -> Card:
+    """Programmatic dynamic template: performs Python math, loops, formatting, and builds an AST table."""
+    if include_bonus is not None:
+        includeBonus = include_bonus
+    else:
+        include_bonus = includeBonus
+    total_base = 0
+    total_bonus = 0
+    rows: List[ComponentBuilderNode] = []
+
+    for emp_id, record in EMPLOYEE_COMPENSATION_DB.items():
+        base_int = int(record["baseSalary"].replace("$", "").replace(",", ""))
+        bonus_int = int(record["annualBonus"].replace("$", "").replace(",", ""))
+        total_base += base_int
+        total_bonus += bonus_int
+
+        cols: List[ComponentBuilderNode] = [
+            Text(text=record["employeeName"], variant="body"),
+            Text(text=record["role"], variant="caption"),
+            Text(text=record["baseSalary"], variant="body"),
+        ]
+        if include_bonus:
+            cols.append(Text(text=record["annualBonus"], variant="body"))
+
+        rows.append(
+            Row(
+                justify="spaceBetween",
+                align="center",
+                children=cols,
+            )
+        )
+        rows.append(Divider(axis="horizontal"))
+
+    header_cols: List[ComponentBuilderNode] = [
+        Text(text="Employee", variant="caption"),
+        Text(text="Role", variant="caption"),
+        Text(text="Base Salary", variant="caption"),
+    ]
+    if include_bonus:
+        header_cols.append(Text(text="Annual Bonus", variant="caption"))
+
+    total_cols: List[ComponentBuilderNode] = [
+        Text(text="TOTAL PAYROLL", variant="h4"),
+        Text(
+            text=f"{len(EMPLOYEE_COMPENSATION_DB)} Employees",
+            variant="caption",
+        ),
+        Text(text=f"${total_base:,}", variant="h4"),
+    ]
+    if include_bonus:
+        total_cols.append(Text(text=f"${total_bonus:,}", variant="h4"))
+
+    total_budget = total_base + (total_bonus if include_bonus else 0)
+
+    return Card(
+        child=Column(
+            children=[
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=[
+                        Row(
+                            align="center",
+                            children=[
+                                Icon(name="lock"),
+                                Text(
+                                    text=(
+                                        f"Payroll & Compensation Summary: {department}"
+                                    ),
+                                    variant="h3",
+                                ),
+                            ],
+                        ),
+                        Text(
+                            text="Confidential HR Record",
+                            variant="caption",
+                        ),
+                    ],
+                ),
+                Divider(axis="horizontal"),
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=header_cols,
+                ),
+                Divider(axis="horizontal"),
+                *rows,
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=total_cols,
+                ),
+                Divider(axis="horizontal"),
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=[
+                        Text(
+                            text="🔒 Computed live by server Python execution engine",
+                            variant="caption",
+                        ),
+                        Text(
+                            text=f"Total Budget: ${total_budget:,}",
+                            variant="caption",
+                        ),
+                    ],
+                ),
+            ],
+        )
+    )
+
+
+@macro
+def EmployeeSalaryCard(employeeId: str = "emp_101") -> Card:
+    """Secure verified employee compensation card. Pass employeeId ('emp_101', 'emp_102', 'emp_103', 'emp_104').
+
+    Args:
+        employeeId: Unique employee identifier in HR compensation records.
+    """
+    record = fetch_employee_compensation(employeeId)
+    return SalaryCard(
+        employee_name=record["employeeName"],
+        role=record["role"],
+        base_salary=record["baseSalary"],
+        annual_bonus=record["annualBonus"],
+        equity=record["equity"],
+        clearance_level=record["clearanceLevel"],
+        verified_at=record["verifiedAt"],
+    )
+
+
+@macro
+def PayrollSummary(
+    department: str = "Global Engineering", includeBonus: bool = True
+) -> Card:
+    """Payroll and compensation summary for an organization.
+
+    Args:
+        department: Department or division name.
+        includeBonus: Whether to include annual bonus in calculation.
+    """
+    return render_payroll_summary(department=department, include_bonus=includeBonus)
+
+
 ALL_MACROS = [
     SalaryCard,
     UserProfile,
@@ -577,9 +779,6 @@ ALL_MACROS = [
     TeamFeedbackBoard,
     TeamMemberKnowledgePanel,
     TwoColumnLayout,
+    EmployeeSalaryCard,
+    PayrollSummary,
 ]
-
-
-def get_all_templates():
-    """Returns all registered macros (backward-compatible alias)."""
-    return ALL_MACROS
