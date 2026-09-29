@@ -50,7 +50,7 @@ class TestChildComponent {
   template: '<div>Other Child Component</div>',
 })
 class TestOtherChildComponent {
-  @Input() props: any;
+  @Input() props!: {text: {value: () => string}};
   @Input() surfaceId?: string;
   @Input() componentId?: string;
   @Input() dataContextPath?: string;

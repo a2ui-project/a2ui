@@ -194,11 +194,11 @@ export class ComponentHostComponent {
     basePath: string,
     surfaceId: string,
   ): void {
-    // MessageProcessor handles a change of component type (or catalog) by removing this id's
-    // ComponentModel and adding a new one, so the onUpdated subscription below never sees it.
-    // Re-run setup when this id's model is replaced. The identity check matters: setupComponent
-    // subscribes a fresh listener to the same emitter while it is still iterating its listeners,
-    // and without the check that listener would receive the same event and loop indefinitely.
+    // Type changes remove the old ComponentModel and add a new one under the same id.
+    // If this listener runs first, `get(id)` is still undefined and `setupComponent` waits on
+    // `onCreated`. If it runs later in `emit`'s async loop (after the new model is added),
+    // `get(id) !== componentModel` stops the new listener registered by `setupComponent` from
+    // firing in the same `emit` pass.
     // Subscribe before the catalog lookup so an unknown type can still be replaced later.
     this.deleteSub = surface.componentsModel.onDeleted.subscribe(deletedId => {
       if (deletedId === id && surface.componentsModel.get(id) !== componentModel) {
