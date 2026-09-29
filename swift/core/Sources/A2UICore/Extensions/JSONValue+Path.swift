@@ -244,7 +244,7 @@ extension JSONValue {
           array[index] = .null
         }
       } else {
-        let nextNode = index < array.count ? array[index] : nil
+        let nextNode: JSONValue? = index < array.count ? array[index] : nil
         if let nextNode, nextNode != .null,
           nextNode.objectValue == nil && nextNode.arrayValue == nil
         {

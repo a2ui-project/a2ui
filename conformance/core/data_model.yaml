@@ -993,4 +993,3 @@
     - op: "get"
       path: "///"
       expect: {"a": {"b": "val"}}
-

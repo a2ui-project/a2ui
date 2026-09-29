@@ -27,7 +27,7 @@ import OrderedJSON
 public final class DataModel: ObservableObject {
 
   private let dataSubject: CurrentValueSubject<JSONValue, Never>
-  private var listeners: [String: [(JSONValue?) -> Void]] = [:]
+  private var listeners: [String: [(id: UUID, callback: (JSONValue?) -> Void)]] = [:]
 
   /// The current data tree.
   public var data: JSONValue {
@@ -118,10 +118,19 @@ public final class DataModel: ObservableObject {
   }
 
   /// Subscribes a listener to changes at a specific JSON Pointer path.
-  public func watch(_ path: String, _ listener: @escaping (JSONValue?) -> Void) throws {
+  ///
+  /// - Returns: An `AnyCancellable` token that unsubscribes the listener when cancelled.
+  @discardableResult
+  public func watch(_ path: String, _ listener: @escaping (JSONValue?) -> Void) throws
+    -> AnyCancellable
+  {
     let components = try JSONValue.parsePathThrowing(path)
     let normalized = Self.buildPointer(components)
-    listeners[normalized, default: []].append(listener)
+    let id = UUID()
+    listeners[normalized, default: []].append((id: id, callback: listener))
+    return AnyCancellable { [weak self] in
+      self?.listeners[normalized]?.removeAll { $0.id == id }
+    }
   }
 
   /// Clears all path listeners.
@@ -153,8 +162,8 @@ public final class DataModel: ObservableObject {
         let newVal = get(watchedPath)
         let oldVal = oldValues[watchedPath] ?? nil
         if newVal != oldVal {
-          for cb in callbacks {
-            cb(newVal)
+          for entry in callbacks {
+            entry.callback(newVal)
           }
         }
       }

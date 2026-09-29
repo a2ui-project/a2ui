@@ -85,6 +85,13 @@ describe('DataContext', () => {
     assert.strictEqual(addressContext.resolveDynamicValue({path: 'city'}), 'Wonderland');
   });
 
+  it('creates nested context when constructed directly with a DataModel', () => {
+    const directContext = new DataContext(model, '/user');
+    const addressContext = directContext.nested('address');
+    assert.strictEqual(addressContext.path, '/user/address');
+    assert.strictEqual(addressContext.resolveDynamicValue({path: 'city'}), 'Wonderland');
+  });
+
   it('handles root context', () => {
     const rootContext = createTestDataContext(model, '/');
     assert.strictEqual(rootContext.resolveDynamicValue({path: 'user/name'}), 'Alice');

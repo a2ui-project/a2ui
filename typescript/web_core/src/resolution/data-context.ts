@@ -810,7 +810,7 @@ export class DataContext {
    */
   nested(relativePath: string, index?: number): DataContext {
     const newPath = this.resolvePath(relativePath);
-    return new DataContext(this.surface, newPath, index, this);
+    return new DataContext(this.surface ?? this.dataModel, newPath, index, this);
   }
 
   resolvePath(path: string): string {

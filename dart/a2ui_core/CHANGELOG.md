@@ -11,6 +11,11 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+- `DataModel` and `DataContext` enforce JSON Pointer validation (`A2uiDataError`
+  on non-pointer paths, forbidden prototype-pollution segments, primitive
+  traversal/root mutation, and array index bounds), support `DataContext.index`
+  and `DataContext.dispose`, and pass the `data_model.yaml` and
+  `data_context.yaml` conformance suites.
 
 ## 0.2.2
 
