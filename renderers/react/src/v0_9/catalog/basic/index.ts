@@ -16,7 +16,7 @@
 
 import {Catalog} from '@a2ui/web_core/v0_9';
 import {BASIC_FUNCTIONS, BasicCatalogThemeSchema} from '@a2ui/web_core/v0_9/basic_catalog';
-import type {ReactComponentImplementation} from '../../adapter';
+import type {ReactComponentImplementation} from '../../react_component_implementation';
 
 import {Text} from './components/Text';
 import {Image} from './components/Image';

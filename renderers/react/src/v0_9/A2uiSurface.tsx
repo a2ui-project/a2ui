@@ -26,7 +26,8 @@
 
 import React, {useCallback, useMemo, useSyncExternalStore} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
-import type {ReactComponentImplementation} from './adapter';
+import type {ReactComponentImplementation} from './react_component_implementation';
+
 import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
 
 export const A2uiSurface: React.FC<{

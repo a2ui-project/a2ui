@@ -52,19 +52,7 @@ import {
   type Signal,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
-import type {ReactComponentImplementation} from './adapter';
-
-/** Renders a resolved child node, or falls back for an unresolved id. */
-export type NodeBuildChild = (
-  child: ComponentNode<ReactComponentImplementation> | string,
-  basePath?: string,
-) => React.ReactNode;
-
-/** What a component implementation's `view` receives from the node surface. */
-export type NodeViewProps = {
-  node: ComponentNode<ReactComponentImplementation>;
-  buildChild: NodeBuildChild;
-};
+import type {NodeBuildChild, ReactComponentImplementation} from './react_component_implementation';
 
 /** The surface a node view renders under, provided by `A2uiSurface`. */
 export const NodeSurfaceContext = createContext<SurfaceModel<ReactComponentImplementation> | null>(
