@@ -19,15 +19,22 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence
+from typing import Any, Literal, Optional, Sequence
 
 import yaml
 
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.builder.v0_9 import (
+    AccessibilityAttributes,
     Action,
+    CheckRule,
     ComponentBuilderNode,
+    ComponentRef,
+    DynamicBoolean,
+    DynamicNumber,
     DynamicString,
+    DynamicStringList,
+    DynamicValue,
 )
 from a2ui.builder.v0_9.catalogs.basic import (
     Button,
@@ -93,6 +100,8 @@ class Case:
     expect_error: Optional[dict[str, Any]] = None
     action: Optional[str] = None
     colliding_macro: Optional[str] = None
+    expect: Optional[dict[str, Any]] = None
+    envelope_version: Optional[str] = None
 
     @property
     def golden_path(self) -> str:
@@ -121,6 +130,8 @@ def load_cases() -> list[Case]:
             expect_error=raw.get("expect_error"),
             action=raw.get("action"),
             colliding_macro=raw.get("colliding_macro"),
+            expect=raw.get("expect"),
+            envelope_version=raw.get("envelope_version"),
         )
         for raw in suite["tests"]
     ]
@@ -216,6 +227,24 @@ def get_suite_macros() -> list[Any]:
         """Macro composing itself recursively."""
         return Card(child=RecursiveCard(title=title))
 
+    @macro
+    def ComplexCard(
+        title: str,
+        dynamic_title: DynamicString,
+        metric: DynamicNumber,
+        is_active: DynamicBoolean,
+        tags: DynamicStringList,
+        anything: DynamicValue,
+        on_click: Action,
+        checks: Sequence[CheckRule],
+        accessibility: AccessibilityAttributes,
+        footer: ComponentRef,
+        items: Sequence[ComponentBuilderNode],
+        theme: Literal["primary", "secondary"],
+    ) -> Card:
+        """Card testing protocol common types in macro parameter schemas."""
+        return Card(child=Text(text=title))
+
     return [
         StatusBadge,
         SlotContainer,
@@ -225,6 +254,7 @@ def get_suite_macros() -> list[Any]:
         ConfigCard,
         NestedMacroCard,
         RecursiveCard,
+        ComplexCard,
     ]
 
 
@@ -236,8 +266,8 @@ SUITE_MACROS = get_suite_macros()
 # =============================================================================
 
 
-def run_case(case: Case) -> list[dict[str, Any]]:
-    """Runs a conformance case through MacroExpander and returns the expanded wire messages."""
+def run_case(case: Case) -> Any:
+    """Runs a conformance case through MacroExpander."""
     if case.action == "transform_catalog" and case.colliding_macro:
         @macro(name=case.colliding_macro)
         def CollidingMacro() -> Card:
@@ -247,19 +277,36 @@ def run_case(case: Case) -> list[dict[str, Any]]:
         expander.transform_to_inference_catalog(basic_catalog_schema())
         return []
 
+    if case.action == "transform_to_inference_catalog":
+        expander = MacroExpander(SUITE_MACROS)
+        return expander.transform_to_inference_catalog(basic_catalog_schema())
+
+    if case.action == "transform_to_inference":
+        raw_components = case.input if isinstance(case.input, list) else [case.input]
+        msg = {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": case.surface_id,
+                "components": raw_components,
+            },
+        }
+        expander = MacroExpander(SUITE_MACROS)
+        return expander.transform_to_inference(msg)
+
+    version_str = case.envelope_version or "v0.9"
     raw_components = case.input if isinstance(case.input, list) else [case.input]
 
     if case.catalog_id:
         raw_msgs = [
             {
-                "version": "v0.9",
+                "version": version_str,
                 "createSurface": {
                     "surfaceId": case.surface_id,
                     "catalogId": case.catalog_id,
                 },
             },
             {
-                "version": "v0.9",
+                "version": version_str,
                 "updateComponents": {
                     "surfaceId": case.surface_id,
                     "components": raw_components,
@@ -268,7 +315,7 @@ def run_case(case: Case) -> list[dict[str, Any]]:
         ]
     else:
         raw_msgs = [{
-            "version": "v0.9",
+            "version": version_str,
             "updateComponents": {
                 "surfaceId": case.surface_id,
                 "components": raw_components,
