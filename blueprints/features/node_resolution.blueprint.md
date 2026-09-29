@@ -108,8 +108,8 @@ type NodeState = 'resolved' | 'pending' | 'unknown-type' | 'cyclic';
 /** Resolved node properties, keyed by the component's schema property names. */
 type NodeProps = Record<string, unknown>;
 
-/** A resolved action property. Invoking it dispatches the action in the node's data scope. */
-type NodeAction = () => Promise<void>;
+/** A resolved action property. Invoking it dispatches the action in the node's data scope. It may return a future that completes when the dispatch does. */
+type NodeAction = () => void | Promise<void>;
 
 interface ComponentNode<C extends ComponentApi> {
   /** Names this node's position; distinct among siblings. */
@@ -143,7 +143,7 @@ interface WritableBinding<T> extends ResolvedBinding<T> {
 }
 
 class NodeResolver<C extends ComponentApi> {
-  /** Builds and maintains the tree for one surface. */
+  /** Builds and maintains the tree for one surface. An implementation may also take the surface's default catalog. */
   constructor(surface: SurfaceModel<C>);
   /** The resolved root; absent until the surface has a root component. */
   readonly rootNode: Signal<ComponentNode<C> | undefined>;

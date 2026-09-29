@@ -121,6 +121,8 @@ Properties in `node.props` are already resolved against the component's data con
 | **Child List**      | List/Array of `ComponentNode`                                              | Map each through `buildChild(childNode)`. Repeaters are already expanded per array item.        |
 | **Checks**          | `isValid` (bool) and `validationErrors` (list of messages) beside `checks` | Show the first message as a validation hint; disable or block actions while `isValid` is false. |
 
+Child references become nodes where the resolver mounts them: in top-level properties, and single references in objects within top-level arrays. A `ChildList` nested deeper stays a list of `ChildNode` descriptors, which are not nodes and are not passed to `buildChild`.
+
 ---
 
 ## 4. Public APIs
@@ -156,7 +158,7 @@ class A2uiSurface extends StatefulWidget {
 #### Responsibilities & Behavior:
 
 1. **Resolver Lifecycle**: Instantiates and retains a `NodeResolver` for the surface for the lifetime of the view. If the `surface` prop changes identity, disposes the old resolver and creates a new one. Disposes the resolver when the view unmounts.
-2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty or pending, renders a framework-appropriate loading placeholder. Once `rootNode` resolves, renders the root `NodeView`.
+2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty, renders a framework-appropriate loading placeholder. Once `rootNode` resolves, renders the root `NodeView`.
 3. **Ambient Context Injection**: Publishes the surface instance (which exposes the surface's catalogs, `surface.theme`, and event dispatchers) into the framework's ambient DI/context mechanism (React Context, Flutter `InheritedWidget`, SwiftUI `Environment`, Angular DI).
 
 ---
@@ -178,7 +180,7 @@ Because UI paradigms and language type systems differ significantly, this API ca
 
 #### Form 1: Direct Property & Binding Access (Recommended for Dart, Swift, Go)
 
-In statically typed languages without compile-time schema introspection, components receive the `ComponentNode` and its current props, and unpack properties with explicit type tests.
+In statically typed languages without compile-time schema introspection, components receive the `ComponentNode` and its current props, and unpack properties with explicit casts.
 
 _Example in Dart (Flutter against the Dart `a2ui_core`):_
 
@@ -240,7 +242,7 @@ extension NodePropsAccessors on NodeProps {
 }
 ```
 
-A binding's value is not typed by the schema, so an accessor that returns a typed value converts it:
+A binding's value is not typed by the schema, so a builder converts it where it needs a typed value:
 
 ```dart
 builder: (context, node, props, buildChild) {
@@ -310,7 +312,7 @@ The adapter should ship pre-built implementations for the standard Basic Catalog
 - **Display Leaves** (`Text`, `Image`, `Icon`, `Video`, `AudioPlayer`, `Divider`): Read resolved primitives from `node.props` and render native view equivalents.
 - **Interactive Controls** (`Button`, `TextField`, `CheckBox`, `Slider`, `ChoicePicker`, `DateTimeInput`): Handle two-way value binding via `WritableBinding.set()`, trigger action closures on native events, and render validation error hints if `checks` are present.
 
-The adapter also registers the catalog's functions with Core, which evaluates every function call in props and actions. A function written against the framework's own function type is bridged to Core's `FunctionImplementation`, which receives the `DataContext` Core passes it.
+The adapter's catalog also supplies Core `FunctionImplementation`s for the catalog's functions, since Core evaluates every function call in props and actions.
 
 Follow the [Basic Catalog Implementation Guide](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md) for individual component styling and behavior.
 
@@ -335,7 +337,7 @@ function NodeView(node: ComponentNode): NativeView;
 2. **Subscribe to `node.props`**: Rebuild the view when the node's props emit, and pass the current props to the implementation. Unsubscribe when the view unmounts.
 3. **Invoke Builder**: Pass `node`, its current props and a `buildChild` callback to the implementation.
 4. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)`.
-5. **Preserve Identity**: Key each child's view so that a sibling reorder does not tear down native elements. A node that replaces another at the same position, on a placeholder's arrival or a type change, keeps its `instanceId`. A view keyed by `instanceId` therefore survives the replacement: it must move its subscriptions to the new node, and a type change must reset its view state. Keying by the node object does both; in Flutter that is `ObjectKey(node)`.
+5. **Preserve Identity**: Key each child's view by `node.instanceId`, so the framework keeps the native element at each position. The node object at a position can change while its `instanceId` stays the same: when a placeholder's component arrives, when the component's type changes, and when an explicit child list is reordered, since a child's position is identified by its index. A view keyed by `instanceId` therefore moves its subscriptions to the new node, and resets its view state when the type changes.
 
 ---
 
@@ -366,7 +368,7 @@ Whenever a native component unmounts (via framework hooks like React `useEffect`
 
 The adapter does not need to orchestrate complex teardown pipelines. `ComponentNode` provides two built-in hooks:
 
-1. **`node.addCleanup(fn)`**: Registers a callback that runs automatically when the node is disposed by `NodeResolver`. Component implementations and binding wrappers can attach cleanup logic (such as releasing native controllers, timers, or subscriptions) directly to the node.
+1. **`node.addCleanup(fn)`**: Registers a callback that runs automatically when the node is disposed by `NodeResolver`. Use it for resources tied to the node, such as a subscription created for it. Native controllers belong to the view, which can unmount while its node lives on or outlive a node that is replaced, so they are released in the view's own unmount hook.
 2. **`node.onDestroyed`**: An event that fires exactly once when the node is disposed.
 
 In modern declarative frameworks (React, Flutter, SwiftUI), child views unmount naturally when removed from their parent's children list. Between the framework's native unmount hooks and `node.addCleanup()`, lifecycle disposal requires minimal adapter-side code.
