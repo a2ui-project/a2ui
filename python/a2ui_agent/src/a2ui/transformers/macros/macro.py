@@ -131,35 +131,39 @@ def _parse_docstring(doc: Optional[str]) -> tuple[Optional[str], dict[str, str]]
     return main_desc, param_descriptions
 
 
+DEFAULT_COMMON_REF_PREFIX: str = "common_types.json#/$defs/"
+
+
 def _map_type_hint_to_schema(
-    t: Any, param_desc: Optional[str] = None
+    t: Any,
+    param_desc: Optional[str] = None,
+    ref_prefix: str = DEFAULT_COMMON_REF_PREFIX,
 ) -> dict[str, Any]:
     """Maps a Python type hint to a canonical A2UI JSON schema property."""
-    COMMON_REF_PREFIX = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
     schema: dict[str, Any]
 
     if t == DynamicValue:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicValue"}
+        schema = {"$ref": f"{ref_prefix}DynamicValue"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t == DynamicStringList:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicStringList"}
+        schema = {"$ref": f"{ref_prefix}DynamicStringList"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t == DynamicString:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicString"}
+        schema = {"$ref": f"{ref_prefix}DynamicString"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t == DynamicNumber:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicNumber"}
+        schema = {"$ref": f"{ref_prefix}DynamicNumber"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t == DynamicBoolean:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicBoolean"}
+        schema = {"$ref": f"{ref_prefix}DynamicBoolean"}
         if param_desc:
             schema["description"] = param_desc
         return schema
@@ -171,7 +175,9 @@ def _map_type_hint_to_schema(
     if origin is Union:
         non_none_args = [a for a in args if a is not type(None)]
         if len(non_none_args) == 1:
-            return _map_type_hint_to_schema(non_none_args[0], param_desc)
+            return _map_type_hint_to_schema(
+                non_none_args[0], param_desc, ref_prefix=ref_prefix
+            )
 
         has_binding = any(
             a is DataBinding or (isinstance(a, type) and issubclass(a, DataBinding))
@@ -186,19 +192,19 @@ def _map_type_hint_to_schema(
 
         if has_binding or has_func:
             if str in types_set and len(types_set - (expr_types | {str})) == 0:
-                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicString"}
+                schema = {"$ref": f"{ref_prefix}DynamicString"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
             elif (int in types_set or float in types_set) and len(
                 types_set - (expr_types | {int, float})
             ) == 0:
-                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicNumber"}
+                schema = {"$ref": f"{ref_prefix}DynamicNumber"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
             elif bool in types_set and len(types_set - (expr_types | {bool})) == 0:
-                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicBoolean"}
+                schema = {"$ref": f"{ref_prefix}DynamicBoolean"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
@@ -217,7 +223,7 @@ def _map_type_hint_to_schema(
                 or a is DynamicChildList
                 for a in types_set
             ):
-                schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+                schema = {"$ref": f"{ref_prefix}ChildList"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
@@ -225,7 +231,7 @@ def _map_type_hint_to_schema(
                 get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
                 for a in types_set
             ) and not any(a in (int, float, bool) for a in types_set):
-                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicStringList"}
+                schema = {"$ref": f"{ref_prefix}DynamicStringList"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
@@ -239,17 +245,17 @@ def _map_type_hint_to_schema(
                     or a is DynamicChildList
                     for a in types_set
                 ):
-                    schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+                    schema = {"$ref": f"{ref_prefix}ChildList"}
                     if param_desc:
                         schema["description"] = param_desc
                     return schema
                 else:
-                    schema = {"$ref": f"{COMMON_REF_PREFIX}ComponentId"}
+                    schema = {"$ref": f"{ref_prefix}ComponentId"}
                     if param_desc:
                         schema["description"] = param_desc
                     return schema
             else:
-                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicValue"}
+                schema = {"$ref": f"{ref_prefix}DynamicValue"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
@@ -263,7 +269,7 @@ def _map_type_hint_to_schema(
             or a is DynamicChildList
             for a in types_set
         ):
-            schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+            schema = {"$ref": f"{ref_prefix}ChildList"}
             if param_desc:
                 schema["description"] = param_desc
             return schema
@@ -290,32 +296,32 @@ def _map_type_hint_to_schema(
 
     # Direct Protocol References
     if t is DataBinding:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}DataBinding"}
+        schema = {"$ref": f"{ref_prefix}DataBinding"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t is Action:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}Action"}
+        schema = {"$ref": f"{ref_prefix}Action"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t is CheckRule:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}CheckRule"}
+        schema = {"$ref": f"{ref_prefix}CheckRule"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t is AccessibilityAttributes:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}AccessibilityAttributes"}
+        schema = {"$ref": f"{ref_prefix}AccessibilityAttributes"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t is FunctionCall:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}FunctionCall"}
+        schema = {"$ref": f"{ref_prefix}FunctionCall"}
         if param_desc:
             schema["description"] = param_desc
         return schema
     if t is DynamicChildList:
-        schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+        schema = {"$ref": f"{ref_prefix}ChildList"}
         if param_desc:
             schema["description"] = param_desc
         return schema
@@ -325,7 +331,7 @@ def _map_type_hint_to_schema(
         isinstance(t, type) and issubclass(t, ComponentBuilderNode)
     ):
         schema = {
-            "$ref": f"{COMMON_REF_PREFIX}ComponentId",
+            "$ref": f"{ref_prefix}ComponentId",
             "description": (
                 param_desc or "ID of the child component to place in this slot."
             ),
@@ -341,7 +347,7 @@ def _map_type_hint_to_schema(
             or (isinstance(args[0], type) and issubclass(args[0], ComponentBuilderNode))
         )
     ):
-        schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+        schema = {"$ref": f"{ref_prefix}ChildList"}
         if param_desc:
             schema["description"] = param_desc
         return schema
@@ -370,7 +376,11 @@ def _map_type_hint_to_schema(
 
     # Arrays
     if origin in (list, Sequence, AbcSequence, tuple, set):
-        item_schema = _map_type_hint_to_schema(args[0]) if args else {"type": "string"}
+        item_schema = (
+            _map_type_hint_to_schema(args[0], ref_prefix=ref_prefix)
+            if args
+            else {"type": "string"}
+        )
         array_schema: dict[str, Any] = {"type": "array", "items": item_schema}
         if param_desc:
             array_schema["description"] = param_desc
@@ -415,13 +425,17 @@ class _MacroMetadata:
     parameters: dict[str, _MacroParameter]
     return_type: Any
 
-    def to_json_schema(self) -> dict[str, Any]:
+    def to_json_schema(
+        self, ref_prefix: str = DEFAULT_COMMON_REF_PREFIX
+    ) -> dict[str, Any]:
         """Generates a JSON Schema tool definition for this macro."""
         props: dict[str, Any] = {}
         required: list[str] = []
 
         for p_name, param in self.parameters.items():
-            prop_schema = _map_type_hint_to_schema(param.type_hint, param.description)
+            prop_schema = _map_type_hint_to_schema(
+                param.type_hint, param.description, ref_prefix=ref_prefix
+            )
             props[p_name] = prop_schema
             if param.required:
                 required.append(p_name)

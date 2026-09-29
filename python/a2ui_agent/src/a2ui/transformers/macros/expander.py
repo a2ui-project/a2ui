@@ -31,6 +31,31 @@ from a2ui.transformers.macros.processor import _MacroProcessor
 logger = logging.getLogger(__name__)
 
 
+def _detect_common_ref_prefix(catalog_schema: dict[str, Any]) -> str:
+    """Detects the common_types.json reference prefix used in the catalog schema."""
+    stack: list[Any] = [catalog_schema]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            for k, v in item.items():
+                if (
+                    k == "$ref"
+                    and isinstance(v, str)
+                    and "common_types.json#/$defs/" in v
+                ):
+                    return (
+                        v.split("common_types.json#/$defs/")[0]
+                        + "common_types.json#/$defs/"
+                    )
+                if isinstance(v, (dict, list)):
+                    stack.append(v)
+        elif isinstance(item, list):
+            for elem in item:
+                if isinstance(elem, (dict, list)):
+                    stack.append(elem)
+    return "common_types.json#/$defs/"
+
+
 class MacroExpander:
     """Expands composite macro components into standard A2UI primitive component subtrees.
 
@@ -109,7 +134,10 @@ class MacroExpander:
                 )
             ]
 
-        macro_components = {m.name: m.to_json_schema() for m in self.macros}
+        ref_prefix = _detect_common_ref_prefix(schema_copy)
+        macro_components = {
+            m.name: m.to_json_schema(ref_prefix=ref_prefix) for m in self.macros
+        }
 
         for name, comp_schema in macro_components.items():
             if name in comps_map:
