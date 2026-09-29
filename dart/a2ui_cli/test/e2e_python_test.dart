@@ -336,7 +336,7 @@ except ValidationError as e:
           const pyScript = '''
 import json
 from pydantic import ValidationError
-from a2ui.builder.v0_9 import LENIENT_ENUM_CONTEXT
+from a2ui.builder.v0_9 import OPEN_ENUM_CONTEXT
 from basic import Text
 
 try:
@@ -347,7 +347,7 @@ except ValidationError:
 
 parsed = Text.model_validate(
     {"component": "Text", "text": "Custom Variant", "variant": "custom-hero-heading"},
-    context=LENIENT_ENUM_CONTEXT,
+    context=OPEN_ENUM_CONTEXT,
 )
 
 print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
