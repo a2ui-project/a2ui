@@ -107,26 +107,41 @@ export class V0Point8Adapter extends BaseVersionAdapter {
     if ('dataModelUpdate' in msgObj) {
       const ud = msgObj.dataModelUpdate as Record<string, unknown>;
       const surfaceId = String(ud?.surfaceId ?? '');
+      const rawPath = typeof ud?.path === 'string' ? ud.path.trim() : '';
+      const basePath =
+        rawPath && rawPath !== '/'
+          ? (rawPath.startsWith('/') ? rawPath : `/${rawPath}`).replace(/\/+$/, '')
+          : '';
+
+      const extractContentValue = (entry: Record<string, unknown>): unknown => {
+        if ('valueNumber' in entry) return entry.valueNumber;
+        if ('valueString' in entry) return entry.valueString;
+        if ('valueBoolean' in entry) return entry.valueBoolean;
+        if ('valueObject' in entry) return entry.valueObject;
+        if ('valueArray' in entry) return entry.valueArray;
+        if (Array.isArray(entry.valueMap)) {
+          const nested: Record<string, unknown> = {};
+          for (const sub of entry.valueMap as Record<string, unknown>[]) {
+            if (sub && typeof sub === 'object' && typeof sub.key === 'string') {
+              nested[sub.key] = extractContentValue(sub);
+            }
+          }
+          return nested;
+        }
+        return entry.value;
+      };
 
       if (Array.isArray(ud?.contents)) {
         for (const item of ud.contents as Record<string, unknown>[]) {
           if (item && typeof item === 'object' && typeof item.key === 'string') {
-            const val =
-              'valueNumber' in item
-                ? item.valueNumber
-                : 'valueString' in item
-                  ? item.valueString
-                  : 'valueBoolean' in item
-                    ? item.valueBoolean
-                    : 'valueObject' in item
-                      ? item.valueObject
-                      : 'valueArray' in item
-                        ? item.valueArray
-                        : item.value;
+            const val = extractContentValue(item);
+            const itemKey = item.key.replace(/^\/+/, '');
+            const fullPath =
+              itemKey === '.' || itemKey === '' ? basePath || '/' : `${basePath}/${itemKey}`;
             ops.push({
               type: 'updateDataModel',
               surfaceId,
-              path: item.key,
+              path: fullPath,
               value: val,
             });
           }

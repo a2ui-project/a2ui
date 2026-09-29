@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {generateCatalogSchema} from '../catalog/schema_generator.js';
@@ -23,7 +24,7 @@ import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 
-import {A2uiStateError, A2uiValidationError} from '../errors.js';
+import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, toCanonicalVersion} from '../common/semver.js';
 import {
@@ -262,6 +263,55 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   /**
+   * Cleans a Zod-derived JSON Schema node for legacy (< 1.0) inline catalogs,
+   * preserving full external `$ref` targets from `REF:<target>|<description>` markers.
+   */
+  private cleanLegacySchemaNode(node: unknown, visited = new Set<unknown>()): void {
+    if (typeof node !== 'object' || node === null) return;
+    if (visited.has(node)) return;
+    visited.add(node);
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        this.cleanLegacySchemaNode(item, visited);
+      }
+      return;
+    }
+
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.description === 'string' && obj.description.startsWith('REF:')) {
+      const content = obj.description.substring(4);
+      const pipeIndex = content.indexOf('|');
+      const ref = pipeIndex === -1 ? content : content.substring(0, pipeIndex);
+      const desc = pipeIndex === -1 ? '' : content.substring(pipeIndex + 1);
+      const savedDefault = obj.default;
+      for (const key of Object.keys(obj)) {
+        delete obj[key];
+      }
+      obj['$ref'] = ref;
+      if (savedDefault !== undefined) {
+        obj['default'] = savedDefault;
+      }
+      if (desc) {
+        obj['description'] = desc;
+      }
+      return;
+    }
+
+    if (Array.isArray(obj.anyOf)) {
+      obj.oneOf = obj.anyOf;
+      delete obj.anyOf;
+    }
+    delete obj['$schema'];
+    delete obj['additionalProperties'];
+    delete obj['unevaluatedProperties'];
+
+    for (const key of Object.keys(obj)) {
+      this.cleanLegacySchemaNode(obj[key], visited);
+    }
+  }
+
+  /**
    * Generates a backwards-compatible inline catalog representation for v0.8/v0.9/v0.9.1.
    *
    * @param catalog The catalog instance to serialize.
@@ -272,31 +322,68 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
   ): Record<string, unknown> {
-    const rawSchema = generateCatalogSchema(catalog, {componentEnvelopeRef});
-    const components = (rawSchema.components as Record<string, unknown>) || {};
+    const components: Record<string, unknown> = {};
+    for (const [name, comp] of catalog.components.entries()) {
+      let props: Record<string, unknown> = {};
+      let reqList: string[] = [];
+      if (comp.schema && typeof comp.schema === 'object' && 'safeParse' in comp.schema) {
+        const rawZod = zodToJsonSchema(comp.schema, {
+          target: 'jsonSchema2019-09',
+          $refStrategy: 'none',
+        }) as Record<string, unknown>;
+        this.cleanLegacySchemaNode(rawZod);
+        props = (rawZod.properties as Record<string, unknown>) || {};
+        reqList = Array.isArray(rawZod.required)
+          ? (rawZod.required as string[]).filter(r => r !== 'component' && r !== 'id')
+          : [];
+      }
+      const {component: _ignoredComp, id: _ignoredId, ...sanitizedProps} = props;
+      components[name] = {
+        allOf: [
+          {$ref: componentEnvelopeRef},
+          {
+            properties: {
+              component: {const: name},
+              ...sanitizedProps,
+            },
+            required: ['component', ...reqList],
+          },
+        ],
+      };
+    }
 
-    const rawFunctions = rawSchema.functions as Record<string, Record<string, unknown>> | undefined;
     const functions: Array<Record<string, unknown>> = [];
     for (const fn of catalog.functions.values()) {
-      const fnDef = rawFunctions?.[fn.name] as
-        | {properties?: {args?: Record<string, unknown>}}
-        | undefined;
+      let paramSchema: Record<string, unknown> = {type: 'object', properties: {}};
+      if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
+        const rawZod = zodToJsonSchema(fn.schema, {
+          target: 'jsonSchema2019-09',
+          $refStrategy: 'none',
+        }) as Record<string, unknown>;
+        this.cleanLegacySchemaNode(rawZod);
+        paramSchema = rawZod;
+      }
       functions.push({
         name: fn.name,
-        description: fn.description,
+        ...(fn.description ? {description: fn.description} : {}),
         returnType: fn.returnType,
-        parameters: fnDef?.properties?.args ?? {type: 'object', properties: {}},
+        parameters: paramSchema,
       });
     }
 
-    const rawDefs = rawSchema.$defs as
-      | Record<string, {properties?: Record<string, unknown>}>
-      | undefined;
-    const theme = rawDefs?.theme?.properties;
+    let theme: Record<string, unknown> | undefined;
+    if (catalog.themeSchema) {
+      const rawTheme = zodToJsonSchema(catalog.themeSchema, {
+        target: 'jsonSchema2019-09',
+        $refStrategy: 'none',
+      }) as Record<string, unknown>;
+      this.cleanLegacySchemaNode(rawTheme);
+      theme = (rawTheme.properties as Record<string, unknown>) || undefined;
+    }
 
     return {
       catalogId: catalog.id,
-      components,
+      ...(Object.keys(components).length > 0 ? {components} : {}),
       ...(functions.length > 0 ? {functions} : {}),
       ...(theme ? {theme} : {}),
     };
@@ -650,7 +737,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const catalog =
       catalogId !== undefined ? this.catalogs.find(c => c.id === catalogId) : this.catalogs[0];
     if (!catalog) {
-      throw new A2uiStateError(`Catalog not found: ${catalogId}`);
+      throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
     }
 
     const msgVersion = op.version;
@@ -665,7 +752,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     if (this.model.getSurface(surfaceId)) {
-      throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
+      throw new A2uiIntegrityError(`Surface ${surfaceId} already exists.`);
     }
 
     let validatedTheme = theme;
@@ -748,11 +835,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (!found) {
         const known = this.catalogs.find(c => c.id === rawCatalogId);
         if (!known) {
-          throw new A2uiValidationError(
+          throw new A2uiCatalogError(
             `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
           );
         }
-        throw new A2uiValidationError(
+        throw new A2uiCatalogError(
           `Component '${id}' catalog '${rawCatalogId}' specification version (${known.protocolVersion}) does not match surface default catalog version (${surface.defaultCatalog.protocolVersion}).`,
         );
       }
@@ -808,12 +895,19 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const surface = this.model.getSurface(op.surfaceId);
     if (!surface) {
-      throw new A2uiStateError(`Surface not found for message: ${op.surfaceId}`);
+      throw new A2uiIntegrityError(`Surface not found for message: ${op.surfaceId}`);
     }
 
     // 1. Validation pass: validate all components before mutating state
+    const seenBatchIds = new Set<string>();
     for (const comp of op.components) {
       this.validateComponentProperties(comp, surface);
+      if (comp && typeof comp === 'object' && typeof comp.id === 'string') {
+        if (seenBatchIds.has(comp.id)) {
+          throw new A2uiIntegrityError(`Duplicate component ID: '${comp.id}'`, [comp.id]);
+        }
+        seenBatchIds.add(comp.id);
+      }
     }
 
     this.validateCompositionConstraints(surface, op.components);
@@ -830,7 +924,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const surface = this.model.getSurface(op.surfaceId);
     if (!surface) {
-      throw new A2uiStateError(`Surface not found for message: ${op.surfaceId}`);
+      throw new A2uiIntegrityError(`Surface not found for message: ${op.surfaceId}`);
     }
 
     const path = op.path || '/';

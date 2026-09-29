@@ -209,9 +209,11 @@ public final class MessageProcessor: ObservableObject {
     }
 
     var catalogDictionary: OrderedDictionary<String, JSONValue> = [
-      "catalogId": .string(catalog.id),
-      "components": .object(componentsDictionary),
+      "catalogId": .string(catalog.id)
     ]
+    if !componentsDictionary.isEmpty {
+      catalogDictionary["components"] = .object(componentsDictionary)
+    }
     if !functionsArray.isEmpty {
       catalogDictionary["functions"] = .array(functionsArray)
     }
@@ -401,12 +403,12 @@ public final class MessageProcessor: ObservableObject {
   private func processUpdateComponents(_ msg: UpdateComponentsMessage) throws {
     guard let surface = surfaceGroupModel.surfacesMap[msg.surfaceID] else {
       throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
+        "Surface not found for message: \(msg.surfaceID)",
         details: [
           A2UIErrorDetail(
             path: "updateComponents.surfaceId",
             code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
+            message: "Surface not found for message: \(msg.surfaceID)"
           )
         ]
       )
@@ -419,12 +421,12 @@ public final class MessageProcessor: ObservableObject {
   private func processUpdateDataModel(_ msg: UpdateDataModelMessage) throws {
     guard let surface = surfaceGroupModel.surfacesMap[msg.surfaceID] else {
       throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
+        "Surface not found for message: \(msg.surfaceID)",
         details: [
           A2UIErrorDetail(
             path: "updateDataModel.surfaceId",
             code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
+            message: "Surface not found for message: \(msg.surfaceID)"
           )
         ]
       )
@@ -434,16 +436,7 @@ public final class MessageProcessor: ObservableObject {
 
   private func processDeleteSurface(_ msg: DeleteSurfaceMessage) throws {
     guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {
-      throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
-        details: [
-          A2UIErrorDetail(
-            path: "deleteSurface.surfaceId",
-            code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
-          )
-        ]
-      )
+      return
     }
     surfaceGroupModel.removeSurface(id: msg.surfaceID)
   }

@@ -252,7 +252,11 @@ function convertRefToZod(
     }
     return zodType;
   }
-  return undefined;
+  const desc =
+    typeof propSchema.description === 'string'
+      ? `REF:${ref}|${propSchema.description}`
+      : `REF:${ref}`;
+  return z.unknown().describe(desc);
 }
 
 /**
@@ -925,11 +929,12 @@ function parseThemeSchema(
     catalogSchema.styles ??
     (defs?.theme as Record<string, unknown> | undefined);
   if (rawTheme && typeof rawTheme === 'object') {
-    return convertComponentJsonSchemaToZod(
-      rawTheme as Record<string, unknown>,
-      catalogSchema,
-      false,
-    );
+    const rawThemeObj = rawTheme as Record<string, unknown>;
+    const normalizedThemeSchema =
+      'properties' in rawThemeObj || 'allOf' in rawThemeObj || rawThemeObj.type === 'object'
+        ? rawThemeObj
+        : {type: 'object', properties: rawThemeObj};
+    return convertComponentJsonSchemaToZod(normalizedThemeSchema, catalogSchema, false);
   }
   return undefined;
 }

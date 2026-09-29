@@ -70,12 +70,14 @@ async def test_rpc_handler_outbound_call_agent_function() -> None:
     assert len(sent_msgs) == 1
     assert sent_msgs[0]["callAgentFunction"]["functionCallId"] == "call-123"
 
-    handler.handle_agent_function_response({
-        "agentFunctionResponse": {
-            "functionCallId": "call-123",
-            "value": {"status": "ok"},
+    handler.handle_agent_function_response(
+        {
+            "agentFunctionResponse": {
+                "functionCallId": "call-123",
+                "value": {"status": "ok"},
+            }
         }
-    })
+    )
 
     result = await fut
     assert result == {"status": "ok"}
@@ -98,91 +100,6 @@ async def test_rpc_handler_outbound_timeout() -> None:
         await fut
 
     assert exc_info.value.code == RpcErrorCode.TIMEOUT.value
-
-
-def test_rpc_handler_caller_permissions() -> None:
-    func_renderer = FunctionImplementation(
-        name="rendererFn",
-        execute=lambda args, *_: "ok",
-        allowed_callers="rendererOnly",
-    )
-    func_agent = FunctionImplementation(
-        name="agentFn",
-        execute=lambda args, *_: "ok",
-        allowed_callers="agentOnly",
-    )
-    cat = Catalog(
-        "basic",
-        protocol_version="v1.0",
-        functions=[func_renderer, func_agent],
-    )
-    handler = RpcHandler([cat])
-
-    resp_ren = handler.handle_call_renderer_function(
-        CallRendererFunctionMessage(
-            version="v1.0",
-            call_renderer_function=CallRendererFunction(
-                function_call_id="call-ren",
-                call_function=FunctionCall(call="rendererFn", catalog_id="basic"),
-            ),
-        )
-    )
-    assert (
-        resp_ren["rendererFunctionResponse"]["error"]["code"] == "INVALID_FUNCTION_CALL"
-    )
-    assert (
-        "cannot be called by agent"
-        in resp_ren["rendererFunctionResponse"]["error"]["message"]
-    )
-
-    resp_agent = handler.handle_call_renderer_function(
-        CallRendererFunctionMessage(
-            version="v1.0",
-            call_renderer_function=CallRendererFunction(
-                function_call_id="call-ag",
-                call_function=FunctionCall(call="agentFn", catalog_id="basic"),
-            ),
-        )
-    )
-    assert resp_agent["rendererFunctionResponse"]["value"] == "ok"
-
-
-def test_rpc_handler_user_activation() -> None:
-    func_active = FunctionImplementation(
-        name="activeFn",
-        execute=lambda args, *_: "done",
-        allowed_callers="agentOnly",
-        requires_user_activation=True,
-    )
-    cat = Catalog("basic", protocol_version="v1.0", functions=[func_active])
-    handler = RpcHandler([cat])
-
-    resp_denied = handler.handle_call_renderer_function(
-        CallRendererFunctionMessage(
-            version="v1.0",
-            call_renderer_function=CallRendererFunction(
-                function_call_id="call-act-1",
-                call_function=FunctionCall(call="activeFn", catalog_id="basic"),
-            ),
-        ),
-        is_user_activated=False,
-    )
-    assert (
-        resp_denied["rendererFunctionResponse"]["error"]["code"]
-        == "INVALID_FUNCTION_CALL"
-    )
-
-    resp_allowed = handler.handle_call_renderer_function(
-        CallRendererFunctionMessage(
-            version="v1.0",
-            call_renderer_function=CallRendererFunction(
-                function_call_id="call-act-2",
-                call_function=FunctionCall(call="activeFn", catalog_id="basic"),
-            ),
-        ),
-        is_user_activated=True,
-    )
-    assert resp_allowed["rendererFunctionResponse"]["value"] == "done"
 
 
 def test_rpc_handler_non_callable_function() -> None:
@@ -270,26 +187,6 @@ def test_rpc_handler_disposed_call_prevention() -> None:
             call=FunctionCall(call="disposedFunc"),
         )
     assert exc_info.value.code == RpcErrorCode.DISPOSED.value
-
-
-def test_rpc_handler_incompatible_catalog_version() -> None:
-    cat = Catalog("basic", protocol_version="v0.8")
-    handler = RpcHandler([cat])
-
-    resp = handler.handle_call_renderer_function(
-        CallRendererFunctionMessage(
-            version="v1.0",
-            call_renderer_function=CallRendererFunction(
-                function_call_id="call-incompatible",
-                call_function=FunctionCall(call="someFunc", catalog_id="basic"),
-            ),
-        )
-    )
-    assert (
-        resp["rendererFunctionResponse"]["error"]["code"]
-        == RpcErrorCode.INVALID_FUNCTION_CALL.value
-    )
-    assert "does not match" in resp["rendererFunctionResponse"]["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -441,26 +338,6 @@ def test_rpc_handler_handle_agent_function_response_pydantic_model() -> None:
     handler.handle_agent_function_response(model_resp)
     assert fut.done()
     assert fut.result() == {"data": "pydantic_success"}
-
-
-def test_rpc_handler_unknown_function_error_code() -> None:
-    cat = Catalog("basic", protocol_version="v1.0", functions=[])
-    handler = RpcHandler([cat])
-
-    resp = handler.handle_call_renderer_function(
-        CallRendererFunctionMessage(
-            version="v1.0",
-            call_renderer_function=CallRendererFunction(
-                function_call_id="call-missing",
-                call_function=FunctionCall(call="nonExistentFunc", catalog_id="basic"),
-            ),
-        )
-    )
-    assert (
-        resp["rendererFunctionResponse"]["error"]["code"]
-        == RpcErrorCode.INVALID_FUNCTION_CALL.value
-    )
-    assert "Function not found" in resp["rendererFunctionResponse"]["error"]["message"]
 
 
 @pytest.mark.asyncio

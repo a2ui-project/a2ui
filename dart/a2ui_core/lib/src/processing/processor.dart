@@ -179,52 +179,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// over-deep chain, and [A2uiValidationError] for a component that does not
   /// match its catalog.
   void processMessages(AgentToRendererMessagePayload payload) {
-    final created = <String>{};
     for (final AgentToRendererMessage message in payload.messages) {
       _processMessage(message);
-      if (message is CreateSurfaceMessage) created.add(message.surfaceId);
-      if (message is DeleteSurfaceMessage) created.remove(message.surfaceId);
     }
-    for (final surfaceId in created) {
-      _checkSurfaceGraph(surfaceId);
-    }
-  }
-
-  /// Checks the graph one surface holds, under [validationConfig].
-  ///
-  /// Runs once a payload that created the surface has been applied in full,
-  /// so a reference is resolved against everything the payload declared rather
-  /// than against what had arrived when the reference did.
-  void _checkSurfaceGraph(String surfaceId) {
-    final SurfaceModel<T>? surface = groupModel.getSurface(surfaceId);
-    if (surface == null) return;
-
-    final List<Map<String, Object?>> components = [
-      for (final ComponentModel c in surface.componentsModel.all) c.toJson(),
-    ];
-    // A surface may carry only a theme. Nothing was rendered, so there is no
-    // root to require and nothing to be unreachable from it.
-    if (components.isEmpty) return;
-
-    final Map<String, ComponentRefFields> refFields = _refFieldsFor(
-      surface.catalog.id,
-      components,
-    );
-    checkComponentIntegrity(
-      components,
-      refFields,
-      requireRoot: !validationConfig.allowMissingRoot,
-      // An empty set, not null: every reference must be satisfied by the
-      // surface itself. Null would skip reference checking altogether.
-      knownIds:
-          validationConfig.allowDanglingReferences ? null : const <String>{},
-    );
-    checkComponentTopology(
-      components,
-      refFields,
-      requireRoot: !validationConfig.allowMissingRoot,
-      allowOrphans: validationConfig.allowOrphanComponents,
-    );
   }
 
   /// The catalog one component is checked against.
@@ -301,7 +258,7 @@ class MessageProcessor<T extends ComponentApi> {
     );
 
     if (groupModel.getSurface(message.surfaceId) != null) {
-      throw A2uiStateError('Surface ${message.surfaceId} already exists.');
+      throw A2uiIntegrityError('Surface ${message.surfaceId} already exists.');
     }
 
     // The theme arrives once, with the surface, so it is checked here rather
@@ -320,7 +277,9 @@ class MessageProcessor<T extends ComponentApi> {
   void _processUpdateComponents(UpdateComponentsMessage message) {
     final SurfaceModel<T>? surface = groupModel.getSurface(message.surfaceId);
     if (surface == null) {
-      throw A2uiStateError('Surface not found: ${message.surfaceId}');
+      throw A2uiIntegrityError(
+        'Surface not found for message: ${message.surfaceId}',
+      );
     }
 
     // Pass 1: validation.
@@ -404,17 +363,10 @@ class MessageProcessor<T extends ComponentApi> {
   /// [incoming] is the batch; [existing] is what the surface already holds, as
   /// `ComponentModel.toJson` renders it.
   ///
-  /// Checks what a single batch can settle on its own: that it declares no id
-  /// twice, and that it closes no cycle and no over-deep chain. Cycles and
-  /// depth are measured over the merged graph rather than the batch alone, so
-  /// a batch that closes a loop through existing components fails here too.
-  ///
-  /// Whether a reference resolves is not among them, because a payload may
-  /// declare a parent before its child; [processMessages] answers that for the
-  /// surface the whole payload leaves behind.
-  ///
-  /// Throws [A2uiIntegrityError] for a duplicate id, and [A2uiRecursionError]
-  /// for a cycle or an over-deep chain.
+  /// First checks [incoming] for duplicate IDs within the batch, then builds
+  /// the merged candidate surface graph (`existing` overridden by `incoming`)
+  /// and enforces root presence, reference resolution, cycle/depth limits, and
+  /// reachability according to [validationConfig] before any mutation occurs.
   void _validateComponentBatch(
     SurfaceModel<T> surface,
     List<Map<String, Object?>> incoming,
@@ -424,34 +376,56 @@ class MessageProcessor<T extends ComponentApi> {
       surface.catalog.id,
       [...existing, ...incoming],
     );
+    // Reject duplicate component IDs within the incoming batch itself.
     checkComponentIntegrity(
       incoming,
       refFields,
-      // The root may arrive in a later message, so its absence is not an
-      // error at this point; the surface is not yet claimed to be complete.
       requireRoot: false,
-      // Nor is a reference to a component the surface does not yet hold. A
-      // payload may declare a parent before its child — the basic catalog's
-      // `00_incremental` example does exactly that — so a reference resolves
-      // against what the surface ends up holding, not against what it holds at
-      // the moment the batch arrives. [processMessages] makes that check once
-      // the payload has been applied in full.
       knownIds: null,
     );
-    checkComponentTopology(
-      [...existing, ...incoming],
+
+    // Build merged candidate graph (`existing` overridden by `incoming`).
+    final mergedById = <String, Map<String, Object?>>{
+      for (final Map<String, Object?> comp in existing)
+        if (comp['id'] case final String id) id: comp,
+    };
+    for (final comp in incoming) {
+      final Object? rawId = comp['id'];
+      if (rawId is! String) continue;
+      final Map<String, Object?>? prev = mergedById[rawId];
+      if (prev != null && comp['component'] == null) {
+        mergedById[rawId] = <String, Object?>{
+          ...comp,
+          'component': prev['component'],
+        };
+      } else {
+        mergedById[rawId] = comp;
+      }
+    }
+    final List<Map<String, Object?>> mergedCandidate =
+        mergedById.values.toList();
+
+    checkComponentIntegrity(
+      mergedCandidate,
       refFields,
-      requireRoot: false,
-      // A component left unreachable by an update is the residue of a
-      // replacement rather than a defect.
-      allowOrphans: true,
+      requireRoot: !validationConfig.allowMissingRoot,
+      knownIds:
+          validationConfig.allowDanglingReferences ? null : const <String>{},
+    );
+    checkComponentTopology(
+      mergedCandidate,
+      refFields,
+      requireRoot: !validationConfig.allowMissingRoot,
+      allowOrphans: validationConfig.allowOrphanComponents,
     );
   }
 
   void _processUpdateDataModel(UpdateDataModelMessage message) {
     final SurfaceModel<T>? surface = groupModel.getSurface(message.surfaceId);
     if (surface == null) {
-      throw A2uiStateError('Surface not found: ${message.surfaceId}');
+      throw A2uiIntegrityError(
+        'Surface not found for message: ${message.surfaceId}',
+      );
     }
 
     surface.dataModel.set(message.path ?? '/', message.value);
@@ -520,7 +494,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     return {
       'catalogId': catalog.id,
-      'components': components,
+      if (components.isNotEmpty) 'components': components,
       if (functions.isNotEmpty) 'functions': functions,
       if (theme != null) 'theme': theme,
     };

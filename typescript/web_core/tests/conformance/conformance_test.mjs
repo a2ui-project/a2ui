@@ -37,7 +37,16 @@ import {
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/v1_0/basic_catalog/index.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
-import {A2uiExpressionError, A2uiValidationError} from '../../dist/src/errors.js';
+import {
+  A2uiCatalogError,
+  A2uiDataError,
+  A2uiError,
+  A2uiExpressionError,
+  A2uiIntegrityError,
+  A2uiRecursionError,
+  A2uiStateError,
+  A2uiValidationError,
+} from '../../dist/src/errors.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
 import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
@@ -117,16 +126,11 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
  * - 'test_v08_topology_card_child_reachable': the v0.8 reference map does not
  *   treat a single-child property such as `Card.child` as a component
  *   reference, so strict validation reports the child as orphaned.
- * - '*_duplicate_component_id_error' (v0.9 and v1.0): web_core accepts an
- *   `updateComponents` message that lists the same component ID twice.
  */
 const SKIP_TEST_NAMES = new Set([
   'test_v09_basic_catalog_schema',
   'test_v10_basic_catalog_schema',
   'test_v08_topology_card_child_reachable',
-  'test_v09_topology_duplicate_component_id_error',
-  'test_v09_incremental_update_duplicate_component_id_error',
-  'test_v10_incremental_update_duplicate_component_id_error',
 ]);
 
 /**
@@ -775,6 +779,31 @@ function validateSelectCatalogTestCase(testCase) {
   }
 }
 
+function matchesErrorCategory(err, category) {
+  if (!category) return true;
+  switch (category) {
+    case 'ParseError':
+      return err instanceof A2uiExpressionError;
+    case 'ValidationError':
+      return err instanceof A2uiValidationError;
+    case 'CatalogError':
+    case 'A2uiCatalogError':
+      return err instanceof A2uiCatalogError;
+    case 'IntegrityError':
+      return err instanceof A2uiIntegrityError || err instanceof A2uiRecursionError;
+    case 'RecursionError':
+      return err instanceof A2uiRecursionError;
+    case 'DataError':
+      return err instanceof A2uiDataError;
+    case 'StateError':
+      return err instanceof A2uiStateError;
+    case 'ExpressionError':
+      return err instanceof A2uiExpressionError;
+    default:
+      return err instanceof A2uiError;
+  }
+}
+
 function validateValidateTestCase(testCase) {
   const {steps, payload, messages, expect, expectError, expectValid} = testCase;
   if (!steps && !payload && !messages) {
@@ -786,73 +815,88 @@ function validateValidateTestCase(testCase) {
     version: testCase.protocolVersion || 'v1.0',
     validationConfig: STRICT_VALIDATION,
   });
-  let inputMessages = messages || (Array.isArray(payload) ? payload : payload ? [payload] : []);
-  if (steps) {
-    inputMessages = [];
-    for (const s of steps) {
-      const ms =
-        s.messages || (Array.isArray(s.payload) ? s.payload : s.payload ? [s.payload] : []);
-      inputMessages.push(...ms);
-    }
-  }
 
-  const finalExpect = expect || (steps && steps[steps.length - 1]?.expect);
-  const expErrObj = expectError || (steps && steps[steps.length - 1]?.expectError);
+  const stepsToRun =
+    steps && Array.isArray(steps)
+      ? steps
+      : [
+          {
+            messages: messages || (Array.isArray(payload) ? payload : payload ? [payload] : []),
+            expect,
+            expectError,
+          },
+        ];
 
-  if (inputMessages.length > 0) {
-    let thrown;
-    // Subscribe before processing: a surface that already exists may report an
-    // error while the messages are applied, before resolution begins.
-    const watcher = watchSurfaceErrors(processor);
-    try {
-      processor.processMessages(inputMessages);
-      // Message processing alone does not evaluate bindings. Resolving the
-      // node graph is what raises expression and argument-schema errors.
-      forceResolution(processor, watcher.reported);
-    } catch (err) {
-      thrown = err;
-    } finally {
-      watcher.unsubscribe();
-    }
+  for (let i = 0; i < stepsToRun.length; i++) {
+    const step = stepsToRun[i];
+    const inputMessages =
+      step.messages ||
+      (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
+    const expErrObj = step.expectError || (i === stepsToRun.length - 1 ? expectError : undefined);
+    const stepExpect = step.expect || (i === stepsToRun.length - 1 ? expect : undefined);
 
-    if (thrown) {
-      if (expectValid || !expErrObj) {
-        // The case did not ask for an error, so this is a genuine failure
-        // rather than the behaviour under test.
-        throw thrown;
+    if (inputMessages.length > 0) {
+      let thrown;
+      // Subscribe before processing: a surface that already exists may report an
+      // error while the messages are applied, before resolution begins.
+      const watcher = watchSurfaceErrors(processor);
+      try {
+        processor.processMessages(inputMessages);
+        // Message processing alone does not evaluate bindings. Resolving the
+        // node graph is what raises expression and argument-schema errors.
+        forceResolution(processor, watcher.reported);
+      } catch (err) {
+        thrown = err;
+      } finally {
+        watcher.unsubscribe();
       }
-      if (typeof expErrObj === 'object' && expErrObj.code) {
-        if (
-          !thrown.message.includes(expErrObj.code) &&
-          thrown.name !== expErrObj.code &&
-          thrown.code !== expErrObj.code
-        ) {
-          throw new Error(
-            `Expected error matching '${expErrObj.code}' but received: ${thrown.message}`,
-          );
+
+      if (thrown) {
+        if (expectValid || !expErrObj) {
+          throw thrown;
         }
-      }
-      if (typeof expErrObj === 'object' && expErrObj.message) {
-        const normalizedActual = thrown.message.replaceAll('"', "'").replaceAll("','", "', '");
-        const normalizedExpected = expErrObj.message.replaceAll('"', "'").replaceAll("','", "', '");
-        if (!normalizedActual.includes(normalizedExpected)) {
-          throw new Error(
-            `Expected error message containing '${expErrObj.message}' but received: ${thrown.message}`,
-          );
+        if (typeof expErrObj === 'object' && expErrObj.category) {
+          if (!matchesErrorCategory(thrown, expErrObj.category)) {
+            throw new Error(
+              `Expected error category '${expErrObj.category}' but received ${thrown.constructor?.name || thrown.name}: ${thrown.message}`,
+            );
+          }
         }
+        if (typeof expErrObj === 'object' && expErrObj.code) {
+          if (
+            !thrown.message.includes(expErrObj.code) &&
+            thrown.name !== expErrObj.code &&
+            thrown.code !== expErrObj.code
+          ) {
+            throw new Error(
+              `Expected error matching '${expErrObj.code}' but received: ${thrown.message}`,
+            );
+          }
+        }
+        if (typeof expErrObj === 'object' && expErrObj.message) {
+          const normalizedActual = thrown.message.replaceAll('"', "'").replaceAll("','", "', '");
+          const normalizedExpected = expErrObj.message
+            .replaceAll('"', "'")
+            .replaceAll("','", "', '");
+          if (!normalizedActual.includes(normalizedExpected)) {
+            throw new Error(
+              `Expected error message containing '${expErrObj.message}' but received: ${thrown.message}`,
+            );
+          }
+        }
+        continue;
       }
-      return;
+
+      if (expErrObj) {
+        throw new Error(
+          `Expected error (${expErrObj.code || expErrObj.category || 'UNKNOWN'}) but message processing succeeded.`,
+        );
+      }
     }
 
-    if (expErrObj) {
-      throw new Error(
-        `Expected error (${expErrObj.code || expErrObj.category || 'UNKNOWN'}) but message processing succeeded.`,
-      );
+    if (stepExpect) {
+      assertSurfacesMatch(processor, stepExpect);
     }
-  }
-
-  if (finalExpect) {
-    assertSurfacesMatch(processor, finalExpect);
   }
 }
 
@@ -1121,6 +1165,19 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
   if (!testCase.expect) {
     throw new Error('get_renderer_capabilities test requires "expect" object.');
   }
+  const testCatalogs = getCatalogsForTestCase(testCase);
+  const processor = new MessageProcessor(testCatalogs, undefined, {
+    version: resolveProtocolVersion(testCase),
+  });
+  const args = testCase.args || {};
+  const versions =
+    args.versions || (args.version ? [args.version] : [resolveProtocolVersion(testCase)]);
+  const caps = processor.getRendererCapabilities({
+    versions,
+    includeInlineCatalogs: Boolean(args.includeInlineCatalogs),
+    ...(args.componentEnvelopeRef ? {componentEnvelopeRef: args.componentEnvelopeRef} : {}),
+  });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(caps)), testCase.expect);
 }
 
 function getBasicCatalog(version) {
@@ -1444,11 +1501,13 @@ function getCatalogsForTestCase(testCase) {
 
   if (testCase.catalog && typeof testCase.catalog === 'object') {
     const catObj = testCase.catalog;
-    const catSchema = catObj.catalogSchema || (catObj.components ? catObj : null);
+    const catSchema =
+      catObj.catalogSchema ||
+      (catObj.components || catObj.theme || catObj.functions ? catObj : null);
     if (catSchema) {
       const cId = catSchema.catalogId || catObj.catalogId || 'custom';
       const pVer = catObj.protocolVersion || catSchema.protocolVersion || version;
-      if (catSchema.components) {
+      if (catSchema.components || catSchema.theme || catSchema.functions) {
         const loadedCat = loadCatalogFromSchema({
           catalogId: cId,
           protocolVersion: pVer,
@@ -1465,13 +1524,24 @@ function getCatalogsForTestCase(testCase) {
   if (testCase.catalogs) {
     for (const cat of testCase.catalogs) {
       if (cat.catalogId) {
-        if (cat.components || cat.theme) {
+        if (cat.components || cat.theme || cat.functions) {
           const loadedCat = loadCatalogFromSchema({
             protocolVersion: cat.protocolVersion || version,
             ...cat,
           });
           catalogsMap.set(cat.catalogId, loadedCat);
           specifiedCatalogs.push(loadedCat);
+        } else if (testCase.action === 'get_renderer_capabilities') {
+          const emptyCat = new Catalog(
+            cat.catalogId,
+            cat.protocolVersion || version,
+            [],
+            [],
+            undefined,
+            undefined,
+          );
+          catalogsMap.set(cat.catalogId, emptyCat);
+          specifiedCatalogs.push(emptyCat);
         } else {
           addCatalogId(cat.catalogId, cat.protocolVersion);
         }
@@ -1561,6 +1631,10 @@ function getCatalogsForTestCase(testCase) {
       if (step.messages) scan(step.messages);
       if (step.payload) scan(step.payload);
     }
+  }
+
+  if (testCase.action === 'get_renderer_capabilities' && specifiedCatalogs.length > 0) {
+    return specifiedCatalogs;
   }
 
   return [
@@ -1837,6 +1911,17 @@ function assertSurfacesMatch(processor, expect) {
               }
             }
           }
+          if (
+            Array.isArray(expectedSurface.components) &&
+            expectedComponents.every(c => surface.componentsModel.get(c.id) !== undefined)
+          ) {
+            const actualCount = Array.from(surface.componentsModel.entries).length;
+            if (actualCount !== expectedComponents.length) {
+              throw new Error(
+                `Surface '${surfaceId}' component count mismatch: expected ${expectedComponents.length}, got ${actualCount}`,
+              );
+            }
+          }
         } finally {
           resolved.dispose();
         }
@@ -1885,6 +1970,31 @@ function validateProcessMessagesTestCase(testCase) {
     return inputMessages;
   };
 
+  const assertExpectedProcessError = (err, expectedErr) => {
+    if (expectedErr.category) {
+      if (!matchesErrorCategory(err, expectedErr.category)) {
+        throw new Error(
+          `Expected error category '${expectedErr.category}', got '${err.constructor?.name || err.name}': ${err.message}`,
+        );
+      }
+    }
+    if (expectedErr.message) {
+      const expectedMsg = expectedErr.message;
+      const matches =
+        err.message.includes(expectedMsg) ||
+        (expectedMsg.includes('Unsupported protocol version') &&
+          (err.message.includes('Invalid enum value') ||
+            err.message.includes('Unsupported protocol version'))) ||
+        (expectedMsg.includes('Missing') &&
+          err.message.includes("missing a valid 'version' string")) ||
+        (expectedMsg.includes('multiple update types') &&
+          err.message.includes('multiple conflicting update actions'));
+      if (!matches) {
+        throw new Error(`Expected error message containing '${expectedMsg}', got '${err.message}'`);
+      }
+    }
+  };
+
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -1895,40 +2005,18 @@ function validateProcessMessagesTestCase(testCase) {
       const stepExpectError =
         step.expectError || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
-        assert.throws(
-          () => {
-            processor.processMessages(stepMsgs);
-          },
-          err => {
-            if (stepExpectError.message) {
-              return (
-                err.message.includes(stepExpectError.message) ||
-                (stepExpectError.message.includes('Missing') &&
-                  err.message.includes("missing a valid 'version' string")) ||
-                (stepExpectError.message.includes('Unsupported protocol version') &&
-                  (err.message.includes('Invalid enum value') ||
-                    err.message.includes('Unsupported protocol version')))
-              );
-            }
-            if (stepExpectError.category) {
-              const cat = stepExpectError.category;
-              return (
-                err.name === cat ||
-                err.name?.includes(cat) ||
-                err.message?.includes(cat) ||
-                err.constructor?.name === cat ||
-                (cat === 'IntegrityError' &&
-                  (err.name === 'A2uiIntegrityError' ||
-                    err.name === 'A2uiStateError' ||
-                    err.name === 'A2uiRecursionError' ||
-                    err.message.includes('Integrity') ||
-                    err.message.includes('Surface not found') ||
-                    err.message.includes('Circular reference')))
-              );
-            }
-            return true;
-          },
-        );
+        let thrown;
+        try {
+          processor.processMessages(stepMsgs);
+        } catch (err) {
+          thrown = err;
+        }
+        if (!thrown) {
+          throw new Error(
+            `Expected error (${stepExpectError.category || stepExpectError.message || 'UNKNOWN'}) but message processing succeeded.`,
+          );
+        }
+        assertExpectedProcessError(thrown, stepExpectError);
       } else {
         processor.processMessages(stepMsgs);
         const stepExpect = step.expect || (i === steps.length - 1 ? expect : undefined);
@@ -1944,31 +2032,19 @@ function validateProcessMessagesTestCase(testCase) {
   if (!inputMessages) return;
 
   if (expectError) {
+    let thrown;
     try {
       processor.processMessages(inputMessages);
+    } catch (err) {
+      thrown = err;
+    }
+    if (!thrown) {
       throw new Error(
         `Expected error (${expectError.category || expectError.message || 'UNKNOWN'}) but message processing succeeded.`,
       );
-    } catch (err) {
-      if (expectError.message) {
-        const expectedMsg = expectError.message;
-        const matches =
-          err.message.includes(expectedMsg) ||
-          (expectedMsg.includes('Unsupported protocol version') &&
-            (err.message.includes('Invalid enum value') ||
-              err.message.includes('Unsupported protocol version'))) ||
-          (expectedMsg.includes('Missing') &&
-            err.message.includes("missing a valid 'version' string")) ||
-          (expectedMsg.includes('multiple update types') &&
-            err.message.includes('multiple conflicting update actions'));
-        if (!matches) {
-          throw new Error(
-            `Expected error message containing '${expectedMsg}', got '${err.message}'`,
-          );
-        }
-      }
-      return;
     }
+    assertExpectedProcessError(thrown, expectError);
+    return;
   }
 
   processor.processMessages(inputMessages);

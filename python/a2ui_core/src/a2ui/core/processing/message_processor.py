@@ -221,6 +221,127 @@ class MessageProcessor:
         """Resolves a catalog by catalog_id, or returns None if catalog_id is None or not found."""
         return self.rpc.resolve_catalog(catalog_id)
 
+    @staticmethod
+    def _transform_legacy_ref_descriptions(node: Any) -> Any:
+        """Recursively transforms REF:<target>|<desc> descriptions into $ref nodes for < 1.0 inline catalogs."""
+        if isinstance(node, dict):
+            desc = node.get("description")
+            if isinstance(desc, str) and desc.startswith("REF:"):
+                content = desc[4:]
+                ref, sep, actual_desc = content.partition("|")
+                res: dict[str, Any] = {"$ref": ref}
+                if "default" in node and node["default"] is not None:
+                    res["default"] = node["default"]
+                if sep and actual_desc:
+                    res["description"] = actual_desc
+                return res
+            return {
+                k: MessageProcessor._transform_legacy_ref_descriptions(v)
+                for k, v in node.items()
+                if k not in ("$schema", "additionalProperties", "unevaluatedProperties")
+            }
+        if isinstance(node, list):
+            return [
+                MessageProcessor._transform_legacy_ref_descriptions(item)
+                for item in node
+            ]
+        return node
+
+    @classmethod
+    def _generate_legacy_inline_catalog(
+        cls,
+        catalog: Any,
+        component_envelope_ref: str = "common_types.json#/$defs/ComponentCommon",
+    ) -> dict[str, Any]:
+        """Generates a legacy (< 1.0) inline catalog dictionary."""
+        components: dict[str, Any] = {}
+        raw_components = getattr(catalog, "components", {}) or {}
+        for name, comp in raw_components.items():
+            s = getattr(comp, "schema", None)
+            if isinstance(s, type) and hasattr(s, "model_json_schema"):
+                s = s.model_json_schema()
+            s_dict = (
+                cls._transform_legacy_ref_descriptions(copy.deepcopy(s))
+                if isinstance(s, dict)
+                else {}
+            )
+            props = dict(s_dict.get("properties") or {})
+            props.pop("id", None)
+            props.pop("component", None)
+            req = [
+                r
+                for r in (s_dict.get("required") or [])
+                if r not in ("id", "component")
+            ]
+            components[name] = {
+                "allOf": [
+                    {"$ref": component_envelope_ref},
+                    {
+                        "properties": {
+                            "component": {"const": name},
+                            **props,
+                        },
+                        "required": ["component", *req],
+                    },
+                ]
+            }
+
+        functions: list[dict[str, Any]] = []
+        raw_functions = getattr(catalog, "functions", {}) or {}
+        for name, fn in raw_functions.items():
+            s = getattr(fn, "schema", None)
+            if isinstance(s, type) and hasattr(s, "model_json_schema"):
+                s = s.model_json_schema()
+            s_dict = copy.deepcopy(s) if isinstance(s, dict) else {}
+            if "parameters" in s_dict and isinstance(s_dict["parameters"], dict):
+                params = cls._transform_legacy_ref_descriptions(s_dict["parameters"])
+            elif (
+                "properties" in s_dict
+                and isinstance(s_dict["properties"], dict)
+                and "args" in s_dict["properties"]
+                and isinstance(s_dict["properties"]["args"], dict)
+            ):
+                params = cls._transform_legacy_ref_descriptions(
+                    s_dict["properties"]["args"]
+                )
+            else:
+                params = cls._transform_legacy_ref_descriptions(s_dict) or {
+                    "type": "object",
+                    "properties": {},
+                }
+            fn_entry: dict[str, Any] = {
+                "name": name,
+            }
+            desc = getattr(fn, "description", None) or s_dict.get("description")
+            if isinstance(desc, str) and desc:
+                fn_entry["description"] = desc
+            fn_entry["returnType"] = getattr(fn, "return_type", None) or s_dict.get(
+                "returnType", "any"
+            )
+            fn_entry["parameters"] = params
+            functions.append(fn_entry)
+
+        raw_theme = getattr(catalog, "_raw_theme_schema", None) or getattr(
+            catalog, "theme_schema", None
+        )
+        theme: dict[str, Any] | None = None
+        if isinstance(raw_theme, dict) and raw_theme:
+            cleaned_theme = cls._transform_legacy_ref_descriptions(
+                copy.deepcopy(raw_theme)
+            )
+            theme = cleaned_theme.get("properties") or cleaned_theme
+
+        result: dict[str, Any] = {
+            "catalogId": getattr(catalog, "catalog_id", ""),
+        }
+        if components:
+            result["components"] = components
+        if functions:
+            result["functions"] = functions
+        if theme:
+            result["theme"] = theme
+        return result
+
     def get_renderer_capabilities(
         self,
         options: CapabilitiesOptions,
@@ -238,8 +359,13 @@ class MessageProcessor:
                 "At least one protocol version must be provided in CapabilitiesOptions"
                 " to generate renderer capabilities."
             )
+        from ..common.semver import is_at_least_version
+
         effective_versions = options.versions
         effective_include_inline = options.include_inline_catalogs
+        envelope_ref = (
+            options.component_envelope_ref or "common_types.json#/$defs/ComponentCommon"
+        )
 
         capabilities: dict[str, Any] = {}
         for ver in effective_versions:
@@ -254,11 +380,17 @@ class MessageProcessor:
                 ]
             }
             if effective_include_inline:
-                version_caps["inlineCatalogs"] = [
-                    schema
-                    for c in self.catalogs
-                    if (schema := getattr(c, "catalog_schema", None)) is not None
-                ]
+                inline_catalogs: list[dict[str, Any]] = []
+                for c in self.catalogs:
+                    if is_at_least_version(ver_str, ProtocolVersion.V1_0):
+                        schema = getattr(c, "catalog_schema", None)
+                        if schema is not None:
+                            inline_catalogs.append(schema)
+                    else:
+                        inline_catalogs.append(
+                            self._generate_legacy_inline_catalog(c, envelope_ref)
+                        )
+                version_caps["inlineCatalogs"] = inline_catalogs
             capabilities[ver_str] = version_caps
 
         return capabilities
@@ -472,10 +604,7 @@ class MessageProcessor:
         surface_id = op.surface_id
         surface = self.model.get_surface(surface_id)
         if not surface:
-            raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}. Surface {surface_id} not"
-                " found for components update."
-            )
+            raise A2uiIntegrityError(f"Surface not found for message: {surface_id}")
 
         components = op.components
         if not isinstance(components, list):
@@ -560,10 +689,7 @@ class MessageProcessor:
         surface_id = op.surface_id
         surface = self.model.get_surface(surface_id)
         if not surface:
-            raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}. Surface {surface_id} not"
-                " found for data model update."
-            )
+            raise A2uiIntegrityError(f"Surface not found for message: {surface_id}")
 
         path = op.path or "/"
         value = op.value

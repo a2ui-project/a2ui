@@ -30,37 +30,26 @@ from a2ui.core.processing import (
 )
 from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.core.exceptions import (
-    A2uiError,
-    A2uiParseError,
-    A2uiValidationError,
     A2uiCatalogError,
-    A2uiIntegrityError,
     A2uiDataError,
+    A2uiError,
     A2uiExpressionError,
+    A2uiIntegrityError,
+    A2uiParseError,
+    A2uiRecursionError,
+    A2uiStateError,
+    A2uiValidationError,
 )
 
 CATEGORY_TO_EXCEPTION = {
-    "ParseError": (A2uiParseError, A2uiExpressionError, A2uiError, ValueError),
-    "ValidationError": (
-        A2uiValidationError,
-        A2uiExpressionError,
-        A2uiError,
-        ValueError,
-    ),
-    "CatalogError": (A2uiCatalogError, A2uiError),
-    "IntegrityError": (
-        A2uiIntegrityError,
-        A2uiValidationError,
-        A2uiError,
-        ValueError,
-    ),
-    "RecursionError": (
-        A2uiValidationError,
-        A2uiExpressionError,
-        A2uiError,
-        ValueError,
-    ),
-    "DataError": (A2uiDataError, A2uiError, ValueError),
+    "ParseError": (A2uiParseError, A2uiExpressionError),
+    "ValidationError": (A2uiValidationError,),
+    "CatalogError": (A2uiCatalogError,),
+    "IntegrityError": (A2uiIntegrityError, A2uiRecursionError),
+    "RecursionError": (A2uiRecursionError,),
+    "DataError": (A2uiDataError,),
+    "StateError": (A2uiStateError,),
+    "ExpressionError": (A2uiExpressionError,),
 }
 
 SUPPORTED_PROTOCOL_VERSIONS = {
@@ -270,20 +259,29 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
             p_ver = resolve_protocol_version(case) or "v0.9"
             c_comps = cat_spec.get("components")
             c_theme = cat_spec.get("theme")
-            if c_comps or c_theme:
+            c_funcs = cat_spec.get("functions")
+            if c_comps or c_theme or c_funcs:
                 c_schema = {"catalogId": c_id}
                 if c_comps:
                     c_schema["components"] = c_comps
                 if c_theme:
                     c_schema["theme"] = c_theme
+                if c_funcs:
+                    c_schema["functions"] = c_funcs
                 cat = Catalog.from_json(
                     c_schema, catalog_id=c_id, protocol_version=p_ver
                 )
             else:
+                default_comps = (
+                    []
+                    if case.get("action")
+                    in ("get_client_capabilities", "get_renderer_capabilities")
+                    else list(basic_catalog.components.values())
+                )
                 cat = Catalog(
                     catalog_id=c_id,
                     protocol_version=p_ver,
-                    components=list(basic_catalog.components.values()),
+                    components=default_comps,
                 )
             catalogs_map[c_id] = cat
             specified_catalogs.append(cat)
@@ -310,20 +308,29 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                     p_ver = item.get("protocolVersion") or version
                     c_comps = item.get("components")
                     c_theme = item.get("theme")
-                    if c_comps or c_theme:
+                    c_funcs = item.get("functions")
+                    if c_comps or c_theme or c_funcs:
                         c_schema = {"catalogId": c_id}
                         if c_comps:
                             c_schema["components"] = c_comps
                         if c_theme:
                             c_schema["theme"] = c_theme
+                        if c_funcs:
+                            c_schema["functions"] = c_funcs
                         cat = Catalog.from_json(
                             c_schema, catalog_id=c_id, protocol_version=p_ver
                         )
                     else:
+                        default_comps = (
+                            []
+                            if case.get("action")
+                            in ("get_client_capabilities", "get_renderer_capabilities")
+                            else list(basic_catalog.components.values())
+                        )
                         cat = Catalog(
                             catalog_id=c_id,
                             protocol_version=p_ver,
-                            components=list(basic_catalog.components.values()),
+                            components=default_comps,
                         )
                     catalogs_map[c_id] = cat
                     specified_catalogs.append(cat)
@@ -415,6 +422,11 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                     add_catalog_id(item["beginRendering"]["catalogId"], scan_version)
 
     scan(messages)
+    if (
+        case.get("action") in ("get_client_capabilities", "get_renderer_capabilities")
+        and specified_catalogs
+    ):
+        return specified_catalogs
     return specified_catalogs + [
         c for c in catalogs_map.values() if c not in specified_catalogs
     ]
@@ -684,6 +696,16 @@ def _assert_expected_surface_state(
                                     f" {p_val}"
                                 )
 
+                if isinstance(comps_expected, list) and all(
+                    surface.components_model.get(c_id) is not None
+                    for c_id, _ in comp_items
+                ):
+                    assert len(surface.components_model.keys) == len(comp_items), (
+                        f"Surface '{s_id}' component count mismatch: expected"
+                        f" {len(comp_items)}, got"
+                        f" {len(surface.components_model.keys)}"
+                    )
+
             if "validationResult" in s_exp:
                 resolved_nodes = _resolve_surface_components(surface)
                 val_res_exp = s_exp["validationResult"]
@@ -718,7 +740,9 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
         if not messages:
             continue
 
-        expect_error = step.get("expectError") or case.get("expectError")
+        expect_error = step.get("expectError") or (
+            case.get("expectError") if idx == len(steps) - 1 else None
+        )
 
         if expect_error:
             with assert_raises(expect_error):
@@ -794,12 +818,26 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
 def validate_capabilities_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     processor = MessageProcessor(catalogs)
-    ver = resolve_protocol_version(case) or "v0.9"
-    p_ver = ProtocolVersion(ver)
-    caps = processor.get_renderer_capabilities(CapabilitiesOptions(versions=[p_ver]))
+    args = case.get("args") or {}
+    raw_versions = args.get("versions") or (
+        [args["version"]]
+        if "version" in args
+        else [resolve_protocol_version(case) or "v0.9"]
+    )
+    p_versions = [
+        ProtocolVersion(v) if v in ProtocolVersion._value2member_map_ else v
+        for v in raw_versions
+    ]
+    opts = CapabilitiesOptions(
+        versions=p_versions,
+        include_inline_catalogs=bool(args.get("includeInlineCatalogs", False)),
+        component_envelope_ref=args.get(
+            "componentEnvelopeRef", "common_types.json#/$defs/ComponentCommon"
+        ),
+    )
+    caps = processor.get_renderer_capabilities(opts)
     expected = case.get("expect", {})
-    for k, v in expected.items():
-        assert k in caps
+    assert caps == expected
 
 
 def validate_from_json_case(case: dict[str, Any]) -> None:

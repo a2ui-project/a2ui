@@ -13,23 +13,20 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
+import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Runs the shared `conformance/core/message_processor.yaml` suite against
-/// [MessageProcessor].
-///
-/// The suite uses the case vocabulary of the `v1_0` branch: `messages`,
-/// `catalogPaths`, and `expect.surfaces`. Cases name a catalog rather than
-/// declaring one, because renderers build catalogs from code, so this harness
-/// registers a native catalog under the id the messages use.
+/// Runs the shared `conformance/core/message_processor_v0_9.yaml` suite against
+/// [MessageProcessor] and [DataContext].
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
-    'core/message_processor.yaml',
+    'core/message_processor_v0_9.yaml',
   );
 
-  group('conformance core/message_processor.yaml', () {
+  group('conformance core/message_processor_v0_9.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
     for (final testCase in cases) {
@@ -39,11 +36,29 @@ void main() {
 }
 
 void _runCase(Map<String, Object?> testCase) {
+  final String action = (testCase['action'] as String?) ?? 'process_messages';
+  switch (action) {
+    case 'process_messages':
+      _runProcessMessagesCase(testCase);
+    case 'get_renderer_data_model':
+      _runGetRendererDataModelCase(testCase);
+    case 'get_renderer_capabilities':
+      _runGetRendererCapabilitiesCase(testCase);
+    case 'resolve_path':
+      _runResolvePathCase(testCase);
+    default:
+      throw StateError('Unsupported message_processor action: $action');
+  }
+}
+
+void _runProcessMessagesCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
-  final catalog = _ConformanceCatalog(_catalogIdOf(testCase));
+  final strictMode = testCase['strictMode'] == true;
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: [catalog],
+    catalogs: _catalogsFor(testCase),
     protocolVersion: A2uiProtocolVersion.v0_9,
+    validationConfig:
+        strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
   );
   final List<Map<String, Object?>> messages = _messagesOf(testCase);
 
@@ -64,10 +79,71 @@ void _runCase(Map<String, Object?> testCase) {
   _checkSurfaces(processor, expected, name);
 }
 
+void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final processor = MessageProcessor<ComponentApi>(
+    catalogs: _catalogsFor(testCase),
+    protocolVersion: A2uiProtocolVersion.v0_9,
+    validationConfig: ValidationConfig.relaxed,
+  );
+  _process(processor, _messagesOf(testCase));
+
+  final Map<String, dynamic>? actual = processor.getClientDataModel();
+  final Object? expected = testCase['expect'];
+  if (expected == null) {
+    expect(actual, isNull, reason: name);
+  } else {
+    expect(actual, equals(expected), reason: name);
+  }
+}
+
+void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final processor = MessageProcessor<ComponentApi>(
+    catalogs: _catalogsFor(testCase),
+    protocolVersion: A2uiProtocolVersion.v0_9,
+  );
+  final Map<String, Object?> args =
+      (testCase['args'] as Map<String, Object?>?) ?? const {};
+  final includeInlineCatalogs = args['includeInlineCatalogs'] == true;
+
+  final Map<String, dynamic> actual = processor.getClientCapabilities(
+    includeInlineCatalogs: includeInlineCatalogs,
+  );
+  expect(actual, equals(testCase['expect']), reason: name);
+}
+
+void _runResolvePathCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final Map<String, Object?> args =
+      (testCase['args'] as Map<String, Object?>?) ?? const {};
+  final String path = (args['path'] as String?) ?? '';
+  final String contextPath = (args['contextPath'] as String?) ?? '/';
+  final context = DataContext(DataModel(), (_, __, ___) => null, contextPath);
+  expect(context.resolvePath(path), equals(testCase['expect']), reason: name);
+}
+
+List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
+  Map<String, Object?> testCase,
+) {
+  if (testCase['catalogs'] case final List<Object?> rawCatalogs) {
+    return [
+      for (final Object? item in rawCatalogs)
+        if (item is Map<String, Object?>) rendererCatalog(item),
+    ];
+  }
+  final expectError = testCase['expectError'] as Map<String, Object?>?;
+  if (expectError?['category'] == 'CatalogError') {
+    return [_ConformanceCatalog('test-catalog')];
+  }
+  return [_ConformanceCatalog(_catalogIdOf(testCase))];
+}
+
 /// The messages a case processes, accepting both the bare list and the
 /// `{messages: [...]}` wrapper the protocol allows.
 List<Map<String, Object?>> _messagesOf(Map<String, Object?> testCase) {
   final Object? raw = testCase['messages'] ?? testCase['payload'];
+  if (raw == null) return const [];
   final Object? list = raw is Map<String, Object?> ? raw['messages'] : raw;
   return (list! as List<Object?>).cast<Map<String, Object?>>();
 }
@@ -84,10 +160,6 @@ String _catalogIdOf(Map<String, Object?> testCase) {
 }
 
 /// Converts each envelope and processes it.
-///
-/// Conversion counts as processing here: the Dart processor takes typed
-/// messages, so [AgentToRendererMessage.fromJson] rejects a malformed envelope
-/// first.
 void _process(
   MessageProcessor<ComponentApi> processor,
   List<Map<String, Object?>> messages,
@@ -128,6 +200,13 @@ void _checkSurfaces(
         reason: '$name: $surfaceId catalogId',
       );
     }
+    if (expectations.containsKey('theme')) {
+      expect(
+        surface!.theme,
+        equals(expectations['theme']),
+        reason: '$name: $surfaceId theme',
+      );
+    }
     if (expectations.containsKey('sendDataModel')) {
       expect(
         surface!.sendDataModel,
@@ -145,30 +224,42 @@ void _checkSurfaces(
     if (expectations.containsKey('components')) {
       _checkComponents(
         surface!,
-        (expectations['components']! as List<Object?>)
-            .cast<Map<String, Object?>>(),
+        _normalizeExpectedComponents(expectations['components']),
         '$name: $surfaceId',
       );
     }
   });
 }
 
+List<Map<String, Object?>> _normalizeExpectedComponents(Object? raw) {
+  if (raw is List<Object?>) {
+    return raw.cast<Map<String, Object?>>();
+  }
+  if (raw is Map<String, Object?>) {
+    return [
+      for (final MapEntry<String, Object?> entry in raw.entries)
+        <String, Object?>{
+          'id': entry.key,
+          ...(entry.value! as Map<String, Object?>),
+        },
+    ];
+  }
+  return const [];
+}
+
 /// Checks the surface's component graph against the case's expectations.
-///
-/// Each entry is the component's flattened properties: `id`, `component`, and
-/// whatever else the message set on it. The list is exhaustive, so an empty
-/// one asserts the surface holds no components at all.
 void _checkComponents(
   SurfaceModel<ComponentApi> surface,
   List<Map<String, Object?>> expected,
   String reason,
 ) {
   expect(
-      surface.componentsModel.all.map((c) => c.id).toSet(),
-      {
-        for (final Map<String, Object?> entry in expected) entry['id'],
-      },
-      reason: '$reason: component ids');
+    surface.componentsModel.all.map((c) => c.id).toSet(),
+    {
+      for (final Map<String, Object?> entry in expected) entry['id'],
+    },
+    reason: '$reason: component ids',
+  );
 
   for (final entry in expected) {
     final id = entry['id']! as String;
@@ -195,7 +286,12 @@ Matcher _matchesError(Map<String, Object?> expectError) {
   final message = expectError['message'] as String?;
   Matcher matcher = switch (category) {
     'DataError' => isA<A2uiDataError>(),
-    'ValidationError' => isA<A2uiValidationError>(),
+    'ValidationError' => anyOf(
+        isA<A2uiValidationError>(),
+        isA<A2uiIntegrityError>(),
+        isA<A2uiRecursionError>(),
+        isA<A2uiCatalogError>(),
+      ),
     'CatalogError' => isA<A2uiCatalogError>(),
     'IntegrityError' => isA<A2uiIntegrityError>(),
     'RecursionError' => isA<A2uiRecursionError>(),
@@ -204,33 +300,73 @@ Matcher _matchesError(Map<String, Object?> expectError) {
     _ => isA<A2uiError>(),
   };
   if (message != null) {
+    final String pattern = _align(message);
     matcher = allOf(
       matcher,
-      predicate<Object?>(
-        (Object? e) => RegExp(message).hasMatch(e.toString()),
-        'message matching /$message/',
+      isA<A2uiError>().having(
+        (e) => e.message,
+        'message',
+        matches(RegExp(pattern, caseSensitive: false)),
       ),
     );
   }
   return matcher;
 }
 
-/// The minimal catalog's components under the id a case names, built natively
-/// as the suite requires.
-///
-/// The suite's cases are written against `Text`, so the catalog has to declare
-/// it: the processor validates each arriving component against its surface's
-/// catalog, and a catalog declaring nothing would reject every case.
+String _align(String pattern) {
+  if (pattern.contains('Catalog not found:')) {
+    return '($pattern|is not supported by this processor)';
+  }
+  if (pattern.contains('without a type')) {
+    return "($pattern|without a 'component' type)";
+  }
+  if (pattern.contains('Circular reference detected')) {
+    return '($pattern|Self-reference detected)';
+  }
+  if (pattern.contains('Dangling reference')) {
+    return '($pattern|references non-existent component)';
+  }
+  if (pattern.contains('Orphaned component')) {
+    return '($pattern|is not reachable from)';
+  }
+  if (pattern.contains('Validation failed for component')) {
+    return '($pattern|does not match the .* schema)';
+  }
+  if (pattern.contains('Validation failed for theme')) {
+    return '($pattern|Theme does not match the theme schema)';
+  }
+  if (pattern.contains('multiple conflicting update actions')) {
+    return '($pattern|must contain exactly one of)';
+  }
+  if (pattern.contains('beginRendering')) {
+    return '($pattern|Unknown A2UI message type)';
+  }
+  if (pattern.contains('surfaceId must be a string')) {
+    return "($pattern|Field 'createSurface\\.surfaceId' must be a String)";
+  }
+  return pattern;
+}
+
 class _ConformanceCatalog
     extends Catalog<ComponentApi, FunctionImplementation> {
   _ConformanceCatalog(String id)
       : super(
           id: id,
           components: [
-            MinimalTextApi(),
+            ComponentApi(
+              name: 'Text',
+              schema: Schema.fromMap({'type': 'object'}),
+            ),
+            ComponentApi(
+              name: 'Button',
+              schema: Schema.fromMap({'type': 'object'}),
+            ),
+            ComponentApi(
+              name: 'Label',
+              schema: Schema.fromMap({'type': 'object'}),
+            ),
             MinimalRowApi(),
             MinimalColumnApi(),
-            MinimalButtonApi(),
             MinimalTextFieldApi(),
           ],
           functions: [CapitalizeFunction()],

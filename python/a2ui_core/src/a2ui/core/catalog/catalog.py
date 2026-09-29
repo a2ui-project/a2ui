@@ -1081,6 +1081,11 @@ class Catalog(Generic[TComponent, TFunction]):
             if isinstance(raw_defs, dict):
                 common_types_defs = _normalize_external_schema_refs(dict(raw_defs))
 
+        raw_theme = (
+            catalog_schema.get("theme")
+            or (catalog_schema.get("$defs") or {}).get("theme")
+            or {}
+        )
         cat = Catalog[ComponentApi, FunctionApi](
             catalog_id=catalog_id,
             protocol_version=p_ver,
@@ -1092,5 +1097,8 @@ class Catalog(Generic[TComponent, TFunction]):
             instructions=inlined_catalog_schema.get("instructions"),
             defs=inlined_catalog_schema.get("$defs"),
             common_types_defs=common_types_defs,
+        )
+        cat._raw_theme_schema = (
+            copy.deepcopy(raw_theme) if isinstance(raw_theme, dict) else {}
         )
         return cat
