@@ -39,11 +39,14 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Row,
     Text,
 )
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.core.schema.v0_9 import UpdateComponentsMessage, UpdateComponents
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.transformers.macros import (
     MacroExpander,
     macro,
 )
+from pydantic import TypeAdapter
 
 
 def test_macro_decorator_and_schema_synthesis():
@@ -227,21 +230,22 @@ def test_macro_expander_pipeline():
     assert "QuickAlert" in inf_cat.catalog_schema["components"]
 
     # Test lowering of macro components to transport primitives
-    raw_message = {
-        "surfaceUpdate": {
-            "surfaceId": "main",
-            "components": [{
+    raw_message = UpdateComponentsMessage(
+        version="v0.9.1",
+        updateComponents=UpdateComponents(
+            surfaceId="main",
+            components=[{
                 "component": "QuickAlert",
                 "id": "alert_instance_1",
                 "msg": "Payment received!",
             }],
-        }
-    }
+        ),
+    )
 
-    expanded = expander.transform_to_transport(raw_message)
+    expanded = expander.transform_to_transport([raw_message])
     assert len(expanded) == 1
-    surf_update = expanded[0]["surfaceUpdate"]
-    comps = surf_update["components"]
+    assert isinstance(expanded[0], UpdateComponentsMessage)
+    comps = expanded[0].update_components.components
     assert len(comps) == 2
     card_comp = [c for c in comps if c["component"] == "Card"][0]
     text_comp = [c for c in comps if c["component"] == "Text"][0]
@@ -249,7 +253,7 @@ def test_macro_expander_pipeline():
     assert text_comp["text"] == "Payment received!"
 
     # Test reverse pass-through
-    assert expander.transform_to_inference(raw_message) == [raw_message]
+    assert expander.transform_to_inference([raw_message]) == [raw_message]
 
 
 def test_canonical_protocol_types_schema():
@@ -439,17 +443,15 @@ def test_macro_parser_parse_response():
     assert parts[0].a2ui_json is not None
 
     # Verify that the macro was expanded into primitive components via transform_to_transport
-    lowered_messages = [
-        t_msg
-        for raw_msg in parts[0].a2ui_json
-        for t_msg in expander.transform_to_transport(raw_msg)
+    _adapter = TypeAdapter(AgentToRendererMessage)
+    typed_raw_messages = [
+        _adapter.validate_python(raw_msg) for raw_msg in parts[0].a2ui_json
     ]
+    lowered_messages = expander.transform_to_transport(typed_raw_messages)
     components = []
     for msg in lowered_messages:
-        if "updateComponents" in msg:
-            components.extend(msg["updateComponents"].get("components", []))
-        elif "surfaceUpdate" in msg:
-            components.extend(msg["surfaceUpdate"].get("components", []))
+        if isinstance(msg, UpdateComponentsMessage):
+            components.extend(msg.update_components.components)
     assert len(components) >= 3
     # Check that UserInfoCard is NOT in components, but Card and Text are
     comp_names = [c["component"] for c in components]
@@ -548,24 +550,25 @@ def test_macro_expansion_failure_logs_error(caplog):
     def FailingMacro(bad_arg: str) -> Card:
         raise RuntimeError("Something exploded inside macro expansion")
 
-    raw_message = {
-        "surfaceUpdate": {
-            "surfaceId": "main",
-            "components": [{
+    raw_message = UpdateComponentsMessage(
+        version="v0.9.1",
+        updateComponents=UpdateComponents(
+            surfaceId="main",
+            components=[{
                 "component": "FailingMacro",
                 "id": "fail_1",
                 "bad_arg": "test",
             }],
-        }
-    }
+        ),
+    )
 
     expander = MacroExpander([FailingMacro])
     with caplog.at_level(logging.ERROR):
-        result = expander.transform_to_transport(raw_message)
+        result = expander.transform_to_transport([raw_message])
 
     # Should retain unexpanded component rather than crashing
     assert len(result) == 1
-    comps = result[0]["surfaceUpdate"]["components"]
+    comps = result[0].update_components.components
     assert len(comps) == 1
     assert comps[0]["component"] == "FailingMacro"
     # Should have logged the error

@@ -136,6 +136,7 @@ def _map_type_hint_to_schema(
 ) -> dict[str, Any]:
     """Maps a Python type hint to a canonical A2UI JSON schema property."""
     COMMON_REF_PREFIX = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
+    schema: dict[str, Any]
 
     if t == DynamicValue:
         schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicValue"}
@@ -272,26 +273,20 @@ def _map_type_hint_to_schema(
         literal_vals = list(args)
         if all(isinstance(v, str) for v in literal_vals):
             schema = {"type": "string", "enum": literal_vals}
-            if param_desc:
-                schema["description"] = param_desc
-            return schema
         elif all(isinstance(v, (int, float)) for v in literal_vals):
             schema = {"type": "number", "enum": literal_vals}
-            if param_desc:
-                schema["description"] = param_desc
-            return schema
         else:
             schema = {"enum": literal_vals}
-            if param_desc:
-                schema["description"] = param_desc
-            return schema
-
-    # Enum subclasses
-    if isinstance(t, type) and issubclass(t, Enum):
-        schema = {"type": "string", "enum": [e.value for e in t]}
         if param_desc:
             schema["description"] = param_desc
         return schema
+
+    # Enum subclasses
+    if isinstance(t, type) and issubclass(t, Enum):
+        enum_schema: dict[str, Any] = {"type": "string", "enum": [e.value for e in t]}
+        if param_desc:
+            enum_schema["description"] = param_desc
+        return enum_schema
 
     # Direct Protocol References
     if t is DataBinding:
@@ -376,10 +371,10 @@ def _map_type_hint_to_schema(
     # Arrays
     if origin in (list, Sequence, AbcSequence, tuple, set):
         item_schema = _map_type_hint_to_schema(args[0]) if args else {"type": "string"}
-        schema = {"type": "array", "items": item_schema}
+        array_schema: dict[str, Any] = {"type": "array", "items": item_schema}
         if param_desc:
-            schema["description"] = param_desc
-        return schema
+            array_schema["description"] = param_desc
+        return array_schema
 
     if t is Any:
         schema = {}

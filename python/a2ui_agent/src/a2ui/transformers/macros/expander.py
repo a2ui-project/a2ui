@@ -22,6 +22,7 @@ import logging
 from typing import Any, Callable, Optional, Sequence, Union
 
 from a2ui.core import A2uiCatalogError, A2uiRecursionError
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import CATALOG_COMPONENTS_KEY
 from a2ui.transformers.macros.macro import _MacroMetadata
@@ -90,11 +91,11 @@ class MacroExpander:
         Raises:
             A2uiCatalogError: If a macro component collides with an existing component in the base catalog.
         """
-        schema_copy = copy.deepcopy(base_catalog.catalog_schema)
-        comps_map = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
-        defs_map = schema_copy.setdefault("$defs", {})
-        any_comp = defs_map.setdefault("anyComponent", {})
-        any_comp_refs = any_comp.setdefault("oneOf", [])
+        schema_copy: dict[str, Any] = dict(copy.deepcopy(base_catalog.catalog_schema))
+        comps_map: dict[str, Any] = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
+        defs_map: dict[str, Any] = schema_copy.setdefault("$defs", {})
+        any_comp: dict[str, Any] = defs_map.setdefault("anyComponent", {})
+        any_comp_refs: list[dict[str, Any]] = any_comp.setdefault("oneOf", [])
 
         # Filter base catalog components if passthrough_components is specified
         if self.passthrough_components is not None:
@@ -126,38 +127,43 @@ class MacroExpander:
         schema_copy[CATALOG_COMPONENTS_KEY] = comps_map
         return replace(base_catalog, catalog_schema=schema_copy)
 
-    def transform_to_transport(self, message: dict[str, Any]) -> list[dict[str, Any]]:
-        """Lowers an outbound inference message by expanding macro components into primitive subtrees.
+    def transform_to_transport(
+        self, messages: Sequence[AgentToRendererMessage]
+    ) -> list[AgentToRendererMessage]:
+        """Lowers outbound inference messages by expanding macro components into primitive subtrees.
 
         Args:
-            message: Raw A2UI envelope dictionary.
+            messages: Sequence of strongly-typed AgentToRendererMessage envelopes.
 
         Returns:
-            List containing the message with expanded primitive components.
+            List containing the lowered messages with expanded primitive components.
         """
         if not self.macros:
-            return [message]
+            return list(messages)
 
-        if not isinstance(message, dict):
-            return [message]
+        result: list[AgentToRendererMessage] = []
+        for msg in messages:
+            msg_dict: dict[str, Any] = msg.model_dump(by_alias=True, exclude_none=True)
+            for envelope_key in ("surfaceUpdate", "createSurface", "updateComponents"):
+                if envelope_key in msg_dict and isinstance(
+                    msg_dict[envelope_key], dict
+                ):
+                    body = dict(msg_dict[envelope_key])
+                    comps = body.get("components")
+                    if comps and isinstance(comps, list):
+                        body["components"] = self._expand_component_list(comps)
+                        msg_dict[envelope_key] = body
 
-        expanded_msg = dict(message)
+            lowered = type(msg).model_validate(msg_dict)
+            result.append(lowered)
 
-        for envelope_key in ("surfaceUpdate", "createSurface", "updateComponents"):
-            if envelope_key in expanded_msg and isinstance(
-                expanded_msg[envelope_key], dict
-            ):
-                body = dict(expanded_msg[envelope_key])
-                comps = body.get("components")
-                if comps and isinstance(comps, list):
-                    body["components"] = self._expand_component_list(comps)
-                    expanded_msg[envelope_key] = body
+        return result
 
-        return [expanded_msg]
-
-    def transform_to_inference(self, message: dict[str, Any]) -> list[dict[str, Any]]:
+    def transform_to_inference(
+        self, messages: Sequence[AgentToRendererMessage]
+    ) -> list[AgentToRendererMessage]:
         """Lifts transport messages to inference level (safe identity pass-through)."""
-        return [message]
+        return list(messages)
 
     def _expand_component_list(
         self,
@@ -182,7 +188,11 @@ class MacroExpander:
             c_id = comp.get("id")
 
             if c_name and self.processor.has_macro(c_name):
-                params = {k: v for k, v in comp.items() if k not in ("component", "id")}
+                params = (
+                    dict(comp["parameters"])
+                    if isinstance(comp.get("parameters"), dict)
+                    else {k: v for k, v in comp.items() if k not in ("component", "id")}
+                )
                 try:
                     expanded_macro = self.processor.expand(
                         c_name, params, instance_id=c_id

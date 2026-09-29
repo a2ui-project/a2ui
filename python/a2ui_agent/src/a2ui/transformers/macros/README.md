@@ -86,10 +86,10 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 
 1. **`transform_to_inference_catalog(base_catalog: A2uiCatalog) -> A2uiCatalog`**:
    Derives an authoring catalog by augmenting the base catalog with the synthesized macro component schemas. Fails fast with `ValueError` if any macro name collides with an existing primitive in the base catalog.
-2. **`transform_to_transport(message: dict[str, Any]) -> list[dict[str, Any]]`**:
-   Lowers outbound envelopes (`surfaceUpdate`, `createSurface`, `updateComponents`) emitted by the LLM by recursively expanding all macro components into primitive subtrees.
-3. **`transform_to_inference(message: dict[str, Any]) -> list[dict[str, Any]]`**:
-   Safe identity pass-through (`return [message]`) for replaying traces or inspecting state without unexpansion.
+2. **`transform_to_transport(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
+   Lowers outbound envelopes (`createSurface`, `updateComponents`, `surfaceUpdate`) emitted by the LLM by recursively expanding all macro components into primitive subtrees.
+3. **`transform_to_inference(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
+   Safe identity pass-through (`return list(messages)`) for replaying traces or inspecting state without unexpansion.
 
 ---
 
@@ -98,6 +98,8 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in the shared core SDK, developers wire `MacroExpander` manually in two simple steps:
 
 ```python
+from pydantic import TypeAdapter
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.transformers.macros import MacroExpander, macro
 from a2ui.inference_formats.express.format import ExpressFormat
 
@@ -116,12 +118,10 @@ system_prompt = format_strategy.prompt_generator.generate()
 # When the model outputs Express DSL, parse it with the standard parser:
 raw_messages = format_strategy.parser.compile(llm_output)
 
-# 5. Lower the messages to transport primitives using the expander:
-transport_messages = [
-    t_msg
-    for raw_msg in raw_messages
-    for t_msg in expander.transform_to_transport(raw_msg)
-]
+# 5. Lower the typed messages to transport primitives using the expander:
+message_adapter = TypeAdapter(AgentToRendererMessage)
+typed_messages = [message_adapter.validate_python(m) for m in raw_messages]
+transport_messages = expander.transform_to_transport(typed_messages)
 
 # 6. Deliver transport_messages (containing primitive Card, Column, Text) to the client renderer!
 ```
