@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Expose `ComponentNode.context`, the context the resolver bound the node with (undefined on placeholders). [#2879](https://github.com/a2ui-project/a2ui/pull/2879)
 - (v0_9) Basic catalog component styles now survive Closure-optimized builds.
   The `static styles` of each component are marked `/** @nocollapse */`
   ([#2869](https://github.com/a2ui-project/a2ui/pull/2869)).
