@@ -1,0 +1,174 @@
+{
+  "name": "Contact Card",
+  "description": "Example of contact card",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-contact-card",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-contact-card",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["avatar_image", "name", "title", "divider", "contact_info", "actions"],
+            "align": "center"
+          },
+          {
+            "id": "avatar_image",
+            "component": "Image",
+            "url": {
+              "path": "/avatar"
+            },
+            "fit": "cover",
+            "variant": "avatar"
+          },
+          {
+            "id": "name",
+            "component": "Text",
+            "text": {
+              "path": "/name"
+            }
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": {
+              "path": "/title"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "contact_info",
+            "component": "Column",
+            "children": ["phone_row", "email_row", "location_row"]
+          },
+          {
+            "id": "phone_row",
+            "component": "Row",
+            "children": ["phone_icon", "phone_text"],
+            "align": "center"
+          },
+          {
+            "id": "phone_icon",
+            "component": "Icon",
+            "name": "phone"
+          },
+          {
+            "id": "phone_text",
+            "component": "Text",
+            "text": {
+              "path": "/phone"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "email_row",
+            "component": "Row",
+            "children": ["email_icon", "email_text"],
+            "align": "center"
+          },
+          {
+            "id": "email_icon",
+            "component": "Icon",
+            "name": "mail"
+          },
+          {
+            "id": "email_text",
+            "component": "Text",
+            "text": {
+              "path": "/email"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "location_row",
+            "component": "Row",
+            "children": ["location_icon", "location_text"],
+            "align": "center"
+          },
+          {
+            "id": "location_icon",
+            "component": "Icon",
+            "name": "locationOn"
+          },
+          {
+            "id": "location_text",
+            "component": "Text",
+            "text": {
+              "path": "/location"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "actions",
+            "component": "Row",
+            "children": ["call_btn", "message_btn"]
+          },
+          {
+            "id": "call_btn_text",
+            "component": "Text",
+            "text": "Call"
+          },
+          {
+            "id": "call_btn",
+            "component": "Button",
+            "child": "call_btn_text",
+            "action": {
+              "event": {
+                "name": "call",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "message_btn_text",
+            "component": "Text",
+            "text": "Message"
+          },
+          {
+            "id": "message_btn",
+            "component": "Button",
+            "child": "message_btn_text",
+            "action": {
+              "event": {
+                "name": "message",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-contact-card",
+        "value": {
+          "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
+          "name": "David Park",
+          "title": "Engineering Manager",
+          "phone": "+1 (555) 234-5678",
+          "email": "david.park@company.com",
+          "location": "San Francisco, CA"
+        }
+      }
+    }
+  ]
+}

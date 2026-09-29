@@ -1,0 +1,150 @@
+{
+  "name": "Track List",
+  "description": "Example of track list demonstrating templating, relative paths, and number formatting.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-track-list",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-track-list",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["header", "divider", "tracks_list"]
+          },
+          {
+            "id": "header",
+            "component": "Row",
+            "children": ["playlist_icon", "playlist_name"],
+            "align": "center"
+          },
+          {
+            "id": "playlist_icon",
+            "component": "Icon",
+            "name": "play"
+          },
+          {
+            "id": "playlist_name",
+            "component": "Text",
+            "text": {
+              "path": "/playlistName"
+            }
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "tracks_list",
+            "component": "Column",
+            "children": {
+              "path": "/tracks",
+              "componentId": "track_item_template"
+            }
+          },
+          {
+            "id": "track_item_template",
+            "component": "Row",
+            "children": ["track_num", "track_art", "track_info", "track_duration"],
+            "align": "center"
+          },
+          {
+            "id": "track_num",
+            "component": "Text",
+            "text": {
+              "call": "formatNumber",
+              "args": {
+                "value": {
+                  "path": "number"
+                }
+              }
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "track_art",
+            "component": "Image",
+            "url": {
+              "path": "art"
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "track_info",
+            "component": "Column",
+            "children": ["track_title", "track_artist"]
+          },
+          {
+            "id": "track_title",
+            "component": "Text",
+            "text": {
+              "path": "title"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "track_artist",
+            "component": "Text",
+            "text": {
+              "path": "artist"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "track_duration",
+            "component": "Text",
+            "text": {
+              "path": "duration"
+            },
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-track-list",
+        "value": {
+          "playlistName": "Focus Flow",
+          "tracks": [
+            {
+              "number": 1,
+              "art": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=50&h=50&fit=crop",
+              "title": "Weightless",
+              "artist": "Marconi Union",
+              "duration": "8:09"
+            },
+            {
+              "number": 2,
+              "art": "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=50&h=50&fit=crop",
+              "title": "Clair de Lune",
+              "artist": "Debussy",
+              "duration": "5:12"
+            },
+            {
+              "number": 3,
+              "art": "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=50&h=50&fit=crop",
+              "title": "Ambient Light",
+              "artist": "Brian Eno",
+              "duration": "6:45"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

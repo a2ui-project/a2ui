@@ -1,0 +1,103 @@
+{
+  "name": "Stats Card",
+  "description": "Example of stats card demonstrating currency and number formatting.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-stats-card",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-stats-card",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["header", "value", "trend_row"]
+          },
+          {
+            "id": "header",
+            "component": "Row",
+            "children": ["metric_icon", "metric_name"],
+            "align": "center"
+          },
+          {
+            "id": "metric_icon",
+            "component": "Icon",
+            "name": {
+              "path": "/icon"
+            }
+          },
+          {
+            "id": "metric_name",
+            "component": "Text",
+            "text": {
+              "path": "/metricName"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "value",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "/value"
+                },
+                "currency": "USD"
+              }
+            }
+          },
+          {
+            "id": "trend_row",
+            "component": "Row",
+            "children": ["trend_icon", "trend_text"],
+            "align": "center"
+          },
+          {
+            "id": "trend_icon",
+            "component": "Icon",
+            "name": {
+              "path": "/trendIcon"
+            }
+          },
+          {
+            "id": "trend_text",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "+${/trendPercent}% from last month"
+              }
+            },
+            "variant": "body"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-stats-card",
+        "value": {
+          "icon": "trending_up",
+          "metricName": "Monthly Revenue",
+          "value": 48294,
+          "trendIcon": "arrow_upward",
+          "trendPercent": 12.5
+        }
+      }
+    }
+  ]
+}

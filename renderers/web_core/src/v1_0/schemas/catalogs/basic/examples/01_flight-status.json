@@ -1,0 +1,198 @@
+{
+  "name": "Flight Status",
+  "description": "Example of flight status demonstrating date formatting.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-flight-status",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-flight-status",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["header_row", "route_row", "divider", "times_row"],
+            "align": "stretch"
+          },
+          {
+            "id": "header_row",
+            "component": "Row",
+            "children": ["header_left", "date"],
+            "justify": "spaceBetween",
+            "align": "center"
+          },
+          {
+            "id": "header_left",
+            "component": "Row",
+            "children": ["flight_indicator", "flight_number"],
+            "align": "center"
+          },
+          {
+            "id": "flight_indicator",
+            "component": "Icon",
+            "name": "send"
+          },
+          {
+            "id": "flight_number",
+            "component": "Text",
+            "text": {
+              "path": "/flightNumber"
+            }
+          },
+          {
+            "id": "date",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/date"
+                },
+                "format": "E, MMM d"
+              }
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "route_row",
+            "component": "Row",
+            "children": ["origin", "arrow", "destination"],
+            "align": "center"
+          },
+          {
+            "id": "origin",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "## ${/origin}"
+              }
+            }
+          },
+          {
+            "id": "arrow",
+            "component": "Text",
+            "text": "## \u2192"
+          },
+          {
+            "id": "destination",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "## ${/destination}"
+              }
+            }
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "times_row",
+            "component": "Row",
+            "children": ["departure_col", "status_col", "arrival_col"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "departure_col",
+            "component": "Column",
+            "children": ["departure_label", "departure_time"],
+            "align": "start"
+          },
+          {
+            "id": "departure_label",
+            "component": "Text",
+            "text": "Departs",
+            "variant": "caption"
+          },
+          {
+            "id": "departure_time",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/departureTime"
+                },
+                "format": "h:mm a"
+              }
+            }
+          },
+          {
+            "id": "status_col",
+            "component": "Column",
+            "children": ["status_label", "status_value"],
+            "align": "center"
+          },
+          {
+            "id": "status_label",
+            "component": "Text",
+            "text": "Status",
+            "variant": "caption"
+          },
+          {
+            "id": "status_value",
+            "component": "Text",
+            "text": {
+              "path": "/status"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "arrival_col",
+            "component": "Column",
+            "children": ["arrival_label", "arrival_time"],
+            "align": "end"
+          },
+          {
+            "id": "arrival_label",
+            "component": "Text",
+            "text": "Arrives",
+            "variant": "caption"
+          },
+          {
+            "id": "arrival_time",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/arrivalTime"
+                },
+                "format": "h:mm a"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-flight-status",
+        "value": {
+          "flightNumber": "OS 87",
+          "date": "2025-12-15",
+          "origin": "Vienna",
+          "destination": "New York",
+          "departureTime": "2025-12-15T10:15:00Z",
+          "status": "On Time",
+          "arrivalTime": "2025-12-15T14:30:00Z"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Row Layout",
+  "description": "Two components side-by-side",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "example_2",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "example_2",
+        "components": [
+          {
+            "id": "root",
+            "component": "Row",
+            "children": ["left_text", "right_text"],
+            "justify": "spaceBetween",
+            "align": "center"
+          },
+          {
+            "id": "left_text",
+            "component": "Text",
+            "text": "Left Content",
+            "variant": "body"
+          },
+          {
+            "id": "right_text",
+            "component": "Text",
+            "text": "Right Content",
+            "variant": "caption"
+          }
+        ]
+      }
+    }
+  ]
+}

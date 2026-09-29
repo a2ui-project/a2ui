@@ -1,0 +1,107 @@
+{
+  "name": "Task Card",
+  "description": "Example of task card demonstrating CheckBox and DateTimeInput.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-task-card",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-task-card",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-row"
+          },
+          {
+            "id": "main-row",
+            "component": "Row",
+            "children": ["status-checkbox", "content", "priority"],
+            "align": "start"
+          },
+          {
+            "id": "status-checkbox",
+            "component": "CheckBox",
+            "label": "",
+            "value": {
+              "path": "/completed"
+            }
+          },
+          {
+            "id": "content",
+            "component": "Column",
+            "children": ["title", "description", "meta-row"]
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": {
+              "path": "/title"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "description",
+            "component": "Text",
+            "text": {
+              "path": "/description"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "meta-row",
+            "component": "Row",
+            "children": ["due-date-input", "project"],
+            "align": "center"
+          },
+          {
+            "id": "due-date-input",
+            "component": "DateTimeInput",
+            "label": "Due",
+            "value": {
+              "path": "/dueDate"
+            },
+            "enableDate": true,
+            "enableTime": true
+          },
+          {
+            "id": "project",
+            "component": "Text",
+            "text": {
+              "path": "/project"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "priority",
+            "component": "Icon",
+            "name": {
+              "path": "/priorityIcon"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-task-card",
+        "value": {
+          "completed": false,
+          "title": "Review pull request",
+          "description": "Review and approve the authentication module changes.",
+          "dueDate": "2025-12-15T17:00:00Z",
+          "project": "Backend",
+          "priorityIcon": "priority_high"
+        }
+      }
+    }
+  ]
+}

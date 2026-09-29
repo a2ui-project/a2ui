@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/json/renderer_to_agent_list_wrapper.json",
+  "title": "A2UI Renderer-to-Agent Message List Wrapper",
+  "description": "An object wrapping a list of A2UI Renderer-to-Agent messages. Intended for protocols that require a top-level JSON object instead of a raw array.",
+  "type": "object",
+  "properties": {
+    "messages": {
+      "$ref": "renderer_to_agent_list.json"
+    }
+  },
+  "additionalProperties": false,
+  "required": ["messages"]
+}

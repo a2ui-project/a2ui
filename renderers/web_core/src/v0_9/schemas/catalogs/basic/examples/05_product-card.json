@@ -1,0 +1,151 @@
+{
+  "name": "Product Card",
+  "description": "Example of product card demonstrating currency formatting and pluralization.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-product-card",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-product-card",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["image", "details"]
+          },
+          {
+            "id": "image",
+            "component": "Image",
+            "url": {
+              "path": "/imageUrl"
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "details",
+            "component": "Column",
+            "children": ["name", "rating-row", "price-row", "actions"]
+          },
+          {
+            "id": "name",
+            "component": "Text",
+            "text": {
+              "path": "/name"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "rating-row",
+            "component": "Row",
+            "children": ["stars", "reviews"],
+            "align": "center"
+          },
+          {
+            "id": "stars",
+            "component": "Text",
+            "text": {
+              "path": "/stars"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "reviews",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "(${formatNumber(value: ${/reviewCount})} ${pluralize(value: ${/reviewCount}, one: 'review', other: 'reviews')})"
+              },
+              "returnType": "string"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "price-row",
+            "component": "Row",
+            "children": ["price", "original-price"],
+            "align": "start"
+          },
+          {
+            "id": "price",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "/price"
+                },
+                "currency": "USD"
+              },
+              "returnType": "string"
+            },
+            "variant": "h2"
+          },
+          {
+            "id": "original-price",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "/originalPrice"
+                },
+                "currency": "USD"
+              },
+              "returnType": "string"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "actions",
+            "component": "Row",
+            "children": ["add-cart-btn"]
+          },
+          {
+            "id": "add-cart-btn-text",
+            "component": "Text",
+            "text": "Add to Cart"
+          },
+          {
+            "id": "add-cart-btn",
+            "component": "Button",
+            "child": "add-cart-btn-text",
+            "variant": "primary",
+            "action": {
+              "event": {
+                "name": "addToCart",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-product-card",
+        "value": {
+          "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop",
+          "name": "Wireless Headphones Pro",
+          "stars": "★★★★★",
+          "reviewCount": 2847,
+          "price": 199.99,
+          "originalPrice": 249.99
+        }
+      }
+    }
+  ]
+}

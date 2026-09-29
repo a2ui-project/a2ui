@@ -1,0 +1,168 @@
+{
+  "name": "Weather Current",
+  "description": "Example of weather current demonstrating templating and string formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-weather-current",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-weather-current",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["temp-row", "location", "description", "forecast-row"],
+            "align": "center"
+          },
+          {
+            "id": "temp-row",
+            "component": "Row",
+            "children": ["temp-high", "temp-low"],
+            "align": "start"
+          },
+          {
+            "id": "temp-high",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "${/tempHigh}°"
+              },
+              "returnType": "string"
+            },
+            "variant": "h1"
+          },
+          {
+            "id": "temp-low",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "${/tempLow}°"
+              },
+              "returnType": "string"
+            },
+            "variant": "h2"
+          },
+          {
+            "id": "location",
+            "component": "Text",
+            "text": {
+              "path": "/location"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "description",
+            "component": "Text",
+            "text": {
+              "path": "/description"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "forecast-row",
+            "component": "Row",
+            "children": {
+              "path": "/forecast",
+              "componentId": "forecast-day-template"
+            },
+            "justify": "spaceAround"
+          },
+          {
+            "id": "forecast-day-template",
+            "component": "Column",
+            "children": ["day-name", "day-icon", "day-temp"],
+            "align": "center"
+          },
+          {
+            "id": "day-name",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "date"
+                },
+                "format": "E"
+              },
+              "returnType": "string"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "day-icon",
+            "component": "Text",
+            "text": {
+              "path": "icon"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "day-temp",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "${temp}°"
+              },
+              "returnType": "string"
+            },
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-weather-current",
+        "value": {
+          "tempHigh": 72,
+          "tempLow": 58,
+          "location": "Austin, TX",
+          "description": "Clear skies with light breeze",
+          "forecast": [
+            {
+              "date": "2025-12-16",
+              "icon": "☀️",
+              "temp": 74
+            },
+            {
+              "date": "2025-12-17",
+              "icon": "☀️",
+              "temp": 76
+            },
+            {
+              "date": "2025-12-18",
+              "icon": "⛅",
+              "temp": 71
+            },
+            {
+              "date": "2025-12-19",
+              "icon": "☀️",
+              "temp": 73
+            },
+            {
+              "date": "2025-12-20",
+              "icon": "☀️",
+              "temp": 75
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

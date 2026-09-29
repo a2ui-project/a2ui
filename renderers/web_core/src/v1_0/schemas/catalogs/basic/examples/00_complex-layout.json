@@ -1,0 +1,64 @@
+{
+  "name": "Complex Layout",
+  "description": "Simple example demonstrating basic catalog components.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-complex-layout",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-complex-layout",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["header", "form_row", "footer"],
+            "justify": "spaceBetween",
+            "align": "stretch"
+          },
+          {
+            "id": "header",
+            "component": "Text",
+            "text": "# User Profile Form"
+          },
+          {
+            "id": "form_row",
+            "component": "Row",
+            "children": ["first_name", "last_name"],
+            "justify": "start",
+            "align": "start"
+          },
+          {
+            "id": "first_name",
+            "component": "TextField",
+            "label": "First Name",
+            "value": {
+              "path": "/firstName"
+            },
+            "weight": 1
+          },
+          {
+            "id": "last_name",
+            "component": "TextField",
+            "label": "Last Name",
+            "value": {
+              "path": "/lastName"
+            },
+            "weight": 1
+          },
+          {
+            "id": "footer",
+            "component": "Text",
+            "text": "Please fill out all fields.",
+            "variant": "caption"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,246 @@
+{
+  "name": "Coffee Order",
+  "description": "Example of coffee order demonstrating templating and currency formatting.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-coffee-order",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-coffee-order",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": ["header", "items_list", "divider", "totals", "actions"]
+          },
+          {
+            "id": "header",
+            "component": "Row",
+            "children": ["coffee_icon", "store_name"],
+            "align": "center"
+          },
+          {
+            "id": "coffee_icon",
+            "component": "Icon",
+            "name": "favorite"
+          },
+          {
+            "id": "store_name",
+            "component": "Text",
+            "text": {
+              "path": "/storeName"
+            }
+          },
+          {
+            "id": "items_list",
+            "component": "Column",
+            "children": {
+              "path": "/items",
+              "componentId": "order_item_template"
+            }
+          },
+          {
+            "id": "order_item_template",
+            "component": "Row",
+            "children": ["item_details", "item_price"],
+            "justify": "spaceBetween",
+            "align": "start"
+          },
+          {
+            "id": "item_details",
+            "component": "Column",
+            "children": ["item_name", "item_size"]
+          },
+          {
+            "id": "item_name",
+            "component": "Text",
+            "text": {
+              "path": "name"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "item_size",
+            "component": "Text",
+            "text": {
+              "path": "size"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "item_price",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "price"
+                },
+                "currency": "USD"
+              }
+            },
+            "variant": "body"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "totals",
+            "component": "Column",
+            "children": ["subtotal_row", "tax_row", "total_row"]
+          },
+          {
+            "id": "subtotal_row",
+            "component": "Row",
+            "children": ["subtotal_label", "subtotal_value"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "subtotal_label",
+            "component": "Text",
+            "text": "Subtotal",
+            "variant": "caption"
+          },
+          {
+            "id": "subtotal_value",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "/subtotal"
+                },
+                "currency": "USD"
+              }
+            },
+            "variant": "body"
+          },
+          {
+            "id": "tax_row",
+            "component": "Row",
+            "children": ["tax_label", "tax_value"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "tax_label",
+            "component": "Text",
+            "text": "Tax",
+            "variant": "caption"
+          },
+          {
+            "id": "tax_value",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "/tax"
+                },
+                "currency": "USD"
+              }
+            },
+            "variant": "body"
+          },
+          {
+            "id": "total_row",
+            "component": "Row",
+            "children": ["total_label", "total_value"],
+            "justify": "spaceBetween"
+          },
+          {
+            "id": "total_label",
+            "component": "Text",
+            "text": "#### Total"
+          },
+          {
+            "id": "total_value",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "/total"
+                },
+                "currency": "USD"
+              }
+            }
+          },
+          {
+            "id": "actions",
+            "component": "Row",
+            "children": ["purchase_btn", "add_btn"]
+          },
+          {
+            "id": "purchase_btn_text",
+            "component": "Text",
+            "text": "Purchase"
+          },
+          {
+            "id": "purchase_btn",
+            "component": "Button",
+            "child": "purchase_btn_text",
+            "action": {
+              "event": {
+                "name": "purchase",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "add_btn_text",
+            "component": "Text",
+            "text": "Add to cart"
+          },
+          {
+            "id": "add_btn",
+            "component": "Button",
+            "child": "add_btn_text",
+            "action": {
+              "event": {
+                "name": "add_to_cart",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-coffee-order",
+        "value": {
+          "storeName": "Sunrise Coffee",
+          "items": [
+            {
+              "name": "Oat Milk Latte",
+              "size": "Grande, Extra Shot",
+              "price": 6.45
+            },
+            {
+              "name": "Chocolate Croissant",
+              "size": "Warmed",
+              "price": 4.25
+            }
+          ],
+          "subtotal": 10.7,
+          "tax": 0.96,
+          "total": 11.66
+        }
+      }
+    }
+  ]
+}

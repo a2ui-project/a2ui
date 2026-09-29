@@ -1,0 +1,188 @@
+{
+  "name": "Software Purchase",
+  "description": "Example of software purchase demonstrating currency formatting and ChoicePicker.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-software-purchase",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-software-purchase",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": [
+              "title",
+              "product_name",
+              "divider1",
+              "options",
+              "divider2",
+              "total_row",
+              "actions"
+            ]
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "### Purchase License"
+          },
+          {
+            "id": "product_name",
+            "component": "Text",
+            "text": {
+              "path": "/productName"
+            }
+          },
+          {
+            "id": "divider1",
+            "component": "Divider"
+          },
+          {
+            "id": "options",
+            "component": "Column",
+            "children": ["seats_row", "period_row"]
+          },
+          {
+            "id": "seats_row",
+            "component": "Row",
+            "children": ["seats_label", "seats_value"],
+            "justify": "spaceBetween",
+            "align": "center"
+          },
+          {
+            "id": "seats_label",
+            "component": "Text",
+            "text": "Number of seats",
+            "variant": "body"
+          },
+          {
+            "id": "seats_value",
+            "component": "Text",
+            "text": {
+              "path": "/seats"
+            }
+          },
+          {
+            "id": "period_row",
+            "component": "Row",
+            "children": ["period_label", "period_picker"],
+            "justify": "spaceBetween",
+            "align": "center"
+          },
+          {
+            "id": "period_label",
+            "component": "Text",
+            "text": "Billing period",
+            "variant": "body"
+          },
+          {
+            "id": "period_picker",
+            "component": "ChoicePicker",
+            "options": [
+              {
+                "label": "Annual",
+                "value": "annual"
+              },
+              {
+                "label": "Monthly",
+                "value": "monthly"
+              }
+            ],
+            "value": {
+              "path": "/billingPeriod"
+            },
+            "variant": "mutuallyExclusive",
+            "displayStyle": "chips"
+          },
+          {
+            "id": "divider2",
+            "component": "Divider"
+          },
+          {
+            "id": "total_row",
+            "component": "Row",
+            "children": ["total_label", "total_value"],
+            "justify": "spaceBetween",
+            "align": "center"
+          },
+          {
+            "id": "total_label",
+            "component": "Text",
+            "text": "#### Total"
+          },
+          {
+            "id": "total_value",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "${formatCurrency(value: ${/total}, currency: 'USD')}/year"
+              }
+            }
+          },
+          {
+            "id": "actions",
+            "component": "Row",
+            "children": ["confirm_btn", "cancel_btn"]
+          },
+          {
+            "id": "confirm_btn_text",
+            "component": "Text",
+            "text": "Confirm Purchase"
+          },
+          {
+            "id": "confirm_btn",
+            "component": "Button",
+            "child": "confirm_btn_text",
+            "action": {
+              "event": {
+                "name": "confirm",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "cancel_btn_text",
+            "component": "Text",
+            "text": "Cancel"
+          },
+          {
+            "id": "cancel_btn",
+            "component": "Button",
+            "child": "cancel_btn_text",
+            "action": {
+              "event": {
+                "name": "cancel",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-software-purchase",
+        "value": {
+          "productName": "Design Suite Pro",
+          "seats": "10 seats",
+          "billingPeriod": ["annual"],
+          "total": 1188.0
+        }
+      }
+    }
+  ]
+}

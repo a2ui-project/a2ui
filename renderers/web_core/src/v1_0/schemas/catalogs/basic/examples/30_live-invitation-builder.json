@@ -1,0 +1,208 @@
+{
+  "name": "Live Invitation Builder",
+  "description": "Demonstrates reactive two-way binding where editor inputs update a live preview in real-time.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-invitation-builder",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-invitation-builder",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["header", "main_content"],
+            "align": "stretch"
+          },
+          {
+            "id": "header",
+            "component": "Text",
+            "text": "# Invitation Builder"
+          },
+          {
+            "id": "main_content",
+            "component": "Row",
+            "children": ["editor_col", "preview_col"],
+            "align": "start"
+          },
+          {
+            "id": "editor_col",
+            "component": "Column",
+            "children": [
+              "editor_title",
+              "event_name_input",
+              "guest_input",
+              "date_input",
+              "location_picker"
+            ],
+            "weight": 1,
+            "align": "stretch"
+          },
+          {
+            "id": "editor_title",
+            "component": "Text",
+            "text": "### Customize your invitation"
+          },
+          {
+            "id": "event_name_input",
+            "component": "TextField",
+            "label": "Event Name",
+            "value": {
+              "path": "/event/name"
+            }
+          },
+          {
+            "id": "guest_input",
+            "component": "TextField",
+            "label": "Guest of Honor",
+            "value": {
+              "path": "/event/guest"
+            }
+          },
+          {
+            "id": "date_input",
+            "component": "DateTimeInput",
+            "label": "Event Date & Time",
+            "value": {
+              "path": "/event/date"
+            },
+            "enableDate": true,
+            "enableTime": true
+          },
+          {
+            "id": "location_picker",
+            "component": "ChoicePicker",
+            "label": "Location",
+            "options": [
+              {
+                "label": "Grand Ballroom",
+                "value": "ballroom"
+              },
+              {
+                "label": "Sunset Terrace",
+                "value": "terrace"
+              },
+              {
+                "label": "Garden Pavillion",
+                "value": "garden"
+              }
+            ],
+            "value": {
+              "path": "/event/location"
+            },
+            "variant": "mutuallyExclusive",
+            "displayStyle": "chips"
+          },
+          {
+            "id": "preview_col",
+            "component": "Column",
+            "children": ["preview_title", "invitation_card"],
+            "weight": 1,
+            "align": "center"
+          },
+          {
+            "id": "preview_title",
+            "component": "Text",
+            "text": "Live Preview",
+            "variant": "caption"
+          },
+          {
+            "id": "invitation_card",
+            "component": "Card",
+            "child": "invitation_content"
+          },
+          {
+            "id": "invitation_content",
+            "component": "Column",
+            "children": [
+              "invite_image",
+              "invite_event_name",
+              "invite_guest_row",
+              "invite_date_text",
+              "invite_location_text"
+            ],
+            "align": "center"
+          },
+          {
+            "id": "invite_image",
+            "component": "Image",
+            "url": "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=200&fit=crop",
+            "variant": "mediumFeature"
+          },
+          {
+            "id": "invite_event_name",
+            "component": "Text",
+            "text": {
+              "path": "/event/name"
+            }
+          },
+          {
+            "id": "invite_guest_row",
+            "component": "Row",
+            "children": ["invite_for_text", "invite_guest_name"],
+            "align": "center"
+          },
+          {
+            "id": "invite_for_text",
+            "component": "Text",
+            "text": "Celebrating",
+            "variant": "body"
+          },
+          {
+            "id": "invite_guest_name",
+            "component": "Text",
+            "text": {
+              "path": "/event/guest"
+            }
+          },
+          {
+            "id": "invite_date_text",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/event/date"
+                },
+                "format": "EEEE, MMMM d, yyyy 'at' h:mm a"
+              }
+            },
+            "variant": "body"
+          },
+          {
+            "id": "invite_location_text",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "Location: ${/event/location/0}"
+              }
+            },
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-invitation-builder",
+        "value": {
+          "event": {
+            "name": "Summer Gala",
+            "guest": "Alex Johnson",
+            "date": "2025-07-15T19:00:00Z",
+            "location": ["terrace"]
+          }
+        }
+      }
+    }
+  ]
+}
