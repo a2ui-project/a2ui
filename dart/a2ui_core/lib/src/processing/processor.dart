@@ -263,7 +263,7 @@ class MessageProcessor<T extends ComponentApi> {
     Iterable<Map<String, Object?>> components,
   ) {
     final ids = <String>{
-      ?surfaceCatalogId,
+      if (surfaceCatalogId != null) surfaceCatalogId,
       for (final Map<String, Object?> component in components)
         if (component['catalogId'] case final String id) id,
     };
@@ -524,7 +524,7 @@ class MessageProcessor<T extends ComponentApi> {
       'catalogId': catalog.id,
       'components': components,
       if (functions.isNotEmpty) 'functions': functions,
-      'theme': ?theme,
+      if (theme != null) 'theme': theme,
     };
   }
 
