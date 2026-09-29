@@ -177,25 +177,24 @@ Because UI paradigms and language type systems differ significantly, this API ca
 
 #### Form 1: Direct Property & Binding Access (Recommended for Dart, Swift, Go)
 
-In statically typed languages without compile-time schema introspection, components receive the `ComponentNode` directly and unpack properties using explicit bindings and casts.
+In statically typed languages without compile-time schema introspection, components receive the `ComponentNode` and its current props, and unpack properties with explicit type tests.
 
-_Example in Dart (e.g. Flutter against PR #2669 `a2ui_core`):_
+_Example in Dart (Flutter against the Dart `a2ui_core`):_
 
 ```dart
-typedef Widget ChildWidgetBuilder(ComponentNode child);
+typedef ChildWidgetBuilder = Widget Function(ComponentNode child);
 
-class FlutterComponentImplementation {
-  final String name;
-  final Schema schema;
+class FlutterComponentImplementation extends ComponentApi {
   final Widget Function(
     BuildContext context,
     ComponentNode node,
+    NodeProps props,
     ChildWidgetBuilder buildChild,
   ) builder;
 
   const FlutterComponentImplementation({
-    required this.name,
-    required this.schema,
+    required super.name,
+    required super.schema,
     required this.builder,
   });
 }
@@ -204,72 +203,50 @@ class FlutterComponentImplementation {
 final buttonImplementation = FlutterComponentImplementation(
   name: 'Button',
   schema: buttonSchema,
-  builder: (context, node, buildChild) {
-    // Read resolved properties directly from node.props
-    final props = node.props.peek();
-    final labelBinding = props['label'] as ResolvedBinding<dynamic>?;
-    final label = labelBinding?.value?.toString() ?? '';
-    final action = props['action'] as (Future<void> Function())?;
+  builder: (context, node, props, buildChild) {
+    final child = props['child'] as ComponentNode?;
+    final action = props['action'] as Future<void> Function()?;
 
     return ElevatedButton(
       onPressed: action,
-      child: Text(label),
-    );
-  },
-);
-
-// Authoring a TextField component (two-way binding):
-final textFieldImplementation = FlutterComponentImplementation(
-  name: 'TextField',
-  schema: textFieldSchema,
-  builder: (context, node, buildChild) {
-    final props = node.props.peek();
-    final textBinding = props['value'] as ResolvedBinding<dynamic>?;
-    final initialText = textBinding?.value?.toString() ?? '';
-
-    return TextFormField(
-      initialValue: initialText,
-      onChanged: (newText) {
-        if (textBinding is WritableBinding) {
-          textBinding.set(newText);
-        }
-      },
+      child: child == null ? null : buildChild(child),
     );
   },
 );
 ```
+
+A control that holds native state, such as a text field's controller, keeps it in the widget's `State`: it creates the controller once, updates it when the binding's value differs from the field's text, writes user edits through the `WritableBinding`, and disposes the controller when the view unmounts.
 
 #### Form 2: Generic Typed Accessor Helpers
 
-To minimize manual map indexing and casting, the adapter can expose lightweight accessor methods or extensions on `ComponentNode` or `NodeProps`:
+To minimize manual map indexing and casting, the adapter can expose lightweight accessors on `NodeProps`:
 
 ```dart
-extension NodePropsAccessors on ComponentNode {
+extension NodePropsAccessors on NodeProps {
   String? stringValue(String key) =>
-      (props.peek()[key] as ResolvedBinding<dynamic>?)?.value?.toString();
+      (this[key] as ResolvedBinding<Object?>?)?.value?.toString();
 
-  WritableBinding<T>? writableBinding<T>(String key) {
-    final b = props.peek()[key];
-    return b is WritableBinding<T> ? b : null;
+  WritableBinding<Object?>? writableBinding(String key) {
+    final Object? binding = this[key];
+    return binding is WritableBinding ? binding : null;
   }
 
-  void Function()? action(String key) =>
-      props.peek()[key] as void Function()?;
+  Future<void> Function()? action(String key) =>
+      this[key] as Future<void> Function()?;
 
   List<ComponentNode> childNodes(String key) =>
-      (props.peek()[key] as List<dynamic>?)?.cast<ComponentNode>() ?? const [];
+      (this[key] as List<Object?>?)?.cast<ComponentNode>() ?? const [];
 }
 ```
 
-Components author concisely while remaining completely type-safe:
+A binding's value is not typed by the schema, so an accessor that returns a typed value converts it:
 
 ```dart
-builder: (context, node, buildChild) {
-  final text = node.stringValue('text') ?? '';
-  final binding = node.writableBinding<String>('text');
-  return TextField(
-    controller: TextEditingController(text: text),
-    onChanged: (v) => binding?.set(v),
+builder: (context, node, props, buildChild) {
+  final checked = props.writableBinding('value');
+  return Checkbox(
+    value: checked?.value == true,
+    onChanged: (v) => checked?.set(v ?? false),
   );
 }
 ```
