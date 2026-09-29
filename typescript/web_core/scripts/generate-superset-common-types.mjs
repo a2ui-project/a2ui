@@ -105,10 +105,10 @@ export function collectAllPropertyNames(schemas) {
 export function findRequiredInAllProperties(schemas, propNames) {
   const required = [];
   for (const prop of propNames) {
-    const isPresentInAll = schemas.every(s => s.properties && s.properties[prop]);
-    const isRequiredInAll =
-      isPresentInAll && schemas.every(s => s.required && s.required.includes(prop));
-    if (isRequiredInAll) {
+    const isRequiredEverywhere = schemas.every(
+      s => !s.properties || !s.properties[prop] || (s.required && s.required.includes(prop)),
+    );
+    if (isRequiredEverywhere && schemas.some(s => s.required && s.required.includes(prop))) {
       required.push(prop);
     }
   }
@@ -521,63 +521,6 @@ import {markChildRef} from './child-ref-helpers.js';
   ]).describe('${desc}'),
   'child-list',
 )`;
-    } else if (name === 'DataBinding') {
-      zodCode = `z.object({
-  'path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-  '@path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-})
-.refine(data => data['@path'] !== undefined || data.path !== undefined, {
-  message: "Either '@path' or 'path' must be provided.",
-})
-.describe('${desc}')`;
-    } else if (name === 'FunctionCommon') {
-      zodCode = `z.object({
-  'call': z.string().describe('The name of the function to call.').optional(),
-  '@call': z.string().describe('The name of the function to call.').optional(),
-  'catalogId': z
-    .string()
-    .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-    .optional(),
-})
-.refine(data => data['@call'] !== undefined || data.call !== undefined, {
-  message: "Either '@call' or 'call' must be provided.",
-})
-.describe('${desc}')`;
-    } else if (name === 'IndexSystemFunction') {
-      zodCode = `z.object({
-  'call': z.literal('@index').optional(),
-  '@call': z.literal('@index').optional(),
-  'args': z
-    .object({
-      'offset': DynamicNumberSchema.optional(),
-    })
-    .optional(),
-})
-.refine(data => data['@call'] !== undefined || data.call !== undefined, {
-  message: "Either '@call' or 'call' must be '@index'.",
-})
-.describe('${desc}')`;
-    } else if (name === 'FunctionCall') {
-      zodCode = `z.object({
-  'call': z.string().describe('The name of the function to call.').optional(),
-  '@call': z.string().describe('The name of the function to call.').optional(),
-  'args': z
-    .record(z.string(), z.unknown())
-    .describe('Arguments passed to the function.')
-    .optional(),
-  'returnType': z
-    .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
-    .describe('The expected return type of the function call.')
-    .optional(),
-  'catalogId': z
-    .string()
-    .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-    .optional(),
-})
-.refine(data => data['@call'] !== undefined || data.call !== undefined, {
-  message: "Either '@call' or 'call' must be provided.",
-})
-.describe('${desc}')`;
     } else if (name === 'Extensions') {
       zodCode = `z.record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
@@ -596,7 +539,7 @@ import {markChildRef} from './child-ref-helpers.js';
       if (name === 'DynamicValue') {
         zodCode = zodCode.replace(
           'z.record(z.string(), z.unknown())',
-          "z.record(z.string(), z.unknown()).refine(obj => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)))",
+          "z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj)))",
         );
       }
     }
