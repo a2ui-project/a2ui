@@ -62,7 +62,7 @@ graph LR
 - Property classification: mapping catalog schemas into dynamic values, actions, child references, and checks.
 
 > [!WARNING]
-> Direct use of `GenericBinder`, `ComponentContext`, or `DataContext` in view components is a legacy pattern retained in older renderers for compatibility. New framework adapters must depend strictly on `SurfaceModel` and the Node API (`NodeResolver`, `ComponentNode`).
+> Direct use of `GenericBinder`, `ComponentContext`, or `DataContext` in view components is a legacy pattern retained in older renderers for compatibility. New framework adapters' views must depend strictly on `SurfaceModel` and the Node API (`NodeResolver`, `ComponentNode`). Function implementations still receive a `DataContext` from Core.
 
 ---
 
@@ -112,13 +112,14 @@ Represents one resolved component instance in the tree:
 
 Properties in `node.props` are already resolved against the component's data context scope:
 
-| Property Type       | Resolved Representation                              | Adapter Usage                                                                            |
-| ------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **Dynamic Value**   | `ResolvedBinding<T>`                                 | Read `binding.value` to display.                                                         |
-| **Two-Way Binding** | `WritableBinding<T>` (subtypes `ResolvedBinding<T>`) | Read `binding.value` to display; invoke `binding.set(nextValue)` on user edit.           |
-| **Action**          | Parameterless closure `() => void`                   | Attach directly to native event listener (`onPressed`, `onClick`).                       |
-| **Child**           | `ComponentNode`                                      | Pass to `buildChild(node)`.                                                              |
-| **Child List**      | List/Array of `ComponentNode`                        | Map each through `buildChild(childNode)`. Repeaters are already expanded per array item. |
+| Property Type       | Resolved Representation                                                    | Adapter Usage                                                                                   |
+| ------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Dynamic Value**   | `ResolvedBinding<T>`                                                       | Read `binding.value` to display.                                                                |
+| **Two-Way Binding** | `WritableBinding<T>` (subtypes `ResolvedBinding<T>`)                       | Read `binding.value` to display; invoke `binding.set(nextValue)` on user edit.                  |
+| **Action**          | `NodeAction`, a parameterless closure                                      | Attach directly to native event listener (`onPressed`, `onClick`).                              |
+| **Child**           | `ComponentNode`                                                            | Pass to `buildChild(node)`.                                                                     |
+| **Child List**      | List/Array of `ComponentNode`                                              | Map each through `buildChild(childNode)`. Repeaters are already expanded per array item.        |
+| **Checks**          | `isValid` (bool) and `validationErrors` (list of messages) beside `checks` | Show the first message as a validation hint; disable or block actions while `isValid` is false. |
 
 ---
 
@@ -308,6 +309,8 @@ The adapter should ship pre-built implementations for the standard Basic Catalog
 - **Containers** (`Row`, `Column`, `Card`, `Modal`, `List`, `Tabs`): Render children in order via `buildChild`. In `List`, items are already expanded by Core per data array entry; the container maps each child node without indexing logic.
 - **Display Leaves** (`Text`, `Image`, `Icon`, `Video`, `AudioPlayer`, `Divider`): Read resolved primitives from `node.props` and render native view equivalents.
 - **Interactive Controls** (`Button`, `TextField`, `CheckBox`, `Slider`, `ChoicePicker`, `DateTimeInput`): Handle two-way value binding via `WritableBinding.set()`, trigger action closures on native events, and render validation error hints if `checks` are present.
+
+The adapter also registers the catalog's functions with Core, which evaluates every function call in props and actions. A function written against the framework's own function type is bridged to Core's `FunctionImplementation`, which receives the `DataContext` Core passes it.
 
 Follow the [Basic Catalog Implementation Guide](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md) for individual component styling and behavior.
 
