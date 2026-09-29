@@ -46,11 +46,19 @@ class MacroExpander:
     def __init__(
         self,
         macros: Optional[Sequence[Union[Callable[..., Any], _MacroMetadata]]] = None,
+        *,
+        passthrough_components: Optional[Sequence[str]] = None,
     ):
         """Initializes the macro expander.
 
         Args:
             macros: Explicit sequence of macro functions decorated with @macro.
+            passthrough_components: Optional sequence of component names from the source
+                catalog to pass through to the inference catalog. If None (default), all
+                source catalog components pass through. If specified, only these
+                components are retained from the source catalog alongside the macros.
+                Passing an empty sequence ([]) retains zero source catalog components,
+                exposing exclusively the macros.
         """
         self.macros: list[_MacroMetadata] = []
         if macros:
@@ -66,6 +74,9 @@ class MacroExpander:
 
         macro_map = {m.name: m for m in self.macros}
         self.processor = _MacroProcessor(macro_map)
+        self.passthrough_components: Optional[set[str]] = (
+            set(passthrough_components) if passthrough_components is not None else None
+        )
 
     def transform_to_inference_catalog(self, base_catalog: A2uiCatalog) -> A2uiCatalog:
         """Derives an authoring/inference catalog by augmenting the base catalog with macro schemas.
@@ -84,6 +95,20 @@ class MacroExpander:
         defs_map = schema_copy.setdefault("$defs", {})
         any_comp = defs_map.setdefault("anyComponent", {})
         any_comp_refs = any_comp.setdefault("oneOf", [])
+
+        # Filter base catalog components if passthrough_components is specified
+        if self.passthrough_components is not None:
+            pruned_base_names = set(comps_map.keys()) - self.passthrough_components
+            for name in pruned_base_names:
+                del comps_map[name]
+            any_comp_refs[:] = [
+                ref
+                for ref in any_comp_refs
+                if not any(
+                    ref.get("$ref", "").endswith(f"/{name}")
+                    for name in pruned_base_names
+                )
+            ]
 
         macro_components = {m.name: m.to_json_schema() for m in self.macros}
 

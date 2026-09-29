@@ -125,6 +125,18 @@ transport_messages = [
 # 6. Deliver transport_messages (containing primitive Card, Column, Text) to the client renderer!
 ```
 
+### Filtering Base Primitives (`passthrough_components`)
+
+By default, all components from the base catalog pass through to the inference catalog alongside the macros. To restrict which base components the model is allowed to use, specify `passthrough_components`:
+
+```python
+# Expose macros + Button to the model (all other base primitives are pruned from prompt):
+expander = MacroExpander([product_card], passthrough_components=["Button"])
+
+# Pure Macro Mode: expose ONLY the macros with zero base primitives:
+expander = MacroExpander([product_card], passthrough_components=[])
+```
+
 ---
 
 ## 5. Future State: `CatalogConfig` & `TransformerPipeline`
