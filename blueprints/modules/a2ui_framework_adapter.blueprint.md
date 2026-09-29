@@ -121,7 +121,7 @@ Properties in `node.props` are already resolved against the component's data con
 | **Child List**      | List/Array of `ComponentNode`                                              | Map each through `buildChild(childNode)`. Repeaters are already expanded per array item.        |
 | **Checks**          | `isValid` (bool) and `validationErrors` (list of messages) beside `checks` | Show the first message as a validation hint; disable or block actions while `isValid` is false. |
 
-Child references become nodes where the resolver mounts them: in top-level properties, and single references in objects within top-level arrays. A `ChildList` nested deeper stays a list of `ChildNode` descriptors, which are not nodes and are not passed to `buildChild`.
+Child references become nodes where the resolver mounts them: in top-level properties, and single references in objects within top-level arrays. A reference or `ChildList` nested deeper stays unresolved in the props, as ids or descriptors rather than nodes, and is not passed to `buildChild`.
 
 ---
 
@@ -353,7 +353,7 @@ A framework adapter coordinates two distinct lifecycles: the **Node lifecycle** 
 ### When is a native view destroyed?
 
 1. **Child removal from a parent**: When a parent stops referencing a child, or a dynamic array shrinks, `NodeResolver` disposes that `ComponentNode` and emits an updated children list on the parent. A deleted component that is still referenced becomes a pending placeholder at its position instead. When the parent re-renders its children (keyed by `node.instanceId`), the native framework unmounts and destroys the view for the dropped child.
-2. **Placeholder replacement**: When a component definition arrives after being referenced, `NodeResolver` replaces the placeholder node in place and emits a new parent props object containing the concrete `ComponentNode`. The native framework unmounts the placeholder view and mounts the concrete component view.
+2. **Placeholder replacement**: When a component definition arrives after being referenced, `NodeResolver` replaces the placeholder node in place and emits a new parent props object containing the concrete `ComponentNode`. The view keyed by the placeholder's `instanceId` switches to the new node and renders the concrete component in place of the placeholder.
 3. **Surface unmount**: When the host application removes the `Surface` view/widget (e.g. user navigates away), the adapter MUST invoke `nodeResolver.dispose()`. This recursively disposes all living `ComponentNode` instances, cancels data model subscriptions, and drops internal listeners.
 
 ### View cleanup obligations

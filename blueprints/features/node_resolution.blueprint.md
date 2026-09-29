@@ -112,7 +112,7 @@ type NodeProps = Record<string, unknown>;
 type NodeAction = () => void | Promise<void>;
 
 interface ComponentNode<C extends ComponentApi> {
-  /** Names this node's position; distinct among siblings. */
+  /** Names the component at this node's data scope; distinct among siblings. */
   readonly instanceId: string;
   /** The component id from the payload. */
   readonly componentId: string;
