@@ -100,30 +100,26 @@ def test_message_processor_missing_data_model_path_reactive_binding(
 ):
     processor = MessageProcessor(catalogs=[mock_catalog])
 
-    processor.process_messages(
-        [
-            {
-                "version": PROTOCOL_VERSION,
-                "createSurface": {
-                    "surfaceId": "s1",
-                    "catalogId": mock_catalog.catalog_id,
-                },
+    processor.process_messages([
+        {
+            "version": PROTOCOL_VERSION,
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": mock_catalog.catalog_id,
             },
-            {
-                "version": PROTOCOL_VERSION,
-                "updateComponents": {
-                    "surfaceId": "s1",
-                    "components": [
-                        {
-                            "id": "root",
-                            "component": "Text",
-                            "text": {"path": "/missing/username"},
-                        }
-                    ],
-                },
+        },
+        {
+            "version": PROTOCOL_VERSION,
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": {"path": "/missing/username"},
+                }],
             },
-        ]
-    )
+        },
+    ])
 
     surface = processor.model.get_surface("s1")
     assert surface is not None
@@ -138,18 +134,14 @@ def test_message_processor_missing_data_model_path_reactive_binding(
         text_val = binder.current_props.get("text")
         assert text_val is None
 
-    processor.process_messages(
-        [
-            {
-                "version": PROTOCOL_VERSION,
-                "updateDataModel": {
-                    "surfaceId": "s1",
-                    "path": "/missing/username",
-                    "value": "Alice",
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": PROTOCOL_VERSION,
+        "updateDataModel": {
+            "surfaceId": "s1",
+            "path": "/missing/username",
+            "value": "Alice",
+        },
+    }])
 
     assert binder.current_props.get("text") == "Alice"
     binder.dispose()
@@ -178,33 +170,23 @@ def test_message_processor_custom_catalog_component_validation():
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
-    processor.process_messages(
-        [
-            {
-                "version": PROTOCOL_VERSION,
-                "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": PROTOCOL_VERSION,
+        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
+    }])
 
-    processor.process_messages(
-        [
-            {
-                "version": PROTOCOL_VERSION,
-                "updateComponents": {
-                    "surfaceId": "s1",
-                    "components": [
-                        {
-                            "id": "root",
-                            "component": "Chart",
-                            "title": "Sales",
-                            "value": 45.6,
-                        }
-                    ],
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": PROTOCOL_VERSION,
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{
+                "id": "root",
+                "component": "Chart",
+                "title": "Sales",
+                "value": 45.6,
+            }],
+        },
+    }])
 
     surface = processor.model.get_surface("s1")
     assert surface is not None
@@ -220,19 +202,13 @@ def test_message_processor_custom_catalog_component_validation():
             r" required|components.root: 'value' is a required property)"
         ),
     ):
-        processor.process_messages(
-            [
-                {
-                    "version": PROTOCOL_VERSION,
-                    "updateComponents": {
-                        "surfaceId": "s1",
-                        "components": [
-                            {"id": "root", "component": "Chart", "title": "Sales"}
-                        ],
-                    },
-                }
-            ]
-        )
+        processor.process_messages([{
+            "version": PROTOCOL_VERSION,
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "Chart", "title": "Sales"}],
+            },
+        }])
 
 
 def test_message_processor_empty_catalogs_throws():
@@ -289,17 +265,13 @@ def test_message_processor_rpc_error_handling(mock_catalog):
         call=FunctionCall(call="someFunc"),
         options=CallOptions(function_call_id="call_123"),
     )
-    processor.process_messages(
-        [
-            {
-                "version": "v1.0",
-                "agentFunctionResponse": {
-                    "functionCallId": "call_123",
-                    "error": {"code": "INVALID_PARAMS", "message": "Missing param"},
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "agentFunctionResponse": {
+            "functionCallId": "call_123",
+            "error": {"code": "INVALID_PARAMS", "message": "Missing param"},
+        },
+    }])
     assert fut.done()
     with pytest.raises(A2uiRpcError) as exc_info:
         fut.result()
@@ -327,17 +299,13 @@ async def test_message_processor_call_renderer_function_async_coroutine():
     cat.functions["asyncUrl"] = fn_impl
 
     processor = MessageProcessor(catalogs=[cat])
-    resp = await processor.process_messages_async(
-        [
-            {
-                "version": "v1.0",
-                "callRendererFunction": {
-                    "functionCallId": "async_call_1",
-                    "callFunction": {"call": "asyncUrl", "args": {}},
-                },
-            }
-        ]
-    )
+    resp = await processor.process_messages_async([{
+        "version": "v1.0",
+        "callRendererFunction": {
+            "functionCallId": "async_call_1",
+            "callFunction": {"call": "asyncUrl", "args": {}},
+        },
+    }])
     assert len(resp) == 1
     assert resp[0]["rendererFunctionResponse"]["functionCallId"] == "async_call_1"
 
@@ -403,17 +371,13 @@ async def test_message_processor_call_agent_function(mock_catalog):
     assert len(outbound_msgs) == 1
     assert outbound_msgs[0]["callAgentFunction"]["functionCallId"] == "call_proc_1"
 
-    processor.process_messages(
-        [
-            {
-                "version": "v1.0",
-                "agentFunctionResponse": {
-                    "functionCallId": "call_proc_1",
-                    "value": {"status": "ok"},
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "agentFunctionResponse": {
+            "functionCallId": "call_proc_1",
+            "value": {"status": "ok"},
+        },
+    }])
 
     result = await future
     assert result == {"status": "ok"}
@@ -486,20 +450,14 @@ def test_message_processor_component_catalog_change_recreates():
         components=[ComponentApi(name="Box", schema={"type": "object"})],
     )
     processor = MessageProcessor(catalogs=[cat_a, cat_b])
-    processor.process_messages(
-        [
-            {
-                "version": "v1.0",
-                "createSurface": {
-                    "surfaceId": "s1",
-                    "catalogId": "cat_a",
-                    "components": [
-                        {"id": "c1", "component": "Box", "catalogId": "cat_a"}
-                    ],
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "cat_a",
+            "components": [{"id": "c1", "component": "Box", "catalogId": "cat_a"}],
+        },
+    }])
     surface = processor.model.get_surface("s1")
     assert surface is not None
     original_comp = surface.components_model.get("c1")
@@ -515,19 +473,13 @@ def test_message_processor_component_catalog_change_recreates():
     )
 
     # Update component with different catalogId
-    processor.process_messages(
-        [
-            {
-                "version": "v1.0",
-                "updateComponents": {
-                    "surfaceId": "s1",
-                    "components": [
-                        {"id": "c1", "component": "Box", "catalogId": "cat_b"}
-                    ],
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "c1", "component": "Box", "catalogId": "cat_b"}],
+        },
+    }])
     updated_comp = surface.components_model.get("c1")
     assert updated_comp is not None
     assert updated_comp.catalog is cat_b
@@ -542,24 +494,18 @@ def test_create_surface_data_model_before_components_avoids_warning():
     processor = MessageProcessor(catalogs=[BasicCatalogV10()])
     with warnings.catch_warnings(record=True) as recorded_warnings:
         warnings.simplefilter("always")
-        processor.process_messages(
-            [
-                {
-                    "version": "v1.0",
-                    "createSurface": {
-                        "surfaceId": "s_ordered",
-                        "dataModel": {"userName": "Alice"},
-                        "components": [
-                            {
-                                "id": "root",
-                                "component": "Text",
-                                "text": {"path": "/userName"},
-                            }
-                        ],
-                    },
-                }
-            ]
-        )
+        processor.process_messages([{
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "s_ordered",
+                "dataModel": {"userName": "Alice"},
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": {"path": "/userName"},
+                }],
+            },
+        }])
 
     missing_warnings = [
         w
@@ -578,15 +524,13 @@ def test_v1_0_adapter_drops_theme_from_create_surface():
     from a2ui.core.processing.operations import InternalCreateSurfaceOp
 
     adapter = V1Point0Adapter()
-    ops = adapter.extract_operations(
-        {
-            "version": "v1.0",
-            "createSurface": {
-                "surfaceId": "s_v1",
-                "catalogId": "basic",
-            },
-        }
-    )
+    ops = adapter.extract_operations({
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "s_v1",
+            "catalogId": "basic",
+        },
+    })
     create_op = next(
         (op for op in ops if isinstance(op, InternalCreateSurfaceOp)), None
     )
@@ -619,20 +563,14 @@ def test_message_processor_component_partial_update_preserves_catalog_when_omitt
         components=[ComponentApi(name="Box", schema={"type": "object"})],
     )
     processor = MessageProcessor(catalogs=[cat_a, cat_b])
-    processor.process_messages(
-        [
-            {
-                "version": "v1.0",
-                "createSurface": {
-                    "surfaceId": "s1",
-                    "catalogId": "cat_a",
-                    "components": [
-                        {"id": "c1", "component": "Box", "catalogId": "cat_b"}
-                    ],
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "cat_a",
+            "components": [{"id": "c1", "component": "Box", "catalogId": "cat_b"}],
+        },
+    }])
     surface = processor.model.get_surface("s1")
     assert surface is not None
     original_comp = surface.components_model.get("c1")
@@ -648,17 +586,13 @@ def test_message_processor_component_partial_update_preserves_catalog_when_omitt
     )
 
     # Partial update without catalogId should preserve existing catalog and NOT recreate component
-    processor.process_messages(
-        [
-            {
-                "version": "v1.0",
-                "updateComponents": {
-                    "surfaceId": "s1",
-                    "components": [{"id": "c1", "title": "Updated Title"}],
-                },
-            }
-        ]
-    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "c1", "title": "Updated Title"}],
+        },
+    }])
     updated_comp = surface.components_model.get("c1")
     assert updated_comp is not None
     assert updated_comp.catalog is cat_b

@@ -11,6 +11,12 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+- `MessageProcessor`, `PayloadValidator`, and `Catalog` align surface lifecycle
+  error reporting (`A2uiIntegrityError` extending `A2uiValidationError`,
+  per-message completeness validation, safe no-op `deleteSurface` on unknown
+  surfaces), support `"v0.9.1"` in `A2uiProtocolVersion.tryParse`, and pass the
+  `message_processor_v0_9.yaml`, `validator_v0_9.yaml`, and `catalog.yaml`
+  conformance suites.
 
 ## 0.2.2
 

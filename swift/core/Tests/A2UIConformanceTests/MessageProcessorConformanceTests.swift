@@ -20,13 +20,14 @@ import OrderedCollections
 import OrderedJSON
 import Testing
 
-@MainActor
-private final class ConformanceActionCaptureHandler: ActionHandling {
-  var capturedErrors: [ClientError] = []
+private final class ConformanceActionCaptureHandler: ActionHandling,
+  @unchecked Sendable
+{
+  var capturedErrors: [ClientServerError] = []
 
-  func handle(action: DispatchedAction) {}
+  func handle(action: ResolvedAction, from surfaceID: String) {}
 
-  func handle(error: ClientError, from surfaceID: String) {
+  func handle(error: ClientServerError, from surfaceID: String) {
     capturedErrors.append(error)
   }
 }

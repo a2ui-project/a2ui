@@ -44,10 +44,14 @@ enum A2uiReturnType {
   /// The JSON value used in the A2UI protocol.
   String get jsonValue => this == void_ ? 'void' : name;
 
-  /// Parses from the JSON string representation.
+  /// Parses from the JSON string representation, falling back to [any] for
+  /// unrecognized or extension return types (such as v1.0 `validationResult`).
   static A2uiReturnType fromJson(String value) {
     if (value == 'void') return void_;
-    return values.byName(value);
+    for (final candidate in values) {
+      if (candidate.name == value) return candidate;
+    }
+    return any;
   }
 }
 
@@ -296,20 +300,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       final fnName = entry.key! as String;
       if (allowed != null && !allowed.contains(fnName)) continue;
       final Map<String, Object?> schema = _asSchemaMap(entry.value);
-      if (schema.containsKey('parameters') || schema['returnType'] is String) {
-        functions.add(
-          FunctionApi(
-            name: fnName,
-            argumentSchema: Schema.fromMap(
-              _asSchemaMap(schema['parameters'] ?? const <String, Object?>{}),
-            ),
-            returnType: A2uiReturnType.fromJson(
-              schema['returnType'] as String? ?? 'any',
-            ),
-          ),
-        );
-        continue;
-      }
       final Object? rawProperties = schema['properties'];
       final Map<String, Object?> properties = switch (rawProperties) {
         null => const <String, Object?>{},
@@ -320,18 +310,21 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             catalogId: catalogId,
           ),
       };
-      final Object? args = properties['args'];
+      final Object? args = properties['args'] ?? schema['parameters'];
       final Object? returnType = properties['returnType'];
+      final String returnTypeStr =
+          (returnType is Map ? returnType[r'const'] as String? : null) ??
+              (schema['returnType'] is String
+                  ? schema['returnType'] as String
+                  : null) ??
+              'any';
       functions.add(
         FunctionApi(
           name: fnName,
           argumentSchema: Schema.fromMap(
             _asSchemaMap(args ?? const <String, Object?>{}),
           ),
-          returnType: A2uiReturnType.fromJson(
-            (returnType is Map ? returnType[r'const'] as String? : null) ??
-                'any',
-          ),
+          returnType: A2uiReturnType.fromJson(returnTypeStr),
         ),
       );
     }

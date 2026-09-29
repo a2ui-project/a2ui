@@ -174,11 +174,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
     final Map<String, Object?> rawProps =
         schema.value['properties'] is Map<String, Object?>
-            ? schema.value['properties']! as Map<String, Object?>
-            : const {};
+            ? schema.value['properties'] as Map<String, Object?>
+            : const <String, Object?>{};
     final List<Object?> rawRequired = schema.value['required'] is List<Object?>
-        ? schema.value['required']! as List<Object?>
-        : const [];
+        ? schema.value['required'] as List<Object?>
+        : const <Object?>[];
     final bool hasEnvelopeFields = schema.value.containsKey('allOf') ||
         rawProps.containsKey('id') ||
         rawProps.containsKey('component') ||

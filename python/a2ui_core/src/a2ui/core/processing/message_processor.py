@@ -230,7 +230,7 @@ class MessageProcessor:
                 content = desc[4:]
                 ref, sep, actual_desc = content.partition("|")
                 res: dict[str, Any] = {"$ref": ref}
-                if "default" in node and node["default"] is not None:
+                if "default" in node:
                     res["default"] = node["default"]
                 if sep and actual_desc:
                     res["description"] = actual_desc
@@ -269,9 +269,7 @@ class MessageProcessor:
             props.pop("id", None)
             props.pop("component", None)
             req = [
-                r
-                for r in (s_dict.get("required") or [])
-                if r not in ("id", "component")
+                r for r in s_dict.get("required") or [] if r not in ("id", "component")
             ]
             components[name] = {
                 "allOf": [
@@ -329,7 +327,11 @@ class MessageProcessor:
             cleaned_theme = cls._transform_legacy_ref_descriptions(
                 copy.deepcopy(raw_theme)
             )
-            theme = cleaned_theme.get("properties") or cleaned_theme
+            theme = (
+                cleaned_theme["properties"]
+                if "properties" in cleaned_theme
+                else cleaned_theme
+            )
 
         result: dict[str, Any] = {
             "catalogId": getattr(catalog, "catalog_id", ""),

@@ -262,16 +262,12 @@ def test_unrecognized_type_and_mismatched_properties_with_models():
 
     # 2. Unrecognized Properties (extra=forbid)
     with pytest.raises((ValidationError, ValueError)) as exc_info:
-        _val(catalog).validate_components(
-            [
-                {
-                    "id": "c1",
-                    "component": "Card",
-                    "elevation": 1,
-                    "extraProperty": "garbage",
-                }
-            ]
-        )
+        _val(catalog).validate_components([{
+            "id": "c1",
+            "component": "Card",
+            "elevation": 1,
+            "extraProperty": "garbage",
+        }])
     assert (
         "extra_forbidden" in str(exc_info.value)
         or "extra" in str(exc_info.value).lower()
@@ -342,25 +338,17 @@ def test_nested_function_validation_with_models():
         functions=[FunctionApi("doSearch", schema=SearchArgs)],
     )
     val = _val(catalog)
-    val.validate_components(
-        [
-            {
-                "id": "b1",
-                "component": "SearchButton",
-                "onSearch": {"call": "doSearch", "args": {"query": "test"}},
-            }
-        ]
-    )
+    val.validate_components([{
+        "id": "b1",
+        "component": "SearchButton",
+        "onSearch": {"call": "doSearch", "args": {"query": "test"}},
+    }])
     with pytest.raises(A2uiValidationError):
-        val.validate_components(
-            [
-                {
-                    "id": "b1",
-                    "component": "SearchButton",
-                    "onSearch": {"call": "doSearch", "args": {"query": 12345}},
-                }
-            ]
-        )
+        val.validate_components([{
+            "id": "b1",
+            "component": "SearchButton",
+            "onSearch": {"call": "doSearch", "args": {"query": 12345}},
+        }])
 
 
 def test_theme_validation_with_models():
@@ -491,41 +479,37 @@ def test_mixed_catalog_validation():
     from a2ui.core.state import ComponentModel, SurfaceComponentsModel
     from a2ui.core.validation import ValidationConfig
 
-    cat_a = Catalog.from_json(
-        {
-            "catalogId": "cat-a",
-            "protocolVersion": "v1.0",
-            "components": {
-                "CompA": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "component": {"const": "CompA"},
-                        "text": {"type": "string"},
-                    },
-                    "required": ["id", "component", "text"],
-                }
-            },
-        }
-    )
+    cat_a = Catalog.from_json({
+        "catalogId": "cat-a",
+        "protocolVersion": "v1.0",
+        "components": {
+            "CompA": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "CompA"},
+                    "text": {"type": "string"},
+                },
+                "required": ["id", "component", "text"],
+            }
+        },
+    })
 
-    cat_b = Catalog.from_json(
-        {
-            "catalogId": "cat-b",
-            "protocolVersion": "v1.0",
-            "components": {
-                "CompB": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "component": {"const": "CompB"},
-                        "count": {"type": "integer"},
-                    },
-                    "required": ["id", "component", "count"],
-                }
-            },
-        }
-    )
+    cat_b = Catalog.from_json({
+        "catalogId": "cat-b",
+        "protocolVersion": "v1.0",
+        "components": {
+            "CompB": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "CompB"},
+                    "count": {"type": "integer"},
+                },
+                "required": ["id", "component", "count"],
+            }
+        },
+    })
 
     c1 = ComponentModel("c1", "CompA", cat_a, {"text": "hello"})
     c2 = ComponentModel("c2", "CompB", cat_b, {"count": 42})

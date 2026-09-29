@@ -70,14 +70,12 @@ async def test_rpc_handler_outbound_call_agent_function() -> None:
     assert len(sent_msgs) == 1
     assert sent_msgs[0]["callAgentFunction"]["functionCallId"] == "call-123"
 
-    handler.handle_agent_function_response(
-        {
-            "agentFunctionResponse": {
-                "functionCallId": "call-123",
-                "value": {"status": "ok"},
-            }
+    handler.handle_agent_function_response({
+        "agentFunctionResponse": {
+            "functionCallId": "call-123",
+            "value": {"status": "ok"},
         }
-    )
+    })
 
     result = await fut
     assert result == {"status": "ok"}
