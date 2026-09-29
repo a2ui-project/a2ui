@@ -748,6 +748,7 @@ class Catalog(Generic[TComponent, TFunction]):
             self.functions[fn.name] = fn
 
         self.theme_schema = theme_schema or {}
+        self._raw_theme_schema: dict[str, Any] | None = None
         self._component_ref_map: dict[str, ComponentRefSpec] | None = None
 
     @property

@@ -48,7 +48,7 @@ enum A2uiReturnType {
   /// unrecognized or extension return types (such as v1.0 `validationResult`).
   static A2uiReturnType fromJson(String value) {
     if (value == 'void') return void_;
-    for (final candidate in values) {
+    for (final A2uiReturnType candidate in values) {
       if (candidate.name == value) return candidate;
     }
     return any;

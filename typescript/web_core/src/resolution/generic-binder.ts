@@ -16,7 +16,13 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
+import {
+  Action,
+  ChildList,
+  DataBinding,
+  FunctionCall,
+  childRefKindOf,
+} from '../types/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 
@@ -265,6 +271,7 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
 /** Types recognized as dynamic data bindings or expression function calls. */
 type DynamicTypes =
   | DataBinding
+  | FunctionCall
   | {'@path': string}
   | {path: string}
   | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string}
