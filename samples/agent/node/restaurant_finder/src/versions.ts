@@ -24,23 +24,30 @@ export interface VersionProfile {
   version: 'v0.9' | 'v1.0';
   /** The message metadata key under which a renderer lists its capabilities. */
   capabilitiesKey: 'a2uiClientCapabilities' | 'a2uiRendererCapabilities';
+  /** The id renderers use for the basic catalog of this version. */
+  basicCatalogId: string;
+  /** The basic catalog document, relative to the repository root. */
+  basicCatalogPath: string;
 }
 
 /**
  * v0.9 messages and the v0.9 basic catalog id, sent with the v0.9.1 MIME type
  * (`application/a2ui+json`). v0.9.1 schemas accept `"version": "v0.9"`. The sample does
- * not write `"v0.9.1"` because `@a2ui/agent` has no v0.9.1 basic catalog yet, and the
- * sample clients send and expect the v0.9 catalog id.
+ * not write `"v0.9.1"` because the sample clients send and expect the v0.9 catalog id.
  */
 export const V0_9: VersionProfile = {
   version: 'v0.9',
   capabilitiesKey: 'a2uiClientCapabilities',
+  basicCatalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+  basicCatalogPath: 'specification/v0_9/catalogs/basic/catalog.json',
 };
 
 /** The v1.0 candidate protocol. */
 export const V1_0: VersionProfile = {
   version: 'v1.0',
   capabilitiesKey: 'a2uiRendererCapabilities',
+  basicCatalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+  basicCatalogPath: 'catalogs/basic/v1/catalog.json',
 };
 
 /** Every version this agent serves, oldest first. */

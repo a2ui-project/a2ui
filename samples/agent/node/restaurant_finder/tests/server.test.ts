@@ -22,16 +22,16 @@ import type {Server} from 'http';
 import type {AddressInfo} from 'net';
 
 import type {DataPart, Message, Part, Task, TaskStatusUpdateEvent} from '@a2a-js/sdk';
-import {basicCatalog} from '@a2ui/agent';
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 
 import type {A2uiFormat} from '../src/config.js';
 import {createApp} from '../src/index.js';
+import {V1_0} from '../src/versions.js';
 
 type StreamEvent = Task | Message | TaskStatusUpdateEvent;
 
 const FORMATS: A2uiFormat[] = ['direct_json', 'express'];
-const V1_0_CATALOG = basicCatalog('v1.0').id;
+const V1_0_CATALOG = V1_0.basicCatalogId;
 
 function userMessage(parts: Part[], metadata?: Record<string, unknown>): Message {
   return {kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts, metadata};
@@ -59,7 +59,7 @@ describe.each(FORMATS)('stub agent over JSON-RPC (%s)', format => {
   let endpoint: string;
 
   beforeAll(async () => {
-    const {app} = createApp({env: {STUB_LLM: 'true', A2UI_FORMAT: format}});
+    const {app} = await createApp({env: {STUB_LLM: 'true', A2UI_FORMAT: format}});
     server = await new Promise<Server>(resolve => {
       const listening = app.listen(0, () => resolve(listening));
     });
