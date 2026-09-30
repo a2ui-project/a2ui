@@ -15,10 +15,8 @@
  */
 
 import {describe, it, expect} from 'vitest';
-import {
-  DEFAULT_PROTOCOL_VERSION,
-  toWireProtocolVersion,
-} from '../../../src/utils/protocol_version.js';
+import {A2uiCatalogError} from '../../../src/errors.js';
+import {toWireProtocolVersion} from '../../../src/utils/protocol_version.js';
 
 describe('toWireProtocolVersion', () => {
   it('passes through an already wire-formatted version', () => {
@@ -37,9 +35,9 @@ describe('toWireProtocolVersion', () => {
     expect(toWireProtocolVersion('1_0')).toBe('v1.0');
   });
 
-  it('falls back to the default when the catalog declares nothing', () => {
-    expect(toWireProtocolVersion(undefined)).toBe(DEFAULT_PROTOCOL_VERSION);
-    expect(toWireProtocolVersion(null)).toBe(DEFAULT_PROTOCOL_VERSION);
-    expect(toWireProtocolVersion('')).toBe(DEFAULT_PROTOCOL_VERSION);
+  it('throws rather than assuming a version when none is given', () => {
+    expect(() => toWireProtocolVersion(undefined)).toThrow(A2uiCatalogError);
+    expect(() => toWireProtocolVersion(null)).toThrow(A2uiCatalogError);
+    expect(() => toWireProtocolVersion('')).toThrow(A2uiCatalogError);
   });
 });

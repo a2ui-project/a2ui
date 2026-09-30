@@ -39,8 +39,28 @@ describe('Catalog Providers', () => {
       const provider = new InMemoryCatalogProvider(validSchema, 'v1.0', 'test_catalog');
       const catalog = await provider.load();
       expect(catalog.id).toBe('test_catalog');
-      // The parsed protocol version from schema keeps its original value
-      expect(catalog.protocolVersion).toBe('1.0');
+      // The catalog reports the version in the wire form, whatever the document spells.
+      expect(catalog.protocolVersion).toBe('v1.0');
+    });
+
+    it('fills in the id and version a document leaves out', async () => {
+      const provider = new InMemoryCatalogProvider({components: {}}, 'v0.9', 'provided');
+      const catalog = await provider.load();
+      expect(catalog.id).toBe('provided');
+      expect(catalog.protocolVersion).toBe('v0.9');
+    });
+
+    it('does not treat $id as the catalog id', async () => {
+      const provider = new InMemoryCatalogProvider(
+        {$id: 'https://example.com/catalog.json', components: {}},
+        'v1.0',
+      );
+      await expect(provider.load()).rejects.toThrow(A2uiCatalogError);
+    });
+
+    it('throws A2uiCatalogError when nothing states a protocol version', async () => {
+      const provider = new InMemoryCatalogProvider({catalogId: 'no_version', components: {}});
+      await expect(provider.load()).rejects.toThrow(A2uiCatalogError);
     });
 
     it('loads successfully when protocolVersion is passed as 1.0 without v', async () => {

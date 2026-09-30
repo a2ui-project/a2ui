@@ -26,7 +26,11 @@ import {CONFORMANCE_ROOT} from './loader.js';
 export async function createCatalogConfig(
   catalogData: Record<string, unknown>,
 ): Promise<CatalogConfig> {
-  const version = toWireProtocolVersion(catalogData.protocolVersion as string | undefined);
+  // Legacy cases that state no version have always run as v1.0 here. The SDK has no default
+  // version, so the harness states it.
+  const version = toWireProtocolVersion(
+    (catalogData.protocolVersion as string | undefined) ?? 'v1.0',
+  );
 
   // Cases give the catalog either inline or as a path relative to the conformance root.
   let catalogSchema: Record<string, unknown>;
@@ -79,7 +83,9 @@ export async function createFileCatalogConfig(
   if (modifiers.includes('remove_strict_validation')) {
     transformers.push(new RemoveStrictValidationTransformer());
   }
-  return await CatalogConfig.fromPath(fullPath, transformers);
+  // The legacy suite's catalog files state no protocol version. They used to load as v0.9
+  // through web_core's default, and the SDK no longer has a default, so the harness states it.
+  return await CatalogConfig.fromPath(fullPath, transformers, 'v0.9');
 }
 
 /**

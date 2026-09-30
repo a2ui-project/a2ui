@@ -74,8 +74,9 @@ describe('CatalogConfig', () => {
     });
     vi.spyOn(fs.promises, 'readFile').mockResolvedValue(validSchemaStr);
 
-    const config = await CatalogConfig.fromPath('dummy.json');
+    const config = await CatalogConfig.fromPath('dummy.json', undefined, 'v1.0');
     expect(config.catalog.id).toBe('fs_catalog');
+    expect(config.catalog.protocolVersion).toBe('v1.0');
     expect(config.transformedCatalog).toBe(config.catalog);
   });
 });
