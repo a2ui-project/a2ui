@@ -84,8 +84,11 @@ export async function createFileCatalogConfig(
     transformers.push(new RemoveStrictValidationTransformer());
   }
   // The legacy suite's catalog files state no protocol version. They used to load as v0.9
-  // through web_core's default, and the SDK no longer has a default, so the harness states it.
-  return await CatalogConfig.fromPath(fullPath, transformers, 'v0.9');
+  // through web_core's default, and the SDK no longer has a default, so the harness states it
+  // for files that give none. The Express suite's catalog files state their own version.
+  const document = JSON.parse(fs.readFileSync(fullPath, 'utf8')) as Record<string, unknown>;
+  const fallbackVersion = document.protocolVersion === undefined ? 'v0.9' : undefined;
+  return await CatalogConfig.fromPath(fullPath, transformers, fallbackVersion);
 }
 
 /**

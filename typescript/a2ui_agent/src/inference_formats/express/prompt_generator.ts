@@ -21,11 +21,10 @@
  * signatures and instruction blocks.
  */
 
-import {PromptGenerator, PromptOptions} from '../../prompt/generator.js';
+import {PromptGenerator} from '../../prompt/generator.js';
 import {SchemaCatalog} from '../../types.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
-import {A2uiCatalogError} from '../../errors.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
 
@@ -112,20 +111,22 @@ function getSchemaEnum(propSchema: unknown): string[] | undefined {
   return undefined;
 }
 
-/** Extended options for Express prompt generation. */
-export interface ExpressPromptOptions extends PromptOptions {
-  allowedMessages?: string[];
-  allowedComponents?: string[];
-}
-
 export class ExpressPromptGenerator extends PromptGenerator {
   private readonly examples?: Record<string, AgentToRendererMessage[] | string>;
   private readonly helpers = new Map<string, CatalogSchemaHelper>();
   private readonly decompilers = new Map<string, ExpressDecompiler>();
 
+  /**
+   * @param catalogs Active catalogs to render instructions for.
+   * @param examples Few-shot examples keyed by catalog id.
+   * @param allowedMessages Optional allowlist of message names (`createSurface`,
+   *     `updateComponents`, `updateDataModel`, `deleteSurface`). The base rules drop the
+   *     instructions for messages outside it.
+   */
   constructor(
     catalogs: SchemaCatalog[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
+    private readonly allowedMessages?: readonly string[],
   ) {
     super(catalogs);
     this.examples = examples;
@@ -154,11 +155,12 @@ export class ExpressPromptGenerator extends PromptGenerator {
   /**
    * Returns the core syntax contract and grammar rules for A2UI Express.
    *
-   * Verbatim matches `EXPRESS_RULES` (and express_base_rules.txt) when allowedMessages
-   * is omitted. If an allowlist of message types is specified, filters out envelope-specific
-   * instructions accordingly.
+   * Verbatim matches `EXPRESS_RULES` (and express_base_rules.txt) when no allowlist of
+   * message types was given. Otherwise, filters out envelope-specific instructions
+   * accordingly.
    */
-  generateBaseRules(allowedMessages?: string[]): string {
+  generateBaseRules(): string {
+    const allowedMessages = this.allowedMessages;
     if (!allowedMessages) {
       return EXPRESS_RULES;
     }
@@ -195,18 +197,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return rules;
   }
 
-  override generateCatalogInstructions(includeSchema = true, catalog?: SchemaCatalog): string {
-    if (this.catalogs.length === 0 && !catalog) {
-      throw new A2uiCatalogError('No active catalogs configured');
-    }
-    return super.generateCatalogInstructions(includeSchema, catalog);
-  }
-
-  protected renderCatalogInstructions(catalog: SchemaCatalog, includeSchema: boolean): string {
-    if (!includeSchema) {
-      return '';
-    }
-
+  protected renderCatalogInstructions(catalog: SchemaCatalog): string {
     const helper = this.getHelper(catalog);
     const compSigs = this.generateComponentSignatures(helper);
     const funcSigs = this.generateFunctionSignatures(helper);
@@ -513,7 +504,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     }
   }
 
-  protected renderExamples(catalog: SchemaCatalog, _validate: boolean): string {
+  protected renderExamples(catalog: SchemaCatalog): string {
     if (!this.examples || !this.examples[catalog.id]) {
       return '';
     }
@@ -526,41 +517,5 @@ export class ExpressPromptGenerator extends PromptGenerator {
     const decompiler = this.getDecompiler(catalog);
     const decompiled = decompiler.decompile(ex);
     return decompiler.wrapDecompiledBlocks([decompiled]);
-  }
-
-  override generate(options?: ExpressPromptOptions): string {
-    if (this.catalogs.length === 0) {
-      throw new A2uiCatalogError('No active catalogs configured');
-    }
-    const opts = {
-      includeSchema: true,
-      includeExamples: false,
-      validateExamples: false,
-      ...options,
-    };
-
-    const parts: string[] = [];
-
-    if (opts.roleDescription) {
-      parts.push(opts.roleDescription);
-    }
-    if (opts.workflowDescription) {
-      parts.push(opts.workflowDescription);
-    }
-    if (opts.uiDescription) {
-      parts.push(opts.uiDescription);
-    }
-
-    parts.push(this.generateBaseRules(opts.allowedMessages));
-    parts.push(this.generateCatalogInstructions(opts.includeSchema));
-
-    if (opts.includeExamples) {
-      const examples = this.generateExamples(undefined, opts.validateExamples);
-      if (examples) {
-        parts.push(examples);
-      }
-    }
-
-    return parts.join('\n\n');
   }
 }

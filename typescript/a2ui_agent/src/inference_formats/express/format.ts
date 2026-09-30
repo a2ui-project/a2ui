@@ -18,7 +18,7 @@
  * @fileoverview Format definition and factory for A2UI Express DSL.
  */
 
-import {InferenceFormat, InferenceFormatFactory} from '../../inference_format/base.js';
+import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
 import {SchemaCatalog} from '../../types.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {resolveExpressVersion, toCatalogList} from './catalogs.js';

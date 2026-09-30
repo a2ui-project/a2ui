@@ -19,7 +19,7 @@ import * as path from 'path';
 import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
 import {Catalog} from '../../../../src/internal/web_core.js';
-import {basicCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {
   CatalogSchemaHelper,
@@ -27,6 +27,10 @@ import {
   isActionSlot,
   expectsOptionObjects,
 } from '../../../../src/inference_formats/express/schema_helper.js';
+
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV09 = await loadBasicCatalog('v0.9');
+const basicCatalogs = {'v1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,7 +52,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       const v10FixturePath = path.join(FIXTURES_DIR, 'basic_v1_0_helper.json');
       const expected = JSON.parse(fs.readFileSync(v10FixturePath, 'utf8')) as OracleHelperFixture;
 
-      const cat = basicCatalog('v1.0');
+      const cat = basicCatalogV10;
       const helper = new CatalogSchemaHelper(cat, 'v1.0');
 
       for (const [comp, props] of Object.entries(expected.component_properties)) {
@@ -92,7 +96,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         }
       }
 
-      const cat = basicCatalog('v0.9');
+      const cat = basicCatalogV09;
       const helper = new CatalogSchemaHelper(cat, 'v0.9');
 
       for (const [comp, props] of Object.entries(expected.component_properties)) {
@@ -148,7 +152,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
   describe('3. isActionSlot', () => {
     it('is true only for Button.action in both v1.0 and v0.9 basic catalogs', () => {
       for (const version of ['v1.0', 'v0.9'] as const) {
-        const cat = basicCatalog(version);
+        const cat = basicCatalogs[version];
         const helper = new CatalogSchemaHelper(cat, version);
 
         for (const compName of helper.components.keys()) {
@@ -179,7 +183,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       );
       const content = fs.readFileSync(instructionsPath, 'utf8');
 
-      const cat = basicCatalog('v1.0');
+      const cat = basicCatalogV10;
       const helper = new CatalogSchemaHelper(cat, 'v1.0');
 
       let staticCount = 0;
@@ -346,7 +350,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
   describe('helper general methods', () => {
     it('retrieves descriptions and property schemas', () => {
-      const cat = basicCatalog('v1.0');
+      const cat = basicCatalogV10;
       const helper = new CatalogSchemaHelper(cat, 'v1.0');
 
       expect(helper.getComponentDescription('Column')).toBeDefined();
@@ -362,7 +366,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     });
 
     it('resolves subschema for array items and object properties', () => {
-      const cat = basicCatalog('v1.0');
+      const cat = basicCatalogV10;
       const helper = new CatalogSchemaHelper(cat, 'v1.0');
 
       const tabsSchema = helper.getPropertySchema('Tabs', 'tabs');

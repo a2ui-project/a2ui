@@ -37,6 +37,7 @@ export {
   UpdateComponentsMessageSchema as V09UpdateComponentsMessageSchema,
   UpdateDataModelMessageSchema as V09UpdateDataModelMessageSchema,
   DeleteSurfaceMessageSchema as V09DeleteSurfaceMessageSchema,
+  V09_STANDARD_DEFS,
 } from '@a2ui/web_core/v0_9';
 
 // ./v1_0
@@ -50,6 +51,7 @@ export {
   AgentToRendererMessageSchema,
   RendererToAgentMessageSchema,
   V10RendererCapabilitiesSchema,
+  V10_STANDARD_DEFS,
 } from '@a2ui/web_core/v1_0';
 import type {
   AgentToRendererMessage,
