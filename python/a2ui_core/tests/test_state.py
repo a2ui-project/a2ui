@@ -24,7 +24,6 @@ from a2ui.core.state import (
     SurfaceModel,
     SurfaceGroupModel,
 )
-from a2ui.core.state.data_model import MAX_ARRAY_INDEX
 from a2ui.core.exceptions import (
     A2uiDataError,
     A2uiRecursionError,
@@ -334,70 +333,8 @@ def test_surface_components_model():
 
 
 # ==============================================================================
-# DataModel Pointers & Cascade Tests
+# DataModel & Signal Python-Specific Tests
 # ==============================================================================
-
-
-def test_data_model_basic_get_set():
-    dm = DataModel()
-    dm.set("/user/name", "Alice")
-    assert dm.get("/user/name") == "Alice"
-    assert dm.get("/user") == {"name": "Alice"}
-    assert dm.get("/") == {"user": {"name": "Alice"}}
-
-
-def test_data_model_auto_vivification():
-    dm = DataModel()
-    # Numeric segment "0" should auto-vivify a List array, while others vivify dicts
-    dm.set("/users/0/name", "Bob")
-    assert dm.get("/users/0/name") == "Bob"
-    assert isinstance(dm.get("/users"), list)
-    assert isinstance(dm.get("/users/0"), dict)
-
-    # Mixed traversal
-    dm.set("/data/lists/1/value", 42)
-    assert dm.get("/data/lists/1/value") == 42
-    assert dm.get("/data/lists/0") is None  # Placeholder pad
-
-
-def test_data_model_reactive_subscriptions():
-    dm = DataModel()
-    updates = []
-
-    # Subscribe to specific path
-    sub = dm.subscribe("/user/name", lambda val: updates.append(val))
-    assert sub.value is None  # Initial
-
-    dm.set("/user/name", "Alice")
-    assert updates == ["Alice"]
-
-    dm.set("/user/name", "Bob")
-    assert updates == ["Alice", "Bob"]
-
-
-def test_data_model_cascade_and_bubble():
-    dm = DataModel()
-    parent_updates = []
-    child_updates = []
-
-    # Subscribe to parent
-    dm.subscribe("/user", lambda val: parent_updates.append(copy_dict(val)))
-    # Subscribe to child
-    dm.subscribe("/user/details/age", lambda val: child_updates.append(val))
-
-    # Set deep child
-    dm.set("/user/details/age", 30)
-
-    # Parent updates should have bubbled up
-    assert parent_updates == [{"details": {"age": 30}}]
-    # Child updates should have cascaded down
-    assert child_updates == [30]
-
-
-def copy_dict(d):
-    import copy
-
-    return copy.deepcopy(d) if d is not None else None
 
 
 def test_signal_reactivity():
@@ -431,31 +368,11 @@ def test_data_model_set_fluent_chaining():
     assert dm.get("/a") is None
 
 
-def test_data_model_max_array_index_exceeded():
-    dm = DataModel()
-    with pytest.raises(A2uiDataError, match="exceeds maximum supported index"):
-        dm.set(f"/items/{MAX_ARRAY_INDEX + 1}", "overflow")
-    with pytest.raises(A2uiDataError, match="exceeds maximum supported index"):
-        dm.set(f"/matrix/{MAX_ARRAY_INDEX + 1}/0", "overflow")
-
-
-def test_data_model_forbidden_keys():
+def test_data_model_has_path_forbidden_keys():
     dm = DataModel()
     for seg in ("__proto__", "constructor", "prototype"):
         with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
-            dm.get(f"/{seg}")
-        with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
-            dm.set(f"/nested/{seg}/value", 123)
-        with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
             dm.has_path(f"/{seg}")
-
-
-def test_data_model_absent_null_write_is_noop():
-    dm = DataModel()
-    res = dm.set("/nonexistent/child/path", None)
-    assert res is dm
-    assert dm.get("/") == {}
-    assert not dm.has_path("/nonexistent")
 
 
 def test_data_model_stores_references_directly():
@@ -578,44 +495,6 @@ def test_resolved_binding_equality():
         # Type checker should recognize int_rb as WritableBinding[int]
         assert int_rb.value == 42
         assert int_rb.path == "/val"
-
-
-def test_data_model_primitive_root_rejection():
-    dm = DataModel()
-    dm.set("/", 42)
-    assert dm.get("/") == 42
-    with pytest.raises(
-        A2uiDataError, match="the data model root is a primitive value"
-    ) as err:
-        dm.set("/count", 1)
-    assert err.value.path == "/count"
-
-
-def test_data_model_set_through_primitive_raises():
-    dm = DataModel({"user": "Alice", "counts": [7]})
-
-    with pytest.raises(A2uiDataError) as dict_err:
-        dm.set("/user/name", "Bob")
-    assert dict_err.value.path == "/user/name"
-
-    with pytest.raises(A2uiDataError) as list_err:
-        dm.set("/counts/0/total", 1)
-    assert list_err.value.path == "/counts/0/total"
-
-    # The rejected writes must leave the originals intact rather than replacing
-    # them with an empty container.
-    assert dm.get("/user") == "Alice"
-    assert dm.get("/counts/0") == 7
-
-
-def test_data_model_set_through_none_placeholder_vivifies():
-    dm = DataModel({"user": None, "counts": [None]})
-
-    dm.set("/user/name", "Bob")
-    dm.set("/counts/0/total", 1)
-
-    assert dm.get("/user/name") == "Bob"
-    assert dm.get("/counts/0/total") == 1
 
 
 def test_surface_model_initialization_and_catalogs():

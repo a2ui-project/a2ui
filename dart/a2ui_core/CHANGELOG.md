@@ -17,6 +17,11 @@
   surfaces), support `"v0.9.1"` in `A2uiProtocolVersion.tryParse`, and pass the
   `message_processor_v0_9.yaml`, `validator_v0_9.yaml`, and `catalog.yaml`
   conformance suites.
+- `DataModel` and `DataContext` enforce JSON Pointer validation (`A2uiDataError`
+  on non-pointer paths, forbidden prototype-pollution segments, primitive
+  traversal/root mutation, and array index bounds), support `DataContext.index`
+  and `DataContext.dispose`, and pass the `data_model.yaml` and
+  `data_context.yaml` conformance suites.
 - **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
   are no longer exported. Renderers read components through `NodeResolver` and
   `ComponentNode`, whose props carry dynamic properties as `ResolvedBinding`

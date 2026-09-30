@@ -82,77 +82,122 @@ extension JSONValue {
 
   // MARK: - Path Subscripting
 
+  /// Maximum supported array index during path traversal and auto-vivification.
+  public static let maxArrayIndex = 10_000
+
+  private static let forbiddenPathKeys: Set<String> = [
+    "__proto__", "constructor", "prototype",
+  ]
+
+  /// Validates and parses an RFC 6901 array index (rejecting leading zeros and negative values).
+  static func isValidArrayIndex(_ key: String) -> Int? {
+    guard !key.isEmpty else { return nil }
+    if key.count > 1 && key.hasPrefix("0") { return nil }
+    guard key.allSatisfy({ $0.isASCII && $0.isNumber }),
+      let index = Int(key), index >= 0
+    else { return nil }
+    return index
+  }
+
+  /// Subscript resolving an array of parsed path components.
+  public subscript(components: [String]) -> JSONValue? {
+    if components.isEmpty { return self }
+    var currentValue = self
+    for component in components {
+      switch currentValue {
+      case .object(let dictionary):
+        guard let value = dictionary[component] else { return nil }
+        currentValue = value
+      case .array(let array):
+        guard let index = Self.isValidArrayIndex(component),
+          index < array.count
+        else { return nil }
+        currentValue = array[index]
+      default:
+        return nil
+      }
+    }
+    return currentValue
+  }
+
   /// Thread-safe getter and setter for deep path-based subscripting.
   ///
   /// Path components are separated by `/` (e.g., `"/user/name"`).
   /// Array indices are numeric strings (e.g., `"/items/0"`).
   public subscript(path: String) -> JSONValue? {
     get {
-      let components = Self.parsePath(path)
-      if components.isEmpty { return self }
-      var currentValue = self
-      for component in components {
-        switch currentValue {
-        case .object(let dictionary):
-          guard let value = dictionary[component] else { return nil }
-          currentValue = value
-        case .array(let array):
-          guard let index = Int(component),
-            index >= 0 && index < array.count
-          else { return nil }
-          currentValue = array[index]
-        default:
-          return nil
-        }
-      }
-      return currentValue
+      guard let components = try? Self.parsePathThrowing(path) else { return nil }
+      return self[components]
     }
     set {
-      let components = Self.parsePath(path)
+      guard let components = try? Self.parsePathThrowing(path) else { return }
       guard !components.isEmpty else {
-        if let newValue {
-          self = newValue
-        }
+        self = newValue ?? .object([:])
         return
       }
-      if let updated = Self.update(
+      if newValue == nil && !Self.hasPath(node: self, components: components) {
+        return
+      }
+      if let updated = try? Self.updateThrowing(
         node: self,
         components: components[...],
-        newValue: newValue
+        newValue: newValue,
+        fullPath: path
       ) {
         self = updated
-      } else {
-        self = .null
       }
     }
   }
 
   // MARK: - Path Utilities
 
-  /// Parses a JSON Pointer-style path into components.
+  /// Parses a JSON Pointer-style path into components, collapsing empty segments.
   static func parsePath(_ path: String) -> [String] {
-    guard !path.isEmpty else { return [] }
-    let adjustedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
-    guard !adjustedPath.isEmpty else { return [] }
-    return adjustedPath.split(separator: "/", omittingEmptySubsequences: false).map {
+    (try? parsePathThrowing(path)) ?? []
+  }
+
+  /// Parses a JSON Pointer-style path into components and validates against forbidden segments.
+  static func parsePathThrowing(_ path: String) throws -> [String] {
+    guard !path.isEmpty && path != "/" else { return [] }
+    let parsed = path.split(separator: "/", omittingEmptySubsequences: true).map {
       String($0)
         .replacingOccurrences(of: "~1", with: "/")
         .replacingOccurrences(of: "~0", with: "~")
     }
+    for segment in parsed where forbiddenPathKeys.contains(segment) {
+      throw A2UIDataError("Forbidden path segment '\(segment)' in path '\(path)'.")
+    }
+    return parsed
   }
 
-  /// Recursively updates a node at the given path components.
-  ///
-  /// Only absent and null nodes are filled in. A path through any other value
-  /// leaves the tree unchanged:
-  ///
-  ///     {"name": "Alice"}  set /name/first  ->  unchanged
-  ///     {"items": ["a"]}   set /items/foo   ->  unchanged
-  static func update(
+  /// Checks whether a parsed path physically exists in `node`.
+  static func hasPath(node: JSONValue, components: [String]) -> Bool {
+    if components.isEmpty { return true }
+    var currentValue = node
+    for component in components {
+      switch currentValue {
+      case .object(let dictionary):
+        guard let value = dictionary[component] else { return false }
+        currentValue = value
+      case .array(let array):
+        guard let index = isValidArrayIndex(component),
+          index < array.count
+        else { return false }
+        currentValue = array[index]
+      default:
+        return false
+      }
+    }
+    return true
+  }
+
+  /// Recursively updates a node at the given path components, throwing `A2UIDataError` on invalid mutations.
+  static func updateThrowing(
     node: JSONValue?,
     components: ArraySlice<String>,
-    newValue: JSONValue?
-  ) -> JSONValue? {
+    newValue: JSONValue?,
+    fullPath: String
+  ) throws -> JSONValue? {
     guard let key = components.first else { return newValue }
     let isLastComponent = components.count == 1
     let remainingComponents = components.dropFirst()
@@ -167,73 +212,99 @@ extension JSONValue {
         }
       } else {
         let nextNode = dict[key]
-        dict[key] = update(
+        if let nextNode, nextNode != .null,
+          nextNode.objectValue == nil && nextNode.arrayValue == nil
+        {
+          throw A2UIDataError(
+            "Cannot set path '\(fullPath)': segment '\(key)' is a primitive value."
+          )
+        }
+        dict[key] = try updateThrowing(
           node: nextNode,
           components: remainingComponents,
-          newValue: newValue
+          newValue: newValue,
+          fullPath: fullPath
         )
       }
       return .object(dict)
 
     case .some(.array(var array)):
-      if let index = Int(key), index >= 0 {
-        if index <= array.count {
-          if isLastComponent {
-            if let newValue {
-              if index == array.count {
-                array.append(newValue)
-              } else {
-                array[index] = newValue
-              }
-            } else if index < array.count {
-              // Setting an array index to nil preserves the array
-              // length (sparse array), matching the blueprint's
-              // JSON Pointer Implementation Rules.
-              array[index] = .null
-            }
-          } else {
-            let nextNode = index < array.count ? array[index] : nil
-            let updated = update(
-              node: nextNode,
-              components: remainingComponents,
-              newValue: newValue
-            )
-            if let updated {
-              if index == array.count {
-                array.append(updated)
-              } else {
-                array[index] = updated
-              }
-            } else if index < array.count {
-              // Sparse array: preserve length, set to null.
-              array[index] = .null
-            }
-          }
-        }
-        return .array(array)
-      } else {
-        // A non-numeric key does not address an element of an array. Building
-        // an object here would replace the whole array, so do not update.
-        return node
+      guard let index = isValidArrayIndex(key) else {
+        throw A2UIDataError(
+          "Cannot use non-numeric segment '\(key)' on an array in path '\(fullPath)'."
+        )
       }
+      if index > maxArrayIndex {
+        throw A2UIDataError(
+          "Cannot set path '\(fullPath)': array index '\(key)' exceeds maximum supported index (\(maxArrayIndex))."
+        )
+      }
+      if isLastComponent {
+        if let newValue {
+          while array.count <= index {
+            array.append(.null)
+          }
+          array[index] = newValue
+        } else if index < array.count {
+          array[index] = .null
+        }
+      } else {
+        let nextNode: JSONValue? = index < array.count ? array[index] : nil
+        if let nextNode, nextNode != .null,
+          nextNode.objectValue == nil && nextNode.arrayValue == nil
+        {
+          throw A2UIDataError(
+            "Cannot set path '\(fullPath)': segment '\(key)' is a primitive value."
+          )
+        }
+        let updated = try updateThrowing(
+          node: nextNode,
+          components: remainingComponents,
+          newValue: newValue,
+          fullPath: fullPath
+        )
+        if let updated {
+          while array.count <= index {
+            array.append(.null)
+          }
+          array[index] = updated
+        } else if index < array.count {
+          array[index] = .null
+        }
+      }
+      return .array(array)
 
     default:
+      if let node, node != .null {
+        throw A2UIDataError(
+          "Cannot set path '\(fullPath)': the data model root or intermediate node is a primitive value."
+        )
+      }
       if newValue == nil { return node }
-      // Only an absent or null node is filled in. Anything else is a value
-      // someone put there, and growing a container over it would delete it.
-      if let node, node != .null { return node }
-      if let index = Int(key), index >= 0 {
-        // Auto-vivify an array for any numeric key, matching
-        // web_core's isNumeric() auto-vivification rule.
+      if let index = isValidArrayIndex(key) {
+        if index > maxArrayIndex {
+          throw A2UIDataError(
+            "Cannot set path '\(fullPath)': array index '\(key)' exceeds maximum supported index (\(maxArrayIndex))."
+          )
+        }
         var array: [JSONValue] = []
         if isLastComponent {
-          if let newValue { array.append(newValue) }
-        } else if let updated = update(
+          if let newValue {
+            while array.count <= index {
+              array.append(.null)
+            }
+            array[index] = newValue
+          }
+        } else if let updated = try updateThrowing(
           node: nil,
           components: remainingComponents,
-          newValue: newValue
+          newValue: newValue,
+          fullPath: fullPath
         ) {
-          array.append(updated)
+          while array.count <= index {
+            array.append(.null)
+          }
+          array[index] = updated
         }
         return .array(array)
       } else {
@@ -241,10 +312,11 @@ extension JSONValue {
         if isLastComponent {
           if let newValue { dict[key] = newValue }
         } else {
-          dict[key] = update(
+          dict[key] = try updateThrowing(
             node: nil,
             components: remainingComponents,
-            newValue: newValue
+            newValue: newValue,
+            fullPath: fullPath
           )
         }
         return .object(dict)
@@ -265,6 +337,9 @@ extension JSONValue {
     if path.hasPrefix("/") { return path }
     let base = basePath ?? ""
     let trimmedBase = base.hasSuffix("/") ? String(base.dropLast()) : base
+    if path.isEmpty || path == "." {
+      return trimmedBase.isEmpty ? "/" : trimmedBase
+    }
     if trimmedBase.isEmpty { return "/\(path)" }
     return "\(trimmedBase)/\(path)"
   }
