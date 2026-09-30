@@ -85,7 +85,7 @@ class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof ButtonApi
     }
   `;
 
-  protected readonly api = ButtonApi;
+  protected override readonly api = ButtonApi;
 
   override render() {
     const props = this.controller.props;

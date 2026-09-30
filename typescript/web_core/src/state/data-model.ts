@@ -111,13 +111,13 @@ export class DataModel {
       throw new A2uiDataError('Path cannot be null or undefined.');
     }
 
-    if (path === '/' || path === '') {
+    const segments = this.parsePath(path);
+    if (segments.length === 0) {
       this.data = value === null || value === undefined ? {} : value;
       this.notifyAllSignals();
       return this;
     }
 
-    const segments = this.parsePath(path);
     const lastSegment = segments.pop()!;
 
     if ((value === undefined || value === null) && this.get(path) === undefined) {
@@ -396,10 +396,8 @@ export class DataModel {
   }
 
   private normalizePath(path: string): string {
-    if (path.length > 1 && path.endsWith('/')) {
-      return path.slice(0, -1);
-    }
-    return path || '/';
+    const segments = path.split('/').filter(p => p.length > 0);
+    return segments.length === 0 ? '/' : `/${segments.join('/')}`;
   }
 
   private parsePath(path: string): string[] {

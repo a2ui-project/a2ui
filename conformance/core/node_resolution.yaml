@@ -1,0 +1,302 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# See node_resolution.md for the operation and assertion contract.
+- name: scoped_binding_write
+  description: >-
+    Given two template items, when the first value binding is written,
+    only that node emits, the write uses its data scope, and all nodes keep identity.
+  action: resolve_nodes
+  fixture: test_data/node/two_people.yaml
+  expect:
+    nodes:
+      root:
+        component_id: root
+        type: Column
+        state: resolved
+        data_path: /
+        props:
+          children: [{node: root/children/0}, {node: root/children/1}]
+      root/children/0:
+        component_id: nameField
+        data_path: /people/0
+        props:
+          label: {value: Name, writable: false}
+          value: {value: Ada, writable: true}
+      root/children/1:
+        component_id: nameField
+        data_path: /people/1
+        props:
+          value: {value: Lin, writable: true}
+  steps:
+    - op: write
+      node: root/children/0
+      property: value
+      value: Grace
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {props: {value: {value: Grace, writable: true}}}
+          root/children/1: {props: {value: {value: Lin, writable: true}}}
+        data: {/people/0/name: Grace, /people/1/name: Lin}
+        emissions: {root/children/0: 1}
+        same_nodes: [root, root/children/0, root/children/1]
+    - op: set_data
+      path: /people/0/name
+      value: Grace
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {props: {value: {value: Grace, writable: true}}}
+          root/children/1: {}
+        emissions: {}
+        same_nodes: [root, root/children/0, root/children/1]
+
+- name: complete_property_update
+  description: >-
+    Given two instances of one definition, when two properties change together,
+    each instance emits one complete snapshot and the parent stays silent.
+  action: resolve_nodes
+  fixture: test_data/node/two_people.yaml
+  expect:
+    nodes: {root: {}, root/children/0: {}, root/children/1: {}}
+  steps:
+    - op: update_components
+      components:
+        - {id: nameField, component: TextField, label: Updated, value: Fixed}
+      expect:
+        nodes:
+          root: {}
+          root/children/0:
+            props:
+              label: {value: Updated, writable: false}
+              value: {value: Fixed, writable: false}
+          root/children/1:
+            props:
+              label: {value: Updated, writable: false}
+              value: {value: Fixed, writable: false}
+        emissions: {root/children/0: 1, root/children/1: 1}
+        same_nodes: [root, root/children/0, root/children/1]
+
+- name: template_membership
+  description: >-
+    Given two template items, when items are appended, inserted, and removed,
+    surviving positions retain identity and removed nodes are destroyed once.
+  action: resolve_nodes
+  fixture: test_data/node/two_people.yaml
+  expect:
+    nodes: {root: {}, root/children/0: {}, root/children/1: {}}
+  steps:
+    - op: set_data
+      path: /people
+      value: [{name: Ada}, {name: Lin}, {name: Grace}]
+      expect:
+        nodes:
+          root:
+            props:
+              children: [{node: root/children/0}, {node: root/children/1}, {node: root/children/2}]
+          root/children/0: {}
+          root/children/1: {}
+          root/children/2:
+            component_id: nameField
+            data_path: /people/2
+            props: {value: {value: Grace, writable: true}}
+        emissions: {root: 1}
+        same_nodes: [root, root/children/0, root/children/1]
+    - op: set_data
+      path: /people
+      value: [{name: Ada}, {name: New}, {name: Lin}, {name: Grace}]
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {props: {value: {value: Ada, writable: true}}}
+          root/children/1: {props: {value: {value: New, writable: true}}}
+          root/children/2: {props: {value: {value: Lin, writable: true}}}
+          root/children/3:
+            data_path: /people/3
+            props: {value: {value: Grace, writable: true}}
+        emissions: {root: 1, root/children/1: 1, root/children/2: 1}
+        same_nodes: [root, root/children/0, root/children/1, root/children/2]
+    - op: set_data
+      path: /people
+      value: [{name: Ada}]
+      expect:
+        nodes:
+          root: {props: {children: [{node: root/children/0}]}}
+          root/children/0: {props: {value: {value: Ada, writable: true}}}
+        emissions: {root: 1}
+        same_nodes: [root, root/children/0]
+        destroyed: {root/children/1: 1, root/children/2: 1, root/children/3: 1}
+    - op: dispose
+      expect:
+        nodes: {}
+        emissions: {}
+        destroyed: {root: 1, root/children/0: 1}
+
+- name: shared_definition_independent_instances
+  description: >-
+    Given a shared child under two parents, when one parent definition is removed,
+    that parent and its child are destroyed while the other instance stays live.
+  action: resolve_nodes
+  fixture: test_data/node/shared_child.yaml
+  expect:
+    nodes:
+      root: {props: {children: [{node: root/children/0}, {node: root/children/1}]}}
+      root/children/0: {props: {child: {node: root/children/0/child}}}
+      root/children/0/child: {component_id: shared, props: {text: {value: Hello, writable: true}}}
+      root/children/1: {props: {child: {node: root/children/1/child}}}
+      root/children/1/child: {component_id: shared, props: {text: {value: Hello, writable: true}}}
+  steps:
+    - op: remove_component
+      component_id: left
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {component_id: left, state: pending}
+          root/children/1: {}
+          root/children/1/child:
+            {component_id: shared, props: {text: {value: Hello, writable: true}}}
+        emissions: {root: 1}
+        same_nodes: [root, root/children/1, root/children/1/child]
+        replaced_nodes: [root/children/0]
+        destroyed: {root/children/0: 1, root/children/0/child: 1}
+    - op: set_data
+      path: /greeting
+      value: Still here
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {}
+          root/children/1: {}
+          root/children/1/child: {props: {text: {value: Still here, writable: true}}}
+        emissions: {root/children/1/child: 1}
+        same_nodes: [root, root/children/0, root/children/1, root/children/1/child]
+
+- name: root_lifecycle
+  description: >-
+    Given an empty surface, when the root arrives and is removed,
+    the tree appears and disappears; resolver disposal destroys a later root once.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: update_components
+      components: [{id: root, component: Text, text: Hello}]
+      expect:
+        nodes:
+          root:
+            {component_id: root, state: resolved, props: {text: {value: Hello, writable: false}}}
+        emissions: {}
+    - op: remove_component
+      component_id: root
+      expect:
+        nodes: {}
+        emissions: {}
+        destroyed: {root: 1}
+    - op: update_components
+      components: [{id: root, component: Text, text: Again}]
+      expect:
+        nodes:
+          root: {props: {text: {value: Again, writable: false}}}
+        emissions: {}
+    - op: dispose
+      expect:
+        nodes: {}
+        emissions: {}
+        destroyed: {root: 1}
+
+- name: pending_child_replacement
+  description: >-
+    Given a pending child, when its definition arrives,
+    the placeholder is replaced and destroyed while its parent emits once and keeps identity.
+  action: resolve_nodes
+  fixture: test_data/node/pending.yaml
+  expect:
+    nodes:
+      root: {props: {child: {node: root/child}}}
+      root/child: {component_id: greeting, state: pending}
+  steps:
+    - op: update_components
+      components: [{id: greeting, component: Text, text: Hello}]
+      expect:
+        nodes:
+          root: {props: {child: {node: root/child}}}
+          root/child:
+            {
+              component_id: greeting,
+              state: resolved,
+              props: {text: {value: Hello, writable: false}},
+            }
+        emissions: {root: 1}
+        same_nodes: [root]
+        replaced_nodes: [root/child]
+        destroyed: {root/child: 1}
+
+- name: dispatch_time_event_context
+  description: >-
+    Given an event action, when data changes before invocation,
+    no event is sent early and the invoked action uses the latest data.
+  action: resolve_nodes
+  fixture: test_data/node/action.yaml
+  expect:
+    nodes:
+      root: {props: {action: {action: true}, child: {node: root/child}}}
+      root/child: {}
+  steps:
+    - op: set_data
+      path: /name
+      value: Grace
+      expect:
+        nodes: {root: {}, root/child: {}}
+        emissions: {}
+        same_nodes: [root, root/child]
+    - op: invoke
+      node: root
+      property: action
+      expect:
+        nodes: {root: {}, root/child: {}}
+        emissions: {}
+        same_nodes: [root, root/child]
+        events: [{name: save, source_component_id: root, context: {name: Grace}}]
+
+- name: function_action_without_event
+  description: >-
+    Given a function action, when it is invoked,
+    the catalog function runs once and no action event is emitted.
+  action: resolve_nodes
+  fixture: test_data/node/action.yaml
+  expect:
+    nodes: {root: {}, root/child: {}}
+  steps:
+    - op: update_components
+      components:
+        - id: root
+          component: Button
+          child: label
+          action:
+            functionCall: {call: openUrl, args: {url: "https://example.test"}}
+      expect:
+        nodes:
+          root: {props: {action: {action: true}}}
+          root/child: {}
+        emissions: {root: 1}
+        same_nodes: [root, root/child]
+    - op: invoke
+      node: root
+      property: action
+      expect:
+        nodes: {root: {}, root/child: {}}
+        emissions: {}
+        same_nodes: [root, root/child]
+        functions: [{name: openUrl, args: {url: "https://example.test"}}]

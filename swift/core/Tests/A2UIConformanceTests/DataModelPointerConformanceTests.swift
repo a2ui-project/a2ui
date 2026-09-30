@@ -21,116 +21,102 @@ import Testing
 
 @MainActor
 struct DataModelPointerConformanceTests {
-  @Test func numericAutoVivification() {
-    let dataModel = DataModel()
-    dataModel.set("/items/0/name", value: .string("First Item"))
-    dataModel.set("/items/1/name", value: .string("Second Item"))
-
-    let items = dataModel.get("/items")
-    #expect(items?.arrayValue?.count == 2)
-    #expect(dataModel.get("/items/0/name")?.stringValue == "First Item")
-    #expect(dataModel.get("/items/1/name")?.stringValue == "Second Item")
+  @Test func dataModelPointersConformance() throws {
+    try runPayloadDataModelSuite(filename: "core/data_model_pointers.yaml")
   }
 
-  @Test func sparseArrayNullPreservation() {
-    let dataModel = DataModel(
-      initial: .object([
-        "list": .array([.string("a"), .string("b"), .string("c")])
-      ])
-    )
-
-    dataModel.set("/list/1", value: nil)
-    let list = dataModel.get("/list")?.arrayValue
-
-    #expect(list?.count == 3)
-    #expect(list?[0] == .string("a"))
-    #expect(list?[1] == .null)
-    #expect(list?[2] == .string("c"))
+  @Test func dataDeletionConformance() throws {
+    try runPayloadDataModelSuite(filename: "core/data_deletion.yaml")
   }
 
-  @Test func primitiveInTheWaySurvives() {
-    let dataModel = DataModel(
-      initial: .object(["user": .object(["name": .string("Alice")])])
-    )
+  @Test func dataContextPathResolutionConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/data_context.yaml")
+    let cases = (rawYAML as? [[String: Any]]) ?? []
+    #expect(!cases.isEmpty, "core/data_context.yaml should hold test cases")
 
-    dataModel.set("/user/name/first", value: .string("Bob"))
-
-    #expect(dataModel.get("/user/name")?.stringValue == "Alice")
-    #expect(dataModel.get("/user/name/first") == nil)
+    for testCase in cases {
+      let name = testCase["name"] as? String ?? "<unnamed>"
+      let args = testCase["args"] as? [String: Any] ?? [:]
+      let path = args["path"] as? String ?? ""
+      let contextPath = (args["contextPath"] as? String) ?? (args["context_path"] as? String)
+      let expected = testCase["expect"] as? String ?? ""
+      let actual = JSONValue.absolutePath(for: path, in: contextPath)
+      #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
+    }
   }
 
-  @Test func primitiveListElementSurvives() {
-    let dataModel = DataModel(
-      initial: .object(["items": .array([.string("a"), .string("b")])])
-    )
+  private func runPayloadDataModelSuite(filename: String) throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: filename)
+    let cases = (rawYAML as? [[String: Any]]) ?? []
+    #expect(!cases.isEmpty, "\(filename) should hold test cases")
 
-    dataModel.set("/items/0/foo", value: .string("bar"))
+    for testCase in cases {
+      let name = testCase["name"] as? String ?? "<unnamed>"
+      let steps = testCase["steps"] as? [[String: Any]] ?? []
+      var models: [String: DataModel] = [:]
 
-    #expect(dataModel.get("/items")?.arrayValue == [.string("a"), .string("b")])
-  }
+      for (index, step) in steps.enumerated() {
+        let payload = step["payload"] as? [[String: Any]] ?? []
+        let expectError = step["expectError"] as? [String: Any]
+        let location = "\(name) step \(index)"
 
-  @Test func nonNumericKeyLeavesTheListAlone() {
-    let dataModel = DataModel(
-      initial: .object(["items": .array([.string("a"), .string("b")])])
-    )
+        let applyStep = {
+          for msg in payload {
+            if let createSurface = msg["createSurface"] as? [String: Any] {
+              let surfaceID = createSurface["surfaceId"] as? String ?? "s1"
+              let initial =
+                createSurface["dataModel"].map { ConformanceTestHelper.toJSONValue($0) }
+                ?? .object([:])
+              models[surfaceID] = DataModel(initial: initial)
+            } else if let updateDataModel = msg["updateDataModel"] as? [String: Any] {
+              let surfaceID = updateDataModel["surfaceId"] as? String ?? "s1"
+              let path = updateDataModel["path"] as? String ?? "/"
+              let rawValue = updateDataModel["value"]
+              let value: JSONValue?
+              if rawValue == nil || rawValue is NSNull {
+                value = nil
+              } else {
+                value = ConformanceTestHelper.toJSONValue(rawValue!)
+              }
+              try models[surfaceID]?.setThrowing(path, value: value)
+            }
+          }
+        }
 
-    dataModel.set("/items/foo", value: .string("bar"))
-    dataModel.set("/items/foo/bar", value: .string("value"))
+        if let expectError {
+          let expectedSubstring = expectError["message"] as? String
+          do {
+            try applyStep()
+            Issue.record("\(location): expected DataError, but succeeded")
+          } catch let error as A2UIDataError {
+            if let expectedSubstring {
+              #expect(
+                error.message.contains(expectedSubstring),
+                "\(location): expected '\(expectedSubstring)', got '\(error.message)'"
+              )
+            }
+          }
+          continue
+        }
 
-    // Neither write replaces the array.
-    #expect(dataModel.get("/items")?.arrayValue == [.string("a"), .string("b")])
-  }
+        try applyStep()
+      }
 
-  @Test func nullIsStillFilledIn() {
-    let dataModel = DataModel(initial: .object(["slot": .null]))
-
-    dataModel.set("/slot/name", value: .string("Alice"))
-
-    // Null is absence, not a value someone put there, so it is still grown
-    // into a container.
-    #expect(dataModel.get("/slot/name")?.stringValue == "Alice")
-  }
-
-  @Test func rootReplacement() {
-    let dataModel = DataModel(initial: .object(["a": .integer(1)]))
-
-    dataModel.set("/", value: .object(["b": .integer(2)]))
-    #expect(dataModel.get("/a") == nil)
-    #expect(dataModel.get("/b")?.intValue == 2)
-
-    dataModel.set("", value: nil)
-    #expect(dataModel.get("/") == .object([:]))
-  }
-
-  @Test func escapedPointerCharacters() {
-    let dataModel = DataModel()
-    dataModel.set("/escaped~1key", value: .string("Slash in key"))
-    dataModel.set("/tilde~0key", value: .string("Tilde in key"))
-
-    #expect(dataModel.get("/escaped~1key")?.stringValue == "Slash in key")
-    #expect(dataModel.get("/tilde~0key")?.stringValue == "Tilde in key")
-  }
-
-  @Test func pathResolution() {
-    #expect(JSONValue.absolutePath(for: "name", in: "/user") == "/user/name")
-    #expect(JSONValue.absolutePath(for: "0/item", in: "/list") == "/list/0/item")
-    #expect(JSONValue.absolutePath(for: "/root/name", in: "/user") == "/root/name")
-    #expect(JSONValue.absolutePath(for: "name", in: nil) == "/name")
-  }
-
-  @Test func dataPublisher() {
-    let dataModel = DataModel()
-    var receivedValues: [JSONValue] = []
-    var cancellables = Set<AnyCancellable>()
-
-    dataModel.dataPublisher
-      .sink { receivedValues.append($0) }
-      .store(in: &cancellables)
-
-    dataModel.set("/count", value: .integer(10))
-    dataModel.set("/count", value: .integer(20))
-
-    #expect(receivedValues.count >= 3)
-    #expect(receivedValues.last?["count"]?.intValue == 20)
+      if let expect = testCase["expect"] as? [String: Any],
+        let surfaces = expect["surfaces"] as? [String: Any]
+      {
+        for (surfaceID, rawSurfaceExp) in surfaces {
+          guard let surfaceExp = rawSurfaceExp as? [String: Any],
+            let expectedDataModel = surfaceExp["dataModel"]
+          else { continue }
+          let actual = models[surfaceID]?.get("/")
+          let expectedJSON = ConformanceTestHelper.toJSONValue(expectedDataModel)
+          #expect(
+            actual == expectedJSON,
+            "\(name) surface \(surfaceID): got \(String(describing: actual)), expected \(expectedJSON)"
+          )
+        }
+      }
+    }
   }
 }

@@ -57,7 +57,7 @@ class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
     }
   `;
 
-  protected readonly api = SliderApi;
+  protected override readonly api = SliderApi;
 
   override render() {
     const props = this.controller.props;

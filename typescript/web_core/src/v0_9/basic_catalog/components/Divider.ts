@@ -52,7 +52,7 @@ class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof DividerApi> {
     }
   `;
 
-  protected readonly api = DividerApi;
+  protected override readonly api = DividerApi;
 
   override render() {
     const props = this.controller.props;

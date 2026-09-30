@@ -18,7 +18,7 @@ import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, before, after} from 'node:test';
 import {MessageProcessor, Catalog} from '@a2ui/web_core/v0_9';
-import type {LitComponentApi} from '@a2ui/lit/v0_9';
+import type {LitComponentApi} from '../index.js';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
 
 import {z} from 'zod';

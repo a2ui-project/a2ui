@@ -14,8 +14,19 @@
 
 import 'package:collection/collection.dart';
 
+import 'errors.dart';
+
 /// A class for handling JSON Pointer (RFC 6901) paths.
 class DataPath {
+  /// The canonical root path (`/`).
+  static final DataPath root = DataPath(const []);
+
+  static const Set<String> _forbiddenKeys = {
+    '__proto__',
+    'constructor',
+    'prototype',
+  };
+
   final List<String> segments;
 
   DataPath(this.segments);
@@ -26,22 +37,20 @@ class DataPath {
       return DataPath([]);
     }
 
-    var normalized = path;
-    if (path.startsWith('/')) {
-      normalized = path.substring(1);
-    }
+    final List<String> segments = path
+        .split('/')
+        .where((s) => s.isNotEmpty)
+        .map((s) => s.replaceAll('~1', '/').replaceAll('~0', '~'))
+        .toList();
 
-    if (normalized.endsWith('/')) {
-      normalized = normalized.substring(0, normalized.length - 1);
+    for (final segment in segments) {
+      if (_forbiddenKeys.contains(segment)) {
+        throw A2uiDataError(
+          "Forbidden path segment '$segment' in path '$path'.",
+          path: path,
+        );
+      }
     }
-
-    if (normalized.isEmpty) {
-      return DataPath([]);
-    }
-
-    final List<String> segments = normalized.split('/').map((s) {
-      return s.replaceAll('~1', '/').replaceAll('~0', '~');
-    }).toList();
 
     return DataPath(segments);
   }

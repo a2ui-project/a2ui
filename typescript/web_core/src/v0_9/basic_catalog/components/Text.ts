@@ -98,7 +98,7 @@ class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof TextApi> {
   @consume({context: Context.markdown, subscribe: true})
   markdownRenderer: MarkdownRenderer | undefined;
 
-  protected readonly api = TextApi;
+  protected override readonly api = TextApi;
 
   override render() {
     const props = this.controller.props;

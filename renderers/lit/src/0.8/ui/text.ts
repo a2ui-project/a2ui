@@ -51,7 +51,7 @@ export class Text extends Root {
   @consume({context: Context.markdown})
   accessor markdownRenderer: Types.MarkdownRenderer | undefined = undefined;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       :host {
@@ -152,7 +152,7 @@ export class Text extends Root {
     return additionalStyles;
   }
 
-  render() {
+  override render() {
     const classes = Styles.merge(
       this.theme.components.Text.all,
       this.usageHint ? this.theme.components.Text[this.usageHint] : {},
