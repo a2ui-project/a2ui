@@ -15,6 +15,8 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
+import '../inference_formats/direct_json/format.dart';
+import '../utils/catalog_resolver.dart';
 import 'catalog_config.dart';
 import 'processor.dart';
 
@@ -26,58 +28,38 @@ class A2uiGenerator {
   /// The catalogs the agent supports.
   final List<CatalogConfig> catalogs;
 
-  /// The format the LLM writes payloads in.
+  /// Example turns the prompt shows the model, in order. Each is the list of
+  /// messages making up one turn.
   ///
-  /// Required rather than defaulted: the format decides what the LLM is taught
-  /// and how its response is read, so the agent names it explicitly.
+  /// Checked against the active catalogs each time a processor is created.
+  final List<List<AgentToRendererMessage>> examples;
+
+  /// The format the LLM writes payloads in, unless [createProcessor] is given
+  /// another.
   final InferenceFormatFactory inferenceFormatFactory;
 
-  A2uiGenerator({required this.catalogs, required this.inferenceFormatFactory});
+  A2uiGenerator({
+    required this.catalogs,
+    this.examples = const [],
+    this.inferenceFormatFactory = const DirectJsonFormatFactory(),
+  });
 
   /// Creates a processor for a renderer that declared [rendererCapabilities].
   ///
-  /// The active catalogs are the registered ones the renderer supports for
-  /// protocol v0.9, in the renderer's preference order. Inline catalogs are
-  /// not accepted, so any the renderer sends are ignored.
+  /// The active catalogs are those [resolveCatalogs] returns, which does not
+  /// accept inline catalogs here. [inferenceFormatFactory] overrides the
+  /// generator's format for this processor.
   ///
   /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
-  /// for v0.9, and [A2uiCatalogError] if no registered catalog is supported by
-  /// the renderer.
+  /// for v0.9, [A2uiCatalogError] if no registered catalog is supported by the
+  /// renderer, and the [A2uiError] a renderer would report for an example the
+  /// active catalogs cannot render.
   A2uiRequestProcessor createProcessor(
-    A2uiRendererCapabilities rendererCapabilities,
-  ) {
-    const A2uiProtocolVersion version = A2uiProtocolVersion.v0_9;
-    final A2uiVersionCapabilities? capabilities = rendererCapabilities
-        .forVersion(version);
-    if (capabilities == null) {
-      throw A2uiValidationError(
-        'Renderer capabilities declare nothing for ${version.jsonValue}, the '
-        'only version this SDK supports.',
-        details: rendererCapabilities.toJson(),
-      );
-    }
-
-    final Map<String, SchemaCatalog> registered = {
-      for (final CatalogConfig config in catalogs)
-        config.catalog.id: config.catalog,
-    };
-    final List<SchemaCatalog> active = [
-      ...{
-        for (final String id in capabilities.supportedCatalogIds)
-          ?registered[id],
-      },
-    ];
-    if (active.isEmpty) {
-      throw A2uiCatalogError(
-        'The renderer supports none of the catalogs registered with this '
-        'agent. Renderer: ${capabilities.supportedCatalogIds}; agent: '
-        '${registered.keys.toList()}.',
-      );
-    }
-
-    return A2uiRequestProcessor(
-      activeCatalogs: active,
-      formatFactory: inferenceFormatFactory,
-    );
-  }
+    A2uiRendererCapabilities rendererCapabilities, {
+    InferenceFormatFactory? inferenceFormatFactory,
+  }) => A2uiRequestProcessor(
+    activeCatalogs: resolveCatalogs(catalogs, rendererCapabilities),
+    examples: examples,
+    formatFactory: inferenceFormatFactory ?? this.inferenceFormatFactory,
+  );
 }
