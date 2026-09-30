@@ -22,7 +22,7 @@ import {
   ComponentApi,
   FunctionImplementation,
 } from '../internal/web_core.js';
-import {InferenceFormatFactory, InferenceFormat} from '../inference_format/base.js';
+import {InferenceFormatFactory, InferenceFormat} from '../inference-format.js';
 import {ResponsePart} from '../parser/response_part.js';
 import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
 import {Parser} from '../parser/parser.js';

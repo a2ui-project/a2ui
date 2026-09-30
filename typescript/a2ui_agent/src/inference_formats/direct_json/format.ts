@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {InferenceFormat, InferenceFormatFactory} from '../../inference_format/base.js';
+import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
 import {SchemaCatalog} from '../../types.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {Parser} from '../../parser/parser.js';

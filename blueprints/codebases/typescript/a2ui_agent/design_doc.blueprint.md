@@ -153,8 +153,7 @@ typescript/a2ui_agent/
 │   │   ├── processor.ts         # A2uiRequestProcessor
 │   │   ├── generator.ts         # A2uiGenerator
 │   │   └── catalog_providers.ts # CatalogProvider implementations
-│   ├── inference_format/
-│   │   └── base.ts              # InferenceFormat & InferenceFormatFactory
+│   ├── inference-format.ts      # InferenceFormat & InferenceFormatFactory
 │   ├── inference_formats/
 │   │   ├── direct_json/         # Self-contained Direct JSON package
 │   │   │   ├── format.ts        # DirectJsonFormat, DirectJsonFormatFactory
