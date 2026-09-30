@@ -327,7 +327,7 @@ export class ExpressCompiler {
     isFinal = true,
     version?: string,
   ): AgentToRendererMessage[] {
-    const targetVersion = version ?? this.version;
+    const targetVersion = version ? resolveExpressVersion(this.catalogs, version) : this.version;
     const ctx = new CompileContext();
 
     // Sentinel tag stripping (compiler.py:235-254; load-bearing per plan §9)

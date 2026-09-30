@@ -152,6 +152,7 @@ function localRef(sub: unknown): string | undefined {
 function standardDefsFor(protocolVersion: string): Record<string, unknown> {
   switch (toWireProtocolVersion(protocolVersion)) {
     case 'v0.9':
+    case 'v0.9.1':
       return V09_STANDARD_DEFS;
     case 'v1.0':
       return V10_STANDARD_DEFS;
