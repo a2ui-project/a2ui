@@ -63,10 +63,10 @@ export interface DirectJsonStreamProcessor {
  */
 export interface DirectJsonStreamProcessorFactory {
   /**
-   * Creates a new stream processor for the given catalog.
+   * Creates a new stream processor for the given catalogs.
    */
   createStreamProcessor(
-    catalog: SchemaCatalog,
+    catalogs: SchemaCatalog[],
     options?: DirectJsonStreamProcessorOptions,
   ): DirectJsonStreamProcessor;
 }

@@ -16,14 +16,25 @@
 
 import {describe, test, expect} from 'vitest';
 import {DirectJsonStreamProcessorImpl} from '../../../../src/inference_formats/direct_json/streaming.js';
+import {A2uiCatalogError} from '../../../../src/errors.js';
 import {SchemaCatalog} from '../../../../src/types.js';
 import {
   A2uiValidationError,
   Catalog,
   ComponentApi,
+  ComponentRefMap,
   STRICT_VALIDATION,
 } from '../../../../src/internal/web_core.js';
 import {z} from 'zod';
+
+/** Replaces the child reference map the processor built for a catalog. */
+function overrideRefMap(
+  processor: DirectJsonStreamProcessorImpl,
+  catalog: SchemaCatalog,
+  refMap: ComponentRefMap,
+): void {
+  (processor as unknown as {refMaps: Map<string, ComponentRefMap>}).refMaps.set(catalog.id, refMap);
+}
 
 describe('Direct JSON Streaming protocol version and placeholder', () => {
   test('synthesised partial messages carry protocolVersion from catalog instead of hardcoded v1.0', () => {
@@ -37,11 +48,11 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
     // The input omits `version` on purpose: the assertion is that the emitted version comes
     // from the catalog, which it could not prove if the input carried a version to echo.
     // Real envelopes require `version`, so this test passes no validation config.
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
-    (processor as unknown as {refMap: unknown}).refMap = {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    overrideRefMap(processor, catalog, {
       Row: {singleRefs: new Set(), listRefs: new Set(['children'])},
       Text: {singleRefs: new Set(), listRefs: new Set()},
-    };
+    });
 
     // Test synthesized updateComponents partial message
     const compChunk =
@@ -72,16 +83,16 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
       [{name: 'Row', schema: {}} as ComponentApi, {name: 'Card', schema: {}} as ComponentApi],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
     expect((processor as unknown as {placeholderComponent: unknown}).placeholderComponent).toEqual({
       component: 'Row',
       children: [],
     });
 
-    (processor as unknown as {refMap: unknown}).refMap = {
+    overrideRefMap(processor, catalog, {
       Card: {singleRefs: new Set(['child']), listRefs: new Set()},
       Row: {singleRefs: new Set(), listRefs: new Set()},
-    };
+    });
 
     const chunk =
       '<a2ui-json>[{"createSurface": {"surfaceId": "s1", "root": "c1"}}, {"updateComponents": {"surfaceId": "s1", "components": [{"id": "c1", "component": "Card", "child": "pending_child"}]}}]</a2ui-json>';
@@ -118,10 +129,10 @@ describe('Direct JSON Streaming required fields guard', () => {
       ],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
-    (processor as unknown as {refMap: unknown}).refMap = {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    overrideRefMap(processor, catalog, {
       AudioPlayer: {singleRefs: new Set(), listRefs: new Set()},
-    };
+    });
 
     // First chunk creates surface
     processor.processChunk(
@@ -156,10 +167,10 @@ describe('Direct JSON Streaming required fields guard', () => {
       ],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
-    (processor as unknown as {refMap: unknown}).refMap = {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    overrideRefMap(processor, catalog, {
       AudioPlayer: {singleRefs: new Set(), listRefs: new Set()},
-    };
+    });
 
     // First chunk creates surface
     processor.processChunk(
@@ -202,10 +213,10 @@ describe('Direct JSON Streaming required fields guard', () => {
       ],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
-    (processor as unknown as {refMap: unknown}).refMap = {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    overrideRefMap(processor, catalog, {
       Card: {singleRefs: new Set(['child']), listRefs: new Set()},
-    };
+    });
 
     processor.processChunk(
       '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}},',
@@ -239,10 +250,10 @@ describe('Direct JSON Streaming required fields guard', () => {
       ],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
-    (processor as unknown as {refMap: unknown}).refMap = {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    overrideRefMap(processor, catalog, {
       Card: {singleRefs: new Set(['child']), listRefs: new Set()},
-    };
+    });
 
     processor.processChunk(
       '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}},',
@@ -288,12 +299,12 @@ describe('Direct JSON Streaming required fields guard', () => {
       ],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
-    (processor as unknown as {refMap: unknown}).refMap = {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    overrideRefMap(processor, catalog, {
       Card: {singleRefs: new Set(['child']), listRefs: new Set()},
       Text: {singleRefs: new Set(), listRefs: new Set()},
       Row: {singleRefs: new Set(), listRefs: new Set(['children'])},
-    };
+    });
 
     processor.processChunk('<a2ui-json>[');
     processor.processChunk(
@@ -350,7 +361,7 @@ describe('Direct JSON Streaming required fields guard', () => {
       ],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
     processor.processChunk(
       '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}},',
     );
@@ -399,7 +410,7 @@ describe('Direct JSON Streaming required fields guard', () => {
       ],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
     processor.processChunk(
       '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}},',
     );
@@ -460,7 +471,7 @@ describe('Direct JSON Streaming required fields guard', () => {
       [],
     );
 
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
     const refMap = (
       processor as unknown as {
         refMap: Record<string, {singleRefs: Set<string>; listRefs: Set<string>}>;
@@ -506,23 +517,63 @@ describe('Direct JSON Streaming validation config', () => {
     '<a2ui-json>[{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>';
 
   test('does not validate envelopes without a validation config', () => {
-    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
     expect(() => processor.processChunk(missingVersion)).not.toThrow();
   });
 
   test('validates envelopes against the protocol schema with a validation config', () => {
-    const processor = new DirectJsonStreamProcessorImpl(catalog, {
+    const processor = new DirectJsonStreamProcessorImpl([catalog], {
       validationConfig: STRICT_VALIDATION,
     });
     expect(() => processor.processChunk(missingVersion)).toThrow(A2uiValidationError);
   });
 
   test('rejects message types outside allowedMessages', () => {
-    const processor = new DirectJsonStreamProcessorImpl(catalog, {
+    const processor = new DirectJsonStreamProcessorImpl([catalog], {
       validationConfig: {...STRICT_VALIDATION, allowedMessages: ['createSurface']},
     });
     expect(() => processor.processChunk(deleteSurface)).toThrow(
       "Message type 'deleteSurface' is not permitted by ValidationConfig.allowedMessages",
     );
+  });
+});
+
+describe('Direct JSON Streaming with several catalogs', () => {
+  const catalogV09: SchemaCatalog = new Catalog(
+    'https://test.com/v09.json',
+    'v0.9',
+    [{name: 'Text', schema: {}} as ComponentApi],
+    [],
+  );
+  const catalogV10: SchemaCatalog = new Catalog(
+    'https://test.com/v10.json',
+    'v1.0',
+    [{name: 'Text', schema: {}} as ComponentApi],
+    [],
+  );
+
+  function partialDataModelVersion(catalogId: string): unknown {
+    const processor = new DirectJsonStreamProcessorImpl([catalogV09, catalogV10]);
+    const chunk =
+      `<a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId": "${catalogId}"}}, ` +
+      '{"updateDataModel": {"surfaceId": "s1", "value": {"counter": 42';
+    const message = processor
+      .processChunk(chunk)
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui)
+      .find(m => 'updateDataModel' in m);
+    return (message as Record<string, unknown> | undefined)?.version;
+  }
+
+  test('throws without a catalog', () => {
+    expect(() => new DirectJsonStreamProcessorImpl([])).toThrow(A2uiCatalogError);
+  });
+
+  test('uses the catalog the surface names', () => {
+    expect(partialDataModelVersion('https://test.com/v10.json')).toBe('v1.0');
+  });
+
+  test('uses the first catalog when the surface names an unknown one', () => {
+    expect(partialDataModelVersion('https://test.com/other.json')).toBe('v0.9');
   });
 });

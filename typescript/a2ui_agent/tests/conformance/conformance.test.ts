@@ -221,7 +221,7 @@ describe('Conformance Harness', () => {
           'text',
           'literalString',
         ];
-        const processor = new DirectJsonStreamProcessorImpl(catalog, {
+        const processor = new DirectJsonStreamProcessorImpl([catalog], {
           progressiveKeys,
           // The legacy suite's disableValidation predates ValidationConfig. Omitting the
           // config turns validation off, as it does for web_core's MessageProcessor.
