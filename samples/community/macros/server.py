@@ -16,10 +16,8 @@
 
 from __future__ import annotations
 
-import glob
 import inspect
 import os
-from pathlib import Path
 import time
 from typing import Any, Dict, List
 from fastapi import FastAPI, HTTPException
@@ -28,14 +26,16 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
-import json
 
-from macro_definitions import (
+from macros import (
     ALL_MACROS,
-    EMPLOYEE_COMPENSATION_DB,
     SalaryCard,
-    fetch_employee_compensation,
     render_payroll_summary,
+)
+from services import (
+    EMPLOYEE_COMPENSATION_DB,
+    employee_service,
+    fetch_employee_compensation,
 )
 from macro_runtime import MacroAgentRuntime
 
@@ -383,7 +383,7 @@ def list_macros():
 
 @app.post("/macros/{macro_id}/resolve")
 @app.post("/api/macros/{macro_id}/resolve")
-def resolve_macro(macro_id: str, req: DynamicResolveRequest):
+async def resolve_macro(macro_id: str, req: DynamicResolveRequest):
     if not runtime.has_macro(macro_id):
         raise HTTPException(status_code=404, detail="Macro not found")
 
@@ -414,7 +414,8 @@ def resolve_macro(macro_id: str, req: DynamicResolveRequest):
             }
         elif macro_id == "EmployeeSalaryCard":
             emp_id = req.params.get("employeeId", "emp_101")
-            resolved_data = fetch_employee_compensation(emp_id)
+            # Simulate async database lookup to demonstrate asynchronous service queries
+            resolved_data = await employee_service.get_employee_async(emp_id)
 
         return {
             "expandedComponents": expanded_components,

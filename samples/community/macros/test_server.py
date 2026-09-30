@@ -240,3 +240,31 @@ def test_team_card_with_referenced_members():
     team_card = comp_by_id["team"]
     team_column = comp_by_id[team_card["child"]]
     assert "u1" in team_column["children"]
+
+
+@pytest.mark.asyncio
+async def test_employee_service_async():
+    """Verifies that EmployeeDatabaseService supports asynchronous simulated lookups."""
+    from services import employee_service
+
+    emp = await employee_service.get_employee_async("emp_101", delay_seconds=0.01)
+    assert emp["employeeName"] == "Dr. Elena Vance"
+    assert emp["baseSalary"] == "$215,000"
+
+    all_emps = await employee_service.get_all_async(delay_seconds=0.01)
+    assert "emp_101" in all_emps
+    assert "emp_104" in all_emps
+
+
+def test_resolve_macro_endpoint_async(client):
+    """Verifies that the /macros/{macro_id}/resolve endpoint executes async service lookups successfully."""
+    response = client.post(
+        "/macros/EmployeeSalaryCard/resolve",
+        json={"params": {"employeeId": "emp_103"}},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["resolvedData"]["employeeName"] == "Aria Chen"
+    assert data["resolvedData"]["role"] == "Head of Design Systems"
+    assert len(data["expandedComponents"]) > 0
+    assert len(data["sampleMessages"]) == 2

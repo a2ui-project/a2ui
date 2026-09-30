@@ -138,9 +138,7 @@ async function runE2ETest() {
 
     // 4. Test Macro Library Screen
     console.log('\n👉 Testing Macro Library Studio...');
-    const libraryTabBtn = page.locator(
-      'button:has-text("Library"), button:has-text("Studio")',
-    );
+    const libraryTabBtn = page.locator('button:has-text("Library"), button:has-text("Studio")');
     await libraryTabBtn.click();
     await page.waitForTimeout(1000);
 

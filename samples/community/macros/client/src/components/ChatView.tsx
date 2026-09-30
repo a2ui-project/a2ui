@@ -19,6 +19,7 @@ import {MessageProcessor} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 import {FeedItem} from '../types';
 import {A2UI_THEME_VARS} from '../theme';
+import {API_BASE_URL} from '../config';
 
 const PRESET_BUTTONS = [
   {
@@ -137,7 +138,7 @@ export function ChatView() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/interact', {
+      const res = await fetch(`${API_BASE_URL}/interact`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -184,7 +185,7 @@ export function ChatView() {
         {
           id: `assistant_${Date.now()}`,
           type: 'assistant',
-          text: `Error contacting server: ${err.message}. Make sure the FastAPI server is running on http://127.0.0.1:8000.`,
+          text: `Error contacting server: ${err.message}. Make sure the FastAPI server is running on ${API_BASE_URL}.`,
           surfaceId,
         },
       ]);

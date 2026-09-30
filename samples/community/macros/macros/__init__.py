@@ -12,42 +12,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI UI Macros facade.
+"""A2UI Community UI Macros package.
 
-Re-exports all modular macro definitions from the `macros` package and mock
-database operations from the `services` package.
+Exposes modular macro definitions organized with one macro per module file.
 """
 
 from __future__ import annotations
 
-from macros import (
-    ALL_MACROS,
-    EmployeeSalaryCard,
+from macros.employee_salary_card import EmployeeSalaryCard
+from macros.feedback_item import FeedbackItem
+from macros.goal_item import GoalItem
+from macros.payroll_summary import PayrollSummary, render_payroll_summary
+from macros.salary_card import SalaryCard
+from macros.section_card import SectionCard
+from macros.team_card import TeamCard
+from macros.team_feedback_board import TeamFeedbackBoard
+from macros.team_goal_list import TeamGoalList
+from macros.team_member_knowledge_panel import TeamMemberKnowledgePanel
+from macros.team_roster import TeamRoster
+from macros.two_column_layout import TwoColumnLayout
+from macros.user_profile import UserProfile
+
+ALL_MACROS = [
+    SalaryCard,
+    UserProfile,
     FeedbackItem,
     GoalItem,
-    PayrollSummary,
-    SalaryCard,
     SectionCard,
     TeamCard,
-    TeamFeedbackBoard,
-    TeamGoalList,
-    TeamMemberKnowledgePanel,
     TeamRoster,
+    TeamGoalList,
+    TeamFeedbackBoard,
+    TeamMemberKnowledgePanel,
     TwoColumnLayout,
-    UserProfile,
-    render_payroll_summary,
-)
-from services import (
-    EMPLOYEE_COMPENSATION_DB,
-    EmployeeDatabaseService,
-    employee_service,
-    fetch_employee_compensation,
-)
+    EmployeeSalaryCard,
+    PayrollSummary,
+]
 
 __all__ = [
     "ALL_MACROS",
-    "EMPLOYEE_COMPENSATION_DB",
-    "EmployeeDatabaseService",
     "EmployeeSalaryCard",
     "FeedbackItem",
     "GoalItem",
@@ -61,7 +64,5 @@ __all__ = [
     "TeamRoster",
     "TwoColumnLayout",
     "UserProfile",
-    "employee_service",
-    "fetch_employee_compensation",
     "render_payroll_summary",
 ]
