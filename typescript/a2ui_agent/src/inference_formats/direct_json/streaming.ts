@@ -35,7 +35,7 @@ import {
   A2uiValidationError,
 } from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
-import {A2uiIntegrityError, ParseError} from '../../errors.js';
+import {A2uiCatalogError, A2uiIntegrityError, ParseError} from '../../errors.js';
 import {isInferredChildListKey, isInferredSingleChildKey} from '../../utils/inferred-child-refs.js';
 import {validateEnvelope} from '../../utils/envelope_validation.js';
 
@@ -70,28 +70,67 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   private topologyDirty = false;
 
   private cuttableKeys: Set<string>;
-  private refMap: ComponentRefMap;
-  private requiredPropsCache = new Map<string, string[]>();
+  // Keyed by catalog id.
+  private refMaps = new Map<string, ComponentRefMap>();
+  private requiredPropsCache = new Map<string, Map<string, string[]>>();
+  // The catalog each surface named in its createSurface message.
+  private surfaceCatalogs: Record<string, SchemaCatalog> = {};
 
+  /**
+   * @param catalogs The catalogs active for this session. Each surface uses the catalog
+   *   its createSurface message names. A surface whose catalog is unknown or not yet seen
+   *   uses the first catalog.
+   * @param options Streaming and validation options.
+   * @throws {A2uiCatalogError} If `catalogs` is empty.
+   */
   constructor(
-    private readonly catalog: SchemaCatalog,
+    private readonly catalogs: SchemaCatalog[],
     private readonly options?: DirectJsonStreamProcessorOptions,
   ) {
+    if (catalogs.length === 0) {
+      throw new A2uiCatalogError('DirectJsonStreamProcessorImpl needs at least one catalog.');
+    }
     this.cuttableKeys = new Set(options?.progressiveKeys ?? []);
-    this.refMap = buildComponentRefMap(this.catalog, V10_CHILD_REF_OPTIONS);
-    this.inferMissingChildRefs();
+    for (const catalog of catalogs) {
+      const refMap = buildComponentRefMap(catalog, V10_CHILD_REF_OPTIONS);
+      this.inferMissingChildRefs(catalog, refMap);
+      this.refMaps.set(catalog.id, refMap);
+    }
+  }
+
+  /** The catalog of the surface being processed. */
+  private get catalog(): SchemaCatalog {
+    const surfaceCatalog = this.surfaceId ? this.surfaceCatalogs[this.surfaceId] : undefined;
+    return surfaceCatalog ?? this.catalogs[0];
+  }
+
+  /** The child reference map of the surface being processed. */
+  private get refMap(): ComponentRefMap {
+    return this.refMaps.get(this.catalog.id)!;
+  }
+
+  /**
+   * Records the catalog a surface named. Unknown catalog ids are ignored, so the surface
+   * keeps using the first catalog.
+   */
+  private bindSurfaceCatalog(surfaceId: string | null, catalogId: unknown) {
+    if (!surfaceId || typeof catalogId !== 'string') return;
+    const catalog = this.catalogs.find(c => c.id === catalogId);
+    if (catalog) {
+      this.surfaceCatalogs[surfaceId] = catalog;
+    }
   }
 
   /**
    * Infers child references from property names for components whose schema produced
    * no formal references. See inferred-child-refs.ts for when this applies.
    */
-  private inferMissingChildRefs() {
-    if (!this.catalog.components || typeof this.catalog.components.values !== 'function') {
+  private inferMissingChildRefs(catalog: SchemaCatalog, refMap: ComponentRefMap) {
+    if (!catalog.components || typeof catalog.components.values !== 'function') {
       return;
     }
-    for (const compApi of this.catalog.components.values()) {
-      const existing = this.refMap[compApi.name];
+    for (const compApi of catalog.components.values()) {
+      const existing = refMap[compApi.name];
       // Gate: if the catalog produced any formal refs for this component type, use ONLY those.
       if (existing && (existing.singleRefs.size > 0 || existing.listRefs.size > 0)) {
         continue;
@@ -118,7 +157,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
         }
       }
 
-      this.refMap[compApi.name] = {singleRefs, listRefs};
+      refMap[compApi.name] = {singleRefs, listRefs};
     }
   }
 
@@ -524,6 +563,15 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       this.surfaceId = surfaceIdMatches[surfaceIdMatches.length - 1][1];
     }
 
+    // Bind a surface to its catalog before its createSurface message completes, so that
+    // inline components streamed inside it are checked against the right catalog. Only
+    // the scalar fields ahead of the first nested value are read.
+    for (const match of jsonStr.matchAll(/"createSurface"\s*:\s*\{([^{}[\]]*)/g)) {
+      const surfaceId = /"surfaceId"\s*:\s*"([^"]+)"/.exec(match[1])?.[1];
+      const catalogId = /"catalogId"\s*:\s*"([^"]+)"/.exec(match[1])?.[1];
+      this.bindSurfaceCatalog(surfaceId ?? null, catalogId);
+    }
+
     const rootMatches = [...jsonStr.matchAll(/"root"\s*:\s*"([^"]+)"/g)];
     if (rootMatches.length > 0) {
       this.setRootId(rootMatches[rootMatches.length - 1][1]);
@@ -557,14 +605,19 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
    * wire. The same applies to a shape entry that does not expose `isOptional`.
    */
   private getRequiredProps(componentType: string): string[] {
-    const cached = this.requiredPropsCache.get(componentType);
+    let cache = this.requiredPropsCache.get(this.catalog.id);
+    if (!cache) {
+      cache = new Map();
+      this.requiredPropsCache.set(this.catalog.id, cache);
+    }
+    const cached = cache.get(componentType);
     if (cached !== undefined) {
       return cached;
     }
 
     const componentApi = this.catalog.components.get(componentType);
     if (!componentApi || !componentApi.schema) {
-      this.requiredPropsCache.set(componentType, []);
+      cache.set(componentType, []);
       return [];
     }
 
@@ -583,12 +636,12 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
             }
           }
         }
-        this.requiredPropsCache.set(componentType, required);
+        cache.set(componentType, required);
         return required;
       }
     }
 
-    this.requiredPropsCache.set(componentType, []);
+    cache.set(componentType, []);
     return [];
   }
 
@@ -717,6 +770,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       const val = obj[MSG_TYPE_CREATE_SURFACE];
       sid = val?.surfaceId ?? sid;
       this.surfaceId = sid;
+      this.bindSurfaceCatalog(sid, val?.catalogId);
 
       if (typeof val === 'object' && val !== null) {
         this.setRootId(val.root ?? this.getRootId());

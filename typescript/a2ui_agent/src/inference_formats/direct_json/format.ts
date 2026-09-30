@@ -43,11 +43,10 @@ export class DirectJsonFormat implements InferenceFormat {
   }
 
   createParser(): Parser {
-    const baseCatalog = this.catalogs[0];
     const streamProcessor = this.streamProcessorFactory
-      ? this.streamProcessorFactory.createStreamProcessor(baseCatalog, this.streamOptions)
+      ? this.streamProcessorFactory.createStreamProcessor(this.catalogs, this.streamOptions)
       : new DirectJsonStreamProcessorImpl(
-          baseCatalog,
+          this.catalogs,
           this.streamOptions || {
             progressiveKeys: ['text', 'literalString'],
             validationConfig: STRICT_VALIDATION,
