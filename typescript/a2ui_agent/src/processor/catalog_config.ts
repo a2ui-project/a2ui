@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {SchemaCatalog} from '../types.js';
+import {ProtocolVersion, SchemaCatalog} from '../types.js';
 import {CatalogTransformer} from '../catalog_transformers/base.js';
 import {FileSystemCatalogProvider} from './catalog_providers.js';
 
@@ -61,13 +61,17 @@ export class CatalogConfig {
    *
    * @param catalogPath Path to the catalog JSON file.
    * @param transformers Optional list of catalog transformers.
+   * @param protocolVersion Protocol version to use when the document states none.
+   * @param catalogId Catalog id to use when the document states none.
    * @returns A promise resolving to a CatalogConfig instance.
    */
   static async fromPath(
     catalogPath: string,
     transformers?: CatalogTransformer[],
+    protocolVersion?: ProtocolVersion,
+    catalogId?: string,
   ): Promise<CatalogConfig> {
-    const provider = new FileSystemCatalogProvider(catalogPath);
+    const provider = new FileSystemCatalogProvider(catalogPath, protocolVersion, catalogId);
     const catalog = await provider.load();
     return new CatalogConfig(catalog, transformers);
   }

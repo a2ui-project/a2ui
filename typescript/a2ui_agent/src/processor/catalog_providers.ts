@@ -15,39 +15,82 @@
  */
 
 import * as fs from 'fs';
-import {SchemaCatalog, ProtocolVersion} from '../types.js';
+
 import {A2uiCatalogError} from '../errors.js';
 import {Catalog, normalizeVersionString} from '../internal/web_core.js';
+import {ProtocolVersion, SchemaCatalog} from '../types.js';
 import {registerCatalogDocument} from '../utils/catalog_document.js';
+import {toWireProtocolVersion} from '../utils/protocol_version.js';
 
 /**
- * Validates a loaded catalog against expected protocol version and ID.
+ * Builds a catalog from a parsed catalog document, filling in the id and protocol version
+ * the document leaves out.
  *
- * @param catalog The loaded catalog.
- * @param expectedProtocolVersion Expected protocol version.
- * @param expectedCatalogId Expected catalog ID.
- * @throws {A2uiCatalogError} If expectations are not met.
+ * Older documents omit one or the other: v0.8 catalogs have no `catalogId`, and v0.9
+ * catalogs have no `protocolVersion`. A provider's constructor arguments supply them. When
+ * the document states a value too, the two must agree, so a provider never silently
+ * overrides what the document says. When neither states a value the load fails, because a
+ * catalog with no id cannot be addressed and one with no version would be validated
+ * against the wrong protocol.
+ *
+ * Only `catalogId` counts as the document's id. `$id` is the JSON Schema identifier of the
+ * document, which is not the same thing and is often a URL for the file.
+ *
+ * @param document The parsed catalog document.
+ * @param source Describes where the document came from, for error messages.
+ * @param protocolVersion Version to use when the document states none.
+ * @param catalogId Id to use when the document states none.
+ * @returns The catalog, with its protocol version in the `v`-prefixed wire form.
+ * @throws {A2uiCatalogError} If a value conflicts with the document, if nothing states an
+ *     id or a version, or if the document is not a valid catalog.
  */
-function validateCatalog(
-  catalog: SchemaCatalog,
-  expectedProtocolVersion?: ProtocolVersion,
-  expectedCatalogId?: string,
-): void {
-  if (expectedProtocolVersion !== undefined && catalog.protocolVersion !== undefined) {
-    const expected = normalizeVersionString(expectedProtocolVersion);
-    const actual = normalizeVersionString(catalog.protocolVersion as string);
-    if (expected !== actual) {
-      throw new A2uiCatalogError(
-        `Protocol version mismatch. Expected: ${expectedProtocolVersion}, Actual: ${catalog.protocolVersion}`,
-      );
-    }
-  }
-
-  if (expectedCatalogId !== undefined && catalog.id !== expectedCatalogId) {
+function buildCatalog(
+  document: Record<string, unknown>,
+  source: string,
+  protocolVersion?: ProtocolVersion,
+  catalogId?: string,
+): SchemaCatalog {
+  const documentId = typeof document.catalogId === 'string' ? document.catalogId : undefined;
+  if (catalogId !== undefined && documentId !== undefined && catalogId !== documentId) {
     throw new A2uiCatalogError(
-      `Catalog ID mismatch. Expected: ${expectedCatalogId}, Actual: ${catalog.id}`,
+      `Catalog ID mismatch in ${source}. Provider: ${catalogId}, document: ${documentId}`,
     );
   }
+  const id = documentId ?? catalogId;
+  if (id === undefined) {
+    throw new A2uiCatalogError(
+      `No catalog ID for ${source}: the document has no catalogId and the provider was given none.`,
+    );
+  }
+
+  const documentVersion =
+    typeof document.protocolVersion === 'string' ? document.protocolVersion : undefined;
+  if (
+    protocolVersion !== undefined &&
+    documentVersion !== undefined &&
+    normalizeVersionString(protocolVersion) !== normalizeVersionString(documentVersion)
+  ) {
+    throw new A2uiCatalogError(
+      `Protocol version mismatch in ${source}. Provider: ${protocolVersion}, document: ${documentVersion}`,
+    );
+  }
+  const version = documentVersion ?? protocolVersion;
+  if (version === undefined) {
+    throw new A2uiCatalogError(
+      `No protocol version for ${source}: the document has no protocolVersion and the provider was given none.`,
+    );
+  }
+
+  let catalog: SchemaCatalog;
+  try {
+    catalog = Catalog.fromSchema({...document, catalogId: id}, toWireProtocolVersion(version));
+  } catch (e: unknown) {
+    throw new A2uiCatalogError(
+      `Failed to build catalog from schema in ${source}: ${(e as Error).message}`,
+    );
+  }
+  registerCatalogDocument(catalog, document);
+  return catalog;
 }
 
 /**
@@ -72,9 +115,11 @@ export class FileSystemCatalogProvider implements CatalogProvider {
   /**
    * Initializes the filesystem catalog provider.
    *
-   * @param path Expected file path to load the catalog from.
-   * @param protocolVersion Expected protocol version. Throws on mismatch with the loaded catalog.
-   * @param catalogId Expected catalog ID. Throws on mismatch with the loaded catalog.
+   * @param path File path to load the catalog from.
+   * @param protocolVersion Protocol version to use when the document states none, as v0.9
+   *     documents do. Throws on load if the document states a different one.
+   * @param catalogId Catalog id to use when the document states none, as v0.8 documents
+   *     do. Throws on load if the document states a different one.
    */
   constructor(
     readonly path: string,
@@ -86,7 +131,8 @@ export class FileSystemCatalogProvider implements CatalogProvider {
    * Reads the catalog JSON file and returns a Catalog instance.
    *
    * @returns A promise resolving to the catalog instance.
-   * @throws {A2uiCatalogError} If file cannot be read, parsed, or if metadata validation fails.
+   * @throws {A2uiCatalogError} If the file cannot be read or parsed, if the id or version
+   *     conflicts with the document, or if nothing states an id or a version.
    */
   async load(): Promise<SchemaCatalog> {
     let content: string;
@@ -107,18 +153,7 @@ export class FileSystemCatalogProvider implements CatalogProvider {
       );
     }
 
-    let catalog: SchemaCatalog;
-    try {
-      catalog = Catalog.fromSchema(parsed);
-    } catch (e: unknown) {
-      throw new A2uiCatalogError(
-        `Failed to build catalog from schema in ${this.path}: ${(e as Error).message}`,
-      );
-    }
-
-    registerCatalogDocument(catalog, parsed);
-    validateCatalog(catalog, this.protocolVersion, this.catalogId);
-    return catalog;
+    return buildCatalog(parsed, this.path, this.protocolVersion, this.catalogId);
   }
 }
 
@@ -130,8 +165,10 @@ export class InMemoryCatalogProvider implements CatalogProvider {
    * Initializes the in-memory provider.
    *
    * @param catalog Raw catalog schema dictionary.
-   * @param protocolVersion Expected protocol version. Throws on mismatch with the built catalog.
-   * @param catalogId Expected catalog ID. Throws on mismatch with the built catalog.
+   * @param protocolVersion Protocol version to use when the schema states none. Throws on
+   *     load if the schema states a different one.
+   * @param catalogId Catalog id to use when the schema states none. Throws on load if the
+   *     schema states a different one.
    */
   constructor(
     readonly catalog: Record<string, unknown>,
@@ -143,20 +180,10 @@ export class InMemoryCatalogProvider implements CatalogProvider {
    * Constructs and returns a Catalog instance from the raw schema dictionary.
    *
    * @returns A promise resolving to the catalog instance.
-   * @throws {A2uiCatalogError} If schema is invalid or metadata validation fails.
+   * @throws {A2uiCatalogError} If the schema is invalid, if the id or version conflicts
+   *     with it, or if nothing states an id or a version.
    */
   async load(): Promise<SchemaCatalog> {
-    let parsedCatalog: SchemaCatalog;
-    try {
-      parsedCatalog = Catalog.fromSchema(this.catalog);
-    } catch (e: unknown) {
-      throw new A2uiCatalogError(
-        `Failed to build catalog from in-memory schema: ${(e as Error).message}`,
-      );
-    }
-
-    registerCatalogDocument(parsedCatalog, this.catalog);
-    validateCatalog(parsedCatalog, this.protocolVersion, this.catalogId);
-    return parsedCatalog;
+    return buildCatalog(this.catalog, 'in-memory schema', this.protocolVersion, this.catalogId);
   }
 }

@@ -26,20 +26,7 @@ import {
 } from './suite-helpers.js';
 
 /** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([
-  [
-    'test_file_system_provider_loads_catalog',
-    'the catalog reports the version as the document spells it, 1.0, not v1.0',
-  ],
-  [
-    'test_provider_supplies_what_the_document_omits',
-    'the provider validates its id and version but does not fill them in',
-  ],
-  [
-    'test_provider_version_agrees_with_document',
-    'the catalog reports the version as the document spells it, 1.0, not v1.0',
-  ],
-]);
+const KNOWN_FAILURES = new Map<string, string>([]);
 
 describe('Conformance: catalog_provider.yaml', () => {
   for (const testCase of loadCases([conformancePath('agent/catalog_provider.yaml')])) {

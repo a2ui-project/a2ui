@@ -22,7 +22,6 @@ import {
   DEFAULT_WORKFLOW_RULES,
 } from '../../parser/constants.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
-import {DEFAULT_PROTOCOL_VERSION} from '../../utils/protocol_version.js';
 import {getProtocolSchemas} from '../../utils/protocol_schemas.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
@@ -54,7 +53,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     // A failure to load the protocol schemas is not something to paper over. Emitting the
     // block with an empty server-to-client schema would produce a prompt that looks valid
     // and instructs the model to generate against nothing, which fails far from the cause.
-    const version = catalog.protocolVersion || DEFAULT_PROTOCOL_VERSION;
+    const version = catalog.protocolVersion;
     const schemas = getProtocolSchemas(version);
 
     const allSchemas: string[] = [A2UI_SCHEMA_BLOCK_START];

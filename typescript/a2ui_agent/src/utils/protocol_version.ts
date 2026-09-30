@@ -14,16 +14,8 @@
  * limitations under the License.
  */
 
+import {A2uiCatalogError} from '../errors.js';
 import {normalizeVersionString, ProtocolVersion} from '../internal/web_core.js';
-
-/**
- * Protocol version assumed when a catalog does not declare one.
- *
- * Catalogs compiled into web_core always carry a `protocolVersion`, but the field is
- * optional on `Catalog`, and the v0.9 catalog JSON omits it entirely. This constant is the
- * single place that decides what an undeclared version means.
- */
-export const DEFAULT_PROTOCOL_VERSION = 'v1.0' as ProtocolVersion;
 
 /**
  * Converts a catalog's declared protocol version into the form that goes on the wire.
@@ -31,8 +23,16 @@ export const DEFAULT_PROTOCOL_VERSION = 'v1.0' as ProtocolVersion;
  * Catalogs spell the version inconsistently: the compiled v1.0 catalog says `v1.0`, the
  * catalog JSON says `1.0`, and directory-derived values say `v1_0`. Protocol messages
  * always carry the `v`-prefixed dotted form, so normalise on the way out.
+ *
+ * There is deliberately no default. A version has to be stated by whoever supplies the
+ * catalog, so a new protocol release never needs a hardcoded default bumped.
+ *
+ * @throws {A2uiCatalogError} If `raw` is empty or missing.
  */
 export function toWireProtocolVersion(raw: string | undefined | null): ProtocolVersion {
   const normalized = normalizeVersionString(raw);
-  return normalized ? (`v${normalized}` as ProtocolVersion) : DEFAULT_PROTOCOL_VERSION;
+  if (!normalized) {
+    throw new A2uiCatalogError('A protocol version is required, but none was given.');
+  }
+  return `v${normalized}` as ProtocolVersion;
 }
