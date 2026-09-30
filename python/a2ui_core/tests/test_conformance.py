@@ -582,6 +582,10 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_from_json_case(case)
     elif action == "catalog_schema":
         validate_catalog_schema_case(case)
+    elif action == "common_types_schema":
+        validate_common_types_schema_case(case)
+    elif action == "validate_common_type":
+        validate_common_type_case(case)
     elif action == "validate":
         validate_pure_validation_case(case)
     elif action == "process_messages":
@@ -988,6 +992,52 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
     if expected is not None:
         assert _normalize_schema_for_comparison(cat.catalog_schema) == (
             _normalize_schema_for_comparison(expected)
+        )
+
+
+def validate_common_types_schema_case(case: dict[str, Any]) -> None:
+    from a2ui.core.catalog import get_common_types_schema_json
+
+    generated = json.loads(get_common_types_schema_json(resolve_protocol_version(case)))
+    exp_path = os.path.join(CONFORMANCE_ROOT, "..", case["expectFile"])
+    with open(exp_path, "r", encoding="utf-8") as f:
+        expected = json.load(f)
+    assert json.dumps(generated, indent=2, sort_keys=True) == json.dumps(
+        expected, indent=2, sort_keys=True
+    )
+
+
+def validate_common_type_case(case: dict[str, Any]) -> None:
+    from pydantic import TypeAdapter
+
+    from a2ui.core.schema import v0_9 as schema_v0_9, v1_0 as schema_v1_0
+
+    schema_packages = {"v0.9": schema_v0_9, "v0.9.1": schema_v0_9, "v1.0": schema_v1_0}
+    p_ver = resolve_protocol_version(case)
+    assert (
+        p_ver in schema_packages
+    ), f"validate_common_type does not support protocolVersion {p_ver!r}"
+    schema_pkg = schema_packages[p_ver]
+    definition = case["definition"]
+    assert (
+        definition in schema_pkg.COMMON_TYPES_DEFS
+    ), f"'{definition}' is not a common types definition in {p_ver}"
+    adapter: TypeAdapter[Any] = TypeAdapter(schema_pkg.COMMON_TYPES_DEFS[definition])
+
+    for step in case["steps"]:
+        value = step["value"]
+        expect_error = step.get("expectError")
+        if expect_error:
+            with assert_raises(expect_error):
+                adapter.validate_python(value)
+            continue
+        validated = adapter.validate_python(value)
+        # A valid value serializes back to the same JSON.
+        assert (
+            adapter.dump_python(
+                validated, mode="json", by_alias=True, exclude_unset=True
+            )
+            == value
         )
 
 

@@ -39,6 +39,7 @@
           "enum": [
             "accessibility_check",
             "catalog_schema",
+            "common_types_schema",
             "compile",
             "convert_event",
             "core_syntax",
@@ -82,6 +83,7 @@
             "try_activate_extension",
             "unwrap",
             "validate",
+            "validate_common_type",
             "verify_cuttable_keys",
             "wrap"
           ],
@@ -201,6 +203,10 @@
         "expectFile": {
           "type": "string",
           "description": "File path to JSON file containing expected outcome object."
+        },
+        "definition": {
+          "type": "string",
+          "description": "Name of the common types $defs entry that validate_common_type validates each step's value against."
         },
         "initial": {
           "description": "Initial contents of the data model. Defaults to an empty object."
