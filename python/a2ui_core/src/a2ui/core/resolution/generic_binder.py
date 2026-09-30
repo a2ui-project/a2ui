@@ -385,8 +385,7 @@ class GenericBinder:
                     else value
                 )
                 if isinstance(fc.get("call"), str):
-                    self.context.data_context.resolve_dynamic_value(fc)
-                    return None
+                    return self.context.data_context.resolve_dynamic_value(fc)
             resolved = self.context.data_context.resolve_action(value)
             return self.context.dispatch_action(resolved)
 
