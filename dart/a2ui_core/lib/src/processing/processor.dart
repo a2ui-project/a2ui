@@ -415,7 +415,8 @@ class MessageProcessor<T extends ComponentApi> {
     final List<Map<String, Object?>> mergedCandidate =
         mergedById.values.toList();
 
-    // Check cycles and recursion depth over the candidate graph before mutation.
+    // Check cycles and recursion depth over the candidate graph before
+    // mutation.
     checkComponentTopology(
       mergedCandidate,
       refFields,
@@ -425,7 +426,7 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   void _checkCreatedSurfaces(Set<String> createdSurfaceIds) {
-    for (final String surfaceId in createdSurfaceIds) {
+    for (final surfaceId in createdSurfaceIds) {
       final SurfaceModel<T>? surface = groupModel.getSurface(surfaceId);
       if (surface == null) continue;
       final List<Map<String, Object?>> components = [
