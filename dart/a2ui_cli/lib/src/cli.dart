@@ -55,10 +55,14 @@ Future<int> runCli(List<String> args) async {
         'Generates typesafe A2UI component libraries from catalog schemas.\n\n'
         'Options:\n'
         '  -c, --catalog <path>       Path to the catalog JSON Schema file.\n'
-        '  -o, --out <dir>            Output directory or file where generated code will be written.\n'
-        '  --lang <language>          Target language for code generation (default: "python")\n'
-        '  --base-import <module>     Base module from which ComponentBuilderNode, etc. are imported.\n'
-        '  --catalog-name <name>      Override the inferred catalog module name.\n'
+        '  -o, --out <dir>            '
+        'Output directory or file where generated code will be written.\n'
+        '  --lang <language>          '
+        'Target language for code generation (default: "python")\n'
+        '  --base-import <module>     '
+        'Base module from which ComponentBuilderNode, etc. are imported.\n'
+        '  --catalog-name <name>      '
+        'Override the inferred catalog module name.\n'
         '  -h, --help                 display help for command',
       );
       return 0;
@@ -84,11 +88,11 @@ Future<int> runCli(List<String> args) async {
     ).firstMatch(e.message);
     if (unknownOpt != null) {
       final String name = unknownOpt.group(1)!;
-      final String formatted = name.startsWith('-') ? name : '--$name';
+      final formatted = name.startsWith('-') ? name : '--$name';
       stderr.writeln("error: unknown option '$formatted'");
     } else if (unknownFlag != null) {
       final String name = unknownFlag.group(1)!;
-      final String formatted = name.startsWith('-') ? name : '-$name';
+      final formatted = name.startsWith('-') ? name : '-$name';
       stderr.writeln("error: unknown option '$formatted'");
     } else {
       stderr.writeln(e.message);

@@ -19,6 +19,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../analyzer/catalog_analyzer.dart';
+import '../analyzer/types.dart';
 import '../emitters/python/python_emitter.dart';
 
 class CodegenCommand extends Command<int> {
@@ -72,7 +73,7 @@ class CodegenCommand extends Command<int> {
       return 1;
     }
 
-    final catalogPath = p.canonicalize(catalogArg);
+    final String catalogPath = p.canonicalize(catalogArg);
     final catalogFile = File(catalogPath);
     if (!catalogFile.existsSync()) {
       stderr.writeln('Error: Catalog file not found at: $catalogPath');
@@ -81,23 +82,23 @@ class CodegenCommand extends Command<int> {
 
     Map<String, dynamic> catalogJson;
     try {
-      final rawContent = catalogFile.readAsStringSync();
+      final String rawContent = catalogFile.readAsStringSync();
       catalogJson = jsonDecode(rawContent) as Map<String, dynamic>;
     } catch (e) {
       stderr.writeln('Error reading or parsing catalog JSON: $e');
       return 1;
     }
 
-    final lang = argResults?['lang'] as String? ?? 'python';
+    final String lang = argResults?['lang'] as String? ?? 'python';
     if (lang != 'python') {
       stderr.writeln('Unsupported target language: $lang');
       return 1;
     }
 
-    final catalog = Catalog.fromJson(catalogJson);
-    final analysed = CatalogAnalyzer.analyze(catalog);
+    final SchemaCatalog catalog = Catalog.fromJson(catalogJson);
+    final AnalysedCatalog analysed = CatalogAnalyzer.analyze(catalog);
 
-    final outPath = p.canonicalize(outArg);
+    final String outPath = p.canonicalize(outArg);
     final baseImport = argResults?['base-import'] as String?;
     final catalogName = argResults?['catalog-name'] as String?;
 
@@ -107,7 +108,7 @@ class CodegenCommand extends Command<int> {
       catalogName: catalogName,
     );
 
-    final written = emitter.emit(outPath);
+    final List<String> written = emitter.emit(outPath);
     stdout.writeln('Successfully generated ${written.length} file(s):');
     for (final f in written) {
       stdout.writeln('  - $f');

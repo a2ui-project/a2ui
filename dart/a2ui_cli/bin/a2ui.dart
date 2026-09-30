@@ -16,6 +16,6 @@ import 'dart:io';
 import 'package:a2ui_cli/src/cli.dart';
 
 Future<void> main(List<String> args) async {
-  final exitCode = await runCli(args);
+  final int exitCode = await runCli(args);
   exit(exitCode);
 }

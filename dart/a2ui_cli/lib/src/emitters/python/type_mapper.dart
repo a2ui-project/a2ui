@@ -57,7 +57,7 @@ String sanitizeIdent(String name) {
 }
 
 String toSnakeCase(String name) {
-  final snake = name
+  final String snake = name
       .replaceAllMapped(
         RegExp(r'([a-z0-9])([A-Z])'),
         (Match m) => '${m[1]}_${m[2]}',
@@ -104,7 +104,7 @@ String typeToPython(TypeDescriptor desc) {
     case ObjectModelType(:final name):
       return name;
     case DynamicType(:final inner):
-      final innerPy = typeToPython(inner);
+      final String innerPy = typeToPython(inner);
       return '$innerPy | DataBinding | FunctionCall';
     case ActionType():
       return 'Action';

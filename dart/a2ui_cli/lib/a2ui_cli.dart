@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-library a2ui_cli;
-
 export 'src/analyzer/catalog_analyzer.dart';
 export 'src/analyzer/types.dart';
 export 'src/cli.dart';
