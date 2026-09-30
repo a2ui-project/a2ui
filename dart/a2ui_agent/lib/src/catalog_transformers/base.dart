@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Renders the system prompt snippet teaching an LLM one inference format.
-///
-/// Obtained from `InferenceFormat.promptGenerator`, bound to the catalogs of
-/// one request.
-abstract class PromptGenerator {
-  const PromptGenerator();
+import 'package:a2ui_core/a2ui_core.dart';
 
-  /// Renders the snippet, which describes the format, the components and
-  /// functions of the catalogs, and any example turns.
-  ///
-  /// The agent adds its own role and workflow instructions around it.
-  String generate();
+/// A rule applied to a catalog before the catalog reaches a prompt or a
+/// validator.
+///
+/// Registered with a `CatalogConfig`, which applies its transformers in order.
+abstract class CatalogTransformer {
+  const CatalogTransformer();
+
+  /// Returns a transformed copy of [catalog], with the same component and
+  /// function types. [catalog] itself is left unchanged.
+  Catalog<C, F> transform<C extends ComponentApi, F extends FunctionApi>(
+    Catalog<C, F> catalog,
+  );
 }

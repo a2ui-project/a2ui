@@ -15,14 +15,22 @@
 /// The A2UI agent SDK: capability negotiation, prompting and response parsing
 /// for agents that generate A2UI.
 ///
-/// Implements protocol v0.9 and the Express inference format only.
+/// Implements protocol v0.9 only. The Express inference format is
+/// implemented; the direct JSON format is declared but not implemented yet.
 library;
 
+export 'src/catalog_transformers/base.dart';
+export 'src/catalog_transformers/pruning.dart';
 export 'src/inference_format.dart';
+export 'src/inference_formats/direct_json/format.dart';
+export 'src/inference_formats/direct_json/parser.dart';
+export 'src/inference_formats/direct_json/prompt_generator.dart';
 export 'src/inference_formats/express/format.dart' show ExpressFormatFactory;
 export 'src/parser/parser.dart';
 export 'src/parser/response_part.dart';
 export 'src/processor/catalog_config.dart';
+export 'src/processor/catalog_providers.dart';
 export 'src/processor/generator.dart';
 export 'src/processor/processor.dart';
 export 'src/prompt/generator.dart';
+export 'src/utils/catalog_resolver.dart';

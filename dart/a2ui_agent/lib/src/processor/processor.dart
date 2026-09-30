@@ -15,6 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
+import '../inference_formats/direct_json/format.dart';
 import '../parser/response_part.dart';
 import 'validation.dart';
 
@@ -27,18 +28,36 @@ class A2uiRequestProcessor {
   /// order.
   final List<SchemaCatalog> activeCatalogs;
 
+  /// Example turns the prompt shows the model, in order. Each is the list of
+  /// messages making up one turn.
+  final List<List<AgentToRendererMessage>> examples;
+
   /// The format the LLM writes payloads in.
   final InferenceFormatFactory formatFactory;
 
   final InferenceFormat _format;
 
+  /// Checks each of [examples] on its own, as a renderer holding
+  /// [activeCatalogs] would check it on surfaces that start empty.
+  ///
+  /// Throws the [A2uiError] that renderer would report for the first message
+  /// it rejects, such as an [A2uiValidationError] for a component the
+  /// catalogs do not declare.
   A2uiRequestProcessor({
     required this.activeCatalogs,
-    required this.formatFactory,
-  }) : _format = formatFactory.createFormat(activeCatalogs);
+    this.examples = const [],
+    this.formatFactory = const DirectJsonFormatFactory(),
+  }) : _format = formatFactory.createFormat(
+         activeCatalogs,
+         examples: examples,
+       ) {
+    for (final List<AgentToRendererMessage> example in examples) {
+      validatePayloads(activeCatalogs, [example]);
+    }
+  }
 
-  /// The system prompt snippet teaching the LLM the format and the components
-  /// and functions of [activeCatalogs].
+  /// The system prompt snippet teaching the LLM the format, the components
+  /// and functions of [activeCatalogs], and [examples].
   ///
   /// The agent adds its own role and workflow instructions around it.
   String get promptSnippet => _format.promptGenerator.generate();
