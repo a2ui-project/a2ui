@@ -20,6 +20,10 @@ import OrderedCollections
 import OrderedJSON
 import Yams
 
+private final class ExtendedStackResultBox<T>: @unchecked Sendable {
+  var result: Result<T, Error>?
+}
+
 /// Test helper providing repository path resolution, YAML/JSON loading, and catalog setup.
 public enum ConformanceTestHelper {
   /// Resolves the repository root URL using `#filePath` or `A2UI_CONFORMANCE_DIR`.
@@ -76,14 +80,11 @@ public enum ConformanceTestHelper {
   /// This prevents stack exhaustion during deep recursive operations, such as parsing
   /// 100-level recursive YAML mappings with Yams/libyaml on macOS where SPM worker threads
   /// default to 512 KB.
-  public static func runWithExtendedStack<T: Sendable>(
+  public static func runWithExtendedStack<T>(
     size: Int = 8 * 1024 * 1024,
     _ body: @escaping @Sendable () throws -> T
   ) throws -> T {
-    final class ResultBox: @unchecked Sendable {
-      var result: Result<T, Error>?
-    }
-    let box = ResultBox()
+    let box = ExtendedStackResultBox<T>()
     let semaphore = DispatchSemaphore(value: 0)
     let thread = Thread {
       box.result = Result { try body() }
