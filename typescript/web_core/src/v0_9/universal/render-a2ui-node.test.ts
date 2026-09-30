@@ -21,6 +21,8 @@ import {nothing} from 'lit';
 import {z} from 'zod';
 
 import {ComponentContext} from '../../resolution/component-context.js';
+import {NodeResolver} from '../../resolution/node-resolver.js';
+import {getValue} from '../../reactivity/signals.js';
 import {MessageProcessor} from '../../processing/message-processor.js';
 import {renderA2uiNode} from './render-a2ui-node.js';
 import {Catalog} from '../../catalog/types.js';
@@ -86,6 +88,11 @@ describe('renderA2uiNode', () => {
               id: 'unknown-cmp',
               component: 'UnknownComponent',
             },
+            {
+              id: 'root',
+              component: 'Button',
+              text: 'Root',
+            },
           ],
         },
       },
@@ -111,6 +118,45 @@ describe('renderA2uiNode', () => {
     assert.ok(typeof result === 'object' && result !== null);
     // Verify Lit TemplateResult strings contain the tag name
     assert.ok(JSON.stringify(result).includes('a2ui-mock-button'));
+  });
+
+  it('renders a resolved node with its node and context, defining the element', () => {
+    const resolver = new NodeResolver(surface, testCatalog);
+    const root = getValue(resolver.rootNode)!;
+
+    const result = renderA2uiNode(root) as any;
+
+    assert.strictEqual(customElements.get('a2ui-mock-button'), MockButtonElement);
+    assert.ok(JSON.stringify(result).includes('a2ui-mock-button'));
+    assert.strictEqual(result.values[0], root);
+    assert.strictEqual(result.values[1], root.context);
+    resolver.dispose();
+  });
+
+  it('returns nothing for a node whose implementation has no tagName', () => {
+    const missingTagSurface = new MessageProcessor([testCatalog]);
+    missingTagSurface.processMessages([
+      {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'test-catalog'}},
+      {
+        version: 'v0.9',
+        updateComponents: {surfaceId: 's', components: [{id: 'root', component: 'MissingTag'}]},
+      },
+    ]);
+    const s = missingTagSurface.model.getSurface('s')!;
+    const resolver = new NodeResolver(s, testCatalog);
+    const root = getValue(resolver.rootNode)!;
+    const originalWarn = console.warn;
+    let warned = '';
+    console.warn = (message: string) => {
+      warned = message;
+    };
+    try {
+      assert.strictEqual(renderA2uiNode(root), nothing);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.ok(warned.includes('MissingTag'));
+    resolver.dispose();
   });
 
   it('returns nothing and logs a warning when component type is not in the catalog', () => {

@@ -166,6 +166,36 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
+  it('binds each resolved node with a context for its component and data path', () => {
+    const {surface, resolver} = setup();
+    surface.dataModel.set('/items', [{name: 'A'}]);
+    add(surface, 'root', 'Column', {children: {componentId: 'item_tpl', path: '/items'}});
+    add(surface, 'item_tpl', 'Text', {text: {path: 'name'}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root?.context);
+    assert.strictEqual(root.context.componentModel.id, 'root');
+    assert.strictEqual(root.context.dataContext.path, '/');
+    const item = child(root, 'children', 0);
+    assert.ok(item.context);
+    assert.strictEqual(item.context.componentModel.id, 'item_tpl');
+    assert.strictEqual(item.context.dataContext.path, '/items/0');
+    assert.strictEqual(item.context.dataContext.parent, root.context.dataContext);
+    resolver.dispose();
+  });
+
+  it('gives a placeholder no context and its resolved replacement one', () => {
+    const {surface, resolver} = setup();
+    add(surface, 'root', 'Card', {child: 'late'});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(child(root, 'child').context, undefined);
+    add(surface, 'late', 'Text', {text: 'Hi'});
+    const late = child(root, 'child');
+    assert.strictEqual(late.isPlaceholder, false);
+    assert.strictEqual(late.context?.componentModel.id, 'late');
+    resolver.dispose();
+  });
+
   it('resolves data-bound properties reactively', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/username', 'Alice');
