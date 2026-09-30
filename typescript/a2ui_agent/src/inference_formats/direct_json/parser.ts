@@ -94,7 +94,7 @@ export class DirectJsonParser extends Parser {
     return this.streamProcessor !== undefined;
   }
 
-  parseChunk(chunk: string, _wrapped = true): ResponsePart[] {
+  override parseChunk(chunk: string, _wrapped = true): ResponsePart[] {
     if (!this.streamProcessor) {
       throw new Error(
         'DirectJsonParser was constructed without a stream processor, so streaming is unavailable.',
