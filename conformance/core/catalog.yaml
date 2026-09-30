@@ -796,3 +796,54 @@
         returnType: string
   expectError:
     category: "CatalogError"
+
+# ------------------------------------------------------------------------------
+# Published catalogs load without the specification tree
+#
+# Each catalog published under specification/<version>/catalogs/ refers to the
+# shared types in common_types.json. Loading it must localise those references,
+# so that the resolved catalog schema is self-contained: every $ref resolves
+# within the document. The basic catalogs also validate a Button whose action
+# calls a catalog function, which exercises the FunctionCall reference into the
+# catalog's own function definitions.
+# ------------------------------------------------------------------------------
+
+- name: test_v09_published_basic_catalog_is_self_contained
+  description: Tests that the published v0.9 basic catalog loads with its common_types references localised, and validates a Button with a function call action.
+  action: from_json
+  protocolVersion: "v0.9"
+  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  expect:
+    selfContained: true
+    validComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: openUrl
+            args: {url: "https://example.com"}
+
+- name: test_v09_published_minimal_catalog_is_self_contained
+  description: Tests that the published v0.9 minimal catalog loads with its common_types references localised.
+  action: from_json
+  protocolVersion: "v0.9"
+  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  expect:
+    selfContained: true
+
+- name: test_v091_published_basic_catalog_is_self_contained
+  description: Tests that the published v0.9.1 basic catalog loads with its common_types references localised, and validates a Button with a function call action.
+  action: from_json
+  protocolVersion: "v0.9.1"
+  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  expect:
+    selfContained: true
+    validComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: openUrl
+            args: {url: "https://example.com"}

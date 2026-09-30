@@ -20,6 +20,7 @@ import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
 import {loadCatalogFromSchema} from '../../dist/src/catalog/schema_loader.js';
+import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {toCanonicalVersion} from '../../dist/src/common/semver.js';
@@ -140,7 +141,23 @@ const SKIP_TEST_NAMES = new Set([
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map();
+const PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
+  "the FunctionCall standard definition keeps its '$ref' to" +
+  " 'catalog.json#/$defs/anyFunction', so the generated catalog schema" +
+  ' points outside itself';
+const KNOWN_DIVERGENCES = new Map([
+  [
+    'core/catalog.yaml',
+    new Map([
+      ['test_v09_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
+      [
+        'test_v09_published_minimal_catalog_is_self_contained',
+        PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
+      ],
+      ['test_v091_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
+    ]),
+  ],
+]);
 
 /** Suites that must be discovered and contain at least one case. */
 const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
@@ -1003,8 +1020,40 @@ function validateAccessibilityCheckTestCase() {
   // not headless web_core state engines.
 }
 
+function collectRefs(node, refs = []) {
+  if (Array.isArray(node)) {
+    for (const item of node) collectRefs(item, refs);
+  } else if (node && typeof node === 'object') {
+    if (typeof node.$ref === 'string') refs.push(node.$ref);
+    for (const value of Object.values(node)) collectRefs(value, refs);
+  }
+  return refs;
+}
+
+/** Asserts that every `$ref` in the schema resolves within the schema. */
+function assertSelfContained(schema) {
+  const refs = collectRefs(schema);
+  assert.ok(refs.length > 0, 'Catalog schema contains no references at all.');
+  for (const ref of refs) {
+    assert.ok(ref.startsWith('#'), `Reference '${ref}' leaves the catalog document.`);
+    let target = schema;
+    for (const rawToken of ref.slice(1).split('/').slice(1)) {
+      const token = rawToken.replaceAll('~1', '/').replaceAll('~0', '~');
+      assert.ok(
+        target && typeof target === 'object' && Object.hasOwn(target, token),
+        `Reference '${ref}' does not resolve within the catalog document.`,
+      );
+      target = target[token];
+    }
+  }
+}
+
 function validateFromJsonTestCase(testCase) {
-  const rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+  const rawSchema = testCase.catalogPath
+    ? JSON.parse(
+        fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.catalogPath), 'utf8'),
+      )
+    : testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
   const cId =
     testCase.catalogId ||
     (rawSchema && typeof rawSchema === 'object'
@@ -1068,6 +1117,15 @@ function validateFromJsonTestCase(testCase) {
     if (expected.theme) {
       if (Object.keys(expected.theme).length > 0) {
         assert.ok(catalog.themeSchema, 'Expected catalog to have themeSchema');
+      }
+    }
+    if (expected.selfContained) {
+      assertSelfContained(catalog.catalogSchema);
+    }
+    if (expected.validComponents) {
+      const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+      for (const component of expected.validComponents) {
+        validator.validateComponent(component);
       }
     }
   }

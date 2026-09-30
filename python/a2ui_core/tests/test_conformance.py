@@ -28,7 +28,7 @@ from a2ui.core.processing import (
     MessageProcessor,
     MessageProcessorOptions,
 )
-from a2ui.core.validation import STRICT_VALIDATION
+from a2ui.core.validation import STRICT_VALIDATION, PayloadValidator
 from a2ui.core.exceptions import (
     A2uiCatalogError,
     A2uiDataError,
@@ -888,11 +888,47 @@ def validate_capabilities_case(case: dict[str, Any]) -> None:
     assert caps == expected
 
 
+def _collect_refs(node: Any) -> list[str]:
+    """Every `$ref` value in a schema, in document order."""
+    if isinstance(node, dict):
+        refs = [node["$ref"]] if isinstance(node.get("$ref"), str) else []
+        for value in node.values():
+            refs.extend(_collect_refs(value))
+        return refs
+    if isinstance(node, list):
+        return [ref for item in node for ref in _collect_refs(item)]
+    return []
+
+
+def _assert_self_contained(schema: dict[str, Any]) -> None:
+    """Asserts that every `$ref` in the schema resolves within the schema."""
+    refs = _collect_refs(schema)
+    assert refs, "Catalog schema contains no references at all."
+    for ref in refs:
+        assert ref.startswith("#"), f"Reference '{ref}' leaves the catalog document."
+        target: Any = schema
+        for token in ref[1:].split("/")[1:]:
+            token = token.replace("~1", "/").replace("~0", "~")
+            assert (
+                isinstance(target, dict) and token in target
+            ), f"Reference '{ref}' does not resolve within the catalog document."
+            target = target[token]
+
+
 def validate_from_json_case(case: dict[str, Any]) -> None:
-    c_schema = (
-        case.get("catalogSchema") or case.get("catalog") or case.get("schema") or case
-    )
-    c_id = resolve_catalog_id(case)
+    c_path = case.get("catalogPath")
+    if c_path:
+        full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
+        with open(full_p, "r", encoding="utf-8") as f:
+            c_schema = json.load(f)
+    else:
+        c_schema = (
+            case.get("catalogSchema")
+            or case.get("catalog")
+            or case.get("schema")
+            or case
+        )
+    c_id = resolve_catalog_id(case) or (c_schema.get("catalogId") if c_path else None)
     p_ver = resolve_protocol_version(case)
     expect_err = case.get("expectError")
 
@@ -917,6 +953,12 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             if isinstance(expected["functions"], list):
                 for fn_name in expected["functions"]:
                     assert cat.get_function(fn_name) is not None
+        if expected.get("selfContained"):
+            _assert_self_contained(cat.catalog_schema)
+        if "validComponents" in expected:
+            validator = PayloadValidator(cat)
+            for component in expected["validComponents"]:
+                validator.validate_component(component)
 
 
 def _normalize_schema_for_comparison(value: Any) -> Any:
