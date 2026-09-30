@@ -87,8 +87,8 @@ class ComponentApi {
         final subMap = Map<String, dynamic>.from(sub);
         final ref = subMap[r'$ref'] as String?;
         if (ref != null) {
-          final defName = ref.split('/').last;
-          final known = _commonTypeSubSchemas[defName];
+          final String defName = ref.split('/').last;
+          final Map<String, dynamic>? known = _commonTypeSubSchemas[defName];
           if (known != null && !visited.contains(ref)) {
             visited.add(ref);
             result.add(known);
@@ -132,10 +132,10 @@ class ComponentApi {
   }
 
   static String? _extractDescription(Schema schema) {
-    final val = schema.value;
+    final Map<String, Object?> val = schema.value;
     if (val['description'] is String) return val['description'] as String;
     if (val['allOf'] is List) {
-      for (final sub in val['allOf'] as List) {
+      for (final Object? sub in val['allOf']! as List) {
         if (sub is Map && sub['description'] is String) {
           return sub['description'] as String;
         }
@@ -161,6 +161,7 @@ enum A2uiReturnType {
   /// Parses from the JSON string representation.
   static A2uiReturnType fromJson(String value) {
     if (value == 'void') return void_;
+    if (value == 'validationResult') return boolean;
     return values.byName(value);
   }
 }
@@ -189,18 +190,18 @@ class FunctionApi {
 
   /// The parameter schemas keyed by argument name.
   Map<String, dynamic> get parameters {
-    final val = argumentSchema.value;
+    final Map<String, Object?> val = argumentSchema.value;
     if (val['properties'] is Map) {
-      return Map<String, dynamic>.from(val['properties'] as Map);
+      return Map<String, dynamic>.from(val['properties']! as Map);
     }
     return const {};
   }
 
   /// The set of required parameter names.
   Set<String> get requiredParameters {
-    final val = argumentSchema.value;
+    final Map<String, Object?> val = argumentSchema.value;
     if (val['required'] is List) {
-      return (val['required'] as List).map((e) => e.toString()).toSet();
+      return (val['required']! as List).map((e) => e.toString()).toSet();
     }
     return const {};
   }
@@ -306,13 +307,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final String version = _detectProtocolVersion(json);
 
     final permittedComponents = <String>{};
-    final oneOf = json[r'$defs'] is Map
-        ? (json[r'$defs'] as Map)[r'anyComponent'] is Map
-            ? ((json[r'$defs'] as Map)[r'anyComponent'] as Map)['oneOf']
+    final Object? oneOf = json[r'$defs'] is Map
+        ? (json[r'$defs']! as Map)[r'anyComponent'] is Map
+            ? ((json[r'$defs']! as Map)[r'anyComponent']! as Map)['oneOf']
             : null
         : null;
     if (oneOf is List) {
-      for (final item in oneOf) {
+      for (final Object? item in oneOf) {
         if (item is Map && item[r'$ref'] is String) {
           final refStr = item[r'$ref'] as String;
           if (refStr.startsWith('#/components/')) {
@@ -328,13 +329,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
 
     final permittedFunctions = <String>{};
-    final fnOneOf = json[r'$defs'] is Map
-        ? (json[r'$defs'] as Map)[r'anyFunction'] is Map
-            ? ((json[r'$defs'] as Map)[r'anyFunction'] as Map)['oneOf']
+    final Object? fnOneOf = json[r'$defs'] is Map
+        ? (json[r'$defs']! as Map)[r'anyFunction'] is Map
+            ? ((json[r'$defs']! as Map)[r'anyFunction']! as Map)['oneOf']
             : null
         : null;
     if (fnOneOf is List) {
-      for (final item in fnOneOf) {
+      for (final Object? item in fnOneOf) {
         if (item is Map && item[r'$ref'] is String) {
           final refStr = item[r'$ref'] as String;
           if (refStr.startsWith('#/functions/')) {
@@ -375,23 +376,23 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   }
 
   static String _detectProtocolVersion(Map<String, Object?> json) {
-    final explicitVersion = json['protocolVersion'] as String? ??
+    final String? explicitVersion = json['protocolVersion'] as String? ??
         json['version'] as String? ??
         json['specVersion'] as String?;
     if (explicitVersion != null && explicitVersion.isNotEmpty) {
-      var v = explicitVersion.trim();
+      String v = explicitVersion.trim();
       if (!v.startsWith('v')) v = 'v$v';
       v = v.replaceAll('_', '.');
       if (v == 'v0.9') v = 'v0.9.1';
       return v;
     }
-    final idToCheck = json['catalogId'] as String? ??
+    final String idToCheck = json['catalogId'] as String? ??
         json[r'$id'] as String? ??
         json[r'$schema'] as String? ??
         '';
-    final match = RegExp(r'/(v\d+(_\d+)*)/').firstMatch(idToCheck);
+    final RegExpMatch? match = RegExp(r'/(v\d+(_\d+)*)/').firstMatch(idToCheck);
     if (match != null) {
-      var v = match.group(1)!;
+      String v = match.group(1)!;
       v = v.replaceAll('_', '.');
       if (v == 'v0.9') v = 'v0.9.1';
       return v;
@@ -546,9 +547,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         if (functions.isNotEmpty)
           'functions': {
             // The document form of a function is the schema of a call to it, so
-            // this rebuilds that shape rather than listing the parts: `anyFunction`
-            // and every `DynamicString` reach these through `#/functions/<name>`,
-            // and a different shape would silently stop matching.
+            // this rebuilds that shape rather than listing the parts:
+            // `anyFunction` and every `DynamicString` reach these through
+            // `#/functions/<name>`, and a different shape would silently stop
+            // matching.
             for (final MapEntry<String, F> entry in functions.entries)
               entry.key: <String, Object?>{
                 'type': 'object',

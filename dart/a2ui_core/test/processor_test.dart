@@ -552,7 +552,8 @@ void main() {
     });
 
     test(
-      'generates client capabilities from an enveloped catalog without double wrapping',
+      'generates client capabilities from an enveloped catalog without '
+      'double wrapping',
       () {
         final envelopedCatalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'enveloped_catalog',
@@ -581,17 +582,23 @@ void main() {
           catalogs: [envelopedCatalog],
           protocolVersion: A2uiProtocolVersion.v0_9,
         );
-        final caps = proc.getClientCapabilities(includeInlineCatalogs: true);
-        final inline = (caps['v0.9'] as Map)['inlineCatalogs'] as List;
-        final comp = (inline.first as Map)['components']['Text'] as Map;
+        final Map<String, dynamic> caps = proc.getClientCapabilities(
+          includeInlineCatalogs: true,
+        );
+        final inline = (caps['v0.9']! as Map)['inlineCatalogs']! as List;
+        final components = (inline.first! as Map)['components']! as Map;
+        final comp = components['Text']! as Map;
         expect(comp['allOf'], isNotNull);
-        final allOf = comp['allOf'] as List;
+        final allOf = comp['allOf']! as List;
         expect(allOf.length, equals(2));
         expect(
-          allOf[0][r'$ref'],
+          (allOf[0]! as Map)[r'$ref'],
           equals(r'common_types.json#/$defs/ComponentCommon'),
         );
-        expect(allOf[1]['properties']['text'], isNotNull);
+        expect(
+          ((allOf[1]! as Map)['properties']! as Map)['text'],
+          isNotNull,
+        );
       },
     );
 

@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/a2ui_core.dart';
-import 'package:test/test.dart';
-
 import 'package:a2ui_cli/src/analyzer/catalog_analyzer.dart';
 import 'package:a2ui_cli/src/analyzer/types.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('Catalog.fromJson & CatalogAnalyzer', () {
     test('parses components and functions from catalog schema', () {
-      final json = {
+      final json = <String, Object?>{
         'catalogId': 'test_catalog',
         'version': '0.9',
         'components': {
@@ -69,26 +68,26 @@ void main() {
         },
       };
 
-      final catalog = Catalog.fromJson(json);
+      final SchemaCatalog catalog = Catalog.fromJson(json);
 
       expect(catalog.id, equals('test_catalog'));
       expect(catalog.protocolVersion, equals('v0.9.1'));
       expect(catalog.components.keys, containsAll(['Heading', 'ComplexCard']));
 
-      final heading = catalog.components['Heading']!;
+      final ComponentApi heading = catalog.components['Heading']!;
       expect(heading.name, equals('Heading'));
       expect(heading.description, equals('A simple heading'));
       expect(heading.properties.keys, containsAll(['text', 'level']));
       expect(heading.requiredProperties, contains('text'));
 
-      final card = catalog.components['ComplexCard']!;
+      final ComponentApi card = catalog.components['ComplexCard']!;
       expect(card.name, equals('ComplexCard'));
       expect(card.description, equals('Card description from allOf'));
       expect(card.properties.keys, containsAll(['child', 'elevation']));
       expect(card.requiredProperties, contains('child'));
 
       expect(catalog.functions.keys, contains('openUrl'));
-      final fn = catalog.functions['openUrl']!;
+      final FunctionApi fn = catalog.functions['openUrl']!;
       expect(fn.name, equals('openUrl'));
       expect(fn.description, equals('Opens a URL'));
       expect(fn.returnType, equals(A2uiReturnType.boolean));
@@ -97,7 +96,7 @@ void main() {
     });
 
     test('resolves local JSON pointer with ~01 and ~1 RFC 6901 escapes', () {
-      final json = {
+      final json = <String, Object?>{
         'catalogId': 'pointer_catalog',
         'components': {
           'Custom': {
@@ -116,14 +115,14 @@ void main() {
         },
       };
 
-      final catalog = Catalog.fromJson(json);
-      final custom = catalog.components['Custom']!;
+      final SchemaCatalog catalog = Catalog.fromJson(json);
+      final ComponentApi custom = catalog.components['Custom']!;
       expect(custom.description, equals('Resolved definition'));
       expect(custom.properties.keys, contains('foo'));
     });
 
     test('handles schema with nullable type list', () {
-      final json = {
+      final json = <String, Object?>{
         'catalogId': 'nullable_catalog',
         'components': {
           'NullableBox': {
@@ -136,10 +135,10 @@ void main() {
         },
       };
 
-      final catalog = Catalog.fromJson(json);
-      final analysed = CatalogAnalyzer.analyze(catalog);
-      final box = analysed.components['NullableBox']!;
-      final labelProp = box.properties['label']!;
+      final SchemaCatalog catalog = Catalog.fromJson(json);
+      final AnalysedCatalog analysed = CatalogAnalyzer.analyze(catalog);
+      final AnalysedComponentApi box = analysed.components['NullableBox']!;
+      final PropertyDescriptor labelProp = box.properties['label']!;
       expect(labelProp.type, isA<PrimitiveType>());
       expect(
         (labelProp.type as PrimitiveType).primitive,

@@ -137,7 +137,8 @@ class AnalysedFunctionApi {
   });
 }
 
-/// A named nested object model discovered inside a component or function schema.
+/// A named nested object model discovered inside a component or function
+/// schema.
 class AnalysedObjectModel {
   final String name;
   final String? description;

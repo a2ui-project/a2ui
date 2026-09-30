@@ -19,10 +19,10 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 String _findRepoRoot() {
-  var dir = Directory.current;
+  Directory dir = Directory.current;
   while (!File(p.join(dir.path, 'pubspec.yaml')).existsSync() ||
       !Directory(p.join(dir.path, 'conformance')).existsSync()) {
-    final parent = dir.parent;
+    final Directory parent = dir.parent;
     if (parent.path == dir.path) break;
     dir = parent;
   }
@@ -31,28 +31,28 @@ String _findRepoRoot() {
 
 void main() {
   group('A2UI CLI Conformance Test Suite (conformance/cli/codegen.yaml)', () {
-    final repoRoot = _findRepoRoot();
-    final packageRoot =
+    final String repoRoot = _findRepoRoot();
+    final String packageRoot =
         Directory(p.join(repoRoot, 'dart/a2ui_cli')).existsSync()
         ? p.join(repoRoot, 'dart/a2ui_cli')
         : Directory.current.path;
-    final yamlPath = p.join(repoRoot, 'conformance/cli/codegen.yaml');
+    final String yamlPath = p.join(repoRoot, 'conformance/cli/codegen.yaml');
     final yamlFile = File(yamlPath);
 
     if (!yamlFile.existsSync()) {
       fail('Conformance YAML file not found at: $yamlPath');
     }
 
-    final yamlContent = yamlFile.readAsStringSync();
+    final String yamlContent = yamlFile.readAsStringSync();
     final testCases = loadYaml(yamlContent) as YamlList;
 
-    for (final rawTc in testCases) {
+    for (final Object? rawTc in testCases) {
       final tc = Map<String, dynamic>.from(rawTc as YamlMap);
       final name = tc['name'] as String;
-      final description = tc['description'] as String? ?? '';
+      final String description = tc['description'] as String? ?? '';
 
       test('[conformance] $name: $description', () {
-        final tmpDir = Directory.systemTemp.createTempSync(
+        final Directory tmpDir = Directory.systemTemp.createTempSync(
           'a2ui-dart-conformance-',
         );
         final catalogFile = File(p.join(tmpDir.path, 'catalog.json'));
@@ -66,10 +66,10 @@ void main() {
             catalogFile.writeAsStringSync(tc['raw_catalog_content'] as String);
           }
 
-          final rawArgs = (tc['args'] as YamlList)
+          final List<String> rawArgs = (tc['args'] as YamlList)
               .map((e) => e.toString())
               .toList();
-          final args = rawArgs.map((arg) {
+          final List<String> args = rawArgs.map((arg) {
             return arg
                 .replaceAll(r'${CATALOG_PATH}', catalogFile.path)
                 .replaceAll(r'${OUT_DIR}', outDir.path)
@@ -77,11 +77,11 @@ void main() {
                 .replaceAll(r'${REPO_ROOT}', repoRoot);
           }).toList();
 
-          final result = Process.runSync(Platform.resolvedExecutable, [
-            'run',
-            p.join(packageRoot, 'bin/a2ui.dart'),
-            ...args,
-          ], workingDirectory: packageRoot);
+          final ProcessResult result = Process.runSync(
+            Platform.resolvedExecutable,
+            ['run', p.join(packageRoot, 'bin/a2ui.dart'), ...args],
+            workingDirectory: packageRoot,
+          );
 
           final expectMap = tc['expect'] as YamlMap;
           final expectedExit = expectMap['exit_code'] as int;
@@ -90,11 +90,13 @@ void main() {
             result.exitCode,
             equals(expectedExit),
             reason:
-                'Exit code mismatch for test $name.\nStdout: ${result.stdout}\nStderr: ${result.stderr}',
+                'Exit code mismatch for test $name.\n'
+                'Stdout: ${result.stdout}\nStderr: ${result.stderr}',
           );
 
           if (expectMap['stdout_contains'] != null) {
-            for (final sub in expectMap['stdout_contains'] as YamlList) {
+            for (final Object? sub
+                in expectMap['stdout_contains'] as YamlList) {
               expect(
                 result.stdout.toString(),
                 contains(sub.toString()),
@@ -104,7 +106,8 @@ void main() {
           }
 
           if (expectMap['stderr_contains'] != null) {
-            for (final sub in expectMap['stderr_contains'] as YamlList) {
+            for (final Object? sub
+                in expectMap['stderr_contains'] as YamlList) {
               expect(
                 result.stderr.toString(),
                 contains(sub.toString()),
@@ -115,7 +118,7 @@ void main() {
 
           if (expectMap['files'] != null) {
             final filesMap = expectMap['files'] as YamlMap;
-            for (final entry in filesMap.entries) {
+            for (final MapEntry<Object?, Object?> entry in filesMap.entries) {
               final relPath = entry.key as String;
               final fileExpect = entry.value as YamlMap;
 
@@ -132,15 +135,16 @@ void main() {
                 reason: 'Expected generated file at: ${targetFile.path}',
               );
 
-              final actualContent = targetFile
+              final String actualContent = targetFile
                   .readAsStringSync()
                   .replaceAll('\r\n', '\n')
                   .trim();
 
               if (fileExpect['exact_content'] != null) {
-                final expectedExact = (fileExpect['exact_content'] as String)
-                    .replaceAll('\r\n', '\n')
-                    .trim();
+                final String expectedExact =
+                    (fileExpect['exact_content'] as String)
+                        .replaceAll('\r\n', '\n')
+                        .trim();
                 expect(
                   actualContent,
                   equals(expectedExact),
@@ -149,7 +153,8 @@ void main() {
               }
 
               if (fileExpect['content_contains'] != null) {
-                for (final sub in fileExpect['content_contains'] as YamlList) {
+                for (final Object? sub
+                    in fileExpect['content_contains'] as YamlList) {
                   expect(
                     actualContent,
                     contains(sub.toString()),
@@ -159,7 +164,7 @@ void main() {
               }
 
               if (fileExpect['content_not_contains'] != null) {
-                for (final sub
+                for (final Object? sub
                     in fileExpect['content_not_contains'] as YamlList) {
                   expect(
                     actualContent,

@@ -46,12 +46,14 @@ class CatalogAnalyzer {
       ..addAll(catalog.components.keys);
 
     final components = <String, AnalysedComponentApi>{};
-    for (final entry in catalog.components.entries) {
+    for (final MapEntry<String, ComponentApi> entry
+        in catalog.components.entries) {
       components[entry.key] = _analyzeComponent(entry.key, entry.value);
     }
 
     final functions = <String, AnalysedFunctionApi>{};
-    for (final entry in catalog.functions.entries) {
+    for (final MapEntry<String, FunctionApi> entry
+        in catalog.functions.entries) {
       functions[entry.key] = _analyzeFunction(entry.key, entry.value);
     }
 
@@ -68,14 +70,14 @@ class CatalogAnalyzer {
   AnalysedComponentApi _analyzeComponent(String name, ComponentApi comp) {
     final properties = <String, PropertyDescriptor>{};
     final requiredProps = <String>[];
-    bool isCheckable = false;
+    var isCheckable = false;
 
-    final description = comp.description;
-    final rawProps = comp.properties;
-    final reqSet = comp.requiredProperties;
+    final String? description = comp.description;
+    final Map<String, dynamic> rawProps = comp.properties;
+    final Set<String> reqSet = comp.requiredProperties;
 
-    for (final entry in rawProps.entries) {
-      final propName = entry.key;
+    for (final MapEntry<String, dynamic> entry in rawProps.entries) {
+      final String propName = entry.key;
       if (propName == 'checks' || propName == 'isValid') {
         isCheckable = true;
       }
@@ -84,12 +86,12 @@ class CatalogAnalyzer {
           ? Map<String, dynamic>.from(entry.value as Map)
           : <String, dynamic>{};
 
-      final isRequired = reqSet.contains(propName);
+      final bool isRequired = reqSet.contains(propName);
       if (isRequired) {
         requiredProps.add(propName);
       }
 
-      final analyzed = _analyzePropertySchema(
+      final PropertyDescriptor analyzed = _analyzePropertySchema(
         name,
         propName,
         propMap,
@@ -111,22 +113,22 @@ class CatalogAnalyzer {
     final parameters = <String, PropertyDescriptor>{};
     final requiredParams = <String>[];
 
-    final description = fn.description;
-    final rawParams = fn.parameters;
-    final reqSet = fn.requiredParameters;
+    final String? description = fn.description;
+    final Map<String, dynamic> rawParams = fn.parameters;
+    final Set<String> reqSet = fn.requiredParameters;
 
-    for (final entry in rawParams.entries) {
-      final paramName = entry.key;
+    for (final MapEntry<String, dynamic> entry in rawParams.entries) {
+      final String paramName = entry.key;
       final paramMap = entry.value is Map
           ? Map<String, dynamic>.from(entry.value as Map)
           : <String, dynamic>{};
 
-      final isRequired = reqSet.contains(paramName);
+      final bool isRequired = reqSet.contains(paramName);
       if (isRequired) {
         requiredParams.add(paramName);
       }
 
-      final analyzed = _analyzePropertySchema(
+      final PropertyDescriptor analyzed = _analyzePropertySchema(
         name,
         paramName,
         paramMap,
@@ -150,20 +152,21 @@ class CatalogAnalyzer {
     Map<String, dynamic> schema, {
     required bool isRequired,
   }) {
-    dynamic defaultValue = schema['default'];
-    String? rawDescription = schema['description'] as String?;
+    final dynamic defaultValue = schema['default'];
+    final rawDescription = schema['description'] as String?;
 
     // Check REF pointer in description
-    final refMatch = rawDescription != null
+    final RegExpMatch? refMatch = rawDescription != null
         ? RegExp(r'REF:([^|]+)(?:\|(.*))?').firstMatch(rawDescription)
         : null;
 
-    final cleanDescription = refMatch != null
+    final String? cleanDescription = refMatch != null
         ? (refMatch.group(2) ??
               rawDescription!.replaceAll(RegExp(r'REF:[^|]+(\|)?'), ''))
         : rawDescription;
 
-    final refPath = refMatch?.group(1) ?? (schema[r'$ref'] as String? ?? '');
+    final String refPath =
+        refMatch?.group(1) ?? (schema[r'$ref'] as String? ?? '');
 
     if (refPath.isNotEmpty) {
       if (refPath.contains('AccessibilityAttributes')) {
@@ -271,8 +274,10 @@ class CatalogAnalyzer {
 
     // Check enum
     if (schema['enum'] is List) {
-      final values = (schema['enum'] as List).map((e) => e.toString()).toList();
-      String preferred = '$parentName${capitalize(propName)}';
+      final List<String> values = (schema['enum'] as List)
+          .map((e) => e.toString())
+          .toList();
+      var preferred = '$parentName${capitalize(propName)}';
       if ((parentName == 'Row' || parentName == 'Column') &&
           (propName == 'justify' || propName == 'align')) {
         preferred = 'Flex${capitalize(propName)}';
@@ -284,7 +289,7 @@ class CatalogAnalyzer {
       var enumName = preferred;
       var suffix = 2;
       while (_reservedNames.contains(enumName)) {
-        final existing = _enums[enumName];
+        final EnumType? existing = _enums[enumName];
         if (existing != null && _sameValues(existing.values, values)) break;
         enumName = '$preferred$suffix';
         suffix++;
@@ -308,15 +313,15 @@ class CatalogAnalyzer {
     }
 
     // Check anyOf / oneOf
-    final unionList = schema['anyOf'] ?? schema['oneOf'];
+    final Object? unionList = schema['anyOf'] ?? schema['oneOf'];
     if (unionList is List && unionList.isNotEmpty) {
-      bool hasDataBindingOrFn = false;
+      var hasDataBindingOrFn = false;
       final baseTypes = <TypeDescriptor>[];
 
-      for (final item in unionList) {
+      for (final Object? item in unionList) {
         if (item is Map) {
           final itemMap = Map<String, dynamic>.from(item);
-          final itemRef =
+          final String itemRef =
               itemMap[r'$ref'] as String? ??
               itemMap['description'] as String? ??
               '';
@@ -325,7 +330,7 @@ class CatalogAnalyzer {
               itemRef.contains('functionCall')) {
             hasDataBindingOrFn = true;
           } else {
-            final t = _analyzePropertySchema(
+            final TypeDescriptor t = _analyzePropertySchema(
               parentName,
               propName,
               itemMap,
@@ -343,7 +348,7 @@ class CatalogAnalyzer {
       // Every branch is kept. Dropping all but one would quietly narrow the
       // authoring API below what the catalog actually permits.
       if (baseTypes.isNotEmpty) {
-        final base = baseTypes.length == 1
+        final TypeDescriptor base = baseTypes.length == 1
             ? baseTypes.first
             : UnionType(baseTypes);
         return PropertyDescriptor(
@@ -357,7 +362,7 @@ class CatalogAnalyzer {
     }
 
     // Check type
-    final typeRaw = schema['type'];
+    final Object? typeRaw = schema['type'];
     final typeStr = typeRaw is List
         ? typeRaw.firstWhere((t) => t != 'null', orElse: () => 'any') as String?
         : typeRaw as String?;
@@ -395,7 +400,7 @@ class CatalogAnalyzer {
       final itemsMap = schema['items'] is Map
           ? Map<String, dynamic>.from(schema['items'] as Map)
           : <String, dynamic>{};
-      final itemRef =
+      final String itemRef =
           itemsMap[r'$ref'] as String? ??
           itemsMap['description'] as String? ??
           '';
@@ -410,7 +415,7 @@ class CatalogAnalyzer {
         );
       }
 
-      final itemModel = _registerObjectModel(
+      final ObjectModelType? itemModel = _registerObjectModel(
         _itemModelName(parentName, propName),
         itemsMap,
         fallbackDescription: cleanDescription,
@@ -425,7 +430,7 @@ class CatalogAnalyzer {
         );
       }
 
-      final elemProp = _analyzePropertySchema(
+      final PropertyDescriptor elemProp = _analyzePropertySchema(
         parentName,
         '${propName}Item',
         itemsMap,
@@ -441,7 +446,7 @@ class CatalogAnalyzer {
     }
 
     if (typeStr == 'object') {
-      final model = _registerObjectModel(
+      final ObjectModelType? model = _registerObjectModel(
         '$parentName${capitalize(propName)}',
         schema,
       );
@@ -484,7 +489,7 @@ class CatalogAnalyzer {
   /// is qualified by its parent, giving names like `ChoicePickerOption` that
   /// stay unique across the catalog.
   static String _itemModelName(String parentName, String propName) {
-    final base = capitalize(_singular(propName));
+    final String base = capitalize(_singular(propName));
     if (_singular(parentName).toLowerCase() == base.toLowerCase()) {
       return '${base}Item';
     }
@@ -504,13 +509,13 @@ class CatalogAnalyzer {
     final rawProps = Map<String, dynamic>.from(schema['properties'] as Map);
     if (rawProps.isEmpty) return null;
 
-    final reqSet = schema['required'] is List
+    final Set<String> reqSet = schema['required'] is List
         ? (schema['required'] as List).map((e) => e.toString()).toSet()
         : <String>{};
 
     var name = preferredName;
     final properties = <String, PropertyDescriptor>{};
-    for (final entry in rawProps.entries) {
+    for (final MapEntry<String, dynamic> entry in rawProps.entries) {
       final propMap = entry.value is Map
           ? Map<String, dynamic>.from(entry.value as Map)
           : <String, dynamic>{};
@@ -528,7 +533,7 @@ class CatalogAnalyzer {
     // so `Icon.name`'s custom-SVG branch reads as `IconNameSvgPath`.
     var suffix = 2;
     while (_reservedNames.contains(name)) {
-      final existing = _objectModels[name];
+      final AnalysedObjectModel? existing = _objectModels[name];
       if (existing != null && _sameShape(existing.properties, properties)) {
         return ObjectModelType(name);
       }
@@ -563,8 +568,8 @@ class CatalogAnalyzer {
     Map<String, PropertyDescriptor> b,
   ) {
     if (a.length != b.length) return false;
-    for (final key in a.keys) {
-      final other = b[key];
+    for (final String key in a.keys) {
+      final PropertyDescriptor? other = b[key];
       if (other == null) return false;
       if (a[key]!.isRequired != other.isRequired) return false;
       if (a[key]!.type.runtimeType != other.type.runtimeType) return false;

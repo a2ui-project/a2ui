@@ -18,13 +18,19 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 String getPythonExecutable(String repoRoot) {
-  final repoVenv = p.join(repoRoot, '.venv/bin/python');
-  if (File(repoVenv).existsSync()) {
-    return repoVenv;
+  final candidates = <String>[
+    p.join(repoRoot, '.venv/bin/python'),
+    p.join(repoRoot, 'python/a2ui_agent/.venv/bin/python'),
+    p.join(repoRoot, 'python/a2ui_core/.venv/bin/python'),
+  ];
+  for (final candidate in candidates) {
+    if (File(candidate).existsSync()) {
+      return candidate;
+    }
   }
-  final virtualEnv = Platform.environment['VIRTUAL_ENV'];
+  final String? virtualEnv = Platform.environment['VIRTUAL_ENV'];
   if (virtualEnv != null) {
-    final venvPython = p.join(virtualEnv, 'bin/python');
+    final String venvPython = p.join(virtualEnv, 'bin/python');
     if (File(venvPython).existsSync()) {
       return venvPython;
     }
@@ -32,11 +38,23 @@ String getPythonExecutable(String repoRoot) {
   return 'python3';
 }
 
+bool _hasPydantic(String pythonBin, Map<String, String> env) {
+  try {
+    final ProcessResult res = Process.runSync(pythonBin, [
+      '-c',
+      'import pydantic',
+    ], environment: env);
+    return res.exitCode == 0;
+  } on Object {
+    return false;
+  }
+}
+
 String _findRepoRoot() {
-  var dir = Directory.current;
+  Directory dir = Directory.current;
   while (!File(p.join(dir.path, 'pubspec.yaml')).existsSync() ||
       !Directory(p.join(dir.path, 'conformance')).existsSync()) {
-    final parent = dir.parent;
+    final Directory parent = dir.parent;
     if (parent.path == dir.path) break;
     dir = parent;
   }
@@ -44,47 +62,56 @@ String _findRepoRoot() {
 }
 
 void main() {
-  group('Dart CLI End-to-End Python SDK Integration', () {
-    final repoRoot = _findRepoRoot();
-    final packageRoot =
-        Directory(p.join(repoRoot, 'dart/a2ui_cli')).existsSync()
-        ? p.join(repoRoot, 'dart/a2ui_cli')
-        : Directory.current.path;
-    final catalogPath = p.join(
-      repoRoot,
-      'specification/v0_9_1/catalogs/basic/catalog.json',
-    );
-    final pythonBin = getPythonExecutable(repoRoot);
-    final pythonSdkPath = p.join(repoRoot, 'agent_sdks/python/a2ui_agent/src');
-    final pythonCorePath = p.join(repoRoot, 'agent_sdks/python/a2ui_core/src');
+  final String repoRoot = _findRepoRoot();
+  final String packageRoot =
+      Directory(p.join(repoRoot, 'dart/a2ui_cli')).existsSync()
+      ? p.join(repoRoot, 'dart/a2ui_cli')
+      : Directory.current.path;
+  final String catalogPath = p.join(
+    repoRoot,
+    'specification/v0_9_1/catalogs/basic/catalog.json',
+  );
+  final String pythonBin = getPythonExecutable(repoRoot);
+  final String pythonSdkPath = p.join(repoRoot, 'python/a2ui_agent/src');
+  final String pythonCorePath = p.join(repoRoot, 'python/a2ui_core/src');
+  final bool pydanticAvailable = _hasPydantic(pythonBin, Platform.environment);
 
-    test(
-      'generates basic.py and executes Python fluent builders to produce valid A2UI JSON',
-      () {
-        final tmpDir = Directory.systemTemp.createTempSync('dart-cli-py-e2e-');
+  group(
+    'Dart CLI End-to-End Python SDK Integration',
+    skip: pydanticAvailable
+        ? null
+        : 'Python pydantic dependency not installed in test environment',
+    () {
+      test('generates basic.py and executes Python fluent builders to produce '
+          'valid A2UI JSON', () {
+        final Directory tmpDir = Directory.systemTemp.createTempSync(
+          'dart-cli-py-e2e-',
+        );
         try {
           // 1. Run Dart CLI codegen command
-          final codegenResult = Process.runSync(Platform.resolvedExecutable, [
-            'run',
-            p.join(packageRoot, 'bin/a2ui.dart'),
-            'codegen',
-            '-c',
-            catalogPath,
-            '-o',
-            tmpDir.path,
-          ], workingDirectory: packageRoot);
+          final ProcessResult codegenResult =
+              Process.runSync(Platform.resolvedExecutable, [
+                'run',
+                p.join(packageRoot, 'bin/a2ui.dart'),
+                'codegen',
+                '-c',
+                catalogPath,
+                '-o',
+                tmpDir.path,
+              ], workingDirectory: packageRoot);
 
           expect(
             codegenResult.exitCode,
             equals(0),
             reason:
-                'Codegen failed:\n${codegenResult.stdout}\n${codegenResult.stderr}',
+                'Codegen failed:\n'
+                '${codegenResult.stdout}\n${codegenResult.stderr}',
           );
 
           final generatedFile = File(p.join(tmpDir.path, 'basic.py'));
           expect(generatedFile.existsSync(), isTrue);
 
-          // 2. Write Python test script that imports generated library & builds component tree
+          // 2. Write Python test script that imports generated library
           const pyScript = '''
 import json
 import sys
@@ -171,7 +198,7 @@ print(json.dumps(output))
 
           // 3. Execute Python subprocess
           final pyEnv = Map<String, String>.from(Platform.environment);
-          final existingPythonPath = pyEnv['PYTHONPATH'] ?? '';
+          final String existingPythonPath = pyEnv['PYTHONPATH'] ?? '';
           pyEnv['PYTHONPATH'] = [
             tmpDir.path,
             pythonSdkPath,
@@ -179,7 +206,7 @@ print(json.dumps(output))
             if (existingPythonPath.isNotEmpty) existingPythonPath,
           ].join(Platform.isWindows ? ';' : ':');
 
-          final pyResult = Process.runSync(
+          final ProcessResult pyResult = Process.runSync(
             pythonBin,
             [scriptFile.path],
             workingDirectory: tmpDir.path,
@@ -190,7 +217,8 @@ print(json.dumps(output))
             pyResult.exitCode,
             equals(0),
             reason:
-                'Python script failed:\n${pyResult.stdout}\n${pyResult.stderr}',
+                'Python script failed:\n'
+                '${pyResult.stdout}\n${pyResult.stderr}',
           );
 
           final result =
@@ -200,26 +228,38 @@ print(json.dumps(output))
           // 4. Verify createSurface envelope
           final surfaceMsgs = result['surface_messages'] as List;
           expect(surfaceMsgs.length, equals(2));
+          final firstSurfaceMsg = surfaceMsgs[0] as Map<String, dynamic>;
           final createMsg =
-              surfaceMsgs[0]['createSurface'] as Map<String, dynamic>;
+              firstSurfaceMsg['createSurface'] as Map<String, dynamic>;
           expect(createMsg['surfaceId'], equals('surface_main'));
           expect(createMsg['catalogId'], equals('org.a2ui.basic'));
 
           // 5. Verify updateComponents envelope
+          final secondSurfaceMsg = surfaceMsgs[1] as Map<String, dynamic>;
           final updateMsg =
-              surfaceMsgs[1]['updateComponents'] as Map<String, dynamic>;
+              secondSurfaceMsg['updateComponents'] as Map<String, dynamic>;
           expect(updateMsg['surfaceId'], equals('surface_main'));
 
           // 6. Verify flattened components & hierarchical ID references
-          final comps = (result['components'] as List)
-              .cast<Map<String, dynamic>>();
+          final List<Map<String, dynamic>> comps =
+              (result['components'] as List).cast<Map<String, dynamic>>();
           expect(comps.length, equals(7));
 
-          final card = comps.firstWhere((c) => c['component'] == 'Card');
-          final column = comps.firstWhere((c) => c['component'] == 'Column');
-          final row = comps.firstWhere((c) => c['component'] == 'Row');
-          final button = comps.firstWhere((c) => c['component'] == 'Button');
-          final texts = comps.where((c) => c['component'] == 'Text').toList();
+          final Map<String, dynamic> card = comps.firstWhere(
+            (c) => c['component'] == 'Card',
+          );
+          final Map<String, dynamic> column = comps.firstWhere(
+            (c) => c['component'] == 'Column',
+          );
+          final Map<String, dynamic> row = comps.firstWhere(
+            (c) => c['component'] == 'Row',
+          );
+          final Map<String, dynamic> button = comps.firstWhere(
+            (c) => c['component'] == 'Button',
+          );
+          final List<Map<String, dynamic>> texts = comps
+              .where((c) => c['component'] == 'Text')
+              .toList();
 
           expect(texts.length, equals(3));
           expect(card['child'], equals(column['id']));
@@ -252,13 +292,11 @@ print(json.dumps(output))
         } finally {
           tmpDir.deleteSync(recursive: true);
         }
-      },
-    );
+      });
 
-    test(
-      'verifies generated Pydantic models reject misspelled properties at runtime in Python',
-      () {
-        final tmpDir = Directory.systemTemp.createTempSync(
+      test('verifies generated Pydantic models reject misspelled properties at '
+          'runtime in Python', () {
+        final Directory tmpDir = Directory.systemTemp.createTempSync(
           'dart-cli-py-strict-',
         );
         try {
@@ -288,7 +326,7 @@ except ValidationError as e:
           scriptFile.writeAsStringSync(pyScript);
 
           final pyEnv = Map<String, String>.from(Platform.environment);
-          final existingPythonPath = pyEnv['PYTHONPATH'] ?? '';
+          final String existingPythonPath = pyEnv['PYTHONPATH'] ?? '';
           pyEnv['PYTHONPATH'] = [
             tmpDir.path,
             pythonSdkPath,
@@ -296,7 +334,7 @@ except ValidationError as e:
             if (existingPythonPath.isNotEmpty) existingPythonPath,
           ].join(Platform.isWindows ? ';' : ':');
 
-          final pyResult = Process.runSync(
+          final ProcessResult pyResult = Process.runSync(
             pythonBin,
             [scriptFile.path],
             workingDirectory: tmpDir.path,
@@ -311,13 +349,13 @@ except ValidationError as e:
         } finally {
           tmpDir.deleteSync(recursive: true);
         }
-      },
-    );
+      });
 
-    test(
-      'verifies generated enums are strict when authoring and open when parsing',
-      () {
-        final tmpDir = Directory.systemTemp.createTempSync('dart-cli-py-enum-');
+      test('verifies generated enums are strict when authoring and open when '
+          'parsing', () {
+        final Directory tmpDir = Directory.systemTemp.createTempSync(
+          'dart-cli-py-enum-',
+        );
         try {
           Process.runSync(Platform.resolvedExecutable, [
             'run',
@@ -329,10 +367,11 @@ except ValidationError as e:
             tmpDir.path,
           ], workingDirectory: packageRoot);
 
-          // The generated enums carry OPEN_ENUM metadata: the annotation stays
-          // the strict Literal so authoring and static analysis reject a typo,
-          // and an unknown value from a newer catalog revision is only accepted
-          // when the caller explicitly asks for lenient parsing.
+          // The generated enums carry OPEN_ENUM metadata: the annotation
+          // stays the strict Literal so authoring and static analysis reject
+          // a typo, and an unknown value from a newer catalog revision is
+          // only accepted when the caller explicitly asks for lenient
+          // parsing.
           const pyScript = '''
 import json
 from pydantic import ValidationError
@@ -357,7 +396,7 @@ print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
           scriptFile.writeAsStringSync(pyScript);
 
           final pyEnv = Map<String, String>.from(Platform.environment);
-          final existingPythonPath = pyEnv['PYTHONPATH'] ?? '';
+          final String existingPythonPath = pyEnv['PYTHONPATH'] ?? '';
           pyEnv['PYTHONPATH'] = [
             tmpDir.path,
             pythonSdkPath,
@@ -365,7 +404,7 @@ print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
             if (existingPythonPath.isNotEmpty) existingPythonPath,
           ].join(Platform.isWindows ? ';' : ':');
 
-          final pyResult = Process.runSync(
+          final ProcessResult pyResult = Process.runSync(
             pythonBin,
             [scriptFile.path],
             workingDirectory: tmpDir.path,
@@ -376,7 +415,8 @@ print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
             pyResult.exitCode,
             equals(0),
             reason:
-                'Python script failed:\n${pyResult.stdout}\n${pyResult.stderr}',
+                'Python script failed:\n'
+                '${pyResult.stdout}\n${pyResult.stderr}',
           );
           final output =
               jsonDecode(pyResult.stdout.toString().trim())
@@ -386,7 +426,7 @@ print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
         } finally {
           tmpDir.deleteSync(recursive: true);
         }
-      },
-    );
-  });
+      });
+    },
+  );
 }

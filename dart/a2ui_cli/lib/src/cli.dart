@@ -72,34 +72,27 @@ Future<int> runCli(List<String> args) async {
     return 0;
   }
 
-  // Check for unknown options before running to format errors consistently
-  for (final arg in args) {
-    if (arg.startsWith('-')) {
-      final opt = arg.split('=').first;
-      if (![
-        '--catalog',
-        '-c',
-        '--out',
-        '-o',
-        '--lang',
-        '--base-import',
-        '--catalog-name',
-        '--help',
-        '-h',
-        '--version',
-        '-v',
-      ].contains(opt)) {
-        stderr.writeln("error: unknown option '$arg'");
-        return 1;
-      }
-    }
-  }
-
   try {
-    final result = await runner.run(args);
+    final int? result = await runner.run(args);
     return result ?? 0;
   } on UsageException catch (e) {
-    stderr.writeln(e.message);
+    final RegExpMatch? unknownOpt = RegExp(
+      r'Could not find an option named "([^"]+)"',
+    ).firstMatch(e.message);
+    final RegExpMatch? unknownFlag = RegExp(
+      r'Could not find an option or flag "([^"]+)"',
+    ).firstMatch(e.message);
+    if (unknownOpt != null) {
+      final String name = unknownOpt.group(1)!;
+      final String formatted = name.startsWith('-') ? name : '--$name';
+      stderr.writeln("error: unknown option '$formatted'");
+    } else if (unknownFlag != null) {
+      final String name = unknownFlag.group(1)!;
+      final String formatted = name.startsWith('-') ? name : '-$name';
+      stderr.writeln("error: unknown option '$formatted'");
+    } else {
+      stderr.writeln(e.message);
+    }
     return 1;
   } catch (e) {
     stderr.writeln('Error: $e');
