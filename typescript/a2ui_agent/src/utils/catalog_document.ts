@@ -53,7 +53,7 @@ export function getCatalogDocument(catalog: SchemaCatalog): Record<string, unkno
   const doc = catalogDocuments.get(catalog);
   if (!doc) {
     throw new A2uiCatalogError(
-      `Catalog '${catalog.id}' has no source JSON document registered. Express reads component schemas from the catalog JSON, so the catalog must be loaded through @a2ui/agent (basicCatalog, a catalog provider, or CatalogConfig).`,
+      `Catalog '${catalog.id}' has no source JSON document registered. Express reads component schemas from the catalog JSON, so the catalog must be loaded through @a2ui/agent (a catalog provider or CatalogConfig).`,
     );
   }
   return doc;

@@ -2,7 +2,7 @@
 
 A2UI Agent SDK for TypeScript and Node.js.
 
-This package targets the A2UI protocol **v1.0** only, and currently supports the **Direct JSON** inference format.
+This package targets the A2UI protocol **v0.9** and **v1.0**, and currently supports the **Direct JSON** inference format.
 
 ## Temporary shims
 
@@ -17,4 +17,4 @@ Defined in `tests/conformance/fixtures.ts` rather than `src/`, so the shim audit
 
 ## Known limitations
 
-- **Missing basic catalog instructions:** The v1.0 basic catalog specification JSON carries a substantial `instructions` string ("For layout, use the Row..."), but there is currently no programmatic equivalent in `BASIC_COMPONENTS` or `BASIC_FUNCTION_APIS`. Consequently, `basicCatalog()` passes `undefined` for instructions. Because prompt quality relies on these instructions, an agent must manually supply the equivalent guidance in its own preamble until they become available programmatically. (See design doc section 1).
+- The SDK bundles no catalog, not even the basic one. Load catalog documents with `FileSystemCatalogProvider` or `CatalogConfig.fromPath`. The v0.9 basic catalog document states neither a `catalogId` nor a `protocolVersion`, so pass both when you load it: `'v0.9'` and `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json`.

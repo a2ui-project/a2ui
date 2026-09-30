@@ -15,7 +15,7 @@
  */
 
 // Phase 0: Foundations
-export {type SchemaCatalog, type ProtocolVersion, basicCatalog} from './types.js';
+export {type SchemaCatalog, type ProtocolVersion} from './types.js';
 
 // The v1.0 agent-to-renderer protocol message. Re-exported because it appears in public
 // signatures -- notably the `examples` parameter of `A2uiGenerator` -- so callers must be

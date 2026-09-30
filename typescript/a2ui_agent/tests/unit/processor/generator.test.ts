@@ -17,17 +17,19 @@
 import {describe, test, expect} from 'vitest';
 import {A2uiGenerator} from '../../../src/processor/generator.js';
 import {CatalogConfig} from '../../../src/processor/catalog_config.js';
-import {basicCatalog} from '../../../src/types.js';
+import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
 import {V10RendererCapabilities} from '../../../src/internal/web_core.js';
 
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+
 describe('A2uiGenerator', () => {
   const mockCapabilities: V10RendererCapabilities = {
-    supportedCatalogIds: [basicCatalog().id],
+    supportedCatalogIds: [basicCatalogV10.id],
   };
 
   test('successfully creates a processor when examples only use supported components', () => {
-    const config = new CatalogConfig(basicCatalog());
+    const config = new CatalogConfig(basicCatalogV10);
 
     // Using 'Text' component which exists in basic catalog
     const examples = {
@@ -52,11 +54,11 @@ describe('A2uiGenerator', () => {
     const processor = generator.createProcessor(mockCapabilities);
 
     expect(processor).toBeDefined();
-    expect(processor.activeCatalogs[0].id).toBe(basicCatalog().id);
+    expect(processor.activeCatalogs[0].id).toBe(basicCatalogV10.id);
   });
 
   test('throws when an example uses a component not supported by the catalog', () => {
-    const config = new CatalogConfig(basicCatalog());
+    const config = new CatalogConfig(basicCatalogV10);
 
     // Using a fake component 'MagicUnicorn'
     const examples = {
@@ -65,7 +67,7 @@ describe('A2uiGenerator', () => {
           version: 'v1.0' as const,
           createSurface: {
             surfaceId: 's1',
-            catalogId: basicCatalog().id,
+            catalogId: basicCatalogV10.id,
             components: [
               {
                 id: 'comp_1',
@@ -84,7 +86,7 @@ describe('A2uiGenerator', () => {
   });
 
   test('throws a catalog error when capabilities are missing', () => {
-    const generator = new A2uiGenerator([new CatalogConfig(basicCatalog())]);
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
     const missing = undefined as unknown as V10RendererCapabilities;
 
     expect(() => generator.createProcessor(missing)).toThrow(A2uiCatalogError);
@@ -92,7 +94,7 @@ describe('A2uiGenerator', () => {
   });
 
   test('throws a validation error when an example message is not an object', () => {
-    const config = new CatalogConfig(basicCatalog());
+    const config = new CatalogConfig(basicCatalogV10);
     // Examples loaded from JSON bypass the type, so a null entry can reach the generator.
     const examples = {'broken_turn': [null]} as unknown as ConstructorParameters<
       typeof A2uiGenerator

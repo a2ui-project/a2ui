@@ -21,8 +21,8 @@ import * as a2uiAgent from '../../src/index.js';
 
 describe('Public Barrel Exports', () => {
   it('exports all expected Phase 0 symbols', () => {
-    // Basic types and factory
-    expect(a2uiAgent.basicCatalog).toBeDefined();
+    // The SDK bundles no catalog.
+    expect('basicCatalog' in a2uiAgent).toBe(false);
 
     // Errors
     expect(a2uiAgent.A2uiError).toBeDefined();

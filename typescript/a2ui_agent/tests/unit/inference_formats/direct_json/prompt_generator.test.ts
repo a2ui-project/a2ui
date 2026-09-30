@@ -18,10 +18,12 @@ import {AgentToRendererMessage} from '../../../../src/internal/web_core.js';
 
 import {describe, it, expect} from 'vitest';
 import {DirectJsonPromptGenerator} from '../../../../src/inference_formats/direct_json/prompt_generator.js';
-import {basicCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
 
 describe('DirectJsonPromptGenerator', () => {
-  const catalog = basicCatalog();
+  const catalog = basicCatalogV10;
   const examples = {
     [catalog.id]: [
       {version: '1.0', createSurface: {surfaceId: 'example'}},

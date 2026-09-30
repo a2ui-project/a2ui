@@ -16,12 +16,14 @@
 
 import {describe, test, expect} from 'vitest';
 import {A2uiRequestProcessor} from '../../../src/processor/processor.js';
-import {basicCatalog} from '../../../src/types.js';
+import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {A2uiValidationError, A2uiStateError} from '../../../src/errors.js';
+
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
 
 describe('A2uiRequestProcessor', () => {
   test('throws on invalid payload (validation error)', () => {
-    const catalog = basicCatalog();
+    const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor([catalog]);
 
     const v1Payload = `
@@ -48,7 +50,7 @@ describe('A2uiRequestProcessor', () => {
   });
 
   test('accrues state across parseResponse calls and throws on duplicate surface creation', () => {
-    const catalog = basicCatalog();
+    const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor([catalog]);
 
     const payload = `
@@ -80,7 +82,7 @@ describe('A2uiRequestProcessor', () => {
   });
 
   test('promptSnippet includes the configured examples', () => {
-    const catalog = basicCatalog();
+    const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor([catalog], {
       [catalog.id]: '---BEGIN greeting---\nexample text\n---END greeting---',
     });

@@ -24,7 +24,6 @@ import {
   A2uiRecursionError,
   ParseError,
   ResponsePart,
-  basicCatalog,
   resolveCatalogs,
 } from '../../src/index.js';
 import {V10RendererCapabilities} from '../../src/internal/web_core.js';
@@ -32,6 +31,10 @@ import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.j
 import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
 
 import {parseAndFix} from '../../src/parser/payload_fixer.js';
+import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
+
+// Cases that name no catalog run against the v1.0 basic catalog.
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
 
 // We map category strings to actual error classes for assertions
 const CATEGORY_TO_ERROR: Record<string, new (...args: string[]) => Error> = {
@@ -98,7 +101,7 @@ describe('Conformance Harness', () => {
       if (action === 'parse_full') {
         const catalog = testCase.catalog
           ? (await createCatalogConfig(testCase.catalog as Record<string, unknown>)).catalog
-          : basicCatalog();
+          : basicCatalogV10;
         const parser = new DirectJsonParser(catalog);
 
         if (expectError) {
@@ -127,7 +130,7 @@ describe('Conformance Harness', () => {
           expect(result).toEqual(expected);
         }
       } else if (action === 'has_parts') {
-        const catalog = basicCatalog();
+        const catalog = basicCatalogV10;
         const parser = new DirectJsonParser(catalog);
         const result = parser.hasA2uiParts(input);
         expect(result).toBe(expected);
@@ -212,7 +215,7 @@ describe('Conformance Harness', () => {
         const catalogConfig = testCase.catalog
           ? await createCatalogConfig(testCase.catalog as Record<string, unknown>)
           : undefined;
-        const catalog = catalogConfig?.catalog || basicCatalog();
+        const catalog = catalogConfig?.catalog || basicCatalogV10;
         const catalogObj = testCase.catalog as Record<string, unknown> | undefined;
         const progressiveKeys = (catalogObj?.customCuttableKeys as string[] | undefined) ?? [
           'text',

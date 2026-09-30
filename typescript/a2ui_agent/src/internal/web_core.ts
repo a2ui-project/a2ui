@@ -63,9 +63,6 @@ export type {AgentToRendererMessage, RendererToAgentMessage, V10RendererCapabili
  */
 export type RendererCapabilities = V10RendererCapabilities;
 
-// ./v1_0/basic_catalog
-export {BASIC_COMPONENTS, BASIC_FUNCTION_APIS} from '@a2ui/web_core/v1_0/basic_catalog';
-
 // ./validating
 export {
   validateRecursionAndPaths,
