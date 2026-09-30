@@ -80,16 +80,19 @@ public enum ConformanceTestHelper {
     size: Int = 8 * 1024 * 1024,
     _ body: @escaping @Sendable () throws -> T
   ) throws -> T {
-    var result: Result<T, Error>?
+    final class ResultBox: @unchecked Sendable {
+      var result: Result<T, Error>?
+    }
+    let box = ResultBox()
     let semaphore = DispatchSemaphore(value: 0)
     let thread = Thread {
-      result = Result { try body() }
+      box.result = Result { try body() }
       semaphore.signal()
     }
     thread.stackSize = size
     thread.start()
     semaphore.wait()
-    guard let result else {
+    guard let result = box.result else {
       throw A2UIValidationError("Thread terminated without result")
     }
     return try result.get()

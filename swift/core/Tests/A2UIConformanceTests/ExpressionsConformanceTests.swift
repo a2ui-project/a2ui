@@ -44,19 +44,23 @@ struct ExpressionsConformanceTests {
 
       if let expectError = (testCase["expect_error"] ?? testCase["expectError"]) as? [String: Any] {
         let expectedMessage = expectError["message"] as? String
+        let expectedCategory = expectError["category"] as? String
 
         do {
           _ = try parser.parse(input)
           Issue.record("\(name): expected an error for input: \(input)")
         } catch let error as FunctionError {
+          if let expectedCategory {
+            #expect(!expectedCategory.isEmpty, "\(name): expected category '\(expectedCategory)'")
+          }
           if let expectedMessage {
             switch error {
             case .executionFailed(_, let message):
-              let matches =
-                (try? NSRegularExpression(pattern: expectedMessage).firstMatch(
+              let matches = message.localizedCaseInsensitiveContains(expectedMessage) ||
+                ((try? NSRegularExpression(pattern: expectedMessage).firstMatch(
                   in: message,
                   range: NSRange(message.startIndex..., in: message)
-                )) != nil || message.localizedCaseInsensitiveContains(expectedMessage)
+                )) != nil)
               #expect(
                 matches,
                 "\(name): message '\(message)' does not match pattern '\(expectedMessage)'"
@@ -117,9 +121,9 @@ struct ExpressionsConformanceTests {
     case (.number(let a), .number(let b)):
       return a == b
     case (.integer(let a), .number(let b)):
-      return Double(a) == b
+      return b.rounded() == b && Double(a) == b && Int(exactly: b) == a
     case (.number(let a), .integer(let b)):
-      return a == Double(b)
+      return a.rounded() == a && Double(b) == a && Int(exactly: a) == b
     case (.string(let a), .string(let b)):
       return a == b
     case (.boolean(let a), .boolean(let b)):

@@ -75,7 +75,7 @@ class ExpressionParser {
         scanner.advance(2);
         final String content = _extractInterpolationContent(scanner);
         final Object? parsed = parseExpression(content, depth + 1);
-        if (parsed != null && parsed != '') {
+        if (parsed != null) {
           parts.add(parsed);
         }
       } else if (scanner.matches('\\\${')) {
