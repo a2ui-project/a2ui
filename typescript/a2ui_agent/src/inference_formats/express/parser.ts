@@ -92,12 +92,10 @@ export class ExpressParser extends Parser {
     this.decompiler = new ExpressDecompiler(this.catalogs, this.version);
   }
 
-  /**
-   * Checks whether the given content string contains complete A2UI Express sentinel tags.
-   */
-  hasA2uiParts(content: string): boolean {
+  hasFormatContent(content: string, {complete = false}: {complete?: boolean} = {}): boolean {
     const parts = this.lexer.tokenize(content);
-    return parts.some(p => p.type === 'a2ui' && p.isFinal);
+    // The lexer reports an unterminated block as a part that is not final.
+    return parts.some(p => p.type === 'a2ui' && (!complete || p.isFinal));
   }
 
   /**
