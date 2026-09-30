@@ -13,7 +13,7 @@
   which `jsonEncode` can't encode.
 - `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template
   length (`maxTemplateLength = 10000`), and template parts (`maxTemplateParts =
-  1000`) limits across nested interpolations and function arguments.
+1000`) limits across nested interpolations and function arguments.
 - **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
   are no longer exported. Renderers read components through `NodeResolver` and
   `ComponentNode`, whose props carry dynamic properties as `ResolvedBinding`
@@ -50,7 +50,7 @@
   entry and tracks nested bindings reactively; previously a container holding
   bindings (such as a function argument list or a nested `{path}` value) was
   passed through as a static literal.
->>>>>>> upstream/main
+  > > > > > > > upstream/main
 
 ## 0.2.2
 
