@@ -72,7 +72,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
 
   private _toastTimeout: number | undefined;
 
-  static styles = [
+  static override styles = [
     css`
       * {
         box-sizing: border-box;
@@ -554,7 +554,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     return html`<div class="error">${this._error}</div>`;
   }
 
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
 
     // Load config from URL
@@ -586,7 +586,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     this._a2uiClient = new A2UIClient(this.config.serverUrl);
   }
 
-  protected firstUpdated() {
+  protected override firstUpdated() {
     if (this._pendingSnackbarMessages.length > 0) {
       for (const {message, replaceAll} of this._pendingSnackbarMessages) {
         this.snackbar.show(message, replaceAll);
@@ -595,7 +595,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     }
   }
 
-  render() {
+  override render() {
     return [
       this.#renderLocalModeHeader(),
       this.#renderThemeToggle(),

@@ -206,7 +206,7 @@ function findYamlFiles(dir) {
 
 function loadYamlFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
-  return yaml.load(content);
+  return yaml.load(content, {maxDepth: 1000});
 }
 
 async function runConformanceHarness() {

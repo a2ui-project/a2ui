@@ -18,7 +18,7 @@
 
 import assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import * as v0_8 from '@a2ui/lit/v0_8';
+import * as v0_8 from './core.js';
 import * as Types from '@a2ui/web_core/types/types';
 import {A2uiStateError} from '@a2ui/web_core/v0_8';
 

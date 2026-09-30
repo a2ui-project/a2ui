@@ -132,7 +132,7 @@ class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof ChoicePi
 
   @state() filter = '';
 
-  protected readonly api = ChoicePickerApi;
+  protected override readonly api = ChoicePickerApi;
 
   override render() {
     const props = this.controller?.props;

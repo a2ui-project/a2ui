@@ -41,7 +41,7 @@ describe('A2uiLitElement', () => {
 
     // Create a mock subclass to intercept and track controller lifecycle events
     class TestA2uiElement extends A2uiLitElement<any> {
-      createController() {
+      override createController() {
         controllerCreatedCount++;
         return {
           dispose: () => {

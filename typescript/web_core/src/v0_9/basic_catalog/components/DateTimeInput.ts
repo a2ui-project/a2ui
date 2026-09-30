@@ -119,7 +119,7 @@ class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTim
     }
   `;
 
-  protected readonly api = DateTimeInputApi;
+  protected override readonly api = DateTimeInputApi;
 
   override render() {
     const props = this.controller.props;

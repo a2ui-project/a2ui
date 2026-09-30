@@ -28,7 +28,7 @@ export class Icon extends Root {
   @property()
   accessor name: Primitives.StringValue | null = null;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -102,7 +102,7 @@ export class Icon extends Root {
     return html`(empty)`;
   }
 
-  render() {
+  override render() {
     return html`<section
       class=${classMap(this.theme.components.Icon)}
       style=${this.theme.additionalStyles?.Icon

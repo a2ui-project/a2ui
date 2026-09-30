@@ -84,7 +84,7 @@ class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
 
   @state() isOpen = false;
 
-  protected readonly api = ModalApi;
+  protected override readonly api = ModalApi;
 
   openModal() {
     this.isOpen = true;
