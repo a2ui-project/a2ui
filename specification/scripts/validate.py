@@ -291,7 +291,7 @@ def validate_example_icons(catalog_path, example_files):
                             )
                             all_valid = False
                     elif isinstance(name, dict) and ("@path" in name or "path" in name):
-                        path_str = name.get("@path") or name.get("path")
+                        path_str = name["@path"] if "@path" in name else name["path"]
                         resolved_val = None
                         for dm in data_models:
                             val = resolve_path(dm, path_str)
