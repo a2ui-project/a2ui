@@ -27,7 +27,7 @@
 # Compiling direct JSON is mostly reading the block, so what the cases fix is
 # mainly what a compiler may repair before reading: a trailing comma, a smart
 # quote a model picked up from prose, a single object where a list was asked
-# for. Four of the nine cases are that. They matter because a model that emits
+# for. Such cases matter because a model that emits
 # almost-JSON is the common case rather than the exception.
 #
 # Two error categories carry the load. `ParseError` is for payload text the
