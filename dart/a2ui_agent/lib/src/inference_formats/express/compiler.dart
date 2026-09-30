@@ -20,6 +20,11 @@ import 'syntax.dart';
 /// The surface a block writes to when it names none with `surface(...)`.
 const String defaultSurfaceId = 'default_surface';
 
+/// The message a check written without one carries, such as `Required check
+/// failed.` for `?required`.
+String defaultCheckMessage(String check) =>
+    '${check.substring(0, 1).toUpperCase()}${check.substring(1)} check failed.';
+
 /// Compiles Express blocks into v0.9 A2UI messages.
 ///
 /// The rules follow `conformance/agent/express/compiler.yaml`, with the
@@ -386,13 +391,9 @@ class _SurfaceCompiler {
       check,
       context,
     );
-    final String name = check.name;
     return {
       'condition': condition,
-      'message':
-          message ??
-          '${name.substring(0, 1).toUpperCase()}${name.substring(1)} check '
-              'failed.',
+      'message': message ?? defaultCheckMessage(check.name),
     };
   }
 

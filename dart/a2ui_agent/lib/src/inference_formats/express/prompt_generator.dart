@@ -15,6 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../prompt/generator.dart';
+import 'decompiler.dart';
 import 'schema_helper.dart';
 
 /// Renders the system prompt snippet teaching a model to write Express for
@@ -31,36 +32,44 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// messages making up one turn.
   final List<List<AgentToRendererMessage>> examples;
 
-  /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
-  /// nothing the model could be told to write.
+  /// Each of [examples] is shown as the Express block it decompiles to.
   ///
-  /// Rendering [examples] is not implemented yet.
+  /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
+  /// nothing the model could be told to write, and [A2uiValidationError] if
+  /// an example has no Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
-    }
-    if (examples.isNotEmpty) {
-      throw UnimplementedError('ExpressPromptGenerator.generate with examples');
     }
     final buffer = StringBuffer(_rules);
     if (catalogs.length == 1) {
       buffer
         ..write('\n\n')
         ..write(_catalogSection(CatalogSchemaHelper(catalogs.single), '##'));
-      return buffer.toString();
+    } else {
+      buffer.write(
+        '\n\n## Catalogs\n\n'
+        'Components and functions come from the catalogs below. A surface '
+        'uses one catalog. The first catalog, `${catalogs.first.id}`, is the '
+        'default. To build a surface from another catalog, name it in the '
+        'surface line, e.g. surface("my-surface", "${catalogs.last.id}").',
+      );
+      for (final SchemaCatalog catalog in catalogs) {
+        buffer
+          ..write('\n\n## Catalog `${catalog.id}`\n\n')
+          ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));
+      }
     }
-    buffer.write(
-      '\n\n## Catalogs\n\n'
-      'Components and functions come from the catalogs below. A surface uses '
-      'one catalog. The first catalog, `${catalogs.first.id}`, is the default. '
-      'To build a surface from another catalog, name it in the surface line, '
-      'e.g. surface("my-surface", "${catalogs.last.id}").',
-    );
-    for (final SchemaCatalog catalog in catalogs) {
-      buffer
-        ..write('\n\n## Catalog `${catalog.id}`\n\n')
-        ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));
+    if (examples.isNotEmpty) {
+      final decompiler = ExpressDecompiler(catalogs);
+      buffer.write(
+        '\n\n## Examples\n\n'
+        'Each example is one complete response block.',
+      );
+      for (final List<AgentToRendererMessage> example in examples) {
+        buffer.write('\n\n<a2ui>\n${decompiler.decompile(example)}\n</a2ui>');
+      }
     }
     return buffer.toString();
   }
@@ -175,7 +184,8 @@ String _functionSignatures(CatalogSchemaHelper helper) {
 
 String _indent(String text) => text.replaceAll('\n', '\n    ');
 
-/// The Express syntax contract, as the Python SDK words it.
+/// The Express syntax contract, as the Python SDK words it, except that the
+/// examples name no real component, so a pruned one never appears.
 const String _rules = r'''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
@@ -235,4 +245,4 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
     surface("dashboard-surface-1")
-    root = Card(...)''';
+    root = ComponentB(...)''';
