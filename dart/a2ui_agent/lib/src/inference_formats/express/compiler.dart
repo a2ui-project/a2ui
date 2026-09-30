@@ -24,7 +24,9 @@ const String defaultSurfaceId = 'default_surface';
 ///
 /// The rules follow `conformance/agent/express/compiler.yaml`, with the
 /// messages shaped for v0.9: a surface is created by `createSurface` followed
-/// by `updateComponents`, and its initial data by `updateDataModel`.
+/// by `updateComponents`, and its initial data by `updateDataModel`. A block
+/// that assigns components but no `root` updates a surface created by an
+/// earlier response, so it compiles to `updateComponents` alone.
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
@@ -234,11 +236,14 @@ class _SurfaceCompiler {
     final bool hasComponents = surface.symbols.values.any(
       (node) => node is CallNode && helper.isComponent(node.name),
     );
-    if (!surface.symbols.containsKey('root')) {
-      if (surface.data.isNotEmpty && !hasComponents) return [dataUpdate];
+    // Assigning `root` creates the surface. Components without it update a
+    // surface created by an earlier response.
+    final bool creates = surface.symbols.containsKey('root');
+    if (!creates && !hasComponents) {
+      if (surface.data.isNotEmpty) return [dataUpdate];
       throw A2uiValidationError(
-        "Surface '$surfaceId' has no 'root'. Assign the top component to "
-        "'root', such as 'root = Column([...])'.",
+        "Surface '$surfaceId' has no components and no data. Assign the top "
+        "component to 'root', such as 'root = Column([...])'.",
       );
     }
 
@@ -257,10 +262,11 @@ class _SurfaceCompiler {
     components.forEach(helper.validator.validateComponent);
 
     return [
-      _envelope('createSurface', {
-        'surfaceId': surfaceId,
-        'catalogId': _catalogId,
-      }),
+      if (creates)
+        _envelope('createSurface', {
+          'surfaceId': surfaceId,
+          'catalogId': _catalogId,
+        }),
       _envelope('updateComponents', {
         'surfaceId': surfaceId,
         'components': components,
