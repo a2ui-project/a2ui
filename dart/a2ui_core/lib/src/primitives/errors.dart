@@ -84,10 +84,10 @@ class A2uiIntegrityError extends A2uiValidationError {
 }
 
 /// Thrown when a component graph cycles or exceeds the depth cap.
-class A2uiRecursionError extends A2uiError {
+class A2uiRecursionError extends A2uiValidationError {
   /// The chain of component ids that produced the cycle, when known.
   final List<String> cycle;
 
-  A2uiRecursionError(String message, {this.cycle = const []})
-      : super(message, 'RECURSION_ERROR');
+  A2uiRecursionError(super.message, {this.cycle = const []})
+      : super(code: 'RECURSION_ERROR');
 }

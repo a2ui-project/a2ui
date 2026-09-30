@@ -784,5 +784,20 @@ void main() {
         throwsA(isA<A2uiCatalogError>()),
       );
     });
+
+    test(
+      'A2uiIntegrityError and A2uiRecursionError are A2uiValidationErrors',
+      () {
+        final A2uiIntegrityError integrity =
+            A2uiIntegrityError('integrity message');
+        final A2uiRecursionError recursion =
+            A2uiRecursionError('recursion message');
+
+        expect(integrity, isA<A2uiValidationError>());
+        expect(integrity.code, 'INTEGRITY_ERROR');
+        expect(recursion, isA<A2uiValidationError>());
+        expect(recursion.code, 'RECURSION_ERROR');
+      },
+    );
   });
 }

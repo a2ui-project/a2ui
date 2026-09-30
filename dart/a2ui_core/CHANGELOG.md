@@ -12,11 +12,11 @@
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
 - `MessageProcessor`, `PayloadValidator`, and `Catalog` align surface lifecycle
-  error reporting (`A2uiIntegrityError` extending `A2uiValidationError`,
-  per-message completeness validation, safe no-op `deleteSurface` on unknown
-  surfaces), support `"v0.9.1"` in `A2uiProtocolVersion.tryParse`, and pass the
-  `message_processor_v0_9.yaml`, `validator_v0_9.yaml`, and `catalog.yaml`
-  conformance suites.
+  error reporting (`A2uiIntegrityError` and `A2uiRecursionError` extending
+  `A2uiValidationError`, per-message completeness validation, safe no-op
+  `deleteSurface` on unknown surfaces), support `"v0.9.1"` in
+  `A2uiProtocolVersion.tryParse`, and pass the `message_processor_v0_9.yaml`,
+  `validator_v0_9.yaml`, and `catalog.yaml` conformance suites.
 - `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template
   length (`maxTemplateLength = 10000`), and template parts
   (`maxTemplateParts = 1000`) limits across nested interpolations and
