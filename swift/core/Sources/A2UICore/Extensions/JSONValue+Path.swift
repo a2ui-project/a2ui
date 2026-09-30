@@ -99,6 +99,27 @@ extension JSONValue {
     return index
   }
 
+  /// Subscript resolving an array of parsed path components.
+  public subscript(components: [String]) -> JSONValue? {
+    if components.isEmpty { return self }
+    var currentValue = self
+    for component in components {
+      switch currentValue {
+      case .object(let dictionary):
+        guard let value = dictionary[component] else { return nil }
+        currentValue = value
+      case .array(let array):
+        guard let index = Self.isValidArrayIndex(component),
+          index < array.count
+        else { return nil }
+        currentValue = array[index]
+      default:
+        return nil
+      }
+    }
+    return currentValue
+  }
+
   /// Thread-safe getter and setter for deep path-based subscripting.
   ///
   /// Path components are separated by `/` (e.g., `"/user/name"`).
@@ -106,23 +127,7 @@ extension JSONValue {
   public subscript(path: String) -> JSONValue? {
     get {
       guard let components = try? Self.parsePathThrowing(path) else { return nil }
-      if components.isEmpty { return self }
-      var currentValue = self
-      for component in components {
-        switch currentValue {
-        case .object(let dictionary):
-          guard let value = dictionary[component] else { return nil }
-          currentValue = value
-        case .array(let array):
-          guard let index = Self.isValidArrayIndex(component),
-            index < array.count
-          else { return nil }
-          currentValue = array[index]
-        default:
-          return nil
-        }
-      }
-      return currentValue
+      return self[components]
     }
     set {
       guard let components = try? Self.parsePathThrowing(path) else { return }
