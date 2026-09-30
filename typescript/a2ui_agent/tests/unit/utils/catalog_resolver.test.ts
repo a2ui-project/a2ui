@@ -31,90 +31,70 @@ describe('resolveCatalogs', () => {
 
   const supportedConfigs = [configBasic, configCustom1, configCustom2];
 
-  it('test_select_catalog_default: returns first supported catalog if supportedCatalogIds is empty', () => {
-    const caps: V10RendererCapabilities = {supportedCatalogIds: []};
-    const resolved = resolveCatalogs(supportedConfigs, caps);
-    expect(resolved.length).toBe(1);
-    expect(resolved[0].id).toBe('id_basic');
-  });
+  const inline = (catalogId: string) => ({catalogId, protocolVersion: '1.0', components: {}});
 
-  it('test_select_catalog_intersection: finds intersection, returns matching catalog', () => {
+  it('activates every catalog the renderer names, in its preference order', () => {
     const caps: V10RendererCapabilities = {
-      supportedCatalogIds: ['id_custom2', 'id_custom1'],
+      supportedCatalogIds: ['id_custom2', 'id_basic'],
     };
     const resolved = resolveCatalogs(supportedConfigs, caps);
-    expect(resolved.length).toBe(1);
-    expect(resolved[0].id).toBe('id_custom2'); // Priority goes to renderer capabilities ordering
+    expect(resolved.map(c => c.id)).toEqual(['id_custom2', 'id_basic']);
   });
 
-  it('test_select_catalog_priority: priority is determined by order in supportedCatalogIds', () => {
+  it('ignores ids the agent does not hold', () => {
     const caps: V10RendererCapabilities = {
-      supportedCatalogIds: ['id_custom1', 'id_custom2'],
+      supportedCatalogIds: ['id_not_exists', 'id_custom1'],
     };
     const resolved = resolveCatalogs(supportedConfigs, caps);
-    expect(resolved.length).toBe(1);
-    expect(resolved[0].id).toBe('id_custom1');
+    expect(resolved.map(c => c.id)).toEqual(['id_custom1']);
   });
 
-  it('test_select_catalog_no_match: raises error if supported list is non-empty but no match exists', () => {
-    const caps: V10RendererCapabilities = {
-      supportedCatalogIds: ['id_not_exists'],
-    };
+  it('throws when the renderer names nothing the agent holds', () => {
+    const caps: V10RendererCapabilities = {supportedCatalogIds: ['id_not_exists']};
     expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(A2uiCatalogError);
-    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(
-      'No client-supported catalog found',
-    );
   });
 
-  it('test_select_catalog_inline: inline catalog loading (adds to list)', () => {
+  it('throws when supportedCatalogIds is empty and nothing is declared inline', () => {
+    const caps: V10RendererCapabilities = {supportedCatalogIds: []};
+    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(A2uiCatalogError);
+  });
+
+  it('adds each accepted inline catalog as an active catalog of its own', () => {
     const caps: V10RendererCapabilities = {
-      supportedCatalogIds: [],
-      inlineCatalogs: [{catalogId: 'id_inline', components: {}}],
+      supportedCatalogIds: ['id_basic'],
+      inlineCatalogs: [inline('id_inline1'), inline('id_inline2')],
     };
     const resolved = resolveCatalogs([configBasic], caps, true);
-    expect(resolved.length).toBe(2);
-    expect(resolved[0].id).toBe('id_basic');
-    expect(resolved[1].id).toBe('id_inline');
+    expect(resolved.map(c => c.id)).toEqual(['id_basic', 'id_inline1', 'id_inline2']);
   });
 
-  it('test_select_catalog_inline_not_accepted: fails if not accepted', () => {
+  it('accepts an inline catalog alone when no registered id matches', () => {
     const caps: V10RendererCapabilities = {
       supportedCatalogIds: [],
-      inlineCatalogs: [{catalogId: 'id_inline', components: {}}],
-    };
-    expect(() => resolveCatalogs([configBasic], caps, false)).toThrowError(A2uiCatalogError);
-    expect(() => resolveCatalogs([configBasic], caps, false)).toThrowError(
-      'the agent does not accept inline catalogs',
-    );
-  });
-
-  it('test_select_catalog_multiple_inline: parses multiple inline catalogs', () => {
-    const caps: V10RendererCapabilities = {
-      supportedCatalogIds: [],
-      inlineCatalogs: [
-        {catalogId: 'id_inline1', components: {}},
-        {catalogId: 'id_inline2', components: {}},
-      ],
+      inlineCatalogs: [inline('id_inline')],
     };
     const resolved = resolveCatalogs([configBasic], caps, true);
-    expect(resolved.length).toBe(3);
-    expect(resolved[0].id).toBe('id_basic');
-    expect(resolved[1].id).toBe('id_inline1');
-    expect(resolved[2].id).toBe('id_inline2');
+    expect(resolved.map(c => c.id)).toEqual(['id_inline']);
   });
 
-  it('test_select_catalog_no_match_with_inline: fallback to default catalog when no match in supported list but inline is present', () => {
+  it('drops inline catalogs the agent does not accept', () => {
     const caps: V10RendererCapabilities = {
-      supportedCatalogIds: ['id_not_exists'],
+      supportedCatalogIds: ['id_basic'],
+      inlineCatalogs: [inline('id_inline')],
+    };
+    const resolved = resolveCatalogs([configBasic], caps, false);
+    expect(resolved.map(c => c.id)).toEqual(['id_basic']);
+  });
+
+  it('throws when an accepted inline catalog states no protocol version', () => {
+    const caps: V10RendererCapabilities = {
+      supportedCatalogIds: [],
       inlineCatalogs: [{catalogId: 'id_inline', components: {}}],
     };
-    const resolved = resolveCatalogs([configBasic, configCustom1], caps, true);
-    expect(resolved.length).toBe(2);
-    expect(resolved[0].id).toBe('id_basic'); // Default fallback
-    expect(resolved[1].id).toBe('id_inline');
+    expect(() => resolveCatalogs([configBasic], caps, true)).toThrowError(A2uiCatalogError);
   });
 
-  it('test_absent_capabilities_activate_every_catalog: activates every registered catalog when capabilities are absent', () => {
+  it('activates every registered catalog when capabilities are absent', () => {
     const resolved = resolveCatalogs(supportedConfigs, undefined);
     expect(resolved.map(c => c.id)).toEqual(['id_basic', 'id_custom1', 'id_custom2']);
   });

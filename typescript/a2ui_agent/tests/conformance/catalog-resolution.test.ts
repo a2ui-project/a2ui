@@ -29,24 +29,7 @@ import {
 } from './suite-helpers.js';
 
 /** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([
-  [
-    'test_every_named_catalog_becomes_active',
-    'the resolver activates only the first catalog the renderer names',
-  ],
-  [
-    'test_empty_supported_catalog_ids_is_an_error',
-    'an empty supportedCatalogIds falls back to the first registered catalog',
-  ],
-  [
-    'test_inline_catalog_is_rejected',
-    'inline catalogs the agent does not accept raise an error instead of being dropped',
-  ],
-  [
-    'test_inline_catalog_alone_is_enough',
-    'with no named match the resolver falls back to the first registered catalog',
-  ],
-]);
+const KNOWN_FAILURES = new Map<string, string>([]);
 
 describe('Conformance: catalog_resolution.yaml', () => {
   for (const testCase of loadCases([conformancePath('agent/catalog_resolution.yaml')])) {

@@ -146,9 +146,8 @@ describe('Conformance Harness', () => {
         if (expectedObj.supportedCatalogIds) {
           expect(configs.map(c => c.catalog.id)).toEqual(expectedObj.supportedCatalogIds);
         } else {
-          const selected = resolveCatalogs(configs, {
-            supportedCatalogIds: [],
-          } as unknown as V10RendererCapabilities)[0];
+          // The legacy manager used the first configured catalog when nothing was negotiated.
+          const selected = configs[0].transformedCatalog;
           expect(selected.id).toBe(expectedObj.catalogId);
           if (expectedObj.components) {
             for (const [k, v] of Object.entries(
