@@ -77,6 +77,20 @@ const SUPERSEDED = new Map<string, string>([
   ]),
 ]);
 
+/**
+ * Legacy actions whose whole interface the newer suites replaced.
+ *
+ * `generate_prompt` assembled a full system prompt from role, workflow and UI descriptions.
+ * The prompt generator now renders only the catalog snippet and leaves the rest of the
+ * prompt to the agent developer.
+ */
+const SUPERSEDED_ACTIONS = new Map<string, string>([
+  [
+    'generate_prompt',
+    'superseded by direct_json/prompt_generator.yaml, since the generator renders only the catalog snippet',
+  ],
+]);
+
 const SUPPORTED_FORMATS = new Set(['direct_json']);
 
 /**
@@ -91,7 +105,7 @@ const UNIMPLEMENTED_ACTIONS = new Map<string, string>([
 ]);
 
 export function classify(testCase: TestCase) {
-  const superseded = SUPERSEDED.get(testCase.name);
+  const superseded = SUPERSEDED.get(testCase.name) ?? SUPERSEDED_ACTIONS.get(testCase.action);
   if (superseded) {
     return {runnable: false, reason: superseded};
   }

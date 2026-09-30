@@ -15,8 +15,10 @@
  */
 
 import {z} from 'zod';
+import {A2uiCatalogError} from '../errors.js';
 import {
   A2uiValidationError,
+  normalizeVersionString,
   V09CreateSurfaceMessageSchema,
   V09UpdateComponentsMessageSchema,
   V09UpdateDataModelMessageSchema,
@@ -55,6 +57,27 @@ const V10_SCHEMAS: Record<string, z.ZodTypeAny> = {
 };
 
 /**
+ * Returns the agent-to-renderer message schemas of a protocol version, keyed by the
+ * envelope name each message carries (`createSurface`, `updateComponents`, and so on).
+ *
+ * The schemas are web_core's generated Zod models, so they always match the protocol
+ * the renderer validates against.
+ *
+ * @param protocolVersion Protocol version in any spelling a catalog uses.
+ * @throws {A2uiCatalogError} If the SDK has no message schemas for the version.
+ */
+export function envelopeSchemasFor(protocolVersion: string): Record<string, z.ZodTypeAny> {
+  const normalized = normalizeVersionString(protocolVersion);
+  if (normalized === '0.9' || normalized.startsWith('0.9.')) {
+    return V09_SCHEMAS;
+  }
+  if (normalized === '1.0') {
+    return V10_SCHEMAS;
+  }
+  throw new A2uiCatalogError(`No message schemas for protocol version '${protocolVersion}'.`);
+}
+
+/**
  * Formats a Zod error into an A2uiValidationError message.
  *
  * When an underlying Zod issue represents a missing required property,
@@ -84,7 +107,7 @@ function formatZodValidationErrorMessage(error: z.ZodError): string {
  * @throws {A2uiValidationError} If validation fails or if the envelope key is unknown.
  */
 export function validateEnvelope(obj: Record<string, unknown>, protocolVersion: string): void {
-  const schemas = protocolVersion.startsWith('v0.9') ? V09_SCHEMAS : V10_SCHEMAS;
+  const schemas = envelopeSchemasFor(protocolVersion);
 
   const knownKeys = Object.keys(schemas);
   const matchingKey = knownKeys.find(key => key in obj);

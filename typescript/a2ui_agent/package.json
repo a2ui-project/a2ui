@@ -85,6 +85,7 @@
     "wireit": "^0.15.0-pre.2"
   },
   "dependencies": {
-    "@a2ui/web_core": "workspace:*"
+    "@a2ui/web_core": "workspace:*",
+    "zod-to-json-schema": "^3.25.2"
   }
 }

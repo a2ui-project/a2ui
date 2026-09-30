@@ -26,12 +26,10 @@ import {
   ResponsePart,
   basicCatalog,
   resolveCatalogs,
-  DirectJsonPromptGenerator,
 } from '../../src/index.js';
 import {V10RendererCapabilities} from '../../src/internal/web_core.js';
 import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.js';
 import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
-import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
 
 import {parseAndFix} from '../../src/parser/payload_fixer.js';
 
@@ -234,52 +232,6 @@ describe('Conformance Harness', () => {
             expect(adapted).toEqual(step.expect);
           } else {
             processor.processChunk(step.input);
-          }
-        }
-      } else if (action === 'generate_prompt') {
-        const args = (testCase.args as Record<string, unknown>) || {};
-
-        // Python's runner also threads examplesPath, acceptsInlineCatalogs,
-        // clientUiCapabilities, allowedComponents and allowedMessages into prompt
-        // generation. This harness does not, and the TypeScript generator has no equivalent
-        // for several of them. Every case that uses one is v0.8, which the loader skips, so
-        // none currently reach here. Refuse them rather than quietly generating a prompt
-        // that ignores them, so enabling those cases surfaces the gap instead of a
-        // mysterious assertion failure.
-        const unsupportedArgs = [
-          'examplesPath',
-          'acceptsInlineCatalogs',
-          'clientUiCapabilities',
-          'allowedComponents',
-          'allowedMessages',
-        ].filter(key => key in args);
-        if (unsupportedArgs.length > 0) {
-          throw new Error(
-            `generate_prompt argument(s) not implemented by this harness: ` +
-              `${unsupportedArgs.join(', ')}. See Python's runner for the intended semantics.`,
-          );
-        }
-
-        const versionStr = (args.version as string) || 'v0.9';
-        const catalog = basicCatalog(toWireProtocolVersion(versionStr));
-        const generator = new DirectJsonPromptGenerator([catalog]);
-
-        const output = generator.generate({
-          roleDescription: args.roleDescription as string | undefined,
-          workflowDescription: args.workflowDescription as string | undefined,
-          uiDescription: args.uiDescription as string | undefined,
-          includeSchema: args.includeSchema as boolean | undefined,
-          includeExamples: args.includeExamples as boolean | undefined,
-        });
-
-        const outputNormalized = output.replace(/\s+/g, '');
-        const expectContains = testCase.expectContains as string[] | undefined;
-        if (expectContains) {
-          for (const expectedStr of expectContains) {
-            const expectedNormalized = expectedStr.replace(/\s+/g, '');
-            expect(outputNormalized, `Expected prompt to contain '${expectedStr}'`).toContain(
-              expectedNormalized,
-            );
           }
         }
       } else if (action === 'skill') {
