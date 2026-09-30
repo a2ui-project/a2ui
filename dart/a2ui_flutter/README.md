@@ -73,8 +73,6 @@ graph TD
     Conversation -- "loops back" --> ExternalLLM;
 ```
 
-See [DESIGN.md](./DESIGN.md) for more detailed information about the design.
-
 ## Getting Started with `a2ui_flutter`
 
 This guidance explains how to quickly get started with the
@@ -407,9 +405,9 @@ This reactive data flow simplifies state management and creates a powerful, high
 
 ### Next steps
 
-Check out the [examples](../../examples) included in this repo! The
-[simple_chat](../../examples/simple_chat) shows how to define your own widget
-`Catalog` that the agent can use to generate domain-specific UI.
+Check out the [example](./example) included in this package! It shows how to
+define your own widget `Catalog` that the agent can use to generate
+domain-specific UI.
 
 If something is unclear or missing, please
 [create an issue](https://github.com/a2ui-project/a2ui/issues/new/choose).

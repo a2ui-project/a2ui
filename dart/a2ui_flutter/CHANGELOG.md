@@ -51,7 +51,7 @@
 
 - **BREAKING**: Changed `SurfaceDefinition.validate` to be asynchronous to support resolving `$ref` schemas via `SchemaRegistry`.
 - **Refactor**: genui now runs on `package:a2ui_core`. See
-  [the migration guide](../../docs/usage/migration/migration_0.9.1_to_0.10.0.md).
+  [the migration guide](https://github.com/flutter/genui/blob/main/docs/usage/migration/migration_0.9.1_to_0.10.0.md).
 - **BREAKING**: A2UI message types are now `package:a2ui_core` types. The GenUI
   message classes (`A2uiMessage`, `CreateSurface`, `UpdateComponents`,
   `UpdateDataModel`, `DeleteSurface`) are removed; `SurfaceController.handleMessage`

@@ -33,7 +33,13 @@ The application's logic is contained almost entirely within `lib/chat_session.da
 
 ## Getting Started
 
-Follow the instructions in [Running the app with a Gemini key](../../docs/usage/run_app_with_gemini_key.md).
+1. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+2. Run the app with the key:
+
+   ```bash
+   export GEMINI_API_KEY=your_api_key_here
+   flutter run -d <device> --dart-define=GEMINI_API_KEY=$GEMINI_API_KEY
+   ```
 
 ## Video
 
