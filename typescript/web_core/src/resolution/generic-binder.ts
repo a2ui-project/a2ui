@@ -16,13 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {
-  Action,
-  ChildList,
-  DataBinding,
-  FunctionCall,
-  childRefKindOf,
-} from '../types/common-types.js';
+import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 
@@ -271,27 +265,17 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
 /** Types recognized as dynamic data bindings or expression function calls. */
 type DynamicTypes =
   | DataBinding
-  | FunctionCall
-  | {'@path': string}
   | {path: string}
-  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string}
-  | {'@call': string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
+  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
 
 /** Types recognized as user actions or function call events. */
 type ActionLike =
   | Action
   | {event: {name: string; context?: Record<string, unknown>}}
-  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}}
-  | {functionCall: {'@call': string; catalogId?: string; args?: Record<string, unknown>}};
+  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}};
 
 /** Evaluates to true if type T can contain a dynamic binding. */
-type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) extends true
-  ? true
-  : ({'@path': string} extends NonNullable<T> ? true : false) extends true
-    ? true
-    : DataBinding extends NonNullable<T>
-      ? true
-      : false;
+type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.

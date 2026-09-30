@@ -108,6 +108,7 @@ export class ComponentHostComponent {
   private propsSub?: Subscription;
   private createSub?: Subscription;
   private surfaceSub?: Subscription;
+  private deleteSub?: Subscription;
 
   constructor() {
     effect(() => {
@@ -175,7 +176,7 @@ export class ComponentHostComponent {
 
       const sub = surface.componentsModel.onCreated.subscribe(comp => {
         if (comp.id === id) {
-          this.initializeComponent(surface, comp, id, basePath);
+          this.ngZone.run(() => this.initializeComponent(surface, comp, id, basePath, surfaceId));
           sub.unsubscribe();
         }
       });
@@ -183,7 +184,7 @@ export class ComponentHostComponent {
       return;
     }
 
-    this.initializeComponent(surface, componentModel, id, basePath);
+    this.initializeComponent(surface, componentModel, id, basePath, surfaceId);
   }
 
   private initializeComponent(
@@ -191,7 +192,20 @@ export class ComponentHostComponent {
     componentModel: ComponentModel,
     id: string,
     basePath: string,
+    surfaceId: string,
   ): void {
+    // Type changes remove the old ComponentModel and add a new one under the same id.
+    // If this listener runs first, `get(id)` is still undefined and `setupComponent` waits on
+    // `onCreated`. If it runs later in `emit`'s async loop (after the new model is added),
+    // `get(id) !== componentModel` stops the new listener registered by `setupComponent` from
+    // firing in the same `emit` pass.
+    // Subscribe before the catalog lookup so an unknown type can still be replaced later.
+    this.deleteSub = surface.componentsModel.onDeleted.subscribe(deletedId => {
+      if (deletedId === id && surface.componentsModel.get(id) !== componentModel) {
+        this.ngZone.run(() => this.setupComponent({id, basePath}, surfaceId));
+      }
+    });
+
     // Resolve component from the surface's catalog
     const catalog = surface.defaultCatalog;
     const componentImpl = catalog.components.get(componentModel.type);
@@ -288,6 +302,8 @@ export class ComponentHostComponent {
     this.createSub = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
+    this.deleteSub?.unsubscribe();
+    this.deleteSub = undefined;
 
     this.componentType.set(null);
     this.props.set({});

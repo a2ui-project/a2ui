@@ -46,11 +46,7 @@ export type ComponentId = z.infer<typeof ComponentIdSchema>;
 
 export const DataBindingSchema = z
   .object({
-    'path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-    '@path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-  })
-  .refine(data => data['@path'] !== undefined || data.path !== undefined, {
-    message: "Either '@path' or 'path' must be provided.",
+    'path': z.string().describe('A JSON Pointer path to a value in the data model.'),
   })
   .describe('REF:common_types.json#/$defs/DataBinding');
 /** REF:common_types.json#/$defs/DataBinding */
@@ -60,8 +56,7 @@ export type DataBindingType = DataBinding;
 
 export const FunctionCallSchema = z
   .object({
-    'call': z.string().describe('The name of the function to call.').optional(),
-    '@call': z.string().describe('The name of the function to call.').optional(),
+    'call': z.string().describe('The name of the function to call.'),
     'args': z
       .record(z.string(), z.unknown())
       .describe('Arguments passed to the function.')
@@ -74,9 +69,6 @@ export const FunctionCallSchema = z
       .string()
       .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
       .optional(),
-  })
-  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
-    message: "Either '@call' or 'call' must be provided.",
   })
   .describe(
     'REF:common_types.json#/$defs/FunctionCall|Invokes a named function, combining common function properties with the catalog function definition.',
@@ -187,12 +179,7 @@ export const DynamicValueSchema = z
     z.array(z.unknown()),
     DataBindingSchema,
     FunctionCallSchema,
-    z
-      .record(z.string(), z.unknown())
-      .refine(
-        obj =>
-          !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)),
-      ),
+    z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
   ])
   .describe(
     'REF:common_types.json#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
@@ -312,35 +299,29 @@ export type Child = z.infer<typeof ChildSchema>;
 
 export const FunctionCommonSchema = z
   .object({
-    'call': z.string().describe('The name of the function to call.').optional(),
-    '@call': z.string().describe('The name of the function to call.').optional(),
+    'call': z.string().describe('The name of the function to call.'),
     'catalogId': z
       .string()
       .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
       .optional(),
   })
-  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
-    message: "Either '@call' or 'call' must be provided.",
-  })
   .describe(
-    "REF:common_types.json#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
+    "REF:common_types.json#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas (\\'args\\') are defined individually by each function in the active catalog.",
   );
 /** REF:common_types.json#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas (\'args\') are defined individually by each function in the active catalog. */
 export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
 
 export const IndexSystemFunctionSchema = z
   .object({
-    'call': z.literal('@index').optional(),
-    '@call': z.literal('@index').optional(),
+    'call': z.literal('@index'),
     'args': z
       .object({
         'offset': DynamicNumberSchema.optional(),
       })
+      .strict()
       .optional(),
   })
-  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
-    message: "Either '@call' or 'call' must be '@index'.",
-  })
+  .strict()
   .describe(
     'REF:common_types.json#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
   );

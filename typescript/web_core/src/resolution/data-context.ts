@@ -26,7 +26,12 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import {type FunctionCall, type Action, MAX_FUNCTION_CALL_ARGS} from '../types/common-types.js';
+import {
+  type DataBinding,
+  type FunctionCall,
+  type Action,
+  MAX_FUNCTION_CALL_ARGS,
+} from '../types/common-types.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
@@ -306,26 +311,20 @@ export class DataContext {
    * Checks whether an object represents a data binding.
    *
    * @param val Candidate object to inspect.
-   * @returns Whether the object has a string `@path` or `path` and is not a component reference.
+   * @returns Whether the object has a string `path` and is not a component reference.
    */
   private static isDataBindingObject(val: Record<string, unknown>): boolean {
-    const hasPath =
-      ('@path' in val && typeof val['@path'] === 'string') ||
-      ('path' in val && typeof val.path === 'string');
-    return hasPath && !('componentId' in val);
+    return 'path' in val && typeof val.path === 'string' && !('componentId' in val);
   }
 
   /**
    * Checks whether an object represents a function call.
    *
    * @param val Candidate object to inspect.
-   * @returns Whether the object has a string `@call` or `call` property.
+   * @returns Whether the object has a string `call` property.
    */
   private static isFunctionCallObject(val: Record<string, unknown>): boolean {
-    return (
-      ('@call' in val && typeof val['@call'] === 'string') ||
-      ('call' in val && typeof val.call === 'string')
-    );
+    return 'call' in val && typeof val.call === 'string';
   }
 
   /**
@@ -401,8 +400,7 @@ export class DataContext {
     const rec = value as Record<string, unknown>;
 
     if (DataContext.isDataBindingObject(rec)) {
-      const bindingPath = (rec['@path'] ?? rec.path) as string;
-      const absolutePath = this.resolvePath(bindingPath);
+      const absolutePath = this.resolvePath((value as DataBinding).path);
       const val = this.dataModel.get(absolutePath);
       if (val === undefined) {
         this.emitMissingDataBindingWarning(absolutePath);
@@ -411,7 +409,7 @@ export class DataContext {
     }
 
     if (DataContext.isFunctionCallObject(rec)) {
-      return this.resolveFunctionCallValue<V>(rec as unknown as FunctionCall, depth);
+      return this.resolveFunctionCallValue<V>(value as FunctionCall, depth);
     }
 
     return this.resolvePlainObjectValue<V>(rec, depth);
@@ -426,14 +424,13 @@ export class DataContext {
    */
   private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0): V {
     let targetCatalog: Catalog<any>;
-    const callName = (call['@call'] ?? call.call)!;
     try {
       // Resolve before validating: the arguments must be checked against the
       // catalog that will actually run the call, not the surface default.
       targetCatalog = this.resolveFunctionCatalog(call.catalogId);
-      validateFunctionArgs(callName, call.args, targetCatalog);
+      validateFunctionArgs(call.call, call.args, targetCatalog);
     } catch (e: unknown) {
-      this.dispatchExpressionError(e, callName);
+      this.dispatchExpressionError(e, call.call);
       return undefined as V;
     }
     const args: Record<string, unknown> = {};
@@ -443,7 +440,7 @@ export class DataContext {
 
     const abortController = new AbortController();
     const result = this.evaluateFunctionReactive<V>(
-      callName,
+      call.call,
       args,
       abortController.signal,
       call.catalogId,
@@ -534,8 +531,8 @@ export class DataContext {
       );
       this.dispatchExpressionError(
         err,
-        typeof value === 'object' && value && ('@call' in value || 'call' in value)
-          ? (((value as any)['@call'] ?? (value as any).call) as string)
+        typeof value === 'object' && value && 'call' in value
+          ? (value as FunctionCall).call
           : 'DynamicValue',
       );
       return signal(undefined as unknown as V);
@@ -566,24 +563,22 @@ export class DataContext {
 
     // 2. Path Check
     if (DataContext.isDataBindingObject(rec)) {
-      const bindingPath = (rec['@path'] ?? rec.path) as string;
-      const absolutePath = this.resolvePath(bindingPath);
+      const absolutePath = this.resolvePath((value as DataBinding).path);
       this.emitMissingDataBindingWarning(absolutePath);
       return this.dataModel.getSignal<V>(absolutePath) as Signal<V>;
     }
 
     // 3. Function Call
     if (DataContext.isFunctionCallObject(rec)) {
-      const call = rec as unknown as FunctionCall;
-      const callName = (call['@call'] ?? call.call)!;
+      const call = value as FunctionCall;
       let targetCatalog: Catalog<any>;
       try {
         // Resolve before validating: the arguments must be checked against the
         // catalog that will actually run the call, not the surface default.
         targetCatalog = this.resolveFunctionCatalog(call.catalogId);
-        validateFunctionArgs(callName, call.args, targetCatalog);
+        validateFunctionArgs(call.call, call.args, targetCatalog);
       } catch (e: unknown) {
-        this.dispatchExpressionError(e, callName);
+        this.dispatchExpressionError(e, call.call);
         return signal(undefined as unknown as V);
       }
       const argSignals: Record<string, Signal<unknown>> = {};
@@ -595,7 +590,7 @@ export class DataContext {
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
         const result = this.evaluateFunctionReactive<V>(
-          callName,
+          call.call,
           {},
           abortController.signal,
           call.catalogId,
@@ -631,7 +626,7 @@ export class DataContext {
           abortController = new AbortController();
 
           const res = this.evaluateFunctionReactive<V>(
-            callName,
+            call.call,
             args,
             abortController.signal,
             call.catalogId,
@@ -646,7 +641,7 @@ export class DataContext {
             setValue(resultSig, res);
           }
         } catch (e: unknown) {
-          this.dispatchExpressionError(e, callName);
+          this.dispatchExpressionError(e, call.call);
           // In reactive mode, we should not throw. Instead, reset the signal value.
           setValue(resultSig, undefined);
         }
