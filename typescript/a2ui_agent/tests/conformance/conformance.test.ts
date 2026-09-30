@@ -131,7 +131,7 @@ describe('Conformance Harness', () => {
       } else if (action === 'has_parts') {
         const catalog = basicCatalogV10;
         const parser = new DirectJsonParser(catalog);
-        const result = parser.hasA2uiParts(input);
+        const result = parser.hasFormatContent(input, {complete: true});
         expect(result).toBe(expected);
       } else if (action === 'load_catalog') {
         const expectedObj = expected as Record<string, unknown>;

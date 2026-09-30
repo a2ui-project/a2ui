@@ -117,12 +117,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 4. Upstream Python & Conformance Suite
 
-### Python's `has_format_content` contradicts conformance
+### Python's `has_format_content` tests substrings
 
-- **What it is:** Python's `has_format_content` runs a naive substring search and returns true for an unterminated `<a2ui-json>` open tag. This contradicts the conformance case `test_has_a2ui_parts_false_only_open`, which expects `false`.
-- **Why it exists:** A bug in the upstream Python implementation. Our TypeScript `hasA2uiParts` correctly parses the block and requires a closed tag.
-- **What it risks:** The Python reference implementation is failing a conformance contract that we pass.
-- **Done looks like:** Python's `parser.py` is patched to match the conformance suite.
+- **What it is:** With `complete=True`, Python's `has_format_content` checks that the opening and closing tags each appear somewhere in the content, so `</a2ui-json> <a2ui-json>` counts as a complete block. TypeScript's `hasFormatContent` runs the block lexer and requires a closing tag after an opening one. Without `complete`, both return true for an opening tag on its own, as the module blueprint specifies. The conformance `has_parts` cases check the `complete` form, and both SDKs pass them.
+- **Why it exists:** TypeScript reuses the block lexer that `unwrap` already needs, rather than porting Python's substring test.
+- **What it risks:** Content with a stray closing tag before the opening one is reported differently by the two SDKs.
+- **Done looks like:** Python's `parser.py` checks tag order too, or the blueprint says that a substring test is enough.
 
 ### Python's trailing-comma repair rewrites string contents
 

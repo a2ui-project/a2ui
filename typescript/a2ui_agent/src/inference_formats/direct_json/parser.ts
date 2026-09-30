@@ -36,10 +36,10 @@ export class DirectJsonParser extends Parser {
     this.decompiler = new DirectJsonDecompiler();
   }
 
-  hasA2uiParts(content: string): boolean {
+  hasFormatContent(content: string, {complete = false}: {complete?: boolean} = {}): boolean {
     const parts = this.lexer.tokenize(content);
-    // An unterminated opening tag counts as false per the conformance requirement.
-    return parts.some(p => p.type === 'a2ui' && p.isFinal);
+    // The lexer reports an unterminated block as a part that is not final.
+    return parts.some(p => p.type === 'a2ui' && (!complete || p.isFinal));
   }
 
   unwrap(content: string): RawResponsePart[] {

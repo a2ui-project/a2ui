@@ -38,7 +38,7 @@ Protocol versions are handled in a few fixed places, and adding a version means 
 
 - `A2uiGenerator` and `A2uiRequestProcessor` are implemented matching the TypeScript design doc rather than porting directly from Python.
   > **Correction/Risk Signal**: The `python/a2ui_agent/codebase.blueprint.md` states as fact that the Python SDK implements `A2uiGenerator` and `A2uiRequestProcessor`. This is untrue; neither class exists in the Python codebase. As a result, the TypeScript facades were authored to specification with no reference implementation to check against, presenting a risk signal for reviewers.
-- `Parser.hasA2uiParts` is implemented and used, though absent in the blueprint. It runs the lexer and requires a closed block, whereas Python's substring test contradicts some conformance assertions.
+- `Parser.hasFormatContent(content, {complete})` follows the blueprint's `has_format_content`, but runs the block lexer instead of a substring test, so `complete` also checks that the closing tag follows the opening one.
 - Transformers (e.g., pruning) return _new_ catalogs rather than mutating them, preventing stale schemas from leaking across inherited contexts.
 - `Parser` incorporates a `parseStream` async-generator sugar for iterating over streams naturally.
 - Flat `ResponsePart` shapes from conformance tests are reassembled via the test harness (`adaptParts`) into structured, disjoint `TextPart` and `A2uiPart` types rather than bending the lexer to match the flat python-derived structure.

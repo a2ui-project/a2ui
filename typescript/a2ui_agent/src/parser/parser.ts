@@ -91,9 +91,18 @@ export abstract class Parser {
   }
 
   /**
-   * Returns whether the content contains at least one complete format block.
+   * Reports whether the content carries a block written in this format.
+   *
+   * Reads the sentinel tags only and never compiles, so a caller can decide whether a
+   * response is this format's business without paying for a parse.
+   *
+   * @param content Raw response text, possibly partial.
+   * @param options.complete Whether to require a closed block. When false, the default, an
+   *     opening tag on its own counts, which is what a streaming caller needs to know it has
+   *     started receiving a payload.
+   * @returns True when the content carries a block belonging to this format.
    */
-  abstract hasA2uiParts(content: string): boolean;
+  abstract hasFormatContent(content: string, options?: {complete?: boolean}): boolean;
 
   /**
    * Wraps `parseChunk` as an async generator for streaming responses.
