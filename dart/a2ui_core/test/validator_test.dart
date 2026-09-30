@@ -788,10 +788,8 @@ void main() {
     test(
       'A2uiIntegrityError and A2uiRecursionError are A2uiValidationErrors',
       () {
-        final A2uiIntegrityError integrity =
-            A2uiIntegrityError('integrity message');
-        final A2uiRecursionError recursion =
-            A2uiRecursionError('recursion message');
+        final integrity = A2uiIntegrityError('integrity message');
+        final recursion = A2uiRecursionError('recursion message');
 
         expect(integrity, isA<A2uiValidationError>());
         expect(integrity.code, 'INTEGRITY_ERROR');
