@@ -49,6 +49,7 @@ __metadata:
     typescript: "npm:5.9.3"
     vitest: "npm:^4.1.8"
     wireit: "npm:^0.15.0-pre.2"
+    zod-to-json-schema: "npm:^3.25.2"
   languageName: unknown
   linkType: soft
 
