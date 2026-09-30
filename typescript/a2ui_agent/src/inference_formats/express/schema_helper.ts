@@ -21,9 +21,11 @@
  * order to support positional parameter mapping.
  */
 
+import {A2uiCatalogError} from '../../errors.js';
+import {V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web_core.js';
 import {SchemaCatalog} from '../../types.js';
 import {getCatalogDocument} from '../../utils/catalog-document.js';
-import {getProtocolSchemas} from '../../utils/protocol_schemas.js';
+import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
 
@@ -143,6 +145,21 @@ function localRef(sub: unknown): string | undefined {
   return typeof ref === 'string' && ref.startsWith('#/') ? ref : undefined;
 }
 
+/**
+ * Returns the common type definitions (`common_types.json` `$defs`) for a protocol
+ * version, as web_core generates them from the specification.
+ */
+function standardDefsFor(protocolVersion: string): Record<string, unknown> {
+  switch (toWireProtocolVersion(protocolVersion)) {
+    case 'v0.9':
+      return V09_STANDARD_DEFS;
+    case 'v1.0':
+      return V10_STANDARD_DEFS;
+    default:
+      throw new A2uiCatalogError(`No common types for protocol version '${protocolVersion}'.`);
+  }
+}
+
 export class CatalogSchemaHelper {
   readonly catalog: Record<string, unknown>;
   readonly commonTypes: Record<string, unknown>;
@@ -160,7 +177,7 @@ export class CatalogSchemaHelper {
 
   constructor(catalog: SchemaCatalog, protocolVersion: string) {
     this.catalog = getCatalogDocument(catalog);
-    this.commonTypes = getProtocolSchemas(protocolVersion).commonTypes;
+    this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
 
     const rawComponents = (this.catalog.components ?? {}) as Record<string, unknown>;
     const componentsMap = new Map<string, Record<string, unknown>>();

@@ -20,7 +20,8 @@ import {fileURLToPath} from 'url';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {Catalog} from '../../../../src/internal/web_core.js';
-import {basicCatalog, type SchemaCatalog} from '../../../../src/types.js';
+import {type SchemaCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressCompiler} from '../../../../src/inference_formats/express/compiler.js';
@@ -41,6 +42,9 @@ import {
   ExpressIdCollisionError,
   ExpressUnknownCatalogError,
 } from '../../../../src/inference_formats/express/errors.js';
+
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV09 = await loadBasicCatalog('v0.9');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,9 +104,6 @@ describe('ExpressCompiler', () => {
   ) as Record<string, unknown>;
   const customCatalog = Catalog.fromSchema(customDoc);
   registerCatalogDocument(customCatalog, customDoc);
-
-  const basicCatalogV10 = basicCatalog('v1.0');
-  const basicCatalogV09 = basicCatalog('v0.9');
 
   const catalogs: Record<string, SchemaCatalog> = {
     simplified: simplifiedCatalog,
@@ -359,7 +360,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressValidationError for standalone function calls on v0.9', () => {
-      const compiler = new ExpressCompiler([basicCatalog('v0.9')], 'v0.9');
+      const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
       expect(() => compiler.compile('openUrl("https://example.com")')).toThrow(
         ExpressValidationError,
       );

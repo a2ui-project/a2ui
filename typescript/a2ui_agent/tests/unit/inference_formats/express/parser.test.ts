@@ -17,7 +17,7 @@
 import {describe, it, expect, vi} from 'vitest';
 import {ExpressParser} from '../../../../src/inference_formats/express/parser.js';
 import {ExpressCompiler} from '../../../../src/inference_formats/express/compiler.js';
-import {basicCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {
   A2uiCompilationError,
   A2uiCompilationParseError,
@@ -31,8 +31,10 @@ import {
 } from '../../../../src/inference_formats/express/errors.js';
 import {RawResponsePart} from '../../../../src/parser/response_part.js';
 
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+
 describe('ExpressParser', () => {
-  const catalog = basicCatalog('v1.0');
+  const catalog = basicCatalogV10;
   const parser = new ExpressParser(catalog, 'main', 'v1.0');
 
   describe('unwrap', () => {
