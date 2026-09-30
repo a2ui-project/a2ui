@@ -31,5 +31,5 @@ export * from '../validation/index.js';
 export * from '../errors.js';
 export * from '../common/events.js';
 export * from '../catalogs/basic/v1/index.js';
-export * from './universal/index.js';
+export * from '../universal/index.js';
 export * from '../spec_versions.js';

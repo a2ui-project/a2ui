@@ -106,10 +106,6 @@
       "types": "./dist/src/v1_0/index.d.ts",
       "default": "./dist/src/v1_0/index.js"
     },
-    "./v1_0/universal": {
-      "types": "./dist/src/v1_0/universal/index.d.ts",
-      "default": "./dist/src/v1_0/universal/index.js"
-    },
     "./catalogs/basic/v1": {
       "types": "./dist/src/catalogs/basic/v1/index.d.ts",
       "default": "./dist/src/catalogs/basic/v1/index.js"
