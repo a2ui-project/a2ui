@@ -29,12 +29,14 @@ from typing import (
     get_type_hints,
 )
 
+from a2ui.builder.core import (
+    ComponentBuilderNode,
+    ComponentRef,
+)
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     CheckRule,
-    ComponentBuilderNode,
-    ComponentRef,
     DataBinding,
     DynamicBoolean,
     DynamicChildList,
