@@ -45,7 +45,7 @@ class TestParser extends Parser {
     return [{type: 'text', text: chunk + `(wrapped=${wrapped})`}];
   }
 
-  hasA2uiParts(content: string): boolean {
+  hasFormatContent(content: string): boolean {
     return content.includes('<a2ui>');
   }
 }
@@ -144,7 +144,7 @@ class NonStreamingParser extends Parser {
     return '';
   }
 
-  hasA2uiParts(_content: string): boolean {
+  hasFormatContent(_content: string): boolean {
     return false;
   }
 }

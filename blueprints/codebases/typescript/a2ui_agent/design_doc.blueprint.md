@@ -197,7 +197,7 @@ departs from it, and why.
 | ----------------- | ---------------------------------------------------------------------------- |
 | all               | Method names are camelCase rather than the blueprint's Python spelling       |
 | `CatalogProvider` | `load()` returns a promise, since the filesystem provider uses `fs.promises` |
-| `Parser`          | Adds `hasA2uiParts`, and `parseStream` as async-iterable sugar               |
+| `Parser`          | Adds `parseStream` as async-iterable sugar                                   |
 | `PromptGenerator` | Split into three sub-methods; `generate` takes no arguments                  |
 | response parts    | Models the blueprint's structured shape, not Python's flat one               |
 
@@ -211,13 +211,12 @@ immediately have to unwind.
 
 ### Parser
 
-Two additions to the blueprint's abstract `Parser`.
+One addition to the blueprint's abstract `Parser`, and one note on its content predicate.
 
-`hasA2uiParts(content)` reports whether the content holds at least one complete format
-block, with an unterminated opening tag counting as false. The blueprint's `Parser` has
-no content predicate, but the conformance suite exercises one through the `has_parts`
-action and Python implements it as `has_format_content`. Review confirmed this is a
-blueprint omission that will be corrected, so the method stays.
+`hasFormatContent(content, {complete})` is the blueprint's `has_format_content`, with
+`complete` as an options object in place of the keyword argument. It runs the block
+lexer rather than a substring test, so with `complete` set, the closing tag must follow
+the opening one.
 
 `parseStream(chunks, wrapped)` wraps `parseChunk` as an async generator, for `for await`
 over a model stream. Every AI SDK this package intends to document exposes its response
@@ -750,8 +749,8 @@ be resolved before the affected area is finished.
   directly. The module blueprint still reads both ways and will be made consistent.
 - **The streaming method is `parseChunk`**, matching `parseResponse` — confirmed in
   review. Python's `process_chunk` is the one that moves.
-- **`Parser` gains a content predicate.** Confirmed as a blueprint omission; it will be
-  added there, and this SDK keeps `hasA2uiParts`.
+- **`Parser` gains a content predicate.** Confirmed as a blueprint omission, since added
+  to the blueprint as `has_format_content`. This SDK implements it as `hasFormatContent`.
 - **No `BundledCatalogProvider`.** Removed from TypeScript; the SDK bundles no catalog,
   and agents load the basic catalog document through a provider, per sections 1 and 4.
 

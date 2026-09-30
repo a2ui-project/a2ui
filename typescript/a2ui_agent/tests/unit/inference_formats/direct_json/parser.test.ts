@@ -25,11 +25,19 @@ const basicCatalogV10 = await loadBasicCatalog('v1.0');
 describe('DirectJsonParser', () => {
   const catalog = basicCatalogV10;
 
-  it('hasA2uiParts correctly identifies complete and incomplete format content', () => {
+  it('hasFormatContent requires a closed block only when complete is set', () => {
     const parser = new DirectJsonParser(catalog);
-    expect(parser.hasA2uiParts('No tags here')).toBe(false);
-    expect(parser.hasA2uiParts('<a2ui-json>\n{"a": 1}\n</a2ui-json>')).toBe(true);
-    expect(parser.hasA2uiParts('<a2ui-json>\n{"a": 1}')).toBe(false); // unterminated opening tag
+    const closed = '<a2ui-json>\n{"a": 1}\n</a2ui-json>';
+    const unterminated = '<a2ui-json>\n{"a": 1}';
+
+    expect(parser.hasFormatContent('No tags here')).toBe(false);
+    expect(parser.hasFormatContent(closed)).toBe(true);
+    expect(parser.hasFormatContent(unterminated)).toBe(true);
+
+    expect(parser.hasFormatContent('No tags here', {complete: true})).toBe(false);
+    expect(parser.hasFormatContent(closed, {complete: true})).toBe(true);
+    expect(parser.hasFormatContent(unterminated, {complete: true})).toBe(false);
+    expect(parser.hasFormatContent('</a2ui-json> <a2ui-json>', {complete: true})).toBe(false);
   });
 
   it('unwraps valid A2UI JSON payload', () => {
