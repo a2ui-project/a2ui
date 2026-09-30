@@ -28,6 +28,7 @@ import {
 } from '../../src/index.js';
 import {V10RendererCapabilities} from '../../src/internal/web_core.js';
 import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.js';
+import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
 
 import {parseAndFix} from '../../src/parser/payload_fixer.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
@@ -208,6 +209,32 @@ describe('Conformance Harness', () => {
               }
               expect(found).toBe(true);
             }
+          }
+        }
+      } else if (action === 'process_chunk') {
+        const catalogConfig = testCase.catalog
+          ? await createCatalogConfig(testCase.catalog as Record<string, unknown>)
+          : undefined;
+        const catalog = catalogConfig?.catalog || basicCatalogV10;
+        const catalogObj = testCase.catalog as Record<string, unknown> | undefined;
+        const progressiveKeys = (catalogObj?.customCuttableKeys as string[] | undefined) ?? [
+          'text',
+          'literalString',
+        ];
+        const processor = new DirectJsonStreamProcessorImpl(catalog, {
+          progressiveKeys,
+          disableValidation: Boolean(testCase.disableValidation),
+        });
+
+        for (const step of testCase.steps as any[]) {
+          if (step.expectError) {
+            assertThrows(() => processor.processChunk(step.input), step.expectError);
+          } else if (step.expect) {
+            const result = processor.processChunk(step.input);
+            const adapted = adaptParts(result);
+            expect(adapted).toEqual(step.expect);
+          } else {
+            processor.processChunk(step.input);
           }
         }
       } else if (action === 'skill') {

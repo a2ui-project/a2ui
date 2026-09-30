@@ -16,6 +16,7 @@
 
 import {describe, it, expect} from 'vitest';
 import {DirectJsonParser} from '../../../../src/inference_formats/direct_json/parser.js';
+import {DirectJsonStreamProcessorImpl} from '../../../../src/inference_formats/direct_json/streaming.js';
 import {DirectJsonFormatFactory} from '../../../../src/inference_formats/direct_json/format.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {ParseError} from '../../../../src/errors.js';
@@ -75,18 +76,26 @@ describe('DirectJsonParser', () => {
     expect(compiled).toEqual([{version: '1.0', createSurface: {surfaceId: '1'}}]);
   });
 
-  it('does not support streaming', () => {
+  it('parseChunk throws without a stream processor', () => {
     const parser = new DirectJsonParser([catalog]);
-    expect(parser.supportsStreaming).toBe(false);
     expect(() => parser.parseChunk('<a2ui-json>')).toThrow(
-      'Streaming is not supported by DirectJsonParser',
+      'DirectJsonParser was constructed without a stream processor, so streaming is unavailable.',
     );
   });
 
-  it('DirectJsonFormatFactory creates format with supportsStreaming false', () => {
+  it('supportsStreaming is false without a stream processor and true with one', () => {
+    const parserWithout = new DirectJsonParser([catalog]);
+    expect(parserWithout.supportsStreaming).toBe(false);
+
+    const streamProcessor = new DirectJsonStreamProcessorImpl(catalog);
+    const parserWith = new DirectJsonParser([catalog], streamProcessor);
+    expect(parserWith.supportsStreaming).toBe(true);
+  });
+
+  it('DirectJsonFormatFactory creates format with supportsStreaming true', () => {
     const factory = new DirectJsonFormatFactory();
     const format = factory.createFormat([catalog]);
-    expect(format.supportsStreaming).toBe(false);
+    expect(format.supportsStreaming).toBe(true);
   });
 
   it('gets every active catalog from the format', async () => {
