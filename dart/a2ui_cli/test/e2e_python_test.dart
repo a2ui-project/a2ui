@@ -61,7 +61,30 @@ String _findRepoRoot() {
   return dir.path;
 }
 
+String _findDartExecutable() {
+  final String resolved = Platform.resolvedExecutable;
+  if (!resolved.contains('flutter_tester')) {
+    return resolved;
+  }
+  final String flutterBinDir = p.dirname(resolved);
+  final candidates = <String>[
+    'dart',
+    p.normalize(
+      p.join(flutterBinDir, '../../../../bin/cache/dart-sdk/bin/dart'),
+    ),
+    p.normalize(p.join(flutterBinDir, '../../../../bin/dart')),
+    p.normalize(p.join(flutterBinDir, '../../../dart-sdk/bin/dart')),
+  ];
+  for (final String candidate in candidates) {
+    if (File(candidate).existsSync()) {
+      return candidate;
+    }
+  }
+  return 'dart';
+}
+
 void main() {
+  final String dartBin = _findDartExecutable();
   final String repoRoot = _findRepoRoot();
   final String packageRoot =
       Directory(p.join(repoRoot, 'dart/a2ui_cli')).existsSync()
@@ -89,16 +112,15 @@ void main() {
         );
         try {
           // 1. Run Dart CLI codegen command
-          final ProcessResult codegenResult =
-              Process.runSync(Platform.resolvedExecutable, [
-                'run',
-                p.join(packageRoot, 'bin/a2ui.dart'),
-                'codegen',
-                '-c',
-                catalogPath,
-                '-o',
-                tmpDir.path,
-              ], workingDirectory: packageRoot);
+          final ProcessResult codegenResult = Process.runSync(dartBin, [
+            'run',
+            p.join(packageRoot, 'bin/a2ui.dart'),
+            'codegen',
+            '-c',
+            catalogPath,
+            '-o',
+            tmpDir.path,
+          ], workingDirectory: packageRoot);
 
           expect(
             codegenResult.exitCode,
@@ -300,7 +322,7 @@ print(json.dumps(output))
           'dart-cli-py-strict-',
         );
         try {
-          Process.runSync(Platform.resolvedExecutable, [
+          Process.runSync(dartBin, [
             'run',
             p.join(packageRoot, 'bin/a2ui.dart'),
             'codegen',
@@ -357,7 +379,7 @@ except ValidationError as e:
           'dart-cli-py-enum-',
         );
         try {
-          Process.runSync(Platform.resolvedExecutable, [
+          Process.runSync(dartBin, [
             'run',
             p.join(packageRoot, 'bin/a2ui.dart'),
             'codegen',

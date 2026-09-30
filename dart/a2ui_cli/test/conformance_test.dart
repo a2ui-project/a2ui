@@ -29,8 +29,31 @@ String _findRepoRoot() {
   return dir.path;
 }
 
+String _findDartExecutable() {
+  final String resolved = Platform.resolvedExecutable;
+  if (!resolved.contains('flutter_tester')) {
+    return resolved;
+  }
+  final String flutterBinDir = p.dirname(resolved);
+  final candidates = <String>[
+    'dart',
+    p.normalize(
+      p.join(flutterBinDir, '../../../../bin/cache/dart-sdk/bin/dart'),
+    ),
+    p.normalize(p.join(flutterBinDir, '../../../../bin/dart')),
+    p.normalize(p.join(flutterBinDir, '../../../dart-sdk/bin/dart')),
+  ];
+  for (final String candidate in candidates) {
+    if (File(candidate).existsSync()) {
+      return candidate;
+    }
+  }
+  return 'dart';
+}
+
 void main() {
   group('A2UI CLI Conformance Test Suite (conformance/cli/codegen.yaml)', () {
+    final String dartBin = _findDartExecutable();
     final String repoRoot = _findRepoRoot();
     final String packageRoot =
         Directory(p.join(repoRoot, 'dart/a2ui_cli')).existsSync()
@@ -77,11 +100,11 @@ void main() {
                 .replaceAll(r'${REPO_ROOT}', repoRoot);
           }).toList();
 
-          final ProcessResult result = Process.runSync(
-            Platform.resolvedExecutable,
-            ['run', p.join(packageRoot, 'bin/a2ui.dart'), ...args],
-            workingDirectory: packageRoot,
-          );
+          final ProcessResult result = Process.runSync(dartBin, [
+            'run',
+            p.join(packageRoot, 'bin/a2ui.dart'),
+            ...args,
+          ], workingDirectory: packageRoot);
 
           final expectMap = tc['expect'] as YamlMap;
           final expectedExit = expectMap['exit_code'] as int;
