@@ -24,15 +24,28 @@
  * `node-view.tsx`.
  */
 
-import React, {useCallback, useMemo, useSyncExternalStore} from 'react';
+import React, {useCallback, useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import type {ReactComponentImplementation} from './react_component_implementation';
 
 import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
+import {useMarkdownRenderer} from './markdown-context';
 
 export const A2uiSurface: React.FC<{
   surface: SurfaceModel<ReactComponentImplementation>;
 }> = ({surface}) => {
+  // web_core's basic catalog reads its markdown renderer from a module-level
+  // slot. A layout effect sets it during commit, so it is in place before any
+  // Lit element in the surface updates. A surface without a renderer leaves
+  // the slot alone, so one the host registered itself stays in effect.
+  const markdownRenderer = useMarkdownRenderer();
+  useLayoutEffect(() => {
+    if (markdownRenderer) {
+      setMarkdownRenderer(markdownRenderer);
+    }
+  }, [markdownRenderer]);
+
   // The resolver is created inside subscribe, which React calls only for
   // committed renders: a render that is discarded (concurrent mode,
   // Suspense) never constructs one, and every constructed resolver is
