@@ -20,7 +20,7 @@ import {describe, test, expect} from 'vitest';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
 import {createFileCatalogConfig} from './fixtures.js';
 import {Catalog} from '../../src/internal/web_core.js';
-import {registerCatalogDocument} from '../../src/utils/catalog_document.js';
+import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 import {
   A2uiCatalogError,
   A2uiCompilationError,

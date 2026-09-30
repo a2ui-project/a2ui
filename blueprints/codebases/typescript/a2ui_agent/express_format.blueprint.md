@@ -473,7 +473,7 @@ each case Python still fails.
 1. Inherit the catalog JSON access mechanism built for v0.9, and land the
    property-order comparison from section 4 as a permanent test, including the
    `checks` placement on the six Checkable components. Done 2026-09-24 in `8d86513f`:
-   loaders register the parsed catalog JSON (`src/utils/catalog_document.ts`), and
+   loaders register the parsed catalog JSON (`src/utils/catalog-document.ts`), and
    the helper tables for both basic catalogs are pinned against Python's.
 2. Add codegen and check the generated lexer, parser, and visitor into the
    repository so a plain `yarn build` never runs the generator. Exclude the

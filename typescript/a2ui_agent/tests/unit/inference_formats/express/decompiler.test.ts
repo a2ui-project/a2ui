@@ -20,7 +20,7 @@ import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
 import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core.js';
 import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
+import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
 import {
   ExpressInvalidIdentifierError,
