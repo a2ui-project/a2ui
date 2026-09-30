@@ -146,15 +146,21 @@ void _checkCalls(
 ) {
   switch (value) {
     case {'call': final String name}:
-      final Object args = value['args'] ?? const <String, Object?>{};
-      if (!validator.catalog.functions.containsKey(name) || args is! Map) {
+      if (!validator.catalog.functions.containsKey(name)) {
         throw A2uiValidationError(
           "Catalog '${validator.catalog.id}' declares no function named "
           "'$name'.",
           details: value,
         );
       }
-      validator.validateFunction(name, args.cast<String, Object?>());
+      final Object args = value['args'] ?? const <String, Object?>{};
+      if (args is! Map<String, Object?>) {
+        throw A2uiValidationError(
+          "The 'args' of a call to '$name' must be an object.",
+          details: value,
+        );
+      }
+      validator.validateFunction(name, args);
       for (final Object? arg in args.values) {
         _checkCalls(arg, validator);
       }

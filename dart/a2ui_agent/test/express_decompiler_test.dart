@@ -43,8 +43,20 @@ void main() {
         'properties': {
           'component': {'const': 'Gauge'},
           'value': {'type': 'number'},
+          'checks': {'type': 'array'},
         },
         'required': ['component', 'value'],
+      },
+    },
+    'functions': {
+      'isOnline': {
+        'type': 'object',
+        'properties': {
+          'call': {'const': 'isOnline'},
+          'args': {'type': 'object', 'properties': <String, Object?>{}},
+          'returnType': {'const': 'boolean'},
+        },
+        'required': ['call'],
       },
     },
   });
@@ -147,6 +159,26 @@ void main() {
         ]),
       ]);
       expect(written, contains(r'?required($/password)'));
+    });
+
+    test('a check calling a function without parameters', () {
+      final String written = roundTrip([
+        create('s', custom.id),
+        components('s', [
+          {
+            'id': 'root',
+            'component': 'Gauge',
+            'value': 1,
+            'checks': [
+              {
+                'condition': {'call': 'isOnline', 'args': <String, Object?>{}},
+                'message': 'Offline',
+              },
+            ],
+          },
+        ]),
+      ]);
+      expect(written, contains('[?isOnline("Offline")]'));
     });
 
     test('a call stating its return type as the map it compiles from', () {

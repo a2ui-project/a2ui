@@ -167,6 +167,13 @@ void main() {
           },
         },
       ]),
+      'function arguments that are not an object': update('s', [
+        {
+          'id': 'root',
+          'component': 'Text',
+          'text': {'call': 'formatString', 'args': 'x'},
+        },
+      ]),
       'a check calling an unknown function': update('s', [
         {
           'id': 'root',

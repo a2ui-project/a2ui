@@ -479,7 +479,7 @@ class _Component {
     // parameter is `value`, unless the first argument written is a path.
     final Object? bound = json['value'];
     var first = 0;
-    if (parameters.first == 'value' && _binding(_asMap(bound)) != null) {
+    if (parameters.firstOrNull == 'value' && _binding(_asMap(bound)) != null) {
       final int next = parameters.indexWhere(args.containsKey, 1);
       final bool nextIsPath =
           next > 0 && _binding(_asMap(args[parameters[next]])) != null;
