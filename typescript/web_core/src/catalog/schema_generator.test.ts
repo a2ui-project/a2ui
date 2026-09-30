@@ -20,6 +20,8 @@ import assert from 'node:assert';
 import {z} from 'zod';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from './types.js';
 import {generateCatalogSchema, cleanSchemaNode} from './schema_generator.js';
+import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
+import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
 
 describe('Catalog.catalogSchema & schema_generator', () => {
   it('generates standard JSON Schema from a Catalog with native Zod components and functions', () => {
@@ -381,6 +383,34 @@ describe('Catalog.catalogSchema & schema_generator', () => {
       const v09Defs = v09Schema['$defs'] as Record<string, any>;
       assert.ok(v09Defs, `Expected $defs for version ${v09Ver}`);
     }
+  });
+
+  it("uses the catalog's own protocolVersion when no explicit one is given", () => {
+    const CustomWidget: ComponentApi = {
+      name: 'CustomWidget',
+      schema: z.object({
+        content: z.string().describe('REF:#/$defs/DynamicString'),
+        child: z.string().describe('REF:#/$defs/Child'),
+      }),
+    };
+
+    const v10Defs = new Catalog('https://example.com/v10.json', '1.0', [CustomWidget])
+      .catalogSchema['$defs'] as Record<string, unknown>;
+    assert.deepStrictEqual(v10Defs['DynamicString'], V10_STANDARD_DEFS['DynamicString']);
+    assert.deepStrictEqual(v10Defs['FunctionCall'], V10_STANDARD_DEFS['FunctionCall']);
+    assert.deepStrictEqual(v10Defs['Child'], V10_STANDARD_DEFS['Child']);
+
+    const v09Defs = new Catalog('https://example.com/v09.json', 'v0.9', [CustomWidget])
+      .catalogSchema['$defs'] as Record<string, unknown>;
+    assert.deepStrictEqual(v09Defs['DynamicString'], V09_STANDARD_DEFS['DynamicString']);
+    assert.deepStrictEqual(v09Defs['FunctionCall'], V09_STANDARD_DEFS['FunctionCall']);
+    assert.strictEqual(v09Defs['Child'], undefined);
+
+    const overridden = generateCatalogSchema(
+      new Catalog('https://example.com/v10.json', '1.0', [CustomWidget]),
+      {protocolVersion: 'v0.9'},
+    )['$defs'] as Record<string, unknown>;
+    assert.deepStrictEqual(overridden['DynamicString'], V09_STANDARD_DEFS['DynamicString']);
   });
 
   it('respects explicit standardDefs in GenerateCatalogSchemaOptions', () => {

@@ -31,18 +31,21 @@ const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>
 
 /**
  * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
+ *
+ * An explicit `options.protocolVersion` wins over the catalog's own `protocolVersion`, so a
+ * caller can serialize a catalog against another version's definitions. Falls back to the
+ * v0.9 definitions when neither names a known version.
  */
 function getStandardDefsForCatalog(
-  _catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
   options?: GenerateCatalogSchemaOptions,
 ): Record<string, unknown> {
   if (options?.standardDefs) {
     return options.standardDefs;
   }
-  if (options?.protocolVersion) {
-    const key =
-      toCanonicalVersion(options.protocolVersion) ??
-      normalizeVersionString(options.protocolVersion);
+  const version = options?.protocolVersion ?? catalog.protocolVersion;
+  if (version) {
+    const key = toCanonicalVersion(version) ?? normalizeVersionString(version);
     if (key in STANDARD_DEFS_BY_VERSION) {
       return STANDARD_DEFS_BY_VERSION[key];
     }
