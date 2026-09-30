@@ -27,6 +27,15 @@ void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'core/data_model.yaml',
   );
+  final List<Map<String, Object?>> pointerCases = loadConformanceSuite(
+    'core/data_model_pointers.yaml',
+  );
+  final List<Map<String, Object?>> deletionCases = loadConformanceSuite(
+    'core/data_deletion.yaml',
+  );
+  final List<Map<String, Object?>> contextCases = loadConformanceSuite(
+    'core/data_context.yaml',
+  );
 
   group('conformance core/data_model.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
@@ -37,6 +46,104 @@ void main() {
       });
     }
   });
+
+  group('conformance core/data_model_pointers.yaml', () {
+    test('suite is not empty', () => expect(pointerCases, isNotEmpty));
+
+    for (final testCase in pointerCases) {
+      test(testCase['name']! as String, () {
+        _runPayloadDataModelCase(testCase);
+      });
+    }
+  });
+
+  group('conformance core/data_deletion.yaml', () {
+    test('suite is not empty', () => expect(deletionCases, isNotEmpty));
+
+    for (final testCase in deletionCases) {
+      test(testCase['name']! as String, () {
+        _runPayloadDataModelCase(testCase);
+      });
+    }
+  });
+
+  group('conformance core/data_context.yaml', () {
+    test('suite is not empty', () => expect(contextCases, isNotEmpty));
+
+    for (final testCase in contextCases) {
+      test(testCase['name']! as String, () {
+        _runResolvePathCase(testCase);
+      });
+    }
+  });
+}
+
+void _runPayloadDataModelCase(Map<String, Object?> testCase) {
+  final models = <String, DataModel>{};
+  final steps = testCase['steps']! as List<Object?>;
+
+  for (var i = 0; i < steps.length; i++) {
+    final step = steps[i]! as Map<String, Object?>;
+    final payload = step['payload']! as List<Object?>;
+    final expectError = step['expectError'] as Map<String, Object?>?;
+
+    void applyStep() {
+      for (final item in payload) {
+        final msg = item! as Map<String, Object?>;
+        if (msg.containsKey('createSurface')) {
+          final cs = msg['createSurface']! as Map<String, Object?>;
+          final surfaceId = cs['surfaceId']! as String;
+          final Object? initial = _deepCopy(cs['dataModel']);
+          final model = DataModel(initial ?? <String, Object?>{});
+          addTearDown(model.dispose);
+          models[surfaceId] = model;
+        } else if (msg.containsKey('updateDataModel')) {
+          final udm = msg['updateDataModel']! as Map<String, Object?>;
+          final surfaceId = udm['surfaceId']! as String;
+          final String path = (udm['path'] as String?) ?? '/';
+          final Object? value = _deepCopy(udm['value']);
+          models[surfaceId]!.set(path, value);
+        }
+      }
+    }
+
+    if (expectError != null) {
+      expect(
+        applyStep,
+        throwsA(_matchesError(expectError)),
+        reason: '${testCase['name']} step $i',
+      );
+      return;
+    }
+
+    applyStep();
+  }
+
+  final expected = testCase['expect'] as Map<String, Object?>?;
+  if (expected != null && expected.containsKey('surfaces')) {
+    final surfaces = expected['surfaces']! as Map<String, Object?>;
+    surfaces.forEach((surfaceId, surfaceExp) {
+      final expMap = surfaceExp! as Map<String, Object?>;
+      if (expMap.containsKey('dataModel')) {
+        expect(
+          models[surfaceId]!.get('/'),
+          equals(expMap['dataModel']),
+          reason: '${testCase['name']} surface $surfaceId dataModel',
+        );
+      }
+    });
+  }
+}
+
+void _runResolvePathCase(Map<String, Object?> testCase) {
+  final args = testCase['args']! as Map<String, Object?>;
+  final String path = (args['path'] as String?) ?? '';
+  final String contextPath = (args['contextPath'] as String?) ??
+      (args['context_path'] as String?) ??
+      '/';
+  final ctx =
+      DataContext(DataModel(), (name, fnArgs, ctx) => null, contextPath);
+  expect(ctx.resolvePath(path), equals(testCase['expect']));
 }
 
 void _runCase(Map<String, Object?> testCase) {

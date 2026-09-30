@@ -327,7 +327,7 @@ export class ExpressionParser {
     if (!Number.isFinite(value)) {
       throw new A2uiExpressionError(`Number literal is out of range: '${text}'`);
     }
-    return value;
+    return value === 0 ? 0 : value;
   }
 
   /**

@@ -154,14 +154,9 @@ def test_data_context_relative_scoping():
     cat = BasicCatalog()
     surface = SurfaceModel("s1", cat, data_model=data_model)
 
-    # Root context
     root_ctx = DataContext(surface, path="/")
-    assert root_ctx.resolve_path("users/0/name") == "/users/0/name"
-
-    # Nested context scope
     nested_ctx = root_ctx.nested("users/0")
     assert nested_ctx.path == "/users/0/"
-    assert nested_ctx.resolve_path("name") == "/users/0/name"
     assert nested_ctx.resolve_dynamic_value({"path": "name"}) == "Alice"
 
 

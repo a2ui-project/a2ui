@@ -23,6 +23,20 @@ import 'response_part.dart';
 abstract class Parser {
   const Parser();
 
+  /// Whether [content] carries a payload block in this format.
+  ///
+  /// Reads the sentinel tags only and never compiles, so a caller can decide
+  /// whether a response is this format's business without paying for a parse.
+  /// When [complete] is false an opening tag is enough, which tells a
+  /// streaming caller that a payload has started.
+  bool hasFormatContent(String content, {bool complete = false});
+
+  /// Writes [parts] out as one response: text as it is, and each raw payload
+  /// inside this format's sentinel tags, in order.
+  ///
+  /// The inverse of [unwrap].
+  String wrap(List<RawResponsePart> parts);
+
   /// Splits [content] into text and raw payload blocks, in the order the LLM
   /// wrote them.
   List<RawResponsePart> unwrap(String content);
@@ -33,6 +47,11 @@ abstract class Parser {
   /// Throws [A2uiParseError] if [formatContent] cannot be read, and
   /// [A2uiValidationError] if it uses anything the catalogs do not declare.
   List<AgentToRendererMessage> compile(String formatContent);
+
+  /// Writes [a2uiPayload] in this format's notation, without sentinel tags.
+  ///
+  /// The inverse of [compile].
+  String decompile(List<AgentToRendererMessage> a2uiPayload);
 
   /// Parses a complete LLM response into text and A2UI messages, in the order
   /// the LLM emitted them.
@@ -51,4 +70,22 @@ abstract class Parser {
         },
     ];
   }
+
+  /// Whether this parser reads a response incrementally through [parseChunk].
+  ///
+  /// A format can stream only if a partial block already means something. A
+  /// parser that returns false is given the whole response through
+  /// [parseResponse].
+  bool get supportsStreaming => false;
+
+  /// Reads the next [chunk] of a streamed response, and returns the parts
+  /// completed since the previous chunk.
+  ///
+  /// A parser holds the state of one response, so each response needs a new
+  /// parser from `InferenceFormat.createParser`. When [wrapped] is false, the
+  /// stream is a single payload without sentinel tags.
+  ///
+  /// Throws [UnsupportedError] unless [supportsStreaming] is true.
+  List<ResponsePart> parseChunk(String chunk, {bool wrapped = true}) =>
+      throw UnsupportedError('$runtimeType does not support streaming.');
 }

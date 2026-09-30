@@ -17,6 +17,9 @@
 import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
 import {ComponentContext} from '../resolution/component-context.js';
+import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
+import {ResolvedBinding} from '../resolution/resolved-binding.js';
+import {peekValue} from '../reactivity/signals.js';
 import {Catalog, ComponentApi, type InferredComponentApiSchemaType} from '../catalog/types.js';
 import type {ResolveA2uiProps} from '../resolution/generic-binder.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
@@ -56,6 +59,13 @@ export abstract class A2uiLitElement<
   Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
 > extends LitElement {
   @property({type: Object}) context!: ComponentContext;
+
+  /**
+   * The resolved node this element renders, when its parent resolves the
+   * surface through a `NodeResolver`. Assigning it also assigns `context`
+   * (`node.context`), and `renderNode` then renders the node's own children.
+   */
+  @property({type: Object}) node?: ComponentNode;
 
   /**
    * Component API specification for automatic controller instantiation.
@@ -232,6 +242,9 @@ export abstract class A2uiLitElement<
   protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
     if (!childRef) return nothing;
     const {surface, path: parentPath} = this.context.dataContext;
+    if (!surface) {
+      return nothing;
+    }
 
     const surfaceContainsComponent = !!surface.componentsModel?.get(this.context.componentModel.id);
     if (!surfaceContainsComponent) {
@@ -253,6 +266,13 @@ export abstract class A2uiLitElement<
 
     path = path ?? parentPath;
 
+    if (this.node) {
+      const childNode = findChildNode(this.node, componentId, path);
+      if (childNode) {
+        return renderA2uiNode(childNode);
+      }
+    }
+
     const childContext = new ComponentContext(surface, componentId, path);
     const childCatalog = (childContext.componentModel.catalog ??
       surface.defaultCatalog) as Catalog<WebComponentImplementation>;
@@ -270,7 +290,12 @@ export abstract class A2uiLitElement<
    */
   override willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
-    if (changedProperties.has('context') && this.context) {
+    let contextChanged = changedProperties.has('context');
+    if (changedProperties.has('node') && this.node?.context && this.node.context !== this.context) {
+      this.context = this.node.context;
+      contextChanged = true;
+    }
+    if (contextChanged && this.context) {
       if (this._controller) {
         this.removeController(this._controller);
         this._controller.dispose();
@@ -285,4 +310,38 @@ export abstract class A2uiLitElement<
     }
     super.update(changedProperties);
   }
+}
+
+/**
+ * The child of `parent` for `componentId` at `dataPath`, searched through the
+ * parent's resolved props (child lists, nested objects and bindings).
+ */
+function findChildNode(
+  parent: ComponentNode,
+  componentId: string,
+  dataPath: string,
+): ComponentNode | undefined {
+  const visit = (value: unknown): ComponentNode | undefined => {
+    if (isComponentNode(value)) {
+      return value.componentId === componentId && value.dataPath === dataPath ? value : undefined;
+    }
+    if (value instanceof ResolvedBinding) {
+      return visit(value.value);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return undefined;
+    }
+    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const item of Object.values(value)) {
+        const found = visit(item);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  return visit(peekValue(parent.props));
 }

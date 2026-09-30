@@ -11,6 +11,52 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+- `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template
+  length (`maxTemplateLength = 10000`), and template parts
+  (`maxTemplateParts = 1000`) limits across nested interpolations and
+  function arguments.
+- `DataModel` and `DataContext` enforce JSON Pointer validation (`A2uiDataError`
+  on non-pointer paths, forbidden prototype-pollution segments, primitive
+  traversal/root mutation, and array index bounds), support `DataContext.index`
+  and `DataContext.dispose`, and pass the `data_model.yaml` and
+  `data_context.yaml` conformance suites.
+- **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
+  are no longer exported. Renderers read components through `NodeResolver` and
+  `ComponentNode`, whose props carry dynamic properties as `ResolvedBinding`
+  values instead of raw values, with no synthesized `set<Property>` setter
+  entries. A property bound to a data path is a `WritableBinding`, even when the
+  path holds no data; writes go through `WritableBinding.set`, and
+  `WritableBinding.path` is the path as authored.
+- **Breaking:** `SurfaceModel.dispatchAction` no longer executes `functionCall`
+  payloads and emits an action only for `event` payloads. A node's action runs
+  its function call itself.
+- Added: `DataContext` accepts an optional `ExpressionErrorReporter` through
+  `onError`. With a reporter, a missing or failing catalog function resolves to
+  null and the reporter receives the error; without one, the error propagates.
+- Added: `NodeResolver(surface)` builds a reactive tree of read-only
+  `ComponentNode`s with resolved child references, scoped templates, dynamic
+  bindings, callable actions, and placeholder states for unresolved nodes.
+  It owns node subscriptions and cleanup; consumers dispose the resolver
+  before its surface. Node props and container-valued bindings are detached,
+  recursively unmodifiable snapshots.
+- Node bindings report a missing or failing catalog function as an
+  `EXPRESSION_ERROR` client error on the surface and resolve to null.
+- Validation and node resolution recognize wire/local `$ref` pointers and
+  `REF:` description markers. Resolution additionally recognizes unmarked
+  structural `ChildList` schemas, which validation deliberately ignores so a
+  batch is never rejected on that guess. Resolution mounts top-level child
+  references and lists, including single-reference fields within arrays of
+  objects.
+- A `ChildList` expands to at most `maxDynamicChildListSize` (10,000) items,
+  matching the TypeScript core's `MAX_DYNAMIC_CHILD_LIST_SIZE`.
+- Changed: `ChildNode` descriptors compare by component id and data scope
+  and serialize as plain JSON in node props. Nested `ChildList` values remain
+  scoped descriptors rather than mounted nodes.
+- Fixed: `DataContext.resolveListenable` resolves array and map payloads per
+  entry and tracks nested bindings reactively; previously a container holding
+  bindings (such as a function argument list or a nested `{path}` value) was
+  passed through as a static literal.
+  > > > > > > > upstream/main
 
 ## 0.2.2
 

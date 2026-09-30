@@ -83,7 +83,8 @@ class TextComponent(CatalogComponentCommon):
         ),
     )
     variant: Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | None = Field(
-        description="A hint for the base text style.", default="body"
+        None,
+        description='A hint for the base text style. Defaults to "body" when absent.',
     )
 
 
@@ -94,11 +95,12 @@ class ImageComponent(CatalogComponentCommon):
         None, description="Accessibility text for the image."
     )
     fit: Literal["contain", "cover", "fill", "none", "scaleDown"] | None = Field(
+        None,
         description=(
             "Specifies how the image should be resized to fit its container. This"
-            " corresponds to the CSS 'object-fit' property."
+            " corresponds to the CSS 'object-fit' property. Defaults to \"fill\" when"
+            " absent."
         ),
-        default="fill",
     )
     variant: (
         Literal[
@@ -106,7 +108,11 @@ class ImageComponent(CatalogComponentCommon):
         ]
         | None
     ) = Field(
-        description="A hint for the image size and style.", default="mediumFeature"
+        None,
+        description=(
+            'A hint for the image size and style. Defaults to "mediumFeature" when'
+            " absent."
+        ),
     )
 
 
@@ -214,20 +220,20 @@ class RowComponent(CatalogComponentCommon):
         ]
         | None
     ) = Field(
+        None,
         description=(
             "Defines the arrangement of children along the main axis (horizontally)."
             " Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center'"
-            " to pack them together."
+            ' to pack them together. Defaults to "start" when absent.'
         ),
-        default="start",
     )
     align: Literal["start", "center", "end", "stretch"] | None = Field(
+        None,
         description=(
             "Defines the alignment of children along the cross axis (vertically). This"
             " is similar to the CSS 'align-items' property, but uses camelCase values"
-            " (e.g., 'start')."
+            " (e.g., 'start'). Defaults to \"stretch\" when absent."
         ),
-        default="stretch",
     )
 
 
@@ -253,19 +259,21 @@ class ColumnComponent(CatalogComponentCommon):
         ]
         | None
     ) = Field(
+        None,
         description=(
             "Defines the arrangement of children along the main axis (vertically). Use"
             " 'spaceBetween' to push items to the edges (e.g. header at top, footer at"
-            " bottom), or 'start'/'end'/'center' to pack them together."
+            " bottom), or 'start'/'end'/'center' to pack them together. Defaults to"
+            ' "start" when absent.'
         ),
-        default="start",
     )
     align: Literal["center", "end", "start", "stretch"] | None = Field(
+        None,
         description=(
             "Defines the alignment of children along the cross axis (horizontally)."
-            " This is similar to the CSS 'align-items' property."
+            " This is similar to the CSS 'align-items' property. Defaults to"
+            ' "stretch" when absent.'
         ),
-        default="stretch",
     )
 
 
@@ -279,12 +287,18 @@ class ListComponent(CatalogComponentCommon):
         ),
     )
     direction: Literal["vertical", "horizontal"] | None = Field(
-        description="The direction in which the list items are laid out.",
-        default="vertical",
+        None,
+        description=(
+            'The direction in which the list items are laid out. Defaults to "vertical"'
+            " when absent."
+        ),
     )
     align: Literal["start", "center", "end", "stretch"] | None = Field(
-        description="Defines the alignment of children along the cross axis.",
-        default="stretch",
+        None,
+        description=(
+            "Defines the alignment of children along the cross axis. Defaults to"
+            ' "stretch" when absent.'
+        ),
     )
 
 
@@ -329,7 +343,10 @@ class ModalComponent(CatalogComponentCommon):
 class DividerComponent(CatalogComponentCommon):
     component: Literal["Divider"] = "Divider"
     axis: Literal["horizontal", "vertical"] | None = Field(
-        description="The orientation of the divider.", default="horizontal"
+        None,
+        description=(
+            'The orientation of the divider. Defaults to "horizontal" when absent.'
+        ),
     )
 
 
@@ -351,13 +368,13 @@ class ButtonComponent(CatalogComponentCommon):
         ),
     )
     variant: Literal["default", "primary", "borderless"] | None = Field(
+        None,
         description=(
             "A hint for the button style. If omitted, a default button style is used."
             " 'primary' indicates this is the main call-to-action button. 'borderless'"
             " means the button has no visual border or background, making its child"
             " content appear like a clickable link."
         ),
-        default="default",
     )
     action: Action = Field(...)
 
@@ -376,7 +393,10 @@ class TextFieldComponent(CatalogComponentCommon):
         None, description="The value of the text field."
     )
     variant: Literal["longText", "number", "shortText", "obscured"] | None = Field(
-        description="The type of input field to display.", default="shortText"
+        None,
+        description=(
+            'The type of input field to display. Defaults to "shortText" when absent.'
+        ),
     )
     validation_regexp: str | None = Field(
         None,
@@ -420,8 +440,11 @@ class ChoicePickerComponent(CatalogComponentCommon):
         None, description="The label for the group of options."
     )
     variant: Literal["multipleSelection", "mutuallyExclusive"] | None = Field(
-        description="A hint for how the choice picker should be displayed and behave.",
-        default="mutuallyExclusive",
+        None,
+        description=(
+            "A hint for how the choice picker should be displayed and behave. Defaults"
+            ' to "mutuallyExclusive" when absent.'
+        ),
     )
     options: list[OptionItem] = Field(
         ..., description="The list of available options to choose from."
@@ -434,13 +457,18 @@ class ChoicePickerComponent(CatalogComponentCommon):
         ),
     )
     display_style: Literal["checkbox", "chips"] | None = Field(
+        None,
         alias="displayStyle",
-        description="The display style of the component.",
-        default="checkbox",
+        description=(
+            'The display style of the component. Defaults to "checkbox" when absent.'
+        ),
     )
     filterable: bool | None = Field(
-        description="If true, displays a search input to filter the options.",
-        default=False,
+        None,
+        description=(
+            "If true, displays a search input to filter the options. Defaults to false"
+            " when absent."
+        ),
     )
 
 
@@ -454,7 +482,9 @@ class SliderComponent(CatalogComponentCommon):
         ),
     )
     label: DynamicString | None = Field(None, description="The label for the slider.")
-    min: float | None = Field(description="The minimum value of the slider.", default=0)
+    min: float | None = Field(
+        None, description="The minimum value of the slider. Defaults to 0 when absent."
+    )
     max: float = Field(..., description="The maximum value of the slider.")
     value: DynamicNumber = Field(..., description="The current value of the slider.")
 
@@ -476,14 +506,18 @@ class DateTimeInputComponent(CatalogComponentCommon):
         ),
     )
     enable_date: bool | None = Field(
+        None,
         alias="enableDate",
-        description="If true, allows the user to select a date.",
-        default=False,
+        description=(
+            "If true, allows the user to select a date. Defaults to false when absent."
+        ),
     )
     enable_time: bool | None = Field(
+        None,
         alias="enableTime",
-        description="If true, allows the user to select a time.",
-        default=False,
+        description=(
+            "If true, allows the user to select a time. Defaults to false when absent."
+        ),
     )
     min: DynamicString | None = Field(
         None, description="The minimum allowed date/time in ISO 8601 format."

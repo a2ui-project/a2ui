@@ -74,7 +74,7 @@ const values: EnumValue[] = [
 
 @customElement('drawable-canvas')
 export class DrawableCanvas extends LitElement {
-  static styles = [
+  static override styles = [
     unsafeCSS(v0_8.Styles.structuralStyles),
     css`
       :host {
@@ -199,12 +199,12 @@ export class DrawableCanvas extends LitElement {
     this.#mode = (localStorage.getItem('drawable-mode') as RenderMode) ?? 'free';
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#resizeObserver.observe(this);
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#resizeObserver.disconnect();
   }
@@ -346,7 +346,7 @@ export class DrawableCanvas extends LitElement {
     }
   }
 
-  render() {
+  override render() {
     return html`${svg`
       <svg
         viewBox="${this.#adjustment.x} ${this.#adjustment.y} ${this.#bounds.width} ${this.#bounds.height}"

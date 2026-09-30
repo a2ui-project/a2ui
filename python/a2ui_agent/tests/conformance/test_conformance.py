@@ -488,8 +488,9 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 # fixing the implementation fails the marker instead of passing silently.
 #
 # NOTE ON REMAINING GAPS (Category B):
-# The remaining gaps below are response parser and wrapping architectural
-# gaps (affecting both Express and Direct JSON). They depend on agent SDK
+# Apart from the two compiler entries at the end, the remaining gaps below are
+# response parser and wrapping architectural gaps (affecting both Express and
+# Direct JSON). They depend on agent SDK
 # structural changes: migrating the Python SDK from its legacy response parser
 # interface (which bundles preceding text and payload into a single part) to
 # the module blueprint Parser contract (blueprints/modules/a2ui_agent.blueprint.md),
@@ -572,6 +573,16 @@ KNOWN_GAPS = {
     "test_parse_response_unwrapped_compiles_the_whole_body": (
         "parse_response takes no `wrapped` argument, so a response the case"
         " declares unwrapped cannot be handed to the compiler whole"
+    ),
+    # Compiler. The direct JSON parser validates components against the catalog
+    # but not the message envelope, so the envelope's `version` goes unchecked.
+    "test_compile_json_other_protocol_version_is_a_validation_error": (
+        "the envelope is not validated, so a message stating another version"
+        " compiles unchanged"
+    ),
+    "test_compile_json_missing_version_is_a_validation_error": (
+        "the envelope is not validated, so a message stating no version"
+        " compiles unchanged"
     ),
 }
 

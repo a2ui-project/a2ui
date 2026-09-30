@@ -285,24 +285,16 @@ type DynamicTypes =
   | FunctionCall
   | {'@path': string}
   | {path: string}
-  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string}
-  | {'@call': string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
+  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
 
 /** Types recognized as user actions or function call events. */
 type ActionLike =
   | Action
   | {event: {name: string; context?: Record<string, unknown>}}
-  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}}
-  | {functionCall: {'@call': string; catalogId?: string; args?: Record<string, unknown>}};
+  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}};
 
 /** Evaluates to true if type T can contain a dynamic binding. */
-type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) extends true
-  ? true
-  : ({'@path': string} extends NonNullable<T> ? true : false) extends true
-    ? true
-    : DataBinding extends NonNullable<T>
-      ? true
-      : false;
+type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.

@@ -26,7 +26,12 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import {type FunctionCall, type Action, MAX_FUNCTION_CALL_ARGS} from '../types/common-types.js';
+import {
+  type DataBinding,
+  type FunctionCall,
+  type Action,
+  MAX_FUNCTION_CALL_ARGS,
+} from '../types/common-types.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
@@ -253,22 +258,31 @@ export class DataContext {
   private _isUserActivated = false;
   private _isPassiveEvaluation = false;
 
+  readonly surface?: SurfaceModel<any>;
+
   /**
    * Initializes a new DataContext instance.
    *
-   * @param surface The surface model this context belongs to.
+   * @param surface The surface model or data model this context belongs to.
    * @param path The absolute path in the DataModel that this context is scoped to.
    * @param index Optional explicit collection iteration index.
    * @param parent Optional parent DataContext in the scope chain.
    */
   constructor(
-    readonly surface: SurfaceModel<any>,
+    surface: SurfaceModel<any> | DataModel,
     readonly path: string,
     index?: number,
     parent?: DataContext,
   ) {
-    this.dataModel = surface.dataModel;
-    this.functionInvoker = surface.defaultCatalog.invoker;
+    if (surface instanceof DataModel) {
+      this.surface = undefined;
+      this.dataModel = surface;
+      this.functionInvoker = () => undefined;
+    } else {
+      this.surface = surface;
+      this.dataModel = surface.dataModel;
+      this.functionInvoker = surface.defaultCatalog?.invoker ?? (() => undefined);
+    }
     this.explicitIndex = index;
     this.parent = parent;
     this.warnedPaths = parent ? parent.warnedPaths : new Set<string>();
@@ -318,26 +332,20 @@ export class DataContext {
    * Checks whether an object represents a data binding.
    *
    * @param val Candidate object to inspect.
-   * @returns Whether the object has a string `@path` or `path` and is not a component reference.
+   * @returns Whether the object has a string `path` and is not a component reference.
    */
   private static isDataBindingObject(val: Record<string, unknown>): boolean {
-    const hasPath =
-      ('@path' in val && typeof val['@path'] === 'string') ||
-      ('path' in val && typeof val.path === 'string');
-    return hasPath && !('componentId' in val);
+    return 'path' in val && typeof val.path === 'string' && !('componentId' in val);
   }
 
   /**
    * Checks whether an object represents a function call.
    *
    * @param val Candidate object to inspect.
-   * @returns Whether the object has a string `@call` or `call` property.
+   * @returns Whether the object has a string `call` property.
    */
   private static isFunctionCallObject(val: Record<string, unknown>): boolean {
-    return (
-      ('@call' in val && typeof val['@call'] === 'string') ||
-      ('call' in val && typeof val.call === 'string')
-    );
+    return 'call' in val && typeof val.call === 'string';
   }
 
   /**
@@ -413,8 +421,7 @@ export class DataContext {
     const rec = value as Record<string, unknown>;
 
     if (DataContext.isDataBindingObject(rec)) {
-      const bindingPath = (rec['@path'] ?? rec.path) as string;
-      const absolutePath = this.resolvePath(bindingPath);
+      const absolutePath = this.resolvePath((value as DataBinding).path);
       const val = this.dataModel.get(absolutePath);
       if (val === undefined) {
         this.emitMissingDataBindingWarning(absolutePath);
@@ -439,14 +446,13 @@ export class DataContext {
    */
   private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0, userActivated = false): V {
     let targetCatalog: Catalog<any>;
-    const callName = (call['@call'] ?? call.call)!;
     try {
       // Resolve before validating: the arguments must be checked against the
       // catalog that will actually run the call, not the surface default.
       targetCatalog = this.resolveFunctionCatalog(call.catalogId);
-      validateFunctionArgs(callName, call.args, targetCatalog);
+      validateFunctionArgs(call.call, call.args, targetCatalog);
     } catch (e: unknown) {
-      this.dispatchExpressionError(e, callName);
+      this.dispatchExpressionError(e, call.call);
       return undefined as V;
     }
     const args: Record<string, unknown> = {};
@@ -460,7 +466,7 @@ export class DataContext {
     let result: Signal<V> | V;
     try {
       result = this.evaluateFunctionReactive<V>(
-        callName,
+        call.call,
         args,
         abortController.signal,
         call.catalogId,
@@ -554,8 +560,8 @@ export class DataContext {
       );
       this.dispatchExpressionError(
         err,
-        typeof value === 'object' && value && ('@call' in value || 'call' in value)
-          ? (((value as any)['@call'] ?? (value as any).call) as string)
+        typeof value === 'object' && value && 'call' in value
+          ? (value as FunctionCall).call
           : 'DynamicValue',
       );
       return signal(undefined as unknown as V);
@@ -586,24 +592,22 @@ export class DataContext {
 
     // 2. Path Check
     if (DataContext.isDataBindingObject(rec)) {
-      const bindingPath = (rec['@path'] ?? rec.path) as string;
-      const absolutePath = this.resolvePath(bindingPath);
+      const absolutePath = this.resolvePath((value as DataBinding).path);
       this.emitMissingDataBindingWarning(absolutePath);
       return this.dataModel.getSignal<V>(absolutePath) as Signal<V>;
     }
 
     // 3. Function Call
     if (DataContext.isFunctionCallObject(rec)) {
-      const call = rec as unknown as FunctionCall;
-      const callName = (call['@call'] ?? call.call)!;
+      const call = value as FunctionCall;
       let targetCatalog: Catalog<any>;
       try {
         // Resolve before validating: the arguments must be checked against the
         // catalog that will actually run the call, not the surface default.
         targetCatalog = this.resolveFunctionCatalog(call.catalogId);
-        validateFunctionArgs(callName, call.args, targetCatalog);
+        validateFunctionArgs(call.call, call.args, targetCatalog);
       } catch (e: unknown) {
-        this.dispatchExpressionError(e, callName);
+        this.dispatchExpressionError(e, call.call);
         return signal(undefined as unknown as V);
       }
       const argSignals: Record<string, Signal<unknown>> = {};
@@ -615,7 +619,7 @@ export class DataContext {
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
         const result = this.evaluateFunctionPassive<V>({
-          name: callName,
+          name: call.call,
           args: {},
           abortSignal: abortController.signal,
           catalogId: call.catalogId,
@@ -651,7 +655,7 @@ export class DataContext {
           abortController = new AbortController();
 
           const res = this.evaluateFunctionPassive<V>({
-            name: callName,
+            name: call.call,
             args,
             abortSignal: abortController.signal,
             catalogId: call.catalogId,
@@ -666,7 +670,7 @@ export class DataContext {
             setValue(resultSig, res);
           }
         } catch (e: unknown) {
-          this.dispatchExpressionError(e, callName);
+          this.dispatchExpressionError(e, call.call);
           // In reactive mode, we should not throw. Instead, reset the signal value.
           setValue(resultSig, undefined);
         }
@@ -747,6 +751,11 @@ export class DataContext {
    *   available here.
    */
   private resolveFunctionCatalog(catalogId?: string): Catalog<any> {
+    if (!this.surface) {
+      throw new A2uiCatalogError(
+        `No surface available to resolve catalog: ${catalogId ?? 'default'}`,
+      );
+    }
     if (catalogId === undefined) {
       return this.surface.defaultCatalog;
     }
@@ -810,6 +819,7 @@ export class DataContext {
   }
 
   private dispatchExpressionError(e: unknown, name: string): void {
+    if (!this.surface) return;
     if (
       e instanceof z.ZodError ||
       (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
@@ -852,20 +862,19 @@ export class DataContext {
    */
   nested(relativePath: string, index?: number): DataContext {
     const newPath = this.resolvePath(relativePath);
-    return new DataContext(this.surface, newPath, index, this);
+    return new DataContext(this.surface ?? this.dataModel, newPath, index, this);
   }
 
-  private resolvePath(path: string): string {
+  resolvePath(path: string): string {
     if (path.startsWith('/')) {
       return path;
     }
-    if (path === '' || path === '.') {
-      return this.path;
-    }
-
     let base = this.path;
     if (base.endsWith('/') && base.length > 1) {
       base = base.slice(0, -1);
+    }
+    if (path === '' || path === '.') {
+      return base || '/';
     }
     if (base === '/') base = '';
 

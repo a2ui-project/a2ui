@@ -590,7 +590,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
   it('renders child components from a secondary catalog via renderNode', async () => {
     class CustomBadgeElement extends A2uiLitElement<any> {
-      protected readonly api = {
+      protected override readonly api = {
         name: 'Badge',
         schema: z.object({title: z.string()}).strict(),
       };

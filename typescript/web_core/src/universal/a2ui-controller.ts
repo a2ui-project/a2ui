@@ -77,7 +77,7 @@ export class A2uiController<
     }
     if (!this.componentsSubscription) {
       this.componentsSubscription =
-        this.host.context.dataContext.surface.componentsModel?.onCreated.subscribe(() => {
+        this.host.context.dataContext.surface?.componentsModel?.onCreated.subscribe(() => {
           this.host.requestUpdate();
         });
     }

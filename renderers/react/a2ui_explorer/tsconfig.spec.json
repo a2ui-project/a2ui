@@ -14,6 +14,7 @@
     "jsx": "react-jsx",
     "resolveJsonModule": true,
     "strict": true,
+    "noImplicitOverride": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,

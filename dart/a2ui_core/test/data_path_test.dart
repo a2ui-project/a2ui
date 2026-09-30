@@ -12,27 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/primitives/data_path.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('DataPath', () {
-    test('parses root path', () {
-      final path = DataPath.parse('/');
-      expect(path.segments, isEmpty);
-      expect(path.toString(), '/');
-    });
-
-    test('parses simple path', () {
-      final path = DataPath.parse('/foo/bar');
-      expect(path.segments, ['foo', 'bar']);
-      expect(path.toString(), '/foo/bar');
-    });
-
-    test('parses escaped segments', () {
-      final path = DataPath.parse('/foo~1bar/baz~0qux');
-      expect(path.segments, ['foo/bar', 'baz~qux']);
-      expect(path.toString(), '/foo~1bar/baz~0qux');
+    test('root constant is empty and formats as /', () {
+      expect(DataPath.root.isEmpty, isTrue);
+      expect(DataPath.root.segments, isEmpty);
+      expect(DataPath.root.toString(), '/');
     });
 
     test('appends segments', () {

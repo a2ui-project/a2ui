@@ -77,11 +77,7 @@ SUPPORTED_PROTOCOL_VERSIONS = {
 SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
-SKIP_TEST_SUITES: set[str] = {
-    # Reserved protocol directives (@path, @call, @index) are specified in protocol v1.0.
-    # Runtime SDK resolution in a2ui_core is implemented in Part 2 (issue #2692).
-    "core/reserved_keys.yaml",
-}
+SKIP_TEST_SUITES: set[str] = set()
 
 # Suites the core library cannot meaningfully execute, with the reason for each.
 # The core library has no access to the UI frameworks that apply accessibility
@@ -93,6 +89,7 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " (Lit, React, Angular, Flutter, SwiftUI), which the core library does"
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
+    "core/node_resolution.yaml": "The Python core has no node resolution layer.",
 }
 
 # Root core conformance directory resolution
@@ -564,11 +561,22 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_accessibility_check_case(case)
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
+    elif action == "resolve_nodes" and rel_path == "core/node_resolution.yaml":
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."
             " Add one, or add the suite to UNRUNNABLE_SUITES with a reason."
         )
+
+
+def test_resolve_nodes_outside_its_suite_is_unsupported() -> None:
+    case = {"name": "stray", "action": "resolve_nodes"}
+    with pytest.raises(BaseException) as outcome:
+        test_conformance_suite(
+            "core/data_model.yaml::stray", "core/data_model.yaml", case
+        )
+    assert isinstance(outcome.value, pytest.fail.Exception), outcome.value
 
 
 def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
@@ -837,6 +845,22 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
                     assert cat.get_function(fn_name) is not None
 
 
+def _normalize_schema_for_comparison(value: Any) -> Any:
+    """Ignore enum ordering, which JSON Schema defines as semantically irrelevant."""
+    if isinstance(value, dict):
+        normalized = {
+            key: _normalize_schema_for_comparison(item) for key, item in value.items()
+        }
+        if isinstance(normalized.get("enum"), list):
+            normalized["enum"] = sorted(
+                normalized["enum"], key=lambda item: json.dumps(item, sort_keys=True)
+            )
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_schema_for_comparison(item) for item in value]
+    return value
+
+
 def validate_catalog_schema_case(case: dict[str, Any]) -> None:
     p_ver = resolve_protocol_version(case)
     if case.get("useBasicCatalog") or case.get("catalog") == "BasicCatalog":
@@ -892,7 +916,9 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
         expected = case.get("expect")
 
     if expected is not None:
-        assert cat.catalog_schema == expected
+        assert _normalize_schema_for_comparison(cat.catalog_schema) == (
+            _normalize_schema_for_comparison(expected)
+        )
 
 
 def validate_resolve_path_case(case: dict[str, Any]) -> None:

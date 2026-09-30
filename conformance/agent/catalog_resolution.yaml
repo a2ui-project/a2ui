@@ -112,6 +112,17 @@
   expect_error:
     category: CatalogError
 
+- name: test_no_registered_catalogs_is_an_error
+  description: An agent that registered no catalog holds nothing a renderer can name, so a renderer naming a real catalog still fails rather than resolving to an empty session.
+  action: resolve_catalogs
+  args:
+    catalogs: []
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect_error:
+    category: CatalogError
+
 # --- Capabilities that state no preference ---
 
 - name: test_absent_capabilities_activate_every_catalog

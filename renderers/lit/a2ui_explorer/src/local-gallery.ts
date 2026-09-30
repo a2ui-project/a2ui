@@ -47,7 +47,7 @@ export class LocalGallery extends LitElement {
 
   private dataModelSubscription?: {unsubscribe: () => void};
 
-  static styles = [appStyles];
+  static override styles = [appStyles];
 
   private getLocalStorage(key: string): string | null {
     try {
@@ -67,7 +67,7 @@ export class LocalGallery extends LitElement {
     }
   }
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
 
     this.isLeftSidebarCollapsed = this.getLocalStorage('isLeftSidebarCollapsed') === 'true';
@@ -84,7 +84,7 @@ export class LocalGallery extends LitElement {
     this.loadExamples();
   }
 
-  disconnectedCallback() {
+  override disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.handleKeyDown);
   }
@@ -284,7 +284,7 @@ export class LocalGallery extends LitElement {
     this.mockLogs = [...this.mockLogs, `[${time}] ${entry}`];
   }
 
-  render() {
+  override render() {
     const activeItem = this.demoItems[this.activeItemIndex];
     const surface = activeItem ? this.processor.model.getSurface(activeItem.id) : undefined;
     const canAdvance = activeItem && this.processedMessageCount < activeItem.messages.length;

@@ -39,7 +39,7 @@ export class Image extends Root {
   @property()
   accessor fit: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down' | null = null;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -123,7 +123,7 @@ export class Image extends Root {
     return html`(empty)`;
   }
 
-  render() {
+  override render() {
     const classes = Styles.merge(
       this.theme.components.Image.all,
       this.usageHint ? this.theme.components.Image[this.usageHint] : {},

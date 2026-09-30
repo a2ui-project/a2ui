@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Universal elements accept an optional `node` (`A2uiWebComponentElement.node`): `A2uiLitElement` takes its `context` from it and passes each child its own node, and `renderA2uiNode` accepts a `ComponentNode`. `context` remains supported, so parents can move to nodes one at a time. [#2880](https://github.com/a2ui-project/a2ui/pull/2880)
+
+- Expose `ComponentNode.context`, the context the resolver bound the node with (undefined on placeholders). [#2879](https://github.com/a2ui-project/a2ui/pull/2879)
+- (v0_9) Basic catalog component styles now survive Closure-optimized builds.
+  The `static styles` of each component are marked `/** @nocollapse */`
+  ([#2869](https://github.com/a2ui-project/a2ui/pull/2869)).
 - Fix the setter `GenericBinder` generates for a property declared as a binding with no literal branch: its parameter resolved to `never`, making the setter uncallable. It now falls back to `unknown`, matching the fallback `ResolveA2uiProp` already applies to the resolved property ([#2529](https://github.com/a2ui-project/a2ui/pull/2529)).
 - `Catalog.fromSchema` no longer drops properties mixed in through an external
   `allOf` reference, so Checkable components in the basic catalogs now accept

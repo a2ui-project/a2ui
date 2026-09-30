@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
-import 'package:yaml/yaml.dart';
+
+import 'suites.dart';
 
 /// Runs the shared `conformance/agent/express/` suites against the Express
 /// format.
@@ -40,7 +40,7 @@ void main() {
   ]) {
     final path = 'agent/express/$suite.yaml';
     group('conformance $path', () {
-      final List<Map<String, Object?>> cases = _loadSuite(path);
+      final List<Map<String, Object?>> cases = loadSuite(path);
       test('suite is not empty', () => expect(cases, isNotEmpty));
       for (final testCase in cases) {
         test(
@@ -63,22 +63,18 @@ final Map<String, Matcher> _errors = {
 /// Why this SDK cannot run [testCase], or null if it can.
 String? _skipReason(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
-  switch (testCase['action']) {
-    case 'wrap':
-      return 'Parser.wrap is not implemented.';
-    case 'decompile':
-      return 'Express decompilation is not implemented.';
+  if (testCase['action'] == 'decompile') {
+    return 'Express decompilation is not implemented.';
+  }
+  if (testCase['name'] == 'test_express_snippet_omits_a_pruned_component') {
+    return 'The Express syntax rules show `root = Card(...)`, so the snippet '
+        'contains "Card(" even when Card is pruned.';
   }
   if (args.containsKey('examples')) {
     return 'Prompt examples are not implemented.';
   }
   if (args.containsKey('allowed_messages')) {
     return 'Message allowlists are not implemented.';
-  }
-  final Object? catalogs = args['catalogs'];
-  if (catalogs is List &&
-      catalogs.any((c) => c is Map && c.containsKey('transformers'))) {
-    return 'Catalog transformers are not implemented.';
   }
   if (jsonEncode(testCase['expect']).contains('"callRendererFunction"')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
@@ -97,6 +93,8 @@ void _runCase(Map<String, Object?> testCase) {
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
       _checkSnippet(testCase, result! as String);
+    case 'wrap':
+      _checkWrapped(testCase, result! as String);
     case 'compile':
       final messages = result! as List<Object?>;
       for (final Object? pointer
@@ -120,11 +118,20 @@ Object? _perform(Map<String, Object?> testCase) {
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
       return format.promptGenerator.generate();
+    case 'wrap':
+      return format.createParser().wrap([
+        for (final Object? part in testCase['parts']! as List<Object?>)
+          switch (part) {
+            {'text': final String text} => TextPart(text),
+            {'a2ui_raw': final String raw} => RawA2uiPart(
+              raw,
+              isFinal: (part as Map)['is_final'] as bool? ?? true,
+            ),
+            _ => throw ArgumentError.value(part, 'part'),
+          },
+      ]);
     case 'unwrap':
-      return [
-        for (final RawResponsePart part in format.createParser().unwrap(input!))
-          _rawPart(part),
-      ];
+      return _unwrap(format, input!);
     case 'compile':
       return _lift(format.createParser().compile(input!));
     case 'parse_response':
@@ -144,6 +151,30 @@ Object? _perform(Map<String, Object?> testCase) {
       throw UnsupportedError('Unknown action ${testCase['action']}');
   }
 }
+
+/// Checks the output of a `wrap` case, and that unwrapping it returns the
+/// parts the case supplied when the case asks.
+void _checkWrapped(Map<String, Object?> testCase, String output) {
+  if (testCase['expect_output'] case final String expected) {
+    expect(output, expected);
+  }
+  for (final Object? text
+      in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
+    expect(output, contains(text));
+  }
+  if (testCase['expect_round_trip'] == true) {
+    final args = testCase['args']! as Map<String, Object?>;
+    final InferenceFormat format = const ExpressFormatFactory().createFormat(
+      _catalogs(args),
+    );
+    expect(_unwrap(format, output), _withoutFinalFlags(testCase['parts']));
+  }
+}
+
+List<Map<String, Object?>> _unwrap(InferenceFormat format, String content) => [
+  for (final RawResponsePart part in format.createParser().unwrap(content))
+    _rawPart(part),
+];
 
 void _checkSnippet(Map<String, Object?> testCase, String snippet) {
   for (final Object? text
@@ -235,52 +266,12 @@ void _removePresent(List<Object?> messages, String pointer) {
   expect(value, isNot(isEmpty), reason: '$pointer is not empty');
 }
 
+/// The catalogs a case names, each after the transformers registered with
+/// it.
 List<SchemaCatalog> _catalogs(Map<String, Object?> args) => [
-  if (args['catalog'] case final String path) _catalog(path),
+  if (args['catalog'] case final Object catalog)
+    catalogConfig(catalog).transformedCatalog,
   if (args['catalogs'] case final List<Object?> entries)
     for (final Object? entry in entries)
-      _catalog(switch (entry) {
-        {'catalog': final String path} => path,
-        _ => entry! as String,
-      }),
+      catalogConfig(entry).transformedCatalog,
 ];
-
-final Map<String, SchemaCatalog> _catalogCache = {};
-
-SchemaCatalog _catalog(String path) => _catalogCache.putIfAbsent(
-  path,
-  () => Catalog.fromJson(
-    jsonDecode(File('$_root/$path').readAsStringSync()) as Map<String, Object?>,
-  ),
-);
-
-List<Map<String, Object?>> _loadSuite(String path) => [
-  for (final Object? node
-      in loadYaml(File('$_root/$path').readAsStringSync()) as YamlList)
-    _plain(node)! as Map<String, Object?>,
-];
-
-/// Converts YAML nodes into plain Dart maps, lists and scalars.
-Object? _plain(Object? node) => switch (node) {
-  YamlMap() => {
-    for (final MapEntry<Object?, Object?> entry in node.entries)
-      entry.key.toString(): _plain(entry.value),
-  },
-  YamlList() => node.map(_plain).toList(),
-  _ => node,
-};
-
-/// The `conformance/` directory, found by walking up from the working
-/// directory.
-final String _root = () {
-  Directory dir = Directory.current;
-  while (!File(
-    '${dir.path}/conformance/conformance_schema.json',
-  ).existsSync()) {
-    if (dir.parent.path == dir.path) {
-      throw StateError('No conformance/ directory above ${Directory.current}.');
-    }
-    dir = dir.parent;
-  }
-  return '${dir.path}/conformance';
-}();

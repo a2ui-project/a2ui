@@ -459,7 +459,8 @@ def test_reused_core_models_stay_identical_to_core():
     assert DataBinding(path="/user/name").path == "/user/name"
 
     call = FunctionCall(call="validateEmail")
-    assert call.return_type == "boolean"
+    assert call.return_type is None
+    assert "return_type" not in call.model_fields_set
     assert call.model_dump(by_alias=True, exclude_none=True) == {
         "call": "validateEmail"
     }
