@@ -15,26 +15,23 @@
  */
 
 import {Parser} from '../../parser/parser.js';
-import {RawResponsePart, ResponsePart} from '../../parser/response_part.js';
+import {RawResponsePart} from '../../parser/response_part.js';
 import {SchemaCatalog} from '../../types.js';
 import {BlockLexer} from '../../parser/lexer.js';
 import {ParseError} from '../../errors.js';
 import {parseAndFix} from '../../parser/payload_fixer.js';
 import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
-import {DirectJsonStreamProcessor} from './streaming_types.js';
 import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 export class DirectJsonParser extends Parser {
   private readonly catalog: SchemaCatalog;
-  private readonly streamProcessor?: DirectJsonStreamProcessor;
   private readonly lexer: BlockLexer;
   private readonly decompiler: DirectJsonDecompiler;
 
-  constructor(catalog: SchemaCatalog, streamProcessor?: DirectJsonStreamProcessor) {
+  constructor(catalog: SchemaCatalog) {
     super();
     this.catalog = catalog;
-    this.streamProcessor = streamProcessor;
     this.lexer = new BlockLexer(A2UI_OPEN_TAG, A2UI_CLOSE_TAG, new Set(["'", '"']), new Set());
     this.decompiler = new DirectJsonDecompiler();
   }
@@ -80,21 +77,6 @@ export class DirectJsonParser extends Parser {
     const jsonData = parseAndFix(formatContent);
 
     return jsonData as AgentToRendererMessage[];
-  }
-
-  // Streaming needs an injected stream processor.
-  override get supportsStreaming(): boolean {
-    return this.streamProcessor !== undefined;
-  }
-
-  parseChunk(chunk: string, _wrapped = true): ResponsePart[] {
-    if (!this.streamProcessor) {
-      throw new Error(
-        'DirectJsonParser was constructed without a stream processor, so streaming is unavailable.',
-      );
-    }
-
-    return this.streamProcessor.processChunk(chunk);
   }
 
   decompile(a2uiPayload: AgentToRendererMessage[]): string {

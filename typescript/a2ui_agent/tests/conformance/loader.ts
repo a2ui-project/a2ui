@@ -102,6 +102,7 @@ const UNIMPLEMENTED_ACTIONS = new Map<string, string>([
   ['core_syntax', 'skill generation is not implemented'],
   ['from_catalog', 'skill generation is not implemented'],
   ['skill_set', 'skill generation is not implemented'],
+  ['process_chunk', 'streaming is not implemented'],
 ]);
 
 export function classify(testCase: TestCase) {

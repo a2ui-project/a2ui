@@ -20,39 +20,23 @@ import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonPromptGenerator} from './prompt_generator.js';
-import {DirectJsonStreamProcessorImpl} from './streaming.js';
-import {
-  DirectJsonStreamProcessorFactory,
-  DirectJsonStreamProcessorOptions,
-} from './streaming_types.js';
 
 /**
  * Direct JSON format implementation.
  */
 export class DirectJsonFormat implements InferenceFormat {
   readonly promptGenerator: DirectJsonPromptGenerator;
-  // createParser always injects a stream processor.
-  readonly supportsStreaming = true;
+  readonly supportsStreaming = false;
 
   constructor(
     private readonly catalogs: SchemaCatalog[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
-    private readonly streamProcessorFactory?: DirectJsonStreamProcessorFactory,
-    private readonly streamOptions?: DirectJsonStreamProcessorOptions,
   ) {
     this.promptGenerator = new DirectJsonPromptGenerator(catalogs, examples);
   }
 
   createParser(): Parser {
-    const baseCatalog = this.catalogs[0];
-    const streamProcessor = this.streamProcessorFactory
-      ? this.streamProcessorFactory.createStreamProcessor(baseCatalog, this.streamOptions)
-      : new DirectJsonStreamProcessorImpl(
-          baseCatalog,
-          this.streamOptions || {progressiveKeys: ['text', 'literalString']},
-        );
-
-    return new DirectJsonParser(baseCatalog, streamProcessor);
+    return new DirectJsonParser(this.catalogs[0]);
   }
 }
 
@@ -60,11 +44,6 @@ export class DirectJsonFormat implements InferenceFormat {
  * Factory for creating DirectJsonFormat instances.
  */
 export class DirectJsonFormatFactory implements InferenceFormatFactory {
-  constructor(
-    private readonly streamProcessorFactory?: DirectJsonStreamProcessorFactory,
-    private readonly streamOptions?: DirectJsonStreamProcessorOptions,
-  ) {}
-
   createFormat(
     catalogs: SchemaCatalog[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
@@ -72,11 +51,6 @@ export class DirectJsonFormatFactory implements InferenceFormatFactory {
     if (catalogs.length === 0) {
       throw new Error('At least one catalog must be provided to create a DirectJsonFormat.');
     }
-    return new DirectJsonFormat(
-      catalogs,
-      examples,
-      this.streamProcessorFactory,
-      this.streamOptions,
-    );
+    return new DirectJsonFormat(catalogs, examples);
   }
 }

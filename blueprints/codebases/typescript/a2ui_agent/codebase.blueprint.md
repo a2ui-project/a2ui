@@ -18,7 +18,7 @@ The reference TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`). Th
 - **Parser and Lexer Layer**: Defines the foundational seams (`Parser`, `BlockLexer`, `ResponsePart`, `RawResponsePart`) through which formats are implemented. The lexer uses sticky regexes and offset-based string matching (`String.startsWith`) for quadratic-free tokenization performance.
 - **Prompt Generation**: Decomposed into three hooks (`generateBaseRules`, `generateCatalogInstructions`, `generateExamples`) under a template `generate()` method to enable decoupled skill generation without duplicating logic.
 - **Catalog Layer**: Includes `CatalogConfig`, catalog pruning transformers, in-memory and file-system `CatalogProvider` implementations, and `resolveCatalogs` handling fallback rules based on renderer capabilities.
-- **Direct JSON Inference Format**: Implements `<a2ui-json>` serialization via `DirectJsonFormat`, complete with a robust streaming healer (`DirectJsonStreamProcessorImpl`). The streaming heuristic auto-heals fragmented chunks incrementally without blowing away intermediate references.
+- **Direct JSON Inference Format**: Implements `<a2ui-json>` serialization via `DirectJsonFormat`. Parsing works on complete responses; `supportsStreaming` is false.
 - **Processor Facades**: Features agent-lifetime (`A2uiGenerator`) and request-scoped (`A2uiRequestProcessor`) facades to cleanly orchestrate capability negotiation, prompt construction, parsing, and payload validation.
 - **Conformance Harness**: A robust test runner that executes the upstream `conformance/agent/` YAML fixtures, dynamically mapping text and payload shapes across boundaries.
 
@@ -28,7 +28,7 @@ Protocol versions are handled in a few fixed places, and adding a version means 
 
 - All `@a2ui/web_core` imports, including the `v0_9` and `v1_0` subpaths, go through `src/internal/web_core.ts`. Code outside that file uses the version-neutral `RendererCapabilities` type.
 - The version stamped on emitted messages comes from the catalog's `protocolVersion`, not from a literal.
-- Envelope validation in `src/utils/envelope_validation.ts` selects the v0.9 or v1.0 message schemas from that version. v1.0 adds `callRendererFunction` and `agentFunctionResponse` to the four messages shared with v0.9.
+- `src/utils/envelope_validation.ts` selects the v0.9 or v1.0 message schemas from that version, and the prompt generator renders them into the prompt. v1.0 adds `callRendererFunction` and `agentFunctionResponse` to the four messages shared with v0.9.
 - `MessageProcessor` picks a version adapter for each message from the message's own `version` field, so the SDK does not configure a protocol version on the processor.
 - The conformance harness runs the versions listed in `SUPPORTED_PROTOCOL_VERSIONS` in `tests/conformance/loader.ts`, currently `v0.9` and `v1.0`.
 
@@ -47,19 +47,16 @@ Protocol versions are handled in a few fixed places, and adding a version means 
 
 - **v0.8 Protocol Support**: v0.8 uses a different message model (`beginRendering` and `surfaceUpdate`) from v0.9 and v1.0, so it is out of scope for this SDK.
 - **Express / Elemental / Atom Inference Formats**: Only Direct JSON (`<a2ui-json>`) is implemented. The `InferenceFormat` seam remains cleanly open for their future addition.
+- **Streaming**: `DirectJsonParser` does not implement `parseChunk`, and the `process_chunk` conformance cases are skipped. Streaming is added in a separate change.
 - **Extended Catalog Transformers and Utils**: Only the specific catalog transformers required by the baseline features are implemented. Extended `catalog_transformers` and `utils` packages described by the module blueprint are omitted until a concrete use case necessitates them.
 
 ## **Validation & Execution Recipes**
 
 ### **Test Posture**
 
-- **Overall**: 175 passing tests, 52 skipped, 0 failing, 0 expected failures.
-- **Conformance**: 79 passing cases and 52 skipped (out of 131 total cases). `KNOWN_FAILURES` in `tests/conformance/loader.ts` is empty.
-- **Why cases are skipped**: Cases are skipped dynamically based on protocol version and format declarations, rather than hardcoded skip lists. Of the 52, 45 declare protocol `v0.8`, which is permanently out of scope, and 7 use an unimplemented inference format (5 Express, 1 Elemental, 1 Atom). None are skipped for an implementation defect.
-
-### **Streaming Coverage**
-
-Streaming behaviour is verified entirely against the canonical cases in `conformance/agent/`. Those are almost all `v0.9`, with a single `v1.0` case, but the streaming parser is version-independent in everything they exercise, so the `v0.9` cases cover the `v1.0` path too. The hand-translated local fixtures that stood in before `v0.9` was enabled have been retired: 19 of their 20 cases have a direct `_v09` canonical counterpart, and the twentieth, `test_url_placeholders_with_hints`, asserted only full resolution of a complete tree, which the canonical suite covers repeatedly.
+- **Overall**: 161 passing tests, 103 skipped, 0 failing, 0 expected failures.
+- **Conformance**: 62 passing cases and 103 skipped (out of 165), across the legacy suites and the `catalog_provider`, `catalog_resolution` and `direct_json/prompt_generator` suites. `KNOWN_FAILURES` in `tests/conformance/loader.ts` is empty.
+- **Why cases are skipped**: 82 are `process_chunk` streaming cases, 14 are legacy cases superseded by the newer suites, 4 generate skills, and 3 use an unimplemented inference format (Express, Elemental, Atom). None are skipped for an implementation defect.
 
 - **Test execution**: Run unit/integration tests with `yarn test`.
 - **Linting check**: Check style boundaries with `yarn lint`.

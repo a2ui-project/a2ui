@@ -71,12 +71,6 @@ export {resolveCatalogs} from './utils/catalog_resolver.js';
 // Direct JSON inference format
 export {DirectJsonFormat, DirectJsonFormatFactory} from './inference_formats/direct_json/format.js';
 export {DirectJsonParser} from './inference_formats/direct_json/parser.js';
-export type {
-  DirectJsonStreamProcessorFactory,
-  DirectJsonStreamProcessorOptions,
-  DirectJsonStreamProcessor,
-} from './inference_formats/direct_json/streaming_types.js';
-export {DirectJsonStreamProcessorImpl} from './inference_formats/direct_json/streaming.js';
 export {DirectJsonPromptGenerator} from './inference_formats/direct_json/prompt_generator.js';
 export {DirectJsonDecompiler} from './inference_formats/direct_json/decompiler.js';
 
