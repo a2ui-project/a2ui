@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v1_0) Support reserved protocol key prefix (`@path`, `@call`), dynamic prefix doubling unescaping (`@@path` → `@path`), and unknown single-`@` key validation in v1.0 dynamic resolution while maintaining multi-version support for v0.8 and v0.9 ([#2692](https://github.com/a2ui-project/a2ui/issues/2692)).
 - (v0_9) Basic catalog component styles now survive Closure-optimized builds.
   The `static styles` of each component are marked `/** @nocollapse */`
   ([#2869](https://github.com/a2ui-project/a2ui/pull/2869)).

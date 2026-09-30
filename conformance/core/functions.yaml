@@ -27,7 +27,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatDate"
+                  "@call": "formatDate"
                   args:
                     value: "2026-09-04T12:00:00Z"
                     format: "yyyy-MM-dd"
@@ -54,7 +54,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatCurrency"
+                  "@call": "formatCurrency"
                   args:
                     value: 1234.5
                     currency: "USD"
@@ -85,7 +85,7 @@
               - id: "t1"
                 component: "Text"
                 text:
-                  call: "pluralize"
+                  "@call": "pluralize"
                   args:
                     value: 1
                     one: "1 item"
@@ -93,7 +93,7 @@
               - id: "t2"
                 component: "Text"
                 text:
-                  call: "pluralize"
+                  "@call": "pluralize"
                   args:
                     value: 5
                     one: "1 item"
@@ -127,19 +127,19 @@
               - id: "t_and"
                 component: "Text"
                 text:
-                  call: "and"
+                  "@call": "and"
                   args:
                     values: [true, false]
               - id: "t_or"
                 component: "Text"
                 text:
-                  call: "or"
+                  "@call": "or"
                   args:
                     values: [true, false]
               - id: "t_not"
                 component: "Text"
                 text:
-                  call: "not"
+                  "@call": "not"
                   args:
                     value: false
   expect:
@@ -171,7 +171,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatNumber"
+                  "@call": "formatNumber"
                   args:
                     value: "not_a_number"
       expectError:

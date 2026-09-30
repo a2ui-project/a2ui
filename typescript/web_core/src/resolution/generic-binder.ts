@@ -25,6 +25,7 @@ import {
 } from '../types/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
+import {isAtLeastVersion} from '../common/semver.js';
 
 // --- Schema Scraping ---
 
@@ -543,7 +544,8 @@ export class GenericBinder<T> {
           valObj.functionCall && typeof valObj.functionCall === 'object'
             ? (valObj.functionCall as Record<string, unknown>)
             : valObj;
-        if (typeof fc.call === 'string') {
+        const callName = ((fc as any)['@call'] ?? (fc as any).call) as string | undefined;
+        if (typeof callName === 'string') {
           this.context.dataContext.resolveDynamicValue(fc);
           return;
         }
@@ -585,7 +587,12 @@ export class GenericBinder<T> {
       return value;
     }
 
-    const bound = this.context.dataContext.subscribeDynamicValue({path: templatePath}, newVal => {
+    const isV10 = isAtLeastVersion(
+      this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
+      '1.0',
+    );
+    const binding = isV10 ? {'@path': templatePath} : {path: templatePath};
+    const bound = this.context.dataContext.subscribeDynamicValue(binding, newVal => {
       const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);
       this.updateDeepValue(path, resolvedChildren);
       this.notify();
@@ -684,9 +691,14 @@ export class GenericBinder<T> {
         const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
         const rawPropValue = valObj[k];
         result[setterName] = (newValue: unknown) => {
-          if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
-            const pathVal = (rawPropValue as {path: unknown}).path;
-            if (typeof pathVal === 'string') {
+          if (rawPropValue && typeof rawPropValue === 'object') {
+            const rawObj = rawPropValue as Record<string, unknown>;
+            const bindingKey = this.context.dataContext.isV10 ? '@path' : 'path';
+            const pathVal = rawObj[bindingKey];
+            if (
+              typeof pathVal === 'string' &&
+              (this.context.dataContext.isV10 || !('componentId' in rawObj))
+            ) {
               this.context.dataContext.set(pathVal, newValue);
             }
           }

@@ -26,6 +26,7 @@ class SurfaceModel<T extends ComponentApi> {
   final Catalog<T, FunctionImplementation> catalog;
   final Map<String, dynamic> theme;
   final bool sendDataModel;
+  final String? protocolVersion;
 
   final DataModel dataModel;
   final SurfaceComponentsModel componentsModel;
@@ -44,6 +45,7 @@ class SurfaceModel<T extends ComponentApi> {
     required this.catalog,
     this.theme = const {},
     this.sendDataModel = false,
+    this.protocolVersion,
   })  : dataModel = DataModel(),
         componentsModel = SurfaceComponentsModel();
 

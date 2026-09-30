@@ -1115,7 +1115,7 @@ def test_payload_validator_skips_nested_function_from_another_catalog():
         validator.validate_component(
             component(
                 "c1",
-                {"call": "multiply", "catalogId": "math-cat", "args": {"nope": True}},
+                {"@call": "multiply", "catalogId": "math-cat", "args": {"nope": True}},
             )
         )
         is None
@@ -1126,20 +1126,20 @@ def test_payload_validator_skips_nested_function_from_another_catalog():
         validator.validate_component(
             component(
                 "c2",
-                {"call": "add", "catalogId": "app-cat", "args": {"a": 1, "b": 2}},
+                {"@call": "add", "catalogId": "app-cat", "args": {"a": 1, "b": 2}},
             )
         )
         is None
     )
     with pytest.raises(A2uiValidationError):
         validator.validate_component(
-            component("c3", {"call": "add", "catalogId": "app-cat", "args": {"a": 1}})
+            component("c3", {"@call": "add", "catalogId": "app-cat", "args": {"a": 1}})
         )
 
     # A call naming no catalog is validated against this catalog.
     with pytest.raises(A2uiValidationError):
         validator.validate_component(
-            component("c4", {"call": "unknownFunction", "args": {}})
+            component("c4", {"@call": "unknownFunction", "args": {}})
         )
 
 
@@ -1164,8 +1164,8 @@ def test_payload_validator_collects_errors_past_a_foreign_catalog_call():
         validator.validate_component({
             "id": "c1",
             "component": "CustomComp",
-            "first": {"call": "add", "catalogId": "math-cat", "args": {"a": 1}},
-            "second": {"call": "unknownFunction", "args": {}},
+            "first": {"@call": "add", "catalogId": "math-cat", "args": {"a": 1}},
+            "second": {"@call": "unknownFunction", "args": {}},
         })
 
     assert [detail.code for detail in exc_info.value.details] == [
@@ -1366,7 +1366,7 @@ def test_payload_validator_foreign_catalog_identifier_validation():
         "id": "c1",
         "component": "Container",
         "title": {
-            "call": "foreign_func",
+            "@call": "foreign_func",
             "catalogId": "foreign_cat",
             "args": {"param": "ok"},
         },
@@ -1378,7 +1378,7 @@ def test_payload_validator_foreign_catalog_identifier_validation():
             "id": "c2",
             "component": "Container",
             "title": {
-                "call": "invalid-func-name!",
+                "@call": "invalid-func-name!",
                 "catalogId": "foreign_cat",
                 "args": {"param": "ok"},
             },

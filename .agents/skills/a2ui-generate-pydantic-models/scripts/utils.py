@@ -74,6 +74,12 @@ def is_modern_terminology(version: str, a2r_name: str = "") -> bool:
     return dir_name not in ("v0_8", "v0_9", "v0_9_1")
 
 
+def is_at_least_v10(version: str) -> bool:
+    """Returns True if the protocol version is v1.0 or higher."""
+    dir_name = version_to_underscore(version)
+    return dir_name not in ("v0_8", "v0_9", "v0_9_1")
+
+
 def to_snake_case(name: str) -> str:
     """Converts a camelCase or PascalCase identifier to snake_case."""
     if name == "$schema":

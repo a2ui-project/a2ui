@@ -92,21 +92,10 @@ class PropertyGap(NamedTuple):
 # gap that closes fails the test just as a new gap does.
 KNOWN_PROPERTY_GAPS: dict[str, dict[str, PropertyGap]] = {
     "v1_0": {
-        "DataBinding": PropertyGap(
-            specification_only=("@path",),
-            sdk_only=("path",),
-            reason=(
-                "Protocol v1.0 specifies the reserved '@path' prefix (issue #2692)."
-                " Runtime SDK support is implemented in Part 2."
-            ),
-        ),
         "FunctionCall": PropertyGap(
-            specification_only=("@call",),
-            sdk_only=("args", "call"),
-            reason=(
-                "The flat-shape deviation recorded in ACCEPTED_DEVIATIONS and the"
-                " reserved '@call' prefix specified in protocol v1.0 (issue #2692)."
-            ),
+            specification_only=(),
+            sdk_only=("args",),
+            reason="The flat-shape deviation recorded in ACCEPTED_DEVIATIONS.",
         ),
     },
 }

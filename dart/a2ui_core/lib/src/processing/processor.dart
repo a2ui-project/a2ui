@@ -313,6 +313,7 @@ class MessageProcessor<T extends ComponentApi> {
       catalog: catalog,
       theme: message.theme ?? {},
       sendDataModel: message.sendDataModel,
+      protocolVersion: protocolVersion.jsonValue,
     );
     groupModel.addSurface(surface);
   }

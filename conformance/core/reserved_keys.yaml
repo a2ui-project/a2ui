@@ -79,6 +79,12 @@
     intercepted as a dynamic DataBinding or FunctionCall directive.
   catalog:
     protocolVersion: "v1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
     - version: "v1.0"
@@ -87,7 +93,7 @@
         components:
           - id: root
             component: CustomCard
-            metadata:
+            details:
               path: "/var/log/system.log"
               call: "audit"
 
@@ -97,6 +103,12 @@
     as plain object keys.
   catalog:
     protocolVersion: "v1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
     - version: "v1.0"
@@ -105,7 +117,7 @@
         components:
           - id: root
             component: CustomCard
-            metadata:
+            details:
               "@@path": "/static/file"
               "@@type": "Resource"
 
@@ -115,6 +127,12 @@
     backward compatibility for future directives.
   catalog:
     protocolVersion: "v1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
     - version: "v1.0"
@@ -123,10 +141,10 @@
         components:
           - id: root
             component: CustomCard
-            metadata:
+            details:
               "@if": true
               then: "active"
-  expect_error:
+  expectError:
     category: "ValidationError"
 
 - name: test_disallowed_bare_at_key
@@ -135,6 +153,12 @@
     disallowed. It must be escaped as "@@" to appear as literal data.
   catalog:
     protocolVersion: "v1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
     - version: "v1.0"
@@ -143,7 +167,37 @@
         components:
           - id: root
             component: CustomCard
-            metadata:
+            details:
               "@": "reserved"
-  expect_error:
+  expectError:
     category: "ValidationError"
+
+- name: test_escaped_doubled_at_unescaping
+  description: >-
+    Verifies that doubled-@ keys ('@@path') are unescaped to '@path' during dynamic evaluation in v1.0.
+  catalog:
+    protocolVersion: "v1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: process_messages
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: s1
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@@path": "/static/file"
+  expect:
+    surfaces:
+      s1:
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@path": "/static/file"

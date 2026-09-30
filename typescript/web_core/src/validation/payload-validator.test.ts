@@ -98,7 +98,7 @@ describe('PayloadValidator', () => {
       validator.validateComponent({
         id: 't1',
         component: 'Text',
-        text: {call: 'upper', args: {input: 'hello'}},
+        text: {'@call': 'upper', args: {input: 'hello'}},
       }),
     );
 
@@ -108,7 +108,7 @@ describe('PayloadValidator', () => {
         validator.validateComponent({
           id: 't1',
           component: 'Text',
-          text: {call: 'nonExistent', args: {}},
+          text: {'@call': 'nonExistent', args: {}},
         }),
       A2uiValidationError,
     );
@@ -119,7 +119,7 @@ describe('PayloadValidator', () => {
         validator.validateComponent({
           id: 't1',
           component: 'Text',
-          text: {call: 'upper', args: {wrongArg: 123}},
+          text: {'@call': 'upper', args: {wrongArg: 123}},
         }),
       A2uiValidationError,
     );
@@ -129,7 +129,7 @@ describe('PayloadValidator', () => {
       validator.validateComponent({
         id: 't1',
         component: 'Text',
-        text: {call: 'joinStrings', catalogId: 'util-cat', args: {wrongArg: 123}},
+        text: {'@call': 'joinStrings', catalogId: 'util-cat', args: {wrongArg: 123}},
       }),
     );
 
@@ -139,7 +139,7 @@ describe('PayloadValidator', () => {
         validator.validateComponent({
           id: 't1',
           component: 'Text',
-          text: {call: 'invalid-name-!', catalogId: 'util-cat', args: {}},
+          text: {'@call': 'invalid-name-!', catalogId: 'util-cat', args: {}},
         }),
       A2uiValidationError,
     );
@@ -431,7 +431,7 @@ describe('PayloadValidator', () => {
       validator.validateComponent({
         id: 'item1',
         component: 'RowItem',
-        indexVal: {call: '@index', args: {offset: 0}},
+        indexVal: {'@call': '@index', args: {offset: 0}},
       }),
     );
 
@@ -440,7 +440,7 @@ describe('PayloadValidator', () => {
         validator.validateComponent({
           id: 'item2',
           component: 'RowItem',
-          indexVal: {call: '@index', args: {offset: 'not-a-number'}},
+          indexVal: {'@call': '@index', args: {offset: 'not-a-number'}},
         }),
       A2uiValidationError,
     );

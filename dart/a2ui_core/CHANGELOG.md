@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support reserved protocol key prefix (`@path`, `@call`) in `DataBinding` and `FunctionCall`, dynamic prefix doubling unescaping (`@@path` → `@path`) during dynamic evaluation, and `@path` in dynamic setter generation.
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
 - `ExpressionParser` accepts number literals with a leading decimal point

@@ -26,6 +26,7 @@ import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {isAtLeastVersion} from './semver.js';
 
 /**
  * Default BCP 47 locale used when a catalog is built without an explicit one.
@@ -342,6 +343,25 @@ export function executeNot(value: unknown): boolean {
   return !value;
 }
 
+function adaptAstPartForV10(part: any): any {
+  if (typeof part !== 'object' || part === null || Array.isArray(part)) {
+    return part;
+  }
+  if ('path' in part && typeof part.path === 'string' && !('@path' in part)) {
+    return {'@path': part.path};
+  }
+  if ('call' in part && typeof part.call === 'string' && !('@call' in part)) {
+    const args: Record<string, unknown> = {};
+    if (part.args && typeof part.args === 'object') {
+      for (const [k, v] of Object.entries(part.args)) {
+        args[k] = adaptAstPartForV10(v);
+      }
+    }
+    return {'@call': part.call, args, returnType: part.returnType};
+  }
+  return part;
+}
+
 /** Formats a template string by resolving embedded expressions. */
 export function executeFormatString(
   template: string,
@@ -352,11 +372,13 @@ export function executeFormatString(
 
   if (parts.length === 0) return '';
 
+  const isV10 = isAtLeastVersion(context.surface?.defaultCatalog?.protocolVersion, '1.0');
   const dynamicParts = parts.map(part => {
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    return context.resolveSignal(part);
+    const adapted = isV10 ? adaptAstPartForV10(part) : part;
+    return context.resolveSignal(adapted);
   });
 
   return computed(() => {
