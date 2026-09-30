@@ -41,7 +41,7 @@ class TestParser extends Parser {
     return blocks.map(b => (b.type === 'text' ? b.text : b.a2uiRaw)).join('') + ' (wrapped)';
   }
 
-  parseChunk(chunk: string, wrapped = true): ResponsePart[] {
+  override parseChunk(chunk: string, wrapped = true): ResponsePart[] {
     return [{type: 'text', text: chunk + `(wrapped=${wrapped})`}];
   }
 
