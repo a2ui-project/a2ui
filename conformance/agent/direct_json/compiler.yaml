@@ -27,12 +27,12 @@
 # Compiling direct JSON is mostly reading the block, so what the cases fix is
 # mainly what a compiler may repair before reading: a trailing comma, a smart
 # quote a model picked up from prose, a single object where a list was asked
-# for. Four of the seven cases are that. They matter because a model that emits
+# for. Such cases matter because a model that emits
 # almost-JSON is the common case rather than the exception.
 #
 # Two error categories carry the load. `ParseError` is for payload text the
 # format cannot read. `ValidationError` is for a payload that reads but names
-# something the catalog does not declare.
+# something the catalog does not declare, or breaks the message envelope.
 #
 # A component carrying a property its catalog does not declare is invalid, but
 # the rule lives in the message envelope rather than in the catalog. Like the
@@ -42,9 +42,17 @@
 # component against the bare catalog schema will miss this; it has to validate
 # the message it is about to emit.
 #
+# The envelope's `version` is the same kind of rule. `agent_to_renderer.json`
+# requires it and fixes it to the protocol version of the catalog, so a message
+# that states another version, or none, is a `ValidationError`. It is not
+# something a compiler repairs: a model that wrote the wrong version may have
+# written the rest of the message against the wrong protocol too.
+#
 # The Express counterpart of this suite is `agent/express/compiler.yaml`. The
 # two are deliberately parallel: a rule that holds for both formats has a case
-# in each, written against that format's own notation.
+# in each, written against that format's own notation. The two `version` cases
+# are the exception, since Express notation has no version for a model to get
+# wrong.
 #
 # The catalogs under test live in `args`, and every case here is written against
 # v1.0. A case states no version of its own: the version it runs under is the
@@ -141,5 +149,25 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Sparkline", "values": [1, 2]}]}}]'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_json_other_protocol_version_is_a_validation_error
+  description: A message that states a protocol version other than its catalog's is a validation error rather than a message the compiler passes on.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_json_missing_version_is_a_validation_error
+  description: A message that states no version is a validation error, since the envelope requires one.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"deleteSurface": {"surfaceId": "s1"}}]'
   expect_error:
     category: "ValidationError"

@@ -22,7 +22,13 @@ abstract class InferenceFormatFactory {
   const InferenceFormatFactory();
 
   /// Creates the format for [catalogs], the catalogs active for one request.
-  InferenceFormat createFormat(List<SchemaCatalog> catalogs);
+  ///
+  /// [examples] are the example turns its prompt shows the model, each the
+  /// list of messages making up one turn.
+  InferenceFormat createFormat(
+    List<SchemaCatalog> catalogs, {
+    List<List<AgentToRendererMessage>> examples = const [],
+  });
 }
 
 /// One inference format bound to the catalogs of one request: the prompt that
@@ -30,7 +36,8 @@ abstract class InferenceFormatFactory {
 abstract class InferenceFormat {
   const InferenceFormat();
 
-  /// Renders the prompt snippet describing the format and the catalogs.
+  /// Renders the prompt snippet describing the format, the catalogs and the
+  /// examples.
   PromptGenerator get promptGenerator;
 
   /// Creates a parser for one LLM response.
