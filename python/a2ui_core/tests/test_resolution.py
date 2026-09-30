@@ -589,6 +589,33 @@ def test_generic_binder_action_closure():
     binder.dispose()
 
 
+def test_generic_binder_action_closure_returns_dispatch_result():
+    cat = BasicCatalog()
+    comp = ComponentModel(
+        "btn_submit",
+        "Button",
+        cat,
+        {"onClick": {"event": {"name": "submit_form"}}},
+    )
+    surface = SurfaceModel("s1", cat)
+    ctx = DataContext(surface, path="/")
+    captured = []
+
+    def custom_dispatch(action: dict[str, Any], component_id: str) -> str:
+        captured.append((action, component_id))
+        return "dispatched_result"
+
+    context = ComponentContext(comp, ctx, dispatch_action_callback=custom_dispatch)
+    binder = GenericBinder(
+        context,
+        schema={"properties": {"onClick": {"$ref": "common_types.json#/$defs/Action"}}},
+    )
+    result = binder.current_props["onClick"]()
+    assert result == "dispatched_result"
+    assert len(captured) == 1
+    binder.dispose()
+
+
 def test_generic_binder_function_call_action_closure():
     executed_calls: list[dict[str, Any]] = []
 

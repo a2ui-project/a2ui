@@ -293,7 +293,7 @@ export interface ResolvedChildRef {
  * For example, an `Action` object becomes a callable `() => void` function.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
-  ? (() => void) | Extract<T, undefined>
+  ? (() => Promise<void>) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
@@ -371,7 +371,7 @@ export class GenericBinder<T> {
   // Actions resolve to closures, which downstream value comparison cannot
   // inspect; reusing the closure while the raw payload is unchanged keeps
   // unchanged action props reference-identical across rebuilds.
-  private actionClosures = new Map<string, {raw: unknown; closure: () => void}>();
+  private actionClosures = new Map<string, {raw: unknown; closure: () => Promise<void>}>();
 
   /**
    * Creates a new binder for the given component context and schema.
@@ -500,13 +500,13 @@ export class GenericBinder<T> {
     return this.resolveDeepSync(val, 0) as Action | Record<string, unknown>;
   }
 
-  private bindAction(value: unknown, path: string[]): () => void {
+  private bindAction(value: unknown, path: string[]): () => Promise<void> {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
     if (cached && jsonEquals(cached.raw, value)) {
       return cached.closure;
     }
-    const closure = () => {
+    const closure = async () => {
       if (value && typeof value === 'object') {
         const valObj = value as Record<string, unknown>;
         const fc =
@@ -518,7 +518,7 @@ export class GenericBinder<T> {
           return;
         }
       }
-      this.context.dispatchAction(this.resolveEventAction(value));
+      return this.context.dispatchAction(this.resolveEventAction(value));
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
