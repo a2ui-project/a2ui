@@ -18,7 +18,7 @@ The reference TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`). Th
 - **Parser and Lexer Layer**: Defines the foundational seams (`Parser`, `BlockLexer`, `ResponsePart`, `RawResponsePart`) through which formats are implemented. The lexer uses sticky regexes and offset-based string matching (`String.startsWith`) for quadratic-free tokenization performance.
 - **Prompt Generation**: Decomposed into three hooks (`generateBaseRules`, `generateCatalogInstructions`, `generateExamples`) under a template `generate()` method to enable decoupled skill generation without duplicating logic.
 - **Catalog Layer**: Includes `CatalogConfig`, catalog pruning transformers, in-memory and file-system `CatalogProvider` implementations, and `resolveCatalogs` handling fallback rules based on renderer capabilities.
-- **Direct JSON Inference Format**: Implements `<a2ui-json>` serialization via `DirectJsonFormat`, complete with a robust streaming healer (`DirectJsonStreamProcessorImpl`). The streaming heuristic auto-heals fragmented chunks incrementally without blowing away intermediate references.
+- **Direct JSON Inference Format**: Implements `<a2ui-json>` serialization via `DirectJsonFormat`, complete with a robust streaming healer (`DirectJsonStreamProcessorImpl`). The stream processor takes every active catalog and uses, for each surface, the catalog its `createSurface` message names. The streaming heuristic auto-heals fragmented chunks incrementally without blowing away intermediate references.
 - **Processor Facades**: Features agent-lifetime (`A2uiGenerator`) and request-scoped (`A2uiRequestProcessor`) facades to cleanly orchestrate capability negotiation, prompt construction, parsing, and payload validation.
 - **Conformance Harness**: A robust test runner that executes the upstream `conformance/agent/` YAML fixtures, dynamically mapping text and payload shapes across boundaries.
 
@@ -53,7 +53,7 @@ Protocol versions are handled in a few fixed places, and adding a version means 
 
 ### **Test Posture**
 
-- **Overall**: 215 passing tests, 60 skipped, 0 failing, 0 expected failures.
+- **Overall**: 221 passing tests, 60 skipped, 0 failing, 0 expected failures.
 - **Conformance**: 105 passing cases and 60 skipped (out of 165), across the legacy suites and the `catalog_provider`, `catalog_resolution` and `direct_json/prompt_generator` suites. `KNOWN_FAILURES` in `tests/conformance/loader.ts` is empty.
 - **Why cases are skipped**: 39 declare protocol `v0.8`, which is permanently out of scope, 14 are legacy cases superseded by the newer suites, 4 generate skills, and 3 use an unimplemented inference format (Express, Elemental, Atom). None are skipped for an implementation defect.
 

@@ -87,7 +87,7 @@ describe('DirectJsonParser', () => {
     const parserWithout = new DirectJsonParser([catalog]);
     expect(parserWithout.supportsStreaming).toBe(false);
 
-    const streamProcessor = new DirectJsonStreamProcessorImpl(catalog);
+    const streamProcessor = new DirectJsonStreamProcessorImpl([catalog]);
     const parserWith = new DirectJsonParser([catalog], streamProcessor);
     expect(parserWith.supportsStreaming).toBe(true);
   });
