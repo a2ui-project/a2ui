@@ -33,6 +33,7 @@ from typing import Any, Optional
 from pydantic import Field
 
 from ..common.semver import is_at_least_version
+from ..schema import ProtocolVersion
 from ..schema.common_types import DynamicNumber, StrictBaseModel
 from .functions import (
     FunctionApi,
@@ -78,8 +79,10 @@ def _index_execute(
     offset_val = int(offset) if offset is not None else 0
     idx: int | None = None
     if context is not None:
-        if hasattr(context, "index") and getattr(context, "index") is not None:
-            idx = int(getattr(context, "index"))
+        # A sequence context has an `index` method, not an iteration index.
+        attr_index = getattr(context, "index", None)
+        if attr_index is not None and not callable(attr_index):
+            idx = int(attr_index)
         elif (
             isinstance(context, dict)
             and "index" in context
@@ -111,8 +114,14 @@ INTRODUCED_IN: dict[str, str] = {
 }
 
 
-def system_functions_for(version: Any) -> dict[str, FunctionImplementation]:
-    """Returns the system functions available to a protocol version, by name."""
+def system_functions_for(
+    version: ProtocolVersion | str | None,
+) -> dict[str, FunctionImplementation]:
+    """Returns the system functions available to a protocol version, by name.
+
+    An unversioned catalog (`version` is None) predates system functions and
+    gets none.
+    """
     return {
         implementation.name: implementation
         for implementation in SYSTEM_FUNCTIONS

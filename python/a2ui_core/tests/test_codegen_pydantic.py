@@ -783,8 +783,23 @@ def test_system_functions_carry_forward_to_later_versions():
     from a2ui.core.catalog.system_functions import system_functions_for
 
     assert set(system_functions_for("v0.9")) == set()
+    assert set(system_functions_for(None)) == set()
     for version in ("v1.0", "v1.1", "v2.0"):
         assert set(system_functions_for(version)) == {"@index"}
+
+
+@pytest.mark.parametrize("context", [["a", "b"], ("a",), "text"])
+def test_index_rejects_a_sequence_context(context):
+    """A sequence's `index` method is not an iteration index.
+
+    Casting the bound method to int used to raise TypeError. The context is
+    now treated as having no iteration scope.
+    """
+    from a2ui.core.catalog.system_functions import IndexImplementation
+    from a2ui.core.exceptions import A2uiValidationError
+
+    with pytest.raises(A2uiValidationError, match="collection template"):
+        IndexImplementation.execute({}, context)
 
 
 def test_index_args_match_the_version_specific_model():
