@@ -109,7 +109,7 @@ class DataContext(Generic[TComponent, TFunction]):
         if absolute_or_relative.startswith("/"):
             return absolute_or_relative
         base_path = self.path.rstrip("/")
-        if not absolute_or_relative:
+        if not absolute_or_relative or absolute_or_relative == ".":
             return base_path if base_path else "/"
         return f"{base_path}/{absolute_or_relative}"
 

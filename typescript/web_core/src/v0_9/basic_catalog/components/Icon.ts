@@ -39,6 +39,8 @@ class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> {
    * - `--a2ui-icon-color`: Color tint applied to the icon.
    * - `--a2ui-icon-font-family`: Override the font family for icons. Defaults to 'Material Icons', 'Material Symbols Outlined'.
    * - `--a2ui-icon-font-variation-settings`: Complete override for font-variation-settings.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-icon {
@@ -71,7 +73,7 @@ class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> {
     }
   `;
 
-  protected readonly api = IconApi;
+  protected override readonly api = IconApi;
 
   override render() {
     const props = this.controller.props;

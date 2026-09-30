@@ -27,6 +27,8 @@ class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof DividerApi> {
    *
    * - `--a2ui-divider-border`: The styling for the divider border. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
    * - `--a2ui-divider-spacing`: The spacing around the divider. Defaults to `--a2ui-spacing-m`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-divider {
@@ -50,7 +52,7 @@ class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof DividerApi> {
     }
   `;
 
-  protected readonly api = DividerApi;
+  protected override readonly api = DividerApi;
 
   override render() {
     const props = this.controller.props;

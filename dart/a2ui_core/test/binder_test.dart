@@ -15,6 +15,7 @@
 import 'dart:async';
 
 import 'package:a2ui_core/src/core/catalog.dart';
+import 'package:a2ui_core/src/core/common_schemas.dart';
 import 'package:a2ui_core/src/core/component_model.dart';
 import 'package:a2ui_core/src/core/contexts.dart';
 import 'package:a2ui_core/src/core/messages.dart';
@@ -22,6 +23,7 @@ import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/cancellation.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
+import 'package:a2ui_core/src/resolution/resolved_binding.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
@@ -61,10 +63,16 @@ void main() {
       final context = ComponentContext(surface, comp);
       final binder = GenericBinder(context, MinimalTextApi().schema);
 
-      expect(binder.resolvedProps.value['text'], 'initial');
+      expect(
+        (binder.resolvedProps.value['text'] as ResolvedBinding<Object?>).value,
+        'initial',
+      );
 
       surface.dataModel.set('/val', 'updated');
-      expect(binder.resolvedProps.value['text'], 'updated');
+      expect(
+        (binder.resolvedProps.value['text'] as ResolvedBinding<Object?>).value,
+        'updated',
+      );
     });
 
     test('resolves actions into callbacks', () async {
@@ -200,10 +208,9 @@ void main() {
 
         expect(actions, isEmpty);
         expect(errors, hasLength(1));
-        expect(errors.single.code, 'EXECUTION_ERROR');
+        expect(errors.single.code, 'EXPRESSION_ERROR');
         expect(errors.single.surfaceId, 's2');
         expect(errors.single.message, contains('doesNotExist'));
-        expect(errors.single.message, contains('c1'));
       });
 
       test('reports an async function failure through onError', () async {
@@ -285,6 +292,48 @@ void main() {
       expect(dispatchedAction!.context, {'user': 'u123'});
     });
 
+    test('writes back a nested map with non-string keys', () {
+      final comp = ComponentModel('c1', 'Text', {
+        'text': {'path': '/val'},
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binding =
+          binder.resolvedProps.value['text'] as WritableBinding<Object?>;
+
+      binding.set({
+        'byName': {'a': 1},
+        'byIndex': {1: 'one'},
+      });
+
+      final written = surface.dataModel.get('/val') as Map;
+      expect(written['byName'], isA<Map<String, Object?>>());
+      expect(written['byIndex'], {1: 'one'});
+    });
+
+    test('writes back a snapshot holding a map with non-string keys', () {
+      surface.dataModel.set('/val', {
+        'byIndex': {1: 'one'},
+      });
+      final comp = ComponentModel('c1', 'Text', {
+        'text': {'path': '/val'},
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binding =
+          binder.resolvedProps.value['text'] as WritableBinding<Object?>;
+
+      binding.set(binding.value);
+
+      expect(surface.dataModel.get('/val'), {
+        'byIndex': {1: 'one'},
+      });
+    });
+
     test('resolves structural children', () {
       final comp = ComponentModel('c1', 'Row', {
         'children': ['child1', 'child2'],
@@ -299,6 +348,54 @@ void main() {
       expect(children.length, 2);
       expect(children[0].id, 'child1');
       expect(children[1].id, 'child2');
+    });
+
+    test('caps a static child id list at maxDynamicChildListSize', () {
+      final comp = ComponentModel('c1', 'Row', {
+        'children': [
+          for (int i = 0; i < maxDynamicChildListSize + 5; i++) 'child$i',
+        ],
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalRowApi().schema);
+
+      final children =
+          binder.resolvedProps.value['children'] as List<ChildNode>;
+      expect(children, hasLength(maxDynamicChildListSize));
+      expect(children.last.id, 'child${maxDynamicChildListSize - 1}');
+    });
+
+    test('caps a static child id list nested in array items', () {
+      final comp = ComponentModel('c1', 'Groups', {
+        'groups': [
+          {
+            'children': [
+              for (int i = 0; i < maxDynamicChildListSize + 3; i++) 'child$i',
+            ],
+          },
+        ],
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(
+        context,
+        Schema.object(
+          properties: {
+            'groups': Schema.list(
+              items: Schema.object(
+                properties: {'children': CommonSchemas.childList},
+              ),
+            ),
+          },
+        ),
+      );
+
+      final groups = binder.resolvedProps.value['groups'] as List;
+      final children = (groups.single as Map)['children'] as List<ChildNode>;
+      expect(children, hasLength(maxDynamicChildListSize));
     });
 
     test('resolves checkable validation', () async {

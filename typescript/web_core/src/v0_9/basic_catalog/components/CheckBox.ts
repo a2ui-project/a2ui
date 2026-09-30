@@ -32,6 +32,8 @@ class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof CheckBoxApi>
    * - `--a2ui-checkbox-color-error`: Color for invalid state. Defaults to `red`.
    * - `--a2ui-checkbox-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,
@@ -75,7 +77,7 @@ class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof CheckBoxApi>
     }
   `;
 
-  protected readonly api = CheckBoxApi;
+  protected override readonly api = CheckBoxApi;
 
   override render() {
     const props = this.controller.props;

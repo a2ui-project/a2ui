@@ -32,6 +32,8 @@ class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
    * - `--a2ui-tabs-header-background-active`: Controls the background of the active tab button. Defaults to `transparent`.
    * - `--a2ui-tabs-header-color-active`: Controls the text color of the active tab button. Defaults to `var(--a2ui-color-primary, #007bff)`.
    * - `--a2ui-tabs-content-padding`: Controls the padding of the tab content. Defaults to `var(--a2ui-spacing-m, 16px) 0`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-tabs {
@@ -64,7 +66,7 @@ class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
     }
   `;
 
-  protected readonly api = TabsApi;
+  protected override readonly api = TabsApi;
 
   @state() activeIndex = 0;
 

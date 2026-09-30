@@ -32,6 +32,8 @@ class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof TextApi> {
    *
    * - `--a2ui-text-color-text`: The color of the text. Defaults to `--a2ui-color-on-background`.
    * - `--a2ui-text-caption-color`: The color for caption text. Defaults to `light-dark(#666, #aaa)`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host {
@@ -96,7 +98,7 @@ class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof TextApi> {
   @consume({context: Context.markdown, subscribe: true})
   markdownRenderer: MarkdownRenderer | undefined;
 
-  protected readonly api = TextApi;
+  protected override readonly api = TextApi;
 
   override render() {
     const props = this.controller.props;

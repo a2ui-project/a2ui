@@ -6,6 +6,7 @@
   "items": {
     "anyOf": [
       {"$ref": "#/$defs/TestCase"},
+      {"$ref": "#/$defs/NodeResolutionTest"},
       {"$ref": "#/$defs/FromFormatTest"},
       {"$ref": "#/$defs/CoreSyntaxTest"},
       {"$ref": "#/$defs/FromCatalogTest"},
@@ -392,6 +393,173 @@
         }
       },
       "additionalProperties": false
+    },
+    "NodeResolutionTest": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "resolve_nodes"},
+        "fixture": {
+          "type": "string",
+          "minLength": 1,
+          "description": "YAML fixture path relative to the conformance directory."
+        },
+        "expect": {"$ref": "#/$defs/NodeResolutionExpectation"},
+        "steps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/NodeResolutionStep"}
+        }
+      },
+      "required": ["name", "action", "fixture", "expect", "steps"],
+      "additionalProperties": false
+    },
+    "NodeResolutionFixture": {
+      "type": "object",
+      "properties": {
+        "catalog": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Catalog JSON path relative to the conformance directory."
+        },
+        "data": {"type": "object"},
+        "components": {"$ref": "#/$defs/NodeResolutionComponents"}
+      },
+      "required": ["catalog", "data", "components"],
+      "additionalProperties": false
+    },
+    "NodeResolutionComponents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"}
+        },
+        "required": ["id", "component"]
+      }
+    },
+    "NodeResolutionNode": {
+      "type": "object",
+      "properties": {
+        "component_id": {"type": "string"},
+        "type": {"type": "string"},
+        "state": {"enum": ["resolved", "pending", "unknown-type", "cyclic"]},
+        "data_path": {"type": "string"},
+        "props": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "NodeResolutionCounts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "NodeResolutionPaths": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "NodeResolutionExpectation": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "object",
+          "description": "Every mounted node path. Only named node fields and props are checked.",
+          "additionalProperties": {"$ref": "#/$defs/NodeResolutionNode"}
+        },
+        "emissions": {"$ref": "#/$defs/NodeResolutionCounts"},
+        "same_nodes": {"$ref": "#/$defs/NodeResolutionPaths"},
+        "replaced_nodes": {"$ref": "#/$defs/NodeResolutionPaths"},
+        "destroyed": {"$ref": "#/$defs/NodeResolutionCounts"},
+        "data": {"type": "object"},
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "source_component_id": {"type": "string"},
+              "context": {"type": "object"}
+            },
+            "required": ["name", "source_component_id", "context"],
+            "additionalProperties": false
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "args": {"type": "object"}
+            },
+            "required": ["name", "args"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["nodes"],
+      "additionalProperties": false
+    },
+    "NodeResolutionStep": {
+      "type": "object",
+      "properties": {
+        "expect": {
+          "$ref": "#/$defs/NodeResolutionExpectation",
+          "required": ["emissions"]
+        }
+      },
+      "required": ["op", "expect"],
+      "oneOf": [
+        {
+          "properties": {
+            "op": {"const": "set_data"},
+            "path": {"type": "string"},
+            "value": true
+          },
+          "required": ["path", "value"]
+        },
+        {
+          "properties": {
+            "op": {"const": "update_components"},
+            "components": {"$ref": "#/$defs/NodeResolutionComponents"}
+          },
+          "required": ["components"]
+        },
+        {
+          "properties": {
+            "op": {"const": "remove_component"},
+            "component_id": {"type": "string"}
+          },
+          "required": ["component_id"]
+        },
+        {
+          "properties": {
+            "op": {"const": "write"},
+            "node": {"type": "string"},
+            "property": {"type": "string"},
+            "value": true
+          },
+          "required": ["node", "property", "value"]
+        },
+        {
+          "properties": {
+            "op": {"const": "invoke"},
+            "node": {"type": "string"},
+            "property": {"type": "string"}
+          },
+          "required": ["node", "property"]
+        },
+        {
+          "properties": {
+            "op": {"const": "dispose"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "FromFormatTest": {
       "type": "object",

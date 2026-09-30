@@ -31,6 +31,8 @@ class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
    * - `--a2ui-image-small-feature-size`: Controls the max-width of the `smallFeature` variant. Defaults to `100px`.
    * - `--a2ui-image-large-feature-size`: Controls the max-height of the `largeFeature` variant. Defaults to `400px`.
    * - `--a2ui-image-header-size`: Controls the height of the `header` variant. Defaults to `200px`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-image {
@@ -59,7 +61,7 @@ class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
     }
   `;
 
-  protected readonly api = ImageApi;
+  protected override readonly api = ImageApi;
 
   override render() {
     const props = this.controller.props;

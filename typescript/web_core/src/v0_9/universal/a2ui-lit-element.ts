@@ -217,6 +217,9 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
   protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
     if (!childRef) return nothing;
     const {surface, path: parentPath} = this.context.dataContext;
+    if (!surface) {
+      return nothing;
+    }
 
     const surfaceContainsComponent = !!surface.componentsModel?.get(this.context.componentModel.id);
     if (!surfaceContainsComponent) {

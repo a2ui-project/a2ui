@@ -45,7 +45,7 @@ export class MultipleChoice extends Root {
   @state()
   accessor filterText = '';
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -337,7 +337,7 @@ export class MultipleChoice extends Root {
     `;
   }
 
-  render() {
+  override render() {
     const currentSelections = this.getCurrentSelections();
 
     // Filter options

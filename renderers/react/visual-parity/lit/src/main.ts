@@ -27,7 +27,7 @@ import {getTheme, themeNames, type ThemeName} from '../../fixtures/themes';
 // Key insight: @lit/context doesn't propagate through <slot>, so we must
 // provide the theme directly on a component that renders a2ui-surface as a child
 class ThemedA2UISurface extends LitElement {
-  static properties = {
+  static override properties = {
     theme: {attribute: false},
     surfaceId: {attribute: false},
     surface: {attribute: false},
@@ -54,13 +54,13 @@ class ThemedA2UISurface extends LitElement {
     this.surfaceId = '';
   }
 
-  willUpdate(changedProperties: Map<PropertyKey, unknown>) {
+  override willUpdate(changedProperties: Map<PropertyKey, unknown>) {
     if (changedProperties.has('theme')) {
       this._themeProvider.setValue(this.theme);
     }
   }
 
-  render() {
+  override render() {
     return html`<a2ui-surface
       .surfaceId=${this.surfaceId}
       .surface=${this.surface}

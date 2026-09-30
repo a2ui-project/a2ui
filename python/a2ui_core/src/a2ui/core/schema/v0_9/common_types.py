@@ -24,7 +24,6 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
-    field_serializer,
     model_serializer,
 )
 from ..common_types import (
@@ -51,15 +50,15 @@ class FunctionCall(StrictBaseModel):
     return_type: (
         Literal["string", "number", "boolean", "array", "object", "any", "void"] | None
     ) = Field(
+        None,
         alias="returnType",
-        description="The expected return type of the function call.",
-        default="boolean",
+        description=(
+            'The expected return type of the function call. Defaults to "boolean" when'
+            " absent."
+        ),
     )
 
-    # Hand-maintained: codegen_pydantic.py does not emit this serializer (or the
-    # return-type validators below), so re-add them after regenerating this file.
-    # The schema default for returnType is "boolean", but an unset or inferred
-    # returnType is omitted from the serialized output.
+    # Hand-maintained: omit an inferred return type from serialized calls.
     @model_serializer(mode="wrap")
     def _serialize_model(self, handler: Any) -> Any:
         d = handler(self)

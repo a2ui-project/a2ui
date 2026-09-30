@@ -73,19 +73,33 @@ class SurfaceModel<T extends ComponentApi> {
     final Object? name = event['name'];
     if (name is! String || name.isEmpty) return;
 
+    final Object? rawContext = event['context'];
+    final Map<String, dynamic> context;
+    if (rawContext is Map) {
+      final Object? detached = _detach(rawContext);
+      context = detached is Map<String, dynamic>
+          ? detached
+          : <String, dynamic>{
+              for (final MapEntry<Object?, Object?> entry in rawContext.entries)
+                entry.key.toString(): _detach(entry.value),
+            };
+    } else {
+      context = const <String, dynamic>{};
+    }
+
     final action = A2uiClientAction(
       name: name,
       surfaceId: id,
       sourceComponentId: sourceComponentId,
       timestamp: DateTime.now(),
-      context: event['context'] is Map
-          ? Map<String, dynamic>.from(event['context'] as Map)
-          : const <String, dynamic>{},
+      context: context,
       userMessage: event['userMessage'] is String
           ? event['userMessage'] as String
           : null,
     );
     _onAction.emit(action);
+    // Only event payloads are emitted; functionCall payloads are not
+    // dispatched here.
   }
 
   /// Dispatches an error from this surface.
@@ -101,3 +115,18 @@ class SurfaceModel<T extends ComponentApi> {
     _onError.dispose();
   }
 }
+
+/// Copies maps and lists, so an action listener cannot reach the component or
+/// data model the payload was resolved from.
+Object? _detach(Object? value) => switch (value) {
+      Map() when value.keys.every((key) => key is String) => <String, dynamic>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key as String: _detach(entry.value),
+        },
+      Map() => <Object?, Object?>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key: _detach(entry.value),
+        },
+      List() => <Object?>[for (final Object? item in value) _detach(item)],
+      _ => value,
+    };

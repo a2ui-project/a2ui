@@ -51,6 +51,8 @@ class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof ColumnApi
    *
    * - `--a2ui-column-gap`: The gap between items in the column. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-column-width`: The width of the column. Defaults to `100%`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,
@@ -62,7 +64,7 @@ class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof ColumnApi
     }
   `;
 
-  protected readonly api = ColumnApi;
+  protected override readonly api = ColumnApi;
 
   override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);

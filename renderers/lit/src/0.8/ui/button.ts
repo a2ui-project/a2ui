@@ -31,7 +31,7 @@ export class Button extends Root {
   @property()
   accessor primary: boolean | null = false;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       :host {
@@ -42,7 +42,7 @@ export class Button extends Root {
     `,
   ];
 
-  render() {
+  override render() {
     return html`<button
       class=${classMap(this.theme.components.Button)}
       style=${this.theme.additionalStyles?.Button

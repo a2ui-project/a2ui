@@ -429,7 +429,7 @@ public final class MessageProcessor: ObservableObject {
         ]
       )
     }
-    surface.dataModel.set(msg.path, value: msg.value)
+    try surface.dataModel.setThrowing(msg.path, value: msg.value)
   }
 
   private func processDeleteSurface(_ msg: DeleteSurfaceMessage) throws {

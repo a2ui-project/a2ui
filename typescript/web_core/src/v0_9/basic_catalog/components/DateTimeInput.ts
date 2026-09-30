@@ -77,6 +77,8 @@ class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTim
    * - `--a2ui-datetimeinput-padding`: Controls the padding of inputs.
    * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-date-time-container {
@@ -117,7 +119,7 @@ class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof DateTim
     }
   `;
 
-  protected readonly api = DateTimeInputApi;
+  protected override readonly api = DateTimeInputApi;
 
   override render() {
     const props = this.controller.props;

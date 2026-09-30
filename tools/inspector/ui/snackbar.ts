@@ -38,7 +38,7 @@ export class Snackbar extends LitElement {
   #messages: SnackbarMessage[] = [];
   #timeout = 0;
 
-  static styles = [
+  static override styles = [
     unsafeCSS(v0_8.Styles.structuralStyles),
     css`
       :host {
@@ -212,7 +212,7 @@ export class Snackbar extends LitElement {
     });
   }
 
-  render() {
+  override render() {
     let rotate = false;
     let icon = '';
     for (let i = this.#messages.length - 1; i >= 0; i--) {

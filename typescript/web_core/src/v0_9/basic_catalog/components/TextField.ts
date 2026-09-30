@@ -37,6 +37,8 @@ class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFi
    * It also inherits global input variables:
    * - `--a2ui-color-input`: Background color.
    * - `--a2ui-color-on-input`: Text color.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,
@@ -76,7 +78,7 @@ class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof TextFi
     }
   `;
 
-  protected readonly api = TextFieldApi;
+  protected override readonly api = TextFieldApi;
 
   override render() {
     const props = this.controller.props;

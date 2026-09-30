@@ -23,7 +23,7 @@ import {structuralStyles} from './styles.js';
 
 @customElement('a2ui-card')
 export class Card extends Root {
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -51,7 +51,7 @@ export class Card extends Root {
     `,
   ];
 
-  render() {
+  override render() {
     return html` <section
       class=${classMap(this.theme.components.Card)}
       style=${this.theme.additionalStyles?.Card

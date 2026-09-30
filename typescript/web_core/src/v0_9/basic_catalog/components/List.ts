@@ -27,6 +27,7 @@ function getChildKey(child: any): string {
 }
 
 class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
+  /** @nocollapse */
   static override styles = css`
     .a2ui-list {
       display: flex;
@@ -50,7 +51,7 @@ class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
     }
   `;
 
-  protected readonly api = ListApi;
+  protected override readonly api = ListApi;
 
   override render() {
     const props = this.controller.props;
