@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal as angularSignal } from '@angular/core';
-import { SliderComponent } from './slider.component';
-import { A2uiRendererService } from '../../core/a2ui-renderer.service';
-import { ComponentBinder } from '../../core/component-binder.service';
-import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {signal as angularSignal} from '@angular/core';
+import {SliderComponent} from './slider.component';
+import {A2uiRendererService} from '../../core/a2ui-renderer.service';
+import {ComponentBinder} from '../../core/component-binder.service';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 describe('SliderComponent', () => {
   let component: SliderComponent;
@@ -43,8 +43,8 @@ describe('SliderComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SliderComponent],
       providers: [
-        { provide: A2uiRendererService, useValue: mockRendererService },
-        { provide: ComponentBinder, useValue: mockBinder },
+        {provide: A2uiRendererService, useValue: mockRendererService},
+        {provide: ComponentBinder, useValue: mockBinder},
       ],
     }).compileComponents();
 
@@ -85,7 +85,7 @@ describe('SliderComponent', () => {
     const onUpdateSpy = jasmine.createSpy('onUpdate');
     setComponentProps(fixture, {
       ...defaultProps,
-      value: { value: angularSignal(50), raw: 50, onUpdate: onUpdateSpy },
+      value: {value: angularSignal(50), raw: 50, onUpdate: onUpdateSpy},
     });
     fixture.detectChanges();
     const input = fixture.nativeElement.querySelector('input');

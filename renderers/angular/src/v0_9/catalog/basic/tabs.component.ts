@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Component, computed, ChangeDetectionStrategy, signal } from '@angular/core';
-import { ComponentHostComponent } from '../../core/component-host.component';
-import { BasicCatalogComponent } from './basic-catalog-component';
-import { TabsApi } from '@a2ui/web_core/v0_9/basic_catalog';
+import {Component, computed, ChangeDetectionStrategy, signal} from '@angular/core';
+import {ComponentHostComponent} from '../../core/component-host.component';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {TabsApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Tabs component (v0.9).
@@ -105,9 +105,9 @@ export class TabsComponent extends BasicCatalogComponent<typeof TabsApi> {
     const child = this.activeTab()?.child;
     if (!child) return null;
     if (typeof child === 'object' && child !== null && 'id' in child) {
-      return child as { id: string; basePath: string };
+      return child as {id: string; basePath: string};
     }
-    return { id: child as string, basePath: this.dataContextPath() };
+    return {id: child as string, basePath: this.dataContextPath()};
   });
 
   setActiveTab(index: number) {

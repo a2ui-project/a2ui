@@ -24,7 +24,7 @@
         {
           "id": "restaurant-image",
           "component": "Image",
-          "url": { "path": "/image" },
+          "url": {"path": "/image"},
           "fit": "cover"
         },
         {
@@ -42,18 +42,18 @@
         {
           "id": "restaurant-name",
           "component": "Text",
-          "text": { "path": "/name" },
+          "text": {"path": "/name"},
           "weight": 700
         },
         {
           "id": "price-range",
           "component": "Text",
-          "text": { "path": "/priceRange" }
+          "text": {"path": "/priceRange"}
         },
         {
           "id": "cuisine",
           "component": "Text",
-          "text": { "path": "/cuisine" }
+          "text": {"path": "/cuisine"}
         },
         {
           "id": "rating-row",
@@ -69,12 +69,12 @@
         {
           "id": "rating",
           "component": "Text",
-          "text": { "path": "/rating" }
+          "text": {"path": "/rating"}
         },
         {
           "id": "reviews",
           "component": "Text",
-          "text": { "path": "/reviewCount" }
+          "text": {"path": "/reviewCount"}
         },
         {
           "id": "details-row",
@@ -84,12 +84,12 @@
         {
           "id": "distance",
           "component": "Text",
-          "text": { "path": "/distance" }
+          "text": {"path": "/distance"}
         },
         {
           "id": "delivery-time",
           "component": "Text",
-          "text": { "path": "/deliveryTime" }
+          "text": {"path": "/deliveryTime"}
         }
       ]
     }

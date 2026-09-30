@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { Component, ChangeDetectionStrategy, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {Component, ChangeDetectionStrategy, computed} from '@angular/core';
+import {CommonModule} from '@angular/common';
 import {
   CatalogComponent,
   ComponentHostComponent,
   createComponentImplementation,
 } from '@a2ui/angular/v0_9';
 import z from 'zod';
-import { ComponentApi, DynamicStringSchema, ChildListSchema } from '@a2ui/web_core/v0_9';
+import {ComponentApi, DynamicStringSchema, ChildListSchema} from '@a2ui/web_core/v0_9';
 
 const customGridApi = {
   name: 'CustomGrid',

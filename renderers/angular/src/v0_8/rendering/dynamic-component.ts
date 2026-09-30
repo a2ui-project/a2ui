@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Directive, inject, input } from '@angular/core';
-import { MessageProcessor } from '../data';
-import { Theme } from './theming';
+import {Directive, inject, input} from '@angular/core';
+import {MessageProcessor} from '../data';
+import {Theme} from './theming';
 import type {
   A2UIClientEventMessage,
   Action,

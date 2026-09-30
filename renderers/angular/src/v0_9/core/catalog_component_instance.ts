@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Signal } from '@angular/core';
+import {Signal} from '@angular/core';
 
 /** Describes the properties that a Catalog component needs to implement. */
 export interface CatalogComponentInstance {

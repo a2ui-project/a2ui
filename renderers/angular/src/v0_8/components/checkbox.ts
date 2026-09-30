@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import type { BooleanValue, CheckboxNode, StringValue } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import type {BooleanValue, CheckboxNode, StringValue} from '../types';
 
 @Component({
   selector: 'a2ui-checkbox',
@@ -66,14 +66,14 @@ export class Checkbox extends DynamicComponent<CheckboxNode> {
               checkedNode.path as string,
               this.component().dataContextPath,
             ),
-            contents: [{ key: '.', valueBoolean: checked }],
+            contents: [{key: '.', valueBoolean: checked}],
           },
         },
       ]);
     } else {
       this.sendAction({
         name: 'toggle',
-        context: [{ key: 'checked', value: { literalBoolean: checked } }],
+        context: [{key: 'checked', value: {literalBoolean: checked}}],
       });
     }
   }

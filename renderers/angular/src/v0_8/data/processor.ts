@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { Injectable, signal } from '@angular/core';
-import { Subject, Observable } from 'rxjs';
+import {Injectable, signal} from '@angular/core';
+import {Subject, Observable} from 'rxjs';
 import * as WebCore from '@a2ui/web_core/v0_8';
 
-import type { A2UIClientEventMessage, AnyComponentNode, ServerToClientMessage } from '../types';
+import type {A2UIClientEventMessage, AnyComponentNode, ServerToClientMessage} from '../types';
 
 export interface A2UIClientEvent {
   message: A2UIClientEventMessage;
@@ -50,7 +50,7 @@ export class MessageProcessor {
    * This should be called after any update to the underlying base processor's surfaces.
    */
   private notify() {
-    this.versionSignal.update((v) => v + 1);
+    this.versionSignal.update(v => v + 1);
   }
 
   processMessages(messages: ServerToClientMessage[]) {
@@ -62,12 +62,12 @@ export class MessageProcessor {
     const completion = new Subject<ServerToClientMessage[]>();
     const promise = new Promise<ServerToClientMessage[]>((resolve, reject) => {
       completion.subscribe({
-        next: (msgs) => resolve(msgs),
-        error: (err) => reject(err),
+        next: msgs => resolve(msgs),
+        error: err => reject(err),
       });
     });
 
-    this.eventsSubject.next({ message, completion });
+    this.eventsSubject.next({message, completion});
     return promise;
   }
 

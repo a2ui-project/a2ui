@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Binding, InjectionToken, Type } from '@angular/core';
-import { DynamicComponent } from './dynamic-component';
-import type { AnyComponentNode } from '../types';
+import {Binding, InjectionToken, Type} from '@angular/core';
+import {DynamicComponent} from './dynamic-component';
+import type {AnyComponentNode} from '../types';
 
 export type CatalogLoader = () =>
   | Promise<Type<DynamicComponent<any>>>

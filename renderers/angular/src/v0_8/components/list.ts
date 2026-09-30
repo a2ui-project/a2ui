@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import type { AnyComponentNode, ListNode, ResolvedList } from '../types';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
+import {ChangeDetectionStrategy, Component, input} from '@angular/core';
+import type {AnyComponentNode, ListNode, ResolvedList} from '../types';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
 
 @Component({
   selector: 'a2ui-list',

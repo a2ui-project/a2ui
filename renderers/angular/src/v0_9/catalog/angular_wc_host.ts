@@ -22,10 +22,10 @@ import {
   ComponentRef,
   NgZone,
 } from '@angular/core';
-import { ComponentContext } from '@a2ui/web_core/v0_9';
-import type { AngularCatalog, AngularComponentImplementation } from './types';
+import {ComponentContext} from '@a2ui/web_core/v0_9';
+import type {AngularCatalog, AngularComponentImplementation} from './types';
 
-import { ComponentBinder } from '../core/component-binder.service';
+import {ComponentBinder} from '../core/component-binder.service';
 
 let defaultInjector: Injector | undefined;
 
@@ -70,7 +70,7 @@ export class AngularWcHost extends HTMLElement {
   private binder?: ComponentBinder;
   private ngZone?: NgZone | null;
   private _context?: ComponentContext;
-  private contextSubscription?: { unsubscribe: () => void };
+  private contextSubscription?: {unsubscribe: () => void};
   private _injector?: Injector;
 
   set injector(inj: Injector | undefined) {

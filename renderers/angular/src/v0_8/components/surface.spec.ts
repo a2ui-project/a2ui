@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Surface } from './surface';
-import { MessageProcessor } from '../data/processor';
-import type { AnyComponentNode, Surface as SurfaceType } from '../types';
-import { Directive, Input } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Surface} from './surface';
+import {MessageProcessor} from '../data/processor';
+import type {AnyComponentNode, Surface as SurfaceType} from '../types';
+import {Directive, Input} from '@angular/core';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -57,7 +57,7 @@ describe('Surface Component', () => {
 
     await TestBed.configureTestingModule({
       imports: [Surface],
-      providers: [{ provide: MessageProcessor, useValue: mockProcessor }],
+      providers: [{provide: MessageProcessor, useValue: mockProcessor}],
     })
       .overrideComponent(Surface, {
         set: {

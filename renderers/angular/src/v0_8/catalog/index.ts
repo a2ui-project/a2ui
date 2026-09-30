@@ -14,27 +14,27 @@
  * limitations under the License.
  */
 
-import { Catalog } from '../rendering/catalog';
+import {Catalog} from '../rendering/catalog';
 
 // Components
-import { AudioPlayer } from '../components/audio';
-import { Button } from '../components/button';
-import { Card } from '../components/card';
-import { Checkbox } from '../components/checkbox';
-import { Column } from '../components/column';
-import { DateTimeInput } from '../components/datetime-input';
-import { Divider } from '../components/divider';
-import { Icon } from '../components/icon';
-import { Image } from '../components/image';
-import { List } from '../components/list';
-import { Modal } from '../components/modal';
-import { MultipleChoice } from '../components/multiple-choice';
-import { Row } from '../components/row';
-import { Slider } from '../components/slider';
-import { Tabs } from '../components/tabs';
-import { Text } from '../components/text';
-import { TextField } from '../components/text-field';
-import { Video } from '../components/video';
+import {AudioPlayer} from '../components/audio';
+import {Button} from '../components/button';
+import {Card} from '../components/card';
+import {Checkbox} from '../components/checkbox';
+import {Column} from '../components/column';
+import {DateTimeInput} from '../components/datetime-input';
+import {Divider} from '../components/divider';
+import {Icon} from '../components/icon';
+import {Image} from '../components/image';
+import {List} from '../components/list';
+import {Modal} from '../components/modal';
+import {MultipleChoice} from '../components/multiple-choice';
+import {Row} from '../components/row';
+import {Slider} from '../components/slider';
+import {Tabs} from '../components/tabs';
+import {Text} from '../components/text';
+import {TextField} from '../components/text-field';
+import {Video} from '../components/video';
 
 export const DEFAULT_CATALOG: Catalog = {
   AudioPlayer: () => AudioPlayer,

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { TextComponent } from './text.component';
-import { By } from '@angular/platform-browser';
-import { MarkdownRenderer } from '../../core/markdown';
-import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
-import { A2uiRendererService, A2UI_RENDERER_CONFIG } from '../../core/a2ui-renderer.service';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {TextComponent} from './text.component';
+import {By} from '@angular/platform-browser';
+import {MarkdownRenderer} from '../../core/markdown';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../../core/a2ui-renderer.service';
 
 describe('TextComponent', () => {
   let component: TextComponent;
@@ -34,9 +34,9 @@ describe('TextComponent', () => {
     await TestBed.configureTestingModule({
       imports: [TextComponent],
       providers: [
-        { provide: MarkdownRenderer, useValue: mockMarkdownRenderer },
+        {provide: MarkdownRenderer, useValue: mockMarkdownRenderer},
         A2uiRendererService,
-        { provide: A2UI_RENDERER_CONFIG, useValue: { catalogs: [] } },
+        {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: []}},
       ],
     }).compileComponents();
 
