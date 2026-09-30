@@ -22,7 +22,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Partial protocol version support and unimplemented formats
 
-- **What it is:** The package supports `v1.0` and `v0.9`. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
+- **What it is:** The package supports `v1.0`, `v0.9` and `v0.9.1`, a patch release that shares the v0.9 schemas. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
 - **Why it exists:** An explicit scope decision to add protocol support incrementally, starting with `v1.0`. `v0.8` is out of scope for this SDK.
 - **What it blocks:** Elemental and Atom use cases, and streaming Express output.
 - **Done looks like:** The `InferenceFormat` seam is populated with implementations for Elemental and Atom.
@@ -131,7 +131,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Behaviours TypeScript enforces that no conformance case pins
 
-- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling a component id that is not an Express identifier, such as `title-heading` or `true` (`ExpressInvalidIdentifierError`); a `surface(...)` line naming a catalog that is not active (`ExpressUnknownCatalogError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs with different protocol versions (`A2uiCatalogError`). A block that names no catalog while several are active uses the first one and logs a warning.
+- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling a component id that is not an Express identifier, such as `title-heading` or `true` (`ExpressInvalidIdentifierError`); a `surface(...)` line naming a catalog that is not active (`ExpressUnknownCatalogError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`). A block that names no catalog while several are active uses the first one and logs a warning.
 - **Why it exists:** Each was decided while making TypeScript follow the suite: throwing is preferred to silently producing wrong output.
 - **What it risks:** Python may choose differently, and nothing would catch the drift.
 - **Done looks like:** Conformance cases pin each behaviour, so both SDKs are held to it.
@@ -203,10 +203,10 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Python's Express defaults to v1.0 whatever the catalog
 
-- **What it is:** Python's `ExpressFormat`, `ExpressParser` and `ExpressCompiler` default `version` to `"v1.0"`, so Express with a v0.9 catalog emits v1.0 messages unless the caller passes `version="v0.9"`, and a mismatched explicit version is not reported.
-- **TypeScript:** The version defaults to the catalogs' own protocol version (`toWireProtocolVersion`), all active catalogs must share it, and an explicit `version` that differs throws `A2uiCatalogError`.
-- **What it risks:** In Python, a v0.9 agent that forgets the argument sends messages its renderer rejects.
-- **Done looks like:** Python derives the default from the catalog and rejects a mismatch.
+- **What it is:** Python's `ExpressFormat`, `ExpressParser` and `ExpressCompiler` default `version` to `"v1.0"`, so Express with a v0.9 catalog emits v1.0 messages unless the caller passes `version="v0.9"`. An explicit version is never checked against the catalog, so Python compiles a v0.9 catalog into v1.0 messages.
+- **TypeScript:** The version defaults to the catalogs' own protocol version (`toWireProtocolVersion`). All active catalogs, and an explicit `version`, must belong to one release line: `v0.9` and `v0.9.1` mix freely, since v0.9.1 is a patch release that accepts v0.9 catalogs, but `v0.9` and `v1.0` don't. Crossing lines throws `A2uiCatalogError`, in the constructors and in `ExpressCompiler.compile()`'s per-call `version`.
+- **What it risks:** In Python, a v0.9 agent that forgets the argument sends messages its renderer rejects, and a v1.0 target produces a v1.0 `createSurface` whose `catalogId` names a v0.9 catalog, which a v1.0 renderer can't resolve.
+- **Done looks like:** Python derives the default from the catalog and rejects a version from another release line.
 
 ### Express grammar rules name basic-catalog components
 

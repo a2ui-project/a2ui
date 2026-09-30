@@ -386,5 +386,15 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       expect(helper.resolveSubschema(null, 'items')).toBeUndefined();
       expect(helper.resolveSubschema({}, 'nonexistent')).toBeUndefined();
     });
+
+    it('reads v0.9.1 schemas with the v0.9 common types', async () => {
+      const catalogV091 = await loadBasicCatalog('v0.9.1');
+      const helper = new CatalogSchemaHelper(catalogV091, 'v0.9.1');
+      const helperV09 = new CatalogSchemaHelper(basicCatalogV09, 'v0.9');
+      expect(helper.commonTypes).toEqual(helperV09.commonTypes);
+      expect(helper.getComponentProperties('Text')).toEqual(
+        helperV09.getComponentProperties('Text'),
+      );
+    });
   });
 });

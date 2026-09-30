@@ -45,6 +45,7 @@ import {
 
 const basicCatalogV10 = await loadBasicCatalog('v1.0');
 const basicCatalogV09 = await loadBasicCatalog('v0.9');
+const basicCatalogV091 = await loadBasicCatalog('v0.9.1');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -363,6 +364,47 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
       expect(() => compiler.compile('openUrl("https://example.com")')).toThrow(
         ExpressValidationError,
+      );
+    });
+  });
+
+  describe('Protocol version lines', () => {
+    function versionsOf(messages: unknown[]): unknown[] {
+      return messages.map(message => (message as {version: string}).version);
+    }
+
+    it('compiles a v0.9 catalog for a v0.9.1 target', () => {
+      const compiler = new ExpressCompiler(basicCatalogV09, 'v0.9.1');
+      const messages = compiler.compile('root = Text("Hi")', 'surf_v091');
+      expect(versionsOf(messages)).toEqual(['v0.9.1', 'v0.9.1']);
+    });
+
+    it('compiles a catalog that declares v0.9.1', () => {
+      const compiler = new ExpressCompiler(basicCatalogV091);
+      expect(compiler.version).toBe('v0.9.1');
+      const messages = compiler.compile('root = Text("Hi")');
+      expect(versionsOf(messages)).toEqual(['v0.9.1', 'v0.9.1']);
+    });
+
+    it('compiles a v0.9.1 catalog for a v0.9 target', () => {
+      const messages = new ExpressCompiler(basicCatalogV091, 'v0.9').compile('root = Text("Hi")');
+      expect(versionsOf(messages)).toEqual(['v0.9', 'v0.9']);
+    });
+
+    it('accepts a per-call version on the same line', () => {
+      const compiler = new ExpressCompiler(basicCatalogV09);
+      const messages = compiler.compile('root = Text("Hi")', 's', '', true, 'v0.9.1');
+      expect(versionsOf(messages)).toEqual(['v0.9.1', 'v0.9.1']);
+    });
+
+    it('rejects a v1.0 target for a v0.9 catalog', () => {
+      expect(() => new ExpressCompiler(basicCatalogV09, 'v1.0')).toThrow(A2uiCatalogError);
+    });
+
+    it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
+      const compiler = new ExpressCompiler(basicCatalogV09);
+      expect(() => compiler.compile('root = Text("Hi")', 's', '', true, 'v1.0')).toThrow(
+        A2uiCatalogError,
       );
     });
   });
