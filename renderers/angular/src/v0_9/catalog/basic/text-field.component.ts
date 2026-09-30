@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
-import { BasicCatalogComponent } from './basic-catalog-component';
-import { TextFieldApi } from '@a2ui/web_core/v0_9/basic_catalog';
-import { BoundProperty } from '../../core/types';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BoundProperty} from '../../core/types';
 
 /**
  * Angular implementation of the A2UI TextField component (v0.9).

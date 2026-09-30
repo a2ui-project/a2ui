@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Component } from '@angular/core';
-import { DemoComponent } from './demo.component';
+import {Component} from '@angular/core';
+import {DemoComponent} from './demo.component';
 
 /**
  * Root Component of the A2UI Angular Demo app.

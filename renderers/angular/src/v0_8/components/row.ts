@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import { Renderer } from '../rendering/renderer';
-import type { AnyComponentNode, ResolvedRow, RowNode } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import {Renderer} from '../rendering/renderer';
+import type {AnyComponentNode, ResolvedRow, RowNode} from '../types';
 
 @Component({
   selector: 'a2ui-row',

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { A2uiMessage } from '@a2ui/web_core/v0_9';
-import { ServerToClientMessage } from 'src/v0_8/types';
+import {A2uiMessage} from '@a2ui/web_core/v0_9';
+import {ServerToClientMessage} from 'src/v0_8/types';
 
 /**
  * Supported A2UI protocol versions.
@@ -27,8 +27,8 @@ export enum Version {
   VERSION_1_0 = '1.0',
 }
 
-export { A2UI_VERSION } from './version_injector';
-export { A2UI_EXAMPLES } from './examples_injector';
+export {A2UI_VERSION} from './version_injector';
+export {A2UI_EXAMPLES} from './examples_injector';
 
 /**
  * A union type representing a v1.0, v0.9, or v0.8 example.

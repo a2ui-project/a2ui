@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ApplicationRef } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
-import { getCanvas, loadExample, wait, Version } from '../utils';
+import {ApplicationRef} from '@angular/core';
+import {TestBed} from '@angular/core/testing';
+import {getCanvas, loadExample, wait, Version} from '../utils';
 
 for (const useUniversal of [false, true]) {
   // With universal components on, the basic catalog renders web_core's

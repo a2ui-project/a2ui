@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ComponentApi } from '@a2ui/web_core/v0_9';
-import { computed, Directive, input } from '@angular/core';
-import { BoundProperty, ComponentApiToProps } from './types';
-import { CatalogComponentInstance } from './catalog_component_instance';
+import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {computed, Directive, input} from '@angular/core';
+import {BoundProperty, ComponentApiToProps} from './types';
+import {CatalogComponentInstance} from './catalog_component_instance';
 
 /**
  * Base class for A2UI catalog component in Angular.

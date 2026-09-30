@@ -40,7 +40,6 @@ import {ComponentBinder} from './component-binder.service';
 import {BoundProperty} from './types';
 
 import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
-import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
@@ -224,8 +223,7 @@ export class ComponentHostComponent {
     // Element; the flag picks which one to mount. Web Component-only entries render only with the
     // flag on (their placeholder `component` reports the misconfiguration otherwise).
     if (
-      (this.rendererService.useUniversalComponents ||
-        componentImpl.component === UniversalOnlyComponent) &&
+      this.rendererService.useUniversalComponents &&
       isWebComponentImplementation(componentImpl)
     ) {
       this.setupWebComponent(componentImpl, surface, componentModel, id, basePath);

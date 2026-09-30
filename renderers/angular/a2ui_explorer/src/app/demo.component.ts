@@ -26,22 +26,22 @@ import {
   ElementRef,
   InjectionToken,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {CommonModule} from '@angular/common';
 import {
   A2uiRendererService,
   A2UI_RENDERER_CONFIG,
   AngularCatalog,
   SurfaceComponent as SurfaceComponentV09,
 } from '@a2ui/angular/v0_9';
-import { AgentStubService } from './agent-stub.service';
-import { AgentStubV08Service } from './agent-stub-v08.service';
-import { AgentStubV09Service } from './agent-stub-v09.service';
-import { provideMarkdownRenderer, Surface as SurfaceV08 } from '@a2ui/angular/v0_8';
-import { DemoCatalog, DemoCatalogV10 } from './demo-catalog';
-import { A2uiClientAction } from '@a2ui/web_core/v0_9';
-import { A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version } from './types';
-import { ActionDispatcher } from './action-dispatcher.service';
-import { Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08 } from '@a2ui/angular/v0_8';
+import {AgentStubService} from './agent-stub.service';
+import {AgentStubV08Service} from './agent-stub-v08.service';
+import {AgentStubV09Service} from './agent-stub-v09.service';
+import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
+import {DemoCatalog, DemoCatalogV10} from './demo-catalog';
+import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
+import {ActionDispatcher} from './action-dispatcher.service';
+import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
 
 /**
  * Dependency injection token for enabling universal components in the explorer (used by tests only).
@@ -761,9 +761,9 @@ function getUseUniversalComponents(): boolean {
   ],
   providers: [
     A2uiRendererService,
-    { provide: AngularCatalog, useClass: DemoCatalog },
+    {provide: AngularCatalog, useClass: DemoCatalog},
     DemoCatalogV10,
-    { provide: CatalogV08, useValue: DEFAULT_CATALOG_V08 },
+    {provide: CatalogV08, useValue: DEFAULT_CATALOG_V08},
     provideMarkdownRenderer(),
     ActionDispatcher,
     {
@@ -919,7 +919,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   selectNextExample() {
     if (!this.examples || this.examples.length === 0) return;
     const currentIndex = this.selectedExample
-      ? this.examples.findIndex((ex) => ex === this.selectedExample)
+      ? this.examples.findIndex(ex => ex === this.selectedExample)
       : -1;
     const nextIndex = currentIndex < this.examples.length - 1 ? currentIndex + 1 : 0;
     this.selectExample(this.examples[nextIndex]);
@@ -928,7 +928,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   selectPrevExample() {
     if (!this.examples || this.examples.length === 0) return;
     const currentIndex = this.selectedExample
-      ? this.examples.findIndex((ex) => ex === this.selectedExample)
+      ? this.examples.findIndex(ex => ex === this.selectedExample)
       : -1;
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : this.examples.length - 1;
     this.selectExample(this.examples[prevIndex]);
@@ -971,7 +971,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     if (typeof window !== 'undefined') {
       setTimeout(() => {
         const activeEl = this.elementRef.nativeElement.querySelector('.example-list li.active');
-        activeEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        activeEl?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }, 0);
     }
   }
@@ -996,7 +996,7 @@ export class DemoComponent implements OnInit, OnDestroy {
 
       if (!('createSurface' in parsed) || !this.selectedExample) return;
 
-      const updatedMessages = this.selectedExample.messages.map((m) =>
+      const updatedMessages = this.selectedExample.messages.map(m =>
         'createSurface' in m ? parsed : m,
       );
 
@@ -1068,7 +1068,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   private selectExampleFromUrl(): void {
     const hash = window.location.hash.substring(1) || '';
     const example: A2uiExample | undefined =
-      this.examples.find((ex) => this.slugify(ex.name) === hash) || this.examples[0];
+      this.examples.find(ex => this.slugify(ex.name) === hash) || this.examples[0];
     if (!example) return;
     this.selectExample(example);
   }

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import type { DividerNode } from '../types';
-import { DynamicComponent } from '../rendering/dynamic-component';
+import {ChangeDetectionStrategy, Component} from '@angular/core';
+import type {DividerNode} from '../types';
+import {DynamicComponent} from '../rendering/dynamic-component';
 
 @Component({
   selector: 'a2ui-divider',

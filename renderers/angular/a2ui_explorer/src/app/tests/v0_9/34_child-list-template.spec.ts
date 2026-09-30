@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { getCanvas, loadExample } from '../utils';
+import {getCanvas, loadExample} from '../utils';
 
 describe('Example: ChildList Template Expansion', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample({ name: 'ChildList Template Expansion' });
+    await loadExample({name: 'ChildList Template Expansion'});
     textContent = getCanvas().textContent;
   });
 

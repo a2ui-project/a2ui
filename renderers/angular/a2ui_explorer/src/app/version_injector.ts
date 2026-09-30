@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { InjectionToken } from '@angular/core';
-import { Version } from './types';
+import {InjectionToken} from '@angular/core';
+import {Version} from './types';
 
 /**
  * Dependency injection token for the active A2UI protocol version.

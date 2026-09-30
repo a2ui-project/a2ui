@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal as angularSignal } from '@angular/core';
-import { ChoicePickerComponent } from './choice-picker.component';
-import { DynamicString } from '@a2ui/web_core/v0_9';
-import { A2uiRendererService } from '../../core/a2ui-renderer.service';
-import { ComponentBinder } from '../../core/component-binder.service';
-import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {signal as angularSignal} from '@angular/core';
+import {ChoicePickerComponent} from './choice-picker.component';
+import {DynamicString} from '@a2ui/web_core/v0_9';
+import {A2uiRendererService} from '../../core/a2ui-renderer.service';
+import {ComponentBinder} from '../../core/component-binder.service';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 describe('ChoicePickerComponent', () => {
   let component: ChoicePickerComponent;
@@ -44,8 +44,8 @@ describe('ChoicePickerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ChoicePickerComponent],
       providers: [
-        { provide: A2uiRendererService, useValue: mockRendererService },
-        { provide: ComponentBinder, useValue: mockBinder },
+        {provide: A2uiRendererService, useValue: mockRendererService},
+        {provide: ComponentBinder, useValue: mockBinder},
       ],
     }).compileComponents();
 
@@ -57,7 +57,7 @@ describe('ChoicePickerComponent', () => {
 
     defaultProps = {
       label: createBoundProperty<string | undefined>(''),
-      options: createBoundProperty<{ label: DynamicString; value: string }[]>([]),
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([]),
       value: createBoundProperty<string[]>([]),
       variant: createBoundProperty<'multipleSelection' | 'mutuallyExclusive' | undefined>(
         'mutuallyExclusive',
@@ -78,9 +78,9 @@ describe('ChoicePickerComponent', () => {
     setComponentProps(fixture, {
       ...defaultProps,
       label: createBoundProperty<string | undefined>('Pick one'),
-      options: createBoundProperty<{ label: DynamicString; value: string }[]>([
-        { label: 'Opt 1', value: '1' },
-        { label: 'Opt 2', value: '2' },
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
+        {label: 'Opt 2', value: '2'},
       ]),
       value: createBoundProperty(['1']),
     });
@@ -95,11 +95,11 @@ describe('ChoicePickerComponent', () => {
     setComponentProps(fixture, {
       ...defaultProps,
       label: createBoundProperty<string | undefined>('Pick one'),
-      options: createBoundProperty<{ label: DynamicString; value: string }[]>([
-        { label: 'Opt 1', value: '1' },
-        { label: 'Opt 2', value: '2' },
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
+        {label: 'Opt 2', value: '2'},
       ]),
-      value: { value: angularSignal(['1']), raw: ['1'], onUpdate: onUpdateSpy },
+      value: {value: angularSignal(['1']), raw: ['1'], onUpdate: onUpdateSpy},
     });
     fixture.detectChanges();
     const opt2Input = fixture.nativeElement.querySelector('input[value="2"]');
@@ -111,11 +111,11 @@ describe('ChoicePickerComponent', () => {
     const onUpdateSpy = jasmine.createSpy('onUpdate');
     setComponentProps(fixture, {
       ...defaultProps,
-      options: createBoundProperty<{ label: DynamicString; value: string }[]>([
-        { label: 'Chip 1', value: 'c1' },
-        { label: 'Chip 2', value: 'c2' },
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Chip 1', value: 'c1'},
+        {label: 'Chip 2', value: 'c2'},
       ]),
-      value: { value: angularSignal(['c1']), raw: ['c1'], onUpdate: onUpdateSpy },
+      value: {value: angularSignal(['c1']), raw: ['c1'], onUpdate: onUpdateSpy},
       variant: createBoundProperty<'multipleSelection' | 'mutuallyExclusive' | undefined>(
         'multipleSelection',
       ),
@@ -141,9 +141,9 @@ describe('ChoicePickerComponent', () => {
     // one radio group.
     const optionProps = {
       ...defaultProps,
-      options: createBoundProperty<{ label: DynamicString; value: string }[]>([
-        { label: 'Opt 1', value: '1' },
-        { label: 'Opt 2', value: '2' },
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
+        {label: 'Opt 2', value: '2'},
       ]),
     };
     setComponentProps(fixture, optionProps);
@@ -159,7 +159,7 @@ describe('ChoicePickerComponent', () => {
     const groupNames = (f: ComponentFixture<ChoicePickerComponent>) =>
       new Set(
         Array.from(f.nativeElement.querySelectorAll('input[type="radio"]')).map(
-          (input) => (input as HTMLInputElement).name,
+          input => (input as HTMLInputElement).name,
         ),
       );
     const firstNames = groupNames(fixture);
@@ -173,8 +173,8 @@ describe('ChoicePickerComponent', () => {
   it('should not set a name on checkbox inputs', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      options: createBoundProperty<{ label: DynamicString; value: string }[]>([
-        { label: 'Opt 1', value: '1' },
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
       ]),
       variant: createBoundProperty<'multipleSelection' | 'mutuallyExclusive' | undefined>(
         'multipleSelection',

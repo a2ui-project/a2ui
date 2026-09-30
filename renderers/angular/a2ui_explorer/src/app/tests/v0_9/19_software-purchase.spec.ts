@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample, wait } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('Example: Software Purchase', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -24,7 +24,7 @@ describe('Example: Software Purchase', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Software Purchase' });
+    fixture = await loadExample({name: 'Software Purchase'});
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });
@@ -50,7 +50,7 @@ describe('Example: Software Purchase', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const confirmBtn = buttons.find((b) => b.textContent.includes('Confirm Purchase'))!;
+    const confirmBtn = buttons.find(b => b.textContent.includes('Confirm Purchase'))!;
     expect(confirmBtn).withContext('Should find Confirm Purchase button').toBeTruthy();
 
     confirmBtn.click();
@@ -66,7 +66,7 @@ describe('Example: Software Purchase', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const cancelBtn = buttons.find((b) => b.textContent.includes('Cancel'))!;
+    const cancelBtn = buttons.find(b => b.textContent.includes('Cancel'))!;
     expect(cancelBtn).withContext('Should find Cancel button').toBeTruthy();
 
     cancelBtn.click();

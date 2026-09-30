@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { App } from './app';
-import { provideMarkdownRenderer } from '../../../src/v0_9/core/markdown';
+import {TestBed} from '@angular/core/testing';
+import {App} from './app';
+import {provideMarkdownRenderer} from '../../../src/v0_9/core/markdown';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -110,14 +110,14 @@ describe('App', () => {
     const activeBefore = compiled.querySelector('.example-list li.active .ex-name')?.textContent;
 
     // Press 'j' -> Next example
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', {key: 'j'}));
     fixture.detectChanges();
 
     const activeAfterJ = compiled.querySelector('.example-list li.active .ex-name')?.textContent;
     expect(activeAfterJ).not.toEqual(activeBefore);
 
     // Press 'k' -> Previous example
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', {key: 'k'}));
     fixture.detectChanges();
 
     const activeAfterK = compiled.querySelector('.example-list li.active .ex-name')?.textContent;
@@ -134,7 +134,7 @@ describe('App', () => {
 
     // Dispatch keydown from textarea
     textarea.focus();
-    const event = new KeyboardEvent('keydown', { key: 'j', bubbles: true });
+    const event = new KeyboardEvent('keydown', {key: 'j', bubbles: true});
     textarea.dispatchEvent(event);
     fixture.detectChanges();
 
@@ -146,11 +146,11 @@ describe('App', () => {
     if (typeof window !== 'undefined') {
       window.location.hash = '';
     }
-    const { A2UI_VERSION, Version } = await import('./types');
+    const {A2UI_VERSION, Version} = await import('./types');
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideMarkdownRenderer(), { provide: A2UI_VERSION, useValue: Version.V1_0 }],
+      providers: [provideMarkdownRenderer(), {provide: A2UI_VERSION, useValue: Version.V1_0}],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(App);
