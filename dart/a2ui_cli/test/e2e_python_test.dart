@@ -75,7 +75,7 @@ String _findDartExecutable() {
     p.normalize(p.join(flutterBinDir, '../../../../bin/dart')),
     p.normalize(p.join(flutterBinDir, '../../../dart-sdk/bin/dart')),
   ];
-  for (final String candidate in candidates) {
+  for (final candidate in candidates) {
     if (File(candidate).existsSync()) {
       return candidate;
     }
@@ -84,7 +84,7 @@ String _findDartExecutable() {
 }
 
 void main() {
-  final dartBin = _findDartExecutable();
+  final String dartBin = _findDartExecutable();
   final String repoRoot = _findRepoRoot();
   final String packageRoot =
       Directory(p.join(repoRoot, 'dart/a2ui_cli')).existsSync()
