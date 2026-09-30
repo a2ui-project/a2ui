@@ -272,9 +272,9 @@ void main() {
 
   group('AgentToRendererMessagePayload', () {
     Map<String, Object?> createSurface(String surfaceId) => {
-      'version': 'v0.9',
-      'createSurface': {'surfaceId': surfaceId, 'catalogId': 'cat1'},
-    };
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': surfaceId, 'catalogId': 'cat1'},
+        };
 
     AgentToRendererMessagePayload parse(Object? payload) =>
         AgentToRendererMessagePayload.fromJson(
@@ -633,9 +633,9 @@ void main() {
 
   group('RendererToAgentMessagePayload', () {
     Map<String, Object?> error(String code) => {
-      'version': 'v0.9',
-      'error': {'code': code, 'surfaceId': 's1', 'message': 'boom'},
-    };
+          'version': 'v0.9',
+          'error': {'code': code, 'surfaceId': 's1', 'message': 'boom'},
+        };
 
     RendererToAgentMessagePayload parse(Object? payload) =>
         RendererToAgentMessagePayload.fromJson(

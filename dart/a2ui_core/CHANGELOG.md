@@ -4,6 +4,13 @@
 
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
+- `ExpressionParser` accepts number literals with a leading decimal point
+  (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. A `.`
+  inside a path such as `a.5` is still part of the path, and `.foo` is still a
+  path. This matches the TypeScript, Python and Swift parsers.
+- `ExpressionParser` rejects a number literal outside the double range, such as
+  `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
+  which `jsonEncode` can't encode.
 
 ## 0.2.2
 

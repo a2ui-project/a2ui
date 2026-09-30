@@ -20,12 +20,11 @@ import 'data_model.dart';
 import 'surface_model.dart';
 
 /// A function that invokes a catalog function by name.
-typedef FunctionInvoker =
-    Object? Function(
-      String name,
-      Map<String, dynamic> args,
-      DataContext context,
-    );
+typedef FunctionInvoker = Object? Function(
+  String name,
+  Map<String, dynamic> args,
+  DataContext context,
+);
 
 /// Provides data access relative to a specific path in the DataModel.
 ///
@@ -123,11 +122,11 @@ class ComponentContext {
   final DataContext dataContext;
 
   ComponentContext(this.surface, this.componentModel, {String? basePath})
-    : dataContext = DataContext(
-        surface.dataModel,
-        surface.catalog.invoke,
-        basePath ?? '/',
-      );
+      : dataContext = DataContext(
+          surface.dataModel,
+          surface.catalog.invoke,
+          basePath ?? '/',
+        );
 
   /// Dispatches an action from the component.
   Future<void> dispatchAction(Map<String, dynamic> action) {
