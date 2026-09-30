@@ -901,13 +901,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     // 1. Validation pass: validate all components before mutating state
     const seenBatchIds = new Set<string>();
     for (const comp of op.components) {
-      this.validateComponentProperties(comp, surface);
       if (comp && typeof comp === 'object' && typeof comp.id === 'string') {
         if (seenBatchIds.has(comp.id)) {
           throw new A2uiIntegrityError(`Duplicate component ID: '${comp.id}'`, [comp.id]);
         }
         seenBatchIds.add(comp.id);
       }
+      this.validateComponentProperties(comp, surface);
     }
 
     this.validateCompositionConstraints(surface, op.components);

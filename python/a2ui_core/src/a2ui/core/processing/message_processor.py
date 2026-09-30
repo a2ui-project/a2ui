@@ -319,7 +319,7 @@ class MessageProcessor:
             fn_entry["parameters"] = params
             functions.append(fn_entry)
 
-        raw_theme = getattr(catalog, "_raw_theme_schema", None) or getattr(
+        raw_theme = getattr(catalog, "raw_theme_schema", None) or getattr(
             catalog, "theme_schema", None
         )
         theme: dict[str, Any] | None = None

@@ -752,6 +752,11 @@ class Catalog(Generic[TComponent, TFunction]):
         self._component_ref_map: dict[str, ComponentRefSpec] | None = None
 
     @property
+    def raw_theme_schema(self) -> dict[str, Any] | None:
+        """Raw, un-resolved theme schema preserved from catalog definition."""
+        return self._raw_theme_schema
+
+    @property
     def id(self) -> str:
         """Symmetrical alias for catalog_id."""
         return self.catalog_id

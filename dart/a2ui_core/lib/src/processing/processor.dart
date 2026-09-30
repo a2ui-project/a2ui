@@ -178,11 +178,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// reference to no component, [A2uiRecursionError] for a cycle or an
   /// over-deep chain, and [A2uiValidationError] for a component that does not
   /// match its catalog.
+  /// Processes a payload, applying each message to the surface it names.
   void processMessages(AgentToRendererMessagePayload payload) {
     for (final AgentToRendererMessage message in payload.messages) {
       _processMessage(message);
     }
   }
+
+  /// Alias for [processMessages] for cross-SDK ergonomics.
+  void process(AgentToRendererMessagePayload payload) =>
+      processMessages(payload);
 
   /// The catalog one component is checked against.
   ///
@@ -544,6 +549,9 @@ class MessageProcessor<T extends ComponentApi> {
 
     return {'version': 'v0.9', 'surfaces': surfaces};
   }
+
+  /// Alias for [getClientDataModel] for cross-SDK ergonomics.
+  Map<String, dynamic>? getRendererDataModel() => getClientDataModel();
 }
 
 extension SchemaExtension on Schema {

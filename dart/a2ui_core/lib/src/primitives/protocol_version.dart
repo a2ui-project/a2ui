@@ -62,7 +62,7 @@ enum A2uiProtocolVersion {
   /// For a version that must be present and supported, use [fromJson], which
   /// reports why it was rejected.
   static A2uiProtocolVersion? tryParse(String value) {
-    if (value == 'v0.9.1') return A2uiProtocolVersion.v0_9;
+    if (value == 'v0.9.1' || value == '0.9.1') return A2uiProtocolVersion.v0_9;
     for (final A2uiProtocolVersion version in values) {
       if (version.jsonValue == value) return version;
     }

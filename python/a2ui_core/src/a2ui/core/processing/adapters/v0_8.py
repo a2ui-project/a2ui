@@ -122,16 +122,22 @@ class V0Point8Adapter(BaseVersionAdapter):
                     ).rstrip("/")
 
             def _extract_content_val(entry: dict[str, Any]) -> Any:
+                for key in (
+                    "valueNumber",
+                    "valueString",
+                    "valueBoolean",
+                    "valueObject",
+                    "valueArray",
+                ):
+                    if key in entry:
+                        return entry[key]
                 if "valueMap" in entry and isinstance(entry["valueMap"], list):
                     nested: dict[str, Any] = {}
                     for sub in entry["valueMap"]:
                         if isinstance(sub, dict) and isinstance(sub.get("key"), str):
                             nested[sub["key"]] = _extract_content_val(sub)
                     return nested
-                for k, v in entry.items():
-                    if k.startswith("value"):
-                        return v
-                return None
+                return entry.get("value")
 
             if "contents" in du and isinstance(du["contents"], list):
                 for item in du["contents"]:
