@@ -27,7 +27,6 @@ import {ResponsePart} from '../parser/response_part.js';
 import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
 import {Parser} from '../parser/parser.js';
 import {PromptOptions} from '../prompt/generator.js';
-import {toWireProtocolVersion} from '../utils/protocol_version.js';
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
@@ -47,10 +46,11 @@ export class A2uiRequestProcessor {
     // TEMPORARY: MessageProcessor in web_core enforces Catalog<any, FunctionImplementation>
     // even though it doesn't execute functions when initialized without an actionHandler.
     // TODO(web_core): Relax the generic constraint on MessageProcessor or allow omitting FunctionImplementation.
+    //
+    // No protocol version is configured: MessageProcessor picks the adapter for each message
+    // from the message's own `version` field.
     this._messageProcessor = new MessageProcessor(
       catalogs as unknown as Catalog<ComponentApi, FunctionImplementation>[],
-      undefined,
-      {version: toWireProtocolVersion(catalogs[0]?.protocolVersion)},
     );
   }
 
