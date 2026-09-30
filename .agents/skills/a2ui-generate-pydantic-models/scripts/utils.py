@@ -141,8 +141,17 @@ def extract_exported_symbols(code: str) -> list[str]:
     return list(dict.fromkeys(symbols))
 
 
-def get_base_common_symbols(common_types_path: str | None = None) -> list[str]:
-    """Extracts public symbols defined in schema/common_types.py dynamically via AST."""
+def extract_class_names(code: str) -> set[str]:
+    """Extracts the names of top-level classes defined in Python code."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return set()
+    return {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
+
+
+def _read_base_common_source(common_types_path: str | None = None) -> str:
+    """Reads the source of the hand-written base schema/common_types.py."""
     import os
 
     if not common_types_path:
@@ -153,10 +162,19 @@ def get_base_common_symbols(common_types_path: str | None = None) -> list[str]:
         )
     if os.path.exists(common_types_path):
         with open(common_types_path, "r", encoding="utf-8") as f:
-            symbols = extract_exported_symbols(f.read())
-            if symbols:
-                return symbols
-    return []
+            return f.read()
+    return ""
+
+
+def get_base_common_symbols(common_types_path: str | None = None) -> list[str]:
+    """Extracts public symbols defined in schema/common_types.py dynamically via AST."""
+    source = _read_base_common_source(common_types_path)
+    return extract_exported_symbols(source) if source else []
+
+
+def get_base_common_class_names(common_types_path: str | None = None) -> set[str]:
+    """Extracts the class names defined in schema/common_types.py via AST."""
+    return extract_class_names(_read_base_common_source(common_types_path))
 
 
 def get_schema_dependencies(node: Any, deps: set[str] | None = None) -> set[str]:
@@ -181,19 +199,47 @@ def get_schema_dependencies(node: Any, deps: set[str] | None = None) -> set[str]
     return deps
 
 
+def _is_def_ref(item: Any, def_name: str) -> bool:
+    return isinstance(item, dict) and item.get("$ref") == f"#/$defs/{def_name}"
+
+
+def is_function_call_branch(item: Any) -> bool:
+    """Checks if a union branch is a `FunctionCall` (directly or via `allOf`)."""
+    if _is_def_ref(item, "FunctionCall"):
+        return True
+    all_of = item.get("allOf") if isinstance(item, dict) else None
+    return isinstance(all_of, list) and any(
+        _is_def_ref(sub, "FunctionCall") for sub in all_of
+    )
+
+
+def is_dynamic_def(spec: Any) -> bool:
+    """Checks if a spec def is a dynamic value union.
+
+    A dynamic def is a `oneOf` that accepts a `DataBinding`, a `FunctionCall`,
+    and literal values (e.g. `DynamicString`, `DynamicValue`).
+    """
+    items = spec.get("oneOf") if isinstance(spec, dict) else None
+    if not isinstance(items, list):
+        return False
+    return any(_is_def_ref(it, "DataBinding") for it in items) and any(
+        is_function_call_branch(it) for it in items
+    )
+
+
 def topological_sort_defs(defs: dict[str, Any]) -> list[str]:
     """Topologically sorts schema definitions by their internal $defs dependencies."""
     graph: dict[str, set[str]] = {}
     for name, def_spec in defs.items():
         deps = get_schema_dependencies(def_spec)
         # Break cycles between dynamic values and function calls:
-        # In Python, DynamicValue/Dynamic* are type aliases (... | FunctionCall)
-        # evaluated at import time, so FunctionCall must precede DynamicValue.
-        # The reference from FunctionCall.args to DynamicValue is an annotation
+        # In Python, dynamic value unions are type aliases (... | FunctionCall)
+        # evaluated at import time, so FunctionCall must precede them.
+        # The reference from FunctionCall.args to a dynamic value is an annotation
         # resolved via `from __future__ import annotations`.
         if name == "FunctionCall":
             deps.discard("IndexSystemFunction")
-            deps.discard("DynamicValue")
+            deps = {d for d in deps if not is_dynamic_def(defs.get(d))}
         graph[name] = {d for d in deps if d in defs and d != name}
 
     visited: set[str] = set()

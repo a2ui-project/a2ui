@@ -660,9 +660,10 @@ def test_v0_9_function_call_keeps_schema_default_out_of_payload():
         "call": "validateEmail",
         "returnType": "boolean",
     }
-    assert 'Defaults to "boolean" when absent.' in (
-        FunctionCall.model_fields["return_type"].description
-    )
+    return_type_schema = FunctionCall.model_json_schema(by_alias=True)["properties"][
+        "returnType"
+    ]
+    assert return_type_schema["default"] == "boolean"
 
 
 def test_map_json_type_to_python_non_string_enum():
@@ -907,3 +908,20 @@ def test_function_definition_conditional_validation():
             "allowedCallers": "agentOnly",
             "requiresUserActivation": True,
         })
+
+
+@pytest.mark.parametrize("version", ["v0_9", "v1_0"])
+def test_common_types_defs_manifest_matches_spec_defs(version: str):
+    """COMMON_TYPES_DEFS manifest in generated common_types.py matches specification $defs keys."""
+    mod = importlib.import_module(f"a2ui.core.schema.{version}.common_types")
+    assert hasattr(mod, "COMMON_TYPES_DEFS")
+    assert "COMMON_TYPES_DEFS" in mod.__all__
+
+    spec_path = os.path.join(SPEC_ROOT, version, "json", "common_types.json")
+    with open(spec_path, "r", encoding="utf-8") as f:
+        spec_defs = json.load(f)["$defs"]
+
+    manifest = mod.COMMON_TYPES_DEFS
+    assert list(manifest.keys()) == list(spec_defs.keys())
+    for name, symbol in manifest.items():
+        assert symbol is not None

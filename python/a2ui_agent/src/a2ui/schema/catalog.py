@@ -252,7 +252,6 @@ class A2uiCatalog:
             catalog_schema=self.catalog_schema,
             protocol_version=self.version,
             catalog_id=self.catalog_id,
-            common_types_schema=self.common_types_schema,
         )
 
     @property

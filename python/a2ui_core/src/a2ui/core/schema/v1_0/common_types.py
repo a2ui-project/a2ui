@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Annotated, Any, Callable, Literal
+from typing import Annotated, Any, Callable, Final, Literal, Union
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -24,6 +24,22 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    model_serializer,
+)
+from pydantic import GetJsonSchemaHandler, model_validator
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema
+from typing_extensions import TypeAliasType
+from .._json_schema import (
+    INLINE_DEF_MARKER,
+    KEEP_ANY_OF_MARKER,
+    SPEC_TITLE_KEY,
+    JsonSchemaKeywords,
+    OpenObject,
+    catalog_functions,
+    is_identifier_key,
+    is_spec_schema,
+    model_ref,
 )
 from ..common_types import (
     Child,
@@ -64,7 +80,7 @@ class FunctionCommon(StrictBaseModel):
 
 
 class FunctionCall(StrictBaseModel):
-    """Invokes a named function."""
+    """Invokes a named function, combining common function properties with the catalog function definition."""
 
     model_config = ConfigDict(populate_by_name=True)
     call: str = Field(
@@ -82,8 +98,32 @@ class FunctionCall(StrictBaseModel):
         ),
     )
 
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        if not is_spec_schema():
+            return handler(core_schema)
+        return {
+            "type": "object",
+            "description": (
+                "Invokes a named function, combining common function properties with"
+                " the catalog function definition."
+            ),
+            "allOf": [
+                model_ref(FunctionCommon, handler),
+                {
+                    "oneOf": [
+                        catalog_functions(),
+                        model_ref(IndexSystemFunction, handler),
+                    ]
+                },
+            ],
+            "unevaluatedProperties": False,
+        }
 
-CallId = str
+
+CallId = TypeAliasType("CallId", str)
 
 
 DynamicBoolean = StrictBool | DataBinding | FunctionCall
@@ -119,8 +159,9 @@ class AccessibilityAttributes(StrictBaseModel):
         description=(
             "Controls screen reader announcements for dynamic updates (WAI-ARIA"
             " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
-            ' immediately for alerts. Defaults to "off" when absent.'
+            " immediately for alerts."
         ),
+        json_schema_extra={"default": "off"},
     )
     hidden: DynamicBoolean | None = Field(
         None,
@@ -131,11 +172,36 @@ class AccessibilityAttributes(StrictBaseModel):
     )
 
 
-class Extensions(StrictBaseModel):
-    """Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions."""
+def _validate_extensions_keys(value: dict[str, Any]) -> dict[str, Any]:
+    invalid = sorted(key for key in value if not is_identifier_key(key))
+    if invalid:
+        raise ValueError(f"Extensions keys must be Unicode identifiers: {invalid}")
+    return value
 
-    model_config = ConfigDict(populate_by_name=True)
-    pass
+
+Extensions = TypeAliasType(
+    "Extensions",
+    Annotated[
+        OpenObject,
+        AfterValidator(_validate_extensions_keys),
+        JsonSchemaKeywords(
+            {
+                "patternProperties": {"^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}},
+                "additionalProperties": False,
+            },
+            spec_only=True,
+        ),
+    ],
+)
+
+
+class ComponentCommonMetadata(StrictBaseModel):
+    """Optional component-level metadata for vendor extensions."""
+
+    model_config = ConfigDict(
+        json_schema_extra={INLINE_DEF_MARKER: True}, populate_by_name=True
+    )
+    extensions: Extensions | None = Field(None)
 
 
 class ComponentCommon(StrictBaseModel):
@@ -150,7 +216,7 @@ class ComponentCommon(StrictBaseModel):
         ),
     )
     accessibility: AccessibilityAttributes | None = Field(None)
-    metadata: dict[str, Any] | None = Field(
+    metadata: ComponentCommonMetadata | None = Field(
         None, description="Optional component-level metadata for vendor extensions."
     )
 
@@ -174,7 +240,19 @@ def _validate_literal_object(v: Any) -> dict[str, Any]:
     return v
 
 
-LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_object)]
+LiteralObject = Annotated[
+    dict[str, Any],
+    AfterValidator(_validate_literal_object),
+    JsonSchemaKeywords(
+        {
+            "not": {
+                "anyOf": [{"required": ["path"]}, {"required": ["call"]}],
+                KEEP_ANY_OF_MARKER: True,
+            }
+        },
+        drop=("additionalProperties",),
+    ),
+]
 
 
 DynamicValue = (
@@ -183,9 +261,9 @@ DynamicValue = (
     | StrictInt
     | StrictBool
     | list[Any]
+    | LiteralObject
     | DataBinding
     | FunctionCall
-    | LiteralObject
 )
 
 
@@ -196,22 +274,47 @@ DynamicStringList = list[StrictStr] | DataBinding | FunctionCall
 
 
 class IndexSystemFunctionArgs(StrictBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra={INLINE_DEF_MARKER: True}, populate_by_name=True
+    )
     offset: DynamicNumber | None = Field(
         None,
         description=(
             "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based"
             " indexing). Defaults to 0."
         ),
+        json_schema_extra={"default": 0},
     )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if is_spec_schema():
+            target = handler.resolve_ref_schema(json_schema)
+            target.pop("additionalProperties", None)
+            target.update({"unevaluatedProperties": False})
+        return json_schema
 
 
 class IndexSystemFunction(StrictBaseModel):
     """Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context."""
 
     model_config = ConfigDict(populate_by_name=True)
-    call: Literal["@index"] = Field("@index", alias="@call")
+    call: Literal["@index"] = Field(...)
     args: IndexSystemFunctionArgs | None = Field(None)
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if is_spec_schema():
+            target = handler.resolve_ref_schema(json_schema)
+            target.pop("additionalProperties", None)
+            target.update({"unevaluatedProperties": False, "returnType": "number"})
+        return json_schema
 
 
 class CheckRule(StrictBaseModel):
@@ -286,13 +389,28 @@ class Surface(StrictBaseModel):
     """The reserved canonical container component representing an A2UI surface. The Surface component is immutable and always has 'child': 'root'."""
 
     model_config = ConfigDict(populate_by_name=True)
+    component: Literal["Surface"] | None = Field(default="Surface")
     child: Literal["root"] | None = Field(default="root")
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if is_spec_schema():
+            target = handler.resolve_ref_schema(json_schema)
+            target.update(
+                {SPEC_TITLE_KEY: "Surface Container Component", "allowedParents": []}
+            )
+        return json_schema
 
 
 class FunctionResponseError(StrictBaseModel):
     """An error object indicating failure of the function execution."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra={INLINE_DEF_MARKER: True}, populate_by_name=True
+    )
     code: str = Field(...)
     message: str = Field(...)
 
@@ -301,7 +419,7 @@ class FunctionResponse(StrictBaseModel):
     """The return response matching a callAgentFunction or callRendererFunction invocation."""
 
     model_config = ConfigDict(populate_by_name=True)
-    function_call_id: str = Field(
+    function_call_id: CallId = Field(
         ...,
         alias="functionCallId",
         description="The unique ID matching the initiating function call.",
@@ -312,6 +430,119 @@ class FunctionResponse(StrictBaseModel):
         description="An error object indicating failure of the function execution.",
     )
 
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if is_spec_schema():
+            target = handler.resolve_ref_schema(json_schema)
+            target.update({"oneOf": [{"required": ["value"]}, {"required": ["error"]}]})
+        return json_schema
+
+    @model_validator(mode="after")
+    def _check_one_of_required(self) -> FunctionResponse:
+        branches = (("value",), ("error",))
+        matched = sum(
+            all(field in self.model_fields_set for field in fields)
+            for fields in branches
+        )
+        if matched != 1:
+            raise ValueError("FunctionResponse must set exactly one of: value | error")
+        return self
+
+
+COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
+    "ComponentId": Annotated[
+        ComponentId,
+        Field(
+            description=(
+                "The unique identifier for a component, used for both definitions and"
+                " references within the same surface."
+            )
+        ),
+    ],
+    "CallId": Annotated[
+        CallId, Field(description="The unique identifier for a function call.")
+    ],
+    "AccessibilityAttributes": AccessibilityAttributes,
+    "Extensions": Annotated[
+        Extensions,
+        Field(
+            description=(
+                "Optional extension metadata. Keys MUST be Unicode identifiers (UAX"
+                " #31). Keys starting with 'a2ui_' are reserved for official"
+                " extensions."
+            )
+        ),
+    ],
+    "ComponentCommon": ComponentCommon,
+    "Child": Annotated[
+        Child, Field(description="A reference to a single child component ID.")
+    ],
+    "ChildList": (
+        Annotated[
+            list[ComponentId],
+            Field(description="A static list of child component IDs."),
+        ]
+        | TemplateChildList
+    ),
+    "DataBinding": DataBinding,
+    "DynamicValue": Annotated[
+        DynamicValue,
+        Field(
+            description=(
+                "A value that can be a literal, a path, or a function call returning"
+                " any type."
+            )
+        ),
+    ],
+    "DynamicString": Annotated[DynamicString, Field(description="Represents a string")],
+    "DynamicNumber": Annotated[
+        DynamicNumber,
+        Field(
+            description=(
+                "Represents a value that can be either a literal number, a path to a"
+                " number in the data model, or a function call returning a number."
+            )
+        ),
+    ],
+    "DynamicBoolean": Annotated[
+        DynamicBoolean,
+        Field(
+            description=(
+                "A boolean value that can be a literal, a path, or a function call"
+                " returning a boolean."
+            )
+        ),
+    ],
+    "DynamicStringList": Annotated[
+        DynamicStringList,
+        Field(
+            description=(
+                "Represents a value that can be either a literal array of strings, a"
+                " path to a string array in the data model, or a function call"
+                " returning a string array."
+            )
+        ),
+    ],
+    "FunctionCommon": FunctionCommon,
+    "IndexSystemFunction": IndexSystemFunction,
+    "FunctionCall": FunctionCall,
+    "CheckRule": CheckRule,
+    "Checkable": Checkable,
+    "Action": Annotated[
+        Action,
+        Field(
+            description=(
+                "Defines an interaction handler that can either trigger an agent-side"
+                " event or execute a local renderer-side function."
+            )
+        ),
+    ],
+    "Surface": Surface,
+    "FunctionResponse": FunctionResponse,
+}
 
 __all__ = [
     "AccessibilityAttributes",
@@ -319,12 +550,14 @@ __all__ = [
     "ActionEvent",
     "ActionEventWrapper",
     "ActionFunctionCallWrapper",
+    "COMMON_TYPES_DEFS",
     "CallId",
     "CheckRule",
     "Checkable",
     "Child",
     "ChildList",
     "ComponentCommon",
+    "ComponentCommonMetadata",
     "ComponentId",
     "ComponentReference",
     "DataBinding",

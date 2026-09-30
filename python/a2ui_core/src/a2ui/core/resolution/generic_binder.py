@@ -16,8 +16,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from functools import cache
 from typing import Any, Callable, Final
 from ..common import Subscription
+from ..schema.common_types_schema import get_all_dynamic_type_names
 from .component_context import ComponentContext
 
 
@@ -50,14 +52,16 @@ STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset({
     "Child",
     "TemplateChildList",
 })
-DYNAMIC_REF_NAMES: Final[frozenset[str]] = frozenset({
-    "DataBinding",
-    "DynamicString",
-    "DynamicNumber",
-    "DynamicBoolean",
-    "DynamicStringList",
-    "DynamicValue",
-})
+
+
+@cache
+def _dynamic_ref_names() -> frozenset[str]:
+    """Returns the defs that bind to dynamic values.
+
+    These are `DataBinding` plus every dynamic value def (e.g. `DynamicString`)
+    identified structurally in the generated common_types schemas.
+    """
+    return frozenset({"DataBinding"}) | get_all_dynamic_type_names()
 
 
 def _extract_ref_name(ref: str | None) -> str:
@@ -135,7 +139,7 @@ def classify_schema_behavior(schema: Any) -> BehaviorNode:
             return BehaviorNode(BehaviorType.ACTION)
         if ref_name in STRUCTURAL_REF_NAMES:
             return BehaviorNode(BehaviorType.STRUCTURAL)
-        if ref_name in DYNAMIC_REF_NAMES or ref_name.startswith("Dynamic"):
+        if ref_name in _dynamic_ref_names():
             return BehaviorNode(BehaviorType.DYNAMIC)
 
     combiner = _classify_combiners(schema)

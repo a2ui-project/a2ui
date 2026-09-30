@@ -154,9 +154,10 @@ def test_v09_function_call_return_type_and_catalog_id():
     assert fc_default.return_type is None
     assert "return_type" not in fc_default.model_fields_set
     assert fc_default.model_dump(by_alias=True, exclude_none=True) == {"call": "fn"}
-    assert 'Defaults to "boolean" when absent.' in (
-        FunctionCallV09.model_fields["return_type"].description
-    )
+    return_type_schema = FunctionCallV09.model_json_schema(by_alias=True)["properties"][
+        "returnType"
+    ]
+    assert return_type_schema["default"] == "boolean"
 
     fc_explicit = FunctionCallV09.model_validate({"call": "fn", "returnType": "string"})
     assert fc_explicit.return_type == "string"

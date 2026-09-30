@@ -23,6 +23,9 @@ from utils import (
     version_to_underscore,
 )
 
+# Property key through which a generator supplies a field's exact Python type.
+PYTHON_TYPE_KEY = "x-python-type"
+
 
 class PydanticCodegen:
     """Deterministic Pydantic v2 code generator from JSON Schema."""
@@ -33,6 +36,15 @@ class PydanticCodegen:
         self.spec_dot = "v" + self.dir_name[1:].replace("_", ".")
         self.inline_objects: dict[str, dict[str, Any]] = {}
         self.allow_inline = True
+        # When set, spec defaults are emitted as JSON schema defaults instead of
+        # being appended to the field description.
+        self.schema_defaults = False
+        # Component models get their `component` discriminator elsewhere, so
+        # the property is skipped unless a generator needs it as a field.
+        self.skip_component_property = True
+        # Whether a required `const` property defaults to its value. When
+        # unset, the property must be present, as the schema requires.
+        self.required_const_default = True
 
     def map_json_type_to_python(self, prop_name: str, prop: dict[str, Any]) -> str:
         """Maps JSON Schema property type to Python typing string."""
@@ -50,7 +62,9 @@ class PydanticCodegen:
                 if ref.endswith("/Component") or ref.endswith("/anyComponent"):
                     return "dict[str, Any]"
                 if ref.endswith("/CallId"):
-                    return "str"
+                    # Only common_types defines the `CallId` alias; other
+                    # documents use the plain string type.
+                    return "CallId" if ref.startswith("#/") else "str"
                 if ref.endswith("/Child"):
                     return "Child"
                 if ref.endswith("catalog_definition.json") or ref.endswith(
@@ -137,21 +151,35 @@ class PydanticCodegen:
     def compile_properties(
         self, props: dict[str, Any], required: list[str]
     ) -> list[str]:
-        """Compiles JSON Schema properties into Pydantic v2 field declarations."""
+        """Compiles JSON Schema properties into Pydantic v2 field declarations.
+
+        A property may carry `PYTHON_TYPE_KEY` with the exact Python type
+        expression to use, for shapes that the JSON type mapping cannot express.
+        """
         lines = []
         for prop_name, prop_desc in props.items():
-            if prop_name == "component":
+            if prop_name == "component" and self.skip_component_property:
                 continue
-            py_type = self.map_json_type_to_python(prop_name, prop_desc)
+            py_type = prop_desc.get(PYTHON_TYPE_KEY) or self.map_json_type_to_python(
+                prop_name, prop_desc
+            )
             raw_desc = prop_desc.get("description", "").replace("\n", " ")
 
             field_opts = []
             has_default = False
             const_default: str | None = None
+            schema_default: str | None = None
             if "default" in prop_desc and "const" not in prop_desc:
                 # JSON Schema defaults describe consumers' assumptions; they should
                 # not become values that a Pydantic model producer writes.
-                if "default" not in raw_desc.lower():
+                if self.schema_defaults:
+                    # Emitted into the JSON schema only; the Python default stays
+                    # None so an absent value is still distinguishable.
+                    schema_default = (
+                        "json_schema_extra={'default': "
+                        f"{json.dumps(prop_desc['default'], ensure_ascii=False)}}}"
+                    )
+                elif "default" not in raw_desc.lower():
                     documented_default = json.dumps(
                         prop_desc["default"], ensure_ascii=False
                     )
@@ -171,6 +199,8 @@ class PydanticCodegen:
                 field_opts.append(
                     f"description={json.dumps(raw_desc, ensure_ascii=False)}"
                 )
+            if schema_default:
+                field_opts.append(schema_default)
 
             if "pattern" in prop_desc:
                 field_opts.append(f"pattern={json.dumps(prop_desc['pattern'])}")
@@ -187,7 +217,7 @@ class PydanticCodegen:
             if prop_name in required:
                 clean_opts = [o for o in field_opts if not o.startswith("default=")]
                 field_str = f", {', '.join(clean_opts)}" if clean_opts else ""
-                if "const" in prop_desc:
+                if "const" in prop_desc and self.required_const_default:
                     const_val = prop_desc["const"]
                     const_str = (
                         f'"{const_val}"'

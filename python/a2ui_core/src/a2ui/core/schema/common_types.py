@@ -132,10 +132,9 @@ DynamicStringList = Union[List[StrictStr], DataBinding, FunctionCall]
 
 
 class TemplateChildList(StrictBaseModel, ListReference):
-    """A template for generating a dynamic list of children from a data model list.
-
-    The `componentId` is the component to use as a template.
-    """
+    # Kept on one line: the docstring is the JSON schema description, which must
+    # match the specification text.
+    """A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template."""
 
     component_id: ComponentId = Field(..., alias="componentId")
     path: str = Field(

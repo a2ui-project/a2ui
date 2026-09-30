@@ -1154,7 +1154,6 @@
       "type": "object"
     },
     "AccessibilityAttributes": {
-      "type": "object",
       "description": "Attributes to enhance accessibility when using assistive technologies like screen readers.",
       "properties": {
         "label": {
@@ -1166,11 +1165,12 @@
           "description": "Additional information provided by assistive technologies about an element such as instructions, format requirements, or result of an action. For example, a mute button might have a label of 'Mute' and a description of 'Silences notifications about this conversation'."
         }
       },
+      "type": "object",
       "additionalProperties": false
     },
     "ComponentId": {
-      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
-      "type": "string"
+      "type": "string",
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface."
     },
     "DataBinding": {
       "additionalProperties": false,
@@ -1186,7 +1186,7 @@
       "type": "object"
     },
     "FunctionCall": {
-      "additionalProperties": false,
+      "description": "Invokes a named function on the client.",
       "properties": {
         "call": {
           "description": "The name of the function to call.",
@@ -1208,14 +1208,15 @@
             "void"
           ],
           "type": "string",
-          "description": "The expected return type of the function call. Defaults to \"boolean\" when absent."
+          "default": "boolean",
+          "description": "The expected return type of the function call."
         }
       },
       "required": [
         "call"
       ],
       "type": "object",
-      "description": "Invokes a named function on the client."
+      "additionalProperties": false
     },
     "SvgPath": {
       "additionalProperties": false,
@@ -1230,8 +1231,8 @@
       "type": "object"
     },
     "TemplateChildList": {
-      "type": "object",
-      "description": "A template for generating a dynamic list of children from a data model list.\n\nThe `componentId` is the component to use as a template.",
+      "additionalProperties": false,
+      "description": "A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template.",
       "properties": {
         "componentId": {
           "$ref": "#/$defs/ComponentId"
@@ -1245,7 +1246,7 @@
         "componentId",
         "path"
       ],
-      "additionalProperties": false
+      "type": "object"
     },
     "TabItem": {
       "additionalProperties": false,
@@ -1531,6 +1532,7 @@
       ]
     },
     "DynamicValue": {
+      "description": "A value that can be a literal, a path, or a function call returning any type.",
       "oneOf": [
         {
           "type": "string"
@@ -1542,7 +1544,6 @@
           "type": "boolean"
         },
         {
-          "items": {},
           "type": "array"
         },
         {

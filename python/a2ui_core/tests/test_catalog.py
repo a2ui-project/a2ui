@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 import pytest
@@ -19,13 +20,18 @@ from a2ui.core.catalog import (
     Catalog,
     ComponentApi,
     FunctionApi,
-    ModelComponentApi,
     FunctionImplementation,
+    ModelComponentApi,
+    get_common_types_schema_json,
+    get_common_types_schema_map,
 )
+from a2ui.core.schema import ProtocolVersion
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validation import PayloadValidator
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
+from a2ui.core.schema.v0_9.common_types import ComponentId
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
@@ -758,3 +764,197 @@ def test_validate_function_non_string_arg_key_defensive():
 def test_catalog_missing_protocol_version_raises_catalog_error():
     with pytest.raises(A2uiCatalogError, match="protocol_version must be provided"):
         Catalog(catalog_id="test_cat", protocol_version="")
+
+
+def test_payload_validator_max_function_call_args():
+    from a2ui.core.catalog import Catalog, FunctionImplementation
+    from a2ui.core.validation import MAX_FUNCTION_CALL_ARGS, PayloadValidator
+
+    catalog = Catalog(
+        catalog_id="test_cat",
+        protocol_version="v0.9",
+        components=[],
+        functions=[
+            FunctionImplementation(
+                name="custom_fn",
+                return_type="string",
+                execute=lambda args, ctx, abort: "",
+            )
+        ],
+    )
+    val = PayloadValidator(catalog=catalog)
+
+    excessive_args = {f"k_{i}": i for i in range(MAX_FUNCTION_CALL_ARGS + 5)}
+    with pytest.raises(A2uiValidationError) as exc_info:
+        val.validate_function("custom_fn", excessive_args)
+    assert exc_info.value.details[0].code == "too_many_arguments"
+
+
+def test_payload_validator_foreign_catalog_identifier_validation():
+    from a2ui.core.catalog import Catalog, ModelComponentApi
+    from a2ui.core.validation import PayloadValidator
+    from pydantic import BaseModel
+
+    class ContainerProps(BaseModel):
+        title: Any = None
+
+    catalog = Catalog(
+        catalog_id="home_cat",
+        protocol_version="v1.0",
+        components=[ModelComponentApi(ContainerProps, "Container")],
+        functions=[],
+    )
+    val = PayloadValidator(catalog=catalog)
+
+    # Valid foreign catalog call with valid UAX #31 identifier syntax
+    val.validate_component({
+        "id": "c1",
+        "component": "Container",
+        "title": {
+            "call": "foreign_func",
+            "catalogId": "foreign_cat",
+            "args": {"param": "ok"},
+        },
+    })
+
+    # Invalid function identifier syntax targeting foreign catalog
+    with pytest.raises(A2uiValidationError) as exc_info:
+        val.validate_component({
+            "id": "c2",
+            "component": "Container",
+            "title": {
+                "call": "invalid-func-name!",
+                "catalogId": "foreign_cat",
+                "args": {"param": "ok"},
+            },
+        })
+    assert any(d.code == "invalid_identifier" for d in exc_info.value.details)
+
+
+# ==============================================================================
+# 11. Common Types Schema Resolution
+# ==============================================================================
+
+
+@pytest.mark.parametrize("version", ["0.9", "0.9.1", "1.0"])
+def test_get_common_types_schema_map_and_json_agree(version):
+    # Content is checked against the specification by core/common_types.yaml,
+    # which reads the JSON form only.
+    schema_json = get_common_types_schema_json(version)
+    assert json.loads(schema_json) == get_common_types_schema_map(version)
+
+
+def test_get_common_types_schema_supported_versions():
+    # v0.9 string and enum forms
+    res_09 = get_common_types_schema_map("0.9")
+    assert res_09["$id"] == "https://a2ui.org/specification/v0_9/common_types.json"
+    assert get_common_types_schema_map("v0.9") == res_09
+    assert get_common_types_schema_map(ProtocolVersion.V0_9) == res_09
+
+    # v0.9.1 string and enum forms
+    res_091 = get_common_types_schema_map("0.9.1")
+    assert get_common_types_schema_map("v0.9.1") == res_091
+    assert get_common_types_schema_map(ProtocolVersion.V0_9_1) == res_091
+
+    # v1.0 string and enum forms
+    res_10 = get_common_types_schema_map("1.0")
+    assert res_10["$id"] == "https://a2ui.org/specification/v1_0/common_types.json"
+    assert get_common_types_schema_map("v1.0") == res_10
+    assert get_common_types_schema_map("1.0.0") == res_10
+    assert get_common_types_schema_map(ProtocolVersion.V1_0) == res_10
+
+    # Forward compatibility for >= 1.0 (e.g. 1.1)
+    assert get_common_types_schema_map("1.1") == res_10
+    assert get_common_types_schema_json("1.1") == get_common_types_schema_json("1.0")
+
+
+@pytest.mark.parametrize(
+    "getter", [get_common_types_schema_map, get_common_types_schema_json]
+)
+def test_get_common_types_schema_unsupported_versions(getter):
+    # v0.8 has no common_types.json
+    with pytest.raises(A2uiCatalogError, match="common_types schema is not available"):
+        getter("0.8")
+
+    with pytest.raises(A2uiCatalogError, match="common_types schema is not available"):
+        getter(ProtocolVersion.V0_8)
+
+    # Empty or invalid version
+    with pytest.raises(A2uiCatalogError, match="protocol_version must be provided"):
+        getter("")
+
+    with pytest.raises(A2uiCatalogError, match="Invalid protocol version"):
+        getter("invalid_version")
+
+
+def test_get_common_types_schema_map_returns_deepcopy():
+    res1 = get_common_types_schema_map("1.0")
+    res1["$defs"]["MutatedKey"] = {"type": "string"}
+
+    res2 = get_common_types_schema_map("1.0")
+    assert "MutatedKey" not in res2["$defs"]
+    assert "MutatedKey" not in get_common_types_schema_json("1.0")
+
+
+def test_catalog_from_json_determines_common_types_automatically():
+    catalog_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "test_auto_common_types",
+        "protocolVersion": "1.0",
+        "components": {
+            "CustomCard": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "CustomCard"},
+                    "items": {"$ref": "common_types.json#/$defs/ChildList"},
+                },
+                "required": ["component"],
+            }
+        },
+    }
+
+    catalog = Catalog.from_json(catalog_schema)
+    assert catalog.protocol_version == "1.0"
+    reconstructed = catalog.catalog_schema
+    # The external reference should be rewritten to local #/$defs/...
+    card_props = reconstructed["components"]["CustomCard"]["properties"]
+    assert card_props["items"]["$ref"] == "#/$defs/ChildList"
+    # ChildList should be populated automatically into $defs from common_types_schema
+    assert "ChildList" in reconstructed["$defs"]
+
+
+_INLINE_METADATA = {
+    "type": "object",
+    "description": "Optional component-level metadata for vendor extensions.",
+    "properties": {"extensions": {"$ref": "#/$defs/Extensions"}},
+    "additionalProperties": False,
+}
+
+
+def test_v1_0_catalogs_inline_component_metadata():
+    """Nested objects stay inline, as in the specification, not as helper defs."""
+    json_catalog = Catalog.from_json({
+        "catalogId": "test_inline_metadata",
+        "protocolVersion": "1.0",
+        "components": {
+            "Card": {
+                "allOf": [{"$ref": "common_types.json#/$defs/ComponentCommon"}],
+                "properties": {"component": {"const": "Card"}},
+                "required": ["component"],
+            }
+        },
+    }).catalog_schema
+    basic_catalog = BasicCatalogV1_0().catalog_schema
+
+    assert (
+        json_catalog["$defs"]["ComponentCommon"]["properties"]["metadata"]
+        == _INLINE_METADATA
+    )
+    assert (
+        basic_catalog["components"]["Text"]["properties"]["metadata"]
+        == _INLINE_METADATA
+    )
+    for schema in (json_catalog, basic_catalog):
+        assert "ComponentCommonMetadata" not in schema["$defs"]
+        assert "Extensions" in schema["$defs"]
+        assert "x-a2ui-inline" not in json.dumps(schema)
