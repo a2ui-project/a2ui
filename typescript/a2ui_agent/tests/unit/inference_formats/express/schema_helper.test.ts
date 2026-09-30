@@ -20,7 +20,7 @@ import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
 import {Catalog} from '../../../../src/internal/web_core.js';
 import {basicCatalog} from '../../../../src/types.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
+import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {
   CatalogSchemaHelper,
   commonDefName,

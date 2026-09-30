@@ -21,7 +21,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {Catalog} from '../../../../src/internal/web_core.js';
 import {basicCatalog, type SchemaCatalog} from '../../../../src/types.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
+import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressCompiler} from '../../../../src/inference_formats/express/compiler.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';

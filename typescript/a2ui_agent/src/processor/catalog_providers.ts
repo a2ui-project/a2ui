@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import {A2uiCatalogError} from '../errors.js';
 import {Catalog, CatalogApi, normalizeVersionString} from '../internal/web_core.js';
 import {ProtocolVersion} from '../types.js';
+import {registerCatalogDocument} from '../utils/catalog-document.js';
 import {toWireProtocolVersion} from '../utils/protocol_version.js';
 
 /**
@@ -83,13 +84,16 @@ export function catalogFromDocument(
     );
   }
 
+  let catalog: CatalogApi;
   try {
-    return Catalog.fromSchema({...document, catalogId: id}, toWireProtocolVersion(version));
+    catalog = Catalog.fromSchema({...document, catalogId: id}, toWireProtocolVersion(version));
   } catch (e: unknown) {
     throw new A2uiCatalogError(
       `Failed to build catalog from schema in ${source}: ${(e as Error).message}`,
     );
   }
+  registerCatalogDocument(catalog, document);
+  return catalog;
 }
 
 /**
