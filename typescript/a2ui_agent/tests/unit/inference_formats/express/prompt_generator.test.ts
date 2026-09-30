@@ -19,11 +19,14 @@ import * as path from 'path';
 import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
 import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core.js';
-import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
-
+import {SchemaCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference_formats/express/prompt_generator.js';
+
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV09 = await loadBasicCatalog('v0.9');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,7 +64,7 @@ describe('ExpressPromptGenerator', () => {
         expected = expected.replace(from, to);
       }
 
-      const generator = new ExpressPromptGenerator([basicCatalog('v1.0')]);
+      const generator = new ExpressPromptGenerator([basicCatalogV10]);
       const actual = generator.generateBaseRules();
 
       expect(actual).toBe(expected);
@@ -69,28 +72,28 @@ describe('ExpressPromptGenerator', () => {
       expect(actual).not.toContain('DateTimeInput');
     });
 
-    it('generateCatalogInstructions(basicCatalog("v1.0")) matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
+    it('generateCatalogInstructions() for the v1.0 basic catalog matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
       const goldenPath = path.resolve(
         __dirname,
         '../../../../../../conformance/test_data/skills/express_catalog_instructions.txt',
       );
       const expected = fs.readFileSync(goldenPath, 'utf8');
 
-      const cat = basicCatalog('v1.0');
+      const cat = basicCatalogV10;
       const generator = new ExpressPromptGenerator([cat]);
-      const actual = generator.generateCatalogInstructions(true, cat);
+      const actual = generator.generateCatalogInstructions(cat);
 
       expect(actual).toBe(expected);
     });
   });
 
   describe('2. Oracle parity for catalog instructions', () => {
-    // The oracle outputs for basicCatalog('v0.9'), simplified, forms, and custom catalogs
+    // The oracle outputs for the v0.9 basic catalog, simplified, forms, and custom catalogs
     // were verified against origin/main's Python oracle.
     it('generates expected instructions for simplified catalog v1.0', () => {
       const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
-      const actual = generator.generateCatalogInstructions(true, cat);
+      const actual = generator.generateCatalogInstructions(cat);
 
       const expected =
         '## Positional Component Signatures\n\n' +
@@ -119,7 +122,7 @@ describe('ExpressPromptGenerator', () => {
     it('generates expected instructions for forms catalog v1.0', () => {
       const cat = loadCatalogFixture('forms_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
-      const actual = generator.generateCatalogInstructions(true, cat);
+      const actual = generator.generateCatalogInstructions(cat);
 
       const expected =
         '## Positional Component Signatures\n\n' +
@@ -139,7 +142,7 @@ describe('ExpressPromptGenerator', () => {
     it('generates expected instructions for custom catalog v1.0', () => {
       const cat = loadCatalogFixture('custom_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
-      const actual = generator.generateCatalogInstructions(true, cat);
+      const actual = generator.generateCatalogInstructions(cat);
 
       const expected =
         '## Positional Component Signatures\n\n' +
@@ -157,9 +160,9 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('generates expected instructions for basic catalog v0.9', () => {
-      const cat = basicCatalog('v0.9');
+      const cat = basicCatalogV09;
       const generator = new ExpressPromptGenerator([cat]);
-      const actual = generator.generateCatalogInstructions(true, cat);
+      const actual = generator.generateCatalogInstructions(cat);
 
       expect(actual).toContain('• AudioPlayer(url, description?, weight? (static))');
       expect(actual).toContain(
@@ -215,7 +218,7 @@ describe('ExpressPromptGenerator', () => {
       const cat = Catalog.fromSchema(prunedSchema);
       registerCatalogDocument(cat, prunedSchema);
       const generator = new ExpressPromptGenerator([cat]);
-      const instructions = generator.generateCatalogInstructions(true);
+      const instructions = generator.generateCatalogInstructions();
 
       expect(instructions).toContain('formatString');
       expect(instructions).not.toContain('openUrl');
@@ -264,7 +267,7 @@ describe('ExpressPromptGenerator', () => {
         ] as AgentToRendererMessage[],
       };
       const generator = new ExpressPromptGenerator([cat], examples);
-      const snippet = generator.generate({includeExamples: true});
+      const snippet = generator.generate();
 
       expect(snippet).toContain('surface("s1")');
       expect(snippet).toContain('root = Text("Hello")');
@@ -273,7 +276,7 @@ describe('ExpressPromptGenerator', () => {
     it('test_express_snippet_without_examples_carries_no_example', () => {
       const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
-      const snippet = generator.generate({includeExamples: false});
+      const snippet = generator.generate();
 
       expect(snippet).toContain('Text(');
       expect(snippet).not.toContain('surface("s1")');
@@ -303,10 +306,11 @@ describe('ExpressPromptGenerator', () => {
 
     it('test_express_snippet_describes_only_the_allowed_envelopes', () => {
       const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
-      const generator = new ExpressPromptGenerator([cat]);
-      const snippet = generator.generate({
-        allowedMessages: ['createSurface', 'updateComponents'],
-      });
+      const generator = new ExpressPromptGenerator([cat], undefined, [
+        'createSurface',
+        'updateComponents',
+      ]);
+      const snippet = generator.generate();
 
       expect(snippet).toContain('surface(');
       expect(snippet).not.toContain('deleteSurface(');
@@ -352,8 +356,8 @@ describe('ExpressPromptGenerator', () => {
       const gen1 = new ExpressPromptGenerator([cat1, cat2], examples);
       const gen2 = new ExpressPromptGenerator([cat1, cat2], examples);
 
-      const snippet1 = gen1.generate({includeExamples: true});
-      const snippet2 = gen2.generate({includeExamples: true});
+      const snippet1 = gen1.generate();
+      const snippet2 = gen2.generate();
 
       expect(snippet1).toBe(snippet2);
       expect(snippet1).toContain('Text(');
@@ -361,8 +365,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_no_active_catalogs_is_an_error', () => {
-      const generator = new ExpressPromptGenerator([]);
-      expect(() => generator.generate()).toThrow(A2uiCatalogError);
+      expect(() => new ExpressPromptGenerator([])).toThrow(A2uiCatalogError);
     });
 
     it('B5: translates fenced json blocks containing updateComponents', () => {
@@ -399,8 +402,8 @@ describe('ExpressPromptGenerator', () => {
   });
 
   it('prompt lists both catalogs', () => {
-    const c1 = basicCatalog('v1.0');
-    const c2 = basicCatalog('v0.9');
+    const c1 = basicCatalogV10;
+    const c2 = basicCatalogV09;
     const generator = new ExpressPromptGenerator([c1, c2]);
     const instructions = generator.generateCatalogInstructions();
     expect(instructions).toContain(`# Catalog: ${c1.id}`);

@@ -21,12 +21,15 @@ import {
 } from '../../../../src/inference_formats/express/format.js';
 import {ExpressParser} from '../../../../src/inference_formats/express/parser.js';
 import {ExpressPromptGenerator} from '../../../../src/inference_formats/express/prompt_generator.js';
-import {basicCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV09 = await loadBasicCatalog('v0.9');
+
 describe('ExpressFormat', () => {
-  const catalog1 = basicCatalog('v1.0');
-  const catalog2 = basicCatalog('v0.9');
+  const catalog1 = basicCatalogV10;
+  const catalog2 = basicCatalogV09;
 
   it('throws A2uiCatalogError when no catalogs are provided', () => {
     expect(() => new ExpressFormat([])).toThrow(A2uiCatalogError);

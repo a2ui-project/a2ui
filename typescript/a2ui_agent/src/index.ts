@@ -93,10 +93,7 @@ export {
   ExpressFormatFactory,
 } from './inference_formats/express/format.js';
 export {ExpressParser} from './inference_formats/express/parser.js';
-export {
-  type ExpressPromptOptions,
-  ExpressPromptGenerator,
-} from './inference_formats/express/prompt_generator.js';
+export {ExpressPromptGenerator} from './inference_formats/express/prompt_generator.js';
 export {ExpressDecompiler} from './inference_formats/express/decompiler.js';
 export {
   ExpressCompilerError,

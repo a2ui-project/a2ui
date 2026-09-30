@@ -19,7 +19,8 @@ import * as path from 'path';
 import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
 import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core.js';
-import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
+import {SchemaCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
 import {
@@ -27,6 +28,9 @@ import {
   ExpressValidationError,
 } from '../../../../src/inference_formats/express/errors.js';
 import {ExpressParser} from '../../../../src/inference_formats/express/parser.js';
+
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV09 = await loadBasicCatalog('v0.9');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,13 +52,13 @@ describe('ExpressDecompiler', () => {
     }
 
     if (catalogKey === 'basic_v1_0') {
-      const info = {catalog: basicCatalog('v1.0'), version: 'v1.0'};
+      const info = {catalog: basicCatalogV10, version: 'v1.0'};
       loadedCatalogs.set(catalogKey, info);
       return info;
     }
 
     if (catalogKey === 'basic_v0_9') {
-      const info = {catalog: basicCatalog('v0.9'), version: 'v0.9'};
+      const info = {catalog: basicCatalogV09, version: 'v0.9'};
       loadedCatalogs.set(catalogKey, info);
       return info;
     }

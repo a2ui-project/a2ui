@@ -38,7 +38,6 @@ import {
   ResponsePart,
   SchemaCatalog,
 } from '../../src/index.js';
-import type {ExpressPromptOptions} from '../../src/inference_formats/express/prompt_generator.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
@@ -338,16 +337,12 @@ describe('Express Conformance Suite', () => {
           }
         }
 
-        const generator = new ExpressPromptGenerator(loadedCatalogs, examples);
-        const options: ExpressPromptOptions = {};
-        if (args.allowed_messages) {
-          options.allowedMessages = args.allowed_messages as string[];
-        }
-        if (args.examples) {
-          options.includeExamples = true;
-        }
-
-        const output = generator.generate(options);
+        const generator = new ExpressPromptGenerator(
+          loadedCatalogs,
+          examples,
+          args.allowed_messages as string[] | undefined,
+        );
+        const output = generator.generate();
 
         if (testCase.expect_contains) {
           for (const fragment of testCase.expect_contains as string[]) {
@@ -360,7 +355,7 @@ describe('Express Conformance Suite', () => {
           }
         }
         if (testCase.expect_deterministic) {
-          const secondOutput = generator.generate(options);
+          const secondOutput = generator.generate();
           expect(output).toBe(secondOutput);
         }
       } else {
