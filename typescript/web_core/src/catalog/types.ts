@@ -20,6 +20,7 @@ import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {SpecVersion} from '../spec_versions.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
 import {
@@ -360,7 +361,7 @@ function createCatalogInvoker<F extends FunctionApi>(
   return (name, rawArgs, ctx, abortSignal) => {
     const fn =
       functions.get(name) ??
-      (isAtLeastVersion(protocolVersion, '1.0') && name === '@index'
+      (isAtLeastVersion(protocolVersion, SpecVersion.V1_0) && name === '@index'
         ? (IndexImplementation as unknown as F)
         : undefined);
     if (!fn) {

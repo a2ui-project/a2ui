@@ -123,6 +123,9 @@ export abstract class BasicCatalogA2uiLitElement<
     } else {
       this.removeAttribute('aria-hidden');
     }
+    if (a11y?.label && !this.hasAttribute('role')) {
+      this.setAttribute('role', 'group');
+    }
   }
 
   private setOrRemoveAttribute(attrName: string, value: unknown): void {

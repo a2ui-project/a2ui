@@ -37,6 +37,12 @@ export interface UniversalCommonProps {
 /** Checkable mixin properties for components that support input validation rules. */
 export interface UniversalCheckableProps {
   validationErrors?: string[];
+  validationResults?: Array<{
+    valid: boolean;
+    message: string;
+    code?: string;
+    severity: 'error' | 'warning' | 'info';
+  }>;
   isValid?: boolean;
 }
 

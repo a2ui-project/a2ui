@@ -30,7 +30,7 @@ import type {ValidationConfig} from './integrity-checker.js';
  * component's property schema, and so must be removed before the payload is
  * checked against that schema.
  */
-const COMPONENT_ENVELOPE_KEYS = ['id', 'component', 'catalogId', 'catalogID'] as const;
+const COMPONENT_ENVELOPE_KEYS = ['id', 'component', 'catalogId', 'metadata'] as const;
 
 /**
  * Validates A2UI payloads against the schemas of a single catalog.

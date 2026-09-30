@@ -26,6 +26,8 @@ let globalMarkdownRenderer: MarkdownRenderer | undefined;
  * Sets the global markdown renderer for basic catalog text components.
  * Host applications or renderer packages can register a renderer (e.g. from `@a2ui/markdown-it`)
  * to automatically render markdown without explicit per-component context configuration.
+ *
+ * NOTE: The provided renderer is responsible for sanitizing its generated HTML output.
  */
 export function setMarkdownRenderer(renderer?: MarkdownRenderer): void {
   globalMarkdownRenderer = renderer;
@@ -45,6 +47,7 @@ export function resetMarkdownWarningLoggedForTesting(): void {
 
 class MarkdownDirective extends AsyncDirective {
   private static defaultMarkdownWarningLogged = false;
+  private renderToken = 0;
   private lastValue: string | null = null;
   private lastRenderer: MarkdownRenderer | undefined = undefined;
   private lastTagClassMap: string | null = null;
@@ -82,10 +85,11 @@ class MarkdownDirective extends AsyncDirective {
     const effectiveRenderer = markdownRenderer ?? globalMarkdownRenderer;
 
     if (effectiveRenderer) {
+      const token = ++this.renderToken;
       try {
         Promise.resolve(effectiveRenderer(value, markdownOptions))
           .then((renderedStr: string) => {
-            if (this.isConnected && this.lastValue === value) {
+            if (this.isConnected && token === this.renderToken) {
               this.setValue(unsafeHTML(renderedStr));
             }
           })

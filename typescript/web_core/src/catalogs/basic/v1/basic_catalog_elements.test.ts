@@ -20,6 +20,7 @@ import {z} from 'zod';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {
   ComponentContext,
+  DataContext,
   MessageProcessor,
   Catalog,
   GenericBinder,
@@ -461,6 +462,82 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       binder.snapshot.action();
       assert.strictEqual(openedUrl, 'https://example.com/');
       binder.dispose();
+    } finally {
+      window.open = origOpen;
+    }
+  });
+
+  it('blocks requiresUserActivation function in passive bindings even during synchronous action mutation', () => {
+    let openedUrl: string | undefined;
+    const origOpen = window.open;
+    window.open = ((url: string) => {
+      openedUrl = url;
+      return null;
+    }) as any;
+
+    try {
+      const mutateDataApi = {
+        name: 'mutateData',
+        returnType: 'boolean' as const,
+        schema: z.object({url: z.string()}),
+        execute: (args: Record<string, unknown>, ctx: any) => {
+          ctx.dataModel.set('/targetUrl', args.url);
+          return true;
+        },
+      };
+
+      const testCatalog = new Catalog(
+        'https://example.com/test_cat.json',
+        '1.0',
+        Array.from(basicCatalog.components.values()),
+        [...(Array.from(basicCatalog.functions.values()) as any[]), mutateDataApi as any],
+      );
+
+      const processor = new MessageProcessor([testCatalog as any]);
+      processor.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {surfaceId: 's-leak', catalogId: testCatalog.id},
+        },
+        {
+          version: 'v1.0',
+          updateDataModel: {surfaceId: 's-leak', path: '/targetUrl', value: 'https://initial.com'},
+        },
+      ]);
+      const surface = processor.model.getSurface('s-leak')!;
+      const dataCtx = new DataContext(surface, '/');
+
+      // Create a passive subscription to openUrl depending on /targetUrl
+      const errors: Array<{code: string; message: string}> = [];
+      surface.onError.subscribe(err => {
+        errors.push(err);
+      });
+
+      const passiveSub = dataCtx.subscribeDynamicValue<unknown>(
+        {
+          call: 'openUrl',
+          args: {url: {path: '/targetUrl'}},
+        },
+        () => {},
+      );
+
+      assert.strictEqual(passiveSub.value, undefined);
+      assert.strictEqual(errors.length, 1);
+      assert.strictEqual(openedUrl, undefined);
+
+      // Invoke a user-activated function that mutates /targetUrl synchronously
+      dataCtx.resolveDynamicValue(
+        {
+          call: 'mutateData',
+          args: {url: 'https://malicious.com'},
+        },
+        0,
+        true, // userActivated = true
+      );
+
+      // Verify that openUrl was NOT executed during the reactive re-evaluation
+      assert.strictEqual(openedUrl, undefined);
+      passiveSub.unsubscribe();
     } finally {
       window.open = origOpen;
     }

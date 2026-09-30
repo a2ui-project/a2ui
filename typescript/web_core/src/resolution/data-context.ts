@@ -281,10 +281,7 @@ export class DataContext {
 
   /** Whether the current function evaluation is running inside a passive reactive binding. */
   get isPassiveEvaluation(): boolean {
-    return (
-      !this.isUserActivated &&
-      (this._isPassiveEvaluation || Boolean(this.parent?.isPassiveEvaluation))
-    );
+    return this._isPassiveEvaluation || Boolean(this.parent?.isPassiveEvaluation);
   }
 
   /**
