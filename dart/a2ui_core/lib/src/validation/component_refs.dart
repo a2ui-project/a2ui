@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:collection';
+
 import '../core/catalog.dart';
-
-/// The JSON Pointer suffix marking a property that holds one component id.
-const String _componentIdPointer = r'/$defs/ComponentId';
-
-/// The JSON Pointer suffix marking a property that holds a `ChildList`.
-const String _childListPointer = r'/$defs/ChildList';
+import '../primitives/reference_schema.dart';
 
 /// Which properties of one component type reference other components.
 ///
@@ -42,13 +39,6 @@ class ComponentRefFields {
   });
 }
 
-/// Properties that name the component itself rather than another one.
-///
-/// `ComponentCommon` declares `id` as a `ComponentId`, so a catalog that
-/// inlines it would otherwise read every component's own id as a reference to
-/// itself. `component` names the type, never a child.
-const Set<String> _selfDescribingProperties = {'id', 'component'};
-
 /// One reference from a component to another component.
 class ComponentReference {
   /// The referenced component id.
@@ -67,6 +57,11 @@ class ComponentReference {
 /// documents write it, and the `REF:` description pointer that catalogs built
 /// in Dart carry (see `CommonSchemas`). Local `$ref`s are followed first
 /// against the component's own `$defs`, then against the catalog document.
+/// An unmarked string `child` or string-array `children` also counts, for
+/// ad-hoc schemas that carry neither notation.
+///
+/// An unmarked `componentId`-and-`path` object is not treated as a child
+/// list.
 Map<String, ComponentRefFields>
     extractComponentRefFields<C extends ComponentApi, F extends FunctionApi>(
         Catalog<C, F> catalog) {
@@ -74,181 +69,72 @@ Map<String, ComponentRefFields>
   final result = <String, ComponentRefFields>{};
 
   for (final MapEntry<String, C> entry in catalog.components.entries) {
-    final Object schema = entry.value.schema.value;
-    final single = <String>{};
-    final list = <String>{};
-    final nested = <String, Set<String>>{};
-    _collectFrom(schema, document, single, list, nested);
-    if (single.isNotEmpty || list.isNotEmpty) {
-      result[entry.key] = ComponentRefFields(
-        single: single,
-        list: list,
-        nested: nested,
-      );
-    }
+    final RefFields fields = _withNamedFallbacks(
+      ReferenceSchemaReader(
+        entry.value.schema.value,
+        document: document,
+        structuralChildLists: false,
+      ),
+    );
+    if (fields.isEmpty) continue;
+    result[entry.key] = ComponentRefFields(
+      single: {
+        for (final field in fields.entries)
+          if (field.value is SingleRef) field.key,
+      },
+      list: {
+        for (final field in fields.entries)
+          if (field.value is! SingleRef) field.key,
+      },
+      nested: {
+        // Every item property that references components, including child
+        // lists, not only the single references in NestedRef.keys.
+        for (final field in fields.entries)
+          if (field.value case NestedRef(fields: final itemFields))
+            field.key: itemFields.keys.toSet(),
+      },
+    );
   }
   return result;
 }
 
-/// Walks one component schema, including its `allOf`/`oneOf`/`anyOf` branches,
-/// recording every property that references components.
-void _collectFrom(
-  Object? schema,
-  Map<String, Object?> document,
-  Set<String> single,
-  Set<String> list,
-  Map<String, Set<String>> nested,
-) {
-  if (schema is! Map) return;
-  final Map<String, Object?> node = schema.cast<String, Object?>();
-
-  final Object? properties = node['properties'];
-  if (properties is Map) {
-    for (final MapEntry<Object?, Object?> property in properties.entries) {
-      final name = property.key! as String;
-      if (_selfDescribingProperties.contains(name)) continue;
-      final Object? resolved = _resolve(property.value, node, document);
-      if (_marks(resolved, _componentIdPointer, node, document) ||
-          (name == 'child' &&
-              resolved is Map &&
-              resolved['type'] == 'string')) {
-        single.add(name);
-        continue;
-      }
-      if (_marks(resolved, _childListPointer, node, document)) {
-        list.add(name);
-        continue;
-      }
-      _collectArrayProperty(name, resolved, node, document, list, nested);
+/// Reads [reader]'s fields, adding an unmarked string `child` as a single
+/// reference and an unmarked string-array `children` as a list.
+RefFields _withNamedFallbacks(ReferenceSchemaReader reader) {
+  final RefFields fields = reader.fields();
+  final added = <String, RefKind>{};
+  for (final Map<String, Object?> node in reader.schemas(reader.root)) {
+    final Object? properties = node['properties'];
+    if (properties is! Map) continue;
+    final Map<String, Object?>? child = _target(reader, properties['child']);
+    if (!fields.containsKey('child') && child?['type'] == 'string') {
+      added['child'] = const SingleRef();
+    }
+    final Map<String, Object?>? children = _target(
+      reader,
+      properties['children'],
+    );
+    if (!fields.containsKey('children') &&
+        children?['type'] == 'array' &&
+        _target(reader, children?['items'])?['type'] == 'string') {
+      added['children'] = const ListRef();
     }
   }
-
-  for (final combinator in const ['allOf', 'oneOf', 'anyOf']) {
-    final Object? branches = node[combinator];
-    if (branches is! List) continue;
-    for (final Object? branch in branches) {
-      _collectFrom(
-        _resolve(branch, node, document),
-        document,
-        single,
-        list,
-        nested,
-      );
-    }
-  }
+  return added.isEmpty ? fields : {...fields, ...added};
 }
 
-/// Classifies an array property: an array of ids, or an array of objects with
-/// id-bearing keys.
-void _collectArrayProperty(
-  String name,
-  Object? resolved,
-  Map<String, Object?> owner,
-  Map<String, Object?> document,
-  Set<String> list,
-  Map<String, Set<String>> nested,
-) {
-  if (resolved is! Map) return;
-  final Map<String, Object?> node = resolved.cast<String, Object?>();
-  if (node['type'] != 'array' || !node.containsKey('items')) return;
-
-  final Object? items = _resolve(node['items'], owner, document);
-  if (_marks(items, _componentIdPointer, owner, document) ||
-      _marks(items, _childListPointer, owner, document) ||
-      (name == 'children' && items is Map && items['type'] == 'string')) {
-    list.add(name);
-    return;
+/// Follows local `$ref`s from [schema] without entering combinator branches.
+Map<String, Object?>? _target(ReferenceSchemaReader reader, Object? schema) {
+  final visited = HashSet<Object>.identity();
+  var current = schema;
+  while (current is Map && visited.add(current)) {
+    final Object? ref = current[r'$ref'];
+    if (ref is! String) return current.cast<String, Object?>();
+    final List<Map<String, Object?>> reached = reader.schemas({r'$ref': ref});
+    if (reached.length < 2) return current.cast<String, Object?>();
+    current = reached[1];
   }
-  if (items is! Map) return;
-  final Object? itemProperties = items['properties'];
-  if (itemProperties is! Map) return;
-
-  final keys = <String>{};
-  for (final MapEntry<Object?, Object?> property in itemProperties.entries) {
-    final Object? sub = _resolve(property.value, owner, document);
-    if (_marks(sub, _componentIdPointer, owner, document) ||
-        _marks(sub, _childListPointer, owner, document)) {
-      keys.add(property.key! as String);
-    }
-  }
-  if (keys.isNotEmpty) {
-    list.add(name);
-    nested.putIfAbsent(name, () => <String>{}).addAll(keys);
-  }
-}
-
-/// Whether [schema] carries [pointer], directly or in a combinator branch.
-bool _marks(
-  Object? schema,
-  String pointer,
-  Map<String, Object?> owner,
-  Map<String, Object?> document,
-) {
-  if (schema is! Map) return false;
-  final Map<String, Object?> node = schema.cast<String, Object?>();
-
-  final Object? ref = node[r'$ref'];
-  if (ref is String && ref.endsWith(pointer)) return true;
-
-  // Catalogs built in Dart carry the pointer in the description, as
-  // `REF:<pointer>` optionally followed by `|<description>`.
-  final Object? description = node['description'];
-  if (description is String && description.startsWith('REF:')) {
-    final String target = description.substring(4).split('|').first;
-    if (target.endsWith(pointer)) return true;
-  }
-
-  for (final combinator in const ['oneOf', 'anyOf', 'allOf']) {
-    final Object? branches = node[combinator];
-    if (branches is! List) continue;
-    for (final Object? branch in branches) {
-      if (_marks(_resolve(branch, owner, document), pointer, owner, document)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-/// Follows a local `$ref` so detection sees the schema it names.
-///
-/// Pointers into `ComponentId` and `ChildList` are left alone: they are the
-/// markers being looked for, not indirection to follow.
-Object? _resolve(
-  Object? schema,
-  Map<String, Object?> owner,
-  Map<String, Object?> document, [
-  Set<String>? seen,
-]) {
-  if (schema is! Map) return schema;
-  final Object? ref = schema[r'$ref'];
-  if (ref is! String ||
-      !ref.startsWith('#/') ||
-      ref.endsWith(_componentIdPointer) ||
-      ref.endsWith(_childListPointer)) {
-    return schema;
-  }
-
-  final Set<String> visited = seen ?? <String>{};
-  if (!visited.add(ref)) return schema;
-
-  final List<String> segments = ref.split('/').skip(1).toList();
-  final Object? local = _follow(owner, segments);
-  if (local != null) return _resolve(local, owner, document, visited);
-  final Object? global = _follow(document, segments);
-  if (global != null) return _resolve(global, owner, document, visited);
-  return schema;
-}
-
-/// Walks [segments] through [root], returning null if any step is missing.
-Object? _follow(Map<String, Object?> root, List<String> segments) {
-  Object? current = root;
-  for (final segment in segments) {
-    if (current is! Map) return null;
-    if (!current.containsKey(segment)) return null;
-    current = current[segment];
-  }
-  return identical(current, root) ? null : current;
+  return null;
 }
 
 /// Lists every component [component] references, in declaration order.
