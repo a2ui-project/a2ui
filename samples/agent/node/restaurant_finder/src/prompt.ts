@@ -40,6 +40,20 @@ export function getUiDescription(format: 'direct_json' | 'express'): string {
   return format === 'express' ? UI_DESCRIPTION_EXPRESS : UI_DESCRIPTION_DIRECT_JSON;
 }
 
+/**
+ * Builds the system prompt around the SDK's prompt snippet.
+ *
+ * The snippet tells the model how to write A2UI for the negotiated catalogs: the format's
+ * rules, the catalog schemas and the examples. The role and the UI description around it
+ * are this agent's own.
+ */
+export function buildSystemPrompt(
+  format: 'direct_json' | 'express',
+  promptSnippet: string,
+): string {
+  return [ROLE_DESCRIPTION, getUiDescription(format), promptSnippet].join('\n\n');
+}
+
 /** The answer when no attempt produced valid A2UI. */
 export const FALLBACK_TEXT =
   "I'm sorry, I'm having trouble generating the interface for that request right now. Please try again in a moment.";

@@ -18,14 +18,13 @@
 // pickA2ui reads them and falls back to v0.9 when the metadata says nothing.
 
 import type {Message} from '@a2a-js/sdk';
-import {basicCatalog} from '@a2ui/agent';
 import {describe, expect, it} from 'vitest';
 
 import {pickA2ui} from '../src/pick_a2ui.js';
 import {DEFAULT_VERSION, V0_9, V1_0} from '../src/versions.js';
 
-const V0_9_CATALOG = basicCatalog('v0.9').id;
-const V1_0_CATALOG = basicCatalog('v1.0').id;
+const V0_9_CATALOG = V0_9.basicCatalogId;
+const V1_0_CATALOG = V1_0.basicCatalogId;
 
 function message(metadata?: Record<string, unknown>): Message {
   return {
