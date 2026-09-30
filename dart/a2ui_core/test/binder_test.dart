@@ -12,15 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
+import 'package:a2ui_core/src/core/catalog.dart';
 import 'package:a2ui_core/src/core/common_schemas.dart';
 import 'package:a2ui_core/src/core/component_model.dart';
 import 'package:a2ui_core/src/core/contexts.dart';
+import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
+import 'package:a2ui_core/src/primitives/cancellation.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
 import 'package:a2ui_core/src/resolution/resolved_binding.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
+
+/// A catalog function that hands its resolved arguments to [onExecute].
+class _SpyFunction extends FunctionImplementation {
+  _SpyFunction(String name, this.onExecute)
+      : super(name: name, argumentSchema: Schema.object());
+
+  final Object? Function(Map<String, dynamic> args) onExecute;
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      onExecute(args);
+}
 
 void main() {
   group('GenericBinder', () {
@@ -76,6 +97,199 @@ void main() {
       await (action as Function)();
 
       expect(actionName, 'test_action');
+    });
+
+    group('local function actions', () {
+      final calls = <Map<String, dynamic>>[];
+      late SurfaceModel spySurface;
+      final actions = <A2uiClientAction>[];
+      final errors = <A2uiClientError>[];
+
+      setUp(() {
+        calls.clear();
+        actions.clear();
+        errors.clear();
+        spySurface = SurfaceModel(
+          's2',
+          catalog: Catalog<ComponentApi, FunctionImplementation>(
+            id: 'test',
+            components: [MinimalButtonApi()],
+            functions: [
+              _SpyFunction('spy', (args) {
+                calls.add(args);
+                return null;
+              }),
+              _SpyFunction('failAsync', (_) async {
+                await Future<void>.delayed(Duration.zero);
+                throw StateError('async failure');
+              }),
+              _SpyFunction('slow', (args) async {
+                await Future<void>.delayed(Duration.zero);
+                calls.add({'slow': true, ...args});
+                return null;
+              }),
+            ],
+          ),
+        );
+        spySurface.onAction.addListener(actions.add);
+        spySurface.onError.addListener(errors.add);
+        spySurface.dataModel.set('/items', [
+          {'label': 'first'},
+          {'label': 'second'},
+        ]);
+      });
+
+      Future<void> invokeAction(
+        Map<String, dynamic> action, {
+        String? basePath,
+      }) async {
+        final comp = ComponentModel('c1', 'Button', {
+          'child': 'c2',
+          'action': action,
+        });
+        spySurface.componentsModel.addComponent(comp);
+        final context = ComponentContext(spySurface, comp, basePath: basePath);
+        final binder = GenericBinder(context, MinimalButtonApi().schema);
+        final Object? callback = binder.resolvedProps.value['action'];
+        expect(callback, isA<Future<void> Function()>());
+        await (callback as Future<void> Function())();
+      }
+
+      test('runs functionCall against the component data context', () async {
+        await invokeAction({
+          'functionCall': {
+            'call': 'spy',
+            'args': {
+              'label': {'path': 'label'},
+              'literal': 7,
+            },
+          },
+        }, basePath: '/items/1');
+
+        expect(calls, [
+          {'label': 'second', 'literal': 7},
+        ]);
+        expect(actions, isEmpty);
+        expect(errors, isEmpty);
+      });
+
+      test('runs unwrapped call against the component data context', () async {
+        await invokeAction({
+          'call': 'spy',
+          'args': {
+            'label': {'path': 'label'},
+          },
+        }, basePath: '/items/0');
+
+        expect(calls, [
+          {'label': 'first'},
+        ]);
+        expect(actions, isEmpty);
+        expect(errors, isEmpty);
+      });
+
+      test('awaits a function that returns a Future', () async {
+        await invokeAction({
+          'functionCall': {
+            'call': 'slow',
+            'args': {'n': 1},
+          },
+        });
+
+        expect(calls, [
+          {'slow': true, 'n': 1},
+        ]);
+      });
+
+      test('reports a missing function through onError', () async {
+        await invokeAction({
+          'functionCall': {'call': 'doesNotExist', 'args': <String, Object?>{}},
+        });
+
+        expect(actions, isEmpty);
+        expect(errors, hasLength(1));
+        expect(errors.single.code, 'EXPRESSION_ERROR');
+        expect(errors.single.surfaceId, 's2');
+        expect(errors.single.message, contains('doesNotExist'));
+      });
+
+      test('reports an async function failure through onError', () async {
+        await invokeAction({
+          'functionCall': {'call': 'failAsync', 'args': <String, Object?>{}},
+        });
+
+        expect(actions, isEmpty);
+        expect(errors, hasLength(1));
+        expect(errors.single.message, contains('async failure'));
+      });
+    });
+
+    test('resolves each context entry as a separate dynamic value', () async {
+      A2uiClientAction? dispatchedAction;
+      surface.onAction.addListener((action) {
+        dispatchedAction = action;
+      });
+      surface.dataModel.set('/tab', 'general');
+
+      final comp = ComponentModel('c1', 'Button', {
+        'child': 'c2',
+        'action': {
+          'event': {
+            'name': 'navigate',
+            'context': {
+              'path': '/settings',
+              'call': 'literal',
+              'tab': {'path': '/tab'},
+            },
+          },
+        },
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalButtonApi().schema);
+      await (binder.resolvedProps.value['action'] as Future<void> Function())();
+
+      expect(dispatchedAction, isNotNull);
+      expect(dispatchedAction!.context, {
+        'path': '/settings',
+        'call': 'literal',
+        'tab': 'general',
+      });
+    });
+
+    test('resolves direct name action with userMessage and context', () async {
+      A2uiClientAction? dispatchedAction;
+      surface.onAction.addListener((action) {
+        dispatchedAction = action;
+      });
+
+      surface.dataModel.set('/userId', 'u123');
+      surface.dataModel.set('/msg', 'Sending message');
+
+      final comp = ComponentModel('c1', 'Button', {
+        'child': 'c2',
+        'action': {
+          'name': 'submit_direct',
+          'userMessage': {'path': '/msg'},
+          'context': {
+            'user': {'path': '/userId'},
+          },
+        },
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalButtonApi().schema);
+
+      final Object? action = binder.resolvedProps.value['action'];
+      expect(action, isA<Function>());
+      await (action as Function)();
+
+      expect(dispatchedAction, isNotNull);
+      expect(dispatchedAction!.name, 'submit_direct');
+      expect(dispatchedAction!.userMessage, 'Sending message');
+      expect(dispatchedAction!.context, {'user': 'u123'});
     });
 
     test('writes back a nested map with non-string keys', () {

@@ -18,6 +18,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/contexts.dart';
+import '../core/messages.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
 import '../resolution/resolved_binding.dart';
@@ -195,8 +196,22 @@ class GenericBinder {
           return cached.closure;
         }
         Future<void> closure() async {
-          // Bindings nested in the payload resolve at dispatch, in this scope.
-          final Object? resolved = context.dataContext.resolveSync(value);
+          // The v0.9.1 and v1.0 `Action` schemas define only the
+          // `{functionCall: {call, args}}` and `{event: {name, ...}}` forms.
+          // The unwrapped `{call, args}` and `{name, ...}` forms are also
+          // accepted on purpose, to match the TypeScript web_core binder.
+          if (value is Map) {
+            final Object? fc =
+                value['functionCall'] is Map ? value['functionCall'] : value;
+            if (fc is Map && fc['call'] is String) {
+              await _runLocalFunction(Map<String, dynamic>.from(fc));
+              return;
+            }
+          }
+          final Object? resolved = _resolveEventAction(
+            context.dataContext,
+            value,
+          );
           final Map<String, dynamic> resolvedAction;
           if (resolved is Map) {
             resolvedAction = Map<String, dynamic>.from(resolved);
@@ -498,6 +513,68 @@ class GenericBinder {
     }
 
     return BehaviorNode(Behavior.static);
+  }
+
+  /// Runs a local function action against the component's data context.
+  ///
+  /// A function that throws, returns a failing `Future`, or is missing from
+  /// the catalog is reported through `SurfaceModel.dispatchError`, so the
+  /// error does not escape a renderer callback that doesn't await the action.
+  Future<void> _runLocalFunction(Map<String, dynamic> functionCall) async {
+    try {
+      final Object? result = context.dataContext.resolveSync(functionCall);
+      if (result is Future<Object?>) await result;
+    } catch (e) {
+      await context.surface.dispatchError(
+        A2uiClientError(
+          code: 'EXECUTION_ERROR',
+          surfaceId: context.surface.id,
+          message:
+              "Local function '${functionCall['call']}' failed in component "
+              "'${context.componentModel.id}': $e",
+        ),
+      );
+    }
+  }
+
+  Map<String, dynamic> _resolveActionFields(
+    DataContext dataContext,
+    Map<String, dynamic> map,
+  ) {
+    final result = Map<String, dynamic>.from(map);
+    // Each context value is a separate `DynamicValue`, so resolve entries one
+    // by one. Resolving the whole map at once would read a context key named
+    // `path` or `call` as a data binding or function call.
+    final Object? ctx = result['context'];
+    if (ctx is Map) {
+      result['context'] = <String, Object?>{
+        for (final MapEntry<Object?, Object?> e in ctx.entries)
+          e.key.toString(): dataContext.resolveSync(e.value),
+      };
+    }
+    if (result.containsKey('userMessage')) {
+      result['userMessage'] = dataContext.resolveSync(result['userMessage']);
+    }
+    return result;
+  }
+
+  Object? _resolveEventAction(DataContext dataContext, Object? value) {
+    if (value is! Map) {
+      return dataContext.resolveSync(value);
+    }
+    final map = Map<String, dynamic>.from(value);
+    final Object? eventObj = map['event'];
+    if (eventObj is Map) {
+      final Map<String, dynamic> ev = _resolveActionFields(
+        dataContext,
+        Map<String, dynamic>.from(eventObj),
+      );
+      return {...map, 'event': ev};
+    }
+    if (map.containsKey('name')) {
+      return _resolveActionFields(dataContext, map);
+    }
+    return dataContext.resolveSync(value);
   }
 
   /// Permanently disconnects this binder, including an interrupted rebuild.
