@@ -38,12 +38,16 @@ public struct A2UIDataError: A2UIError, Equatable, Sendable {
   /// The error message.
   public let message: String
 
+  /// The invalid path, if applicable.
+  public let path: String?
+
   /// Specific structured diagnostic failure details.
   public let details: [A2UIErrorDetail]
 
-  /// Creates a data model error with an optional list of structured details.
-  public init(_ message: String, details: [A2UIErrorDetail] = []) {
+  /// Creates a data model error with an optional path and structured details.
+  public init(_ message: String, path: String? = nil, details: [A2UIErrorDetail] = []) {
     self.message = message
+    self.path = path
     self.details = details
   }
 }

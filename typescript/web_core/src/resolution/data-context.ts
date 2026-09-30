@@ -247,7 +247,7 @@ export class DataContext {
   readonly explicitIndex?: number;
   private readonly warnedPaths: Set<string>;
 
-  readonly surface: SurfaceModel<any>;
+  readonly surface?: SurfaceModel<any>;
 
   /**
    * Initializes a new DataContext instance.
@@ -264,13 +264,13 @@ export class DataContext {
     parent?: DataContext,
   ) {
     if (surface instanceof DataModel) {
-      this.surface = undefined as any;
+      this.surface = undefined;
       this.dataModel = surface;
       this.functionInvoker = () => undefined;
     } else {
       this.surface = surface;
       this.dataModel = surface.dataModel;
-      this.functionInvoker = surface.defaultCatalog?.invoker;
+      this.functionInvoker = surface.defaultCatalog?.invoker ?? (() => undefined);
     }
     this.explicitIndex = index;
     this.parent = parent;
@@ -722,6 +722,11 @@ export class DataContext {
    *   available here.
    */
   private resolveFunctionCatalog(catalogId?: string): Catalog<any> {
+    if (!this.surface) {
+      throw new A2uiCatalogError(
+        `No surface available to resolve catalog: ${catalogId ?? 'default'}`,
+      );
+    }
     if (catalogId === undefined) {
       return this.surface.defaultCatalog;
     }
@@ -768,6 +773,7 @@ export class DataContext {
   }
 
   private dispatchExpressionError(e: unknown, name: string): void {
+    if (!this.surface) return;
     if (
       e instanceof z.ZodError ||
       (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')

@@ -89,6 +89,12 @@ class DataModel {
       if (dataPath.isEmpty) {
         _data = value ?? <String, Object?>{};
       } else {
+        if (_data != null && _data is! Map && _data is! List) {
+          throw A2uiDataError(
+            "Cannot set path '$path': the data model root is a primitive value.",
+            path: path,
+          );
+        }
         _data ??= <String, Object?>{};
         Object? current = _data;
         for (var i = 0; i < dataPath.segments.length - 1; i++) {

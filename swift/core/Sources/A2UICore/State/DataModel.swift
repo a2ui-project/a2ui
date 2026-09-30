@@ -56,7 +56,7 @@ public final class DataModel: ObservableObject {
     if components.isEmpty {
       return dataSubject.value
     }
-    return dataSubject.value[path]
+    return dataSubject.value[components]
   }
 
   /// Resolves a JSON Pointer path to a value.
@@ -128,7 +128,11 @@ public final class DataModel: ObservableObject {
     let id = UUID()
     listeners[normalized, default: []].append((id: id, callback: listener))
     return AnyCancellable { [weak self] in
-      self?.listeners[normalized]?.removeAll { $0.id == id }
+      guard let self else { return }
+      self.listeners[normalized]?.removeAll { $0.id == id }
+      if self.listeners[normalized]?.isEmpty == true {
+        self.listeners.removeValue(forKey: normalized)
+      }
     }
   }
 
@@ -152,7 +156,8 @@ public final class DataModel: ObservableObject {
   ) {
     let changedPath = Self.buildPointer(changedComponents)
     let changedPrefix = changedPath == "/" ? "/" : "\(changedPath)/"
-    for (watchedPath, callbacks) in listeners {
+    let snapshot = listeners
+    for (watchedPath, callbacks) in snapshot {
       let watchedPrefix = watchedPath == "/" ? "/" : "\(watchedPath)/"
       if changedPath == watchedPath
         || watchedPath.hasPrefix(changedPrefix)
@@ -161,7 +166,8 @@ public final class DataModel: ObservableObject {
         let newVal = get(watchedPath)
         let oldVal = oldValues[watchedPath] ?? nil
         if newVal != oldVal {
-          for entry in callbacks {
+          let callbacksSnapshot = callbacks
+          for entry in callbacksSnapshot {
             entry.callback(newVal)
           }
         }
