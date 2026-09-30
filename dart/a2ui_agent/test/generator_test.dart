@@ -43,7 +43,10 @@ class _TextFormat extends InferenceFormat {
 }
 
 class _TextPromptGenerator extends PromptGenerator {
-  const _TextPromptGenerator(super.catalogs, {super.examples});
+  const _TextPromptGenerator(this.catalogs, {required this.examples});
+
+  final List<SchemaCatalog> catalogs;
+  final List<List<AgentToRendererMessage>> examples;
 
   @override
   String generate() =>

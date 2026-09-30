@@ -12,16 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart';
+
 import '../../prompt/generator.dart';
 
 /// Renders the system prompt snippet teaching a model to write A2UI messages
 /// as JSON inside `<a2ui-json>` tags.
 class DirectJsonPromptGenerator extends PromptGenerator {
   const DirectJsonPromptGenerator(
-    super.catalogs, {
-    super.examples,
+    this.catalogs, {
+    this.examples = const [],
     this.allowedMessages,
   });
+
+  /// The catalogs whose components and functions the snippet describes.
+  final List<SchemaCatalog> catalogs;
+
+  /// Example turns the snippet shows the model, in order. Each is the list of
+  /// messages making up one turn.
+  final List<List<AgentToRendererMessage>> examples;
 
   /// The message types the model may write, such as `createSurface`, or null
   /// for all of them.

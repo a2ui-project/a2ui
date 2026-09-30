@@ -20,20 +20,21 @@ import '../../parser/response_part.dart';
 /// Reads A2UI messages written as JSON inside `<a2ui-json>` tags, from a
 /// complete response or as it streams.
 class DirectJsonParser extends Parser {
-  DirectJsonParser(List<SchemaCatalog> catalogs, {this.customProgressiveKeys})
-    : catalogs = List.unmodifiable(catalogs);
+  DirectJsonParser(
+    List<SchemaCatalog> catalogs, {
+    Set<String> progressiveKeys = const {},
+  }) : catalogs = List.unmodifiable(catalogs),
+       progressiveKeys = Set.unmodifiable(progressiveKeys);
 
   /// The catalogs payloads are validated against.
   final List<SchemaCatalog> catalogs;
 
-  /// Replaces the default [progressiveKeys] when not null.
-  final Set<String>? customProgressiveKeys;
-
   /// The string properties whose value a streamed payload may show before
   /// the value is complete, such as the text of a `Text` component.
-  Set<String> get progressiveKeys =>
-      customProgressiveKeys ??
-      (throw UnimplementedError('DirectJsonParser.progressiveKeys'));
+  ///
+  /// Which properties hold prose depends on the catalog, so there is no
+  /// built-in set. Empty turns healing off.
+  final Set<String> progressiveKeys;
 
   /// Direct JSON can be read before a block closes, by healing the unfinished
   /// JSON.

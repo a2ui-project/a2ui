@@ -20,33 +20,64 @@ import 'prompt_generator.dart';
 
 /// The direct JSON format: A2UI messages written as JSON inside `<a2ui-json>`
 /// tags, which can be read while the response streams.
+///
+/// The SDK calls [createFormat] with the catalogs of each request, so the
+/// options of the format are given here and passed on to every format created.
 class DirectJsonFormatFactory extends InferenceFormatFactory {
-  const DirectJsonFormatFactory();
+  /// See [DirectJsonFormat] for [allowedMessages] and [progressiveKeys].
+  const DirectJsonFormatFactory({
+    this.allowedMessages,
+    this.progressiveKeys = const {},
+  });
+
+  /// The message types the model may write, such as `createSurface`, or null
+  /// for all of them.
+  final List<String>? allowedMessages;
+
+  /// The string properties each parser shows while their value streams.
+  final Set<String> progressiveKeys;
 
   @override
   InferenceFormat createFormat(
     List<SchemaCatalog> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
-  }) => DirectJsonFormat(catalogs, examples: examples);
+  }) => DirectJsonFormat(
+    catalogs,
+    examples: examples,
+    allowedMessages: allowedMessages,
+    progressiveKeys: progressiveKeys,
+  );
 }
 
 /// The direct JSON format bound to the catalogs of one request.
 class DirectJsonFormat extends InferenceFormat {
   /// [allowedMessages] names the message types the model may write, such as
   /// `createSurface`; null allows all of them.
+  ///
+  /// [progressiveKeys] names the string properties whose value a parser shows
+  /// before it is complete, such as the text of a `Text` component. Which
+  /// properties hold prose depends on the catalog, so there is no built-in
+  /// set. Empty turns healing off.
   DirectJsonFormat(
     List<SchemaCatalog> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
     List<String>? allowedMessages,
+    Set<String> progressiveKeys = const {},
   }) : promptGenerator = DirectJsonPromptGenerator(
          List.unmodifiable(catalogs),
          examples: List.unmodifiable(examples),
          allowedMessages: allowedMessages,
-       );
+       ),
+       _progressiveKeys = Set.unmodifiable(progressiveKeys);
+
+  final Set<String> _progressiveKeys;
 
   @override
   final DirectJsonPromptGenerator promptGenerator;
 
   @override
-  DirectJsonParser createParser() => DirectJsonParser(promptGenerator.catalogs);
+  DirectJsonParser createParser() => DirectJsonParser(
+    promptGenerator.catalogs,
+    progressiveKeys: _progressiveKeys,
+  );
 }

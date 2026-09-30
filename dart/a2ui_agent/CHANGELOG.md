@@ -7,7 +7,9 @@
   - `CatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`
     and `CatalogConfig.fromPath`.
   - The direct JSON format: `DirectJsonFormatFactory`, `DirectJsonFormat`,
-    `DirectJsonPromptGenerator` and `DirectJsonParser`.
+    `DirectJsonPromptGenerator` and `DirectJsonParser`. The factory takes
+    `allowedMessages` and `progressiveKeys` and passes them to each format it
+    creates.
   - Express decompilation, and prompt examples in the Express prompt.
   - Inline catalogs in `resolveCatalogs`.
 - Added `CatalogTransformer`, `ComponentPruningTransformer`,
@@ -15,8 +17,9 @@
 - Added `resolveCatalogs`, which `A2uiGenerator.createProcessor` now uses. The
   active catalogs are the transformed ones.
 - Added `examples` to `A2uiGenerator`, `A2uiRequestProcessor`,
-  `PromptGenerator` and `InferenceFormatFactory.createFormat`. A processor
-  checks each example against its active catalogs when it is created.
+  `ExpressPromptGenerator` and `InferenceFormatFactory.createFormat`. A
+  processor checks each example against its active catalogs when it is
+  created.
 - `A2uiGenerator.createProcessor` takes an `inferenceFormatFactory` that
   overrides the generator's.
 - `Parser` has new members: `hasFormatContent`, `wrap`, `decompile`,
@@ -26,8 +29,7 @@
   `A2uiRequestProcessor.formatFactory` default to `DirectJsonFormatFactory`
   instead of being required, as in the blueprint.
 - Breaking: custom `Parser` subclasses must implement the new abstract
-  members, and custom `PromptGenerator` subclasses pass `catalogs` to the base
-  constructor.
+  members.
 
 ## 0.0.1-wip004
 
