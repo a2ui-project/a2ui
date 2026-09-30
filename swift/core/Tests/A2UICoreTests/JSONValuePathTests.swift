@@ -104,4 +104,18 @@ struct JSONValuePathTests {
     value["0/name"] = "Alice"
     #expect(value == .string("primitive"))
   }
+
+  @MainActor
+  @Test func watchCancellationStopsDeliveringUpdates() throws {
+    let model = DataModel(initial: ["user": ["name": "Alice"]])
+    var observed: [String?] = []
+    let cancellable = try model.watch("/user/name") { val in
+      observed.append(val?.stringValue)
+    }
+    try model.setThrowing("/user/name", value: "Bob")
+    #expect(observed == ["Bob"])
+    cancellable.cancel()
+    try model.setThrowing("/user/name", value: "Charlie")
+    #expect(observed == ["Bob"])
+  }
 }

@@ -38,7 +38,7 @@ export class Slider extends Root {
   @property()
   accessor label: Primitives.StringValue | null = null;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -116,7 +116,7 @@ export class Slider extends Root {
     </section>`;
   }
 
-  render() {
+  override render() {
     if (this.value && typeof this.value === 'object') {
       if ('literalNumber' in this.value && this.value.literalNumber) {
         return this.#renderField(this.value.literalNumber);

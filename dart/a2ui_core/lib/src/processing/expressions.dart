@@ -40,11 +40,23 @@ class ExpressionParser {
   /// this parser can be driven into by an agent-supplied template.
   static const int maxDepth = 100;
 
+  /// The maximum allowed length for expression template strings.
+  static const int maxTemplateLength = 10000;
+
+  /// The maximum allowed number of parts in an expression template.
+  static const int maxTemplateParts = 1000;
+
   /// Parses an input string into a list of components (literals or
   /// [Map] representations of expressions).
   List<Object?> parse(String input, [int depth = 0]) {
     if (depth > maxDepth) {
       throw A2uiExpressionError('Max recursion depth reached in parse');
+    }
+    if (input.length > maxTemplateLength) {
+      throw A2uiExpressionError(
+        'Expression template length (${input.length}) exceeds maximum limit '
+        '($maxTemplateLength)',
+      );
     }
     if (!input.contains('\${')) {
       return [input];
@@ -54,11 +66,18 @@ class ExpressionParser {
     final scanner = _Scanner(input);
 
     while (!scanner.isAtEnd) {
+      if (parts.length >= maxTemplateParts) {
+        throw A2uiExpressionError(
+          'Expression parts count exceeds maximum limit ($maxTemplateParts)',
+        );
+      }
       if (scanner.matches('\${')) {
         scanner.advance(2);
         final String content = _extractInterpolationContent(scanner);
         final Object? parsed = parseExpression(content, depth + 1);
-        parts.add(parsed);
+        if (parsed != null) {
+          parts.add(parsed);
+        }
       } else if (scanner.matches('\\\${')) {
         scanner.advance(1); // skip \
         final int start = scanner.pos;

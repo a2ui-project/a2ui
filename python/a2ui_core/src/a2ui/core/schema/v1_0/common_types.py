@@ -74,10 +74,10 @@ class FunctionCall(StrictBaseModel):
 CallId = str
 
 
-DynamicString = StrictStr | DataBinding | FunctionCall
-
-
 DynamicBoolean = StrictBool | DataBinding | FunctionCall
+
+
+DynamicString = StrictStr | DataBinding | FunctionCall
 
 
 class AccessibilityAttributes(StrictBaseModel):
@@ -103,12 +103,12 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
     live: Literal["off", "polite", "assertive"] | None = Field(
+        None,
         description=(
             "Controls screen reader announcements for dynamic updates (WAI-ARIA"
             " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
-            " immediately for alerts."
+            ' immediately for alerts. Defaults to "off" when absent.'
         ),
-        default="off",
     )
     hidden: DynamicBoolean | None = Field(
         None,
@@ -180,11 +180,11 @@ DynamicStringList = list[StrictStr] | DataBinding | FunctionCall
 class IndexSystemFunctionArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     offset: DynamicNumber | None = Field(
+        None,
         description=(
             "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based"
             " indexing). Defaults to 0."
         ),
-        default=0,
     )
 
 

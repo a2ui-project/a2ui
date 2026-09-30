@@ -73,7 +73,7 @@ class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> {
     }
   `;
 
-  protected readonly api = IconApi;
+  protected override readonly api = IconApi;
 
   override render() {
     const props = this.controller.props;

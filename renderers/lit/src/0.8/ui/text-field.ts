@@ -40,7 +40,7 @@ export class TextField extends Root {
   @property()
   accessor validationRegexp: string | null = null;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -132,7 +132,7 @@ export class TextField extends Root {
     </section>`;
   }
 
-  render() {
+  override render() {
     const label = extractStringValue(this.label, this.component, this.processor, this.surfaceId);
     const value = extractStringValue(this.text, this.component, this.processor, this.surfaceId);
 

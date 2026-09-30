@@ -15,13 +15,15 @@
  */
 
 import type {ComponentContext} from '../../resolution/component-context.js';
+import type {ComponentNode} from '../../resolution/component-node.js';
 
 /**
  * The DOM contract an A2UI Custom Element fulfills.
  *
  * A host renderer creates the element for a `WebComponentImplementation` and
- * assigns `context`; the element binds itself from there. Renderers use this
- * type to set the property on an element they have only as an `HTMLElement`.
+ * assigns `node` (preferred) or `context`; the element binds itself from
+ * there. Renderers use this type to set the properties on an element they
+ * have only as an `HTMLElement`.
  */
 export interface A2uiWebComponentElement extends HTMLElement {
   /**
@@ -34,4 +36,13 @@ export interface A2uiWebComponentElement extends HTMLElement {
    * unset while the element is detached or rendered standalone.
    */
   context?: ComponentContext;
+  /**
+   * The resolved node this element renders.
+   *
+   * A renderer that resolves its surface through a `NodeResolver` assigns it
+   * together with `context` (`node.context`), so elements that only read
+   * `context` keep working. When both are set, `node` wins: an element that
+   * supports it takes its context and its children from the node.
+   */
+  node?: ComponentNode;
 }

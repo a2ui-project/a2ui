@@ -144,15 +144,19 @@ def test_strict_aliases_round_trip():
 
 
 def test_v09_function_call_return_type_and_catalog_id():
-    """v0.9 FunctionCall accepts returnType (default 'boolean') and forbids catalogId."""
+    """v0.9 FunctionCall documents returnType's default without materializing it."""
     from a2ui.core.schema.v0_9.common_types import FunctionCall as FunctionCallV09
 
     assert FunctionCallV09 is not FunctionCall
     assert FunctionCallV09.__module__ == "a2ui.core.schema.v0_9.common_types"
 
     fc_default = FunctionCallV09(call="fn")
-    assert fc_default.return_type == "boolean"
+    assert fc_default.return_type is None
     assert "return_type" not in fc_default.model_fields_set
+    assert fc_default.model_dump(by_alias=True, exclude_none=True) == {"call": "fn"}
+    assert 'Defaults to "boolean" when absent.' in (
+        FunctionCallV09.model_fields["return_type"].description
+    )
 
     fc_explicit = FunctionCallV09.model_validate({"call": "fn", "returnType": "string"})
     assert fc_explicit.return_type == "string"

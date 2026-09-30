@@ -62,7 +62,7 @@ class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowApi> {
     }
   `;
 
-  protected readonly api = RowApi;
+  protected override readonly api = RowApi;
 
   override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);

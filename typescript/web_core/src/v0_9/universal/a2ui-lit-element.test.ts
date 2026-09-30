@@ -16,9 +16,13 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after} from 'node:test';
+
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {nothing} from 'lit';
 
 import {ComponentContext} from '../../resolution/component-context.js';
+import {NodeResolver} from '../../resolution/node-resolver.js';
+import {getValue, peekValue} from '../../reactivity/signals.js';
 import {MessageProcessor} from '../../processing/message-processor.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 import {basicCatalog} from '../basic_catalog/catalog.js';
@@ -41,7 +45,7 @@ describe('A2uiLitElement', () => {
 
     // Create a mock subclass to intercept and track controller lifecycle events
     class TestA2uiElement extends A2uiLitElement<any> {
-      createController() {
+      override createController() {
         controllerCreatedCount++;
         return {
           dispose: () => {
@@ -160,6 +164,48 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(controllerCreatedCount, 2);
 
     document.body.removeChild(el);
+  });
+
+  it('takes its context and its children from an assigned node', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [{id: 'root', component: 'Column', children: ['child_id', 'missing']}],
+        },
+      },
+    ]);
+    const resolver = new NodeResolver(surface, surface.defaultCatalog);
+    const root = getValue(resolver.rootNode)!;
+    const [childNode, missingNode] = peekValue(root.props).children as any[];
+    assert.strictEqual(childNode.componentId, 'child_id');
+    assert.strictEqual(missingNode.isPlaceholder, true);
+
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+    await asyncUpdate(el, (e: any) => {
+      e.node = root;
+    });
+
+    assert.strictEqual(el.context, root.context);
+    assert.strictEqual(controllerCreatedCount, 1);
+    // renderNode('child_id') hands the child element the child's own node.
+    assert.ok(JSON.stringify(lastRenderResult).includes('a2ui-basic-text'));
+    assert.strictEqual(lastRenderResult.values[0], childNode);
+    assert.strictEqual(lastRenderResult.values[1], childNode.context);
+
+    // Reassigning the same node changes nothing.
+    await asyncUpdate(el, (e: any) => {
+      e.node = root;
+    });
+    assert.strictEqual(controllerCreatedCount, 1);
+
+    // A child that is still a placeholder renders nothing.
+    assert.strictEqual((el as any).renderNode('missing'), nothing);
+
+    document.body.removeChild(el);
+    resolver.dispose();
   });
 
   it('should return nothing when component is removed from surface', async () => {

@@ -30,7 +30,7 @@ export class Row extends Root {
   @property({reflect: true, type: String})
   accessor distribution: Types.ResolvedRow['distribution'] = 'start';
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -91,7 +91,7 @@ export class Row extends Root {
     `,
   ];
 
-  render() {
+  override render() {
     return html`<section
       class=${classMap(this.theme.components.Row)}
       style=${this.theme.additionalStyles?.Row

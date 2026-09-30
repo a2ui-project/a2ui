@@ -48,18 +48,21 @@ class FunctionDefinition(BaseModel):
     )
     allowed_callers: Literal["rendererOnly", "agentOnly", "rendererOrAgent"] | None = (
         Field(
+            None,
             alias="allowedCallers",
-            description="Specifies which roles are authorized to invoke this function.",
-            default="rendererOnly",
+            description=(
+                "Specifies which roles are authorized to invoke this function. Defaults"
+                ' to "rendererOnly" when absent.'
+            ),
         )
     )
     requires_user_activation: bool | None = Field(
+        None,
         alias="requiresUserActivation",
         description=(
             "Specifies whether this function requires a user activation context to"
-            " execute."
+            " execute. Defaults to false when absent."
         ),
-        default=False,
     )
 
     @model_validator(mode="after")
@@ -113,7 +116,10 @@ class ValidationResult(StrictBaseModel):
         None, description="Human-readable error or warning message."
     )
     severity: Literal["error", "warning", "info"] | None = Field(
-        description="Severity level of the validation result.", default="error"
+        None,
+        description=(
+            'Severity level of the validation result. Defaults to "error" when absent.'
+        ),
     )
 
 
@@ -140,13 +146,13 @@ class CatalogDefinition(StrictBaseModel):
     schema_uri: str | None = Field(None, alias="$schema")
     schema_id: str | None = Field(None, alias="$id")
     protocol_version: str | None = Field(
+        None,
         alias="protocolVersion",
         description=(
             "The A2UI specification version of this catalog definition (e.g. '1.0')."
             " Defaults to '0.9' if omitted."
         ),
         pattern=r"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
-        default="0.9",
     )
     defs: CatalogDefs | None = Field(None, alias="$defs")
     title: str | None = Field(None, description="The title of the catalog.")

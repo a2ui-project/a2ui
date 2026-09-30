@@ -65,7 +65,7 @@ export class Root extends SignalWatcher(LitElement) {
 
   #weight: string | number = 1;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       :host {
@@ -83,7 +83,7 @@ export class Root extends SignalWatcher(LitElement) {
    */
   #lightDomEffectDisposer: null | (() => void) = null;
 
-  protected willUpdate(changedProperties: PropertyValues<this>): void {
+  protected override willUpdate(changedProperties: PropertyValues<this>): void {
     if (changedProperties.has('childComponents')) {
       if (this.#lightDomEffectDisposer) {
         this.#lightDomEffectDisposer();
@@ -106,7 +106,7 @@ export class Root extends SignalWatcher(LitElement) {
   /**
    * Clean up the effect when the component is removed from the DOM.
    */
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
 
     if (this.#lightDomEffectDisposer) {
@@ -516,7 +516,7 @@ export class Root extends SignalWatcher(LitElement) {
     return html`${el}`;
   }
 
-  render(): TemplateResult | typeof nothing {
+  override render(): TemplateResult | typeof nothing {
     return html`<slot></slot>`;
   }
 }
