@@ -17,7 +17,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {ButtonComponent} from './button.component';
-import {Action, ComponentModel} from '@a2ui/web_core/v0_9';
+import {Action, ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder, Child} from '../../core/component-binder.service';
 import {By} from '@angular/platform-browser';
@@ -57,11 +57,14 @@ describe('ButtonComponent', () => {
       ]),
     } as any;
 
+    const componentsModel = new SurfaceComponentsModel();
+    componentsModel.addComponent(
+      new ComponentModel('child1', 'Text', {text: 'Child Content'}, mockCatalog),
+    );
+
     mockSurface = {
       dispatchAction: jasmine.createSpy('dispatchAction'),
-      componentsModel: new Map([
-        ['child1', new ComponentModel('child1', 'Text', {text: 'Child Content'}, mockCatalog)],
-      ]),
+      componentsModel,
       defaultCatalog: mockCatalog,
       availableCatalogs: new Map(),
     };
