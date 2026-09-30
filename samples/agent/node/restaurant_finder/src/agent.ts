@@ -35,8 +35,8 @@ import {FALLBACK_TEXT, getUiDescription, retryQuery, ROLE_DESCRIPTION} from './p
 import {parseUserQuery} from './user_query.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
-/** How many times a turn is retried after its A2UI fails validation, as in Python. */
-const MAX_RETRIES = 1;
+/** How many times a turn is tried: once, plus one retry after a validation failure, as in Python. */
+const MAX_ATTEMPTS = 2;
 
 /**
  * Answers restaurant requests with A2UI, in the version the renderer asks for.
@@ -139,8 +139,8 @@ export class RestaurantExecutor implements AgentExecutor {
       : undefined;
 
     let query = turn.query;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      console.log(`--- RestaurantExecutor: Attempt ${attempt + 1}/${MAX_RETRIES + 1} ---`);
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      console.log(`--- RestaurantExecutor: Attempt ${attempt + 1}/${MAX_ATTEMPTS} ---`);
       const fullText = await this.streamText({...turn, query}, track);
       try {
         const parts = this.validate(fullText, turn.profile, catalogIds);
