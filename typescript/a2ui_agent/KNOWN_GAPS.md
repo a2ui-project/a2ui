@@ -69,7 +69,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Noise in server logs for agents that deliberately rely on the first catalog.
 - **Done looks like:** A logging hook on the processor or format, if a caller needs one.
 
-### The per-format conformance suites are not run
+### Some blueprint conformance suites are not run
 
 - **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser, streaming parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there, as Python's does. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml` and `agent/direct_json/prompt_generator.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml`, `agent/request_processor.yaml` and `agent/builder/`.
 - **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
