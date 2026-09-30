@@ -134,9 +134,12 @@ def test_text_component_validation():
 
 
 def test_text_component_variant_enum():
-    # 1. Omitted variant uses default value "body"
+    # A JSON Schema default is documentation, not a value the producer should add.
     comp_default = TextComponent(id="text_1", component="Text", text="Hello Default")
-    assert comp_default.variant == "body"
+    assert comp_default.variant is None
+    assert 'Defaults to "body" when absent.' in (
+        TextComponent.model_fields["variant"].description
+    )
 
     # 2. Validation fails on invalid variant value
     with pytest.raises(ValidationError) as exc_info:

@@ -158,15 +158,28 @@ def test_compile_properties_to_pydantic():
     assert len(lines) == 1
     assert lines[0] == "    title: str | None = Field(None)"
 
-    # Default values
+    # Defaults are documented, but do not become model defaults.
     props = {
         "num": {"type": "integer", "default": 42},
         "text": {"type": "string", "default": "hello"},
     }
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 2
-    assert "    num: int | None = Field(default=42)" in lines
-    assert '    text: str | None = Field(default="hello")' in lines
+    assert (
+        '    num: int | None = Field(None, description="Defaults to 42 when absent.")'
+        in lines
+    )
+    assert (
+        '    text: str | None = Field(None, description="Defaults to \\"hello\\" when'
+        ' absent.")'
+        in lines
+    )
+
+    # JSON Schema regex escapes must survive as the same Python string value.
+    pattern = r"^\d+\.[A-Z]+$"
+    props = {"code": {"type": "string", "pattern": pattern}}
+    lines = codegen.compile_properties(props, ["code"])
+    assert lines == [f"    code: str = Field(..., pattern={json.dumps(pattern)})"]
 
     # CamelCase to snake_case alias
     props = {"surfaceId": {"type": "string"}}
@@ -601,8 +614,55 @@ def test_compile_properties_required_with_default():
     }
     lines = codegen.compile_properties(props, ["version", "count"])
     assert len(lines) == 2
-    assert "    version: str = Field(...)" in lines
-    assert "    count: int = Field(...)" in lines
+    assert (
+        '    version: str = Field(..., description="Defaults to \\"v1.0\\" when'
+        ' absent.")'
+        in lines
+    )
+    assert (
+        '    count: int = Field(..., description="Defaults to 1 when absent.")' in lines
+    )
+
+
+@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+def test_default_annotations_do_not_set_model_defaults(version):
+    codegen = codegen_pydantic.PydanticCodegen(version)
+    props = {
+        "displayName": {
+            "type": "string",
+            "description": "Name shown in the UI.",
+            "default": "Guest",
+        },
+        "kind": {"const": "email", "default": "ignored"},
+    }
+
+    lines = codegen.compile_properties(props, ["kind"])
+
+    assert (
+        '    display_name: str | None = Field(None, alias="displayName",'
+        ' description="Name shown in the UI. Defaults to \\"Guest\\" when absent.")'
+        in lines
+    )
+    assert "    kind: Literal['email'] = Field(\"email\")" in lines
+
+
+def test_v0_9_function_call_keeps_schema_default_out_of_payload():
+    from a2ui.core.schema.v0_9.common_types import FunctionCall
+
+    call = FunctionCall(call="validateEmail")
+
+    assert "returnType" not in call.model_dump(by_alias=True)
+    assert call.model_dump(by_alias=True, exclude_none=True) == {
+        "call": "validateEmail"
+    }
+    explicit_call = FunctionCall(call="validateEmail", return_type="boolean")
+    assert explicit_call.model_dump(by_alias=True, exclude_none=True) == {
+        "call": "validateEmail",
+        "returnType": "boolean",
+    }
+    assert 'Defaults to "boolean" when absent.' in (
+        FunctionCall.model_fields["return_type"].description
+    )
 
 
 def test_map_json_type_to_python_non_string_enum():
