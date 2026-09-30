@@ -84,7 +84,7 @@ String _findDartExecutable() {
 }
 
 void main() {
-  final String dartBin = _findDartExecutable();
+  final dartBin = _findDartExecutable();
   final String repoRoot = _findRepoRoot();
   final String packageRoot =
       Directory(p.join(repoRoot, 'dart/a2ui_cli')).existsSync()
