@@ -335,27 +335,14 @@ tests:
       component_properties:
         ComplexCard:
           title: {type: "string"}
-          dynamic_title:
-            {$ref: "common_types.json#/$defs/DynamicString"}
-          metric:
-            {$ref: "common_types.json#/$defs/DynamicNumber"}
-          is_active:
-            {$ref: "common_types.json#/$defs/DynamicBoolean"}
-          tags:
-            {$ref: "common_types.json#/$defs/DynamicStringList"}
-          anything:
-            {$ref: "common_types.json#/$defs/DynamicValue"}
+          dynamic_title: {$ref: "common_types.json#/$defs/DynamicString"}
+          metric: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          is_active: {$ref: "common_types.json#/$defs/DynamicBoolean"}
+          tags: {$ref: "common_types.json#/$defs/DynamicStringList"}
+          anything: {$ref: "common_types.json#/$defs/DynamicValue"}
           on_click: {$ref: "common_types.json#/$defs/Action"}
-          checks:
-            {
-              type: "array",
-              items:
-                {$ref: "common_types.json#/$defs/CheckRule"},
-            }
-          accessibility:
-            {
-              $ref: "common_types.json#/$defs/AccessibilityAttributes",
-            }
+          checks: {type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}
+          accessibility: {$ref: "common_types.json#/$defs/AccessibilityAttributes"}
           footer: {$ref: "common_types.json#/$defs/ComponentId"}
           items: {$ref: "common_types.json#/$defs/ChildList"}
           theme: {type: "string", enum: ["primary", "secondary"]}
