@@ -18,3 +18,4 @@ Defined in `tests/conformance/fixtures.ts` rather than `src/`, so the shim audit
 ## Known limitations
 
 - The SDK bundles no catalog, not even the basic one. Load catalog documents with `FileSystemCatalogProvider` or `CatalogConfig.fromPath`. The v0.9 basic catalog document states neither a `catalogId` nor a `protocolVersion`, so pass both when you load it: `'v0.9'` and `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json`.
+- Direct JSON parsing works on complete responses only. `DirectJsonParser.supportsStreaming` is false and `parseChunk` throws.

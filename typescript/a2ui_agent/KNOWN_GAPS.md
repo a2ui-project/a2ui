@@ -34,12 +34,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
 
-### `no-explicit-any` lint warnings
+### `no-explicit-any` lint warning
 
-- **What it is:** There are 26 eslint warnings for `no-explicit-any` in the codebase.
-- **Why it exists:** These are heavily concentrated in the streaming healer (`streaming.ts`), where partial JSON chunks are genuinely untyped before being repaired and compiled.
+- **What it is:** eslint reports one `no-explicit-any` warning, in `adaptParts` in `tests/conformance/conformance.test.ts`.
+- **Why it exists:** The harness builds the flat YAML part shape field by field.
 - **What it risks:** Mild technical debt.
-- **Done looks like:** The partial JSON trees are given a more rigorous generic recursive type, or `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
+- **Done looks like:** `adaptParts` builds a typed object and the warning is gone.
 
 ## 2. `web_core`
 
@@ -82,8 +82,8 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 - **What it is:** The catalog loader converts an array of inline anonymous objects to `z.array(z.record(z.unknown()))` rather than building the inner object schema. Any component reference inside those objects is invisible to reference analysis.
 - **Why it exists:** The loader handles named `$ref` item types but not inline `properties` on array items.
-- **What it risks:** `Tabs.tabs` is affected on both the v0.9 and v1.0 basic catalogs. `@a2ui/agent` compensates with a name-matching fallback in `src/utils/legacy_child_refs.ts`, which on the shipped catalogs claims exactly that one property. Every other consumer of the reference map gets no child reference for `Tabs` at all.
-- **Done looks like:** The loader builds a real object schema for inline array items, `Tabs.tabs` reports formal child references, and the fallback in `@a2ui/agent` can be deleted.
+- **What it risks:** `Tabs.tabs` is affected on both the v0.9 and v1.0 basic catalogs. Every consumer of the reference map gets no child reference for `Tabs`.
+- **Done looks like:** The loader builds a real object schema for inline array items, and `Tabs.tabs` reports formal child references.
 
 ## 3. Specification & Blueprints
 
@@ -116,13 +116,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Done looks like:** The spec owners settle the discrepancy and align `web_core` with the JSON schema.
 
 ## 4. Upstream Python & Conformance Suite
-
-### `v1.0` has a single canonical streaming case
-
-- **What it is:** `conformance/agent/legacy/streaming_parser.yaml` holds 41 `v0.9` streaming cases and one `v1.0` case. The `v1.0` streaming path is therefore covered by the `v0.9` cases, on the basis that the parser is version-independent in everything they exercise.
-- **Why it exists:** Upstream has not written a `v1.0` streaming suite. The local hand-translations that stood in for one have been retired, because 19 of their 20 cases duplicated a canonical `v0.9` case.
-- **What it risks:** Any streaming behaviour that differs between versions is untested. Today the known differences are small: the server-to-client file is named differently, and `v1.0` adds the `callRendererFunction` and `agentFunctionResponse` messages, which envelope validation accepts but no streaming case sends.
-- **Done looks like:** Upstream publishes `v1.0` streaming cases in `conformance/agent/`, and they run here.
 
 ### Python's `has_format_content` contradicts conformance
 
