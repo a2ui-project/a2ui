@@ -40,8 +40,17 @@ See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
 
 ### PyPI
 
-Releasing `a2ui-core` or `a2ui-agent-sdk` means running one GitHub Actions
-workflow. There is no version file to edit and no script to run locally.
+Releasing `a2ui-core` or `a2ui-agent-sdk` can be as simple as providing a prompt to an AI assistant:
+
+```text
+Release a2ui-core and a2ui-agent-sdk with a minor bump
+```
+
+The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to approve and merge the pull request raised to update the changelog.
+
+#### Manual release via GitHub Actions
+
+If releasing without an assistant, run the GitHub Actions workflow directly:
 
 1. Check the Unreleased sections of the changelogs. If both are empty, there is
    nothing to release.
@@ -84,14 +93,15 @@ requires linear history, so a tag created on a branch commit would be left
 unreachable once the pull request is squashed, and the `git describe` check in
 [python_ci.yml](../../.github/workflows/python_ci.yml) would start failing.
 
-#### Why the changelog pull request is not opened for you
+#### Why the workflow does not open the changelog pull request directly
 
-The release prepares the changelog edit on a `release/changelog-*` branch and
+The release workflow prepares the changelog edit on a `release/changelog-*` branch and
 stops there. It could open the pull request, but that pull request could never
 be merged: GitHub does not start workflow runs for events caused by the
 built-in `GITHUB_TOKEN`, so none of the required checks would ever report, and
 the ruleset allows no bypass. Opening it yourself from the link in the job
-summary costs one click and gets a normal CI run.
+summary (or having an AI assistant open it using user credentials) allows
+the required CI checks to run.
 
 #### Versions come from git tags
 
