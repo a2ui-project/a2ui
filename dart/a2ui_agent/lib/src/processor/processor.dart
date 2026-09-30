@@ -56,7 +56,10 @@ class A2uiRequestProcessor {
     for (final List<AgentToRendererMessage> example in examples) {
       validatePayloads(activeCatalogs, [example]);
     }
-    if (examples.isNotEmpty) _promptSnippet = _format.promptGenerator.generate();
+    // Writing the examples in the format can fail too, so it happens here.
+    if (examples.isNotEmpty) {
+      _promptSnippet = _format.promptGenerator.generate();
+    }
   }
 
   String? _promptSnippet;

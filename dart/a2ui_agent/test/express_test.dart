@@ -268,9 +268,11 @@ surface("s1")
         'root = Text("x", "h1", variant="h2")',
         throwsError<A2uiValidationError>(),
       ),
+      // A block without root updates a surface an earlier response created,
+      // which a processor checking one response on its own does not hold.
       'components without root': (
         r'$/title = "x"; title = Text($/title)',
-        throwsError<A2uiValidationError>(),
+        throwsError<A2uiStateError>(),
       ),
       'too many arguments': (
         'root = Card(a, b); a = Text("A"); b = Text("B")',
@@ -282,6 +284,10 @@ surface("s1")
       ),
       'a block without root': (
         'title = Text("x")',
+        throwsError<A2uiStateError>(),
+      ),
+      'a block without components or data': (
+        'surface("s1")',
         throwsError<A2uiValidationError>(),
       ),
       'a standalone function call, which v0.9 has no message for': (

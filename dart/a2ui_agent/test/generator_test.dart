@@ -245,6 +245,52 @@ void main() {
         throwsA(isA<A2uiCatalogError>()),
       );
     });
+
+    test('activates accepted inline catalogs after the registered ones', () {
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [a.id],
+            inlineCatalogs: [inline],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [a, inline],
+      );
+    });
+
+    test('prefers the registration to an inline catalog with its id', () {
+      final SchemaCatalog redefined = _catalog(a.id, ['Other']);
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [a.id],
+            inlineCatalogs: [redefined, redefined],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [a],
+      );
+    });
+
+    test('activates one of two inline catalogs sharing an id', () {
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [],
+            inlineCatalogs: [
+              inline,
+              _catalog(inline.id, ['Other']),
+            ],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [inline],
+      );
+    });
   });
 
   group('A2uiRequestProcessor.parseResponse', () {

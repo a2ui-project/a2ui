@@ -298,7 +298,7 @@ class _Component {
       if (!properties.contains(key)) {
         throw A2uiValidationError(
           "Property '$key' of component '$id' has no Express notation: an "
-          "Express call to $type takes only the properties $type declares "
+          'Express call to $type takes only the properties $type declares '
           'itself (${properties.join(', ')}).',
           details: json,
         );
@@ -307,7 +307,7 @@ class _Component {
 
     final arguments = <String>[];
     var skipped = 0;
-    for (final String property in properties) {
+    for (final property in properties) {
       if (!json.containsKey(property)) {
         skipped++;
         continue;
@@ -338,7 +338,8 @@ class _Component {
     if (isComponentId(schema) && value is String) return _reference(value);
     if (isChildList(schema)) {
       if (value is List && value.every((Object? v) => v is String)) {
-        return '[${value.map((Object? v) => _reference(v! as String)).join(', ')}]';
+        final Iterable<String> ids = value.cast<String>().map(_reference);
+        return '[${ids.join(', ')}]';
       }
       if (value case {
         'componentId': final String componentId,
@@ -354,8 +355,7 @@ class _Component {
         _binding(value) ??
             _call(value) ??
             _mapLiteral(value, (key) => _propertySchema(schema, key)),
-      List() =>
-        '[${value.map((Object? v) => _value(v, _itemSchema(schema))).join(', ')}]',
+      List() => _list(value, _itemSchema(schema)),
       _ => _literal(value),
     };
   }
@@ -363,10 +363,10 @@ class _Component {
   /// A reference to another component: a variable for one this block
   /// defines, and a string for one it does not, which the compiler passes on
   /// as written.
-  String _reference(String id) =>
-      _refersToVariable(id) ? id : _string(id);
+  String _reference(String id) => _refersToVariable(id) ? id : _string(id);
 
-  bool _refersToVariable(String id) => defined.contains(id) && _isIdentifier(id);
+  bool _refersToVariable(String id) =>
+      defined.contains(id) && _isIdentifier(id);
 
   /// `Event(name, context)` for an event, the call itself for a local
   /// function, and the map literal otherwise.
@@ -407,7 +407,7 @@ class _Component {
       if (!args.keys.every(parameters.contains)) return null;
       final arguments = <String>[];
       var skipped = 0;
-      for (final String parameter in parameters) {
+      for (final parameter in parameters) {
         final Object? argument = args[parameter];
         if (argument == null) {
           skipped++;
@@ -423,13 +423,16 @@ class _Component {
     return null;
   }
 
+  String _list(List<Object?> value, Map<String, Object?>? itemSchema) =>
+      '[${value.map((Object? v) => _value(v, itemSchema)).join(', ')}]';
+
   String _mapLiteral(
     Map<Object?, Object?> value,
     Map<String, Object?>? Function(String key) schemaOf,
   ) {
-    final entries = [
+    final List<String> entries = [
       for (final MapEntry<Object?, Object?> entry in value.entries)
-        '${_key('${entry.key}')}: ${_value(entry.value, schemaOf('${entry.key}'))}',
+        _entry('${entry.key}', _value(entry.value, schemaOf('${entry.key}'))),
     ];
     return '{${entries.join(', ')}}';
   }
@@ -525,13 +528,20 @@ String _literal(Object? value) => switch (value) {
   double() => _double(value),
   String() => _string(value),
   List() => '[${value.map(_literal).join(', ')}]',
-  Map() =>
-    '{${value.entries.map((e) => '${_key('${e.key}')}: ${_literal(e.value)}').join(', ')}}',
+  Map() => _mapOfLiterals(value),
   _ => throw A2uiValidationError(
     'The value $value has no Express notation.',
     details: value,
   ),
 };
+
+String _mapOfLiterals(Map<Object?, Object?> value) {
+  final List<String> entries = [
+    for (final MapEntry<Object?, Object?> entry in value.entries)
+      _entry('${entry.key}', _literal(entry.value)),
+  ];
+  return '{${entries.join(', ')}}';
+}
 
 String _double(double value) {
   final text = '$value';
@@ -558,14 +568,16 @@ String _string(String value) {
   return '"$escaped"';
 }
 
+/// One entry of a map literal.
+String _entry(String key, String value) => '${_key(key)}: $value';
+
 /// A map key: bare when it is an identifier, and quoted otherwise.
 String _key(String key) => _isIdentifier(key) ? key : _string(key);
 
 bool _isIdentifier(String name) =>
     _identifier.hasMatch(name) && !_keywords.contains(name);
 
-Map<Object?, Object?> _asMap(Object? value) =>
-    value is Map ? value : const {};
+Map<Object?, Object?> _asMap(Object? value) => value is Map ? value : const {};
 
 bool _equal(Object? a, Object? b) => switch ((a, b)) {
   (final Map<Object?, Object?> x, final Map<Object?, Object?> y) =>
@@ -577,7 +589,10 @@ bool _equal(Object? a, Object? b) => switch ((a, b)) {
   _ => a == b,
 };
 
-Map<String, Object?>? _propertySchema(Map<String, Object?>? schema, String key) {
+Map<String, Object?>? _propertySchema(
+  Map<String, Object?>? schema,
+  String key,
+) {
   if (schema == null) return null;
   if (schema['properties'] case final Map<Object?, Object?> properties) {
     if (properties[key] case final Map<Object?, Object?> property) {

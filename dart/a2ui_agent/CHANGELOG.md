@@ -1,5 +1,30 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## 0.0.1-wip006
+
+- Implemented the rest of the agent SDK blueprint API for protocol v0.9:
+  - `FileSystemCatalogProvider`, `InMemoryCatalogProvider` and
+    `CatalogConfig.fromPath`. A document's id and version are settled with
+    the provider's; on the web, `FileSystemCatalogProvider` cannot read files.
+  - Inline catalogs in `resolveCatalogs`, when `acceptsInlineCatalogs` is
+    true. An inline catalog whose id is already active is dropped.
+  - The direct JSON format: the prompt, with the v0.9 message schema pruned
+    to `allowedMessages`, the common types and the catalogs; `wrap`,
+    `unwrap`, `hasFormatContent`, `compile` and `decompile`; and
+    `parseChunk`, which emits each message once it reads and satisfies the
+    catalogs, healing `progressiveKeys` while their values stream.
+  - Express decompilation, through `Parser.decompile`, and prompt examples
+    in the Express prompt.
+- The Express compiler reads a block that assigns components but no `root`
+  as an update of a surface created earlier, and compiles it to
+  `updateComponents` alone.
+- `A2uiRequestProcessor` renders its prompt when it is created if it has
+  examples, so an example the format cannot write fails there.
+- A payload whose `createSurface` names an inactive catalog is an
+  `A2uiValidationError` rather than an `A2uiCatalogError`.
+- The Express syntax rules no longer show `Card(...)`, so a pruned `Card`
+  never reaches the prompt.
+
 ## 0.0.1-wip005
 
 - Declared the rest of the agent SDK blueprint API for protocol v0.9. These

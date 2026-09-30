@@ -12,60 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:convert';
-
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'suites.dart';
 
-/// Runs the shared `conformance/agent/express/` suites against the Express
-/// format.
+/// Runs the shared `conformance/agent/direct_json/` suites against the direct
+/// JSON format.
 ///
-/// The suites are written against v1.0, and this SDK compiles to v0.9, so the
-/// harness moves messages between the two as `suites.dart` describes. The
-/// Express suites write a created surface in the joined v1.0 form, a
-/// `createSurface` carrying its `components` and `dataModel`.
-///
-/// A case that needs something this SDK does not implement is skipped with
-/// the reason.
+/// The suites are written against v1.0, and this SDK reads and writes v0.9,
+/// so the harness lowers each payload before the parser reads it and lifts
+/// what the parser returns, as `suites.dart` describes. The direct JSON
+/// suites write each message on its own, so nothing is joined.
 void main() {
   for (final suite in [
     'compiler',
-    'response_parser',
-    'prompt_generator',
     'decompiler',
+    'prompt_generator',
+    'response_parser',
+    'response_streaming',
   ]) {
-    final path = 'agent/express/$suite.yaml';
+    final path = 'agent/direct_json/$suite.yaml';
     group('conformance $path', () {
       final List<Map<String, Object?>> cases = loadSuite(path);
       test('suite is not empty', () => expect(cases, isNotEmpty));
       for (final testCase in cases) {
-        test(
-          testCase['name']! as String,
-          () => _runCase(testCase),
-          skip: _skipReason(testCase),
-        );
+        test(testCase['name']! as String, () => _runCase(testCase));
       }
     });
   }
 }
 
-/// Why this SDK cannot run [testCase], or null if it can.
-String? _skipReason(Map<String, Object?> testCase) {
-  final args = testCase['args']! as Map<String, Object?>;
-  if (args.containsKey('allowed_messages')) {
-    return 'The Express format takes no message allowlist: the blueprint '
-        'gives one to the direct JSON format only.';
-  }
-  if (jsonEncode(testCase).contains('"callRendererFunction"')) {
-    return 'Protocol v0.9 has no callRendererFunction message.';
-  }
-  return null;
-}
-
 void _runCase(Map<String, Object?> testCase) {
+  switch (testCase['action']) {
+    case 'parse_chunk':
+      _runChunks(testCase);
+      return;
+  }
   final Object? error = testCase['expect_error'];
   if (error != null) {
     expect(() => _perform(testCase), throwsCategory(error));
@@ -74,18 +58,14 @@ void _runCase(Map<String, Object?> testCase) {
   final Object? result = _perform(testCase);
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
-      _checkSnippet(testCase, result! as String);
+      expectSnippet(result! as String, testCase);
+      if (testCase['expect_deterministic'] == true) {
+        expect(_perform(testCase), result);
+      }
     case 'wrap':
       _checkWrapped(testCase, result! as String);
     case 'decompile':
       _checkDecompiled(testCase, result! as String);
-    case 'compile':
-      final messages = result! as List<Object?>;
-      for (final Object? pointer
-          in (testCase['expect_present'] as List<Object?>?) ?? const []) {
-        _removePresent(messages, pointer! as String);
-      }
-      expect(messages, testCase['expect']);
     default:
       expect(result, withoutFinalFlags(testCase['expect']));
   }
@@ -93,7 +73,13 @@ void _runCase(Map<String, Object?> testCase) {
 
 InferenceFormat _format(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
-  return const ExpressFormatFactory().createFormat(
+  return DirectJsonFormatFactory(
+    allowedMessages: (args['allowed_messages'] as List<Object?>?)
+        ?.cast<String>(),
+    progressiveKeys: {
+      ...?(args['progressive_keys'] as List<Object?>?)?.cast<String>(),
+    },
+  ).createFormat(
     caseCatalogs(args),
     examples: [
       for (final Object? path in args['examples'] as List<Object?>? ?? const [])
@@ -107,7 +93,11 @@ InferenceFormat _format(Map<String, Object?> testCase) {
 Object? _perform(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
   final InferenceFormat format = _format(testCase);
-  final input = testCase['input'] as String?;
+  final String? catalogId = injectedCatalogId(testCase);
+  final String? input = switch (testCase['input']) {
+    final String text => lowerText(text, catalogId: catalogId),
+    _ => null,
+  };
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
       return format.promptGenerator.generate();
@@ -116,33 +106,81 @@ Object? _perform(Map<String, Object?> testCase) {
         rawParts(testCase['parts']! as List<Object?>),
       );
     case 'unwrap':
+      // Unwrapping keeps the payload as written, so it is not lowered.
       return [
-        for (final RawResponsePart part in format.createParser().unwrap(input!))
+        for (final RawResponsePart part in format.createParser().unwrap(
+          testCase['input']! as String,
+        ))
           rawPartJson(part),
       ];
     case 'compile':
-      return liftMessages(format.createParser().compile(input!), join: true);
+      return liftMessages(
+        format.createParser().compile(input!),
+        injectedCatalogId: catalogId,
+      );
     case 'decompile':
-      return format.createParser().decompile(_messages(testCase));
+      return format.createParser().decompile(
+        lowerMessages(testCase['messages']! as List<Object?>),
+      );
     case 'parse_response':
       return liftParts(
         format.createParser().parseResponse(
           input!,
           wrapped: args['wrapped'] as bool? ?? true,
         ),
-        join: true,
+        injectedCatalogId: catalogId,
       );
     default:
       throw UnsupportedError('Unknown action ${testCase['action']}');
   }
 }
 
-/// The messages a `decompile` case starts from, lowered to v0.9.
-List<AgentToRendererMessage> _messages(Map<String, Object?> testCase) =>
-    lowerMessages(testCase['messages']! as List<Object?>);
+/// Feeds the steps of a `parse_chunk` case to one parser, checking what each
+/// yields, and then the whole response to another parser in one call when
+/// the case asks.
+void _runChunks(Map<String, Object?> testCase) {
+  final args = testCase['args']! as Map<String, Object?>;
+  final bool wrapped = args['wrapped'] as bool? ?? true;
+  final String? catalogId = injectedCatalogId(testCase);
+  final Parser parser = _format(testCase).createParser();
+  final chunks = <String>[];
+  final yielded = <Object?>[];
+  for (final (int i, Object? step)
+      in (testCase['steps']! as List<Object?>).indexed) {
+    final stepCase = step! as Map<String, Object?>;
+    final String chunk = lowerText(
+      stepCase['input']! as String,
+      catalogId: catalogId,
+    );
+    chunks.add(chunk);
+    if (stepCase['expect_error'] case final Object error) {
+      expect(
+        () => parser.parseChunk(chunk, wrapped: wrapped),
+        throwsCategory(error),
+        reason: 'step $i',
+      );
+      return;
+    }
+    final List<Object?> parts = liftParts(
+      parser.parseChunk(chunk, wrapped: wrapped),
+      injectedCatalogId: catalogId,
+    );
+    expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
+    yielded.addAll(parts);
+  }
+  if (testCase['expect_matches_single_shot'] == true) {
+    expect(
+      liftParts(
+        _format(
+          testCase,
+        ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
+        injectedCatalogId: catalogId,
+      ),
+      yielded,
+    );
+  }
+}
 
-/// Checks the output of a `wrap` case, and that unwrapping it returns the
-/// parts the case supplied when the case asks.
 void _checkWrapped(Map<String, Object?> testCase, String output) {
   if (testCase['expect_output'] case final String expected) {
     expect(output, expected);
@@ -161,41 +199,19 @@ void _checkWrapped(Map<String, Object?> testCase, String output) {
   }
 }
 
-/// Checks the output of a `decompile` case, and that compiling it returns
-/// the messages the case started from when the case asks.
 void _checkDecompiled(Map<String, Object?> testCase, String output) {
   for (final Object? text
       in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
     expect(output, contains(text));
   }
   if (testCase['expect_round_trip'] == true) {
+    final List<AgentToRendererMessage> recompiled = _format(
+      testCase,
+    ).createParser().compile(output);
     expect(
-      liftMessages(
-        _format(testCase).createParser().compile(output),
-        join: true,
-      ),
+      liftMessages(recompiled),
       testCase['messages'],
-      reason: 'Express written:\n$output',
+      reason: 'JSON written:\n$output',
     );
   }
-}
-
-void _checkSnippet(Map<String, Object?> testCase, String snippet) {
-  expectSnippet(snippet, testCase);
-  if (testCase['expect_deterministic'] == true) {
-    expect(_perform(testCase), snippet);
-  }
-}
-
-/// Asserts that the JSON Pointer [pointer] names a value that is not empty
-/// in [messages], and removes it.
-void _removePresent(List<Object?> messages, String pointer) {
-  final List<String> keys = pointer.split('/').skip(1).toList();
-  Object? parent = messages;
-  for (final String key in keys.take(keys.length - 1)) {
-    parent = parent is List ? parent[int.parse(key)] : (parent! as Map)[key];
-  }
-  final Object? value = (parent! as Map).remove(keys.last);
-  expect(value, isNotNull, reason: '$pointer is present');
-  expect(value, isNot(isEmpty), reason: '$pointer is not empty');
 }
