@@ -32,6 +32,7 @@ import {
   V10_CHILD_REF_OPTIONS,
   getComponentReferences,
   A2uiRecursionError,
+  A2uiValidationError,
 } from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {A2uiIntegrityError, ParseError} from '../../errors.js';
@@ -702,8 +703,16 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     sid: string | null,
     messages: ResponsePart[],
   ): boolean {
-    if (!this.options?.disableValidation) {
+    const validationConfig = this.options?.validationConfig;
+    if (validationConfig) {
       validateEnvelope(obj, this.protocolVersion);
+      const allowed = validationConfig.allowedMessages;
+      const messageType = Object.keys(obj).find(key => key !== 'version');
+      if (allowed && messageType && !allowed.includes(messageType)) {
+        throw new A2uiValidationError(
+          `Message type '${messageType}' is not permitted by ValidationConfig.allowedMessages`,
+        );
+      }
     }
 
     if (MSG_TYPE_CREATE_SURFACE in obj) {

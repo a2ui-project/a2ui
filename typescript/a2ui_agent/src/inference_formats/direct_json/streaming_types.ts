@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {ValidationConfig} from '../../internal/web_core.js';
 import {ResponsePart} from '../../parser/response_part.js';
 import {SchemaCatalog} from '../../types.js';
 
@@ -28,9 +29,15 @@ export interface DirectJsonStreamProcessorOptions {
    */
   progressiveKeys?: string[];
   /**
-   * If true, skips envelope schema validation on inbound server-to-client message envelopes.
+   * Validation applied to each message as soon as it is complete. When omitted, messages
+   * are not validated, as with web_core's `MessageProcessor`.
+   *
+   * When present, each message envelope is checked against the protocol schema for the
+   * catalog's version, and `allowedMessages`, if set, limits the accepted message types.
+   * The component rules in the config are left to `MessageProcessor`, which sees the
+   * whole surface.
    */
-  disableValidation?: boolean;
+  validationConfig?: ValidationConfig;
 }
 
 /**
