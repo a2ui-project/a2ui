@@ -66,10 +66,8 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
       case .null:
         // skip or append "null"? usually skip or empty. A2UI uses empty for null in strings.
         continue
-      default:
-        // Complex objects or arrays are usually not meaningfully stringified in basic interpolation,
-        // but we can skip or serialize. Let's just skip them or use their description.
-        continue
+      case .object, .array:
+        result += try resolved.serialized()
       }
     }
 

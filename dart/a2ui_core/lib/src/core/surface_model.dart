@@ -16,9 +16,7 @@ import 'dart:async';
 
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
-import 'common.dart';
 import 'component_model.dart';
-import 'contexts.dart';
 import 'data_model.dart';
 import 'messages.dart';
 
@@ -61,20 +59,13 @@ class SurfaceModel<T extends ComponentApi> {
         surfaceId: id,
         sourceComponentId: sourceComponentId,
         timestamp: DateTime.now(),
-        context: Map<String, dynamic>.from(
-          (event['context'] ?? <String, dynamic>{}) as Map,
-        ),
+        context: _detach((event['context'] ?? <String, dynamic>{}) as Map)
+            as Map<String, dynamic>,
       );
       _onAction.emit(action);
-    } else if (payload.containsKey('functionCall')) {
-      final callJson = payload['functionCall'] as Map<String, dynamic>;
-      final call = FunctionCall.fromJson(callJson);
-      catalog.invoke(
-        call.call,
-        Map<String, dynamic>.from(call.args),
-        DataContext(dataModel, catalog.invoke, '/'),
-      );
     }
+    // Only event payloads are emitted; functionCall payloads are not
+    // dispatched here.
   }
 
   /// Dispatches an error from this surface.
@@ -90,3 +81,18 @@ class SurfaceModel<T extends ComponentApi> {
     _onError.dispose();
   }
 }
+
+/// Copies maps and lists, so an action listener cannot reach the component or
+/// data model the payload was resolved from.
+Object? _detach(Object? value) => switch (value) {
+      Map() when value.keys.every((key) => key is String) => <String, dynamic>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key as String: _detach(entry.value),
+        },
+      Map() => <Object?, Object?>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key: _detach(entry.value),
+        },
+      List() => <Object?>[for (final Object? item in value) _detach(item)],
+      _ => value,
+    };
