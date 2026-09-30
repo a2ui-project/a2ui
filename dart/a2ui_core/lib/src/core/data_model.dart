@@ -70,9 +70,8 @@ class DataModel {
 
           if (current is Map<String, Object?>) {
             if (!current.containsKey(segment) || current[segment] == null) {
-              current[segment] = isNextNumeric
-                  ? <Object?>[]
-                  : <String, Object?>{};
+              current[segment] =
+                  isNextNumeric ? <Object?>[] : <String, Object?>{};
             }
             current = current[segment];
           } else if (current is List<Object?>) {
@@ -93,9 +92,8 @@ class DataModel {
               current.add(null);
             }
             if (current[index] == null) {
-              current[index] = isNextNumeric
-                  ? <Object?>[]
-                  : <String, Object?>{};
+              current[index] =
+                  isNextNumeric ? <Object?>[] : <String, Object?>{};
             }
             current = current[index];
           } else {

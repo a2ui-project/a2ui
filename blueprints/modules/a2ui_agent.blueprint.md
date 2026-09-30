@@ -161,26 +161,13 @@ class FunctionPruningTransformer(CatalogTransformer):
 
 Abstract base interface for constructing system prompt instruction snippets across inference formats.
 
+The interface is `generate()` alone. Application code gets a prompt generator from `InferenceFormat.prompt_generator` and only renders it, so what a generator is built from (catalogs, examples, format-specific options) belongs to each format's constructor rather than to the shared interface.
+
+Every format's generator renders the prompt example turns it is given in the order given. Each turn is the list of `AgentToRendererMessage` objects making it up. An example carries no label of its own: what the model learns from it is the payload, so a description would be the prompt author's prose rather than part of the contract.
+
 ```python
 class PromptGenerator(ABC):
-    """Abstract base class for format-specific prompt generators.
-
-    Attributes:
-        catalogs: List of active Catalog instances to include in the system instructions.
-        examples: Optional ordered list of prompt example turns. Each item is the list of
-            AgentToRendererMessage objects making up one example turn, rendered into the
-            snippet in the order given. An example carries no label of its own: what the
-            model learns from it is the payload, so a description would be the prompt
-            author's prose rather than part of the contract.
-    """
-
-    def __init__(
-        self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
-        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
-    ):
-        self.catalogs = catalogs
-        self.examples = examples
+    """Abstract base class for format-specific prompt generators."""
 
     @abstractmethod
     def generate(self) -> str:
@@ -708,7 +695,27 @@ Standard A2UI JSON payload format enclosed in `<a2ui-json>` sentinel tags.
 
 ```python
 class DirectJsonFormatFactory(InferenceFormatFactory):
-    """Factory for instantiating DirectJsonFormat strategies bound to active catalogs."""
+    """Factory for instantiating DirectJsonFormat strategies bound to active catalogs.
+
+    `create_format` is called by the SDK with the catalogs of each request, so the
+    options of the format are given to the factory and passed on to every format
+    it creates.
+    """
+
+    def __init__(
+        self,
+        allowed_messages: Optional[Sequence[str]] = None,
+        progressive_keys: frozenset[str] = frozenset(),
+    ):
+        """Initializes DirectJsonFormatFactory.
+
+        Args:
+            allowed_messages: Optional list of allowed payload envelope names.
+            progressive_keys: String property keys whose partial values the parser
+                heals while streaming. Empty turns healing off.
+        """
+        self.allowed_messages = allowed_messages
+        self.progressive_keys = progressive_keys
 
     def create_format(
         self,
@@ -724,7 +731,12 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
         Returns:
             DirectJsonFormat strategy instance.
         """
-        return DirectJsonFormat(catalogs=catalogs, examples=examples)
+        return DirectJsonFormat(
+            catalogs=catalogs,
+            examples=examples,
+            allowed_messages=self.allowed_messages,
+            progressive_keys=self.progressive_keys,
+        )
 
 class DirectJsonFormat(InferenceFormat):
     """Coordinator facade pairing DirectJsonPromptGenerator and DirectJsonParser."""
@@ -734,18 +746,21 @@ class DirectJsonFormat(InferenceFormat):
         catalogs: Sequence[Catalog[TComponent, TFunction]],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         allowed_messages: Optional[Sequence[str]] = None,
+        progressive_keys: frozenset[str] = frozenset(),
     ):
-        """Initializes DirectJsonFormat with active catalogs, examples, and allowed message types.
+        """Initializes DirectJsonFormat with active catalogs, examples, and format options.
 
         Args:
             catalogs: Active Catalog instances.
             examples: Optional list of prompt example turns.
             allowed_messages: Optional list of allowed payload envelope names.
+            progressive_keys: String property keys each parser heals while streaming.
         """
         self._prompt_generator = DirectJsonPromptGenerator(
             catalogs, examples=examples, allowed_messages=allowed_messages
         )
         self._catalogs = catalogs
+        self._progressive_keys = progressive_keys
 
     @property
     def prompt_generator(self) -> DirectJsonPromptGenerator:
@@ -754,7 +769,9 @@ class DirectJsonFormat(InferenceFormat):
 
     def create_parser(self) -> DirectJsonParser:
         """Creates a fresh DirectJsonParser instance bound to active catalogs."""
-        return DirectJsonParser(catalogs=self._catalogs)
+        return DirectJsonParser(
+            catalogs=self._catalogs, progressive_keys=self._progressive_keys
+        )
 
 class DirectJsonPromptGenerator(PromptGenerator):
     """Formats standard JSON schema system prompt instructions enclosed in <a2ui-json> tags."""
@@ -772,7 +789,8 @@ class DirectJsonPromptGenerator(PromptGenerator):
             examples: Optional list of prompt example turns.
             allowed_messages: Optional list of allowed payload envelope names.
         """
-        super().__init__(catalogs, examples)
+        self.catalogs = catalogs
+        self.examples = examples
         self.allowed_messages = allowed_messages
 
     def generate(self) -> str:
@@ -789,26 +807,23 @@ class DirectJsonParser(Parser):
     def __init__(
         self,
         catalogs: Sequence[Catalog[TComponent, TFunction]],
-        custom_progressive_keys: Optional[frozenset[str]] = None,
+        progressive_keys: frozenset[str] = frozenset(),
     ):
         """Initializes DirectJsonParser.
 
         Args:
             catalogs: Active Catalog instances for validation.
-            custom_progressive_keys: Optional override set of string keys for progressive token healing.
+            progressive_keys: String property keys whose partial values are healed
+                while streaming. Which properties hold prose depends on the catalog,
+                so there is no built-in set; empty turns healing off.
         """
         self.catalogs = catalogs
-        self.custom_progressive_keys = custom_progressive_keys
+        self.progressive_keys = progressive_keys
 
     @property
     def supports_streaming(self) -> bool:
         """Direct JSON reads incrementally, so this parser implements parse_chunk."""
         return True
-
-    @property
-    def progressive_keys(self) -> frozenset[str]:
-        """Returns the set of string property keys safe to auto-close/heal when fragmented in streaming mode."""
-        pass
 
     def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Parses and fixes JSON payload content string into AgentToRendererMessage objects.

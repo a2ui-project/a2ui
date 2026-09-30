@@ -335,4 +335,41 @@ surface("s1")
       expect(snippet, contains('• Gauge(value (static))'));
     });
   });
+
+  group('parser', () {
+    final Parser parser = const ExpressFormatFactory().createFormat([
+      basic,
+    ]).createParser();
+
+    test('finds an open block, and a closed one when asked', () {
+      const open = 'Here: <a2ui>\nroot = Text("Hello")';
+      expect(parser.hasFormatContent(open), isTrue);
+      expect(parser.hasFormatContent(open, complete: true), isFalse);
+      expect(parser.hasFormatContent('$open\n</a2ui>', complete: true), isTrue);
+    });
+
+    test('does not take a close tag in a string as the end of a block', () {
+      expect(
+        parser.hasFormatContent(
+          '<a2ui>\nroot = Text("</a2ui>")',
+          complete: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('does not take a direct JSON block for Express', () {
+      expect(parser.hasFormatContent('<a2ui-json>[]</a2ui-json>'), isFalse);
+      expect(
+        parser.hasFormatContent('<a2ui-json>[]</a2ui-json>\n<a2ui>\n</a2ui>'),
+        isFalse,
+      );
+      expect(parser.hasFormatContent('Which city?'), isFalse);
+    });
+
+    test('does not stream', () {
+      expect(parser.supportsStreaming, isFalse);
+      expect(() => parser.parseChunk('<a2ui>'), throwsUnsupportedError);
+    });
+  });
 }

@@ -164,11 +164,56 @@ def test_parses_valid_numeric_literals_including_trailing_point(parser):
     assert parser.parse_expression("+0.") == 0.0
 
 
+def test_parses_leading_dot_numeric_literals(parser):
+    assert parser.parse_expression(".5") == 0.5
+    assert parser.parse_expression("-.5") == -0.5
+    assert parser.parse_expression("+.5") == 0.5
+    assert parser.parse_expression(".5e2") == 50.0
+    assert parser.parse_expression("-.5E-1") == -0.05
+    assert parser.parse_expression("f(a: -.5, b: .25)") == {
+        "call": "f",
+        "args": {"a": -0.5, "b": 0.25},
+        "returnType": "any",
+    }
+
+
+@pytest.mark.parametrize("expr", [".foo", "./x", "-.", ".e5", "a.5", "/items/.5"])
+def test_keeps_paths_that_start_with_or_contain_a_dot_unchanged(parser, expr):
+    assert parser.parse_expression(expr) == {"path": expr}
+
+
+def test_treats_a_sign_not_followed_by_a_digit_as_a_path(parser):
+    assert parser.parse_expression("-a") == {"path": "-a"}
+
+
+@pytest.mark.parametrize("expr", [".5.5", "-.5e", ".5e+"])
+def test_rejects_malformed_leading_dot_numeric_literals(parser, expr):
+    with pytest.raises(A2uiExpressionError, match="Invalid number literal"):
+        parser.parse_expression(expr)
+
+
 def test_rejects_numbers_with_multiple_decimal_dots(parser):
     from a2ui.core.exceptions import A2uiExpressionError
 
     with pytest.raises(A2uiExpressionError, match="Invalid number literal"):
         parser.parse_expression("1.2.3")
+
+
+@pytest.mark.parametrize("expr", ["1e999", "-1e999", "2e308", "1" * 400, "1" * 5000])
+def test_rejects_number_literals_outside_the_double_range(parser, expr):
+    with pytest.raises(A2uiExpressionError, match="out of range"):
+        parser.parse_expression(expr)
+
+
+def test_accepts_literals_at_the_edges_of_the_double_range(parser):
+    assert parser.parse_expression("1e308") == 1e308
+    assert parser.parse_expression("1e-999") == 0.0
+
+
+def test_parses_integer_literals_with_many_leading_zeros(parser):
+    zeros = "0" * 5000
+    assert parser.parse_expression(f"{zeros}1") == 1
+    assert parser.parse_expression(f"-{zeros}1") == -1
 
 
 def test_rejects_expression_template_exceeding_max_length(parser):

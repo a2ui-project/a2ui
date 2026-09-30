@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Fix `ComponentHostComponent` keeping the old component mounted after a component's type or catalog changes in place. [#2824](https://github.com/a2ui-project/a2ui/pull/2824)
+
 ## 0.11.0
 
 - (v0_9) Support markdown in universal basic catalog:
