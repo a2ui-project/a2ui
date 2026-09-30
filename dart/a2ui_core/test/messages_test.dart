@@ -331,6 +331,42 @@ void main() {
       expect(action.context, {'email': 'a@b.c'});
     });
 
+    test('parses an action with userMessage', () {
+      final msg = RendererToAgentMessage.fromJson({
+        'version': 'v0.9',
+        'action': {
+          'name': 'submit',
+          'surfaceId': 's1',
+          'sourceComponentId': 'button',
+          'timestamp': '2026-09-16T10:30:00.000Z',
+          'context': {'email': 'a@b.c'},
+          'userMessage': 'Submitting feedback',
+        },
+      });
+
+      expect(msg, isA<ActionMessage>());
+      final A2uiClientAction action = (msg as ActionMessage).action;
+      expect(action.userMessage, 'Submitting feedback');
+      expect(action.toJson()['userMessage'], 'Submitting feedback');
+    });
+
+    test('rejects an action with non-string userMessage', () {
+      expect(
+        () => RendererToAgentMessage.fromJson({
+          'version': 'v0.9',
+          'action': {
+            'name': 'submit',
+            'surfaceId': 's1',
+            'sourceComponentId': 'button',
+            'timestamp': '2026-09-16T10:30:00.000Z',
+            'context': <String, Object?>{},
+            'userMessage': 12345,
+          },
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
     test('parses an error', () {
       final msg = RendererToAgentMessage.fromJson({
         'version': 'v0.9',
