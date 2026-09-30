@@ -1,6 +1,7 @@
 ## Unreleased
 
 - (v1_0) Support reserved protocol key prefix (`@path`, `@call`), dynamic prefix doubling unescaping (`@@path` → `@path`), and unknown single-`@` key validation in v1.0 dynamic resolution while maintaining multi-version support for v0.8 and v0.9 ([#2692](https://github.com/a2ui-project/a2ui/issues/2692)).
+- Universal elements accept an optional `node` (`A2uiWebComponentElement.node`): `A2uiLitElement` takes its `context` from it and passes each child its own node, and `renderA2uiNode` accepts a `ComponentNode`. `context` remains supported, so parents can move to nodes one at a time. [#2880](https://github.com/a2ui-project/a2ui/pull/2880)
 - Expose `ComponentNode.context`, the context the resolver bound the node with (undefined on placeholders). [#2879](https://github.com/a2ui-project/a2ui/pull/2879)
 - (v0_9) Basic catalog component styles now survive Closure-optimized builds.
   The `static styles` of each component are marked `/** @nocollapse */`
