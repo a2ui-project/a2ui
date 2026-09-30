@@ -56,9 +56,6 @@ interface NodeRecord {
    *  classifies as DYNAMIC resolve to {@link ResolvedBinding}s in node
    *  props. Absent on placeholders. */
   readonly behavior?: BehaviorNode;
-  /** Writes constructed for path-bound values go through this context's
-   *  scoped data context. */
-  readonly context?: ComponentContext;
   readonly componentModel?: ComponentModel;
   readonly binder?: GenericBinder<NodeProps>;
   binderSub?: {unsubscribe(): void};
@@ -302,6 +299,7 @@ export class NodeResolver<
           dataPath,
           {},
           undefined,
+          undefined,
           'pending',
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS},
@@ -331,6 +329,7 @@ export class NodeResolver<
           dataPath,
           {},
           undefined,
+          undefined,
           'unknown-type',
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
@@ -338,8 +337,12 @@ export class NodeResolver<
     }
 
     this.clearDispatched(componentId, dataPath);
-    const parentDataContext = parent ? this.records.get(parent)?.context?.dataContext : undefined;
-    const context = new ComponentContext(this.surface, componentId, dataPath, parentDataContext);
+    const context = new ComponentContext(
+      this.surface,
+      componentId,
+      dataPath,
+      parent?.context?.dataContext,
+    );
     const binder = new GenericBinder<NodeProps>(context, api.schema);
     const record = this.registerNode(
       new MutableComponentNode(
@@ -349,6 +352,7 @@ export class NodeResolver<
         dataPath,
         {},
         api,
+        context,
       ),
       {
         edgeKey,
@@ -356,7 +360,6 @@ export class NodeResolver<
         occurrence,
         refFields: extractRefFields(api.schema),
         behavior: scrapeSchemaBehavior(api.schema),
-        context,
         componentModel: model,
         binder,
       },
@@ -381,7 +384,6 @@ export class NodeResolver<
       occurrence: number;
       refFields: RefFields;
       behavior?: BehaviorNode;
-      context?: ComponentContext;
       componentModel?: ComponentModel;
       binder?: GenericBinder<NodeProps>;
     },
@@ -393,7 +395,6 @@ export class NodeResolver<
       occurrence: partial.occurrence,
       refFields: partial.refFields,
       behavior: partial.behavior,
-      context: partial.context,
       componentModel: partial.componentModel,
       binder: partial.binder,
       childEdges: new Map(),
@@ -449,6 +450,7 @@ export class NodeResolver<
           PLACEHOLDER_TYPE,
           dataPath,
           {},
+          undefined,
           undefined,
           'cyclic',
         ),
@@ -648,12 +650,12 @@ export class NodeResolver<
     record.childEdges = newEdges;
 
     const wrapped =
-      record.behavior && record.context
+      record.behavior && record.node.context
         ? (wrapDynamicValues(
             next,
             record.behavior,
             modelProps ?? {},
-            record.context.dataContext,
+            record.node.context.dataContext,
           ) as NodeProps)
         : next;
 

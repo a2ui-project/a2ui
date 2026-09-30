@@ -29,6 +29,7 @@ interface ConformanceCase {
   input: string;
   expect?: unknown[];
   expect_error?: {category: string; message?: string};
+  expectError?: {category: string; message?: string};
 }
 
 /** Suite-level error categories mapped onto this SDK's error types. */
@@ -72,7 +73,9 @@ function joinLiterals(parts: unknown[]): unknown[] {
 
 describe('expression parser conformance', () => {
   const suitePath = findSuite(path.join('conformance', 'core', 'expressions.yaml'));
-  const cases = yaml.load(fs.readFileSync(suitePath, 'utf8')) as ConformanceCase[];
+  const cases = yaml.load(fs.readFileSync(suitePath, 'utf8'), {
+    maxDepth: 1000,
+  } as yaml.LoadOptions) as ConformanceCase[];
 
   let parser: ExpressionParser;
 
@@ -86,8 +89,9 @@ describe('expression parser conformance', () => {
     }
 
     it(testCase.name, () => {
-      if (testCase.expect_error) {
-        const {category, message} = testCase.expect_error;
+      const expectError = testCase.expect_error ?? testCase.expectError;
+      if (expectError) {
+        const {category, message} = expectError;
         const expectedError = CATEGORY_TO_ERROR[category] ?? A2uiExpressionError;
         assert.throws(
           () => parser.parse(testCase.input),
