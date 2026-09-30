@@ -13,7 +13,7 @@ local_development:
 
 ## **Architecture & Ecosystem Map**
 
-The reference TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`). This SDK targets the A2UI protocol v1.0 exclusively, optimizing for a clean API surface over backwards compatibility.
+The reference TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`). The SDK supports A2UI protocol v0.9 and v1.0, and is structured so that later protocol versions can be added.
 
 - **Parser and Lexer Layer**: Defines the foundational seams (`Parser`, `BlockLexer`, `ResponsePart`, `RawResponsePart`) through which formats are implemented. The lexer uses sticky regexes and offset-based string matching (`String.startsWith`) for quadratic-free tokenization performance.
 - **Prompt Generation**: Decomposed into three hooks (`generateBaseRules`, `generateCatalogInstructions`, `generateExamples`) under a template `generate()` method to enable decoupled skill generation without duplicating logic.
@@ -21,6 +21,16 @@ The reference TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`). Th
 - **Direct JSON Inference Format**: Implements `<a2ui-json>` serialization via `DirectJsonFormat`, complete with a robust streaming healer (`DirectJsonStreamProcessorImpl`). The streaming heuristic auto-heals fragmented chunks incrementally without blowing away intermediate references.
 - **Processor Facades**: Features agent-lifetime (`A2uiGenerator`) and request-scoped (`A2uiRequestProcessor`) facades to cleanly orchestrate capability negotiation, prompt construction, parsing, and payload validation.
 - **Conformance Harness**: A robust test runner that executes the upstream `conformance/agent/` YAML fixtures, dynamically mapping text and payload shapes across boundaries.
+
+### Protocol versions
+
+Protocol versions are handled in a few fixed places, and adding a version means extending each of them:
+
+- All `@a2ui/web_core` imports, including the `v0_9` and `v1_0` subpaths, go through `src/internal/web_core.ts`. Code outside that file uses the version-neutral `RendererCapabilities` type.
+- The version stamped on emitted messages comes from the catalog's `protocolVersion`, not from a literal.
+- Envelope validation in `src/utils/envelope_validation.ts` selects the v0.9 or v1.0 message schemas from that version. v1.0 adds `callRendererFunction` and `agentFunctionResponse` to the four messages shared with v0.9.
+- `MessageProcessor` picks a version adapter for each message from the message's own `version` field, so the SDK does not configure a protocol version on the processor.
+- The conformance harness runs the versions listed in `SUPPORTED_PROTOCOL_VERSIONS` in `tests/conformance/loader.ts`, currently `v0.9` and `v1.0`.
 
 ## **Local Technical Decisions & Overrides**
 
@@ -35,7 +45,7 @@ The reference TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`). Th
 
 ### **What is NOT Implemented (and Why)**
 
-- **v0.8 / v0.9 Protocol Support**: The SDK targets v1.0 only. Implementing older protocols would complicate the API surface and duplicate efforts on obsolete specs.
+- **v0.8 Protocol Support**: v0.8 uses a different message model (`beginRendering` and `surfaceUpdate`) from v0.9 and v1.0, so it is out of scope for this SDK.
 - **Express / Elemental / Atom Inference Formats**: Only Direct JSON (`<a2ui-json>`) is implemented. The `InferenceFormat` seam remains cleanly open for their future addition.
 - **Extended Catalog Transformers and Utils**: Only the specific catalog transformers required by the baseline features are implemented. Extended `catalog_transformers` and `utils` packages described by the module blueprint are omitted until a concrete use case necessitates them.
 

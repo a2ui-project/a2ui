@@ -8,9 +8,11 @@ codebase_path: typescript/a2ui_agent
 ## Overview
 
 This document describes how the `a2ui_agent` module blueprint is realized for Node.js.
-The package is named `@a2ui/agent` and lives in `typescript/a2ui_agent`. It targets
-A2UI protocol **v1.0** only; there is no backwards compatibility requirement, so the
-design optimizes for a clean API surface over parity with older code paths.
+The package is named `@a2ui/agent` and lives in `typescript/a2ui_agent`. It supports
+A2UI protocol v0.9 and v1.0, and is structured so that later versions can be added. This
+document was first written for v1.0 alone; v0.9 support was added afterwards (see open
+question 1), and [codebase.blueprint.md](codebase.blueprint.md) describes how versions
+are handled today.
 
 The SDK covers catalog management, capability negotiation, prompt generation, response
 parsing, and payload validation for agents that emit A2UI.
@@ -66,12 +68,9 @@ draft of this document had a standalone `A2uiValidator` doing whole-payload vali
 that class does not exist and would be the wrong shape if it did. Section 6 is written
 around the processor instead.
 
-**Renderer capabilities are `V10RendererCapabilities`**, used directly. Because this SDK
-targets v1.0 only, there is nothing to abstract over and no reason to introduce an alias.
-Review raised the possibility of an `A2uiRendererCapabilities` union spanning
-`V09RendererCapabilities` as well — that becomes the right shape if and only if the SDK
-takes on v0.9, which is open question 1. Until then the concrete type is the simpler and
-more honest one.
+**Renderer capabilities use a version-neutral `RendererCapabilities` type**, defined in
+the internal re-export module. It is an alias of `V10RendererCapabilities`, which is
+structurally the same as the v0.9 capabilities block, so no union is needed.
 
 There is no longer a `BasicCatalog` contract to wait on. `BASIC_COMPONENTS` and
 `BASIC_FUNCTION_APIS` are defined programmatically, so a catalog is a `new Catalog(...)`
@@ -504,14 +503,12 @@ one component or function at a time. This SDK calls neither directly beyond cons
 the processor; it adds no validator wrapper of its own.
 
 ```typescript
-const processor = new MessageProcessor(negotiatedCatalogs, undefined, {version: 'v1.0'});
+const processor = new MessageProcessor(negotiatedCatalogs);
 processor.processMessages(messages);
 ```
 
-> [!IMPORTANT]
-> `MessageProcessorOptions.version` defaults to `'v0.9'`. A v1.0-only SDK must pass
-> `'v1.0'` explicitly on every construction, or it will silently validate against the
-> wrong version adapter. This is the single easiest mistake to make in this layer.
+`MessageProcessor` takes no protocol version from this SDK. It picks a version adapter
+for each message from that message's own `version` field.
 
 `processMessages` is the entry point: it applies a payload to surface state and checks
 each message against the surface it joins. The processor rejects a `createSurface` whose
@@ -573,7 +570,7 @@ The suite grew by 12 cases in September, and v1.0 coverage finally appeared: 3 i
 
 Counting by suite is misleading, because reachability depends on the action and the
 protocol version, not the file. With Direct JSON implemented and the SDK targeting v1.0
-only:
+only, as it did when this section was written (v0.9 cases now run too):
 
 | Action                                                    | Cases | Reachable?                                      |
 | --------------------------------------------------------- | ----- | ----------------------------------------------- |
@@ -709,15 +706,8 @@ be resolved before the affected area is finished.
 
 ### A. Scope
 
-1. **Should this SDK support v0.9 as well as v1.0?** This document assumes v1.0 only.
-   Review challenged that: Dart will support v0.9 and v1.0, Python supports v0.8 through
-   v1.0, and all of them are expected to be forward compatible. A TypeScript SDK that
-   stops at v1.0 would be the odd one out.
-   The cost is not evenly spread. Supporting v0.9 means a second set of catalogs and
-   capability types, but it also unlocks the 76 v0.8/v0.9 streaming conformance cases
-   that section 7 currently writes off — reachability would go from 31 of 119 to well
-   over 100.
-   **Blocking** for section 7's scope and for the capability types in section 1.
+1. **Should this SDK support v0.9 as well as v1.0?** Resolved: yes. See the resolved
+   list below.
 
 ### B. Decisions with repository-wide reach
 
@@ -757,6 +747,8 @@ be resolved before the affected area is finished.
 
 ### Resolved
 
+- **Protocol versions.** The SDK supports v0.9 and v1.0 and is built so later versions
+  can be added. v0.8 stays out of scope.
 - **Which inference formats.** Both, with Direct JSON as the default. Rationale in
   section 5.
 - **Who owns v1.0 and Express conformance cases.** This SDK, per section 7.
@@ -813,8 +805,8 @@ the `a2ui_agent` module. Its four conformance cases in `conformance/agent/skill.
 generate Express skills against `catalogs/basic/v1/catalog.json`.
 
 Re-verified at `99f4fd17`. `MessageProcessor` takes catalogs positionally rather than in
-an options bag, and its `version` option defaults to `'v0.9'` — section 6 was corrected
-on both counts. The `a2ui_core` blueprint now specifies `PayloadValidator` as
+an options bag, and section 6 was corrected to match. Its `version` option is not read
+when processing messages; the adapter comes from each message's `version` field. The `a2ui_core` blueprint now specifies `PayloadValidator` as
 single-catalog with `validateComponent` / `validateFunction` / `validateTheme`, and names
 `processMessages` the single entry point, which matches what section 6 already described.
 `AgentToRendererMessage.parseAll`, which that blueprint names as the envelope check, does
