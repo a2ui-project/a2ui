@@ -17,7 +17,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {ListComponent} from './list.component';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
+import {ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder, Child} from '../../core/component-binder.service';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
@@ -48,19 +48,18 @@ describe('ListComponent', () => {
       components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
     } as any;
 
+    const componentsModel = new SurfaceComponentsModel();
+    componentsModel.addComponent(
+      new ComponentModel('child-1', 'Text', {text: {value: 'Child 1'}}, mockCatalog),
+    );
+    componentsModel.addComponent(
+      new ComponentModel('child-2', 'Text', {text: {value: 'Child 2'}}, mockCatalog),
+    );
+
     const mockRendererService = {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
-          componentsModel: new Map([
-            [
-              'child-1',
-              new ComponentModel('child-1', 'Text', {text: {value: 'Child 1'}}, mockCatalog),
-            ],
-            [
-              'child-2',
-              new ComponentModel('child-2', 'Text', {text: {value: 'Child 2'}}, mockCatalog),
-            ],
-          ]),
+          componentsModel,
           defaultCatalog: mockCatalog,
           availableCatalogs: new Map(),
         }),

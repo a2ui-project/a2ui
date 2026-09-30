@@ -18,7 +18,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {By} from '@angular/platform-browser';
 import {ModalComponent} from './modal.component';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
+import {ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentBinder} from '../../core/component-binder.service';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
@@ -47,19 +47,18 @@ describe('ModalComponent', () => {
       components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
     } as any;
 
+    const componentsModel = new SurfaceComponentsModel();
+    componentsModel.addComponent(
+      new ComponentModel('trigger-btn', 'Text', {text: {value: 'Open'}}, mockCatalog),
+    );
+    componentsModel.addComponent(
+      new ComponentModel('modal-content', 'Text', {text: {value: 'Modal'}}, mockCatalog),
+    );
+
     const mockRendererService = {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
-          componentsModel: new Map([
-            [
-              'trigger-btn',
-              new ComponentModel('trigger-btn', 'Text', {text: {value: 'Open'}}, mockCatalog),
-            ],
-            [
-              'modal-content',
-              new ComponentModel('modal-content', 'Text', {text: {value: 'Modal'}}, mockCatalog),
-            ],
-          ]),
+          componentsModel,
           defaultCatalog: mockCatalog,
           availableCatalogs: new Map(),
         }),
