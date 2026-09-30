@@ -15,7 +15,7 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi, STRICT_VALIDATION} from '../../internal/web_core.js';
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonPromptGenerator} from './prompt_generator.js';
@@ -48,7 +48,10 @@ export class DirectJsonFormat implements InferenceFormat {
       ? this.streamProcessorFactory.createStreamProcessor(baseCatalog, this.streamOptions)
       : new DirectJsonStreamProcessorImpl(
           baseCatalog,
-          this.streamOptions || {progressiveKeys: ['text', 'literalString']},
+          this.streamOptions || {
+            progressiveKeys: ['text', 'literalString'],
+            validationConfig: STRICT_VALIDATION,
+          },
         );
 
     return new DirectJsonParser(this.catalogs, streamProcessor);

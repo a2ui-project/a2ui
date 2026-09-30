@@ -26,7 +26,7 @@ import {
   ResponsePart,
   resolveCatalogs,
 } from '../../src/index.js';
-import {V10RendererCapabilities} from '../../src/internal/web_core.js';
+import {STRICT_VALIDATION, V10RendererCapabilities} from '../../src/internal/web_core.js';
 import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.js';
 import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
 
@@ -223,7 +223,9 @@ describe('Conformance Harness', () => {
         ];
         const processor = new DirectJsonStreamProcessorImpl(catalog, {
           progressiveKeys,
-          disableValidation: Boolean(testCase.disableValidation),
+          // The legacy suite's disableValidation predates ValidationConfig. Omitting the
+          // config turns validation off, as it does for web_core's MessageProcessor.
+          validationConfig: testCase.disableValidation ? undefined : STRICT_VALIDATION,
         });
 
         for (const step of testCase.steps as any[]) {
