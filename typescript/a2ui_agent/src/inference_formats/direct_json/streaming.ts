@@ -36,10 +36,7 @@ import {
 } from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {A2uiIntegrityError, ParseError} from '../../errors.js';
-import {
-  isLegacyFallbackChildListKey,
-  isLegacyFallbackSingleChildKey,
-} from '../../utils/legacy_child_refs.js';
+import {isInferredChildListKey, isInferredSingleChildKey} from '../../utils/inferred-child-refs.js';
 import {validateEnvelope} from '../../utils/envelope_validation.js';
 
 export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor {
@@ -82,14 +79,14 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   ) {
     this.cuttableKeys = new Set(options?.progressiveKeys ?? []);
     this.refMap = buildComponentRefMap(this.catalog, V10_CHILD_REF_OPTIONS);
-    this.applyLegacyChildRefFallbacks();
+    this.inferMissingChildRefs();
   }
 
   /**
-   * Applies Python a2ui_core-compatible fallback child reference heuristics ONLY when
-   * a component's schema produced no formal references (singleRefs or listRefs).
+   * Infers child references from property names for components whose schema produced
+   * no formal references. See inferred-child-refs.ts for when this applies.
    */
-  private applyLegacyChildRefFallbacks() {
+  private inferMissingChildRefs() {
     if (!this.catalog.components || typeof this.catalog.components.values !== 'function') {
       return;
     }
@@ -113,9 +110,9 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       ) {
         const shape = (schema as {shape: Record<string, unknown>}).shape;
         for (const key of Object.keys(shape)) {
-          if (isLegacyFallbackChildListKey(key)) {
+          if (isInferredChildListKey(key)) {
             listRefs.add(key);
-          } else if (isLegacyFallbackSingleChildKey(key)) {
+          } else if (isInferredSingleChildKey(key)) {
             singleRefs.add(key);
           }
         }
