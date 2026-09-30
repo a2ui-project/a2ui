@@ -40,32 +40,46 @@ export function toCatalogList(catalogs: SchemaCatalog | SchemaCatalog[]): Schema
 }
 
 /**
+ * Returns the release line (`major.minor`) of a wire protocol version, so that patch
+ * releases such as `v0.9.1` compare equal to `v0.9`.
+ */
+function versionLine(version: string): string {
+  return version.split('.').slice(0, 2).join('.');
+}
+
+/**
  * Returns the wire protocol version Express should emit for a set of catalogs.
  *
- * All catalogs must share one protocol version, because an Express block compiles to
- * messages of a single version. A requested version must match it.
+ * An Express block compiles to messages of a single version, so all catalogs must
+ * belong to one release line (`v0.9` and `v0.9.1` do; `v0.9` and `v1.0` don't). A
+ * requested version must be on that line too. Crossing lines would produce, for
+ * example, a v1.0 `createSurface` that names a v0.9 catalog.
  *
  * @param catalogs The active catalogs (non-empty).
  * @param requested An explicitly requested version, if any.
- * @returns The protocol version shared by the catalogs.
- * @throws A2uiCatalogError if the catalogs disagree or the requested version differs.
+ * @returns The requested version, or the first catalog's version.
+ * @throws A2uiCatalogError if the catalogs, or the requested version, span release lines.
  */
 export function resolveExpressVersion(catalogs: SchemaCatalog[], requested?: string): string {
   const version = toWireProtocolVersion(catalogs[0].protocolVersion);
   for (const catalog of catalogs) {
     const other = toWireProtocolVersion(catalog.protocolVersion);
-    if (other !== version) {
+    if (versionLine(other) !== versionLine(version)) {
       throw new A2uiCatalogError(
         `Express catalogs must share one protocol version, but '${catalogs[0].id}' is '${version}' and '${catalog.id}' is '${other}'.`,
       );
     }
   }
-  if (requested && requested !== version) {
+  if (!requested) {
+    return version;
+  }
+  const target = toWireProtocolVersion(requested);
+  if (versionLine(target) !== versionLine(version)) {
     throw new A2uiCatalogError(
       `Requested protocol version '${requested}' does not match catalog version '${version}'`,
     );
   }
-  return version;
+  return target;
 }
 
 /**

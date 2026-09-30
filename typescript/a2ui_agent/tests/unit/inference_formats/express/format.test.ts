@@ -83,6 +83,11 @@ describe('ExpressFormat', () => {
         /Requested protocol version 'v1.0' does not match catalog version 'v0.9'/,
       );
     });
+
+    it('accepts v0.9.1 for a v0.9 catalog', () => {
+      const parser = new ExpressFormat([catalog2], {version: 'v0.9.1'}).createParser();
+      expect((parser as ExpressParser).version).toBe('v0.9.1');
+    });
   });
 
   describe('ExpressFormatFactory', () => {
