@@ -28,13 +28,7 @@ import {
 } from './suite-helpers.js';
 
 /** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([
-  [
-    'test_snippet_describes_only_the_allowed_envelopes',
-    'the generator takes no allowlist of envelopes',
-  ],
-  ['test_no_active_catalogs_is_an_error', 'the generator accepts an empty catalog list'],
-]);
+const KNOWN_FAILURES = new Map<string, string>([]);
 
 describe('Conformance: direct_json/prompt_generator.yaml', () => {
   for (const testCase of loadCases([conformancePath('agent/direct_json/prompt_generator.yaml')])) {
@@ -48,9 +42,6 @@ describe('Conformance: direct_json/prompt_generator.yaml', () => {
       if (args.format !== 'direct_json') {
         throw new Error(`Unexpected format '${args.format}'`);
       }
-      if (args.allowed_messages) {
-        throw new Error('allowed_messages is not implemented by DirectJsonPromptGenerator');
-      }
 
       const catalogs = (await loadRegistrations(args.catalogs)).map(c => c.transformedCatalog);
       const turns = (args.examples ?? []).map(
@@ -61,7 +52,7 @@ describe('Conformance: direct_json/prompt_generator.yaml', () => {
       const examples =
         turns.length > 0 && catalogs.length > 0 ? {[catalogs[0].id]: turns.flat()} : undefined;
       const generate = () =>
-        new DirectJsonPromptGenerator(catalogs, examples).generate({includeExamples: true});
+        new DirectJsonPromptGenerator(catalogs, examples, args.allowed_messages).generate();
 
       if (testCase.expect_error) {
         expect(generate).toThrow(errorClassFor(testCase));

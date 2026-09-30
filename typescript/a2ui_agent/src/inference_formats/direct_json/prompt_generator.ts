@@ -14,79 +14,89 @@
  * limitations under the License.
  */
 
-import {PromptGenerator} from '../../prompt/generator.js';
-import {SchemaCatalog} from '../../types.js';
+import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {
-  A2UI_SCHEMA_BLOCK_START,
   A2UI_SCHEMA_BLOCK_END,
+  A2UI_SCHEMA_BLOCK_START,
   DEFAULT_WORKFLOW_RULES,
 } from '../../parser/constants.js';
-import {AgentToRendererMessage} from '../../internal/web_core.js';
-import {getProtocolSchemas} from '../../utils/protocol_schemas.js';
+import {PromptGenerator} from '../../prompt/generator.js';
+import {SchemaCatalog} from '../../types.js';
+import {messageJsonSchemas} from '../../utils/message-schemas.js';
+import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
+/**
+ * Renders the Direct JSON prompt snippet: the payload rules, the message envelopes and
+ * catalog schemas inside a schema block, and any examples inside `<a2ui-json>` tags.
+ */
 export class DirectJsonPromptGenerator extends PromptGenerator {
-  private readonly examples?: Record<string, AgentToRendererMessage[] | string>;
-  private readonly decompiler: DirectJsonDecompiler;
+  private readonly decompiler = new DirectJsonDecompiler();
 
+  /**
+   * @param catalogs Active catalogs to describe.
+   * @param examples Optional examples keyed by catalog id, either as messages or as
+   *     preformatted text.
+   * @param allowedMessages Optional allowlist of envelope names (`createSurface`,
+   *     `updateComponents`, ...). Only these envelopes are described. Without it, every
+   *     envelope of the catalogs' protocol versions is described.
+   */
   constructor(
     catalogs: SchemaCatalog[],
-    examples?: Record<string, AgentToRendererMessage[] | string>,
+    private readonly examples?: Record<string, AgentToRendererMessage[] | string>,
+    private readonly allowedMessages?: readonly string[],
   ) {
     super(catalogs);
-    this.examples = examples;
-    this.decompiler = new DirectJsonDecompiler();
   }
 
   generateBaseRules(): string {
     return DEFAULT_WORKFLOW_RULES;
   }
 
-  protected renderCatalogInstructions(catalog: SchemaCatalog, includeSchema: boolean): string {
-    if (!includeSchema) {
-      return '';
-    }
-
-    const instructions = catalog.instructions || '';
-    const prefix = instructions ? `${instructions}\n\n` : '';
-
-    // A failure to load the protocol schemas is not something to paper over. Emitting the
-    // block with an empty server-to-client schema would produce a prompt that looks valid
-    // and instructs the model to generate against nothing, which fails far from the cause.
-    const version = catalog.protocolVersion;
-    const schemas = getProtocolSchemas(version);
-
-    const allSchemas: string[] = [A2UI_SCHEMA_BLOCK_START];
-
-    allSchemas.push(`### Server To Client Schema:\n${JSON.stringify(schemas.serverToClient)}`);
-
-    // Python emits this section only when the common types actually define something, so a
-    // version whose common types are empty produces no section rather than an empty one.
-    const defs = schemas.commonTypes.$defs;
-    if (typeof defs === 'object' && defs !== null && Object.keys(defs).length > 0) {
-      allSchemas.push(`### Common Types Schema:\n${JSON.stringify(schemas.commonTypes)}`);
-    }
-
-    allSchemas.push(`### Catalog Schema:\n${JSON.stringify(catalog.catalogSchema ?? {})}`);
-
-    allSchemas.push(A2UI_SCHEMA_BLOCK_END);
-
-    return `${prefix}${allSchemas.join('\n\n')}`;
+  /**
+   * The schema block: message envelopes once per protocol version, then each catalog.
+   */
+  override generateCatalogInstructions(catalog?: SchemaCatalog): string {
+    const targets = catalog ? [catalog] : this.catalogs;
+    const versions = [...new Set(targets.map(c => toWireProtocolVersion(c.protocolVersion)))];
+    const sections = [
+      A2UI_SCHEMA_BLOCK_START,
+      ...versions.map(version => this.renderEnvelopes(version)),
+      ...targets.map(c => this.renderCatalogInstructions(c)),
+      A2UI_SCHEMA_BLOCK_END,
+    ];
+    return sections.join('\n\n');
   }
 
-  protected renderExamples(catalog: SchemaCatalog, _validate: boolean): string {
-    if (!this.examples || !this.examples[catalog.id]) {
+  protected renderCatalogInstructions(catalog: SchemaCatalog): string {
+    const parts = [`### Catalog ${catalog.id}:`];
+    if (catalog.instructions) {
+      parts.push(catalog.instructions);
+    }
+    parts.push(JSON.stringify(catalog.catalogSchema));
+    return parts.join('\n');
+  }
+
+  protected renderExamples(catalog: SchemaCatalog): string {
+    const exampleMessages = this.examples?.[catalog.id];
+    if (!exampleMessages) {
       return '';
     }
-
-    const exampleMessages = this.examples[catalog.id];
     // A string is preformatted example text and goes into the prompt as is, the way
     // Python's load_examples inserts the raw contents of each example file.
     if (typeof exampleMessages === 'string') {
       return exampleMessages;
     }
-
     const decompiled = this.decompiler.decompile(exampleMessages);
     return this.decompiler.wrap([{type: 'a2ui', a2uiRaw: decompiled, isFinal: true}]);
+  }
+
+  private renderEnvelopes(version: string): string {
+    const all = messageJsonSchemas(version);
+    const allowed = this.allowedMessages;
+    const envelopes = Object.fromEntries(
+      Object.entries(all).filter(([name]) => !allowed || allowed.includes(name)),
+    );
+    return `### Messages (${version}):\n${JSON.stringify(envelopes)}`;
   }
 }

@@ -36,19 +36,30 @@ describe('DirectJsonPromptGenerator', () => {
   });
 
   it('generates catalog instructions with schema block', () => {
-    const instructions = generator.generateCatalogInstructions(true);
+    const instructions = generator.generateCatalogInstructions();
     expect(instructions).toContain('---BEGIN A2UI JSON SCHEMA---');
     expect(instructions).toContain('---END A2UI JSON SCHEMA---');
-    expect(instructions).toContain('### Server To Client Schema:');
-    expect(instructions).toContain('### Common Types Schema:');
-    expect(instructions).toContain('### Catalog Schema:');
+    expect(instructions).toContain(`### Messages (${catalog.protocolVersion}):`);
+    expect(instructions).toContain(`### Catalog ${catalog.id}:`);
     // Ensure the schema json is present inside the block
     expect(instructions).toContain('"components":{');
   });
 
-  it('generates empty catalog instructions if includeSchema is false', () => {
-    const instructions = generator.generateCatalogInstructions(false);
-    expect(instructions).toBe('');
+  it('describes each protocol version once, however many catalogs use it', () => {
+    const twoCatalogs = new DirectJsonPromptGenerator([catalog, catalog]);
+    const instructions = twoCatalogs.generateCatalogInstructions();
+    expect(instructions.split('### Messages (').length).toBe(2);
+  });
+
+  it('describes only the allowed envelopes', () => {
+    const limited = new DirectJsonPromptGenerator([catalog], undefined, ['createSurface']);
+    const instructions = limited.generateCatalogInstructions();
+    expect(instructions).toContain('"createSurface"');
+    expect(instructions).not.toContain('"deleteSurface"');
+  });
+
+  it('keeps generator markers out of the message schemas', () => {
+    expect(generator.generateCatalogInstructions()).not.toContain('REF:');
   });
 
   it('generates formatted examples', () => {
@@ -58,17 +69,9 @@ describe('DirectJsonPromptGenerator', () => {
     expect(exampleStr).toContain('</a2ui-json>');
   });
 
-  it('generates complete prompt with specific options', () => {
-    const prompt = generator.generate({
-      roleDescription: 'You are a UI agent.',
-      workflowDescription: 'Do UI stuff.',
-      uiDescription: 'A specific UI context.',
-      includeSchema: true,
-      includeExamples: true,
-    });
-    expect(prompt).toContain('You are a UI agent.');
-    expect(prompt).toContain('Do UI stuff.');
-    expect(prompt).toContain('A specific UI context.');
+  it('generates the snippet with rules, schemas and examples', () => {
+    const prompt = generator.generate();
+    expect(prompt).toContain('The generated response MUST follow these rules:');
     expect(prompt).toContain('---BEGIN A2UI JSON SCHEMA---');
     expect(prompt).toContain('<a2ui-json>');
     expect(prompt).toContain('"createSurface": {');

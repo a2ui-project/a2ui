@@ -26,7 +26,6 @@ import {InferenceFormatFactory, InferenceFormat} from '../inference_format/base.
 import {ResponsePart} from '../parser/response_part.js';
 import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
 import {Parser} from '../parser/parser.js';
-import {PromptOptions} from '../prompt/generator.js';
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
@@ -66,25 +65,11 @@ export class A2uiRequestProcessor {
   /**
    * Format-specific system prompt snippet to feed the model.
    *
-   * Equivalent to `generate()` with defaults, kept as a property because the module
-   * blueprint declares `prompt_snippet` that way. Callers wanting role, workflow, or UI
-   * descriptions reach the full `PromptGenerator.generate(options)` through the format.
+   * The snippet covers the format's rules, the active catalogs and any examples. The agent
+   * developer writes the rest of the system prompt and places the snippet within it.
    */
   get promptSnippet(): string {
     return this._format.promptGenerator.generate();
-  }
-
-  /**
-   * Builds the full system prompt for the negotiated catalogs.
-   *
-   * The counterpart of Python's `generate_system_prompt`. Unlike `promptSnippet`, it
-   * takes options, so it can prepend role and UI descriptions and append examples.
-   *
-   * @param options Sections to include in the prompt.
-   * @returns The system prompt.
-   */
-  generatePrompt(options?: PromptOptions): string {
-    return this._format.promptGenerator.generate(options);
   }
 
   /** Parses and validates a model response. */

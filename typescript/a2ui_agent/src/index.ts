@@ -46,7 +46,7 @@ export {
 
 export {Parser} from './parser/parser.js';
 
-export {type PromptOptions, PromptGenerator} from './prompt/generator.js';
+export {PromptGenerator} from './prompt/generator.js';
 
 export {type InferenceFormat, type InferenceFormatFactory} from './inference_format/base.js';
 

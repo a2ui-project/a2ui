@@ -14,28 +14,30 @@
  * limitations under the License.
  */
 
+import {A2uiCatalogError} from '../errors.js';
 import {SchemaCatalog} from '../types.js';
-
-/** Options for assembling a complete system prompt. */
-export interface PromptOptions {
-  roleDescription?: string;
-  workflowDescription?: string;
-  uiDescription?: string;
-  includeSchema?: boolean;
-  includeExamples?: boolean;
-  validateExamples?: boolean;
-}
 
 /**
  * Abstract base class for format-specific prompt generation.
+ *
+ * A generator renders the snippet of system prompt that tells the model how to write A2UI
+ * for the active catalogs: the format's rules, the catalog schemas, and any examples. The
+ * rest of the system prompt, such as the agent's role and workflow, belongs to the agent
+ * developer, who places the snippet wherever it fits.
  */
 export abstract class PromptGenerator {
   /**
    * Initializes a new PromptGenerator instance.
    *
-   * @param catalogs Bound schema catalogs to render instructions for.
+   * @param catalogs Active catalogs to render instructions for.
+   * @throws {A2uiCatalogError} If no catalog is given, since the model would then have
+   *     nothing it could be told to write.
    */
-  constructor(public readonly catalogs: SchemaCatalog[]) {}
+  constructor(public readonly catalogs: SchemaCatalog[]) {
+    if (catalogs.length === 0) {
+      throw new A2uiCatalogError('A prompt snippet needs at least one active catalog.');
+    }
+  }
 
   /**
    * Catalog-agnostic syntax contracts, grammar, and sentinel tags.
@@ -43,75 +45,41 @@ export abstract class PromptGenerator {
   abstract generateBaseRules(): string;
 
   /**
-   * Signatures for one catalog, or for all bound catalogs.
+   * Signatures for one catalog, or for all active catalogs.
    */
-  generateCatalogInstructions(includeSchema = true, catalog?: SchemaCatalog): string {
+  generateCatalogInstructions(catalog?: SchemaCatalog): string {
     const targets = catalog ? [catalog] : this.catalogs;
     return targets
-      .map(c => this.renderCatalogInstructions(c, includeSchema))
+      .map(c => this.renderCatalogInstructions(c))
       .filter(s => s.length > 0)
       .join('\n\n');
   }
 
   /**
-   * Few-shot examples for one catalog, or for all bound catalogs.
+   * Few-shot examples for one catalog, or for all active catalogs.
    */
-  generateExamples(catalog?: SchemaCatalog, validate = false): string {
+  generateExamples(catalog?: SchemaCatalog): string {
     const targets = catalog ? [catalog] : this.catalogs;
     return targets
-      .map(c => this.renderExamples(c, validate))
+      .map(c => this.renderExamples(c))
       .filter(s => s.length > 0)
       .join('\n\n');
   }
 
   /** Format-specific rendering for a single catalog's instructions. */
-  protected abstract renderCatalogInstructions(
-    catalog: SchemaCatalog,
-    includeSchema: boolean,
-  ): string;
+  protected abstract renderCatalogInstructions(catalog: SchemaCatalog): string;
 
   /** Format-specific rendering for a single catalog's examples. */
-  protected abstract renderExamples(catalog: SchemaCatalog, validate: boolean): string;
+  protected abstract renderExamples(catalog: SchemaCatalog): string;
 
   /**
-   * Template method assembling the complete prompt.
+   * Renders the prompt snippet: base rules, catalog instructions, and examples.
    *
-   * Composes role, workflow, and UI descriptions with format-specific
-   * base rules, catalog instructions, and examples.
    * Formats override the pieces, never this method.
-   *
-   * @param options Configures what sections are included in the prompt.
    */
-  generate(options?: PromptOptions): string {
-    const opts = {
-      includeSchema: true,
-      includeExamples: false,
-      validateExamples: false,
-      ...options,
-    };
-
-    const parts: string[] = [];
-
-    if (opts.roleDescription) {
-      parts.push(opts.roleDescription);
-    }
-    if (opts.workflowDescription) {
-      parts.push(opts.workflowDescription);
-    }
-    if (opts.uiDescription) {
-      parts.push(opts.uiDescription);
-    }
-
-    parts.push(this.generateBaseRules());
-    parts.push(this.generateCatalogInstructions(opts.includeSchema));
-
-    if (opts.includeExamples) {
-      const examples = this.generateExamples(undefined, opts.validateExamples);
-      if (examples) {
-        parts.push(examples);
-      }
-    }
-
-    return parts.join('\n\n');
+  generate(): string {
+    return [this.generateBaseRules(), this.generateCatalogInstructions(), this.generateExamples()]
+      .filter(s => s.length > 0)
+      .join('\n\n');
   }
 }
