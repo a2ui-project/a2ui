@@ -16,7 +16,7 @@
 
 import {describe, it, expect} from 'vitest';
 import {Catalog} from '../../../src/internal/web_core.js';
-import {basicCatalog} from '../../../src/types.js';
+import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {A2uiCatalogError} from '../../../src/errors.js';
 import {
   registerCatalogDocument,
@@ -27,6 +27,9 @@ import {
   ComponentPruningTransformer,
   FunctionPruningTransformer,
 } from '../../../src/catalog_transformers/pruning.js';
+
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV09 = await loadBasicCatalog('v0.9');
 
 describe('catalog_document registry', () => {
   it('registers and retrieves catalog source JSON document', () => {
@@ -44,19 +47,19 @@ describe('catalog_document registry', () => {
     const catalog = new Catalog('unregistered_catalog_id', 'v1.0', [], []);
     expect(() => getCatalogDocument(catalog)).toThrow(A2uiCatalogError);
     expect(() => getCatalogDocument(catalog)).toThrow(
-      "Catalog 'unregistered_catalog_id' has no source JSON document registered. Express reads component schemas from the catalog JSON, so the catalog must be loaded through @a2ui/agent (basicCatalog, a catalog provider, or CatalogConfig).",
+      "Catalog 'unregistered_catalog_id' has no source JSON document registered. Express reads component schemas from the catalog JSON, so the catalog must be loaded through @a2ui/agent (a catalog provider or CatalogConfig).",
     );
   });
 
   it('basicCatalog(v1.0) and basicCatalog(v0.9) have registered documents', () => {
-    const catV10 = basicCatalog('v1.0');
+    const catV10 = basicCatalogV10;
     expect(hasCatalogDocument(catV10)).toBe(true);
     const docV10 = getCatalogDocument(catV10);
     expect(docV10).toBeDefined();
     expect(typeof docV10.components).toBe('object');
     expect(Object.keys(docV10.components as Record<string, unknown>)).toContain('Button');
 
-    const catV09 = basicCatalog('v0.9');
+    const catV09 = basicCatalogV09;
     expect(hasCatalogDocument(catV09)).toBe(true);
     const docV09 = getCatalogDocument(catV09);
     expect(docV09).toBeDefined();
@@ -65,7 +68,7 @@ describe('catalog_document registry', () => {
   });
 
   it('pruning keeps only the kept components in the document', () => {
-    const cat = basicCatalog('v1.0');
+    const cat = basicCatalogV10;
     const transformer = new ComponentPruningTransformer(['Text', 'Button']);
     const prunedCat = transformer.transform(cat);
 
@@ -85,7 +88,7 @@ describe('catalog_document registry', () => {
   });
 
   it('function pruning keeps only the kept functions in the document', () => {
-    const cat = basicCatalog('v1.0');
+    const cat = basicCatalogV10;
     const transformer = new FunctionPruningTransformer(['required']);
     const prunedCat = transformer.transform(cat);
 

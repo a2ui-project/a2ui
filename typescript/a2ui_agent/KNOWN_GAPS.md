@@ -27,12 +27,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it blocks:** Legacy `v0.8` agents and alternative format use cases.
 - **Done looks like:** The `InferenceFormat` seam is populated with implementations for Express, Elemental, and Atom, and the `v0.8` conformance cases are enabled.
 
-### The per-format conformance suites are not run
+### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser, streaming parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there, as Python's does. The suites added for the blueprint interface are not run: `agent/direct_json/*.yaml`, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/request_processor.yaml` and `agent/builder/`.
-- **Why it exists:** Those suites arrived with the merge, after this harness was written.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser, streaming parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there, as Python's does. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml` and `agent/direct_json/prompt_generator.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml`, `agent/request_processor.yaml` and `agent/builder/`.
+- **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
-- **Done looks like:** The harness runs the new suites and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
+- **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
 
 ### `no-explicit-any` lint warnings
 
@@ -40,14 +40,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** These are heavily concentrated in the streaming healer (`streaming.ts`), where partial JSON chunks are genuinely untyped before being repaired and compiled.
 - **What it risks:** Mild technical debt.
 - **Done looks like:** The partial JSON trees are given a more rigorous generic recursive type, or `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
-
-### Basic catalog read from disk at runtime
-
-- **What it is:** `basicCatalog()` reads `catalog.json` from disk inside `@a2ui/web_core` at runtime using `fs.readFileSync`.
-- **Why it exists:** The compiled constants in `web_core` lack catalog instructions, and future v0.9 support requires reading from JSON to avoid coupling to Lit.
-- **What it risks:** This will not survive bundling for a browser or execution in environments without local filesystem access to `node_modules`.
-- **Status:** The package is Node-targeted, so synchronous filesystem reading from the resolved package location is accepted for now.
-- **Done looks like:** Catalogs are bundled or compiled as headless constants containing instructions, or an asynchronous/pluggable catalog loader is introduced.
 
 ## 2. `web_core`
 
@@ -113,7 +105,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 - **What it is:** The `v1.0` basic catalog JSON includes a large `instructions` string ("For layout, use the Row..."), but the compiled `BASIC_COMPONENTS` in `web_core` has no programmatic equivalent.
 - **Why it exists:** A gap between the generated `web_core` schema and the JSON source.
-- **Status in `@a2ui/agent`:** Resolved. `basicCatalog()` now builds the catalog directly from `@a2ui/web_core`'s shipped `catalog.json` instead of the compiled constants, supplying the full 2,880 character `instructions`.
+- **Status in `@a2ui/agent`:** Not affected. The SDK bundles no catalog; agents load the published `catalog.json` through a catalog provider, which keeps the full `instructions` string.
 - **Done looks like:** `web_core` exports the basic catalog instructions natively so consumers without filesystem access do not need to read `catalog.json`.
 
 ### Capabilities schema inconsistency

@@ -18,11 +18,13 @@ import {describe, it, expect} from 'vitest';
 import {DirectJsonParser} from '../../../../src/inference_formats/direct_json/parser.js';
 import {DirectJsonStreamProcessorImpl} from '../../../../src/inference_formats/direct_json/streaming.js';
 import {DirectJsonFormatFactory} from '../../../../src/inference_formats/direct_json/format.js';
-import {basicCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {ParseError} from '../../../../src/errors.js';
 
+const basicCatalogV10 = await loadBasicCatalog('v1.0');
+
 describe('DirectJsonParser', () => {
-  const catalog = basicCatalog();
+  const catalog = basicCatalogV10;
 
   it('hasA2uiParts correctly identifies complete and incomplete format content', () => {
     const parser = new DirectJsonParser(catalog);
