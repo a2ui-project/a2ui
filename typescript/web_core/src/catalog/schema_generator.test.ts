@@ -413,6 +413,26 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     assert.deepStrictEqual(overridden['DynamicString'], V09_STANDARD_DEFS['DynamicString']);
   });
 
+  it('uses the v1.0 definitions for later versions with no entry of their own', () => {
+    const CustomWidget: ComponentApi = {
+      name: 'CustomWidget',
+      schema: z.object({
+        child: z.string().describe('REF:#/$defs/Child'),
+      }),
+    };
+
+    for (const version of ['1.0.1', 'v1.1', '2.0']) {
+      const defs = new Catalog('https://example.com/later.json', version, [CustomWidget])
+        .catalogSchema['$defs'] as Record<string, unknown>;
+      assert.deepStrictEqual(defs['Child'], V10_STANDARD_DEFS['Child'], `version ${version}`);
+    }
+
+    const v092Defs = new Catalog('https://example.com/v092.json', '0.9.2', [
+      {name: 'Label', schema: z.object({text: z.string().describe('REF:#/$defs/DynamicString')})},
+    ]).catalogSchema['$defs'] as Record<string, unknown>;
+    assert.deepStrictEqual(v092Defs['DynamicString'], V09_STANDARD_DEFS['DynamicString']);
+  });
+
   it('respects explicit standardDefs in GenerateCatalogSchemaOptions', () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
