@@ -71,6 +71,7 @@ export {
   buildComponentRefMap,
   V10_CHILD_REF_OPTIONS,
 } from '@a2ui/web_core/validating';
+export type {ValidationConfig} from '@a2ui/web_core/validating';
 // Sourced from ./validating rather than ./catalog: catalog/index.ts re-exports only what
 // types.ts declares, and types.ts imports this type without re-exporting it, so it is not
 // reachable through the ./catalog subpath.

@@ -17,7 +17,12 @@
 import {describe, test, expect} from 'vitest';
 import {DirectJsonStreamProcessorImpl} from '../../../../src/inference_formats/direct_json/streaming.js';
 import {SchemaCatalog} from '../../../../src/types.js';
-import {Catalog, ComponentApi} from '../../../../src/internal/web_core.js';
+import {
+  A2uiValidationError,
+  Catalog,
+  ComponentApi,
+  STRICT_VALIDATION,
+} from '../../../../src/internal/web_core.js';
 import {z} from 'zod';
 
 describe('Direct JSON Streaming protocol version and placeholder', () => {
@@ -31,8 +36,8 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
 
     // The input omits `version` on purpose: the assertion is that the emitted version comes
     // from the catalog, which it could not prove if the input carried a version to echo.
-    // Real envelopes require `version`, so validation is off for this test only.
-    const processor = new DirectJsonStreamProcessorImpl(catalog, {disableValidation: true});
+    // Real envelopes require `version`, so this test passes no validation config.
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
     (processor as unknown as {refMap: unknown}).refMap = {
       Row: {singleRefs: new Set(), listRefs: new Set(['children'])},
       Text: {singleRefs: new Set(), listRefs: new Set()},
@@ -67,7 +72,7 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
       [{name: 'Row', schema: {}} as ComponentApi, {name: 'Card', schema: {}} as ComponentApi],
       [],
     );
-    const processor = new DirectJsonStreamProcessorImpl(catalog, {disableValidation: true});
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
     expect((processor as unknown as {placeholderComponent: unknown}).placeholderComponent).toEqual({
       component: 'Row',
       children: [],
@@ -485,5 +490,39 @@ describe('Direct JSON Streaming required fields guard', () => {
     const yielded = updates[0].updateComponents.components;
     // Only 'root' is yielded; no placeholder for 'non_existent_child' is generated
     expect(yielded.map(c => c.id)).toEqual(['root']);
+  });
+});
+
+describe('Direct JSON Streaming validation config', () => {
+  const catalog: SchemaCatalog = new Catalog(
+    'https://test.com/catalog.json',
+    'v0.9',
+    [{name: 'Text', schema: {}} as ComponentApi],
+    [],
+  );
+  const missingVersion =
+    '<a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId": "c1"}}]</a2ui-json>';
+  const deleteSurface =
+    '<a2ui-json>[{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>';
+
+  test('does not validate envelopes without a validation config', () => {
+    const processor = new DirectJsonStreamProcessorImpl(catalog);
+    expect(() => processor.processChunk(missingVersion)).not.toThrow();
+  });
+
+  test('validates envelopes against the protocol schema with a validation config', () => {
+    const processor = new DirectJsonStreamProcessorImpl(catalog, {
+      validationConfig: STRICT_VALIDATION,
+    });
+    expect(() => processor.processChunk(missingVersion)).toThrow(A2uiValidationError);
+  });
+
+  test('rejects message types outside allowedMessages', () => {
+    const processor = new DirectJsonStreamProcessorImpl(catalog, {
+      validationConfig: {...STRICT_VALIDATION, allowedMessages: ['createSurface']},
+    });
+    expect(() => processor.processChunk(deleteSurface)).toThrow(
+      "Message type 'deleteSurface' is not permitted by ValidationConfig.allowedMessages",
+    );
   });
 });
