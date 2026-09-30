@@ -40,35 +40,17 @@ See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
 
 ### PyPI
 
-Releasing `a2ui-core` or `a2ui-agent-sdk` can be as simple as providing a prompt to an AI assistant:
+Releasing `a2ui-core`, `a2ui-agent-sdk`, or both is performed by providing a prompt to an AI assistant:
 
 ```text
-Release a2ui-core and a2ui-agent-sdk with a minor bump
+Release a2ui-core, a2ui-agent-sdk, or both with a <major|minor|patch> bump
 ```
 
-The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to approve and merge the pull request raised to update the changelog.
+The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog.
 
-#### Manual release via GitHub Actions
+#### How it works behind the scenes
 
-If releasing without an assistant, run the GitHub Actions workflow directly:
-
-1. Check the Unreleased sections of the changelogs. If both are empty, there is
-   nothing to release.
-    - a2ui_core [CHANGELOG](../../python/a2ui_core/CHANGELOG.md)
-    - a2ui_agent [CHANGELOG](../../python/a2ui_agent/CHANGELOG.md)
-
-2. Run the [Release Python SDKs](../../.github/workflows/release-pypi.yml)
-   workflow from the Actions tab, on `main`. Pick the package, pick a bump
-   level, optionally provide your name and CLA-signed email for the changelog
-   commit, and leave `dry_run` enabled for the first run. A dry run stages the
-   build in the Artifact Registry, removes it again, and pushes nothing.
-
-3. Check the dry run output, then run it again with `dry_run` disabled.
-
-4. Open and merge the changelog pull request. The release run prepares the edit
-   on a branch and puts a one-click link in its job summary. Do this before the
-   next release: until it lands, the entries stay under `## Unreleased` and the
-   next release repeats them in its notes.
+Publishing is handled by the [Release Python SDKs](../../.github/workflows/release-pypi.yml) workflow on `main`. There is no version file to edit and no package build or upload to run locally.
 
 The workflow works out the new version from the latest release tag, tags the
 release, builds, stages the artifacts in the OSS Exit Gate Artifact Registry,
@@ -78,6 +60,8 @@ finishes. The GitHub release is updated with a link to the published version
 once it appears on PyPI, either by the release run itself or by the hourly
 [Confirm PyPI publication](../../.github/workflows/release-verify-pypi.yml)
 workflow.
+
+If an assistant is unavailable, maintainers can dispatch the workflow manually from the Actions tab on `main`. Always run with `dry_run: true` first to verify the plan and artifact staging before running with `dry_run: false`.
 
 #### The release only pushes tags
 
