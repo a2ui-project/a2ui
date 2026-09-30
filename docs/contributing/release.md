@@ -46,7 +46,7 @@ Releasing `a2ui-core`, `a2ui-agent-sdk`, or both is performed by providing a pro
 Release a2ui-core, a2ui-agent-sdk, or both with a <major|minor|patch> bump
 ```
 
-The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/) and [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) with links to the published PyPI packages.
+The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/) and [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) that link to them.
 
 #### How it works behind the scenes
 
