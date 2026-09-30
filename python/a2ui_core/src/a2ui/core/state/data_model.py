@@ -42,12 +42,7 @@ class DataModel:
         """Splits a JSON Pointer path into individual unescaped tokens."""
         if not path or path == "/":
             return []
-        if len(path) > 1 and path.endswith("/"):
-            path = path[:-1]
-        if not path.startswith("/"):
-            tokens = path.split("/")
-        else:
-            tokens = path[1:].split("/")
+        tokens = [s for s in path.split("/") if s]
         parsed = [t.replace("~1", "/").replace("~0", "~") for t in tokens]
         for segment in parsed:
             if segment in FORBIDDEN_KEYS:
