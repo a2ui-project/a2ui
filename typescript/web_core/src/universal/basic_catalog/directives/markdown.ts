@@ -85,6 +85,8 @@ class MarkdownDirective extends AsyncDirective {
     const effectiveRenderer = markdownRenderer ?? globalMarkdownRenderer;
 
     if (effectiveRenderer) {
+      // Discard stale results from previous in-flight asynchronous renders
+      // if a newer render request is initiated before earlier promises resolve.
       const token = ++this.renderToken;
       try {
         Promise.resolve(effectiveRenderer(value, markdownOptions))
