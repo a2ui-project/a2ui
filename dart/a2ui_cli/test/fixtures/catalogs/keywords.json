@@ -1,0 +1,22 @@
+{
+  "catalogId": "keywords_catalog",
+  "components": {
+    "KeywordItem": {
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "def": {
+          "type": "integer"
+        },
+        "pass": {
+          "type": "boolean"
+        }
+      },
+      "required": ["from", "class"]
+    }
+  }
+}
