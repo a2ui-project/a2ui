@@ -17,7 +17,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import {type AgentToRendererMessage, basicCatalog, ExpressDecompiler} from '@a2ui/agent';
+import {type AgentToRendererMessage, ExpressDecompiler, type SchemaCatalog} from '@a2ui/agent';
 
 import type {A2uiFormat} from './config.js';
 import {getPackageRootDir} from './tools.js';
@@ -38,13 +38,14 @@ export function readMessages(filePath: string): AgentToRendererMessage[] {
 /** Writes A2UI messages as a model would in the given format, wrapped in its tags. */
 export function toResponseText(
   profile: VersionProfile,
+  catalog: SchemaCatalog,
   format: A2uiFormat,
   messages: AgentToRendererMessage[],
 ): string {
   if (format === 'direct_json') {
     return `<a2ui-json>\n${JSON.stringify(messages, null, 2)}\n</a2ui-json>`;
   }
-  const decompiler = new ExpressDecompiler(basicCatalog(profile.version), profile.version);
+  const decompiler = new ExpressDecompiler(catalog, profile.version);
   return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
 }
 
@@ -54,6 +55,7 @@ export function toResponseText(
  */
 export function loadExamples(
   profile: VersionProfile,
+  catalog: SchemaCatalog,
   format: A2uiFormat,
   packageRoot: string = getPackageRootDir(),
 ): LoadedExamples {
@@ -76,7 +78,7 @@ export function loadExamples(
     exampleBlocks[path.parse(file).name] =
       format === 'direct_json'
         ? fs.readFileSync(fullPath, 'utf-8')
-        : toResponseText(profile, format, readMessages(fullPath));
+        : toResponseText(profile, catalog, format, readMessages(fullPath));
   }
 
   const catalogExamplesString = Object.entries(exampleBlocks)

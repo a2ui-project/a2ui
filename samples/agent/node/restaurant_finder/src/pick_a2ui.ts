@@ -15,7 +15,6 @@
  */
 
 import type {Message} from '@a2a-js/sdk';
-import {basicCatalog} from '@a2ui/agent';
 
 import {DEFAULT_VERSION, VERSIONS, type VersionProfile} from './versions.js';
 
@@ -61,5 +60,5 @@ export function pickA2ui(message: Message): {profile: VersionProfile; catalogIds
     );
   }
 
-  return {profile: DEFAULT_VERSION, catalogIds: [basicCatalog(DEFAULT_VERSION.version).id]};
+  return {profile: DEFAULT_VERSION, catalogIds: [DEFAULT_VERSION.basicCatalogId]};
 }

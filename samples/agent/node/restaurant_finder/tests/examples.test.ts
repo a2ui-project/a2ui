@@ -25,23 +25,24 @@ import {fileURLToPath} from 'url';
 import {
   A2uiGenerator,
   type AgentToRendererMessage,
-  basicCatalog,
   CatalogConfig,
   ExpressDecompiler,
   ExpressFormatFactory,
 } from '@a2ui/agent';
 import {describe, expect, it} from 'vitest';
 
+import {loadBasicCatalogs} from '../src/catalogs.js';
 import type {A2uiFormat} from '../src/config.js';
 import {loadExamples} from '../src/examples.js';
 import {VERSIONS, type VersionProfile} from '../src/versions.js';
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
 const FORMATS: A2uiFormat[] = ['direct_json', 'express'];
+const catalogs = await loadBasicCatalogs();
 
 /** Parses a model response the way the agent does, throwing if it is invalid. */
 function validate(profile: VersionProfile, format: A2uiFormat, response: string) {
-  const catalog = basicCatalog(profile.version);
+  const catalog = catalogs.get(profile.version)!;
   const generator = new A2uiGenerator([new CatalogConfig(catalog)]);
   const capabilities = {supportedCatalogIds: [catalog.id]};
   const processor =
@@ -57,7 +58,7 @@ function asResponse(profile: VersionProfile, format: A2uiFormat, raw: string): s
   if (format === 'direct_json') {
     return `<a2ui-json>\n${raw}\n</a2ui-json>`;
   }
-  const decompiler = new ExpressDecompiler(basicCatalog(profile.version), profile.version);
+  const decompiler = new ExpressDecompiler(catalogs.get(profile.version)!, profile.version);
   const messages = JSON.parse(raw) as AgentToRendererMessage[];
   return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
 }
@@ -70,7 +71,12 @@ describe.each(VERSIONS)('$version', profile => {
     .sort();
 
   describe.each(FORMATS)('%s', format => {
-    const {exampleBlocks} = loadExamples(profile, format, packageRoot);
+    const {exampleBlocks} = loadExamples(
+      profile,
+      catalogs.get(profile.version)!,
+      format,
+      packageRoot,
+    );
 
     it.each(exampleNames)('examples/%s.json validates', name => {
       const block = exampleBlocks[name];

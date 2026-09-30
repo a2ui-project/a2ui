@@ -34,6 +34,11 @@ export function resolvePythonSampleDir(): string {
   return path.resolve(root, '../../adk/restaurant_finder');
 }
 
+/** Resolves the repository root, which holds the published catalog documents. */
+export function getRepoRootDir(): string {
+  return path.resolve(getPackageRootDir(), '../../../..');
+}
+
 /** Verifies that the shared Python assets exist at startup. */
 export function verifyPythonSampleAssets(pythonDir: string = resolvePythonSampleDir()): void {
   const dataPath = path.join(pythonDir, 'restaurant_data.json');

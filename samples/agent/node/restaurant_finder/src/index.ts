@@ -24,6 +24,7 @@ import {agentCardHandler, jsonRpcHandler, UserBuilder} from '@a2a-js/sdk/server/
 import express from 'express';
 
 import {RestaurantExecutor} from './agent.js';
+import {loadBasicCatalogs} from './catalogs.js';
 import {resolveLlmMode, resolveModelName, resolveSampleConfig} from './config.js';
 import {GeminiBackend, type ModelBackend, StubBackend} from './model.js';
 import {resolvePythonSampleDir, verifyPythonSampleAssets} from './tools.js';
@@ -54,27 +55,28 @@ function buildAgentCard(port: number, stub: boolean): AgentCard {
 }
 
 /**
- * Builds the Express app and agent card without listening. Throws on invalid
- * configuration.
+ * Builds the Express app and agent card without listening. Rejects on invalid
+ * configuration or a catalog that fails to load.
  *
  * @param options.env Environment to read the configuration from (default `process.env`).
  * @param options.port Port the agent card and restaurant image URLs point at (default
  *     `PORT`, or 10002).
  */
-export function createApp(options: {env?: NodeJS.ProcessEnv; port?: number} = {}): {
+export async function createApp(options: {env?: NodeJS.ProcessEnv; port?: number} = {}): Promise<{
   app: express.Express;
   agentCard: AgentCard;
-} {
+}> {
   const env = options.env ?? process.env;
   const port = options.port ?? (env.PORT ? parseInt(env.PORT, 10) : DEFAULT_PORT);
   const {format} = resolveSampleConfig(env);
   const mode = resolveLlmMode(env);
   const pythonDir = resolvePythonSampleDir();
   verifyPythonSampleAssets(pythonDir);
+  const catalogs = await loadBasicCatalogs();
 
   const backend: ModelBackend =
     mode === 'stub'
-      ? new StubBackend(format)
+      ? new StubBackend(format, catalogs)
       : new GeminiBackend({
           apiKey: env.GEMINI_API_KEY!,
           modelName: resolveModelName(env),
@@ -85,7 +87,7 @@ export function createApp(options: {env?: NodeJS.ProcessEnv; port?: number} = {}
   const requestHandler = new DefaultRequestHandler(
     agentCard,
     new InMemoryTaskStore(),
-    new RestaurantExecutor(format, backend),
+    new RestaurantExecutor(format, backend, catalogs),
   );
 
   const app = express();
@@ -125,14 +127,14 @@ export function createApp(options: {env?: NodeJS.ProcessEnv; port?: number} = {}
 }
 
 /** Checks the configuration, then serves the agent. */
-export function main() {
+export async function main() {
   let mode;
   let format;
   let app;
   try {
     format = resolveSampleConfig().format;
     mode = resolveLlmMode();
-    ({app} = createApp());
+    ({app} = await createApp());
   } catch (e) {
     console.error(`Configuration error: ${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
@@ -153,5 +155,5 @@ export function main() {
 
 // Serve only when run directly, so tests can import createApp.
 if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {
-  main();
+  void main();
 }

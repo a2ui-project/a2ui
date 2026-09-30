@@ -108,10 +108,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### No v0.9.1 basic catalog
 
-- **What it is:** `basicCatalog('v0.9.1')` throws "No basic catalog is available for protocol version 'v0.9.1'. Supported: 'v0.9', 'v1.0'." `web_core` ships the v0.9 and v1.0 basic catalogs only, and `CATALOG_DIRECTORY_BY_VERSION` in `@a2ui/agent`'s `src/utils/catalog_path.ts` lists only those two.
-- **Why it exists:** Neither package has been extended to v0.9.1 yet.
-- **What it risks:** An agent cannot answer fully in v0.9.1. The Node sample sends v0.9 messages and the v0.9 catalog id with the v0.9.1 MIME type (`application/a2ui+json`), which v0.9.1 renderers accept. Moving to `"version": "v0.9.1"` would also break the Flutter sample client: genui 0.8.0 accepts only `"v0.9"` (`lib/src/model/a2ui_message.dart`).
-- **Done looks like:** `web_core` ships the v0.9.1 basic catalog, `@a2ui/agent` maps it, and the Node sample's `V0_9` entry becomes v0.9.1 once the sample clients accept it.
+### The Node sample answers in v0.9, not v0.9.1
+
+- **What it is:** The Node sample loads the v0.9 basic catalog and sends v0.9 messages with the v0.9.1 MIME type (`application/a2ui+json`), which v0.9.1 renderers accept. The repository has a v0.9.1 basic catalog (`specification/v0_9_1/catalogs/basic/catalog.json`), but the sample does not use it, and the conformance harness runs only v0.9 and v1.0.
+- **Why it exists:** The sample clients render v0.9. Moving to `"version": "v0.9.1"` would also break the Flutter sample client: genui 0.8.0 accepts only `"v0.9"` (`lib/src/model/a2ui_message.dart`).
+- **What it risks:** An agent built from the sample cannot answer fully in v0.9.1.
+- **Done looks like:** `@a2ui/agent` runs the v0.9.1 conformance cases, and the Node sample's `V0_9` profile moves to v0.9.1 and its catalog once the sample clients accept it.
 
 ## 3. Specification & Blueprints
 
@@ -305,5 +307,5 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** `web_core` is built on Zod 3 APIs, and the v1.0 catalog that `@a2ui/agent` consumes is a tree of Zod 3 `ZodObject`s that web_core converts to JSON Schema for the prompt. The Zod major is load-bearing for the agent-side path, so the pin cannot simply be relaxed.
 - **What it risks:** Any future JavaScript sample or downstream consumer wanting ADK hits the same wall. Working around it means either carrying two Zod majors and guaranteeing they never meet, or migrating `web_core` to Zod 4.
 - **Status:** Deferred by decision. The Node sample is the only consumer affected, and modernising that sample is a separate question that can be answered later.
-- **Untested assumption:** The "guarantee they never meet" option was never actually tried. `@a2ui/agent` imports Zod nowhere and declares no Zod dependency; `basicCatalog()` returns a catalog whose Zod schemas are built and consumed entirely inside `web_core`. ADK would use Zod 4 for its own tool schemas while `web_core` uses Zod 3 for catalogs, and the two may never exchange a Zod object. Whoever revisits this should test lifting the root `resolutions` pin before assuming a `web_core` migration is required, because the fallback to `@google/genai` was chosen without that check.
+- **Untested assumption:** The "guarantee they never meet" option was never actually tried. `@a2ui/agent` declares no Zod dependency. The catalogs it loads get their Zod schemas inside `web_core`, and the only Zod objects it handles itself are `web_core`'s message schemas, which it converts to JSON Schema with `zod-to-json-schema` for the Direct JSON prompt. ADK would use Zod 4 for its own tool schemas while `web_core` uses Zod 3 for catalogs, and the two may never exchange a Zod object. Whoever revisits this should test lifting the root `resolutions` pin before assuming a `web_core` migration is required, because the fallback to `@google/genai` was chosen without that check.
 - **Done looks like:** Either the two majors are shown to coexist and the root pin is scoped rather than global, or `web_core` is migrated to Zod 4 and the pin is lifted, at which point ADK becomes usable and the Node sample can mirror the Python one.

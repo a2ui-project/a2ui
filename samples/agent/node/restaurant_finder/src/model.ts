@@ -18,6 +18,7 @@ import path from 'path';
 
 import {Chat, FunctionCall, GoogleGenAI, PartListUnion} from '@google/genai';
 
+import type {BasicCatalogs} from './catalogs.js';
 import type {A2uiFormat} from './config.js';
 import {readMessages, toResponseText} from './examples.js';
 import {LruCache} from './lru_cache.js';
@@ -106,15 +107,20 @@ export class StubBackend implements ModelBackend {
   /** Response text by version, then by example name. */
   private readonly responses = new Map<string, Record<string, string>>();
 
-  constructor(format: A2uiFormat, packageRoot: string = getPackageRootDir()) {
+  constructor(
+    format: A2uiFormat,
+    catalogs: BasicCatalogs,
+    packageRoot: string = getPackageRootDir(),
+  ) {
     for (const profile of VERSIONS) {
+      const catalog = catalogs.get(profile.version)!;
       const notice = readMessages(path.join(packageRoot, 'stub_notice', `${profile.version}.json`));
       const byExample: Record<string, string> = {};
       for (const name of ['single_column_list', 'booking_form', 'confirmation']) {
         const example = readMessages(
           path.join(packageRoot, 'examples', profile.version, `${name}.json`),
         );
-        byExample[name] = toResponseText(profile, format, [...notice, ...example]);
+        byExample[name] = toResponseText(profile, catalog, format, [...notice, ...example]);
       }
       this.responses.set(profile.version, byExample);
     }

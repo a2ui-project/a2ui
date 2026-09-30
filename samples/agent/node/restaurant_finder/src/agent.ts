@@ -19,19 +19,19 @@ import type {AgentExecutor, ExecutionEventBus, RequestContext} from '@a2a-js/sdk
 import {
   A2uiGenerator,
   A2uiRequestProcessor,
-  basicCatalog,
   CatalogConfig,
   DirectJsonStreamProcessorImpl,
   ExpressFormatFactory,
 } from '@a2ui/agent';
 
 import {TaskEvents, toA2aParts} from './a2a.js';
+import type {BasicCatalogs} from './catalogs.js';
 import type {A2uiFormat} from './config.js';
 import {loadExamples} from './examples.js';
 import {LruCache} from './lru_cache.js';
 import type {ModelBackend, TurnInput} from './model.js';
 import {pickA2ui} from './pick_a2ui.js';
-import {FALLBACK_TEXT, getUiDescription, retryQuery, ROLE_DESCRIPTION} from './prompt.js';
+import {buildSystemPrompt, FALLBACK_TEXT, retryQuery} from './prompt.js';
 import {parseUserQuery} from './user_query.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
@@ -57,10 +57,11 @@ export class RestaurantExecutor implements AgentExecutor {
   constructor(
     private readonly format: A2uiFormat,
     private readonly backend: ModelBackend,
+    private readonly catalogs: BasicCatalogs,
   ) {
     for (const profile of VERSIONS) {
-      const catalog = basicCatalog(profile.version);
-      const examples = loadExamples(profile, format);
+      const catalog = catalogs.get(profile.version)!;
+      const examples = loadExamples(profile, catalog, format);
       this.generators.set(
         profile.version,
         new A2uiGenerator([new CatalogConfig(catalog)], {
@@ -113,12 +114,8 @@ export class RestaurantExecutor implements AgentExecutor {
 
   /** Builds the system prompt. Creating the processor also rejects unknown catalogs. */
   private buildSystemPrompt(profile: VersionProfile, catalogIds: string[]): string {
-    return this.createProcessor(profile, catalogIds).generatePrompt({
-      roleDescription: ROLE_DESCRIPTION,
-      uiDescription: getUiDescription(this.format),
-      includeSchema: true,
-      includeExamples: true,
-    });
+    const {promptSnippet} = this.createProcessor(profile, catalogIds);
+    return buildSystemPrompt(this.format, promptSnippet);
   }
 
   /**
@@ -185,7 +182,7 @@ export class RestaurantExecutor implements AgentExecutor {
     return this.streamProcessors.getOrCreate(
       `${contextId}:${profile.version}`,
       () =>
-        new DirectJsonStreamProcessorImpl(basicCatalog(profile.version), {
+        new DirectJsonStreamProcessorImpl([this.catalogs.get(profile.version)!], {
           progressiveKeys: ['text', 'literalString'],
         }),
     );
