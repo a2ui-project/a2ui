@@ -101,8 +101,13 @@ export class AngularWcHost extends HTMLElement {
         );
       }
       const type = context.componentModel.type;
-      // The catalog entry that owns this element pairs it with the Angular component to mount.
-      const entry = context.dataContext.surface.defaultCatalog.components.get(type) as
+      const defaultCatalog = context.dataContext.surface?.defaultCatalog;
+      if (!defaultCatalog) {
+        throw new Error(
+          `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': no surface default catalog available.`,
+        );
+      }
+      const entry = defaultCatalog.components.get(type) as
         | AngularComponentImplementation
         | undefined;
       if (typeof entry?.component !== 'function') {
@@ -158,7 +163,7 @@ export class AngularWcHost extends HTMLElement {
     const boundProps = this.binder.bind(this._context);
 
     this.componentRef.setInput('props', boundProps);
-    this.componentRef.setInput('surfaceId', this._context.dataContext.surface.id);
+    this.componentRef.setInput('surfaceId', this._context.dataContext.surface?.id);
     this.componentRef.setInput('componentId', this._context.componentModel.id);
     this.componentRef.setInput('dataContextPath', this._context.dataContext.path);
 
