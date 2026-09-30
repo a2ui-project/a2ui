@@ -687,3 +687,32 @@ def test_macro_expander_emits_common_ref_prefix():
         inf.catalog_schema["components"]["Text"]["properties"]["text"]["$ref"]
         == f"{v09_prefix}DynamicString"
     )
+
+
+def test_macro_expander_to_catalog():
+    @macro
+    def MetricBadge(title: str, count: int) -> Card:
+        """A simple metric badge."""
+        return Card(child=Text(text=f"{title}: {count}"))
+
+    exp = MacroExpander([MetricBadge])
+    macro_cat = exp.to_catalog()
+
+    assert macro_cat.name == "macros"
+    assert macro_cat.version == "0.9.1"
+    assert "MetricBadge" in macro_cat.catalog_schema["components"]
+    assert macro_cat.catalog_schema["catalogId"] == "https://a2ui.org/catalogs/macros"
+    assert (
+        macro_cat.catalog_schema["components"]["MetricBadge"]["properties"]["title"][
+            "type"
+        ]
+        == "string"
+    )
+    assert (
+        macro_cat.catalog_schema["components"]["MetricBadge"]["properties"]["count"][
+            "type"
+        ]
+        == "integer"
+    )
+    any_comp = macro_cat.catalog_schema["$defs"]["anyComponent"]["oneOf"]
+    assert {"$ref": "#/components/MetricBadge"} in any_comp

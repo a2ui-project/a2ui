@@ -125,6 +125,56 @@ class MacroExpander:
         schema_copy[CATALOG_COMPONENTS_KEY] = comps_map
         return replace(base_catalog, catalog_schema=schema_copy)
 
+    def to_catalog(self) -> A2uiCatalog:
+        """Exports a standalone A2uiCatalog containing exclusively the macro component schemas.
+
+        Returns:
+            An A2uiCatalog instance ready to be used by inference formats and prompt generators.
+        """
+        from a2ui.schema.constants import (
+            CATALOG_COMPONENTS_KEY,
+            COMMON_TYPES_SCHEMA_KEY,
+            PROTOCOL_VERSION_MAP,
+            SERVER_TO_CLIENT_SCHEMA_KEY,
+            VERSION_0_9_1,
+        )
+        from a2ui.schema.utils import load_from_bundled_resource
+
+        version = VERSION_0_9_1
+        name = "macros"
+        catalog_id = "https://a2ui.org/catalogs/macros"
+
+        components = {m.name: m.to_json_schema() for m in self.macros}
+        any_comp_refs = [
+            {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{m.name}"} for m in self.macros
+        ]
+
+        schema: dict[str, Any] = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": version,
+            "catalogId": catalog_id,
+            "title": "A2UI Macros Catalog",
+            "description": "Standalone catalog of high-level A2UI macro components.",
+            CATALOG_COMPONENTS_KEY: components,
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": any_comp_refs,
+                }
+            },
+        }
+
+        return A2uiCatalog(
+            name=name,
+            version=version,
+            catalog_schema=schema,
+            s2c_schema=load_from_bundled_resource(
+                version, SERVER_TO_CLIENT_SCHEMA_KEY, PROTOCOL_VERSION_MAP
+            ),
+            common_types_schema=load_from_bundled_resource(
+                version, COMMON_TYPES_SCHEMA_KEY, PROTOCOL_VERSION_MAP
+            ),
+        )
+
     def transform_to_transport(
         self, messages: Sequence[AgentToRendererMessage]
     ) -> list[AgentToRendererMessage]:

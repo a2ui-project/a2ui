@@ -18,14 +18,16 @@ import types
 from collections.abc import Sequence as AbcSequence
 from typing import Any, Optional, Sequence, Union, get_args, get_origin
 
+from a2ui.builder.core import (
+    ComponentBuilderNode,
+    ComponentRef,
+    flatten_component_tree,
+)
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     ActionEvent,
-    ComponentBuilderNode,
-    ComponentRef,
     DataBinding,
-    flatten_component_tree,
 )
 from a2ui.transformers.macros.macro import _MacroMetadata
 
