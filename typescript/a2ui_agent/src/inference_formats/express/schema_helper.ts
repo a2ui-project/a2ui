@@ -22,7 +22,7 @@
  */
 
 import {SchemaCatalog} from '../../types.js';
-import {getCatalogDocument} from '../../utils/catalog_document.js';
+import {getCatalogDocument} from '../../utils/catalog-document.js';
 import {getProtocolSchemas} from '../../utils/protocol_schemas.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;

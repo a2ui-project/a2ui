@@ -21,7 +21,7 @@ import {describe, it, expect} from 'vitest';
 import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core.js';
 import {basicCatalog, SchemaCatalog} from '../../../../src/types.js';
 
-import {registerCatalogDocument} from '../../../../src/utils/catalog_document.js';
+import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference_formats/express/prompt_generator.js';
 
