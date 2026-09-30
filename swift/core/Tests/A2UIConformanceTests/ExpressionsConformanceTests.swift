@@ -77,6 +77,8 @@ struct ExpressionsConformanceTests {
           looselyEqual(joinedActual, expectedValues),
           "\(name) mismatch: got \(joinedActual), expected \(expectedValues)"
         )
+      } else {
+        Issue.record("\(name): test case does not define 'expect' or 'expect_error'")
       }
     }
 

@@ -63,10 +63,36 @@ public enum ConformanceTestHelper {
   public static func loadYAML(filename: String) throws -> Any {
     let fileURL = conformanceDirectory.appendingPathComponent(filename)
     let yamlString = try String(contentsOf: fileURL, encoding: .utf8)
-    guard let loaded = try Yams.load(yaml: yamlString) else {
-      throw A2UIValidationError("Failed to parse YAML from \(filename)")
+    return try runWithExtendedStack(size: 8 * 1024 * 1024) {
+      guard let loaded = try Yams.load(yaml: yamlString) else {
+        throw A2UIValidationError("Failed to parse YAML from \(filename)")
+      }
+      return loaded
     }
-    return loaded
+  }
+
+  /// Runs a closure on a dedicated thread with an explicitly expanded stack size (default 8 MB).
+  ///
+  /// This prevents stack exhaustion during deep recursive operations, such as parsing
+  /// 100-level recursive YAML mappings with Yams/libyaml on macOS where SPM worker threads
+  /// default to 512 KB.
+  public static func runWithExtendedStack<T: Sendable>(
+    size: Int = 8 * 1024 * 1024,
+    _ body: @escaping @Sendable () throws -> T
+  ) throws -> T {
+    var result: Result<T, Error>?
+    let semaphore = DispatchSemaphore(value: 0)
+    let thread = Thread {
+      result = Result { try body() }
+      semaphore.signal()
+    }
+    thread.stackSize = size
+    thread.start()
+    semaphore.wait()
+    guard let result else {
+      throw A2UIValidationError("Thread terminated without result")
+    }
+    return try result.get()
   }
 
   /// Loads and decodes a JSON file relative to the `conformance/` directory.
