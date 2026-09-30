@@ -18,4 +18,4 @@ export * from '@a2ui/web_core/catalogs/basic/v1';
 export type {
   WebComponentImplementation as A2uiLitComponent,
   WebComponentImplementation as LitComponentApi,
-} from '@a2ui/web_core/v1_0/universal';
+} from '@a2ui/web_core/universal';

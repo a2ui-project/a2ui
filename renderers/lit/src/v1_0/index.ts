@@ -15,7 +15,7 @@
  */
 
 export * from '@a2ui/web_core/v1_0';
-export * from '@a2ui/web_core/v1_0/universal';
+export * from '@a2ui/web_core/universal';
 export {
   A2uiSurface,
   renderA2uiNode,
