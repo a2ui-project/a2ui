@@ -48,7 +48,7 @@ export {Parser} from './parser/parser.js';
 
 export {PromptGenerator} from './prompt/generator.js';
 
-export {type InferenceFormat, type InferenceFormatFactory} from './inference_format/base.js';
+export {type InferenceFormat, type InferenceFormatFactory} from './inference-format.js';
 
 // Phase 1B: Catalog layer
 export {type CatalogTransformer} from './catalog_transformers/base.js';
