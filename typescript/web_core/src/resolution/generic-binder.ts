@@ -290,7 +290,7 @@ export interface ResolvedChildRef {
 /**
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  *
- * For example, an `Action` object becomes a callable `() => void` function.
+ * For example, an `Action` object becomes a callable `() => Promise<void>` function.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
   ? (() => Promise<void>) | Extract<T, undefined>
@@ -514,7 +514,7 @@ export class GenericBinder<T> {
             ? (valObj.functionCall as Record<string, unknown>)
             : valObj;
         if (typeof fc.call === 'string') {
-          this.context.dataContext.resolveDynamicValue(fc);
+          await this.context.dataContext.resolveDynamicValue(fc);
           return;
         }
       }
