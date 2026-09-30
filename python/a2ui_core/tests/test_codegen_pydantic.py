@@ -802,6 +802,19 @@ def test_index_rejects_a_sequence_context(context):
         IndexImplementation.execute({}, context)
 
 
+@pytest.mark.parametrize("index", ["first", object()])
+def test_index_rejects_a_non_numeric_index(index):
+    """A non-numeric iteration index is a validation error that names the value."""
+    from types import SimpleNamespace
+
+    from a2ui.core.catalog.system_functions import IndexImplementation
+    from a2ui.core.exceptions import A2uiValidationError
+
+    for context in (SimpleNamespace(index=index), {"index": index}):
+        with pytest.raises(A2uiValidationError, match="numeric iteration index"):
+            IndexImplementation.execute({}, context)
+
+
 def test_index_args_match_the_version_specific_model():
     """The shared argument model admits what the v1.0 schema admits.
 

@@ -75,31 +75,33 @@ def _index_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> int:
+    from ..exceptions import A2uiValidationError
+
     offset = args.get("offset")
     offset_val = int(offset) if offset is not None else 0
-    idx: int | None = None
+    raw_index: Any = None
     if context is not None:
         # A sequence context has an `index` method, not an iteration index.
         attr_index = getattr(context, "index", None)
         if attr_index is not None and not callable(attr_index):
-            idx = int(attr_index)
-        elif (
-            isinstance(context, dict)
-            and "index" in context
-            and context["index"] is not None
-        ):
-            idx = int(context["index"])
+            raw_index = attr_index
+        elif isinstance(context, dict):
+            raw_index = context.get("index")
 
-    if idx is None:
+    if raw_index is None:
         if context is not None:
-            from ..exceptions import A2uiValidationError
-
             raise A2uiValidationError(
                 "@index function can only be evaluated inside a collection template"
                 " iteration scope."
             )
-        idx = 0
+        return offset_val
 
+    try:
+        idx = int(raw_index)
+    except (TypeError, ValueError) as exc:
+        raise A2uiValidationError(
+            f"@index requires a numeric iteration index, got {raw_index!r}."
+        ) from exc
     return idx + offset_val
 
 
