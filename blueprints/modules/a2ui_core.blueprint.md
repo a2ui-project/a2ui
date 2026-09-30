@@ -52,6 +52,7 @@ graph TD
     Catalog["Catalog Layer<br/>(a2ui.core.catalog)"]
     Resolution["Resolution Layer<br/>(a2ui.core.resolution)"]
     Schema["Schema Layer<br/>(a2ui.core.schema)"]
+    Primitives["Primitives Layer<br/>(a2ui.core.primitives)"]
     Exceptions["Common & Exceptions<br/>(a2ui.core.exceptions)"]
 
     Processing --> Rpc
@@ -63,12 +64,37 @@ graph TD
     Rpc --> Exceptions
     Validation --> Catalog
     Validation --> Schema
+    Validation --> Primitives
     State --> Exceptions
     Catalog --> Schema
+    Catalog --> Primitives
     Catalog --> Exceptions
     Resolution --> State
     Resolution --> Exceptions
+    Primitives --> Exceptions
 ```
+
+#### Layer Ordering Rules
+
+The graph above is a DAG, and implementations are expected to keep it one. A folder-level
+import cycle means two layers have been merged in practice even where the directory names
+still say otherwise, so implementations SHOULD enforce this with a cycle check in CI.
+
+Four rules carry most of the weight:
+
+1. **Primitives (Layer 0) imports no core layer above it**, only the root exception
+   hierarchy. It holds building blocks that more than one layer needs: shared protocol
+   enums and schema reference expansion.
+2. **The evaluation-context module never imports the catalog.** A catalog function's
+   `execute` names the data context it is handed, so the dependency runs one way, from
+   the catalog to the data context. The data context therefore stays free of catalog and
+   state imports, depending only on the data model, shared message types and primitives.
+3. **A protocol message type never imports the catalog.** Enums shared by a message class
+   and a catalog declaration — `A2uiReturnType` is the current example — belong in
+   `primitives/`, or in the message module itself as long as that module imports nothing
+   above it, as the Dart SDK's `common.dart` does.
+4. **State holds no rendering constructs.** `state/surface_model` is long-lived reactive
+   state; view-tree resolution is transient and lives in `resolution/`.
 
 ### B. Runtime Object Architecture & Consumer Binding
 
@@ -137,8 +163,10 @@ The core modular components are organized within the `a2ui.core` namespace. Publ
 ```text
 a2ui/core/
 ├── exceptions                      # Root exception hierarchy & RPC error codes
-├── common/                         # Shared primitives with no layer dependencies
+├── primitives/                     # Layer 0: shared building blocks, imports only exceptions
 │   ├── events                      # EventSource / listener plumbing
+│   ├── return_type                 # A2uiReturnType, shared by catalog and message types
+│   ├── schema_resolution           # Subschema `$ref` expansion, shared by catalog and validation
 │   └── semver                      # Protocol version comparison
 ├── expressions/                    # Protocol-version-agnostic expression parser
 ├── basic_catalog/                  # Bundled default components and operators
@@ -262,6 +290,7 @@ When authoring component or function schemas, developers import primitives (`Dyn
 
 - **Subschema References & Wire Emission**: In v1.0+, component schemas emit or retain relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`).
 - **Forward Compatibility**: While breaking changes between v0.9 and v1.0 prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to potentially resolve against future compatible protocol versions without modifying catalog type paths.
+- **Shared Expansion**: Expanding those references is `primitives/schema_resolution`, not a catalog-private helper. Both the catalog layer (parsing a catalog document) and the validation layer (checking a payload against it) consume the same expansion, so it sits below both.
 
 ```typescript
 import {DynamicString, Action, ChildList} from '@a2ui/core/v1_0';
@@ -878,7 +907,7 @@ The matrix below details the specific validation checks, their responsible compo
 | :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
 | **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError` |
 | **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError` |
-| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`common/uax31`)                                       | `A2uiValidationError` |
+| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`primitives/uax31`)                                   | `A2uiValidationError` |
 | **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network  | `PayloadValidator` (`referencing.Registry` / `Ajv`)                       | `A2uiValidationError` |
 | **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
 | **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
@@ -1275,6 +1304,14 @@ class DataModel {
 ### F. Resolution Layer (`a2ui.core.resolution`)
 
 Transient objects created on-demand during rendering to solve "scope" and binding resolution.
+
+Everything in this layer is transient by definition, which fixes where it may live: a
+rendering context is created per node per render pass, while `state/surface_model` is a
+long-lived reactive container that outlives any view tree. Rendering constructs therefore
+belong here and never inside a state model. `ComponentContext`, the per-component rendering
+context some implementations still carry, is **deprecated**: it is superseded by
+`component_node` plus `node_resolver`, and while it survives it belongs in `resolution/`
+(or a renderer-side module), not in `state/surface_model`.
 
 ```typescript
 class DataContext {

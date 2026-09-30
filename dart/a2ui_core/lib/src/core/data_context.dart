@@ -12,14 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:meta/meta.dart';
+
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
-import 'catalog.dart';
 import 'common.dart';
-import 'component_model.dart';
 import 'data_model.dart';
-import 'messages.dart';
-import 'surface_model.dart';
 
 /// A function that invokes a catalog function by name.
 typedef FunctionInvoker = Object? Function(
@@ -51,6 +49,12 @@ class DataContext {
     this.path, {
     ExpressionErrorReporter? onError,
   }) : _onError = onError;
+
+  /// The reporter this context was built with, so a derived context can
+  /// inherit the same reporting policy. `ComponentContext` lives in its own
+  /// library and therefore cannot reach the private field.
+  @internal
+  ExpressionErrorReporter? get errorReporter => _onError;
 
   String resolvePath(String relativePath) {
     if (relativePath.startsWith('/')) return relativePath;
@@ -195,67 +199,5 @@ class DataContext {
 
   void set(String relativePath, Object? value) {
     dataModel.set(resolvePath(relativePath), value);
-  }
-}
-
-/// Context provided to components during rendering.
-class ComponentContext {
-  final SurfaceModel surface;
-  final ComponentModel componentModel;
-  final DataContext dataContext;
-
-  /// By default, expression errors are dispatched immediately on the surface.
-  /// Supply [onError] to control their reporting policy instead.
-  ComponentContext(
-    this.surface,
-    this.componentModel, {
-    String? basePath,
-    ExpressionErrorReporter? onError,
-  }) : dataContext = DataContext(
-          surface.dataModel,
-          surface.catalog.invoke,
-          basePath ?? '/',
-          onError: onError ??
-              (error) {
-                surface.dispatchError(
-                  A2uiClientError(
-                    code: 'EXPRESSION_ERROR',
-                    surfaceId: surface.id,
-                    message: error.message,
-                    details: error.details,
-                  ),
-                );
-              },
-        );
-
-  /// Dispatches an action from the component.
-  Future<void> dispatchAction(Map<String, dynamic> action) {
-    return surface.dispatchAction(action, componentModel.id);
-  }
-
-  /// Returns a context for rendering a child component.
-  ComponentContext childContext(String childId, {String? basePath}) {
-    final ComponentModel? childModel = surface.componentsModel.get(childId);
-    if (childModel == null) {
-      throw ArgumentError('Child component not found: $childId');
-    }
-    return ComponentContext(
-      surface,
-      childModel,
-      basePath: basePath ?? dataContext.path,
-      onError: dataContext._onError,
-    );
-  }
-}
-
-extension CatalogInvokerExtension
-    on Catalog<ComponentApi, FunctionImplementation> {
-  /// Invokes a catalog function by name with the given arguments.
-  Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
-    final FunctionImplementation? fn = functions[name];
-    if (fn == null) {
-      throw ArgumentError('Function not found: $name');
-    }
-    return fn.execute(args, context);
   }
 }
