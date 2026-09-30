@@ -13,7 +13,7 @@
   which `jsonEncode` can't encode.
 - `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template
   length (`maxTemplateLength = 10000`), and template parts (`maxTemplateParts =
-  1000`) limits across nested interpolations and function arguments.
+    1000`) limits across nested interpolations and function arguments.
 - `DataModel` and `DataContext` enforce JSON Pointer validation (`A2uiDataError`
   on non-pointer paths, forbidden prototype-pollution segments, primitive
   traversal/root mutation, and array index bounds), support `DataContext.index`
