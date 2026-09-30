@@ -164,13 +164,12 @@ void _process(
   MessageProcessor<ComponentApi> processor,
   List<Map<String, Object?>> messages,
 ) {
-  for (final envelope in messages) {
-    processor.processMessages(
-      AgentToRendererMessagePayload([
+  processor.processMessages(
+    AgentToRendererMessagePayload([
+      for (final envelope in messages)
         AgentToRendererMessage.fromJson(Map<String, dynamic>.from(envelope)),
-      ]),
-    );
-  }
+    ]),
+  );
 }
 
 void _checkSurfaces(

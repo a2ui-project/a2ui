@@ -180,9 +180,14 @@ class MessageProcessor<T extends ComponentApi> {
   /// match its catalog.
   /// Processes a payload, applying each message to the surface it names.
   void processMessages(AgentToRendererMessagePayload payload) {
+    final createdSurfaceIds = <String>{};
     for (final AgentToRendererMessage message in payload.messages) {
+      if (message is CreateSurfaceMessage) {
+        createdSurfaceIds.add(message.surfaceId);
+      }
       _processMessage(message);
     }
+    _checkCreatedSurfaces(createdSurfaceIds);
   }
 
   /// Alias for [processMessages] for cross-SDK ergonomics.
@@ -410,19 +415,40 @@ class MessageProcessor<T extends ComponentApi> {
     final List<Map<String, Object?>> mergedCandidate =
         mergedById.values.toList();
 
-    checkComponentIntegrity(
-      mergedCandidate,
-      refFields,
-      requireRoot: !validationConfig.allowMissingRoot,
-      knownIds:
-          validationConfig.allowDanglingReferences ? null : const <String>{},
-    );
+    // Check cycles and recursion depth over the candidate graph before mutation.
     checkComponentTopology(
       mergedCandidate,
       refFields,
-      requireRoot: !validationConfig.allowMissingRoot,
-      allowOrphans: validationConfig.allowOrphanComponents,
+      requireRoot: false,
+      allowOrphans: true,
     );
+  }
+
+  void _checkCreatedSurfaces(Set<String> createdSurfaceIds) {
+    for (final String surfaceId in createdSurfaceIds) {
+      final SurfaceModel<T>? surface = groupModel.getSurface(surfaceId);
+      if (surface == null) continue;
+      final List<Map<String, Object?>> components = [
+        for (final ComponentModel c in surface.componentsModel.all) c.toJson(),
+      ];
+      if (components.isEmpty) continue;
+      final Map<String, ComponentRefFields> refFields =
+          _refFieldsFor(surface.catalog.id, components);
+
+      checkComponentIntegrity(
+        components,
+        refFields,
+        requireRoot: !validationConfig.allowMissingRoot,
+        knownIds:
+            validationConfig.allowDanglingReferences ? null : const <String>{},
+      );
+      checkComponentTopology(
+        components,
+        refFields,
+        requireRoot: !validationConfig.allowMissingRoot,
+        allowOrphans: validationConfig.allowOrphanComponents,
+      );
+    }
   }
 
   void _processUpdateDataModel(UpdateDataModelMessage message) {
