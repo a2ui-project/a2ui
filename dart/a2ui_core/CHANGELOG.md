@@ -9,6 +9,16 @@
   `ComponentApi` and `FunctionApi`. `SchemaCatalog` stays as a deprecated alias
   and will be removed in a later release.
 - Support reserved protocol key prefix (`@path`, `@call`) in `DataBinding` and `FunctionCall`, dynamic prefix doubling unescaping (`@@path` → `@path`) during dynamic evaluation, and `@path` in dynamic setter generation.
+- `DataModel` takes a modifiable deep copy of the data it is given, instead of
+  keeping the caller's object. Seeded with a `const` map, which is what a
+  scripted agent or a test fixture hands it, every later write through that
+  branch threw `UnsupportedError`; through a widget the throw is caught and
+  reported, so nothing crashed and nothing changed on screen. It also stops a
+  caller mutating the model from outside by holding on to what it passed in.
+  A map whose keys are all strings is normalised to `Map<String, Object?>`,
+  which makes the `Map<dynamic, dynamic>` some JSON decoders return readable;
+  a map with any other key is a value the app round-trips, and is left with
+  the keys it had.
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Execute `functionCall` and `call` component actions locally in
   `GenericBinder`, against the component's data context. A function that

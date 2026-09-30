@@ -33,7 +33,44 @@ class DataModel {
   Object? _data;
   final Map<String, WeakReference<Signal<Object?>>> _signals = {};
 
-  DataModel([Object? initialData]) : _data = initialData ?? <String, Object?>{};
+  DataModel([Object? initialData])
+      : _data = _own(initialData) ?? <String, Object?>{};
+
+  /// A modifiable deep copy of [value], with string keys.
+  ///
+  /// The model owns what it holds. Without this it keeps whatever the caller
+  /// passed, so a `const` map, an unmodifiable view, or a structure the caller
+  /// goes on to mutate itself all reach straight into the store. The `const`
+  /// case is the one that bites: every later write through that branch throws
+  /// `UnsupportedError`, and through a widget that throw is caught and
+  /// reported, so nothing crashes and nothing changes on screen.
+  ///
+  /// Scalars are returned as they are, since there is nothing to copy.
+  ///
+  /// A map whose keys are all strings comes back as `Map<String, Object?>`,
+  /// which also normalises the `Map<dynamic, dynamic>` some JSON decoders
+  /// hand back: the reader tests for `Map<String, Object?>`, so one of those
+  /// used to read as absent. A map with any other key is left with the keys
+  /// it had. Those are a value the app round-trips, not a node anyone
+  /// addresses by path, and rewriting them would change what comes back out.
+  static Object? _own(Object? value) {
+    if (value is Map) {
+      if (value.keys.every((Object? key) => key is String)) {
+        return <String, Object?>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key! as String: _own(entry.value),
+        };
+      }
+      return <Object?, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key: _own(entry.value),
+      };
+    }
+    if (value is List) {
+      return <Object?>[for (final Object? entry in value) _own(entry)];
+    }
+    return value;
+  }
 
   /// Synchronously gets data at a specific JSON pointer path.
   Object? get(String path) {
@@ -87,7 +124,7 @@ class DataModel {
 
     batch(() {
       if (dataPath.isEmpty) {
-        _data = value ?? <String, Object?>{};
+        _data = _own(value) ?? <String, Object?>{};
       } else {
         if (_data != null && _data is! Map && _data is! List) {
           throw A2uiDataError(
@@ -145,7 +182,7 @@ class DataModel {
           if (value == null) {
             current.remove(lastSegment);
           } else {
-            current[lastSegment] = value;
+            current[lastSegment] = _own(value);
           }
         } else if (current is List<Object?>) {
           final int? index = _parseListIndex(lastSegment);
@@ -167,7 +204,7 @@ class DataModel {
             while (current.length <= index) {
               current.add(null);
             }
-            current[index] = value;
+            current[index] = _own(value);
           } else if (index < current.length) {
             current[index] = null;
           }
