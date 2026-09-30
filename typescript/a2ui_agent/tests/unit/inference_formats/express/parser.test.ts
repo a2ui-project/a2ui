@@ -89,17 +89,23 @@ describe('ExpressParser', () => {
     });
   });
 
-  describe('hasA2uiParts', () => {
-    it('returns true when a complete block exists', () => {
-      expect(parser.hasA2uiParts('<a2ui>\nroot = Text("Hi")\n</a2ui>')).toBe(true);
+  describe('hasFormatContent', () => {
+    const closed = '<a2ui>\nroot = Text("Hi")\n</a2ui>';
+    const unterminated = '<a2ui>\nroot = Text("Hi")';
+
+    it('returns true for a complete block', () => {
+      expect(parser.hasFormatContent(closed)).toBe(true);
+      expect(parser.hasFormatContent(closed, {complete: true})).toBe(true);
     });
 
-    it('returns false when block is unterminated', () => {
-      expect(parser.hasA2uiParts('<a2ui>\nroot = Text("Hi")')).toBe(false);
+    it('counts an unterminated block only when complete is not set', () => {
+      expect(parser.hasFormatContent(unterminated)).toBe(true);
+      expect(parser.hasFormatContent(unterminated, {complete: true})).toBe(false);
     });
 
     it('returns false when no block exists', () => {
-      expect(parser.hasA2uiParts('No tags here')).toBe(false);
+      expect(parser.hasFormatContent('No tags here')).toBe(false);
+      expect(parser.hasFormatContent('No tags here', {complete: true})).toBe(false);
     });
   });
 
