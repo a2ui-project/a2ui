@@ -53,7 +53,7 @@
   entry and tracks nested bindings reactively; previously a container holding
   bindings (such as a function argument list or a nested `{path}` value) was
   passed through as a static literal.
->>>>>>> upstream/main
+  > > > > > > > upstream/main
 
 ## 0.2.2
 
