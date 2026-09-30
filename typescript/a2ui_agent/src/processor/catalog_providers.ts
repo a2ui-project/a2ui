@@ -36,6 +36,9 @@ import {toWireProtocolVersion} from '../utils/protocol_version.js';
  * Only `catalogId` counts as the document's id. `$id` is the JSON Schema identifier of the
  * document, which is not the same thing and is often a URL for the file.
  *
+ * Shared by the providers and by catalog resolution, which builds inline catalogs the same
+ * way. Not part of the public API.
+ *
  * @param document The parsed catalog document.
  * @param source Describes where the document came from, for error messages.
  * @param protocolVersion Version to use when the document states none.
@@ -44,7 +47,7 @@ import {toWireProtocolVersion} from '../utils/protocol_version.js';
  * @throws {A2uiCatalogError} If a value conflicts with the document, if nothing states an
  *     id or a version, or if the document is not a valid catalog.
  */
-function buildCatalog(
+export function catalogFromDocument(
   document: Record<string, unknown>,
   source: string,
   protocolVersion?: ProtocolVersion,
@@ -153,7 +156,7 @@ export class FileSystemCatalogProvider implements CatalogProvider {
       );
     }
 
-    return buildCatalog(parsed, this.path, this.protocolVersion, this.catalogId);
+    return catalogFromDocument(parsed, this.path, this.protocolVersion, this.catalogId);
   }
 }
 
@@ -184,6 +187,11 @@ export class InMemoryCatalogProvider implements CatalogProvider {
    *     with it, or if nothing states an id or a version.
    */
   async load(): Promise<SchemaCatalog> {
-    return buildCatalog(this.catalog, 'in-memory schema', this.protocolVersion, this.catalogId);
+    return catalogFromDocument(
+      this.catalog,
+      'in-memory schema',
+      this.protocolVersion,
+      this.catalogId,
+    );
   }
 }

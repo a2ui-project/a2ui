@@ -56,6 +56,27 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v1.0']);
  */
 export const KNOWN_FAILURES = new Map<string, string>([]);
 
+/**
+ * Legacy cases whose rules the newer suites replaced, with the suite that now covers each.
+ *
+ * The legacy suites describe the earlier agent interface, and a few of their rules were
+ * changed on purpose when the blueprint interface was written. This SDK follows the newer
+ * suites, so these cases are skipped rather than listed as failures.
+ */
+const SUPERSEDED = new Map<string, string>([
+  ...[
+    'test_select_catalog_default',
+    'test_select_catalog_no_match',
+    'test_select_catalog_inline',
+    'test_select_catalog_multiple_inline',
+    'test_select_catalog_no_match_with_inline',
+    'test_select_catalog_inline_not_accepted',
+  ].map((name): [string, string] => [
+    name,
+    'superseded by catalog_resolution.yaml, which activates every catalog in common and adds inline catalogs alongside them',
+  ]),
+]);
+
 const SUPPORTED_FORMATS = new Set(['direct_json']);
 
 /**
@@ -70,6 +91,11 @@ const UNIMPLEMENTED_ACTIONS = new Map<string, string>([
 ]);
 
 export function classify(testCase: TestCase) {
+  const superseded = SUPERSEDED.get(testCase.name);
+  if (superseded) {
+    return {runnable: false, reason: superseded};
+  }
+
   const unimplemented = UNIMPLEMENTED_ACTIONS.get(testCase.action);
   if (unimplemented) {
     return {runnable: false, reason: unimplemented};
