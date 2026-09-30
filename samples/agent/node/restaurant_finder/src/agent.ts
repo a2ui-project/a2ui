@@ -139,8 +139,8 @@ export class RestaurantExecutor implements AgentExecutor {
       : undefined;
 
     let query = turn.query;
-    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-      console.log(`--- RestaurantExecutor: Attempt ${attempt}/${MAX_RETRIES + 1} ---`);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      console.log(`--- RestaurantExecutor: Attempt ${attempt + 1}/${MAX_RETRIES + 1} ---`);
       const fullText = await this.streamText({...turn, query}, track);
       try {
         const parts = this.validate(fullText, turn.profile, catalogIds);
@@ -151,7 +151,7 @@ export class RestaurantExecutor implements AgentExecutor {
         return {parts, published};
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
-        console.warn(`--- A2UI validation failed: ${error} (Attempt ${attempt}) ---`);
+        console.warn(`--- A2UI validation failed: ${error} (Attempt ${attempt + 1}) ---`);
         query = retryQuery(this.format, error, turn.query);
       }
     }
