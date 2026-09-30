@@ -662,12 +662,12 @@ def test_macro_expander_passthrough_components():
     assert "Text" not in inf_only_macros.catalog_schema["components"]
 
 
-def test_macro_expander_detects_common_ref_prefix():
+def test_macro_expander_emits_common_ref_prefix():
     @macro
     def DynCard(label: DynamicString) -> Card:
         return Card(child=Text(text="hi"))
 
-    # 1. Base catalog with versioned prefix
+    # Base catalog with versioned prefix (hybrid catalog scenario)
     v09_prefix = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
     cat_v09 = make_test_catalog({
         "Text": {
@@ -675,23 +675,15 @@ def test_macro_expander_detects_common_ref_prefix():
             "properties": {"text": {"$ref": f"{v09_prefix}DynamicString"}},
         }
     })
-    exp_v09 = MacroExpander([DynCard])
-    inf_v09 = exp_v09.transform_to_inference_catalog(cat_v09)
+    exp = MacroExpander([DynCard])
+    inf = exp.transform_to_inference_catalog(cat_v09)
+    # Macros unconditionally emit standard relative common_types refs
     assert (
-        inf_v09.catalog_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
-        == f"{v09_prefix}DynamicString"
-    )
-
-    # 2. Base catalog with relative unversioned prefix
-    cat_rel = make_test_catalog({
-        "Text": {
-            "type": "object",
-            "properties": {"text": {"$ref": "common_types.json#/$defs/DynamicString"}},
-        }
-    })
-    exp_rel = MacroExpander([DynCard])
-    inf_rel = exp_rel.transform_to_inference_catalog(cat_rel)
-    assert (
-        inf_rel.catalog_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
+        inf.catalog_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
         == "common_types.json#/$defs/DynamicString"
+    )
+    # Base components remain untouched
+    assert (
+        inf.catalog_schema["components"]["Text"]["properties"]["text"]["$ref"]
+        == f"{v09_prefix}DynamicString"
     )
