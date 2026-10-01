@@ -248,3 +248,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Python formats the name with an f-string instead of its string decompiler.
 - **What it risks:** A Python example with such an event name shows the model invalid Express.
 - **Done looks like:** Python quotes the name like other strings, and a conformance case in `agent/express/decompiler.yaml` pins the round trip.
+
+### Python's Express decompiler drops falsy data model values
+
+- **What it is:** Python's decompiler writes an `updateDataModel` only `if data_val:`, so a write of `""`, `0`, `false` or `[]` decompiles to nothing, and the example loses that value.
+- **TypeScript:** Only an empty object, which has nothing to write, is skipped. Other values are written at their path, for example `$/zero = 0`.
+- **Why it exists:** Python's truthiness test treats those values like a missing one.
+- **What it risks:** A Python example that resets a field to an empty or zero value shows the model a block without that reset.
+- **Done looks like:** Python skips only empty objects, and a conformance case in `agent/express/decompiler.yaml` pins it.

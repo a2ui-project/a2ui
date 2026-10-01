@@ -86,23 +86,21 @@ function optionalObjectField(
 }
 
 /**
- * Returns whether a JSON value is truthy under Python's rules, where empty strings,
- * lists and objects, zero, `false` and `null` are all falsy.
+ * Returns whether a data model value has anything to write.
  *
- * @param value The value to test.
- * @returns True if Python would treat the value as truthy.
+ * Only an empty object has nothing: an empty string, zero, `false` or an empty list at
+ * a path is a value the renderer must receive.
+ *
+ * @param value The value of a data model write.
  */
-export function isPythonTruthy(value: unknown): boolean {
-  if (value instanceof RawNumber) {
-    return Number(value.value) !== 0;
-  }
-  if (Array.isArray(value)) {
-    return value.length > 0;
-  }
-  if (value !== null && typeof value === 'object') {
-    return Object.keys(value).length > 0;
-  }
-  return Boolean(value);
+export function hasDataToWrite(value: unknown): boolean {
+  return !(
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    !(value instanceof RawNumber) &&
+    Object.keys(value).length === 0
+  );
 }
 
 /**
@@ -404,9 +402,10 @@ export class ExpressDecompiler {
         dslLines.push(`surface("${surfaceId}")`);
       }
 
-      // Python tests `if data_val:`, so any truthy value is written, including a string
-      // or a list, not only an object.
-      if (isPythonTruthy(dataVal)) {
+      // Python tests `if data_val:`, which also drops an empty string, zero, `false` or an
+      // empty list. Those are values the renderer must receive, so only an empty object,
+      // which has nothing to write, is skipped.
+      if (hasDataToWrite(dataVal)) {
         const flattened = flattenDataModel(dataVal);
         flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
         for (const [leafPath, val] of flattened) {
@@ -546,7 +545,7 @@ export class ExpressDecompiler {
     // Data model writes come before components. Each write's leaves are prefixed with
     // its base path.
     for (const {path, value} of group.dataAssignments) {
-      if (!isPythonTruthy(value)) {
+      if (!hasDataToWrite(value)) {
         continue;
       }
       const basePath = path.replace(/\/+$/, '');
