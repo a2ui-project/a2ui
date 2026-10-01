@@ -14,6 +14,8 @@
 
 // ignore_for_file: avoid_print
 
+import 'dart:convert';
+
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
@@ -63,11 +65,14 @@ void main() {
   /// catalog. While the model keeps writing that message, the parser returns
   /// it again after every chunk that changes it. Each time, it returns the
   /// whole message, from its start to the last complete component, not only
-  /// the new part. If the model is in the middle of a component, the parser
-  /// collects chunks until the component is complete, and then return.
-  /// A message that did not change is
-  /// not returned again. However, there is exception: `text` or `label` values
-  /// are returned before the component is complete.
+  /// the new part. A message that did not change is not returned again.
+  ///
+  /// If the model is in the middle of a component, the parser collects chunks
+  /// until the component is complete, and then returns the message. There is
+  /// one exception, which this test turns on with `progressiveKeys`: a `text`
+  /// or `label` string is returned while the model is still writing it, cut
+  /// where it stands. This happens only if the rest of the component is
+  /// already valid.
   ///
   /// The test passes each message to the renderer. The renderer replaces the
   /// components it already holds with the ones in the message, by id.
@@ -93,21 +98,39 @@ void main() {
       addTearDown(renderer.groupModel.dispose);
 
       final llmOutput = StringBuffer();
+      var chunks = 0;
       var partsBeforeTheEnd = 0;
       String? surfaceId;
+      // The components sent so far, encoded, by surface and id.
+      final sentComponents = <String, String>{};
       await for (final String chunk in AiClient().sendStream(
         processor.promptSnippet,
         loginFormRequest,
       )) {
         llmOutput.write(chunk);
-        for (final A2uiPart part
-            in parser.parseChunk(chunk).whereType<A2uiPart>()) {
-          partsBeforeTheEnd++;
-          surfaceId ??= part.a2ui
-              .whereType<CreateSurfaceMessage>()
-              .firstOrNull
-              ?.surfaceId;
-          renderer.processMessages(AgentToRendererMessagePayload(part.a2ui));
+        print('\n=== Chunk ${++chunks} from the model:');
+        print(chunk.split('\n').map((line) => '  | $line').join('\n'));
+        final List<ResponsePart> sent = parser.parseChunk(chunk);
+        if (sent.isEmpty) {
+          print('Parser kept the chunk and sent nothing.');
+          continue;
+        }
+        print('Parser sent to the renderer:');
+        for (final part in sent) {
+          switch (part) {
+            case TextPart(:final String text):
+              print('  text: ${jsonEncode(text)}');
+            case A2uiPart(:final List<AgentToRendererMessage> a2ui):
+              for (final message in a2ui) {
+                print(_describe(message, sentComponents));
+              }
+              partsBeforeTheEnd++;
+              surfaceId ??= a2ui
+                  .whereType<CreateSurfaceMessage>()
+                  .firstOrNull
+                  ?.surfaceId;
+              renderer.processMessages(AgentToRendererMessagePayload(a2ui));
+          }
         }
       }
 
@@ -128,4 +151,36 @@ void main() {
     },
     timeout: timeout,
   );
+}
+
+/// Describes [message] as the parser sent it, for the console.
+///
+/// The parser sends a message whole each time it changes, so the components
+/// of an `updateComponents` are marked new, changed, or unchanged against
+/// [sentComponents], which this updates.
+String _describe(
+  AgentToRendererMessage message,
+  Map<String, String> sentComponents,
+) {
+  final Map<String, Object?> json = message.toJson();
+  final String type = json.keys.firstWhere((key) => key != 'version');
+  final body = json[type]! as Map<String, Object?>;
+  if (body['components'] case final List<Object?> components) {
+    final lines = ['  $type, the whole message so far:'];
+    for (final Map<String, Object?> component
+        in components.cast<Map<String, Object?>>()) {
+      final key = '${body['surfaceId']}/${component['id']}';
+      final String encoded = jsonEncode(component);
+      final String? previous = sentComponents[key];
+      sentComponents[key] = encoded;
+      lines.add(switch (previous) {
+        null => '    ${component['id']}: new $encoded',
+        _ when previous == encoded =>
+          '    ${component['id']}: unchanged, sent again',
+        _ => '    ${component['id']}: changed $encoded',
+      });
+    }
+    return lines.join('\n');
+  }
+  return '  $type: ${jsonEncode(body)}';
 }
