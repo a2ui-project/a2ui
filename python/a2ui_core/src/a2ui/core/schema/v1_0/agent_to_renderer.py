@@ -28,7 +28,7 @@ class CreateSurfaceMetadata(StrictBaseModel):
     """Optional surface-level metadata."""
 
     model_config = ConfigDict(populate_by_name=True)
-    extensions: Extensions | None = Field(None)
+    extensions: Extensions | None = Field(default=None)
 
 
 class CreateSurface(StrictBaseModel):
@@ -44,7 +44,7 @@ class CreateSurface(StrictBaseModel):
         ),
     )
     catalog_id: str | None = Field(
-        None,
+        default=None,
         alias="catalogId",
         description=(
             "A string that uniquely identifies the default catalog for this surface. It"
@@ -55,7 +55,7 @@ class CreateSurface(StrictBaseModel):
         ),
     )
     send_data_model: bool | None = Field(
-        None,
+        default=None,
         alias="sendDataModel",
         description=(
             "If true, the renderer will send the full data model of this surface in the"
@@ -63,14 +63,14 @@ class CreateSurface(StrictBaseModel):
             " Defaults to false."
         ),
     )
-    components: list[dict[str, Any]] | None = Field(None)
+    components: list[dict[str, Any]] | None = Field(default=None)
     data_model: dict[str, Any] | None = Field(
-        None,
+        default=None,
         alias="dataModel",
         description="The initial root data model object for the surface.",
     )
     metadata: CreateSurfaceMetadata | None = Field(
-        None, description="Optional surface-level metadata."
+        default=None, description="Optional surface-level metadata."
     )
 
 
@@ -112,7 +112,7 @@ class UpdateDataModel(StrictBaseModel):
         ),
     )
     path: str | None = Field(
-        None,
+        default=None,
         description=(
             "An optional path to a location within the data model (e.g., '/user/name')."
             " If omitted, or set to '/', refers to the entire data model."

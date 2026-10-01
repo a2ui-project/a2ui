@@ -172,7 +172,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
         """Creates a renderer function error response payload model."""
         return RendererFunctionResponseMessage(
             version=cast(Any, version),
-            rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
+            rendererFunctionResponse=FunctionResponse(
                 functionCallId=call_id,
                 error=FunctionResponseError(code=code.value, message=message),
             ),
@@ -369,7 +369,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
         """Constructs and emits a successful RendererFunctionResponseMessage model."""
         resp = RendererFunctionResponseMessage(
             version=cast(Any, version),
-            rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
+            rendererFunctionResponse=FunctionResponse(
                 functionCallId=call_id,
                 value=val,
             ),

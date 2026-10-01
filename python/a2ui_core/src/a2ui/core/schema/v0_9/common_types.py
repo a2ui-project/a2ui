@@ -69,11 +69,11 @@ class FunctionCall(StrictBaseModel):
             _FUNCTION_CALL_ARGS_SCHEMA,
         ]
         | None
-    ) = Field(None, description="Arguments passed to the function.")
+    ) = Field(default=None, description="Arguments passed to the function.")
     return_type: (
         Literal["string", "number", "boolean", "array", "object", "any", "void"] | None
     ) = Field(
-        None,
+        default=None,
         alias="returnType",
         description="The expected return type of the function call.",
         json_schema_extra={"default": "boolean"},
@@ -165,7 +165,7 @@ class AccessibilityAttributes(StrictBaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     label: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "A short string, typically 1 to 3 words, used by assistive technologies to"
             " convey the purpose or intent of an element. For example, an input field"
@@ -174,7 +174,7 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
     description: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "Additional information provided by assistive technologies about an element"
             " such as instructions, format requirements, or result of an action. For"
@@ -211,7 +211,7 @@ class AccessibilityAttributes(StrictBaseModel):
 class ComponentCommon(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: ComponentId = Field(...)
-    accessibility: AccessibilityAttributes | None = Field(None)
+    accessibility: AccessibilityAttributes | None = Field(default=None)
 
     @classmethod
     def __get_pydantic_json_schema__(
@@ -280,7 +280,7 @@ class Checkable(StrictBaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
@@ -316,7 +316,7 @@ class ActionEvent(StrictBaseModel):
         ..., description="The name of the action to be dispatched to the server."
     )
     context: dict[str, DynamicValue] | None = Field(
-        None,
+        default=None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
             " Values can be literals or paths. Use literal values unless the value must"

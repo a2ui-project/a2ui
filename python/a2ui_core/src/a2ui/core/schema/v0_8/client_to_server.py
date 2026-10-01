@@ -67,8 +67,8 @@ A2uiClientUserActionMessage = A2uiClientActionMessage
 
 
 class A2uiGenericError(StrictBaseModel):
-    code: str | None = Field(None)
-    message: str | None = Field(None)
+    code: str | None = Field(default=None)
+    message: str | None = Field(default=None)
 
 
 class A2uiValidationError(StrictBaseModel):

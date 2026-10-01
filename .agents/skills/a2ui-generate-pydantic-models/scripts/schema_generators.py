@@ -1525,8 +1525,8 @@ def generate_renderer_to_agent(
             else:
                 r2a_blocks.append(
                     "class A2uiGenericError(StrictBaseModel):\n"
-                    "    code: str | None = Field(None)\n"
-                    "    message: str | None = Field(None)"
+                    "    code: str | None = Field(default=None)\n"
+                    "    message: str | None = Field(default=None)"
                 )
                 err_classes.append("A2uiGenericError")
                 r2a_names.append("A2uiGenericError")
@@ -1744,12 +1744,12 @@ def generate_renderer_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiRendererCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)"
         )
     else:
         caps_blocks.append(
             f"class A2uiClientCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)"
         )
         caps_blocks.append("A2uiRendererCapabilities = A2uiClientCapabilities")
 
@@ -1845,7 +1845,7 @@ def generate_agent_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiAgentCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)"
         )
     else:
         alt_prefix = "Agent"
@@ -1856,7 +1856,7 @@ def generate_agent_capabilities(
             caps_blocks.append(f"{cross_alt_cap_cls_name} = {cap_cls_name}")
         caps_blocks.append(
             f"class A2uiServerCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)"
         )
         caps_blocks.append("A2uiAgentCapabilities = A2uiServerCapabilities")
 

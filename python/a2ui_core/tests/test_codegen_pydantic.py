@@ -160,7 +160,7 @@ def test_compile_properties_to_pydantic():
     props = {"title": {"type": "string"}}
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 1
-    assert lines[0] == "    title: str | None = Field(None)"
+    assert lines[0] == "    title: str | None = Field(default=None)"
 
     # Defaults are documented, but do not become model defaults.
     props = {
@@ -170,12 +170,13 @@ def test_compile_properties_to_pydantic():
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 2
     assert (
-        '    num: int | None = Field(None, description="Defaults to 42 when absent.")'
+        '    num: int | None = Field(default=None, description="Defaults to 42 when'
+        ' absent.")'
         in lines
     )
     assert (
-        '    text: str | None = Field(None, description="Defaults to \\"hello\\" when'
-        ' absent.")'
+        '    text: str | None = Field(default=None, description="Defaults to'
+        ' \\"hello\\" when absent.")'
         in lines
     )
 
@@ -399,8 +400,11 @@ def test_generate_basic_catalog_styles():
         "class Styles(StrictBaseModel):" in code_v08
         or "class Styles(BaseModel):" in code_v08
     )
-    assert "font: str | None = Field(None" in code_v08
-    assert 'primary_color: str | None = Field(None, alias="primaryColor"' in code_v08
+    assert "font: str | None = Field(default=None" in code_v08
+    assert (
+        'primary_color: str | None = Field(default=None, alias="primaryColor"'
+        in code_v08
+    )
     assert "Theme = Styles" in code_v08
 
     # v0.9 theme
@@ -419,7 +423,7 @@ def test_generate_basic_catalog_styles():
     assert code is not None
     assert "class Theme(BaseModel):" in code
     assert (
-        'primary_color: str | None = Field(None, alias="primaryColor",'
+        'primary_color: str | None = Field(default=None, alias="primaryColor",'
         ' description="Test color.")'
         in code
     )
@@ -498,7 +502,10 @@ def test_generate_renderer_capabilities():
     assert "class V09Capabilities(StrictBaseModel):" in code
     assert "class A2uiClientCapabilities(StrictBaseModel):" in code
     assert "A2uiRendererCapabilities = A2uiClientCapabilities" in code
-    assert "v0_9: V09Capabilities | None = Field(None, alias=PROTOCOL_VERSION)" in code
+    assert (
+        "v0_9: V09Capabilities | None = Field(default=None, alias=PROTOCOL_VERSION)"
+        in code
+    )
 
 
 def test_generate_agent_capabilities():
@@ -643,7 +650,7 @@ def test_default_annotations_do_not_set_model_defaults(version):
     lines = codegen.compile_properties(props, ["kind"])
 
     assert (
-        '    display_name: str | None = Field(None, alias="displayName",'
+        '    display_name: str | None = Field(default=None, alias="displayName",'
         ' description="Name shown in the UI. Defaults to \\"Guest\\" when absent.")'
         in lines
     )

@@ -68,7 +68,7 @@ class FunctionCommon(StrictBaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     call: str = Field(..., description="The name of the function to call.")
     catalog_id: str | None = Field(
-        None,
+        default=None,
         alias="catalogId",
         description=(
             "The catalog ID for this function, overriding any surface-level default"
@@ -109,10 +109,10 @@ class FunctionCall(StrictBaseModel):
         ..., alias="@call", description="The name of the function to call."
     )
     args: dict[str, Any] | None = Field(
-        None, description="Arguments passed to the function."
+        default=None, description="Arguments passed to the function."
     )
     catalog_id: str | None = Field(
-        None,
+        default=None,
         alias="catalogId",
         description=(
             "The catalog ID for this function, overriding any surface-level default"
@@ -172,7 +172,7 @@ class AccessibilityAttributes(StrictBaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
     label: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "A short string, typically 1 to 3 words, used by assistive technologies to"
             " convey the purpose or intent of an element. For example, an input field"
@@ -181,7 +181,7 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
     description: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "Additional information provided by assistive technologies about an element"
             " such as instructions, format requirements, or result of an action. For"
@@ -190,7 +190,7 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
     live: Literal["off", "polite", "assertive"] | None = Field(
-        None,
+        default=None,
         description=(
             "Controls screen reader announcements for dynamic updates (WAI-ARIA"
             " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
@@ -199,7 +199,7 @@ class AccessibilityAttributes(StrictBaseModel):
         json_schema_extra={"default": "off"},
     )
     hidden: DynamicBoolean | None = Field(
-        None,
+        default=None,
         description=(
             "Hides the element and its children from assistive technologies when true."
             " Default is false."
@@ -246,7 +246,7 @@ class ComponentCommonMetadata(StrictBaseModel):
     model_config = ConfigDict(
         json_schema_extra={INLINE_DEF_MARKER: True}, populate_by_name=True
     )
-    extensions: Extensions | None = Field(None)
+    extensions: Extensions | None = Field(default=None)
 
     @model_validator(mode="before")
     @classmethod
@@ -264,16 +264,17 @@ class ComponentCommon(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: ComponentId = Field(...)
     catalog_id: str | None = Field(
-        None,
+        default=None,
         alias="catalogId",
         description=(
             "The catalog ID for this component, overriding any surface-level default"
             " catalogId."
         ),
     )
-    accessibility: AccessibilityAttributes | None = Field(None)
+    accessibility: AccessibilityAttributes | None = Field(default=None)
     metadata: ComponentCommonMetadata | None = Field(
-        None, description="Optional component-level metadata for vendor extensions."
+        default=None,
+        description="Optional component-level metadata for vendor extensions.",
     )
 
     @classmethod
@@ -358,7 +359,7 @@ class IndexSystemFunctionArgs(StrictBaseModel):
         json_schema_extra={INLINE_DEF_MARKER: True}, populate_by_name=True
     )
     offset: DynamicNumber | None = Field(
-        None,
+        default=None,
         description=(
             "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based"
             " indexing). Defaults to 0."
@@ -393,7 +394,7 @@ class IndexSystemFunction(StrictBaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
     call: Literal["@index"] = Field(...)
-    args: IndexSystemFunctionArgs | None = Field(None)
+    args: IndexSystemFunctionArgs | None = Field(default=None)
 
     @classmethod
     def __get_pydantic_json_schema__(
@@ -427,7 +428,9 @@ class CheckRule(StrictBaseModel):
             "Path or function call evaluating to a structured validation result object."
         ),
     )
-    message: str | None = Field(None, description="Optional fallback error message.")
+    message: str | None = Field(
+        default=None, description="Optional fallback error message."
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -444,7 +447,7 @@ class Checkable(StrictBaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
@@ -480,7 +483,7 @@ class ActionEvent(StrictBaseModel):
         ..., description="The name of the action to be dispatched to the agent."
     )
     user_message: DynamicString | None = Field(
-        None,
+        default=None,
         alias="userMessage",
         description=(
             "An optional human-readable message describing the action performed by the"
@@ -488,7 +491,7 @@ class ActionEvent(StrictBaseModel):
         ),
     )
     context: dict[str, DynamicValue] | None = Field(
-        None,
+        default=None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
             " Values can be literals or paths. Use literal values unless the value must"
@@ -580,9 +583,11 @@ class FunctionResponse(StrictBaseModel):
         alias="functionCallId",
         description="The unique ID matching the initiating function call.",
     )
-    value: Any | None = Field(None, description="The return value of the function.")
+    value: Any | None = Field(
+        default=None, description="The return value of the function."
+    )
     error: FunctionResponseError | None = Field(
-        None,
+        default=None,
         description="An error object indicating failure of the function execution.",
     )
 

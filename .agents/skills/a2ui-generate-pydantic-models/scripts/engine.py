@@ -378,7 +378,8 @@ class PydanticCodegen:
                     )
                 else:
                     lines.append(
-                        f"    {snake_name}: {py_type} | None = Field(None{field_str})"
+                        f"    {snake_name}: {py_type} | None ="
+                        f" Field(default=None{field_str})"
                     )
 
         return lines
