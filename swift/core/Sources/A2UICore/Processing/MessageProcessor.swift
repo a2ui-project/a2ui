@@ -155,12 +155,7 @@ public final class MessageProcessor: ObservableObject {
 
   /// Returns the data model for a specific surface ID, if it exists.
   public func getRendererDataModel(surfaceID: String) -> JSONValue? {
-    surfaceGroupModel.surfacesMap[surfaceID]?.dataModel.data
-  }
-
-  /// Returns the `SurfaceViewModel` for the specified surface ID.
-  public func surface(id: String) -> SurfaceViewModel? {
-    surfaceGroupModel[id]
+    surfaceGroupModel[surfaceID]?.dataModel.data
   }
 
   // MARK: - Capabilities Generation
@@ -451,7 +446,7 @@ public final class MessageProcessor: ObservableObject {
     case .updateComponents, .updateDataModel, .deleteSurface:
       break
     }
-    if let surfaceVersion = surface(id: surfaceID)?.protocolVersion {
+    if let surfaceVersion = surfaceGroupModel[surfaceID]?.protocolVersion {
       return surfaceVersion
     }
     return catalogs.values.first?.a2uiProtocolVersion ?? .v10
@@ -472,7 +467,7 @@ public final class MessageProcessor: ObservableObject {
     {
       return version
     }
-    if let surfaceVersion = surface(id: surfaceID)?.protocolVersion {
+    if let surfaceVersion = surfaceGroupModel[surfaceID]?.protocolVersion {
       return surfaceVersion
     }
     return catalogs.values.first?.a2uiProtocolVersion ?? .v10
@@ -1009,7 +1004,7 @@ public final class MessageProcessor: ObservableObject {
     actionHandler?.handle(action: action, from: surfaceID)
     if case .event(let name, let context, let userMessage) = action.identity {
       let version =
-        surface(id: surfaceID)?.protocolVersion
+        surfaceGroupModel[surfaceID]?.protocolVersion
         ?? catalogs.values.first?.a2uiProtocolVersion
         ?? .v10
       let rendererAction = RendererAction(

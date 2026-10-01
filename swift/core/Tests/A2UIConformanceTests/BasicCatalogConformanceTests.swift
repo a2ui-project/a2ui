@@ -235,7 +235,7 @@ struct BasicCatalogConformanceTests {
 
           if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
             for (surfaceID, expectedSurface) in expectSurfaces {
-              guard let surface = processor.surface(id: surfaceID) else {
+              guard let surface = processor.surfaceGroupModel[surfaceID] else {
                 Issue.record("Expected surface '\(surfaceID)' to exist")
                 continue
               }
@@ -278,7 +278,7 @@ struct BasicCatalogConformanceTests {
 
       if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
         for (surfaceID, expectedSurface) in expectSurfaces {
-          guard let surface = processor.surface(id: surfaceID) else {
+          guard let surface = processor.surfaceGroupModel[surfaceID] else {
             Issue.record("Expected surface '\(surfaceID)' to exist")
             continue
           }
