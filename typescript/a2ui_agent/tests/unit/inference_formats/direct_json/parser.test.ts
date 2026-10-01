@@ -26,7 +26,7 @@ describe('DirectJsonParser', () => {
   const catalog = basicCatalogV10;
 
   it('hasFormatContent requires a closed block only when complete is set', () => {
-    const parser = new DirectJsonParser(catalog);
+    const parser = new DirectJsonParser([catalog]);
     const closed = '<a2ui-json>\n{"a": 1}\n</a2ui-json>';
     const unterminated = '<a2ui-json>\n{"a": 1}';
 
@@ -41,7 +41,7 @@ describe('DirectJsonParser', () => {
   });
 
   it('unwraps valid A2UI JSON payload', () => {
-    const parser = new DirectJsonParser(catalog);
+    const parser = new DirectJsonParser([catalog]);
     const content = 'Text before\n<a2ui-json>\n[{"action": "test"}]\n</a2ui-json>\nText after';
     const parts = parser.unwrap(content);
     expect(parts).toHaveLength(3);
@@ -51,32 +51,32 @@ describe('DirectJsonParser', () => {
   });
 
   it('throws ParseError on missing close tag', () => {
-    const parser = new DirectJsonParser(catalog);
+    const parser = new DirectJsonParser([catalog]);
     const content = 'Text before\n<a2ui-json>\n[{"action": "test"}]';
     expect(() => parser.unwrap(content)).toThrow(ParseError);
   });
 
   it('throws ParseError on empty JSON part', () => {
-    const parser = new DirectJsonParser(catalog);
+    const parser = new DirectJsonParser([catalog]);
     const content = 'Text before\n<a2ui-json>\n</a2ui-json>';
     expect(() => parser.unwrap(content)).toThrow(ParseError);
   });
 
   it('throws ParseError when no tags are found', () => {
-    const parser = new DirectJsonParser(catalog);
+    const parser = new DirectJsonParser([catalog]);
     const content = 'Text before\nNo tags here';
     expect(() => parser.unwrap(content)).toThrow(ParseError);
   });
 
   it('compiles raw format content', () => {
-    const parser = new DirectJsonParser(catalog);
+    const parser = new DirectJsonParser([catalog]);
     const payload = '[{"version": "1.0", "createSurface": {"surfaceId": "1"}}]';
     const compiled = parser.compile(payload);
     expect(compiled).toEqual([{version: '1.0', createSurface: {surfaceId: '1'}}]);
   });
 
   it('does not support streaming', () => {
-    const parser = new DirectJsonParser(catalog);
+    const parser = new DirectJsonParser([catalog]);
     expect(parser.supportsStreaming).toBe(false);
     expect(() => parser.parseChunk('<a2ui-json>')).toThrow(
       'Streaming is not supported by DirectJsonParser',
@@ -87,5 +87,11 @@ describe('DirectJsonParser', () => {
     const factory = new DirectJsonFormatFactory();
     const format = factory.createFormat([catalog]);
     expect(format.supportsStreaming).toBe(false);
+  });
+
+  it('gets every active catalog from the format', async () => {
+    const catalogs = [catalog, await loadBasicCatalog('v0.9')];
+    const parser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
+    expect((parser as DirectJsonParser).catalogs).toEqual(catalogs);
   });
 });
