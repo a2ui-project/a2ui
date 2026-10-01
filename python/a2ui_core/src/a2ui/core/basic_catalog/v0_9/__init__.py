@@ -98,15 +98,6 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             components=BASIC_COMPONENTS,
             functions=create_basic_catalog_functions(locale=locale),
             theme_schema=Theme.model_json_schema(),
-            schema_metadata={
-                "$id": (
-                    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-                ),
-                "title": "A2UI Basic Catalog",
-                "description": (
-                    "Unified catalog of basic A2UI components and functions."
-                ),
-            },
         )
 
 

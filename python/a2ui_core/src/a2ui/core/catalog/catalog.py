@@ -287,12 +287,6 @@ def _defs_refs(node: Any) -> set[str]:
     return refs
 
 
-# Top-level catalog schema keywords that `Catalog.catalog_schema` derives.
-_DERIVED_SCHEMA_KEYWORDS: Final[frozenset[str]] = frozenset(
-    {"$schema", "catalogId", "instructions", "components", "functions", "$defs"}
-)
-
-
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any)
 TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any)
 
@@ -310,7 +304,6 @@ class Catalog(Generic[TComponent, TFunction]):
         instructions: str | None = None,
         defs: dict[str, Any] | None = None,
         common_types_defs: dict[str, Any] | None = None,
-        schema_metadata: Mapping[str, Any] | None = None,
     ):
         """Initializes the catalog.
 
@@ -324,13 +317,10 @@ class Catalog(Generic[TComponent, TFunction]):
             defs: Additional catalog-level `$defs`.
             common_types_defs: Shared type definitions that override the
                 built-in common types definitions.
-            schema_metadata: Top-level keywords of the catalog schema that it
-                does not derive itself, such as `$id`, `title`, `description`
-                and `protocolVersion`. `catalog_schema` emits them as given.
 
         Raises:
-            A2uiCatalogError: If `protocol_version` is missing, an identifier
-                is invalid, or `schema_metadata` sets a derived keyword.
+            A2uiCatalogError: If `protocol_version` is missing or an identifier
+                is invalid.
         """
         if not protocol_version:
             raise A2uiCatalogError("protocol_version must be provided.")
@@ -343,14 +333,6 @@ class Catalog(Generic[TComponent, TFunction]):
         # that validates against a reduced or customized common types document.
         self.common_types_defs: dict[str, Any] = (
             copy.deepcopy(common_types_defs) if common_types_defs else {}
-        )
-        derived = sorted(set(schema_metadata or {}) & _DERIVED_SCHEMA_KEYWORDS)
-        if derived:
-            raise A2uiCatalogError(
-                f"schema_metadata cannot set derived catalog keywords: {derived}"
-            )
-        self.schema_metadata: dict[str, Any] = copy.deepcopy(
-            dict(schema_metadata or {})
         )
 
         validate_identifiers = is_at_least_version(
@@ -392,8 +374,7 @@ class Catalog(Generic[TComponent, TFunction]):
         published common types schema with local refs. Other components and
         functions keep the flat schemas of `ComponentApi.schema` and
         `FunctionApi.schema` and the flat common types defs. System functions,
-        which the runtime supplies, are not declared. The schema metadata
-        (`$id`, `title`, ...) is emitted as given.
+        which the runtime supplies, are not declared.
         """
         try:
             protocol_version = to_protocol_version(self.protocol_version)
@@ -559,7 +540,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 referenced_dynamics | _defs_refs(cleaned_schema),
                 protocol_version,
             )
-            return self._with_schema_metadata(cleaned_schema)
+            return cleaned_schema
 
         if referenced_dynamics:
             if "$defs" not in cleaned_schema:
@@ -603,21 +584,7 @@ class Catalog(Generic[TComponent, TFunction]):
                             **cleaned_schema["$defs"][dyn],
                         }
 
-        return self._with_schema_metadata(cleaned_schema)
-
-    def _with_schema_metadata(self, schema: dict[str, Any]) -> dict[str, Any]:
-        """Returns `schema` with the schema metadata after `$schema`.
-
-        The metadata is added after cleaning, which drops `title` keywords.
-        """
-        if not self.schema_metadata:
-            return schema
-        rest = {k: v for k, v in schema.items() if k != "$schema"}
-        return {
-            "$schema": schema["$schema"],
-            **copy.deepcopy(self.schema_metadata),
-            **rest,
-        }
+        return cleaned_schema
 
     def _add_published_common_types(
         self,

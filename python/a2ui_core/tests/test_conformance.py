@@ -1015,7 +1015,9 @@ def consolidate_spec_catalog(catalog_path: str, common_types_path: str) -> Any:
 
     Every `$ref` into another document becomes local, and the common types
     defs the catalog references, transitively, are added to its `$defs`. The
-    catalog's own defs win on a name clash. Nothing else changes.
+    catalog's own defs win on a name clash. Top-level metadata keywords that
+    `Catalog.catalog_schema` does not emit (`$id`, `title`, `description`,
+    `protocolVersion`) are dropped.
     """
 
     def load(path: str) -> Any:
@@ -1051,6 +1053,8 @@ def consolidate_spec_catalog(catalog_path: str, common_types_path: str) -> Any:
         return found
 
     catalog = load(catalog_path)
+    for key in ("$id", "title", "description", "protocolVersion"):
+        catalog.pop(key, None)
     common_defs = load(common_types_path)["$defs"]
     defs = catalog.setdefault("$defs", {})
     pending = refs(catalog)

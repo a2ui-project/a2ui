@@ -75,7 +75,7 @@ When executed for a target version `<version>` (e.g. `v1.0` -> `v1_0`), the scri
      - A component's `allOf` references to common types defs (for example `Checkable`) become base classes, and catalog defs (`CatalogComponentCommon`) become base models. A component with more than one base sets `extra="forbid"`, because Pydantic would otherwise inherit an open base's config. A component description becomes the class docstring and fails generation if it cannot be one.
      - A function's description becomes the `FunctionApi.description` attribute. Keywords on the `args` object that fields cannot produce (`unevaluatedProperties`, `additionalProperties`, required-alternative `anyOf`) are declared with `SchemaKeywords` as the model's `json_schema_extra`, and an unknown keyword fails generation.
      - Field constraints (`minItems`, `minimum`, ...) are emitted as `Field` arguments, so they are validated and published; `format` and `default` are published through `json_schema_extra`. An `allOf` member that only adds keywords becomes a `SpecAllOf` annotation.
-     - The top-level keys of `catalog.json` that are not derived from components, functions or the theme (for example `instructions`) are passed to the `Catalog` in `__init__.py` as `instructions` and `schema_metadata`.
+     - Top-level `instructions` in `catalog.json` are passed to the `Catalog` in `__init__.py`.
      - The conformance cases `test_v09_basic_catalog_schema` and `test_v10_basic_catalog_schema` compare the result with the specification files, so any drift fails the tests.
 
 3. **`python/a2ui_core/src/a2ui/core/schema/__init__.py`**:

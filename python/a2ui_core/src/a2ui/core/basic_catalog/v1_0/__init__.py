@@ -145,16 +145,6 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
                 '    "url": "https://example.com/lab.jpg"\n          }\n        ]\n    '
                 "  }\n    }\n  }\n]\n```"
             ),
-            schema_metadata={
-                "$id": (
-                    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-                ),
-                "protocolVersion": "1.0",
-                "title": "A2UI Basic Catalog",
-                "description": (
-                    "Unified catalog of basic A2UI components and functions."
-                ),
-            },
         )
 
 

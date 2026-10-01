@@ -1475,9 +1475,10 @@ function validateCatalogSchemaTestCase(testCase) {
 
 /**
  * Returns the expected schema of an `expectCatalog` case: the catalog at
- * `catalogPath` with every `$ref` into another document made local, and the
- * common types defs it references, transitively, added to its `$defs`. The
- * catalog's own defs win on a name clash. Nothing else changes.
+ * `catalogPath` with every `$ref` into another document made local, the common
+ * types defs it references, transitively, added to its `$defs`, and top-level
+ * metadata keywords (`$id`, `title`, `description`, `protocolVersion`) dropped.
+ * The catalog's own defs win on a name clash.
  */
 function consolidateSpecCatalog(catalogPath, commonTypesPath) {
   const localize = node => {
@@ -1507,6 +1508,9 @@ function consolidateSpecCatalog(catalogPath, commonTypesPath) {
     localize(JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', p), 'utf8')));
 
   const catalog = load(catalogPath);
+  for (const key of ['$id', 'title', 'description', 'protocolVersion']) {
+    delete catalog[key];
+  }
   const commonDefs = load(commonTypesPath).$defs;
   catalog.$defs ??= {};
   const pending = [...refs(catalog)];

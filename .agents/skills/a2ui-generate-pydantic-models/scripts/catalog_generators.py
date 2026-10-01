@@ -27,12 +27,6 @@ from utils import (
     version_to_underscore,
 )
 
-# Top-level catalog keywords that `Catalog.catalog_schema` derives itself; the
-# others are passed to `Catalog` as schema metadata.
-_DERIVED_CATALOG_KEYWORDS = frozenset(
-    {"$schema", "catalogId", "instructions", "components", "functions", "$defs"}
-)
-
 
 def generate_basic_catalog_components(
     version: str,
@@ -495,8 +489,8 @@ def generate_basic_catalog_index(
         func_code: The generated function APIs module.
         style_code: The generated styles module, if any.
         catalog_data: The catalog document. When given, `BasicCatalog` passes
-            its `instructions` and other top-level keywords (`$id`, `title`,
-            ...) to `Catalog`, which publishes them in `catalog_schema`.
+            its `instructions` to `Catalog`, which publishes them in
+            `catalog_schema`.
     """
     dir_name = version_to_underscore(version)
     comp_symbols = extract_exported_symbols(comp_code)
@@ -565,19 +559,11 @@ def generate_basic_catalog_index(
         else ""
     )
     document_lines = ""
-    if catalog_data:
-        if "instructions" in catalog_data:
-            document_lines += (
-                "           "
-                f" instructions={python_literal(catalog_data['instructions'])},\n"
-            )
-        metadata = {
-            k: v for k, v in catalog_data.items() if k not in _DERIVED_CATALOG_KEYWORDS
-        }
-        if metadata:
-            document_lines += (
-                f"            schema_metadata={python_literal(metadata)},\n"
-            )
+    if catalog_data and "instructions" in catalog_data:
+        document_lines += (
+            "           "
+            f" instructions={python_literal(catalog_data['instructions'])},\n"
+        )
 
     cat_init.extend([
         (
