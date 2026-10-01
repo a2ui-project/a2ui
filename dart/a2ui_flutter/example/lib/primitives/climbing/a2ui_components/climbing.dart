@@ -96,15 +96,9 @@ class ClimbingLocation extends StatelessWidget {
           SizedBox(
             height: 200,
             width: double.infinity,
-            child: Image.asset(
-              'assets/climbing/${info.image}',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.broken_image, size: 48),
-                );
-              },
+            child: ColoredBox(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: const Icon(Icons.landscape, size: 48),
             ),
           ),
           Padding(

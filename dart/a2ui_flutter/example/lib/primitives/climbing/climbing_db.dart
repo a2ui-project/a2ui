@@ -76,7 +76,6 @@ enum LocationProperty {
 class ClimbingLocationInfo {
   const ClimbingLocationInfo({
     required this.identifier,
-    required this.image,
     required this.name,
     required this.address,
     required this.climbingTypes,
@@ -85,7 +84,6 @@ class ClimbingLocationInfo {
   });
 
   final String identifier;
-  final String image;
   final String name;
   final String address;
 
@@ -100,7 +98,6 @@ class ClimbingLocationInfo {
   Map<String, dynamic> toJson() {
     return {
       'identifier': identifier,
-      'image': image,
       'name': name,
       'address': address,
       'climbingTypes': climbingTypes.map((e) => e.name).toList(),
@@ -114,7 +111,6 @@ class ClimbingLocationInfo {
 List<ClimbingLocationInfo> climbingLocations = [
   const ClimbingLocationInfo(
     identifier: 'calico_hills_i',
-    image: 'mountain_01.webp',
     name: 'Calico Hills I',
     address: 'Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead, ClimbingType.topRope],
@@ -123,7 +119,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'kraft_boulders',
-    image: 'mountain_02.webp',
     name: 'Kraft Boulders',
     address: 'Calico Basin, NV',
     climbingTypes: [ClimbingType.bouldering],
@@ -136,7 +131,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'sandstone_quarry',
-    image: 'mountain_03.webp',
     name: 'Sandstone Quarry',
     address: 'Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead, ClimbingType.crack],
@@ -145,7 +139,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'black_velvet_canyon',
-    image: 'mountain_04.webp',
     name: 'Black Velvet Canyon',
     address: 'Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead, ClimbingType.crack],
@@ -158,7 +151,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'willow_springs',
-    image: 'mountain_05.webp',
     name: 'Willow Springs',
     address: 'Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead, ClimbingType.bouldering],
@@ -167,7 +159,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'icebox_canyon',
-    image: 'mountain_06.webp',
     name: 'Icebox Canyon',
     address: 'Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.crack, ClimbingType.lead],
@@ -176,7 +167,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'pine_creek_canyon',
-    image: 'mountain_07.webp',
     name: 'Pine Creek Canyon',
     address: 'Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead, ClimbingType.crack],
@@ -185,7 +175,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'the_gallery',
-    image: 'mountain_08.webp',
     name: 'The Gallery',
     address: 'Calico Hills, Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead],
@@ -194,7 +183,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'magic_bus',
-    image: 'mountain_09.webp',
     name: 'Magic Bus',
     address: 'Calico Hills, Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead, ClimbingType.topRope],
@@ -203,7 +191,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'the_hamlet',
-    image: 'mountain_10.webp',
     name: 'The Hamlet',
     address: 'Calico Hills, Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead],
@@ -212,7 +199,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'moderate_mecca',
-    image: 'mountain_11.webp',
     name: 'Moderate Mecca',
     address: 'Calico Hills, Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead, ClimbingType.topRope],
@@ -221,7 +207,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'the_black_corridor',
-    image: 'mountain_12.webp',
     name: 'The Black Corridor',
     address: 'Red Rock Canyon, NV',
     climbingTypes: [ClimbingType.lead],
@@ -230,7 +215,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'origin_climbing_fitness',
-    image: 'mountain_13.webp',
     name: 'Origin Climbing + Fitness',
     address: '7585 S Rainbow Blvd, Las Vegas, NV',
     climbingTypes: [
@@ -247,7 +231,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'the_refuge_climbing_center',
-    image: 'mountain_14.webp',
     name: 'The Refuge Climbing Center',
     address: '6283 S Valley View Blvd, Las Vegas, NV',
     climbingTypes: [ClimbingType.bouldering],
@@ -260,7 +243,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'red_rock_climbing_center',
-    image: 'mountain_15.webp',
     name: 'Red Rock Climbing Center',
     address: '8201 W Charleston Blvd, Las Vegas, NV',
     climbingTypes: [
@@ -277,7 +259,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'lone_mountain',
-    image: 'mountain_16.webp',
     name: 'Lone Mountain',
     address: 'Las Vegas, NV',
     climbingTypes: [ClimbingType.lead],
@@ -286,7 +267,6 @@ List<ClimbingLocationInfo> climbingLocations = [
   ),
   const ClimbingLocationInfo(
     identifier: 'mount_charleston',
-    image: 'mountain_17.webp',
     name: 'Mount Charleston',
     address: 'Mt Charleston, NV',
     climbingTypes: [ClimbingType.lead],
