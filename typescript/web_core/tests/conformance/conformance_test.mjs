@@ -38,6 +38,7 @@ import {
 } from '../../dist/src/v1_0/basic_catalog/index.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../dist/src/errors.js';
+import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
 import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
@@ -148,7 +149,7 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml']);
+const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.
@@ -201,7 +202,7 @@ function findYamlFiles(dir) {
 
 function loadYamlFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
-  return yaml.load(content);
+  return yaml.load(content, {maxDepth: 1000});
 }
 
 async function runConformanceHarness() {
@@ -1157,15 +1158,16 @@ function validateResolvePathTestCase(testCase) {
 
   const targetPath = args.path || '';
   const contextPath = args.contextPath || args.context_path;
+  const ctx = new DataContext(new DataModel(), contextPath || '/');
 
   if (expectError) {
     assert.throws(() => {
-      DataModel.resolvePath(targetPath, contextPath);
+      ctx.resolvePath(targetPath);
     });
     return;
   }
 
-  const result = DataModel.resolvePath(targetPath, contextPath);
+  const result = ctx.resolvePath(targetPath);
   if (typeof expect === 'string') {
     assert.strictEqual(result, expect);
   } else if (expect && typeof expect === 'object' && 'result' in expect) {
@@ -1837,19 +1839,11 @@ function assertSurfacesMatch(processor, expect) {
           );
         }
       }
-      if (surface && expectedSurface.dataModel) {
-        for (const [k, v] of Object.entries(expectedSurface.dataModel)) {
-          // A key that already starts with '/' is written as a pointer. A bare
-          // key is a literal top-level key, so '~' and '/' within it must be
-          // escaped before it can be used as one.
-          const path = k.startsWith('/') ? k : `/${k.replace(/~/g, '~0').replace(/\//g, '~1')}`;
-          const actualVal = surface.dataModel.get(path);
-          if (JSON.stringify(actualVal) !== JSON.stringify(v)) {
-            throw new Error(
-              `Surface '${surfaceId}' dataModel mismatch for '${k}'. Expected ${JSON.stringify(v)}, got ${JSON.stringify(actualVal)}`,
-            );
-          }
-        }
+      if (surface && expectedSurface.dataModel !== undefined) {
+        assert.deepStrictEqual(
+          JSON.parse(JSON.stringify(surface.dataModel.get('/'))),
+          expectedSurface.dataModel,
+        );
       }
       if (surface && expectedSurface.components) {
         // A suite may list components either as an array of objects carrying

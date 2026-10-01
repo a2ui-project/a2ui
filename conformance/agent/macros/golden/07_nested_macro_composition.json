@@ -1,0 +1,52 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "nested_1__text_1",
+          "text": "Service Cluster",
+          "variant": "h1"
+        },
+        {
+          "component": "Text",
+          "id": "nested_1__text_2",
+          "text": "ONLINE",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "nested_1__text_3",
+          "text": "Service Cluster Status",
+          "variant": "h3"
+        },
+        {
+          "component": "Row",
+          "id": "nested_1__row_1",
+          "children": ["nested_1__text_2", "nested_1__text_3"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "nested_1__card_1",
+          "child": "nested_1__row_1"
+        },
+        {
+          "component": "Column",
+          "id": "nested_1__column_1",
+          "children": ["nested_1__text_1", "nested_1__card_1"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "nested_1",
+          "child": "nested_1__column_1"
+        }
+      ]
+    }
+  }
+]

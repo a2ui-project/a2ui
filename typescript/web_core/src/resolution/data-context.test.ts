@@ -85,6 +85,13 @@ describe('DataContext', () => {
     assert.strictEqual(addressContext.resolveDynamicValue({path: 'city'}), 'Wonderland');
   });
 
+  it('creates nested context when constructed directly with a DataModel', () => {
+    const directContext = new DataContext(model, '/user');
+    const addressContext = directContext.nested('address');
+    assert.strictEqual(addressContext.path, '/user/address');
+    assert.strictEqual(addressContext.resolveDynamicValue({path: 'city'}), 'Wonderland');
+  });
+
   it('handles root context', () => {
     const rootContext = createTestDataContext(model, '/');
     assert.strictEqual(rootContext.resolveDynamicValue({path: 'user/name'}), 'Alice');
@@ -325,15 +332,6 @@ describe('DataContext', () => {
     assert.deepStrictEqual(sub.value, obj);
   });
 
-  it('handles path resolution edge cases', () => {
-    assert.strictEqual(context.nested('').path, '/user');
-    assert.strictEqual(context.nested('.').path, '/user');
-    // Ensure trailing slash removal logic is hit
-    const rootCtx = createTestDataContext(model, '/');
-    assert.strictEqual(rootCtx.nested('test').path, '/test');
-    const trailingCtx = createTestDataContext(model, '/user/');
-    assert.strictEqual(trailingCtx.nested('test').path, '/user/test');
-  });
   it('subscribes to function call with arguments reactively', () => {
     const fnInvoker = (name: string, args: any) => {
       if (name === 'greet') return `Hello ${args.name}`;

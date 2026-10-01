@@ -16,4 +16,24 @@
 
 import preset from '../../eslint.preset.mjs';
 
-export default [...preset, {ignores: ['a2ui_explorer/**']}];
+export default [
+  ...preset,
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/lit', '@a2ui/lit/*'],
+              message:
+                'Use relative imports within @a2ui/lit instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {ignores: ['a2ui_explorer/**']},
+];

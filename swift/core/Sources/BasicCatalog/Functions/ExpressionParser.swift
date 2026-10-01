@@ -29,6 +29,12 @@ public struct ExpressionParser: Sendable {
   /// accepts the other rejects.
   public static let maxDepth = 100
 
+  /// Maximum allowed length for expression template strings.
+  public static let maxTemplateLength = 10_000
+
+  /// Maximum allowed number of parts in an expression template.
+  public static let maxTemplateParts = 1_000
+
   /// An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
   /// exponent (`e` or `E`, an optional sign, digits). Uses `[0-9]` rather than
   /// `\d` because ICU's `\d` matches digits from every Unicode script.
@@ -45,16 +51,33 @@ public struct ExpressionParser: Sendable {
 
   /// Parses an input template string into an array of dynamic `JSONValue` parts.
   ///
+  /// - Parameter input: The raw template string to parse.
+  /// - Returns: An array of `JSONValue` elements (literals, paths, function calls).
+  /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
+  public func parse(_ input: String) throws -> [JSONValue] {
+    try parse(input, depth: 0)
+  }
+
+  /// Parses an input template string into an array of dynamic `JSONValue` parts at a specific depth.
+  ///
   /// - Parameters:
   ///   - input: The raw template string to parse.
   ///   - depth: The current recursion depth.
   /// - Returns: An array of `JSONValue` elements (literals, paths, function calls).
   /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
-  public func parse(_ input: String, depth: Int = 0) throws -> [JSONValue] {
+  package func parse(_ input: String, depth: Int) throws -> [JSONValue] {
     if depth > Self.maxDepth {
       throw FunctionError.executionFailed(
         name: "expressionParser",
         message: "Max recursion depth reached in parse"
+      )
+    }
+    let length = input.count
+    if length > Self.maxTemplateLength {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message:
+          "Expression template length (\(length)) exceeds maximum limit (\(Self.maxTemplateLength))"
       )
     }
     if input.isEmpty || !input.contains("${") {
@@ -65,6 +88,12 @@ public struct ExpressionParser: Sendable {
     var scanner = Scanner(input)
 
     while !scanner.isAtEnd {
+      if parts.count >= Self.maxTemplateParts {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Expression parts count exceeds maximum limit (\(Self.maxTemplateParts))"
+        )
+      }
       if scanner.matches("${") {
         scanner.advance(by: 2)
         let content = try extractInterpolationContent(&scanner)
@@ -101,11 +130,21 @@ public struct ExpressionParser: Sendable {
 
   /// Parses a single expression string into a `JSONValue`.
   ///
+  /// - Parameter expr: The expression string (content inside `${...}`).
+  /// - Returns: The parsed `JSONValue`.
+  /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
+  public func parseExpression(_ expr: String) throws -> JSONValue {
+    try parseExpression(expr, depth: 0)
+  }
+
+  /// Parses a single expression string into a `JSONValue` at a specific depth.
+  ///
   /// - Parameters:
   ///   - expr: The expression string (content inside `${...}`).
   ///   - depth: The current recursion depth.
   /// - Returns: The parsed `JSONValue`.
-  public func parseExpression(_ expr: String, depth: Int = 0) throws -> JSONValue {
+  /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
+  package func parseExpression(_ expr: String, depth: Int) throws -> JSONValue {
     if depth > Self.maxDepth {
       throw FunctionError.executionFailed(
         name: "expressionParser",
@@ -207,7 +246,7 @@ public struct ExpressionParser: Sendable {
       return .boolean(false)
     }
     if scanner.matchesKeyword("null") {
-      return .string("")
+      return .null
     }
 
     // 4. Identifiers / Paths / Function calls

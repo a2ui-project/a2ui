@@ -17,6 +17,7 @@
 import {nothing} from 'lit';
 import {html, unsafeStatic} from 'lit/static-html.js';
 import {ComponentContext} from '../../resolution/component-context.js';
+import {isComponentNode, type ComponentNode} from '../../resolution/component-node.js';
 import {Catalog} from '../../catalog/types.js';
 import {isWebComponentImplementation} from './is_web_component_implementation.js';
 import {registerUniversalElement} from './register_universal_element.js';
@@ -36,9 +37,25 @@ import type {WebComponentImplementation} from './web_component_implementation.js
 export function renderA2uiNode(
   context: ComponentContext,
   catalog: Catalog<WebComponentImplementation>,
+): ReturnType<typeof html> | typeof nothing;
+/**
+ * Renders a resolved node as its implementation's custom element, handing
+ * the element the node and its context.
+ *
+ * @param node The resolved node to render.
+ * @returns A Lit TemplateResult, or `nothing` for a placeholder, a disposed
+ * node, or an implementation that is not a Web Component.
+ */
+export function renderA2uiNode(node: ComponentNode): ReturnType<typeof html> | typeof nothing;
+export function renderA2uiNode(
+  source: ComponentContext | ComponentNode,
+  catalog?: Catalog<WebComponentImplementation>,
 ) {
-  const type = context.componentModel.type;
-  const implementation = catalog.components.get(type);
+  if (isComponentNode(source)) {
+    return renderNode(source);
+  }
+  const type = source.componentModel.type;
+  const implementation = catalog?.components.get(type);
 
   if (!implementation || !implementation.tagName) {
     console.warn(`Component implementation not found or missing tagName for type: ${type}`);
@@ -52,5 +69,21 @@ export function renderA2uiNode(
   }
 
   const tag = unsafeStatic(implementation.tagName);
-  return html`<${tag} .context=${context}></${tag}>`;
+  return html`<${tag} .context=${source}></${tag}>`;
+}
+
+function renderNode(node: ComponentNode) {
+  if (node.isPlaceholder || node.disposed || !node.context) {
+    return nothing;
+  }
+  const implementation = node.impl as Partial<WebComponentImplementation> | undefined;
+  if (!implementation?.tagName) {
+    console.warn(`Component implementation not found or missing tagName for type: ${node.type}`);
+    return nothing;
+  }
+  if (isWebComponentImplementation(implementation)) {
+    registerUniversalElement(implementation);
+  }
+  const tag = unsafeStatic(implementation.tagName);
+  return html`<${tag} .node=${node} .context=${node.context}></${tag}>`;
 }

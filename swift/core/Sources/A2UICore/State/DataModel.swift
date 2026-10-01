@@ -27,6 +27,7 @@ import OrderedJSON
 public final class DataModel: ObservableObject {
 
   private let dataSubject: CurrentValueSubject<JSONValue, Never>
+  private var listeners: [String: [(id: UUID, callback: (JSONValue?) -> Void)]] = [:]
 
   /// The current data tree.
   public var data: JSONValue {
@@ -49,15 +50,60 @@ public final class DataModel: ObservableObject {
     self.dataSubject = CurrentValueSubject(initial)
   }
 
+  /// Resolves a JSON Pointer path to a value, throwing `A2UIDataError` if the path contains forbidden segments.
+  public func getThrowing(_ path: String) throws -> JSONValue? {
+    let components = try JSONValue.parsePathThrowing(path)
+    if components.isEmpty {
+      return dataSubject.value
+    }
+    return dataSubject.value[components]
+  }
+
   /// Resolves a JSON Pointer path to a value.
   ///
   /// - Parameter path: The path (e.g., `/user/name`).
   /// - Returns: The value at the path, or `nil` if not found.
   public func get(_ path: String) -> JSONValue? {
-    if path.isEmpty || path == "/" {
-      return dataSubject.value
+    try? getThrowing(path)
+  }
+
+  /// Sets a value at the given JSON Pointer path, throwing `A2UIDataError` on invalid paths or mutations.
+  public func setThrowing(_ path: String, value: JSONValue?) throws {
+    let components = try JSONValue.parsePathThrowing(path)
+    if !components.isEmpty && value == nil
+      && !JSONValue.hasPath(node: dataSubject.value, components: components)
+    {
+      return
     }
-    return dataSubject.value[path]
+
+    let oldValues = Dictionary(
+      uniqueKeysWithValues: listeners.keys.map { ($0, get($0)) }
+    )
+
+    var current = dataSubject.value
+    if components.isEmpty {
+      current = value ?? .object([:])
+    } else {
+      if current != .null && current.objectValue == nil && current.arrayValue == nil {
+        throw A2UIDataError(
+          "Cannot set path '\(path)': the data model root is a primitive value."
+        )
+      }
+      if let updated = try JSONValue.updateThrowing(
+        node: current,
+        components: components[...],
+        newValue: value,
+        fullPath: path
+      ) {
+        current = updated
+      } else {
+        current = .object([:])
+      }
+    }
+
+    objectWillChange.send()
+    dataSubject.send(current)
+    notifyListeners(changedComponents: components, oldValues: oldValues)
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -68,13 +114,64 @@ public final class DataModel: ObservableObject {
   ///   - path: The path (e.g., `/user/name`).
   ///   - value: The value to set, or `nil` to remove.
   public func set(_ path: String, value: JSONValue?) {
-    objectWillChange.send()
-    var current = dataSubject.value
-    if path.isEmpty || path == "/" {
-      current = value ?? .object([:])
-    } else {
-      current[path] = value
+    try? setThrowing(path, value: value)
+  }
+
+  /// Subscribes a listener to changes at a specific JSON Pointer path.
+  ///
+  /// - Returns: An `AnyCancellable` token that unsubscribes the listener when cancelled.
+  public func watch(_ path: String, _ listener: @escaping (JSONValue?) -> Void) throws
+    -> AnyCancellable
+  {
+    let components = try JSONValue.parsePathThrowing(path)
+    let normalized = Self.buildPointer(components)
+    let id = UUID()
+    listeners[normalized, default: []].append((id: id, callback: listener))
+    return AnyCancellable { [weak self] in
+      guard let self else { return }
+      self.listeners[normalized]?.removeAll { $0.id == id }
+      if self.listeners[normalized]?.isEmpty == true {
+        self.listeners.removeValue(forKey: normalized)
+      }
     }
-    dataSubject.send(current)
+  }
+
+  /// Clears all path listeners.
+  public func dispose() {
+    listeners.removeAll()
+  }
+
+  private static func buildPointer(_ components: [String]) -> String {
+    guard !components.isEmpty else { return "/" }
+    let escaped = components.map {
+      $0.replacingOccurrences(of: "~", with: "~0")
+        .replacingOccurrences(of: "/", with: "~1")
+    }
+    return "/" + escaped.joined(separator: "/")
+  }
+
+  private func notifyListeners(
+    changedComponents: [String],
+    oldValues: [String: JSONValue?]
+  ) {
+    let changedPath = Self.buildPointer(changedComponents)
+    let changedPrefix = changedPath == "/" ? "/" : "\(changedPath)/"
+    let snapshot = listeners
+    for (watchedPath, callbacks) in snapshot {
+      let watchedPrefix = watchedPath == "/" ? "/" : "\(watchedPath)/"
+      if changedPath == watchedPath
+        || watchedPath.hasPrefix(changedPrefix)
+        || changedPath.hasPrefix(watchedPrefix)
+      {
+        let newVal = get(watchedPath)
+        let oldVal = oldValues[watchedPath] ?? nil
+        if newVal != oldVal {
+          let callbacksSnapshot = callbacks
+          for entry in callbacksSnapshot {
+            entry.callback(newVal)
+          }
+        }
+      }
+    }
   }
 }

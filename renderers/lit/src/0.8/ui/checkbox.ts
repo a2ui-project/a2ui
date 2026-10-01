@@ -32,7 +32,7 @@ export class Checkbox extends Root {
   @property()
   accessor label: Primitives.StringValue | null = null;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -106,7 +106,7 @@ export class Checkbox extends Root {
     </section>`;
   }
 
-  render() {
+  override render() {
     if (this.value && typeof this.value === 'object') {
       if ('literalBoolean' in this.value && this.value.literalBoolean) {
         return this.#renderField(this.value.literalBoolean);

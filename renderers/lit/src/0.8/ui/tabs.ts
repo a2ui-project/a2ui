@@ -33,7 +33,7 @@ export class Tabs extends Root {
   @property()
   accessor selected = 0;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       :host {
@@ -43,7 +43,7 @@ export class Tabs extends Root {
     `,
   ];
 
-  protected willUpdate(changedProperties: PropertyValues<this>): void {
+  protected override willUpdate(changedProperties: PropertyValues<this>): void {
     super.willUpdate(changedProperties);
 
     if (changedProperties.has('selected')) {
@@ -116,7 +116,7 @@ export class Tabs extends Root {
     return html`<slot name="current"></slot>`;
   }
 
-  render() {
+  override render() {
     return html`<section
       class=${classMap(this.theme.components.Tabs.container)}
       style=${this.theme.additionalStyles?.Tabs

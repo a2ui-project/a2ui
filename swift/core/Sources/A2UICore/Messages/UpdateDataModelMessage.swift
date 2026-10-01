@@ -42,7 +42,11 @@ public struct UpdateDataModelMessage: Codable, Sendable, Equatable {
     surfaceID = try container.decode(String.self, forKey: .surfaceID)
     path = try container.decodeIfPresent(String.self, forKey: .path) ?? "/"
     if container.contains(.value) {
-      value = try container.decode(JSONValue.self, forKey: .value)
+      if try container.decodeNil(forKey: .value) {
+        value = nil
+      } else {
+        value = try container.decode(JSONValue.self, forKey: .value)
+      }
     } else {
       value = nil
     }

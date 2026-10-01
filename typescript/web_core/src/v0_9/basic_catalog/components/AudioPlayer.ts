@@ -43,7 +43,7 @@ class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlay
     }
   `;
 
-  protected readonly api = AudioPlayerApi;
+  protected override readonly api = AudioPlayerApi;
 
   override render() {
     const props = this.controller.props;

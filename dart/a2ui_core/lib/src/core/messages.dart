@@ -495,6 +495,7 @@ class A2uiClientAction {
   final String sourceComponentId;
   final DateTime timestamp;
   final Map<String, dynamic> context;
+  final String? userMessage;
 
   A2uiClientAction({
     required this.name,
@@ -502,6 +503,7 @@ class A2uiClientAction {
     required this.sourceComponentId,
     required this.timestamp,
     required this.context,
+    this.userMessage,
   });
 
   /// Parses the body of an `action` envelope.
@@ -519,6 +521,7 @@ class A2uiClientAction {
         ),
         timestamp: _timestamp(json, 'timestamp', 'action'),
         context: _object(json, 'context', 'action'),
+        userMessage: _optional<String>(json, 'userMessage', 'action'),
       );
 
   Map<String, dynamic> toJson() => {
@@ -527,6 +530,8 @@ class A2uiClientAction {
         'sourceComponentId': sourceComponentId,
         'timestamp': timestamp.toIso8601String(),
         'context': context,
+        if (userMessage != null && userMessage!.isNotEmpty)
+          'userMessage': userMessage,
       };
 }
 

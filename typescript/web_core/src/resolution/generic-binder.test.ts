@@ -258,6 +258,49 @@ describe('GenericBinder Checkable Trait', () => {
     });
   });
 
+  it('should return action dispatch promise settling after onAction listeners complete', async () => {
+    const {surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/user/name', 'Alice');
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5',
+      'Button',
+      {
+        onTap: {
+          event: {
+            name: 'submit',
+            context: {
+              user: {path: '/user/name'},
+            },
+          },
+        },
+      },
+      surface.defaultCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let listenerCompleted = false;
+    surface.onAction.subscribe(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      listenerCompleted = true;
+    });
+
+    const context = new ComponentContext(surface, 'c5');
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    const dispatchPromise = binder.snapshot.onTap!();
+    assert.strictEqual(typeof dispatchPromise?.then, 'function');
+    assert.strictEqual(listenerCompleted, false);
+
+    await dispatchPromise;
+    assert.strictEqual(listenerCompleted, true);
+  });
+
   it('should resolve dynamic userMessage on direct name action and include it in dispatched action', () => {
     const {surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/feedback', 'Great service!');
@@ -404,6 +447,59 @@ describe('GenericBinder Checkable Trait', () => {
 
     binder.snapshot.onTap?.();
     assert.strictEqual(refreshCallCount, 1);
+    assert.strictEqual(dispatchedAction, null);
+  });
+
+  it('should return promise settling after async functionCall ACTION completes', async () => {
+    let executionCompleted = false;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'saveDraft',
+        returnType: 'string',
+        schema: z.object({}).passthrough(),
+        execute: async () => {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          executionCompleted = true;
+          return 'saved';
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_async_fc',
+      'Button',
+      {
+        onTap: {
+          functionCall: {
+            call: 'saveDraft',
+          },
+        },
+      },
+      surface.defaultCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_async_fc');
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    const actionPromise = binder.snapshot.onTap!();
+    assert.strictEqual(typeof actionPromise?.then, 'function');
+    assert.strictEqual(executionCompleted, false);
+
+    await actionPromise;
+    assert.strictEqual(executionCompleted, true);
     assert.strictEqual(dispatchedAction, null);
   });
 

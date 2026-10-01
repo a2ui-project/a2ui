@@ -24,7 +24,7 @@ import {ref} from 'lit/directives/ref.js';
 
 @customElement('a2ui-modal')
 export class Modal extends Root {
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -75,7 +75,7 @@ export class Modal extends Root {
     this.#showModal = false;
   }
 
-  render() {
+  override render() {
     if (!this.#showModal) {
       return html`<section
         @click=${() => {

@@ -37,7 +37,7 @@ export class DateTimeInput extends Root {
   @property({reflect: false, type: Boolean})
   accessor enableTime = true;
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -170,7 +170,7 @@ export class DateTimeInput extends Root {
     return 'Date & Time';
   }
 
-  render() {
+  override render() {
     if (this.value && typeof this.value === 'object') {
       if ('literalString' in this.value && this.value.literalString) {
         return this.#renderField(this.value.literalString);

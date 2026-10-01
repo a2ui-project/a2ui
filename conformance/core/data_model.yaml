@@ -31,22 +31,15 @@
 # paths whose observers fired for that step, with one entry per observer) and
 # `expect_values` (the value each watched path holds afterwards).
 #
-# Deliberately left out of this suite, because the behaviour does not currently
-# hold across implementations. Each is covered by a package local test instead.
+# Deliberately left out of this suite, because the behaviour cannot be
+# expressed uniformly in YAML across languages with non-nullable string types
+# or without a distinct `undefined` value:
 #
-#   * JavaScript prototype pollution guards (`__proto__`, `constructor`,
-#     `prototype`) and `Object.prototype` property leakage, which exist only
-#     because JavaScript objects have a prototype chain.
 #   * `null` and `undefined` path arguments, which languages with non-nullable
 #     string types cannot express.
 #   * The distinction between storing `undefined` and removing a key, which
 #     languages without `undefined` cannot express. Removal is expressed here as
 #     an explicit `delete` step.
-#   * Rejection of leading zero list indices, which `web_core` enforces and the
-#     Dart implementation does not.
-#   * A cap on auto-vivified list indices. Dart lists are dense, so writing
-#     `/items/999999999` must be rejected to avoid allocating the whole list;
-#     JavaScript arrays are sparse, so the same write is cheap and is allowed.
 
 - name: test_data_model_initializes_empty
   description: >-
@@ -278,6 +271,9 @@
     - op: "set"
       path: "/nestedList/0/0"
       value: "inner"
+    - op: "get"
+      path: "/nestedList/0/0"
+      expect: "inner"
     - op: "get"
       path: "/nestedList"
       expect_type: "list"
@@ -718,3 +714,282 @@
     - op: "get"
       path: "/items"
       expect: ["a", "b", "c"]
+
+- name: test_data_model_notifies_descendant_on_root_replacement
+  description: >-
+    Replacing the root notifies observers on descendant paths whose values
+    change or become absent.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice"}, "stale": "present"}
+  watch: ["/user/name", "/stale"]
+  steps:
+    - op: "set"
+      path: "/"
+      value: {"user": {"name": "Bob"}}
+      expect_notified: ["/user/name", "/stale"]
+      expect_values:
+        "/user/name": "Bob"
+    - op: "get"
+      path: "/stale"
+      expect_absent: true
+
+- name: test_data_model_rejects_forbidden_path_segments
+  description: >-
+    Paths containing __proto__, constructor, or prototype are rejected on both
+    read and write with DataError.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice"}}
+  steps:
+    - op: "set"
+      path: "/__proto__/polluted"
+      value: "hacked"
+      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
+    - op: "get"
+      path: "/__proto__/polluted"
+      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
+    - op: "set"
+      path: "/constructor/prototype/polluted"
+      value: "hacked"
+      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
+    - op: "get"
+      path: "/constructor/prototype/polluted"
+      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
+    - op: "set"
+      path: "/user/prototype/polluted"
+      value: "hacked"
+      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
+    - op: "get"
+      path: "/user/prototype/polluted"
+      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
+
+- name: test_data_model_allows_own_properties_named_after_object_methods
+  description: >-
+    Unset keys like toString, valueOf, and hasOwnProperty are absent on read,
+    and can be written and read back as ordinary keys.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {}
+  steps:
+    - op: "get"
+      path: "/toString"
+      expect_absent: true
+    - op: "get"
+      path: "/valueOf"
+      expect_absent: true
+    - op: "get"
+      path: "/hasOwnProperty"
+      expect_absent: true
+    - op: "set"
+      path: "/toString"
+      value: "custom toString"
+    - op: "get"
+      path: "/toString"
+      expect: "custom toString"
+    - op: "set"
+      path: "/valueOf/nested"
+      value: "custom valueOf"
+    - op: "get"
+      path: "/valueOf/nested"
+      expect: "custom valueOf"
+
+- name: test_data_model_delete_absent_deep_path_is_noop
+  description: >-
+    Deleting a deep path that does not exist is a no-op that neither vivifies
+    intermediate containers nor notifies observers.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {}
+  watch: ["/", "/nonexistent"]
+  steps:
+    - op: "delete"
+      path: "/nonexistent/child/path"
+      expect_notified: []
+    - op: "get"
+      path: "/"
+      expect: {}
+    - op: "get"
+      path: "/nonexistent"
+      expect_absent: true
+
+- name: test_data_model_sparse_list_write_pads_with_null
+  description: >-
+    Writing an index past the current end of a list pads intermediate positions
+    with null/absent values.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {}
+  steps:
+    - op: "set"
+      path: "/data/lists/1/value"
+      value: 42
+    - op: "get"
+      path: "/data/lists/1/value"
+      expect: 42
+    - op: "get"
+      path: "/data/lists/0"
+      expect_absent: true
+    - op: "get"
+      path: "/data/lists"
+      expect_type: "list"
+
+- name: test_data_model_rejects_excessive_list_index
+  description: >-
+    List indices exceeding the maximum supported bound (10000) are rejected with
+    DataError.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {"items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/items/10000"
+      value: "max_element"
+    - op: "get"
+      path: "/items/10000"
+      expect: "max_element"
+    - op: "set"
+      path: "/items/10001"
+      value: "x"
+      expect_error: {"category": "DataError"}
+    - op: "set"
+      path: "/items/999999999"
+      value: "x"
+      expect_error: {"category": "DataError"}
+    - op: "set"
+      path: "/items/10001/name"
+      value: "x"
+      expect_error: {"category": "DataError"}
+    - op: "set"
+      path: "/newArray/10000000"
+      value: "x"
+      expect_error: {"category": "DataError"}
+    - op: "set"
+      path: "/newArray/10000000/field"
+      value: "x"
+      expect_error: {"category": "DataError"}
+
+- name: test_data_model_rejects_leading_zero_list_index
+  description: >-
+    Leading-zero list indices (RFC 6901 §4) resolve to absent on read and raise
+    DataError on write.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {"items": ["a", "b", "c"]}
+  steps:
+    - op: "get"
+      path: "/items/01"
+      expect_absent: true
+    - op: "set"
+      path: "/items/01"
+      value: "value"
+      expect_error: {"category": "DataError", "message": "non-numeric segment"}
+    - op: "set"
+      path: "/items/01/nested"
+      value: "value"
+      expect_error: {"category": "DataError", "message": "non-numeric segment"}
+
+- name: test_data_model_rejects_write_through_primitive_root
+  description: >-
+    Writing a child path when the root itself holds a primitive (including
+    falsy primitives) raises DataError and leaves the root intact.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {}
+  steps:
+    - op: "set"
+      path: "/"
+      value: 1
+    - op: "set"
+      path: "/a"
+      value: 2
+      expect_error: {"category": "DataError", "message": "Cannot set path"}
+    - op: "get"
+      path: "/"
+      expect: 1
+    - op: "set"
+      path: "/"
+      value: false
+    - op: "set"
+      path: "/a"
+      value: 2
+      expect_error: {"category": "DataError", "message": "Cannot set path"}
+    - op: "get"
+      path: "/"
+      expect: false
+    - op: "set"
+      path: "/"
+      value: 0
+    - op: "set"
+      path: "/a"
+      value: 2
+      expect_error: {"category": "DataError", "message": "Cannot set path"}
+    - op: "get"
+      path: "/"
+      expect: 0
+    - op: "set"
+      path: "/"
+      value: ""
+    - op: "set"
+      path: "/a"
+      value: 2
+      expect_error: {"category": "DataError", "message": "Cannot set path"}
+    - op: "get"
+      path: "/"
+      expect: ""
+
+- name: test_data_model_set_through_null_placeholder_vivifies
+  description: >-
+    Writing through an explicit null value in an object or list replaces the
+    null slot with a container.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {"user": null, "counts": [null]}
+  steps:
+    - op: "set"
+      path: "/user/name"
+      value: "Bob"
+    - op: "set"
+      path: "/counts/0/total"
+      value: 1
+    - op: "get"
+      path: "/user/name"
+      expect: "Bob"
+    - op: "get"
+      path: "/counts/0/total"
+      expect: 1
+
+- name: test_data_model_normalizes_empty_path_segments
+  description: >-
+    Multiple or trailing slashes in a path are collapsed into canonical
+    segments on read, write, and watch.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {}
+  watch: ["/a/b"]
+  steps:
+    - op: "set"
+      path: "//a///b//"
+      value: "val"
+      expect_notified: ["/a/b"]
+      expect_values:
+        "/a/b": "val"
+    - op: "get"
+      path: "/a/b"
+      expect: "val"
+    - op: "get"
+      path: "//a///b//"
+      expect: "val"
+    - op: "get"
+      path: "///"
+      expect: {"a": {"b": "val"}}
