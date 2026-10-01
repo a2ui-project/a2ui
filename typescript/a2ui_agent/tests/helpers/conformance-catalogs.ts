@@ -27,6 +27,12 @@ import {Catalog} from '../../src/internal/web_core.js';
 import {SchemaCatalog} from '../../src/types.js';
 import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 
+/** A catalog document, with the two maps tests most often reach into. */
+export interface CatalogDocument extends Record<string, unknown> {
+  components: Record<string, unknown>;
+  functions: Record<string, unknown>;
+}
+
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** The directory holding the conformance suite's catalogs. */
@@ -38,7 +44,7 @@ export const CONFORMANCE_CATALOGS_DIR = path.join(REPO_ROOT, 'conformance/test_d
  * @param fileName The file name inside `conformance/test_data/catalogs/`.
  * @returns A fresh copy of the parsed document, safe to modify.
  */
-export function readConformanceCatalog(fileName: string): Record<string, unknown> {
+export function readConformanceCatalog(fileName: string): CatalogDocument {
   return JSON.parse(fs.readFileSync(path.join(CONFORMANCE_CATALOGS_DIR, fileName), 'utf8'));
 }
 
