@@ -22,7 +22,7 @@ import '../core/data_context.dart';
 import '../core/messages.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
-import '../resolution/resolved_binding.dart';
+import '../primitives/resolved_binding.dart';
 
 /// Represents the intended runtime behavior of a property parsed from
 /// its schema.

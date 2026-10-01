@@ -23,8 +23,8 @@ import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/cancellation.dart';
+import 'package:a2ui_core/src/primitives/resolved_binding.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
-import 'package:a2ui_core/src/resolution/resolved_binding.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
