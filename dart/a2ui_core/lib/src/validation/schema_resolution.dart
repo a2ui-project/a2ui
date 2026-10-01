@@ -112,15 +112,22 @@ class _RefResolver {
     final String target = hash < 0 ? ref : ref.substring(0, hash);
     final String pointer = hash < 0 ? '' : ref.substring(hash + 1);
 
-    final _DocumentRef? source = _documentFor(target, base);
+    _DocumentRef? source = _documentFor(target, base);
     if (source == null || pointer.isEmpty) return null;
+
+    Object? found = _follow(source.schema, pointer);
+    if (found is! Map && target.isEmpty && _commonTypes != null) {
+      final fallback = _DocumentRef(_commonTypes, 'commonTypes');
+      found = _follow(fallback.schema, pointer);
+      if (found is Map) {
+        source = fallback;
+      }
+    }
+    if (found is! Map) return null;
 
     final key = '${source.name}$pointer';
     final String? known = _names[key];
     if (known != null) return known;
-
-    final Object? found = _follow(source.schema, pointer);
-    if (found is! Map) return null;
 
     final String name = _defName(key);
     // Registered before the copy is walked, so a definition that reaches
