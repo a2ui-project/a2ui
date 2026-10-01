@@ -18,10 +18,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
-import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core.js';
+import {AgentToRendererMessage} from '../../../../src/internal/web_core.js';
 import {SchemaCatalog} from '../../../../src/types.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
+import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
 import {
   ExpressInvalidIdentifierError,
@@ -70,11 +70,7 @@ describe('ExpressDecompiler', () => {
           ? 'custom_catalog_v1_0.json'
           : 'forms_catalog_v1_0.json';
 
-    const schemaPath = path.join(FIXTURES_DIR, fixtureFile);
-    const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
-    const cat = Catalog.fromSchema(schema);
-    registerCatalogDocument(cat, schema);
-    const info = {catalog: cat, version: 'v1.0'};
+    const info = {catalog: loadConformanceCatalog(fixtureFile), version: 'v1.0'};
     loadedCatalogs.set(catalogKey, info);
     return info;
   }
