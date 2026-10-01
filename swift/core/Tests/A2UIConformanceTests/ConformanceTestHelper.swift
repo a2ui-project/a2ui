@@ -242,14 +242,7 @@ public enum ConformanceTestHelper {
       for (funcName, funcVal) in funcObj {
         let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
         let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
-        var paramObj = funcVal["parameters"]?.objectValue ?? [:]
-        if !allDefinitions.isEmpty {
-          var paramDefs = paramObj["$defs"]?.objectValue ?? [:]
-          for (key, definition) in allDefinitions where paramDefs[key] == nil {
-            paramDefs[key] = definition
-          }
-          paramObj["$defs"] = .object(paramDefs)
-        }
+        let paramObj = funcVal["parameters"]?.objectValue ?? [:]
         if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
           let api = FunctionAPI(name: funcName, returnType: retType, schema: schema)
           functions.append(ConformanceFunctionImplementation(api: api))
@@ -260,14 +253,7 @@ public enum ConformanceTestHelper {
         guard let name = funcVal["name"]?.stringValue else { continue }
         let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
         let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
-        var paramObj = funcVal["parameters"]?.objectValue ?? [:]
-        if !allDefinitions.isEmpty {
-          var paramDefs = paramObj["$defs"]?.objectValue ?? [:]
-          for (key, definition) in allDefinitions where paramDefs[key] == nil {
-            paramDefs[key] = definition
-          }
-          paramObj["$defs"] = .object(paramDefs)
-        }
+        let paramObj = funcVal["parameters"]?.objectValue ?? [:]
         if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
           let api = FunctionAPI(name: name, returnType: retType, schema: schema)
           functions.append(ConformanceFunctionImplementation(api: api))

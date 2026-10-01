@@ -131,12 +131,8 @@ struct MessageProcessorConformanceTests {
       let openSchema = try Schema(instance: "{\"type\": \"object\"}")
       for i in 0..<catalogs.count {
         var comps = catalogs[i].components
-        if comps["Button"] == nil {
-          comps["Button"] = AnyComponentAPI(name: "Button", schema: openSchema)
-        }
-        if comps["Label"] == nil {
-          comps["Label"] = AnyComponentAPI(name: "Label", schema: openSchema)
-        }
+        comps["Button"] = AnyComponentAPI(name: "Button", schema: openSchema)
+        comps["Label"] = AnyComponentAPI(name: "Label", schema: openSchema)
         if comps["Text"] == nil {
           comps["Text"] = AnyComponentAPI(name: "Text", schema: openSchema)
         }

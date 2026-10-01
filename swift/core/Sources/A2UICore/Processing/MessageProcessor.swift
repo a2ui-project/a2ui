@@ -133,7 +133,7 @@ public final class MessageProcessor: ObservableObject {
     ]
 
     if options.includeInlineCatalogs {
-      let inlineCatalogs = catalogs.values.map { generateInlineCatalog($0) }
+      let inlineCatalogs = supportedCatalogIDs.compactMap { catalogs[$0] }.map { generateInlineCatalog($0) }
       versionCaps["inlineCatalogs"] = .array(inlineCatalogs)
     }
 
@@ -159,7 +159,8 @@ public final class MessageProcessor: ObservableObject {
   private func generateInlineCatalog(_ catalog: AnyCatalog) -> JSONValue {
     var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
 
-    for (name, componentAPI) in catalog.components {
+    for name in catalog.components.keys.sorted() {
+      guard let componentAPI = catalog.components[name] else { continue }
       let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
       let processedSchema = processRefs(schemaJSON)
 
@@ -194,7 +195,8 @@ public final class MessageProcessor: ObservableObject {
     }
 
     var functionsArray: [JSONValue] = []
-    for (_, functionImplementation) in catalog.functions {
+    for key in catalog.functions.keys.sorted() {
+      guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
       let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
       let processedParameters = processRefs(schemaJSON)
