@@ -222,7 +222,7 @@ class ActionFunctionCallWrapper(SpecBaseModel):
     function_call: FunctionCall = Field(..., alias="functionCall")
 
 
-Action = ActionEventWrapper | ActionFunctionCallWrapper
+Action = TypeAliasType("Action", ActionEventWrapper | ActionFunctionCallWrapper)
 
 
 if TYPE_CHECKING:

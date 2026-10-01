@@ -416,7 +416,9 @@ def generate_basic_catalog(
             f.write(func_code)
 
     # 3. Styles
-    style_code = generate_basic_catalog_styles(version, cat_data)
+    style_code = generate_basic_catalog_styles(
+        version, cat_data, spec_fidelity=bool(common_data)
+    )
     styles_path = os.path.join(out_dir, "styles.py")
     if style_code:
         with open(styles_path, "w", encoding="utf-8") as f:
@@ -426,7 +428,12 @@ def generate_basic_catalog(
 
     # 4. Catalog & __init__.py
     cat_init_code = generate_basic_catalog_index(
-        version, out_dir, comp_code, func_code, style_code
+        version,
+        out_dir,
+        comp_code,
+        func_code,
+        style_code,
+        catalog_data=cat_data if common_data else None,
     )
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(cat_init_code)

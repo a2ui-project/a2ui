@@ -839,7 +839,12 @@ def generate_common_types(
                 wrapper_name, branch, helper_prefix=name, inline_helpers=False
             )
             members.append(wrapper_name)
-        common_blocks.append(f"{name} = {' | '.join(members)}")
+        # A named alias, so a field's JSON schema references the def by name
+        # as the specification does, instead of inlining the union.
+        imports.type_alias_type = True
+        common_blocks.append(
+            f"{name} = TypeAliasType({python_literal(name)}, {' | '.join(members)})"
+        )
 
     def _compile_function_call(spec: dict[str, Any]) -> None:
         """Compiles `FunctionCall` into a flat model.

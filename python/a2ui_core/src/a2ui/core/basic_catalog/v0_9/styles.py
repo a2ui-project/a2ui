@@ -38,6 +38,7 @@ class Theme(BaseModel):
             "A URL for an image that identifies the agent or tool associated with the"
             " surface."
         ),
+        json_schema_extra={"format": "uri"},
     )
     agent_display_name: str | None = Field(
         default=None,

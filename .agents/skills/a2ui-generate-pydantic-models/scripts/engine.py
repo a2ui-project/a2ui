@@ -58,6 +58,22 @@ _TYPED_KEYWORDS = frozenset({"properties", "required", "items", "additionalPrope
 # not import as named aliases, mapped to their plain Python type.
 _CROSS_DOCUMENT_REF_TYPES: dict[str, str] = {"CallId": "str"}
 
+# Validation keywords of a property that spec-faithful models enforce as
+# Pydantic field constraints, which also emit the keyword.
+_CONSTRAINT_KEYWORDS: dict[str, str] = {
+    "minimum": "ge",
+    "maximum": "le",
+    "exclusiveMinimum": "gt",
+    "exclusiveMaximum": "lt",
+    "minItems": "min_length",
+    "maxItems": "max_length",
+    "minLength": "min_length",
+    "maxLength": "max_length",
+}
+
+# Annotation keywords of a property that spec-faithful models only publish.
+_PUBLISHED_KEYWORDS: tuple[str, ...] = ("format",)
+
 
 def json_type_name(value: Any) -> str:
     """Returns the JSON schema type name of a JSON value."""
@@ -144,6 +160,14 @@ class PydanticCodegen:
         # In strict mode, the names that a local `#/$defs/` reference may
         # target; None accepts any name.
         self.known_local_refs: set[str] | None = None
+        # When set, the models keep what the specification says about a
+        # property beyond its type, so their JSON schema matches it:
+        # validation keywords such as `minimum` become field constraints,
+        # `format` is published, extra `allOf` members are kept (`SpecAllOf`)
+        # and descriptions keep their line breaks.
+        self.spec_fidelity = False
+        # The `a2ui.core.schema._json_schema` helpers the generated code uses.
+        self.used_helpers: set[str] = set()
 
     def _unsupported(self, prop_name: str, prop: dict[str, Any]) -> ValueError:
         return ValueError(f"Unsupported schema for {prop_name or 'a type'}: {prop}")
@@ -232,6 +256,19 @@ class PydanticCodegen:
                 mapped_items = []
                 for item in union_items:
                     mapped = self.map_json_type_to_python(prop_name, item)
+                    published = (
+                        {k: item[k] for k in _PUBLISHED_KEYWORDS if k in item}
+                        if self.spec_fidelity and isinstance(item, dict)
+                        else {}
+                    )
+                    if published:
+                        # A member has no field to carry the keyword, so the
+                        # member's type does.
+                        self.used_helpers.add("SchemaKeywords")
+                        mapped = (
+                            f"Annotated[{mapped},"
+                            f" SchemaKeywords({python_literal(published)})]"
+                        )
                     if mapped not in mapped_items:
                         mapped_items.append(mapped)
                 if len(mapped_items) == 1:
@@ -243,7 +280,17 @@ class PydanticCodegen:
             if self.strict and not allOf_items:
                 raise self._unsupported(prop_name, prop)
             if allOf_items:
-                return self.map_json_type_to_python(prop_name, allOf_items[0])
+                first = self.map_json_type_to_python(prop_name, allOf_items[0])
+                if self.spec_fidelity and len(allOf_items) > 1:
+                    extra = allOf_items[1:]
+                    if "$ref" in json.dumps(extra):
+                        # A `$ref` in the extra members would not resolve
+                        # next to a catalog.
+                        raise self._unsupported(prop_name, prop)
+                    self.used_helpers.add("SpecAllOf")
+                    members = ", ".join(python_literal(item) for item in extra)
+                    return f"Annotated[{first}, SpecAllOf({members})]"
+                return first
 
         if "enum" in prop:
             enum_vals = [python_literal(v) for v in prop["enum"]]
@@ -317,22 +364,30 @@ class PydanticCodegen:
             py_type = prop_desc.get(PYTHON_TYPE_KEY) or self.map_json_type_to_python(
                 prop_name, prop_desc
             )
-            raw_desc = prop_desc.get("description", "").replace("\n", " ")
+            if self.spec_fidelity:
+                constraints = [
+                    f"{kwarg}={python_literal(prop_desc[keyword])}"
+                    for keyword, kwarg in _CONSTRAINT_KEYWORDS.items()
+                    if keyword in prop_desc
+                ]
+                if constraints:
+                    # A type-level constraint also applies to an optional field.
+                    py_type = f"Annotated[{py_type}, Field({', '.join(constraints)})]"
+            raw_desc = prop_desc.get("description", "")
+            if not self.spec_fidelity:
+                raw_desc = raw_desc.replace("\n", " ")
 
             field_opts = []
             has_default = False
             const_default: str | None = None
-            schema_default: str | None = None
+            schema_extra: dict[str, Any] = {}
             if "default" in prop_desc and "const" not in prop_desc:
                 # JSON Schema defaults describe consumers' assumptions; they should
                 # not become values that a Pydantic model producer writes.
                 if self.schema_defaults:
                     # Emitted into the JSON schema only; the Python default stays
                     # None so an absent value is still distinguishable.
-                    schema_default = (
-                        "json_schema_extra={'default': "
-                        f"{python_literal(prop_desc['default'])}}}"
-                    )
+                    schema_extra["default"] = prop_desc["default"]
                 elif "default" not in raw_desc.lower():
                     documented_default = json.dumps(
                         prop_desc["default"], ensure_ascii=False
@@ -343,13 +398,21 @@ class PydanticCodegen:
                 has_default = True
                 const_default = f"default={python_literal(prop_desc['const'])}"
 
+            if self.spec_fidelity:
+                schema_extra.update(
+                    {k: prop_desc[k] for k in _PUBLISHED_KEYWORDS if k in prop_desc}
+                )
+
             if raw_desc:
                 field_opts.append(f"description={python_literal(raw_desc)}")
-            if schema_default:
-                field_opts.append(schema_default)
+            if schema_extra:
+                items = ", ".join(
+                    f"'{k}': {python_literal(v)}" for k, v in schema_extra.items()
+                )
+                field_opts.append(f"json_schema_extra={{{items}}}")
 
             if "pattern" in prop_desc:
-                field_opts.append(f"pattern={python_literal(prop_desc['pattern'])}")
+                field_opts.append(f"pattern=r{python_literal(prop_desc['pattern'])}")
 
             if const_default:
                 field_opts.append(const_default)
@@ -385,12 +448,25 @@ class PydanticCodegen:
         return lines
 
     def compile_object_def(
-        self, class_name: str, spec: dict[str, Any], base_class: str | None = None
+        self,
+        class_name: str,
+        spec: dict[str, Any],
+        base_class: str | None = None,
+        json_schema_extra: str | None = None,
     ) -> str:
         """Compiles an object schema definition into a Pydantic BaseModel class.
 
         The spec description becomes the docstring, which Pydantic publishes
         as the model's description.
+
+        Args:
+            class_name: The name of the generated class.
+            spec: The object schema.
+            base_class: The base class; by default it follows the schema's
+                `additionalProperties`.
+            json_schema_extra: A Python expression for the model config's
+                `json_schema_extra`, for object keywords the fields cannot
+                express.
 
         Raises:
             ValueError: In strict mode, if a docstring cannot carry the
@@ -410,12 +486,11 @@ class PydanticCodegen:
         lines = [f"class {class_name}({base}):"]
         if doc:
             lines.append(f"    {_docstring_literal(doc)}")
-        if add_props is True:
-            lines.append(
-                '    model_config = ConfigDict(extra="allow", populate_by_name=True)'
-            )
-        else:
-            lines.append("    model_config = ConfigDict(populate_by_name=True)")
+        config = ['extra="allow"'] if add_props is True else []
+        config.append("populate_by_name=True")
+        if json_schema_extra:
+            config.append(f"json_schema_extra={json_schema_extra}")
+        lines.append(f"    model_config = ConfigDict({', '.join(config)})")
 
         props = spec.get("properties", {})
         required = spec.get("required", [])
