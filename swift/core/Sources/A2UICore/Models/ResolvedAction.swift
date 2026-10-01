@@ -18,12 +18,15 @@ import OrderedJSON
 public struct ResolvedAction: Sendable {
   /// Defines the identity of the action for structural equality.
   public enum Identity: Equatable, Sendable {
-    case event(name: String, context: [String: JSONValue]?)
+    case event(name: String, context: [String: JSONValue]?, userMessage: String? = nil)
     case function(call: String, args: [String: JSONValue]?)
   }
 
   /// The identity of this resolved action.
   public let identity: Identity
+
+  /// The ID of the component that originated this action, if known.
+  public let sourceComponentID: String?
 
   private let triggerClosure: @Sendable @MainActor () -> Void
 
@@ -31,9 +34,11 @@ public struct ResolvedAction: Sendable {
   /// trigger closure.
   public init(
     identity: Identity,
+    sourceComponentID: String? = nil,
     trigger: @escaping @Sendable @MainActor () -> Void
   ) {
     self.identity = identity
+    self.sourceComponentID = sourceComponentID
     self.triggerClosure = trigger
   }
 

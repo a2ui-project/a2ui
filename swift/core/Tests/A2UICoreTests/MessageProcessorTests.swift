@@ -102,7 +102,7 @@ struct MessageProcessorTests {
 
   private let parser = MessageParser()
 
-  private func parse(_ json: String) throws -> ServerToClientMessage {
+  private func parse(_ json: String) throws -> AgentToRendererMessage {
     try parser.parse(jsonString: json)
   }
 
@@ -581,8 +581,9 @@ struct MessageProcessorTests {
           }
         }
         """))
-    let dataModel = try #require(processor.getRendererDataModel())
-    #expect(dataModel["s1"]?.objectValue != nil)
+    let dataModel = try #require(try processor.getRendererDataModel())
+    #expect(dataModel["version"]?.stringValue == "v0.9.1")
+    #expect(dataModel["surfaces"]?["s1"]?.objectValue != nil)
   }
 
   @Test func processCreateSurfaceWithoutSendDataModelDoesNotSetFlag() throws {
@@ -598,21 +599,102 @@ struct MessageProcessorTests {
           }
         }
         """))
-    #expect(processor.getRendererDataModel() == nil)
+    #expect(try processor.getRendererDataModel() == nil)
+  }
+
+  @Test func getRendererDataModelMultiVersionRequiresExplicitVersion() throws {
+    let (processor, _) = try makeProcessor()
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default",
+            "sendDataModel": true
+          }
+        }
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "createSurface": {
+            "surfaceId": "s2",
+            "catalogId": "default",
+            "sendDataModel": true
+          }
+        }
+        """))
+
+    #expect(throws: A2UIValidationError.self) {
+      _ = try processor.getRendererDataModel()
+    }
+
+    let v091Model = try #require(try processor.getRendererDataModel(version: .v091))
+    #expect(v091Model["version"]?.stringValue == "v0.9.1")
+    #expect(v091Model["surfaces"]?["s1"] != nil)
+    #expect(v091Model["surfaces"]?["s2"] == nil)
+
+    let v10Model = try #require(try processor.getRendererDataModel(version: .v10))
+    #expect(v10Model["version"]?.stringValue == "v1.0")
+    #expect(v10Model["surfaces"]?["s1"] == nil)
+    #expect(v10Model["surfaces"]?["s2"] != nil)
+  }
+
+  @Test func incompatibleCatalogVersionRejectedOnSurfaceCreation() throws {
+    let v09Catalog = Catalog(
+      id: "cat-v09",
+      protocolVersion: .v091,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let handler = TestProcessorActionHandler()
+    let processor = MessageProcessor(catalogs: [v09Catalog], actionHandler: handler)
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "cat-v09"
+          }
+        }
+        """))
+    #expect(processor.surfaceGroupModel["s1"] == nil)
+    #expect(handler.capturedErrors.count == 1)
   }
 
   // MARK: - getRendererCapabilities
 
   @Test func getRendererCapabilitiesReturnsSupportedCatalogIDs() throws {
     let (processor, _) = try makeProcessor()
-    let caps = processor.getRendererCapabilities()
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(protocolVersion: .v091)
+    )
     #expect(caps["v0.9.1"]?["supportedCatalogIds"]?.arrayValue?.first?.stringValue == "default")
+  }
+
+  @Test func getRendererCapabilitiesThrowsForEmptyVersions() throws {
+    let (processor, _) = try makeProcessor()
+    #expect(throws: A2UIValidationError.self) {
+      _ = try processor.getRendererCapabilities(
+        options: MessageProcessor.CapabilitiesOptions(versions: [])
+      )
+    }
   }
 
   @Test func getRendererCapabilitiesIncludesInlineCatalogs() throws {
     let (processor, _) = try makeProcessor()
-    let caps = processor.getRendererCapabilities(
-      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v091,
+        includeInlineCatalogs: true
+      )
     )
     let inlineCatalogs = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue
     #expect(inlineCatalogs?.count == 1)
@@ -641,8 +723,11 @@ struct MessageProcessorTests {
       components: [AnyComponentAPI(name: "Custom", schema: customSchema)]
     )
     let processor = MessageProcessor(catalogs: [catalog])
-    let caps = processor.getRendererCapabilities(
-      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v091,
+        includeInlineCatalogs: true
+      )
     )
 
     let inlineCatalog = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
@@ -692,22 +777,157 @@ struct MessageProcessorTests {
       themeSchema: themeSchema
     )
     let processor = MessageProcessor(catalogs: [catalog])
-    let caps = processor.getRendererCapabilities(
-      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        versions: [.v091, .v10],
+        includeInlineCatalogs: true
+      )
     )
 
-    let inlineCatalog = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
-    #expect(inlineCatalog?["catalogId"]?.stringValue == "cat-full")
+    let inlineCatalogV091 = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
+    #expect(inlineCatalogV091?["catalogId"]?.stringValue == "cat-full")
 
-    let functions = inlineCatalog?["functions"]?.arrayValue
-    #expect(functions?.count == 1)
-    #expect(functions?.first?["name"]?.stringValue == "add")
-    #expect(functions?.first?["returnType"]?.stringValue == "number")
-    #expect(functions?.first?["description"]?.stringValue == "Adds two numbers")
+    let functionsV091 = inlineCatalogV091?["functions"]?.arrayValue
+    #expect(functionsV091?.count == 1)
+    #expect(functionsV091?.first?["name"]?.stringValue == "add")
+    #expect(functionsV091?.first?["returnType"]?.stringValue == "number")
+    #expect(functionsV091?.first?["description"]?.stringValue == "Adds two numbers")
 
-    let theme = inlineCatalog?["theme"]
+    let theme = inlineCatalogV091?["theme"]
     #expect(theme?["primaryColor"]?["$ref"]?.stringValue == "common_types.json#/$defs/Color")
     #expect(theme?["primaryColor"]?["description"]?.stringValue == "The main color")
+
+    let inlineCatalogV10 = caps["v1.0"]?["inlineCatalogs"]?.arrayValue?.first
+    #expect(inlineCatalogV10?["catalogId"]?.stringValue == "cat-full")
+    let functionsV10 = inlineCatalogV10?["functions"]?.objectValue
+    #expect(functionsV10?["add"]?["returnType"]?.stringValue == "number")
+    #expect(functionsV10?["add"]?["description"]?.stringValue == "Adds two numbers")
+  }
+
+  // MARK: - RPC DataContext, Outbound Transport & Lifecycle
+
+  @Test func callRendererFunctionResolvesArgsAgainstActiveSurfaceDataModel() async throws {
+    let echoSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" }
+          }
+        }
+        """
+    )
+    let echoFunc = TestEchoFunction(schema: echoSchema)
+    let catalog = Catalog(
+      id: "default",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ],
+      functions: [echoFunc]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    var capturedOutbound: [RendererToAgentMessage] = []
+    processor.outboundListener = { msg in
+      MainActor.assumeIsolated {
+        capturedOutbound.append(msg)
+      }
+    }
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "updateDataModel": {
+            "surfaceId": "s1",
+            "path": "/user/name",
+            "value": "Alice"
+          }
+        }
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "callRendererFunction": {
+            "functionCallId": "rpc-1",
+            "callFunction": {
+              "call": "echo",
+              "catalogId": "default",
+              "args": {
+                "text": { "path": "/user/name" }
+              }
+            }
+          }
+        }
+        """))
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    #expect(capturedOutbound.count == 1)
+    if case .rendererFunctionResponse(let resp) = capturedOutbound.first {
+      #expect(resp.functionCallID == "rpc-1")
+      #expect(resp.value == .string("Alice"))
+    } else {
+      Issue.record("Expected .rendererFunctionResponse")
+    }
+  }
+
+  @Test func outboundListenerReceivesSurfaceErrorsAndDisposeClearsSurfaces() throws {
+    let (processor, handler) = try makeProcessor()
+    var capturedOutbound: [RendererToAgentMessage] = []
+    processor.outboundListener = { msg in
+      MainActor.assumeIsolated {
+        capturedOutbound.append(msg)
+      }
+    }
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "unknown-catalog"
+          }
+        }
+        """))
+
+    #expect(handler.capturedErrors.count == 1)
+    #expect(capturedOutbound.count == 1)
+    if case .error = capturedOutbound.first {
+      // Expected .error forwarded to outboundListener
+    } else {
+      Issue.record("Expected .error forwarded to outboundListener")
+    }
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s2",
+            "catalogId": "default"
+          }
+        }
+        """))
+    #expect(processor.surfaceGroupModel["s2"] != nil)
+    processor.dispose()
+    #expect(processor.surfaceGroupModel["s2"] == nil)
   }
 }
 
@@ -720,5 +940,22 @@ private struct TestAddFunction: FunctionImplementation {
 
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     .null
+  }
+}
+
+private struct TestEchoFunction: FunctionImplementation {
+  let api: FunctionAPI
+
+  init(schema: Schema) {
+    self.api = FunctionAPI(
+      name: "echo",
+      returnType: .string,
+      schema: schema,
+      allowedCallers: .rendererOrAgent
+    )
+  }
+
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    arguments["text"] ?? .null
   }
 }

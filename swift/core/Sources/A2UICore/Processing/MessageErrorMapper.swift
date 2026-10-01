@@ -15,8 +15,8 @@
 import Foundation
 
 /// Converts internal Swift errors (e.g. `A2UIError`, `DecodingError`) into
-/// spec-compliant `ClientServerError` values suitable for sending
-/// to the server.
+/// spec-compliant `RendererError` values suitable for sending
+/// to the agent.
 ///
 /// This type encapsulates the mapping logic that was previously
 /// inlined in `MessageProcessor.handleError`. It is a value type
@@ -24,22 +24,24 @@ import Foundation
 public struct MessageErrorMapper: Sendable {
   public init() {}
 
-  /// Maps an error to a `ClientServerError` suitable for the
-  /// client-to-server `error` message.
+  /// Maps an error to a `RendererError` suitable for the
+  /// renderer-to-agent `error` message.
   ///
   /// - Parameters:
   ///   - error: The internal error to convert.
   ///   - surfaceID: The surface ID to attribute the error to.
-  /// - Returns: A `ClientServerError` matching the v0.9.1 wire
-  ///   format.
+  ///   - version: The protocol version for the outbound error envelope.
+  /// - Returns: A `RendererError` matching the wire format.
   public func map(
     _ error: Error,
-    surfaceID: String
-  ) -> ClientServerError {
+    surfaceID: String,
+    version: A2UIProtocolVersion
+  ) -> RendererError {
     if let parseError = error as? MessageParseError {
       return map(
         parseError.underlyingError,
-        surfaceID: parseError.surfaceID ?? surfaceID
+        surfaceID: parseError.surfaceID ?? surfaceID,
+        version: version
       )
     }
 
@@ -47,11 +49,15 @@ public struct MessageErrorMapper: Sendable {
       let detail = validationError.details.first
       let path = detail?.path ?? "/"
       let formattedPath = formatErrorPath(path)
+      let code =
+        ValidationFailedError.Code(rawValue: detail?.code ?? "") ?? .validationFailed
       return .validationFailed(
         ValidationFailedError(
+          code: code,
           surfaceID: surfaceID,
           path: formattedPath,
-          message: detail?.message ?? validationError.message
+          message: detail?.message ?? validationError.message,
+          version: version
         )
       )
     }
@@ -63,7 +69,8 @@ public struct MessageErrorMapper: Sendable {
         GenericError(
           code: code,
           surfaceID: surfaceID,
-          message: detail?.message ?? integrityError.message
+          message: detail?.message ?? integrityError.message,
+          version: version
         )
       )
     }
@@ -73,7 +80,8 @@ public struct MessageErrorMapper: Sendable {
         GenericError(
           code: "RECURSION_LIMIT_EXCEEDED",
           surfaceID: surfaceID,
-          message: recursionError.message
+          message: recursionError.message,
+          version: version
         )
       )
     }
@@ -83,7 +91,8 @@ public struct MessageErrorMapper: Sendable {
         GenericError(
           code: "CATALOG_NOT_FOUND",
           surfaceID: surfaceID,
-          message: catalogError.message
+          message: catalogError.message,
+          version: version
         )
       )
     }
@@ -94,7 +103,8 @@ public struct MessageErrorMapper: Sendable {
         GenericError(
           code: detail?.code ?? "INTERNAL_ERROR",
           surfaceID: surfaceID,
-          message: detail?.message ?? a2uiError.message
+          message: detail?.message ?? a2uiError.message,
+          version: version
         )
       )
     }
@@ -108,14 +118,15 @@ public struct MessageErrorMapper: Sendable {
     }
 
     if let decodingError = error as? DecodingError {
-      return mapDecodingError(decodingError, surfaceID: surfaceID)
+      return mapDecodingError(decodingError, surfaceID: surfaceID, version: version)
     }
 
     return .generic(
       GenericError(
         code: "PARSING_FAILED",
         surfaceID: surfaceID,
-        message: error.localizedDescription
+        message: error.localizedDescription,
+        version: version
       )
     )
   }
@@ -141,8 +152,9 @@ public struct MessageErrorMapper: Sendable {
 
   private func mapDecodingError(
     _ error: DecodingError,
-    surfaceID: String
-  ) -> ClientServerError {
+    surfaceID: String,
+    version: A2UIProtocolVersion
+  ) -> RendererError {
     let codingPath = resolveCodingPath(from: error)
     let description = resolveDecodingErrorDescription(error)
 
@@ -152,7 +164,8 @@ public struct MessageErrorMapper: Sendable {
         ValidationFailedError(
           surfaceID: surfaceID,
           path: codingPath,
-          message: description
+          message: description,
+          version: version
         )
       )
     case .dataCorrupted:
@@ -160,7 +173,8 @@ public struct MessageErrorMapper: Sendable {
         GenericError(
           code: "PARSING_FAILED",
           surfaceID: surfaceID,
-          message: description
+          message: description,
+          version: version
         )
       )
     @unknown default:
@@ -168,7 +182,8 @@ public struct MessageErrorMapper: Sendable {
         GenericError(
           code: "PARSING_FAILED",
           surfaceID: surfaceID,
-          message: description
+          message: description,
+          version: version
         )
       )
     }
