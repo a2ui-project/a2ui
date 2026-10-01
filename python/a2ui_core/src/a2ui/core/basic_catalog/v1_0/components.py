@@ -36,6 +36,7 @@ from ...schema.v1_0.common_types import (
     IndexSystemFunction,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )

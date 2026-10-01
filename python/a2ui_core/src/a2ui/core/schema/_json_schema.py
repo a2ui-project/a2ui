@@ -17,8 +17,8 @@
 Some specification schemas use constructs Pydantic cannot derive from model
 fields: composition (`allOf`/`oneOf`) over other models, a reference to the
 catalog's function union in another document, or an `anyOf` that must not be
-rewritten to `oneOf`. The generated models use these helpers to describe such
-schemas in terms of models, so no specification schema is copied verbatim.
+rewritten to `oneOf`. The generated models declare such keywords with these
+helpers, so no specification schema is copied verbatim.
 
 This module is internal to a2ui-core and is not re-exported by any facade.
 """
@@ -31,15 +31,17 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Annotated, Any, Final
 
-from pydantic import BaseModel, GetJsonSchemaHandler, TypeAdapter
+from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, TypeAdapter
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
 
-# Pydantic rejects `$ref`s to other documents while it generates a schema, so
-# the reference to the catalog's function union is emitted as this marker and
-# replaced by `resolve_catalog_functions` afterwards.
+# Pydantic rejects `$ref`s it has not registered while it generates a schema,
+# so declared keywords reference other defs through these markers, which
+# `resolve_ref_markers` replaces afterwards: one for the catalog's function
+# union in another document, and one for a def of the same document.
 CATALOG_FUNCTIONS_MARKER: Final[str] = "x-a2ui-catalog-functions"
 CATALOG_FUNCTIONS_REF: Final[str] = "catalog.json#/$defs/anyFunction"
+DEF_REF_MARKER: Final[str] = "x-a2ui-def-ref"
 
 # Marks a union whose `anyOf` is kept, because its branches may overlap.
 KEEP_ANY_OF_MARKER: Final[str] = "x-a2ui-keep-anyOf"
@@ -58,11 +60,6 @@ _INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = ("type", "description", "proper
 
 # Whether JSON schemas are generated in the specification's shape.
 _SPEC_SCHEMA: ContextVar[bool] = ContextVar("_SPEC_SCHEMA", default=False)
-
-# Core schema refs whose definitions `model_ref` is currently generating.
-_MODEL_REFS_IN_PROGRESS: ContextVar[frozenset[str]] = ContextVar(
-    "_MODEL_REFS_IN_PROGRESS", default=frozenset()
-)
 
 
 @contextmanager
@@ -86,46 +83,33 @@ def is_spec_schema() -> bool:
     return _SPEC_SCHEMA.get()
 
 
-def model_ref(model: type[BaseModel], handler: GetJsonSchemaHandler) -> JsonSchemaValue:
-    """Returns a `$ref` to `model`, registering its definition with `handler`."""
-    schema = model.__pydantic_core_schema__
-    definitions: list[core_schema.CoreSchema] = [schema]
-    if schema["type"] == "definitions":
-        definitions = [*schema["definitions"], schema["schema"]]
-        schema = schema["schema"]
-    ref = schema.get("ref") or schema.get("schema_ref")
-    if not isinstance(ref, str):
-        raise TypeError(f"{model.__name__} has no core schema reference.")
-    reference = core_schema.definition_reference_schema(ref)
-    # The definitions can lead back to the hook that called this function, for
-    # example `FunctionCommon` -> `DynamicValue` -> `FunctionCall`. Pydantic
-    # records a definition only once it is complete, so a nested call returns
-    # a bare reference and the outer call registers the definition.
-    in_progress = _MODEL_REFS_IN_PROGRESS.get()
-    if ref in in_progress:
-        return handler(core_schema.definitions_schema(reference, []))
-    token = _MODEL_REFS_IN_PROGRESS.set(in_progress | {ref})
-    try:
-        return handler(core_schema.definitions_schema(reference, definitions))
-    finally:
-        _MODEL_REFS_IN_PROGRESS.reset(token)
-
-
 def catalog_functions() -> dict[str, Any]:
     """Returns the placeholder for a reference to the catalog's function union."""
     return {CATALOG_FUNCTIONS_MARKER: True}
 
 
-def resolve_catalog_functions(node: Any) -> Any:
-    """Replaces catalog function placeholders with the cross-document `$ref`."""
+def def_ref(name: str) -> dict[str, Any]:
+    """Returns the placeholder for a `$ref` to the def `name` of the document."""
+    return {DEF_REF_MARKER: name}
+
+
+def resolve_ref_markers(node: Any) -> Any:
+    """Replaces the placeholders of `catalog_functions` and `def_ref` with `$ref`s."""
     if isinstance(node, list):
-        return [resolve_catalog_functions(item) for item in node]
+        return [resolve_ref_markers(item) for item in node]
     if not isinstance(node, dict):
         return node
+    ref: str | None = None
     if node.get(CATALOG_FUNCTIONS_MARKER) is True:
-        rest = {k: v for k, v in node.items() if k != CATALOG_FUNCTIONS_MARKER}
-        return {"$ref": CATALOG_FUNCTIONS_REF, **resolve_catalog_functions(rest)}
-    return {k: resolve_catalog_functions(v) for k, v in node.items()}
+        ref = CATALOG_FUNCTIONS_REF
+    elif isinstance(node.get(DEF_REF_MARKER), str):
+        ref = f"#/$defs/{node[DEF_REF_MARKER]}"
+    rest = {
+        k: resolve_ref_markers(v)
+        for k, v in node.items()
+        if k not in (CATALOG_FUNCTIONS_MARKER, DEF_REF_MARKER)
+    }
+    return rest if ref is None else {"$ref": ref, **rest}
 
 
 def inline_marked_defs(document: dict[str, Any]) -> dict[str, Any]:
@@ -241,38 +225,129 @@ class _OmitAdditionalProperties:
 OpenObject = Annotated[dict[str, Any], _OmitAdditionalProperties()]
 
 
-class JsonSchemaKeywords:
-    """Annotation that sets JSON schema keywords a type cannot express.
+class SchemaKeywords:
+    """JSON schema keywords that a type or model cannot produce itself.
+
+    Use it as an `Annotated` metadata item, or as a model's
+    `json_schema_extra`. On a model, the keywords apply only to the model
+    whose config declares them; subclasses inherit the config but keep their
+    own schema. For example, `ComponentCommon` leaves `additionalProperties`
+    out as the specification does, while catalog components that subclass it
+    stay closed. A `oneOf` of required properties that a model declares is
+    also validated (see `SpecBaseModel`).
 
     Args:
-        keywords: Keywords to set on the schema.
+        keywords: Keywords to set, for example `unevaluatedProperties`.
         drop: Keywords to remove first, for example `additionalProperties`
-            when `unevaluatedProperties` replaces it.
-        spec_only: Whether the keywords apply only within `spec_schema()`.
+            where the specification leaves the object open.
+        spec_only: Whether the keywords apply only within `spec_schema()`,
+            because they reference the catalog's function union.
+        replace: Whether the keywords replace the schema except its
+            `description`, for a def that the specification writes as pure
+            composition.
     """
 
     def __init__(
         self,
-        keywords: dict[str, Any],
+        keywords: dict[str, Any] | None = None,
         *,
         drop: tuple[str, ...] = (),
         spec_only: bool = False,
+        replace: bool = False,
     ) -> None:
-        self.keywords = keywords
+        self.keywords = keywords or {}
         self.drop = drop
         self.spec_only = spec_only
+        self.replace = replace
+
+    def declared_by(self, cls: type[Any]) -> bool:
+        """Returns whether `cls` declares these keywords, not a base class."""
+        return not any(
+            getattr(base, "model_config", {}).get("json_schema_extra") is self
+            for base in cls.__mro__[1:]
+        )
+
+    def required_one_of(self) -> list[list[str]] | None:
+        """Returns the property groups of a `oneOf` of required properties.
+
+        For example `FunctionResponse` requires exactly one of `value` and
+        `error`. Returns None if the keywords have no such `oneOf`.
+        """
+        branches = self.keywords.get("oneOf")
+        if not (
+            isinstance(branches, list)
+            and branches
+            and all(isinstance(b, dict) and set(b) == {"required"} for b in branches)
+        ):
+            return None
+        return [list(branch["required"]) for branch in branches]
+
+    def apply(self, schema: dict[str, Any]) -> None:
+        """Applies the keywords to `schema` in place."""
+        if self.spec_only and not is_spec_schema():
+            return
+        keywords = copy.deepcopy(self.keywords)
+        if self.replace:
+            kept = {k: schema[k] for k in ("description",) if k in schema}
+            schema.clear()
+            if "type" in keywords:
+                schema["type"] = keywords["type"]
+            schema.update(kept)
+        for keyword in self.drop:
+            schema.pop(keyword, None)
+        schema.update(keywords)
+
+    def __call__(self, schema: dict[str, Any], cls: type[Any]) -> None:
+        if self.declared_by(cls):
+            self.apply(schema)
 
     def __get_pydantic_json_schema__(
         self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(schema)
-        if self.spec_only and not is_spec_schema():
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        for keyword in self.drop:
-            target.pop(keyword, None)
-        target.update(copy.deepcopy(self.keywords))
+        self.apply(handler.resolve_ref_schema(json_schema))
         return json_schema
+
+
+class ReturnType:
+    """Requires the FunctionCall branch of a dynamic value to return `expected`.
+
+    Validation checks an explicit `returnType` or fills in `expected`, and the
+    JSON schema constrains the FunctionCall reference with a `returnType` const.
+    """
+
+    def __init__(self, expected: str) -> None:
+        self.expected = expected
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            self._validate, handler(source)
+        )
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        return {
+            "allOf": [
+                handler(schema),
+                {"properties": {"returnType": {"const": self.expected}}},
+            ]
+        }
+
+    def _validate(self, call: Any) -> Any:
+        if "return_type" in call.model_fields_set:
+            if call.return_type != self.expected:
+                raise ValueError(
+                    "FunctionCall in Dynamic type must have returnType"
+                    f" '{self.expected}', got '{call.return_type}'"
+                )
+            return call
+        if call.return_type != self.expected:
+            call = call.model_copy()
+            object.__setattr__(call, "return_type", self.expected)
+        return call
 
 
 def is_identifier_key(key: str) -> bool:

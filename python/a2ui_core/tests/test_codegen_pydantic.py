@@ -1146,6 +1146,40 @@ def test_generated_models_accept_null_where_the_spec_does():
     assert "value" in response.model_fields_set
 
 
+def test_catalog_components_reject_null_for_their_own_optional_fields():
+    """Components inherit `SpecBaseModel`'s null rule through `ComponentCommon`."""
+    from a2ui.core.basic_catalog.v1_0 import TextComponent
+
+    with pytest.raises(ValidationError, match="must not be null"):
+        TextComponent.model_validate(
+            {"id": "t", "component": "Text", "text": "Hi", "variant": None}
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"functionCallId": "c1"},
+        {"functionCallId": "c1", "value": 1, "error": {"code": "E", "message": "m"}},
+    ],
+)
+def test_declared_required_one_of_is_validated(payload):
+    """`FunctionResponse` declares `oneOf` `value` | `error` in its config only."""
+    from a2ui.core.schema.v1_0 import FunctionResponse
+
+    with pytest.raises(ValidationError, match="exactly one of: value \\| error"):
+        FunctionResponse.model_validate(payload)
+
+
+def test_declared_schema_keywords_do_not_apply_to_subclasses():
+    """`ComponentCommon` is open in the spec; components that subclass it are not."""
+    from a2ui.core.basic_catalog.v1_0 import TextComponent
+    from a2ui.core.schema.v1_0 import ComponentCommon
+
+    assert "additionalProperties" not in ComponentCommon.model_json_schema()
+    assert TextComponent.model_json_schema()["additionalProperties"] is False
+
+
 @pytest.mark.parametrize("package", ["v0_9", "v1_0"])
 def test_open_spec_defs_allow_extra_properties(package):
     """A def without `additionalProperties` in the spec accepts other keys."""

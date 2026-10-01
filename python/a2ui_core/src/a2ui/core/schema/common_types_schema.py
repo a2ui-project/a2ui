@@ -35,7 +35,7 @@ from ._json_schema import (
     INLINE_DEF_MARKER,
     SPEC_TITLE_KEY,
     inline_marked_defs,
-    resolve_catalog_functions,
+    resolve_ref_markers,
     spec_schema,
 )
 
@@ -107,7 +107,7 @@ def _raw_symbol_schema(
         A tuple of the raw definition and the raw nested `$defs` that the
         symbol references (for example `TemplateChildList` or `ActionEvent`).
     """
-    raw = resolve_catalog_functions(
+    raw = resolve_ref_markers(
         TypeAdapter(symbol).json_schema(ref_template="#/$defs/{model}")
     )
     nested: dict[str, Any] = raw.pop("$defs", {})

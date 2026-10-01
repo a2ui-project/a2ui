@@ -26,20 +26,16 @@ from pydantic import (
     StrictStr,
     model_serializer,
 )
-from pydantic import GetJsonSchemaHandler, model_validator
-from pydantic.json_schema import JsonSchemaValue
-from pydantic_core import CoreSchema
 from typing_extensions import TypeAliasType
 from .._json_schema import (
     INLINE_DEF_MARKER,
     KEEP_ANY_OF_MARKER,
     SPEC_TITLE_KEY,
-    JsonSchemaKeywords,
     OpenObject,
+    SchemaKeywords,
     catalog_functions,
+    def_ref,
     is_identifier_key,
-    is_spec_schema,
-    model_ref,
 )
 from ..common_types import (
     Child,
@@ -48,24 +44,20 @@ from ..common_types import (
     ComponentReference,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )
 
 
-class DataBinding(StrictBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    path: str = Field(
-        ...,
-        alias="@path",
-        description="A JSON Pointer path to a value in the data model.",
-    )
-
-
-class FunctionCommon(StrictBaseModel):
+class FunctionCommon(SpecBaseModel):
     """Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog."""
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(drop=("additionalProperties",)),
+        extra="allow",
+        populate_by_name=True,
+    )
     call: str = Field(..., description="The name of the function to call.")
     catalog_id: str | None = Field(
         default=None,
@@ -76,38 +68,26 @@ class FunctionCommon(StrictBaseModel):
         ),
     )
 
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        json_schema = handler(core_schema)
-        if cls is not FunctionCommon:
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        target.pop("additionalProperties", None)
-        return json_schema
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [
-                key
-                for key in ("catalogId", "catalog_id")
-                if key in data and data[key] is None
-            ]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
-
-
-class FunctionCall(StrictBaseModel):
+class FunctionCall(SpecBaseModel):
     """Invokes a named function, combining common function properties with the catalog function definition."""
 
-    model_config = ConfigDict(populate_by_name=True)
-    call: str = Field(
-        ..., alias="@call", description="The name of the function to call."
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(
+            {
+                "type": "object",
+                "allOf": [
+                    def_ref("FunctionCommon"),
+                    {"oneOf": [catalog_functions(), def_ref("IndexSystemFunction")]},
+                ],
+                "unevaluatedProperties": False,
+            },
+            spec_only=True,
+            replace=True,
+        ),
+        populate_by_name=True,
     )
+    call: str = Field(..., description="The name of the function to call.")
     args: dict[str, Any] | None = Field(
         default=None, description="Arguments passed to the function."
     )
@@ -120,43 +100,6 @@ class FunctionCall(StrictBaseModel):
         ),
     )
 
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        if not is_spec_schema() or cls is not FunctionCall:
-            return handler(core_schema)
-        return {
-            "type": "object",
-            "description": (
-                "Invokes a named function, combining common function properties with"
-                " the catalog function definition."
-            ),
-            "allOf": [
-                model_ref(FunctionCommon, handler),
-                {
-                    "oneOf": [
-                        catalog_functions(),
-                        model_ref(IndexSystemFunction, handler),
-                    ]
-                },
-            ],
-            "unevaluatedProperties": False,
-        }
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [
-                key
-                for key in ("args", "catalogId", "catalog_id")
-                if key in data and data[key] is None
-            ]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
-
 
 CallId = TypeAliasType("CallId", str)
 
@@ -167,7 +110,7 @@ DynamicString = StrictStr | DataBinding | FunctionCall
 DynamicBoolean = StrictBool | DataBinding | FunctionCall
 
 
-class AccessibilityAttributes(StrictBaseModel):
+class AccessibilityAttributes(SpecBaseModel):
     """Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -206,19 +149,6 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [
-                key
-                for key in ("label", "description", "live", "hidden")
-                if key in data and data[key] is None
-            ]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
-
 
 def _validate_extensions_keys(value: dict[str, Any]) -> dict[str, Any]:
     invalid = sorted(key for key in value if not is_identifier_key(key))
@@ -232,7 +162,7 @@ Extensions = TypeAliasType(
     Annotated[
         OpenObject,
         AfterValidator(_validate_extensions_keys),
-        JsonSchemaKeywords({
+        SchemaKeywords({
             "patternProperties": {"^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}},
             "additionalProperties": False,
         }),
@@ -240,7 +170,7 @@ Extensions = TypeAliasType(
 )
 
 
-class ComponentCommonMetadata(StrictBaseModel):
+class ComponentCommonMetadata(SpecBaseModel):
     """Optional component-level metadata for vendor extensions."""
 
     model_config = ConfigDict(
@@ -248,20 +178,12 @@ class ComponentCommonMetadata(StrictBaseModel):
     )
     extensions: Extensions | None = Field(default=None)
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [
-                key for key in ("extensions",) if key in data and data[key] is None
-            ]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
 
-
-class ComponentCommon(StrictBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+class ComponentCommon(SpecBaseModel):
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(drop=("additionalProperties",)),
+        populate_by_name=True,
+    )
     id: ComponentId = Field(...)
     catalog_id: str | None = Field(
         default=None,
@@ -276,30 +198,6 @@ class ComponentCommon(StrictBaseModel):
         default=None,
         description="Optional component-level metadata for vendor extensions.",
     )
-
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        json_schema = handler(core_schema)
-        if cls is not ComponentCommon:
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        target.pop("additionalProperties", None)
-        return json_schema
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [
-                key
-                for key in ("catalogId", "catalog_id", "accessibility", "metadata")
-                if key in data and data[key] is None
-            ]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
 
 
 def _validate_literal_object(v: Any) -> dict[str, Any]:
@@ -324,7 +222,7 @@ def _validate_literal_object(v: Any) -> dict[str, Any]:
 LiteralObject = Annotated[
     dict[str, Any],
     AfterValidator(_validate_literal_object),
-    JsonSchemaKeywords(
+    SchemaKeywords(
         {
             "not": {
                 "anyOf": [{"required": ["path"]}, {"required": ["call"]}],
@@ -354,9 +252,13 @@ DynamicNumber = StrictFloat | StrictInt | DataBinding | FunctionCall
 DynamicStringList = list[StrictStr] | DataBinding | FunctionCall
 
 
-class IndexSystemFunctionArgs(StrictBaseModel):
+class IndexSystemFunctionArgs(SpecBaseModel):
     model_config = ConfigDict(
-        json_schema_extra={INLINE_DEF_MARKER: True}, populate_by_name=True
+        json_schema_extra=SchemaKeywords(
+            {INLINE_DEF_MARKER: True, "unevaluatedProperties": False},
+            drop=("additionalProperties",),
+        ),
+        populate_by_name=True,
     )
     offset: DynamicNumber | None = Field(
         default=None,
@@ -367,58 +269,22 @@ class IndexSystemFunctionArgs(StrictBaseModel):
         json_schema_extra={"default": 0},
     )
 
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        json_schema = handler(core_schema)
-        if cls is not IndexSystemFunctionArgs:
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        target.pop("additionalProperties", None)
-        target.update({"unevaluatedProperties": False})
-        return json_schema
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [key for key in ("offset",) if key in data and data[key] is None]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
-
-
-class IndexSystemFunction(StrictBaseModel):
+class IndexSystemFunction(SpecBaseModel):
     """Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(
+            {"unevaluatedProperties": False, "returnType": "number"},
+            drop=("additionalProperties",),
+        ),
+        populate_by_name=True,
+    )
     call: Literal["@index"] = Field(...)
     args: IndexSystemFunctionArgs | None = Field(default=None)
 
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        json_schema = handler(core_schema)
-        if cls is not IndexSystemFunction:
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        target.pop("additionalProperties", None)
-        target.update({"unevaluatedProperties": False, "returnType": "number"})
-        return json_schema
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [key for key in ("args",) if key in data and data[key] is None]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
-
-
-class CheckRule(StrictBaseModel):
+class CheckRule(SpecBaseModel):
     """A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -432,20 +298,15 @@ class CheckRule(StrictBaseModel):
         default=None, description="Optional fallback error message."
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [key for key in ("message",) if key in data and data[key] is None]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
 
-
-class Checkable(StrictBaseModel):
+class Checkable(SpecBaseModel):
     """Properties for components that support renderer-side checks."""
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(drop=("additionalProperties",)),
+        extra="allow",
+        populate_by_name=True,
+    )
     checks: list[CheckRule] | None = Field(
         default=None,
         description=(
@@ -454,28 +315,8 @@ class Checkable(StrictBaseModel):
         ),
     )
 
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        json_schema = handler(core_schema)
-        if cls is not Checkable:
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        target.pop("additionalProperties", None)
-        return json_schema
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [key for key in ("checks",) if key in data and data[key] is None]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
-
-
-class ActionEvent(StrictBaseModel):
+class ActionEvent(SpecBaseModel):
     """The event to dispatch to the agent."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -499,28 +340,15 @@ class ActionEvent(StrictBaseModel):
         ),
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [
-                key
-                for key in ("userMessage", "user_message", "context")
-                if key in data and data[key] is None
-            ]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
 
-
-class ActionEventWrapper(StrictBaseModel):
+class ActionEventWrapper(SpecBaseModel):
     """Triggers an agent-side event."""
 
     model_config = ConfigDict(populate_by_name=True)
     event: ActionEvent = Field(..., description="The event to dispatch to the agent.")
 
 
-class ActionFunctionCallWrapper(StrictBaseModel):
+class ActionFunctionCallWrapper(SpecBaseModel):
     """Executes a renderer or agent-side function."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -530,41 +358,20 @@ class ActionFunctionCallWrapper(StrictBaseModel):
 Action = ActionEventWrapper | ActionFunctionCallWrapper
 
 
-class Surface(StrictBaseModel):
+class Surface(SpecBaseModel):
     """The reserved canonical container component representing an A2UI surface. The Surface component is immutable and always has 'child': 'root'."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(
+            {SPEC_TITLE_KEY: "Surface Container Component", "allowedParents": []}
+        ),
+        populate_by_name=True,
+    )
     component: Literal["Surface"] | None = Field(default="Surface")
     child: Literal["root"] | None = Field(default="root")
 
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        json_schema = handler(core_schema)
-        if cls is not Surface:
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        target.update(
-            {SPEC_TITLE_KEY: "Surface Container Component", "allowedParents": []}
-        )
-        return json_schema
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [
-                key
-                for key in ("component", "child")
-                if key in data and data[key] is None
-            ]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
-
-
-class FunctionResponseError(StrictBaseModel):
+class FunctionResponseError(SpecBaseModel):
     """An error object indicating failure of the function execution."""
 
     model_config = ConfigDict(
@@ -574,10 +381,15 @@ class FunctionResponseError(StrictBaseModel):
     message: str = Field(...)
 
 
-class FunctionResponse(StrictBaseModel):
+class FunctionResponse(SpecBaseModel):
     """The return response matching a callAgentFunction or callRendererFunction invocation."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(
+            {"oneOf": [{"required": ["value"]}, {"required": ["error"]}]}
+        ),
+        populate_by_name=True,
+    )
     function_call_id: CallId = Field(
         ...,
         alias="functionCallId",
@@ -590,37 +402,6 @@ class FunctionResponse(StrictBaseModel):
         default=None,
         description="An error object indicating failure of the function execution.",
     )
-
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        json_schema = handler(core_schema)
-        if cls is not FunctionResponse:
-            return json_schema
-        target = handler.resolve_ref_schema(json_schema)
-        target.update({"oneOf": [{"required": ["value"]}, {"required": ["error"]}]})
-        return json_schema
-
-    @model_validator(mode="after")
-    def _check_one_of_required(self) -> FunctionResponse:
-        branches = (("value",), ("error",))
-        matched = sum(
-            all(field in self.model_fields_set for field in fields)
-            for fields in branches
-        )
-        if matched != 1:
-            raise ValueError("FunctionResponse must set exactly one of: value | error")
-        return self
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            nulls = [key for key in ("error",) if key in data and data[key] is None]
-            if nulls:
-                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
-        return data
 
 
 COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
@@ -747,6 +528,7 @@ __all__ = [
     "ListReference",
     "LiteralObject",
     "SingleReference",
+    "SpecBaseModel",
     "StrictBaseModel",
     "Surface",
     "TemplateChildList",

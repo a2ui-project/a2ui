@@ -35,6 +35,7 @@ from ...schema.v0_9.common_types import (
     FunctionCall,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )

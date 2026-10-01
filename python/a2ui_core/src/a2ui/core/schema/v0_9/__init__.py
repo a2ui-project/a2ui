@@ -39,6 +39,7 @@ from .common_types import (
     FunctionCall,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )
@@ -119,6 +120,7 @@ __all__ = [
     "FunctionCall",
     "ListReference",
     "SingleReference",
+    "SpecBaseModel",
     "StrictBaseModel",
     "TemplateChildList",
     "ComponentsList",
