@@ -13,13 +13,6 @@ be checked against it without a Python toolchain.
   that Python's `ExpressAstVisitor` and `ExpressErrorListener` produce for them,
   using the same pipeline as `compiler.py` (lexer, parser, then visitor
   starting before the first error line).
-- `forms_catalog_v1_0.json`: a copy of `conformance/test_data/catalogs/forms_catalog_v1_0.json`
-  from `main`, reformatted by Prettier. It declares `checks` as an own property
-  instead of inheriting it from `Checkable`.
-- `simplified_catalog_v1_0.json`: a copy of `conformance/test_data/catalogs/simplified_catalog_v1_0.json`
-  from `main`.
-- `custom_catalog_v1_0.json`: a copy of `conformance/test_data/catalogs/custom_catalog_v1_0.json`
-  from `main`.
 - `compiler_corpus.json`: Express inputs across the simplified, custom, forms and
   both basic catalogs (including every case in `conformance/agent/express/compiler.yaml`)
   with the messages or error that Python's `ExpressCompiler` produces.
@@ -34,3 +27,5 @@ be checked against it without a Python toolchain.
 To regenerate any of these, run the corresponding Python code from `main`
 on the same inputs and write the results as JSON. Keep key order as Python emits it,
 because the helper tables encode positional-argument order.
+
+The catalogs come from `conformance/test_data/catalogs/` (see `tests/helpers/conformance-catalogs.ts`).

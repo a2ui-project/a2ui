@@ -20,6 +20,7 @@ import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
 import {Catalog} from '../../../../src/internal/web_core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {
   CatalogSchemaHelper,
@@ -127,14 +128,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
   describe('2. Forms-style inline catalog', () => {
     it('correctly discovers own check-rule property and retains declared order', () => {
-      const formsFixturePath = path.join(FIXTURES_DIR, 'forms_catalog_v1_0.json');
-      const formsDoc = JSON.parse(fs.readFileSync(formsFixturePath, 'utf8')) as Record<
-        string,
-        unknown
-      >;
-
-      const formsCat = Catalog.fromSchema(formsDoc);
-      registerCatalogDocument(formsCat, formsDoc);
+      const formsCat = loadConformanceCatalog('forms_catalog_v1_0.json');
 
       const helper = new CatalogSchemaHelper(formsCat, 'v1.0');
 

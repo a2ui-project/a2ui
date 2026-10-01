@@ -18,10 +18,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
 import {describe, it, expect} from 'vitest';
-import {AgentToRendererMessage, Catalog} from '../../../../src/internal/web_core.js';
-import {SchemaCatalog} from '../../../../src/types.js';
+import {AgentToRendererMessage} from '../../../../src/internal/web_core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
+import {
+  catalogFromTestDocument,
+  loadConformanceCatalog,
+  readConformanceCatalog,
+} from '../../../helpers/conformance-catalogs.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference_formats/express/prompt_generator.js';
 
@@ -30,17 +33,8 @@ const basicCatalogV09 = await loadBasicCatalog('v0.9');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 
 describe('ExpressPromptGenerator', () => {
-  function loadCatalogFixture(fileName: string): SchemaCatalog {
-    const schemaPath = path.join(FIXTURES_DIR, fileName);
-    const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
-    const cat = Catalog.fromSchema(schema);
-    registerCatalogDocument(cat, schema);
-    return cat;
-  }
-
   describe('1. Golden files byte-for-byte check', () => {
     it('generateBaseRules() matches express_base_rules.txt except for its catalog-specific names', () => {
       // The golden still names basic-catalog components, which the conformance pruning case
@@ -91,7 +85,7 @@ describe('ExpressPromptGenerator', () => {
     // The oracle outputs for the v0.9 basic catalog, simplified, forms, and custom catalogs
     // were verified against origin/main's Python oracle.
     it('generates expected instructions for simplified catalog v1.0', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const actual = generator.generateCatalogInstructions(cat);
 
@@ -120,7 +114,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('generates expected instructions for forms catalog v1.0', () => {
-      const cat = loadCatalogFixture('forms_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('forms_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const actual = generator.generateCatalogInstructions(cat);
 
@@ -140,7 +134,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('generates expected instructions for custom catalog v1.0', () => {
-      const cat = loadCatalogFixture('custom_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('custom_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const actual = generator.generateCatalogInstructions(cat);
 
@@ -176,7 +170,7 @@ describe('ExpressPromptGenerator', () => {
 
   describe('3. Substring expectations from conformance prompt_generator.yaml', () => {
     it('test_express_snippet_names_every_function_of_the_catalog', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const snippet = generator.generate();
 
@@ -186,16 +180,14 @@ describe('ExpressPromptGenerator', () => {
 
     it('test_express_snippet_omits_a_pruned_component', () => {
       // Create a simplified catalog schema pruned to Text
-      const schemaPath = path.join(FIXTURES_DIR, 'simplified_catalog_v1_0.json');
-      const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+      const schema = readConformanceCatalog('simplified_catalog_v1_0.json');
       const prunedSchema = {
         ...schema,
         components: {
           Text: schema.components.Text,
         },
       };
-      const cat = Catalog.fromSchema(prunedSchema);
-      registerCatalogDocument(cat, prunedSchema);
+      const cat = catalogFromTestDocument(prunedSchema);
       const generator = new ExpressPromptGenerator([cat]);
       const snippet = generator.generate();
 
@@ -207,16 +199,14 @@ describe('ExpressPromptGenerator', () => {
 
     it('test_express_snippet_omits_a_pruned_function', () => {
       // Create a simplified catalog schema pruned to formatString function
-      const schemaPath = path.join(FIXTURES_DIR, 'simplified_catalog_v1_0.json');
-      const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+      const schema = readConformanceCatalog('simplified_catalog_v1_0.json');
       const prunedSchema = {
         ...schema,
         functions: {
           formatString: schema.functions.formatString,
         },
       };
-      const cat = Catalog.fromSchema(prunedSchema);
-      registerCatalogDocument(cat, prunedSchema);
+      const cat = catalogFromTestDocument(prunedSchema);
       const generator = new ExpressPromptGenerator([cat]);
       const instructions = generator.generateCatalogInstructions();
 
@@ -225,8 +215,8 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_names_both_catalogs_and_their_ids', () => {
-      const cat1 = loadCatalogFixture('simplified_catalog_v1_0.json');
-      const cat2 = loadCatalogFixture('custom_catalog_v1_0.json');
+      const cat1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat1, cat2]);
       const snippet = generator.generate();
 
@@ -241,7 +231,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_renders_supplied_examples', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const examples: Record<string, AgentToRendererMessage[]> = {
         [cat.id]: [
           {
@@ -274,7 +264,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_without_examples_carries_no_example', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const snippet = generator.generate();
 
@@ -284,7 +274,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_names_its_sentinel_tag', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const snippet = generator.generate();
 
@@ -294,7 +284,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_describes_positional_signatures', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const snippet = generator.generate();
 
@@ -305,7 +295,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_describes_only_the_allowed_envelopes', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat], undefined, [
         'createSurface',
         'updateComponents',
@@ -317,7 +307,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_describes_every_envelope_without_an_allowlist', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const snippet = generator.generate();
 
@@ -327,8 +317,8 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('test_express_snippet_is_deterministic', () => {
-      const cat1 = loadCatalogFixture('simplified_catalog_v1_0.json');
-      const cat2 = loadCatalogFixture('custom_catalog_v1_0.json');
+      const cat1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
       const examples: Record<string, AgentToRendererMessage[]> = {
         [cat1.id]: [
           {
@@ -369,7 +359,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('B5: translates fenced json blocks containing updateComponents', () => {
-      const cat = loadCatalogFixture('simplified_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
       const rawMarkdown =
         'Here is an example:\n' +
@@ -420,8 +410,7 @@ describe('ExpressPromptGenerator', () => {
           },
         ]) +
         '\n```';
-      const cat = Catalog.fromSchema(doc);
-      registerCatalogDocument(cat, doc);
+      const cat = catalogFromTestDocument(doc);
 
       const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
       expect(instructions).not.toContain('```json');
