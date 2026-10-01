@@ -197,7 +197,8 @@ class DataContext {
     dataModel.set(resolvePath(relativePath), value);
   }
 
-  /// Resolves an action payload by evaluating dynamic values in its context and userMessage.
+  /// Resolves an action payload by evaluating dynamic values in its context and
+  /// userMessage.
   Map<String, dynamic>? resolveAction(Object? action) {
     if (action == null) return null;
     if (action is String) {

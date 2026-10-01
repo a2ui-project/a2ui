@@ -36,7 +36,7 @@ void main() {
 }
 
 Future<void> _runCase(Map<String, Object?> testCase) async {
-  final action = testCase['action'] as String? ?? 'dispatch_action';
+  final String action = testCase['action'] as String? ?? 'dispatch_action';
   switch (action) {
     case 'dispatch_action':
       await _runDispatchActionCase(testCase);
@@ -53,7 +53,7 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
     components: const [],
     functions: const [],
   );
-  final surface = SurfaceModel(
+  final SurfaceModel surface = SurfaceModel(
     testCase['surfaceId'] as String? ?? 'test_surface',
     catalog: catalog,
   );
@@ -61,15 +61,16 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
     surface.dataModel.set('/', initialData);
   }
 
-  final scope = testCase['scope'] as String? ?? '/';
+  final String scope = testCase['scope'] as String? ?? '/';
   final context = DataContext(
     surface.dataModel,
     catalog.invoke,
     scope,
   );
 
-  final rawAction = testCase['actionPayload'] ?? testCase['action_data'];
-  final resolvedAction = context.resolveAction(rawAction);
+  final Object? rawAction =
+      testCase['actionPayload'] ?? testCase['action_data'];
+  final Map<String, dynamic>? resolvedAction = context.resolveAction(rawAction);
   expect(resolvedAction, isNotNull);
 
   A2uiClientAction? dispatched;

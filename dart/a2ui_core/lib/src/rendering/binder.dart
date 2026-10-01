@@ -534,27 +534,6 @@ class GenericBinder {
     }
   }
 
-  Map<String, dynamic> _resolveActionFields(
-    DataContext dataContext,
-    Map<String, dynamic> map,
-  ) {
-    final result = Map<String, dynamic>.from(map);
-    // Each context value is a separate `DynamicValue`, so resolve entries one
-    // by one. Resolving the whole map at once would read a context key named
-    // `path` or `call` as a data binding or function call.
-    final Object? ctx = result['context'];
-    if (ctx is Map) {
-      result['context'] = <String, Object?>{
-        for (final MapEntry<Object?, Object?> e in ctx.entries)
-          e.key.toString(): dataContext.resolveSync(e.value),
-      };
-    }
-    if (result.containsKey('userMessage')) {
-      result['userMessage'] = dataContext.resolveSync(result['userMessage']);
-    }
-    return result;
-  }
-
   Object? _resolveEventAction(DataContext dataContext, Object? value) {
     return dataContext.resolveAction(value) ?? dataContext.resolveSync(value);
   }
