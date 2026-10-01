@@ -25,12 +25,23 @@ import {
   ExpressInvalidParamError,
   ExpressDuplicateParamError,
   ExpressForbiddenDatabindingError,
+  ExpressInvalidIdentifierError,
   ExpressUndefinedRootError,
   ExpressUndefinedChildError,
   ExpressSyntaxError,
 } from '../../../../src/inference_formats/express/errors.js';
 
 describe('Express error classes', () => {
+  describe('ExpressInvalidIdentifierError', () => {
+    it('exposes the offending id', () => {
+      const err = new ExpressInvalidIdentifierError('title-heading');
+      expect(err.id).toBe('title-heading');
+      expect(err.message).toContain("'title-heading'");
+      expect(err.name).toBe('ExpressInvalidIdentifierError');
+      expect(err).toBeInstanceOf(ExpressValidationError);
+    });
+  });
+
   describe('ExpressCompilerError', () => {
     it('sets message, helpMessage, and inheritance correctly', () => {
       const err = new ExpressCompilerError('compiler error', 'hint');
