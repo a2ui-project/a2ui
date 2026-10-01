@@ -368,6 +368,65 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
   });
 
+  describe('Statement handling', () => {
+    it('compiles statements separated by semicolons on one line', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const messages = compiler.compile('child = Text("Hi"); root = Column([child])');
+      expect(messages).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: simplifiedCatalog.id,
+            components: [
+              {id: 'child', component: 'Text', text: 'Hi'},
+              {id: 'root', component: 'Column', children: ['child']},
+            ],
+          },
+        },
+      ]);
+    });
+
+    it('keeps the complete data statements of a truncated block when not final', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const messages = compiler.compile(
+        '$/foo = 123\n$/bar = """unclosed string...\n',
+        'default_surface',
+        '',
+        false,
+      );
+      expect(messages).toEqual([
+        {
+          version: 'v1.0',
+          updateDataModel: {surfaceId: 'default_surface', path: '/', value: {foo: 123}},
+        },
+      ]);
+    });
+
+    it('keeps the complete components of a truncated block when not final', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const messages = compiler.compile(
+        'root = Column([title])\ntitle = Text("Hello")\nfooter = Text("unfin',
+        'default_surface',
+        '',
+        false,
+      );
+      expect(messages).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: simplifiedCatalog.id,
+            components: [
+              {id: 'root', component: 'Column', children: ['title']},
+              {id: 'title', component: 'Text', text: 'Hello'},
+            ],
+          },
+        },
+      ]);
+    });
+  });
+
   describe('Protocol version lines', () => {
     function versionsOf(messages: unknown[]): unknown[] {
       return messages.map(message => (message as {version: string}).version);
