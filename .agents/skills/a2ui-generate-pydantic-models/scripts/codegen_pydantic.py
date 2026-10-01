@@ -534,6 +534,25 @@ from .common_types import (
         [x.strip().rstrip(",") for x in renderer_union_items]
     )
 
+    schema_helper_lines: list[str] = []
+    if os.path.exists(os.path.join(o_root, "schema", "agent_to_renderer_schema.py")):
+        schema_helper_lines.extend([
+            "from .agent_to_renderer_schema import (",
+            "    get_agent_to_renderer_schema_json,",
+            "    get_agent_to_renderer_schema_map,",
+            ")",
+        ])
+    if os.path.exists(os.path.join(o_root, "schema", "common_types_schema.py")):
+        schema_helper_lines.extend([
+            "from .common_types_schema import (",
+            "    get_common_types_schema_json,",
+            "    get_common_types_schema_map,",
+            ")",
+        ])
+    schema_helpers_section = (
+        "\n" + "\n".join(schema_helper_lines) + "\n" if schema_helper_lines else ""
+    )
+
     content = f"""{FILE_HEADER}
 from collections.abc import Mapping, Sequence
 from enum import Enum
@@ -595,8 +614,7 @@ ClientToServerMessagePayload = RendererToAgentMessagePayload
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
 
-{legacy_reexports}
-"""
+{legacy_reexports}{schema_helpers_section}"""
     with open(os.path.join(o_root, "schema/__init__.py"), "w", encoding="utf-8") as f:
         f.write(content)
 

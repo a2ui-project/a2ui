@@ -255,6 +255,10 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
   ['common_types_schema', 'web_core does not generate the common types schema from its own models'],
+  [
+    'agent_to_renderer_schema',
+    'web_core does not generate the agent_to_renderer schema from its own models',
+  ],
   ['validate_common_type', 'web_core has no per-definition validators for the common types'],
 ]);
 

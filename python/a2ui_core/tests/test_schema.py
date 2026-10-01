@@ -16,7 +16,12 @@ import pytest
 from pydantic import ValidationError
 from typing import get_args
 
-from a2ui.core import A2uiCatalogError, Catalog, get_common_types_schema_map
+from a2ui.core import (
+    A2uiCatalogError,
+    Catalog,
+    get_agent_to_renderer_schema_map,
+    get_common_types_schema_map,
+)
 from a2ui.core.schema import (
     ProtocolVersion,
     A2uiClientMessageListWrapper,
@@ -156,6 +161,31 @@ def test_common_types_schema_follows_release_line(
 def test_common_types_schema_rejects_unsupported_versions() -> None:
     with pytest.raises(A2uiCatalogError):
         get_common_types_schema_map(ProtocolVersion.V0_8)
+
+
+@pytest.mark.parametrize(
+    ("version", "expected_id"),
+    [
+        (ProtocolVersion.V0_8, None),
+        (
+            ProtocolVersion.V0_9,
+            "https://a2ui.org/specification/v0_9/server_to_client.json",
+        ),
+        (
+            ProtocolVersion.V0_9_1,
+            "https://a2ui.org/specification/v0_9/server_to_client.json",
+        ),
+        (
+            ProtocolVersion.V1_0,
+            "https://a2ui.org/specification/v1_0/agent_to_renderer.json",
+        ),
+    ],
+)
+def test_agent_to_renderer_schema_follows_release_line(
+    version: ProtocolVersion, expected_id: str | None
+) -> None:
+    schema = get_agent_to_renderer_schema_map(version)
+    assert schema.get("$id") == expected_id
 
 
 def test_catalog_schema_returns_independent_copies() -> None:

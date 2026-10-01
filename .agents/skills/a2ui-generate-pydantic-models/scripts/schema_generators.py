@@ -1123,18 +1123,123 @@ _NESTED_MODEL_KEYWORDS = frozenset({
 })
 
 
+def _render_a2r_schema_code(node: Any, imports: _ExtraImports) -> str:
+    """Renders a JSON schema fragment as Python code, turning `$ref`s into `def_ref`."""
+    if isinstance(node, list):
+        return (
+            "["
+            + ", ".join(_render_a2r_schema_code(item, imports) for item in node)
+            + "]"
+        )
+    if not isinstance(node, dict):
+        return python_literal(node)
+    if isinstance(node.get("$ref"), str) and len(node) == 1:
+        imports.helpers.add("def_ref")
+        return f"def_ref({python_literal(node['$ref'])})"
+    items = [
+        f"{python_literal(k)}: {_render_a2r_schema_code(v, imports)}"
+        for k, v in node.items()
+    ]
+    return "{" + ", ".join(items) + "}"
+
+
+def _a2r_object_schema_extra(
+    spec: dict[str, Any],
+    *,
+    inline: bool = False,
+    imports: _ExtraImports | None = None,
+) -> str | None:
+    """Returns the `json_schema_extra` expression for an agent_to_renderer object model."""
+    if imports is None:
+        return None
+    props = spec.get("properties", {})
+    required = spec.get("required", [])
+    default_required = [p for p in props if p in required]
+    needs_required = bool(required) and list(required) != default_required
+
+    if inline and needs_required:
+        imports.helpers.update({"INLINE_DEF_MARKER", "SchemaKeywords"})
+        req_lit = python_literal(list(required))
+        return f"SchemaKeywords({{'required': {req_lit}, INLINE_DEF_MARKER: True}})"
+    if inline:
+        imports.helpers.add("INLINE_DEF_MARKER")
+        return "{INLINE_DEF_MARKER: True}"
+    if needs_required:
+        imports.helpers.add("SchemaKeywords")
+        return f"SchemaKeywords({{'required': {python_literal(list(required))}}})"
+    return None
+
+
+def _prepare_a2r_property(
+    prop_name: str,
+    prop: Any,
+    codegen: PydanticCodegen,
+    imports: _ExtraImports | None,
+) -> Any:
+    """Annotates a property schema with `PYTHON_TYPE_KEY` for spec-only keywords."""
+    if not isinstance(prop, dict) or imports is None:
+        return prop
+    prop = dict(prop)
+    ref = prop.get("$ref")
+    if isinstance(ref, str) and ref.startswith("catalog.json#/"):
+        imports.helpers.update({"SchemaKeywords", "def_ref"})
+        prop[PYTHON_TYPE_KEY] = (
+            f"Annotated[Any, SchemaKeywords(def_ref({python_literal(ref)}),"
+            " replace=True)]"
+        )
+        return prop
+    if prop.get("type") == "array":
+        items = prop.get("items")
+        min_items = prop.pop("minItems", None)
+        has_catalog_items = (
+            isinstance(items, dict)
+            and isinstance(items.get("$ref"), str)
+            and items["$ref"].startswith("catalog.json#/")
+        )
+        if has_catalog_items:
+            imports.helpers.update({"SchemaKeywords", "def_ref"})
+            item_ref = items["$ref"]
+            item_type = (
+                "Annotated[dict[str, Any],"
+                f" SchemaKeywords(def_ref({python_literal(item_ref)}), replace=True)]"
+            )
+            py_type = f"list[{item_type}]"
+        else:
+            py_type = codegen.map_json_type_to_python(prop_name, prop)
+        if min_items is not None:
+            imports.helpers.add("SchemaKeywords")
+            py_type = (
+                f"Annotated[{py_type},"
+                f" SchemaKeywords({{'minItems': {python_literal(min_items)}}})]"
+            )
+            prop[PYTHON_TYPE_KEY] = py_type
+        elif has_catalog_items:
+            prop[PYTHON_TYPE_KEY] = py_type
+        return prop
+    if "type" not in prop and "additionalProperties" in prop:
+        imports.helpers.add("SchemaKeywords")
+        add_props = python_literal(prop["additionalProperties"])
+        prop[PYTHON_TYPE_KEY] = (
+            f"Annotated[Any, SchemaKeywords({{'additionalProperties': {add_props}}})]"
+        )
+        return prop
+    return prop
+
+
 def _extract_nested_models(
     codegen: PydanticCodegen,
     parent_name: str,
     schema: dict[str, Any],
     blocks: list[str],
     taken_names: set[str],
+    imports: _ExtraImports | None = None,
 ) -> dict[str, Any]:
     """Compiles nested object properties of a payload into helper models.
 
     A property that is an object with its own properties becomes a model named
-    `<Parent><Property>` (for example `CreateSurfaceMetadata`), appended to
-    `blocks` before its parent, and the returned schema references it.
+    `<Parent><Property>` (for example `CreateSurfaceMetadata`), and an array
+    whose items are an object with properties becomes `<Parent><Property>Item`,
+    appended to `blocks` before its parent, and the returned schema references it.
 
     Raises:
         ValueError: If a helper name is taken, or a nested object uses
@@ -1160,15 +1265,89 @@ def _extract_nested_models(
                 raise ValueError(f"Generated name {helper_name} is already taken")
             taken_names.add(helper_name)
             helper_schema = _extract_nested_models(
-                codegen, helper_name, prop, blocks, taken_names
+                codegen, helper_name, prop, blocks, taken_names, imports
             )
-            blocks.append(codegen.compile_object_def(helper_name, helper_schema))
+            blocks.append(
+                codegen.compile_object_def(
+                    helper_name,
+                    helper_schema,
+                    json_schema_extra=_a2r_object_schema_extra(
+                        helper_schema, inline=True, imports=imports
+                    ),
+                )
+            )
             ref: dict[str, Any] = {"$ref": f"#/$defs/{helper_name}"}
             if "description" in prop:
                 ref["description"] = prop["description"]
             prop = ref
-        new_props[prop_name] = prop
+        elif (
+            isinstance(prop, dict)
+            and prop.get("type") == "array"
+            and isinstance(prop.get("items"), dict)
+            and prop["items"].get("type") == "object"
+            and "properties" in prop["items"]
+        ):
+            items = prop["items"]
+            unsupported = set(items) - _NESTED_MODEL_KEYWORDS
+            if unsupported or isinstance(items.get("additionalProperties"), dict):
+                raise ValueError(
+                    f"Unsupported nested array item {parent_name}.{prop_name}: {items}"
+                )
+            helper_name = f"{parent_name}{to_pascal_case(prop_name)}Item"
+            if helper_name in taken_names:
+                raise ValueError(f"Generated name {helper_name} is already taken")
+            taken_names.add(helper_name)
+            helper_schema = _extract_nested_models(
+                codegen, helper_name, items, blocks, taken_names, imports
+            )
+            blocks.append(
+                codegen.compile_object_def(
+                    helper_name,
+                    helper_schema,
+                    json_schema_extra=_a2r_object_schema_extra(
+                        helper_schema, inline=True, imports=imports
+                    ),
+                )
+            )
+            prop = {**prop, "items": {"$ref": f"#/$defs/{helper_name}"}}
+        new_props[prop_name] = _prepare_a2r_property(prop_name, prop, codegen, imports)
     return {**schema, "properties": new_props}
+
+
+def _compile_a2r_non_message_def(
+    def_name: str,
+    def_spec: dict[str, Any],
+    codegen: PydanticCodegen,
+    imports: _ExtraImports,
+) -> str:
+    """Compiles a non-Message `$defs` entry (e.g. `Component`, `ComponentsList`)."""
+    imports.type_alias_type = True
+    annotations: list[str] = []
+    desc = def_spec.get("description")
+    if isinstance(desc, str) and desc:
+        annotations.append(f"Field(description={python_literal(desc)})")
+    if def_spec.get("type") == "array":
+        spec_copy = dict(def_spec)
+        min_items = spec_copy.pop("minItems", None)
+        py_type = codegen.map_json_type_to_python(def_name, spec_copy)
+        if min_items is not None:
+            imports.helpers.add("SchemaKeywords")
+            annotations.append(
+                f"SchemaKeywords({{'minItems': {python_literal(min_items)}}})"
+            )
+    else:
+        py_type = "dict[str, Any]"
+        keywords = {k: v for k, v in def_spec.items() if k != "description"}
+        if keywords:
+            imports.helpers.add("SchemaKeywords")
+            annotations.append(
+                f"SchemaKeywords({_render_a2r_schema_code(keywords, imports)},"
+                " replace=True)"
+            )
+    inner = (
+        f"Annotated[{py_type}, {', '.join(annotations)}]" if annotations else py_type
+    )
+    return f"{def_name} = TypeAliasType({python_literal(def_name)}, {inner})"
 
 
 def generate_agent_to_renderer(
@@ -1180,7 +1359,9 @@ def generate_agent_to_renderer(
     """Generates agent_to_renderer.py / server_to_client.py content."""
     codegen = PydanticCodegen(version)
     codegen.allow_inline = False
-    dir_name = version_to_underscore(version)
+    codegen.schema_defaults = True
+    codegen.skip_component_property = False
+    codegen.spec_fidelity = True
     is_modern = is_modern_terminology(version, a2r_name)
     defs_a2r = a2r_data.get("$defs", {})
 
@@ -1192,16 +1373,29 @@ def generate_agent_to_renderer(
     import_source = ".common_types" if common_data else "..common_types"
     a2r_imports = f"from {import_source} import {', '.join(needed_imports)}\n"
 
-    a2r_blocks = [
-        (
-            f"{FILE_HEADER}\n"
-            "from typing import Any, Literal\n"
+    imports = _ExtraImports()
+    root_desc = a2r_data.get("description", "")
+
+    def _header(extra_imports: str = "") -> str:
+        file_header = FILE_HEADER
+        if isinstance(root_desc, str) and root_desc:
+            doc_str = f'"""{root_desc}"""'
+            file_header = file_header.replace(
+                "from __future__ import annotations",
+                f"{doc_str}\n\nfrom __future__ import annotations",
+                1,
+            )
+        extra = f"{extra_imports}\n" if extra_imports else ""
+        return (
+            f"{file_header}\n"
+            "from typing import Annotated, Any, Final, Literal\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
+            + extra
             + a2r_imports
             + "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
-        ),
-        "ComponentsList = list[dict[str, Any]]\nComponent = dict[str, Any]",
-    ]
+        )
+
+    a2r_blocks = [_header()]
 
     msg_names = []
     # Names of generated classes, which nested helper models must not reuse.
@@ -1210,6 +1404,21 @@ def generate_agent_to_renderer(
         | set(needed_imports)
         | {m.replace("Message", "") for m in defs_a2r if m.endswith("Message")}
     )
+    codegen.known_local_refs = taken_names
+
+    non_msg_defs = {k: v for k, v in defs_a2r.items() if not k.endswith("Message")}
+    if non_msg_defs:
+        for def_name in topological_sort_defs(non_msg_defs):
+            a2r_blocks.append(
+                _compile_a2r_non_message_def(
+                    def_name, non_msg_defs[def_name], codegen, imports
+                )
+            )
+    if "ComponentsList" not in non_msg_defs and "Component" not in non_msg_defs:
+        a2r_blocks.append(
+            "ComponentsList = list[dict[str, Any]]\nComponent = dict[str, Any]"
+        )
+
     if defs_a2r:
         for mname, mschema in defs_a2r.items():
             if not mname.endswith("Message"):
@@ -1228,17 +1437,37 @@ def generate_agent_to_renderer(
                     a2r_blocks.append(f"{payload_name} = {ref_target}")
                 else:
                     payload_schema = _extract_nested_models(
-                        codegen, payload_name, payload_schema, a2r_blocks, taken_names
+                        codegen,
+                        payload_name,
+                        payload_schema,
+                        a2r_blocks,
+                        taken_names,
+                        imports,
                     )
                     a2r_blocks.append(
-                        codegen.compile_object_def(payload_name, payload_schema)
+                        codegen.compile_object_def(
+                            payload_name,
+                            payload_schema,
+                            json_schema_extra=_a2r_object_schema_extra(
+                                payload_schema, inline=True, imports=imports
+                            ),
+                        )
                     )
 
             snake_env = to_snake_case(envelope_key)
             alias_opt = f', alias="{envelope_key}"' if snake_env != envelope_key else ""
+            msg_req = mschema.get("required") or [envelope_key, "version"]
+            msg_req_lit = python_literal(list(msg_req))
+            imports.helpers.add("SchemaKeywords")
+            msg_config = (
+                "    model_config ="
+                " ConfigDict(json_schema_extra=SchemaKeywords({'required':"
+                f" {msg_req_lit}}}))\n"
+            )
             a2r_blocks.append(
                 f"class {mname}(StrictBaseModel):\n"
-                "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
+                + msg_config
+                + "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
                 f"    {snake_env}: {payload_name} = Field(...{alias_opt})"
             )
             msg_names.append(mname)
@@ -1248,7 +1477,23 @@ def generate_agent_to_renderer(
             pascal_key = to_pascal_case(key)
             payload_name = pascal_key
             mname = f"{pascal_key}Message"
-            a2r_blocks.append(codegen.compile_object_def(payload_name, val_schema))
+            val_schema = _extract_nested_models(
+                codegen,
+                payload_name,
+                val_schema,
+                a2r_blocks,
+                taken_names,
+                imports,
+            )
+            a2r_blocks.append(
+                codegen.compile_object_def(
+                    payload_name,
+                    val_schema,
+                    json_schema_extra=_a2r_object_schema_extra(
+                        val_schema, inline=False, imports=imports
+                    ),
+                )
+            )
             snake_env = to_snake_case(key)
             alias_opt = f', alias="{key}"' if snake_env != key else ""
             a2r_blocks.append(
@@ -1307,6 +1552,23 @@ def generate_agent_to_renderer(
                 ' list[ServerToClientMessage] = Field(..., description="A list of'
                 ' messages.")'
             )
+
+    if defs_a2r:
+        manifest_lines = [f"    {python_literal(key)}: {key}," for key in defs_a2r]
+    else:
+        manifest_lines = [
+            f"    {python_literal(key)}: {to_pascal_case(key)},"
+            for key in a2r_data.get("properties", {})
+        ]
+    if manifest_lines:
+        a2r_blocks.append(
+            "AGENT_TO_RENDERER_DEFS: Final[dict[str, Any]] = {\n"
+            + "\n".join(manifest_lines)
+            + "\n}"
+        )
+
+    imports.helpers.update(codegen.used_helpers)
+    a2r_blocks[0] = _header(imports.render())
 
     return "\n\n\n".join(b.strip() for b in a2r_blocks if b.strip()) + "\n"
 

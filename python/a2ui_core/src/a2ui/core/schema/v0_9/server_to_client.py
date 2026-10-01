@@ -13,9 +13,12 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
+"""Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces."""
+
 from __future__ import annotations
-from typing import Any, Literal
+from typing import Annotated, Any, Final, Literal
 from pydantic import BaseModel, Field, ConfigDict
+from .._json_schema import INLINE_DEF_MARKER, SchemaKeywords, def_ref
 from .common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
@@ -27,7 +30,9 @@ Component = dict[str, Any]
 class CreateSurface(StrictBaseModel):
     """Signals the client to create a new surface and begin rendering it. It is an error to send 'createSurface' for a surfaceId that already exists without first deleting it. When this message is sent, the client will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, json_schema_extra={INLINE_DEF_MARKER: True}
+    )
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -42,7 +47,12 @@ class CreateSurface(StrictBaseModel):
             " mycompany.com:somecatalog'."
         ),
     )
-    theme: Any | None = Field(
+    theme: (
+        Annotated[
+            Any, SchemaKeywords(def_ref("catalog.json#/$defs/theme"), replace=True)
+        ]
+        | None
+    ) = Field(
         default=None,
         description=(
             "Theme parameters for the surface (e.g., {'primaryColor': '#FF0000'})."
@@ -61,6 +71,9 @@ class CreateSurface(StrictBaseModel):
 
 
 class CreateSurfaceMessage(StrictBaseModel):
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords({"required": ["createSurface", "version"]})
+    )
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     create_surface: CreateSurface = Field(..., alias="createSurface")
 
@@ -68,18 +81,31 @@ class CreateSurfaceMessage(StrictBaseModel):
 class UpdateComponents(StrictBaseModel):
     """Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. A createSurface message MUST have been previously sent for the 'surfaceId' in this message; the surface's catalog is the one specified by that createSurface."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, json_schema_extra={INLINE_DEF_MARKER: True}
+    )
     surface_id: str = Field(
         ...,
         alias="surfaceId",
         description="The unique identifier for the UI surface to be updated.",
     )
-    components: list[dict[str, Any]] = Field(
-        ..., description="A list containing all UI components for the surface."
-    )
+    components: Annotated[
+        list[
+            Annotated[
+                dict[str, Any],
+                SchemaKeywords(
+                    def_ref("catalog.json#/$defs/anyComponent"), replace=True
+                ),
+            ]
+        ],
+        SchemaKeywords({"minItems": 1}),
+    ] = Field(..., description="A list containing all UI components for the surface.")
 
 
 class UpdateComponentsMessage(StrictBaseModel):
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords({"required": ["updateComponents", "version"]})
+    )
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     update_components: UpdateComponents = Field(..., alias="updateComponents")
 
@@ -87,7 +113,9 @@ class UpdateComponentsMessage(StrictBaseModel):
 class UpdateDataModel(StrictBaseModel):
     """Updates the data model for an existing surface. This message can be sent multiple times to update the data model. A createSurface message MUST have been previously sent for the 'surfaceId' in this message; the surface's catalog is the one specified by that createSurface."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, json_schema_extra={INLINE_DEF_MARKER: True}
+    )
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -103,16 +131,22 @@ class UpdateDataModel(StrictBaseModel):
             " If omitted, or set to '/', refers to the entire data model."
         ),
     )
-    value: Any | None = Field(
-        default=None,
-        description=(
-            "The data to be updated in the data model. If present, the value at 'path'"
-            " is replaced (or created). If omitted, the key at 'path' is removed."
-        ),
+    value: Annotated[Any, SchemaKeywords({"additionalProperties": True})] | None = (
+        Field(
+            default=None,
+            description=(
+                "The data to be updated in the data model. If present, the value at"
+                " 'path' is replaced (or created). If omitted, the key at 'path' is"
+                " removed."
+            ),
+        )
     )
 
 
 class UpdateDataModelMessage(StrictBaseModel):
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords({"required": ["updateDataModel", "version"]})
+    )
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     update_data_model: UpdateDataModel = Field(..., alias="updateDataModel")
 
@@ -120,7 +154,9 @@ class UpdateDataModelMessage(StrictBaseModel):
 class DeleteSurface(StrictBaseModel):
     """Signals the client to delete the surface identified by 'surfaceId'. A createSurface message MUST have been previously sent for the 'surfaceId' in this message; the surface's catalog is the one specified by that createSurface."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, json_schema_extra={INLINE_DEF_MARKER: True}
+    )
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -129,6 +165,9 @@ class DeleteSurface(StrictBaseModel):
 
 
 class DeleteSurfaceMessage(StrictBaseModel):
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords({"required": ["deleteSurface", "version"]})
+    )
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     delete_surface: DeleteSurface = Field(..., alias="deleteSurface")
 
@@ -149,3 +188,11 @@ class A2uiMessageListWrapper(StrictBaseModel):
     messages: list[ServerToClientMessage] = Field(
         ..., description="A list of messages."
     )
+
+
+AGENT_TO_RENDERER_DEFS: Final[dict[str, Any]] = {
+    "CreateSurfaceMessage": CreateSurfaceMessage,
+    "UpdateComponentsMessage": UpdateComponentsMessage,
+    "UpdateDataModelMessage": UpdateDataModelMessage,
+    "DeleteSurfaceMessage": DeleteSurfaceMessage,
+}

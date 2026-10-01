@@ -54,8 +54,8 @@ from .common_types import (
     TemplateChildList,
 )
 from .agent_to_renderer import (
-    ComponentsList,
     Component,
+    ComponentsList,
     CreateSurfaceMetadata,
     CreateSurface,
     CreateSurfaceMessage,
@@ -72,6 +72,7 @@ from .agent_to_renderer import (
     AgentToRendererMessage,
     AgentToRendererMessageList,
     AgentToRendererMessageListWrapper,
+    AGENT_TO_RENDERER_DEFS,
 )
 from .catalog_definition import (
     FunctionCallValidationSchema,
@@ -147,8 +148,8 @@ __all__ = [
     "StrictBaseModel",
     "Surface",
     "TemplateChildList",
-    "ComponentsList",
     "Component",
+    "ComponentsList",
     "CreateSurfaceMetadata",
     "CreateSurface",
     "CreateSurfaceMessage",
@@ -165,6 +166,7 @@ __all__ = [
     "AgentToRendererMessage",
     "AgentToRendererMessageList",
     "AgentToRendererMessageListWrapper",
+    "AGENT_TO_RENDERER_DEFS",
     "FunctionCallValidationSchema",
     "FunctionDefinition",
     "ComponentDefinition",

@@ -225,12 +225,22 @@ class PydanticCodegen:
                     ):
                         raise self._unsupported(prop_name, prop)
                     return local_name
+                if (
+                    ref.startswith("#/$defs/")
+                    and self.known_local_refs is not None
+                    and ref[len("#/$defs/") :] in self.known_local_refs
+                ):
+                    return ref[len("#/$defs/") :]
                 if ref.endswith("/ComponentsList"):
                     return "list[dict[str, Any]]"
                 if ref.endswith("/Component") or ref.endswith("/anyComponent"):
                     return "dict[str, Any]"
                 ref_name = ref.split("/")[-1]
-                if not ref.startswith("#/") and ref_name in _CROSS_DOCUMENT_REF_TYPES:
+                if (
+                    not self.spec_fidelity
+                    and not ref.startswith("#/")
+                    and ref_name in _CROSS_DOCUMENT_REF_TYPES
+                ):
                     return _CROSS_DOCUMENT_REF_TYPES[ref_name]
                 if ref.endswith("/Child"):
                     return "Child"

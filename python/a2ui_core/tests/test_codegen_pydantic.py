@@ -950,6 +950,36 @@ def test_common_types_defs_manifest_matches_spec_defs(spec_version: str, package
 
 
 @pytest.mark.parametrize(
+    "spec_version, package, filename",
+    [
+        ("v0_8", "v0_8", "server_to_client.json"),
+        ("v0_9", "v0_9", "server_to_client.json"),
+        ("v0_9_1", "v0_9", "server_to_client.json"),
+        ("v1_0", "v1_0", "agent_to_renderer.json"),
+    ],
+)
+def test_agent_to_renderer_defs_manifest_matches_spec_defs(
+    spec_version: str, package: str, filename: str
+):
+    """AGENT_TO_RENDERER_DEFS lists every spec message/def in declaration order."""
+    mod = importlib.import_module(f"a2ui.core.schema.{package}")
+    assert "AGENT_TO_RENDERER_DEFS" in mod.__all__
+
+    spec_path = os.path.join(SPEC_ROOT, spec_version, "json", filename)
+    with open(spec_path, "r", encoding="utf-8") as f:
+        spec_doc = json.load(f)
+
+    spec_defs = spec_doc.get("$defs") or spec_doc["properties"]
+    manifest = mod.AGENT_TO_RENDERER_DEFS
+    assert list(manifest.keys()) == list(spec_defs.keys())
+    for name, symbol in manifest.items():
+        schema = TypeAdapter(symbol).json_schema(by_alias=True)
+        assert isinstance(schema, dict), name
+        if "properties" in spec_defs[name]:
+            assert set(schema["properties"]) == set(spec_defs[name]["properties"]), name
+
+
+@pytest.mark.parametrize(
     "value, expected",
     [
         (True, "True"),

@@ -58,6 +58,7 @@ from .server_to_client import (
     AgentToRendererMessage,
     A2uiMessage,
     A2uiMessageListWrapper,
+    AGENT_TO_RENDERER_DEFS,
 )
 from .client_capabilities import (
     FunctionDefinition,
@@ -137,6 +138,7 @@ __all__ = [
     "AgentToRendererMessage",
     "A2uiMessage",
     "A2uiMessageListWrapper",
+    "AGENT_TO_RENDERER_DEFS",
     "FunctionDefinition",
     "InlineCatalog",
     "Catalog",

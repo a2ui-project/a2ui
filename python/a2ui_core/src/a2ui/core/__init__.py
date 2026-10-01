@@ -15,6 +15,8 @@
 from a2ui.core.catalog import (
     Catalog as Catalog,
     CatalogApi as CatalogApi,
+    get_agent_to_renderer_schema_json as get_agent_to_renderer_schema_json,
+    get_agent_to_renderer_schema_map as get_agent_to_renderer_schema_map,
     get_common_types_schema_json as get_common_types_schema_json,
     get_common_types_schema_map as get_common_types_schema_map,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
@@ -84,6 +86,8 @@ __all__ = [
     "SurfaceModel",
     "ValidationConfig",
     "__version__",
+    "get_agent_to_renderer_schema_json",
+    "get_agent_to_renderer_schema_map",
     "get_common_types_schema_json",
     "get_common_types_schema_map",
     "is_valid_uax31_identifier",

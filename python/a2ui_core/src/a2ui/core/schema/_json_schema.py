@@ -89,7 +89,7 @@ def catalog_functions() -> dict[str, Any]:
 
 
 def def_ref(name: str) -> dict[str, Any]:
-    """Returns the placeholder for a `$ref` to the def `name` of the document."""
+    """Returns the placeholder for a `$ref` to a local def or cross-document URI."""
     return {DEF_REF_MARKER: name}
 
 
@@ -103,7 +103,8 @@ def resolve_ref_markers(node: Any) -> Any:
     if node.get(CATALOG_FUNCTIONS_MARKER) is True:
         ref = CATALOG_FUNCTIONS_REF
     elif isinstance(node.get(DEF_REF_MARKER), str):
-        ref = f"#/$defs/{node[DEF_REF_MARKER]}"
+        target = node[DEF_REF_MARKER]
+        ref = target if "#/" in target else f"#/$defs/{target}"
     rest = {
         k: resolve_ref_markers(v)
         for k, v in node.items()

@@ -579,6 +579,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_catalog_schema_case(case)
     elif action == "common_types_schema":
         validate_common_types_schema_case(case)
+    elif action == "agent_to_renderer_schema":
+        validate_agent_to_renderer_schema_case(case)
     elif action == "validate_common_type":
         validate_common_type_case(case)
     elif action == "validate":
@@ -1151,6 +1153,23 @@ def validate_common_types_schema_case(case: dict[str, Any]) -> None:
 
     generated = json.loads(
         get_common_types_schema_json(
+            to_protocol_version(resolve_protocol_version(case) or "")
+        )
+    )
+    exp_path = os.path.join(CONFORMANCE_ROOT, "..", case["expectFile"])
+    with open(exp_path, "r", encoding="utf-8") as f:
+        expected = json.load(f)
+    assert json.dumps(generated, indent=2, sort_keys=True) == json.dumps(
+        expected, indent=2, sort_keys=True
+    )
+
+
+def validate_agent_to_renderer_schema_case(case: dict[str, Any]) -> None:
+    from a2ui.core.common import to_protocol_version
+    from a2ui.core.schema import get_agent_to_renderer_schema_json
+
+    generated = json.loads(
+        get_agent_to_renderer_schema_json(
             to_protocol_version(resolve_protocol_version(case) or "")
         )
     )

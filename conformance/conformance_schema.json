@@ -40,6 +40,7 @@
           "type": "string",
           "enum": [
             "accessibility_check",
+            "agent_to_renderer_schema",
             "catalog_schema",
             "common_types_schema",
             "compile",

@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ..schema.agent_to_renderer_schema import (
+    get_agent_to_renderer_schema_json,
+    get_agent_to_renderer_schema_map,
+)
 from ..schema.common_types_schema import (
     get_common_types_schema_json,
     get_common_types_schema_map,
@@ -66,6 +70,8 @@ __all__ = [
     "build_component_ref_map",
     "create_function_implementation",
     "extract_child_refs_from_val",
+    "get_agent_to_renderer_schema_json",
+    "get_agent_to_renderer_schema_map",
     "get_common_types_schema_json",
     "get_common_types_schema_map",
     "is_valid_uax31_identifier",
