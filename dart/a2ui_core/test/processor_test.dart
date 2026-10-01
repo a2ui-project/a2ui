@@ -551,6 +551,57 @@ void main() {
       );
     });
 
+    test(
+      'generates client capabilities from an enveloped catalog without '
+      'double wrapping',
+      () {
+        final envelopedCatalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'enveloped_catalog',
+          components: [
+            ComponentApi(
+              name: 'Text',
+              schema: Schema.fromMap({
+                'type': 'object',
+                'allOf': [
+                  {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
+                  {
+                    'properties': {
+                      'component': {'const': 'Text'},
+                      'text': {
+                        r'$ref': r'common_types.json#/$defs/DynamicString',
+                      },
+                    },
+                    'required': ['component', 'text'],
+                  },
+                ],
+              }),
+            ),
+          ],
+        );
+        final proc = MessageProcessor<ComponentApi>(
+          catalogs: [envelopedCatalog],
+          protocolVersion: A2uiProtocolVersion.v0_9,
+        );
+        final Map<String, dynamic> caps = proc.getClientCapabilities(
+          includeInlineCatalogs: true,
+        );
+        final inline = (caps['v0.9']! as Map)['inlineCatalogs']! as List;
+        final components = (inline.first! as Map)['components']! as Map;
+        final comp = components['Text']! as Map;
+        expect(comp['allOf'], isNotNull);
+        final allOf = comp['allOf']! as List;
+        expect(allOf.length, equals(2));
+        expect(
+          (allOf[0]! as Map)[r'$ref'],
+          equals(r'common_types.json#/$defs/ComponentCommon'),
+        );
+        expect(
+          ((allOf[1]! as Map)['properties']! as Map)['text'],
+          isNotNull,
+        );
+      },
+    );
+
     test('aggregates client data model', () {
       processor.processMessages(
         AgentToRendererMessagePayload([

@@ -1,0 +1,38 @@
+{
+  "catalogId": "fn_catalog",
+  "components": {
+    "LinkButton": {
+      "properties": {
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": ["title"]
+    }
+  },
+  "functions": {
+    "openUrl": {
+      "description": "Opens a URL in the browser.",
+      "properties": {
+        "call": {
+          "const": "openUrl"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Destination URL."
+            },
+            "target": {
+              "type": "string",
+              "description": "Window target."
+            }
+          },
+          "required": ["url"]
+        }
+      },
+      "required": ["call", "args"]
+    }
+  }
+}

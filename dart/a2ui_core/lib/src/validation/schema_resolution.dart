@@ -156,7 +156,10 @@ class _RefResolver {
   Object? _follow(Map<String, Object?> root, String pointer) {
     Object? current = root;
     for (final String raw in pointer.split('/').skip(1)) {
-      final String segment = raw.replaceAll('~1', '/').replaceAll('~0', '~');
+      final String segment = raw.replaceAllMapped(
+        RegExp(r'~([01])'),
+        (m) => m[1] == '1' ? '/' : '~',
+      );
       if (current is! Map || !current.containsKey(segment)) return null;
       current = current[segment];
     }
@@ -235,7 +238,10 @@ Object? inlineLocalRefs(
 Object? _followLocalPointer(String ref, Map<String, Object?> document) {
   Object? current = document;
   for (final String segment in ref.substring(2).split('/')) {
-    final String key = segment.replaceAll('~1', '/').replaceAll('~0', '~');
+    final String key = segment.replaceAllMapped(
+      RegExp(r'~([01])'),
+      (m) => m[1] == '1' ? '/' : '~',
+    );
     if (current is! Map || !current.containsKey(key)) return null;
     current = current[key];
   }
