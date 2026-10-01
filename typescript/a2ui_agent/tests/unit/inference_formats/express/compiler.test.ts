@@ -22,6 +22,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {Catalog} from '../../../../src/internal/web_core.js';
 import {type SchemaCatalog} from '../../../../src/types.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressCompiler} from '../../../../src/inference_formats/express/compiler.js';
@@ -87,24 +88,11 @@ const errorClasses: Record<string, new (...args: never[]) => Error> = {
 };
 
 describe('ExpressCompiler', () => {
-  // Load and register catalog fixtures as required by spec §Wave 2a
-  const simplifiedDoc = JSON.parse(
-    fs.readFileSync(path.join(FIXTURES_DIR, 'simplified_catalog_v1_0.json'), 'utf8'),
-  ) as Record<string, unknown>;
-  const simplifiedCatalog = Catalog.fromSchema(simplifiedDoc);
-  registerCatalogDocument(simplifiedCatalog, simplifiedDoc);
+  const simplifiedCatalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
 
-  const formsDoc = JSON.parse(
-    fs.readFileSync(path.join(FIXTURES_DIR, 'forms_catalog_v1_0.json'), 'utf8'),
-  ) as Record<string, unknown>;
-  const formsCatalog = Catalog.fromSchema(formsDoc);
-  registerCatalogDocument(formsCatalog, formsDoc);
+  const formsCatalog = loadConformanceCatalog('forms_catalog_v1_0.json');
 
-  const customDoc = JSON.parse(
-    fs.readFileSync(path.join(FIXTURES_DIR, 'custom_catalog_v1_0.json'), 'utf8'),
-  ) as Record<string, unknown>;
-  const customCatalog = Catalog.fromSchema(customDoc);
-  registerCatalogDocument(customCatalog, customDoc);
+  const customCatalog = loadConformanceCatalog('custom_catalog_v1_0.json');
 
   const catalogs: Record<string, SchemaCatalog> = {
     simplified: simplifiedCatalog,
