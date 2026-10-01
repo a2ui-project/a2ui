@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-import {readFileSync} from 'node:fs';
-import {dirname, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
-
 import {CharStream, CommonTokenStream} from 'antlr4ng';
 import {describe, expect, it} from 'vitest';
 
@@ -26,50 +22,426 @@ import {ExpressParser} from '../../../../src/inference_formats/express/generated
 import {
   ExpressAstVisitor,
   type ExpressStatement,
-  type ExpressErrorRecord,
   parseExpress,
   unescapeString,
 } from '../../../../src/inference_formats/express/visitor.js';
 
-interface VisitorTestCase {
+/** A source that parses without errors, and the statements it produces. */
+interface VisitorCase {
   name: string;
   source: string;
-  expected: {
-    errors: ExpressErrorRecord[];
-    statements: ExpressStatement[];
-  };
+  statements: ExpressStatement[];
 }
 
-const fixturePath = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/visitor_cases.json');
-
-// visitor_cases.json records the output of main's Python visitor; see fixtures/README.md.
-const testCases: VisitorTestCase[] = JSON.parse(readFileSync(fixturePath, 'utf8'));
-
 describe('Express AST visitor and parser', () => {
-  describe('oracle parity fixture corpus', () => {
-    for (const testCase of testCases) {
-      it(`matches oracle for case: ${testCase.name}`, () => {
-        const result = parseExpress(testCase.source);
-
-        // Statements must match the oracle exactly
-        expect(result.statements).toEqual(testCase.expected.statements);
-
-        // Error counts and metadata must match exactly
-        expect(result.errors).toHaveLength(testCase.expected.errors.length);
-        for (let i = 0; i < result.errors.length; i++) {
-          const [actualLine, actualCol, actualMsg, actualIsLexer] = result.errors[i];
-          const [expLine, expCol, expMsg, expIsLexer] = testCase.expected.errors[i];
-          expect(actualLine).toBe(expLine);
-          expect(actualCol).toBe(expCol);
-          expect(actualIsLexer).toBe(expIsLexer);
-
-          // Error message texts match Python antlr4 exactly
-          expect(actualMsg).toBe(expMsg);
-        }
-      });
-    }
+  describe('parses comments, whitespace and separators', () => {
+    it.each([
+      {name: 'an empty input', source: '', statements: []},
+      {name: 'whitespace only', source: '   \n\t  \n', statements: []},
+      {
+        name: 'a # comment before a statement',
+        source: '# This is a comment\nroot = Text("hi")',
+        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+      },
+      {
+        name: 'a // comment before a statement',
+        source: '// This is a slash comment\nroot = Text("hi")',
+        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+      },
+      {
+        name: 'a block comment before a statement',
+        source: '/* multi\nline\ncomment */\nroot = Text("hi")',
+        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+      },
+      {
+        name: 'statements separated by semicolons',
+        source: 'a = 1; b = 2; c = 3',
+        statements: [
+          ['ASSIGN', 'a', 1],
+          ['ASSIGN', 'b', 2],
+          ['ASSIGN', 'c', 3],
+        ],
+      },
+      {
+        name: 'trailing semicolons',
+        source: 'root = Text("hi");;;;\n',
+        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+      },
+      {
+        name: 'a statement spread over several lines',
+        source:
+          'root = Column(\n  [\n    Text("First"),\n    Text("Second")\n  ],\n  spacing=16\n)',
+        statements: [
+          [
+            'ASSIGN',
+            'root',
+            {
+              call: 'Column',
+              args: [
+                [
+                  {call: 'Text', args: ['First']},
+                  {call: 'Text', args: ['Second']},
+                ],
+              ],
+              kwargs: {spacing: 16},
+            },
+          ],
+        ],
+      },
+    ] as VisitorCase[])('$name', ({source, statements}) => {
+      expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
   });
 
+  describe('parses assignments', () => {
+    it.each([
+      {
+        name: 'a component holding variable references',
+        source: 'root = Column([title, content])',
+        statements: [
+          [
+            'ASSIGN',
+            'root',
+            {call: 'Column', args: [[{variable: 'title'}, {variable: 'content'}]]},
+          ],
+        ],
+      },
+      {
+        name: 'a map',
+        source: 'config = {theme: "dark", showHeader: true, count: 5}',
+        statements: [['ASSIGN', 'config', {theme: 'dark', showHeader: true, count: 5}]],
+      },
+      {
+        name: 'a list of mixed values',
+        source: 'items = [1, "two", true, null]',
+        statements: [['ASSIGN', 'items', [1, 'two', true, null]]],
+      },
+      {name: 'an integer', source: 'count = 42', statements: [['ASSIGN', 'count', 42]]},
+      {name: 'a negative integer', source: 'offset = -17', statements: [['ASSIGN', 'offset', -17]]},
+      {name: 'a float', source: 'ratio = 3.14159', statements: [['ASSIGN', 'ratio', 3.14159]]},
+      {name: 'a negative float', source: 'temp = -0.5', statements: [['ASSIGN', 'temp', -0.5]]},
+      {name: 'true', source: 'isActive = true', statements: [['ASSIGN', 'isActive', true]]},
+      {name: 'false', source: 'isDisabled = false', statements: [['ASSIGN', 'isDisabled', false]]},
+      {name: 'null', source: 'emptyValue = null', statements: [['ASSIGN', 'emptyValue', null]]},
+      {
+        name: 'a data path',
+        source: 'selectedUser = $/users/active/id',
+        statements: [['ASSIGN', 'selectedUser', {path: '/users/active/id'}]],
+      },
+      {
+        name: 'the bare root path',
+        source: 'rootPath = $',
+        statements: [['ASSIGN', 'rootPath', {path: ''}]],
+      },
+      {
+        name: 'an assignment to a data path',
+        source: '$/app/settings/volume = 80',
+        statements: [['ASSIGN', '$/app/settings/volume', 80]],
+      },
+      {
+        name: 'an assignment to the bare root path',
+        source: '$ = {status: "ok"}',
+        statements: [['ASSIGN', '$', {status: 'ok'}]],
+      },
+    ] as VisitorCase[])('$name', ({source, statements}) => {
+      expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
+  });
+
+  describe('parses arrays and maps', () => {
+    it.each([
+      {name: 'an empty array', source: 'emptyList = []', statements: [['ASSIGN', 'emptyList', []]]},
+      {
+        name: 'an array with one element',
+        source: 'single = [1]',
+        statements: [['ASSIGN', 'single', [1]]],
+      },
+      {
+        name: 'an array with a trailing comma',
+        source: 'colors = ["red", "green", "blue",]',
+        statements: [['ASSIGN', 'colors', ['red', 'green', 'blue']]],
+      },
+      {name: 'an empty map', source: 'emptyMap = {}', statements: [['ASSIGN', 'emptyMap', {}]]},
+      {
+        name: 'a map with identifier keys',
+        source: 'options = {key1: 10, key2: 20}',
+        statements: [['ASSIGN', 'options', {key1: 10, key2: 20}]],
+      },
+      {
+        name: 'a map with string keys',
+        source: 'headers = {"content-type": "application/json", "x-api-key": "secret"}',
+        statements: [
+          ['ASSIGN', 'headers', {'content-type': 'application/json', 'x-api-key': 'secret'}],
+        ],
+      },
+      {
+        name: 'a map with a trailing comma',
+        source: 'coords = {x: 10, y: 20,}',
+        statements: [['ASSIGN', 'coords', {x: 10, y: 20}]],
+      },
+      {
+        name: 'arrays and maps nested in each other',
+        source: 'matrix = [{row: [1, 2]}, {row: [3, 4]}]',
+        statements: [['ASSIGN', 'matrix', [{row: [1, 2]}, {row: [3, 4]}]]],
+      },
+    ] as VisitorCase[])('$name', ({source, statements}) => {
+      expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
+  });
+
+  describe('parses calls', () => {
+    it.each([
+      {
+        name: 'a call without arguments',
+        source: 'card = Card()',
+        statements: [['ASSIGN', 'card', {call: 'Card', args: []}]],
+      },
+      {
+        name: 'a call with positional arguments',
+        source: 'label = Text("Hello", "secondary")',
+        statements: [['ASSIGN', 'label', {call: 'Text', args: ['Hello', 'secondary']}]],
+      },
+      {
+        name: 'a call with keyword arguments',
+        source: 'btn = Button(label="Click", disabled=false)',
+        statements: [
+          ['ASSIGN', 'btn', {call: 'Button', args: [], kwargs: {label: 'Click', disabled: false}}],
+        ],
+      },
+      {
+        name: 'a call mixing positional and keyword arguments, with a trailing comma',
+        source: 'btn = Button("Save", variant="primary", elevation=2,)',
+        statements: [
+          [
+            'ASSIGN',
+            'btn',
+            {call: 'Button', args: ['Save'], kwargs: {variant: 'primary', elevation: 2}},
+          ],
+        ],
+      },
+      {
+        name: 'a skipped argument',
+        source: 'action = Event("submit", _, "onSuccess")',
+        statements: [
+          ['ASSIGN', 'action', {call: 'Event', args: ['submit', {skipped: true}, 'onSuccess']}],
+        ],
+      },
+      {
+        name: 'calls nested in arrays and keyword arguments',
+        source: 'layout = Column([Row([Text("A"), Text("B")]), Card(content=Text("C"))])',
+        statements: [
+          [
+            'ASSIGN',
+            'layout',
+            {
+              call: 'Column',
+              args: [
+                [
+                  {
+                    call: 'Row',
+                    args: [
+                      [
+                        {call: 'Text', args: ['A']},
+                        {call: 'Text', args: ['B']},
+                      ],
+                    ],
+                  },
+                  {call: 'Card', args: [], kwargs: {content: {call: 'Text', args: ['C']}}},
+                ],
+              ],
+            },
+          ],
+        ],
+      },
+      {
+        name: 'an Event call as a keyword argument',
+        source: 'btn = Button(onClick=Event("press", action="save"))',
+        statements: [
+          [
+            'ASSIGN',
+            'btn',
+            {
+              call: 'Button',
+              args: [],
+              kwargs: {onClick: {call: 'Event', args: ['press'], kwargs: {action: 'save'}}},
+            },
+          ],
+        ],
+      },
+      {
+        name: 'a _template call',
+        source: 'list = List(template=_template(item, Text(item)))',
+        statements: [
+          [
+            'ASSIGN',
+            'list',
+            {
+              call: 'List',
+              args: [],
+              kwargs: {
+                template: {
+                  call: '_template',
+                  args: [{variable: 'item'}, {call: 'Text', args: [{variable: 'item'}]}],
+                },
+              },
+            },
+          ],
+        ],
+      },
+    ] as VisitorCase[])('$name', ({source, statements}) => {
+      expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
+  });
+
+  describe('parses checks', () => {
+    it.each([
+      {
+        name: 'a bare check',
+        source: 'v = ?required',
+        statements: [['ASSIGN', 'v', {check: 'required', args: []}]],
+      },
+      {
+        name: 'a check with empty parentheses',
+        source: 'v = ?required()',
+        statements: [['ASSIGN', 'v', {check: 'required', args: []}]],
+      },
+      {
+        name: 'a check with an argument',
+        source: 'rule = ?minLength(8)',
+        statements: [['ASSIGN', 'rule', {check: 'minLength', args: [8]}]],
+      },
+      {
+        name: 'a check with two arguments and a trailing comma',
+        source: 'rangeCheck = ?between(1, 100,)',
+        statements: [['ASSIGN', 'rangeCheck', {check: 'between', args: [1, 100]}]],
+      },
+      {
+        name: 'a list of checks',
+        source: 'rules = [?required, ?email, ?minLength(6)]',
+        statements: [
+          [
+            'ASSIGN',
+            'rules',
+            [
+              {check: 'required', args: []},
+              {check: 'email', args: []},
+              {check: 'minLength', args: [6]},
+            ],
+          ],
+        ],
+      },
+    ] as VisitorCase[])('$name', ({source, statements}) => {
+      expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
+  });
+
+  describe('parses standalone expressions', () => {
+    it.each([
+      {
+        name: 'a surface call',
+        source: 'surface("main_surface")',
+        statements: [['EXPR', {call: 'surface', args: ['main_surface']}]],
+      },
+      {
+        name: 'a deleteSurface call',
+        source: 'deleteSurface("old_surface")',
+        statements: [['EXPR', {call: 'deleteSurface', args: ['old_surface']}]],
+      },
+      {
+        name: 'a call to another function',
+        source: 'notify("hello", level="warn")',
+        statements: [['EXPR', {call: 'notify', args: ['hello'], kwargs: {level: 'warn'}}]],
+      },
+      {name: 'a bare variable', source: 'myVar', statements: [['EXPR', {variable: 'myVar'}]]},
+      {name: 'a bare map', source: '{theme: "light"}', statements: [['EXPR', {theme: 'light'}]]},
+    ] as VisitorCase[])('$name', ({source, statements}) => {
+      expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
+  });
+
+  describe('parses string literals', () => {
+    it.each([
+      {
+        name: 'a triple-quoted string',
+        source: 'doc = """line 1\nline 2 with "quotes" and \\t tab"""',
+        statements: [['ASSIGN', 'doc', 'line 1\nline 2 with "quotes" and \t tab']],
+      },
+      {
+        name: 'a raw string',
+        source: 'regex = r"\\d+\\s+[a-z]"',
+        statements: [['ASSIGN', 'regex', '\\d+\\s+[a-z]']],
+      },
+      {
+        name: 'a raw string with an uppercase prefix',
+        source: 'regexUpper = R"C:\\Users\\test"',
+        statements: [['ASSIGN', 'regexUpper', 'C:\\Users\\test']],
+      },
+      {
+        name: 'a raw triple-quoted string',
+        source: 'rawDoc = r"""first \\n second"""',
+        statements: [['ASSIGN', 'rawDoc', 'first \\n second']],
+      },
+      {
+        name: 'a raw triple-quoted string with an uppercase prefix',
+        source: 'rawDocUpper = R"""first \\t second"""',
+        statements: [['ASSIGN', 'rawDocUpper', 'first \\t second']],
+      },
+    ] as VisitorCase[])('$name', ({source, statements}) => {
+      expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
+  });
+
+  describe('reports syntax errors', () => {
+    it('keeps the statements before an unclosed array and reports the line after it', () => {
+      expect(parseExpress('a = 1\nb = 2\nc = [broken\nd = 4\ne = 5')).toEqual({
+        statements: [
+          ['ASSIGN', 'a', 1],
+          ['ASSIGN', 'b', 2],
+          ['ASSIGN', 'c', [{variable: 'broken'}]],
+        ],
+        errors: [[4, 0, "mismatched input 'd' expecting {',', ']'}", false]],
+      });
+    });
+
+    it('drops the statements from the line of a parser error onward', () => {
+      expect(parseExpress('a = 1\nb = 2\n= broken\nd = 4\ne = 5')).toEqual({
+        statements: [
+          ['ASSIGN', 'a', 1],
+          ['ASSIGN', 'b', 2],
+        ],
+        errors: [
+          [
+            3,
+            0,
+            "extraneous input '=' expecting {<EOF>, '[', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER}",
+            false,
+          ],
+        ],
+      });
+    });
+
+    it('reports an unexpected character as a lexer error', () => {
+      expect(parseExpress('valid = 1\n@invalid = 2')).toEqual({
+        statements: [['ASSIGN', 'valid', 1]],
+        errors: [[2, 0, "token recognition error at: '@'", true]],
+      });
+    });
+
+    it('reports a lexer error and a parser error together', () => {
+      expect(parseExpress('ok = 1\n~bad_lexer\n broken_parser [')).toEqual({
+        statements: [['ASSIGN', 'ok', 1]],
+        errors: [
+          [2, 0, "token recognition error at: '~'", true],
+          [
+            3,
+            16,
+            "mismatched input '<EOF>' expecting {'[', ']', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER}",
+            false,
+          ],
+        ],
+      });
+    });
+  });
   describe('string unescaping', () => {
     it('resolves standard escape sequences', () => {
       expect(unescapeString('hello\\nworld')).toBe('hello\nworld');

@@ -199,7 +199,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** These are behaviours of main's Python compiler and decompiler, written before the suite.
 - **What it risks:** In Python, unknown components and missing required properties reach the renderer without a compile-time error, some compiled messages fail the protocol schema, and decompiled examples do not always compile back to the same messages.
 - **Also passing in TypeScript only, for API reasons:** seven response-parser cases that Python's harness lists as gaps. Four `wrap` cases pass because TypeScript's `wrap` takes response parts where Python's takes strings, two text-between-blocks cases pass because the shared block lexer keeps text apart from payloads, and the unwrapped-body case passes because `parseResponse` accepts `wrapped`.
-- **Done looks like:** Python passes these cases. `tests/unit/inference_formats/express/fixtures/conformance_overrides.json` lists every place TypeScript's output now differs from Python's recorded output; it can be emptied as Python catches up and the parity fixtures are regenerated.
+- **Done looks like:** Python passes these cases. Nothing in this package has to change when it does: the TypeScript tests check the conformance suite and their own inline expectations, not Python's recorded output.
 
 ### Python's Express defaults to v1.0 whatever the catalog
 

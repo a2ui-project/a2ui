@@ -81,9 +81,7 @@ describe('ExpressPromptGenerator', () => {
     });
   });
 
-  describe('2. Oracle parity for catalog instructions', () => {
-    // The oracle outputs for the v0.9 basic catalog, simplified, forms, and custom catalogs
-    // were verified against origin/main's Python oracle.
+  describe('2. Catalog instructions for the conformance and v0.9 basic catalogs', () => {
     it('generates expected instructions for simplified catalog v1.0', () => {
       const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);

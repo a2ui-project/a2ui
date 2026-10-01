@@ -43,7 +43,6 @@ describe('ExpressParser', () => {
     });
 
     it('unwraps conversational text without tags to a text part', () => {
-      // Oracle: oracle.sh parse_response ... <<< "I need the city name before I can draw the forecast."
       const parts = parser.unwrap('I need the city name before I can draw the forecast.');
       expect(parts).toEqual([
         {
@@ -111,7 +110,6 @@ describe('ExpressParser', () => {
 
   describe('compile and error wrapping', () => {
     it('compiles valid Express DSL into messages', () => {
-      // Oracle: oracle.sh compile <<< 'root = Text("Hello")'
       const messages = parser.compile('root = Text("Hello")');
       expect(messages).toEqual([
         {
@@ -132,8 +130,6 @@ describe('ExpressParser', () => {
     });
 
     it('wraps ExpressValidationError as A2uiCompilationValidationError', () => {
-      // Oracle: oracle.sh compile <<< 'root = Text("hi", invalid_prop="no")'
-      // message: "Property 'invalid_prop' is not a valid property of component 'Text'. - Help: Component 'Text' accepts properties: text, variant."
       try {
         parser.compile('root = Text("hi", invalid_prop="no")');
         expect.unreachable('Should have thrown');
@@ -149,10 +145,6 @@ describe('ExpressParser', () => {
     });
 
     it('wraps ExpressSyntaxError as A2uiCompilationParseError with line, col, and default help', () => {
-      // Oracle: oracle.sh compile <<< '@'
-      // error: "A2uiCompilationParseError"
-      // message: "Syntax error at line 1:0: token recognition error at: '@' (line 1) - Line 1, Col 0 - Help: Please correct the syntax error in your Express DSL."
-      // help_message: "Please correct the syntax error in your Express DSL."
       try {
         parser.compile('@');
         expect.unreachable('Should have thrown');
@@ -169,9 +161,6 @@ describe('ExpressParser', () => {
     });
 
     it('wraps ExpressParseError as A2uiCompilationParseError', () => {
-      // Oracle: oracle.sh compile <<< 'x = Text("hi")'
-      // error: "A2uiCompilationParseError"
-      // message: "Root target 'root' is not defined. - Help: Ensure root component 'root' is assigned in your Express DSL."
       try {
         parser.compile('');
         expect.unreachable('Should have thrown');
