@@ -17,7 +17,7 @@
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
-import {generateCatalogSchema} from '../catalog/schema_generator.js';
+import {generateCatalogSchema, cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
@@ -263,55 +263,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   /**
-   * Cleans a Zod-derived JSON Schema node for legacy (< 1.0) inline catalogs,
-   * preserving full external `$ref` targets from `REF:<target>|<description>` markers.
-   */
-  private cleanLegacySchemaNode(node: unknown, visited = new Set<unknown>()): void {
-    if (typeof node !== 'object' || node === null) return;
-    if (visited.has(node)) return;
-    visited.add(node);
-
-    if (Array.isArray(node)) {
-      for (const item of node) {
-        this.cleanLegacySchemaNode(item, visited);
-      }
-      return;
-    }
-
-    const obj = node as Record<string, unknown>;
-    if (typeof obj.description === 'string' && obj.description.startsWith('REF:')) {
-      const content = obj.description.substring(4);
-      const pipeIndex = content.indexOf('|');
-      const ref = pipeIndex === -1 ? content : content.substring(0, pipeIndex);
-      const desc = pipeIndex === -1 ? '' : content.substring(pipeIndex + 1);
-      const savedDefault = obj.default;
-      for (const key of Object.keys(obj)) {
-        delete obj[key];
-      }
-      obj['$ref'] = ref;
-      if (savedDefault !== undefined) {
-        obj['default'] = savedDefault;
-      }
-      if (desc) {
-        obj['description'] = desc;
-      }
-      return;
-    }
-
-    if (Array.isArray(obj.anyOf)) {
-      obj.oneOf = obj.anyOf;
-      delete obj.anyOf;
-    }
-    delete obj['$schema'];
-    delete obj['additionalProperties'];
-    delete obj['unevaluatedProperties'];
-
-    for (const key of Object.keys(obj)) {
-      this.cleanLegacySchemaNode(obj[key], visited);
-    }
-  }
-
-  /**
    * Generates a backwards-compatible inline catalog representation for v0.8/v0.9/v0.9.1.
    *
    * @param catalog The catalog instance to serialize.
@@ -331,7 +282,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
         }) as Record<string, unknown>;
-        this.cleanLegacySchemaNode(rawZod);
+        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         props = (rawZod.properties as Record<string, unknown>) || {};
         reqList = Array.isArray(rawZod.required)
           ? (rawZod.required as string[]).filter(r => r !== 'component' && r !== 'id')
@@ -360,7 +311,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
         }) as Record<string, unknown>;
-        this.cleanLegacySchemaNode(rawZod);
+        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         paramSchema = rawZod;
       }
       functions.push({
@@ -377,7 +328,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         target: 'jsonSchema2019-09',
         $refStrategy: 'none',
       }) as Record<string, unknown>;
-      this.cleanLegacySchemaNode(rawTheme);
+      cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
       theme = (rawTheme.properties as Record<string, unknown>) || undefined;
     }
 

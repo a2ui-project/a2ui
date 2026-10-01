@@ -252,11 +252,7 @@ function convertRefToZod(
     }
     return zodType;
   }
-  const desc =
-    typeof propSchema.description === 'string'
-      ? `REF:${ref}|${propSchema.description}`
-      : `REF:${ref}`;
-  return z.unknown().describe(desc);
+  return undefined;
 }
 
 /**

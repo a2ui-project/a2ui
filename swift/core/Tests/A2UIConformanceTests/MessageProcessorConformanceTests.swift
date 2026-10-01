@@ -213,7 +213,12 @@ struct MessageProcessorConformanceTests {
     processor.process(messages: messages)
     #expect(handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
 
-    if let expectedSurfaces = testCase["expectedSurfaces"] as? [String: Any] {
+    let expectedDict = (testCase["expect"] as? [String: Any]) ?? [:]
+    let expectedSurfaces =
+      (expectedDict["surfaces"] as? [String: Any])
+      ?? (testCase["expectedSurfaces"] as? [String: Any])
+
+    if let expectedSurfaces {
       for (surfaceID, rawExpected) in expectedSurfaces {
         if rawExpected is NSNull {
           #expect(
@@ -222,21 +227,55 @@ struct MessageProcessorConformanceTests {
           )
           continue
         }
-        guard let expectedDict = rawExpected as? [String: Any] else { continue }
+        guard let expectedSurfaceDict = rawExpected as? [String: Any] else { continue }
+        if expectedSurfaceDict["exists"] as? Bool == false {
+          #expect(
+            processor.surfaceGroupModel.surfacesMap[surfaceID] == nil,
+            "[\(name)] Expected surface '\(surfaceID)' to be deleted"
+          )
+          continue
+        }
         let surface = try #require(
           processor.surfaceGroupModel.surfacesMap[surfaceID],
           "[\(name)] Expected surface '\(surfaceID)' to exist"
         )
-        if let expectedDataModel = expectedDict["dataModel"] {
+        if let expectedDataModel = expectedSurfaceDict["dataModel"] {
           #expect(
             surface.dataModel.data == ConformanceTestHelper.toJSONValue(expectedDataModel),
             "[\(name)] DataModel mismatch on surface '\(surfaceID)'"
           )
         }
-        if let expectedComponents = expectedDict["components"] as? [String: Any] {
+        if let expectedComponents = expectedSurfaceDict["components"] {
+          if let compDict = expectedComponents as? [String: Any] {
+            #expect(
+              surface.componentsModel.components.count == compDict.count,
+              "[\(name)] Component count mismatch on surface '\(surfaceID)'"
+            )
+          } else if let compList = expectedComponents as? [Any] {
+            #expect(
+              surface.componentsModel.components.count == compList.count,
+              "[\(name)] Component count mismatch on surface '\(surfaceID)'"
+            )
+          }
+        }
+        if let expectedTheme = expectedSurfaceDict["theme"] {
+          let actualThemeValue: JSONValue =
+            surface.theme.map { dict in
+              var ordered = OrderedDictionary<String, JSONValue>()
+              for (k, v) in dict {
+                ordered[k] = v
+              }
+              return .object(ordered)
+            } ?? .null
           #expect(
-            surface.componentsModel.components.count == expectedComponents.count,
-            "[\(name)] Component count mismatch on surface '\(surfaceID)'"
+            actualThemeValue == ConformanceTestHelper.toJSONValue(expectedTheme),
+            "[\(name)] Theme mismatch on surface '\(surfaceID)'"
+          )
+        }
+        if let expectedSendDataModel = expectedSurfaceDict["sendDataModel"] as? Bool {
+          #expect(
+            surface.sendDataModel == expectedSendDataModel,
+            "[\(name)] sendDataModel mismatch on surface '\(surfaceID)'"
           )
         }
       }
@@ -274,14 +313,26 @@ struct MessageProcessorConformanceTests {
         version: version
       )
     )
-    if let expected = testCase["expectedCapabilities"] as? [String: Any],
-      let expectedV09 = expected["v0.9"] as? [String: Any],
-      let expectedIDs = expectedV09["supportedCatalogIds"]
-    {
-      #expect(
-        caps[version]?["supportedCatalogIds"] == ConformanceTestHelper.toJSONValue(expectedIDs),
-        "[\(name)] Supported catalog IDs mismatch"
-      )
+    let expectedDict =
+      (testCase["expect"] as? [String: Any])
+      ?? (testCase["expectedCapabilities"] as? [String: Any])
+      ?? [:]
+    let expectedVersion =
+      (expectedDict[version] as? [String: Any])
+      ?? (expectedDict["v0.9"] as? [String: Any])
+    if let expectedVersion {
+      if let expectedIDs = expectedVersion["supportedCatalogIds"] {
+        #expect(
+          caps[version]?["supportedCatalogIds"] == ConformanceTestHelper.toJSONValue(expectedIDs),
+          "[\(name)] Supported catalog IDs mismatch"
+        )
+      }
+      if let expectedInline = expectedVersion["inlineCatalogs"] {
+        #expect(
+          caps[version]?["inlineCatalogs"] == ConformanceTestHelper.toJSONValue(expectedInline),
+          "[\(name)] Inline catalogs mismatch"
+        )
+      }
     }
   }
 }

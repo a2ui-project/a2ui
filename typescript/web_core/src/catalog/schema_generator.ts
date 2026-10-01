@@ -79,26 +79,34 @@ function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
 /**
  * Normalizes property schema structures like anyOf and additionalProperties.
  */
-function cleanSchemaProperties(obj: Record<string, unknown>): void {
+function cleanSchemaProperties(
+  obj: Record<string, unknown>,
+  options: {stripAdditionalProperties?: boolean} = {},
+): void {
   if (Array.isArray(obj.anyOf)) {
     obj.oneOf = obj.anyOf;
     delete obj.anyOf;
   }
 
-  if (
-    obj.additionalProperties &&
-    typeof obj.additionalProperties === 'object' &&
-    Object.keys(obj.additionalProperties).length === 0
-  ) {
-    obj.additionalProperties = true;
-  }
+  if (options.stripAdditionalProperties) {
+    delete obj['additionalProperties'];
+    delete obj['unevaluatedProperties'];
+  } else {
+    if (
+      obj.additionalProperties &&
+      typeof obj.additionalProperties === 'object' &&
+      Object.keys(obj.additionalProperties).length === 0
+    ) {
+      obj.additionalProperties = true;
+    }
 
-  if (
-    obj.unevaluatedProperties &&
-    typeof obj.unevaluatedProperties === 'object' &&
-    Object.keys(obj.unevaluatedProperties).length === 0
-  ) {
-    obj.unevaluatedProperties = true;
+    if (
+      obj.unevaluatedProperties &&
+      typeof obj.unevaluatedProperties === 'object' &&
+      Object.keys(obj.unevaluatedProperties).length === 0
+    ) {
+      obj.unevaluatedProperties = true;
+    }
   }
 
   if ('$schema' in obj) {
@@ -113,15 +121,20 @@ function cleanSchemaProperties(obj: Record<string, unknown>): void {
  *
  * @param node The schema object or array node to sanitize in place.
  * @param visited Set of visited objects to prevent infinite recursion on cyclic structures.
+ * @param options Sanitization options such as stripping additionalProperties.
  */
-export function cleanSchemaNode(node: unknown, visited = new Set<unknown>()): void {
+export function cleanSchemaNode(
+  node: unknown,
+  visited = new Set<unknown>(),
+  options: {stripAdditionalProperties?: boolean} = {},
+): void {
   if (typeof node !== 'object' || node === null) return;
   if (visited.has(node)) return;
   visited.add(node);
 
   if (Array.isArray(node)) {
     for (const item of node) {
-      cleanSchemaNode(item, visited);
+      cleanSchemaNode(item, visited, options);
     }
     return;
   }
@@ -131,10 +144,10 @@ export function cleanSchemaNode(node: unknown, visited = new Set<unknown>()): vo
     return;
   }
 
-  cleanSchemaProperties(obj);
+  cleanSchemaProperties(obj, options);
 
   for (const key of Object.keys(obj)) {
-    cleanSchemaNode(obj[key], visited);
+    cleanSchemaNode(obj[key], visited, options);
   }
 }
 

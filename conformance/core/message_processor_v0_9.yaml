@@ -868,40 +868,6 @@
                     - "component"
                     - "label"
 
-- name: test_v09_get_renderer_capabilities_ref_description_transformation
-  description: "Tests transforming REF: tagged descriptions into valid JSON Schema $ref nodes."
-  action: get_renderer_capabilities
-  catalogs:
-    - catalogId: cat-ref
-      components:
-        Custom:
-          type: object
-          properties:
-            title:
-              type: string
-              description: "REF:common_types.json#/$defs/DynamicString|The title"
-  args:
-    includeInlineCatalogs: true
-    version: "v0.9"
-  expect:
-    v0.9:
-      supportedCatalogIds:
-        - "cat-ref"
-      inlineCatalogs:
-        - catalogId: "cat-ref"
-          components:
-            Custom:
-              allOf:
-                - $ref: "common_types.json#/$defs/ComponentCommon"
-                - properties:
-                    component:
-                      const: "Custom"
-                    title:
-                      $ref: "common_types.json#/$defs/DynamicString"
-                      description: "The title"
-                  required:
-                    - "component"
-
 - name: test_v09_get_renderer_capabilities_with_functions_and_theme
   description: Tests generating inline catalogs including function definitions and theme schema.
   action: get_renderer_capabilities
@@ -932,7 +898,8 @@
         type: object
         properties:
           primaryColor:
-            $ref: "common_types.json#/$defs/Color"
+            type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
             description: The main color
   args:
     includeInlineCatalogs: true
@@ -969,7 +936,8 @@
                 required: ["a", "b"]
           theme:
             primaryColor:
-              $ref: "common_types.json#/$defs/Color"
+              type: "string"
+              pattern: "^#[0-9a-fA-F]{6}$"
               description: "The main color"
 
 - name: test_v09_get_renderer_capabilities_multiple_catalogs

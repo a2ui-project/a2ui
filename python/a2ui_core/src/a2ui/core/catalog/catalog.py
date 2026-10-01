@@ -748,13 +748,7 @@ class Catalog(Generic[TComponent, TFunction]):
             self.functions[fn.name] = fn
 
         self.theme_schema = theme_schema or {}
-        self._raw_theme_schema: dict[str, Any] | None = None
         self._component_ref_map: dict[str, ComponentRefSpec] | None = None
-
-    @property
-    def raw_theme_schema(self) -> dict[str, Any] | None:
-        """Raw, un-resolved theme schema preserved from catalog definition."""
-        return self._raw_theme_schema
 
     @property
     def id(self) -> str:
@@ -1087,12 +1081,7 @@ class Catalog(Generic[TComponent, TFunction]):
             if isinstance(raw_defs, dict):
                 common_types_defs = _normalize_external_schema_refs(dict(raw_defs))
 
-        raw_theme = (
-            catalog_schema.get("theme")
-            or (catalog_schema.get("$defs") or {}).get("theme")
-            or {}
-        )
-        cat = Catalog[ComponentApi, FunctionApi](
+        return Catalog[ComponentApi, FunctionApi](
             catalog_id=catalog_id,
             protocol_version=p_ver,
             components=components,
@@ -1104,7 +1093,3 @@ class Catalog(Generic[TComponent, TFunction]):
             defs=inlined_catalog_schema.get("$defs"),
             common_types_defs=common_types_defs,
         )
-        cat._raw_theme_schema = (
-            copy.deepcopy(raw_theme) if isinstance(raw_theme, dict) else {}
-        )
-        return cat
