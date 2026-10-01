@@ -152,7 +152,7 @@ In a component definition, a reference to a data element, resolved either by a p
 
 See the [example in the basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json#L23).
 
-### Function<a id="renderer-function"></a>
+### Function <a id="renderer-function"></a>
 
 A named, catalog-defined operation with a declared argument schema and return type. Functions execute logic without sending raw executable code over the wire.
 
