@@ -230,6 +230,58 @@
           "description": "List of expected skill filenames or keys."
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"action": {"const": "from_json"}},
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {"expect": {"$ref": "#/$defs/FromJsonExpect"}}
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "FromJsonExpect": {
+      "type": "object",
+      "description": "Expected outcome of a from_json case. Every key is optional, and a harness fails a case that sets a key not listed here.",
+      "properties": {
+        "catalogId": {
+          "type": "string",
+          "description": "Catalog ID the loaded catalog reports."
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "description": "Protocol version the loaded catalog reports."
+        },
+        "components": {
+          "description": "Components the loaded catalog must define, as a list of names or a map keyed by name.",
+          "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
+        },
+        "functions": {
+          "description": "Functions the loaded catalog must define, as a list of names or a map keyed by name.",
+          "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
+        },
+        "theme": {
+          "type": "object",
+          "description": "Theme schema the loaded catalog carries. A non-empty object requires the catalog to have a theme schema."
+        },
+        "selfContained": {
+          "type": "boolean",
+          "description": "When true, the resolved catalog schema contains at least one $ref, every $ref is a local '#' reference, and each one resolves within the resolved catalog schema."
+        },
+        "validComponents": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Component instances that must pass validation against the loaded catalog."
+        },
+        "invalidComponents": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Component instances that must fail validation against the loaded catalog."
+        }
+      },
       "additionalProperties": false
     },
     "ProtocolVersion": {
@@ -346,7 +398,7 @@
           "description": "JSON Pointer the operation targets."
         },
         "value": {
-          "description": "Value to write. Only meaningful for set."
+          "description": "For data_model set steps, the value to write. For validate_common_type steps, the value validated against the case's definition."
         },
         "expect": {
           "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match)."

@@ -21,8 +21,23 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
-/// Runs the shared `conformance/core/catalog.yaml` suite (`from_json` and
-/// `catalog_schema` actions) against [Catalog].
+/// Runs the shared `catalog_schema` cases in `conformance/core/catalog.yaml`.
+///
+/// Each case parses a catalog document, rebuilds the document from the parsed
+/// catalog, and checks the result against assertions any SDK can make. The
+/// cases name a source document rather than an SDK's own bundled catalog, so
+/// every implementation converts the same input.
+///
+/// This runner only executes cases whose `catalog` declares a
+/// `catalog_schema` document, and reads its own snake_case `expect` keys
+/// (`metadata`, `absent_metadata`, `unions_cover_all`, `self_contained`,
+/// `reparses_identically`). None of the shared cases use that shape today, so
+/// each is reported as skipped with the reason from [_skipReason]. These keys
+/// are not part of `conformance_schema.json`. In particular `self_contained`
+/// here only checks that local `#/` references resolve and tolerates external
+/// ones, unlike the shared `from_json` key `selfContained` (`FromJsonExpect`),
+/// which also requires every reference to be local. This runner does not
+/// execute `from_json` cases.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'core/catalog.yaml',

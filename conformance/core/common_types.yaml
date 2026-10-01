@@ -115,14 +115,24 @@
         category: ValidationError
 
 - name: test_v10_surface_component_is_surface
-  description: Surface accepts an optional component const of "Surface" and rejects any other component name.
+  description: Surface accepts an optional component const of "Surface" and child const of "root", and rejects any other value or any other key.
   action: validate_common_type
   protocolVersion: "v1.0"
   definition: Surface
   steps:
     - value: {}
     - value: {component: "Surface", child: "root"}
+    - value: {child: "root"}
     - value: {component: "Text"}
+      expectError:
+        category: ValidationError
+    - value: {child: "main"}
+      expectError:
+        category: ValidationError
+    - value: {component: "Surface", child: "root", id: "surface"}
+      expectError:
+        category: ValidationError
+    - value: {extra: 1}
       expectError:
         category: ValidationError
 
@@ -139,5 +149,200 @@
       expectError:
         category: ValidationError
     - value: {call: "now", path: "/a", extra: 1}
+      expectError:
+        category: ValidationError
+    - value: {call: "now", path: "/a"}
+      expectError:
+        category: ValidationError
+
+# An optional field that the specification does not make nullable must be left
+# out rather than set to null: null is not a value of its declared type.
+
+- name: test_v10_surface_rejects_explicit_null
+  description: Surface rejects null for its optional component and child fields.
+  action: validate_common_type
+  protocolVersion: "v1.0"
+  definition: Surface
+  steps:
+    - value: {component: null}
+      expectError:
+        category: ValidationError
+    - value: {child: null}
+      expectError:
+        category: ValidationError
+
+- name: test_v10_index_system_function_rejects_null_args
+  description: IndexSystemFunction rejects null for its optional args object.
+  action: validate_common_type
+  protocolVersion: "v1.0"
+  definition: IndexSystemFunction
+  steps:
+    - value: {call: "@index", args: null}
+      expectError:
+        category: ValidationError
+
+- name: test_v10_component_common_rejects_null_catalog_id
+  description: ComponentCommon rejects null for its optional catalogId string.
+  action: validate_common_type
+  protocolVersion: "v1.0"
+  definition: ComponentCommon
+  steps:
+    - value: {id: "c1", catalogId: null}
+      expectError:
+        category: ValidationError
+
+- name: test_v10_function_response_rejects_null_error
+  description: FunctionResponse rejects null for error, which must be an error object when present. A null value, by contrast, is a valid return value.
+  action: validate_common_type
+  protocolVersion: "v1.0"
+  definition: FunctionResponse
+  steps:
+    - value: {functionCallId: "call_1", error: null}
+      expectError:
+        category: ValidationError
+
+- name: test_v10_function_call_rejects_unknown_keys
+  description: FunctionCall accepts call, catalogId and args, and rejects any other key.
+  action: validate_common_type
+  protocolVersion: "v1.0"
+  definition: FunctionCall
+  steps:
+    - value: {call: "x"}
+    - value: {call: "x", catalogId: "c", args: {a: 1}}
+    - value: {call: "x", bogus: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v09_function_call_rejects_unknown_keys
+  description: FunctionCall accepts call, args and returnType, and rejects any other key.
+  action: validate_common_type
+  protocolVersion: "v0.9"
+  definition: FunctionCall
+  steps:
+    - value: {call: "x"}
+    - value: {call: "x", args: {a: 1}, returnType: "string"}
+    - value: {call: "x", bogus: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v09_dynamic_value_branches_are_exclusive
+  description: DynamicValue accepts a scalar or array literal, a data binding or a function call. It has no literal object branch, so an object that is neither a binding nor a call, or that mixes both, is rejected.
+  action: validate_common_type
+  protocolVersion: "v0.9"
+  definition: DynamicValue
+  steps:
+    - value: "text"
+    - value: 3
+    - value: true
+    - value: ["a", "b"]
+    - value: {path: "/a"}
+    - value: {call: "now"}
+    - value: {label: "x"}
+      expectError:
+        category: ValidationError
+    - value: {call: "now", path: "/a"}
+      expectError:
+        category: ValidationError
+    - value: {path: "/a", extra: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v09_child_list_is_ids_or_template
+  description: ChildList is either an array of component IDs or a template with exactly componentId and path.
+  action: validate_common_type
+  protocolVersion: "v0.9"
+  definition: ChildList
+  steps:
+    - value: ["header", "body"]
+    - value: {componentId: "row", path: "/items"}
+    - value: "header"
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row"}
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row", path: "/items", extra: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v09_action_is_event_or_function_call
+  description: Action holds exactly one of event and functionCall.
+  action: validate_common_type
+  protocolVersion: "v0.9"
+  definition: Action
+  steps:
+    - value: {event: {name: "submit"}}
+    - value: {functionCall: {call: "openUrl", args: {url: "https://example.com"}}}
+    - value: {}
+      expectError:
+        category: ValidationError
+    - value: {event: {name: "submit"}, functionCall: {call: "now"}}
+      expectError:
+        category: ValidationError
+
+- name: test_v091_function_call_rejects_unknown_keys
+  description: FunctionCall accepts call, args and returnType, and rejects any other key.
+  action: validate_common_type
+  protocolVersion: "v0.9.1"
+  definition: FunctionCall
+  steps:
+    - value: {call: "x"}
+    - value: {call: "x", args: {a: 1}, returnType: "string"}
+    - value: {call: "x", bogus: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v091_dynamic_value_branches_are_exclusive
+  description: DynamicValue accepts a scalar or array literal, a data binding or a function call. It has no literal object branch, so an object that is neither a binding nor a call, or that mixes both, is rejected.
+  action: validate_common_type
+  protocolVersion: "v0.9.1"
+  definition: DynamicValue
+  steps:
+    - value: "text"
+    - value: 3
+    - value: true
+    - value: ["a", "b"]
+    - value: {path: "/a"}
+    - value: {call: "now"}
+    - value: {label: "x"}
+      expectError:
+        category: ValidationError
+    - value: {call: "now", path: "/a"}
+      expectError:
+        category: ValidationError
+    - value: {path: "/a", extra: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v091_child_list_is_ids_or_template
+  description: ChildList is either an array of component IDs or a template with exactly componentId and path.
+  action: validate_common_type
+  protocolVersion: "v0.9.1"
+  definition: ChildList
+  steps:
+    - value: ["header", "body"]
+    - value: {componentId: "row", path: "/items"}
+    - value: "header"
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row"}
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row", path: "/items", extra: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v091_action_is_event_or_function_call
+  description: Action holds exactly one of event and functionCall.
+  action: validate_common_type
+  protocolVersion: "v0.9.1"
+  definition: Action
+  steps:
+    - value: {event: {name: "submit"}}
+    - value: {functionCall: {call: "openUrl", args: {url: "https://example.com"}}}
+    - value: {}
+      expectError:
+        category: ValidationError
+    - value: {event: {name: "submit"}, functionCall: {call: "now"}}
       expectError:
         category: ValidationError

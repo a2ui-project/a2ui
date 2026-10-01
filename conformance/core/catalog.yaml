@@ -800,21 +800,31 @@
 # ------------------------------------------------------------------------------
 # Published catalogs load without the specification tree
 #
-# Each catalog published under specification/<version>/catalogs/ refers to the
-# shared types in common_types.json. Loading it must localise those references,
-# so that the resolved catalog schema is self-contained: every $ref resolves
-# within the document. The basic catalogs also validate a Button whose action
-# calls a catalog function, which exercises the FunctionCall reference into the
-# catalog's own function definitions.
+# Every catalog published under specification/<version>/catalogs/ and
+# catalogs/<name>/<version>/ refers to the shared types in common_types.json.
+# Loading it must localise those references, so that the resolved catalog
+# schema is self-contained: every $ref resolves within the document. Each
+# catalog also validates a Button whose action calls one of its functions,
+# which exercises the FunctionCall reference into the catalog's own function
+# definitions, and rejects function calls that match no definition.
+# test_catalog_conformance_covers_published_catalogs in the Python suite fails
+# when a published catalog has no self-contained case here.
 # ------------------------------------------------------------------------------
 
 - name: test_v09_published_basic_catalog_is_self_contained
-  description: Tests that the published v0.9 basic catalog loads with its common_types references localised, and validates a Button with a function call action.
+  description: Tests that the published v0.9 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
   catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
   expect:
     selfContained: true
+
+- name: test_v09_published_basic_catalog_validates_function_calls
+  description: Tests that the published v0.9 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
+  action: from_json
+  protocolVersion: "v0.9"
+  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  expect:
     validComponents:
       - id: btn1
         component: Button
@@ -823,22 +833,92 @@
           functionCall:
             call: openUrl
             args: {url: "https://example.com"}
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: notAFunction
+            args: {}
+
+- name: test_v09_published_basic_catalog_rejects_function_call_extra_key
+  description: Tests that the published v0.9 basic catalog rejects a function call carrying a key that its function definition does not declare.
+  action: from_json
+  protocolVersion: "v0.9"
+  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  expect:
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: openUrl
+            args: {url: "https://example.com"}
+            bogus: 1
 
 - name: test_v09_published_minimal_catalog_is_self_contained
-  description: Tests that the published v0.9 minimal catalog loads with its common_types references localised.
+  description: Tests that the published v0.9 minimal catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
   catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
   expect:
     selfContained: true
 
+- name: test_v09_published_minimal_catalog_validates_function_calls
+  description: Tests that the published v0.9 minimal catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
+  action: from_json
+  protocolVersion: "v0.9"
+  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  expect:
+    validComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: capitalize
+            args: {value: "hello"}
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: notAFunction
+            args: {}
+
+- name: test_v09_published_minimal_catalog_rejects_function_call_extra_key
+  description: Tests that the published v0.9 minimal catalog rejects a function call carrying a key that its function definition does not declare.
+  action: from_json
+  protocolVersion: "v0.9"
+  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  expect:
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: capitalize
+            args: {value: "hello"}
+            bogus: 1
+
 - name: test_v091_published_basic_catalog_is_self_contained
-  description: Tests that the published v0.9.1 basic catalog loads with its common_types references localised, and validates a Button with a function call action.
+  description: Tests that the published v0.9.1 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9.1"
   catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
   expect:
     selfContained: true
+
+- name: test_v091_published_basic_catalog_validates_function_calls
+  description: Tests that the published v0.9.1 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
+  action: from_json
+  protocolVersion: "v0.9.1"
+  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  expect:
     validComponents:
       - id: btn1
         component: Button
@@ -847,3 +927,74 @@
           functionCall:
             call: openUrl
             args: {url: "https://example.com"}
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: notAFunction
+            args: {}
+
+- name: test_v091_published_basic_catalog_rejects_function_call_extra_key
+  description: Tests that the published v0.9.1 basic catalog rejects a function call carrying a key that its function definition does not declare.
+  action: from_json
+  protocolVersion: "v0.9.1"
+  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  expect:
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: openUrl
+            args: {url: "https://example.com"}
+            bogus: 1
+
+- name: test_v10_published_basic_catalog_is_self_contained
+  description: Tests that the published v1.0 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  expect:
+    selfContained: true
+
+- name: test_v10_published_basic_catalog_validates_function_calls
+  description: Tests that the published v1.0 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  expect:
+    validComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: openUrl
+            args: {url: "https://example.com"}
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: notAFunction
+            args: {}
+
+- name: test_v10_published_basic_catalog_rejects_function_call_extra_key
+  description: Tests that the published v1.0 basic catalog rejects a function call carrying a key that its function definition does not declare.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  expect:
+    invalidComponents:
+      - id: btn1
+        component: Button
+        child: txt1
+        action:
+          functionCall:
+            call: openUrl
+            args: {url: "https://example.com"}
+            bogus: 1

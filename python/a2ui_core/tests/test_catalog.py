@@ -31,7 +31,7 @@ from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validation import PayloadValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
-from a2ui.core.schema.v0_9.common_types import ComponentId
+from a2ui.core.schema.v0_9 import ComponentId
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
@@ -957,4 +957,6 @@ def test_v1_0_catalogs_inline_component_metadata():
     for schema in (json_catalog, basic_catalog):
         assert "ComponentCommonMetadata" not in schema["$defs"]
         assert "Extensions" in schema["$defs"]
-        assert "x-a2ui-inline" not in json.dumps(schema)
+    # No internal schema-generation marker leaks into a published catalog.
+    for schema in (json_catalog, basic_catalog, BasicCatalog().catalog_schema):
+        assert '"x-a2ui-' not in json.dumps(schema)

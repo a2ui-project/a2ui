@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextlib
+import glob
 import json
 import os
 import re
@@ -627,6 +628,34 @@ def test_resolve_nodes_outside_its_suite_is_unsupported() -> None:
     assert isinstance(outcome.value, pytest.fail.Exception), outcome.value
 
 
+def test_catalog_conformance_covers_published_catalogs() -> None:
+    """Every published catalog has a from_json selfContained case in catalog.yaml."""
+    repo_root = os.path.abspath(os.path.join(CONFORMANCE_ROOT, ".."))
+    published = sorted(
+        os.path.relpath(path, repo_root).replace(os.sep, "/")
+        for pattern in (
+            "specification/*/catalogs/*/catalog.json",
+            "catalogs/*/v*/catalog.json",
+        )
+        for path in glob.glob(os.path.join(repo_root, pattern))
+    )
+    assert published, f"No published catalogs found under {repo_root}"
+    with open(os.path.join(CORE_DIR, "catalog.yaml"), "r", encoding="utf-8") as f:
+        cases = yaml.safe_load(f)
+    covered = {
+        case["catalogPath"]
+        for case in cases
+        if case.get("action") == "from_json"
+        and "catalogPath" in case
+        and (case.get("expect") or {}).get("selfContained") is True
+    }
+    missing = [path for path in published if path not in covered]
+    assert not missing, (
+        "Published catalogs without a from_json selfContained case in"
+        f" conformance/core/catalog.yaml: {missing}"
+    )
+
+
 def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
     from a2ui.core.resolution import ComponentContext, GenericBinder
 
@@ -915,6 +944,21 @@ def _assert_self_contained(schema: dict[str, Any]) -> None:
             target = target[token]
 
 
+# The `expect` keys a from_json case may use (FromJsonExpect in
+# conformance/conformance_schema.json). An unknown key fails the case rather
+# than being silently ignored.
+_FROM_JSON_EXPECT_KEYS = frozenset({
+    "catalogId",
+    "components",
+    "functions",
+    "invalidComponents",
+    "protocolVersion",
+    "selfContained",
+    "theme",
+    "validComponents",
+})
+
+
 def validate_from_json_case(case: dict[str, Any]) -> None:
     c_path = case.get("catalogPath")
     if c_path:
@@ -938,6 +982,10 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
     else:
         cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
         expected = case.get("expect", {})
+        unknown_keys = set(expected) - _FROM_JSON_EXPECT_KEYS
+        assert (
+            not unknown_keys
+        ), f"Unknown from_json expect keys: {sorted(unknown_keys)}"
         if "catalogId" in expected:
             assert cat.catalog_id == expected["catalogId"]
         if "protocolVersion" in expected:
@@ -955,10 +1003,13 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
                     assert cat.get_function(fn_name) is not None
         if expected.get("selfContained"):
             _assert_self_contained(cat.catalog_schema)
-        if "validComponents" in expected:
+        if "validComponents" in expected or "invalidComponents" in expected:
             validator = PayloadValidator(cat)
-            for component in expected["validComponents"]:
+            for component in expected.get("validComponents", []):
                 validator.validate_component(component)
+            for component in expected.get("invalidComponents", []):
+                with pytest.raises(A2uiValidationError):
+                    validator.validate_component(component)
 
 
 def _normalize_schema_for_comparison(value: Any) -> Any:

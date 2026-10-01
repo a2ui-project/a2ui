@@ -28,19 +28,21 @@ import os
 from typing import Any
 
 import pytest
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 from pydantic import TypeAdapter
 from referencing import Registry, Resource
 
-from a2ui.core.catalog import get_common_types_schema_map
+from a2ui.core.catalog import Catalog, get_common_types_schema_map
+# `test_dynamic_type_index_matches_specification` checks how the schema
+# builder classifies dynamic value defs. That index is an internal detail with
+# no public entry point, and its effect on catalogs is too indirect to pin
+# down through them, so that test alone imports the two internal modules below.
 from a2ui.core.schema._dynamic_types import (
     build_dynamic_type_index,
     clean_schema_node,
 )
-from a2ui.core.schema.common_types_schema import (
-    get_common_types_catalog_defs,
-    get_dynamic_type_index,
-)
+from a2ui.core.schema.common_types_schema import get_dynamic_type_index
+from a2ui.core.validation import translate_schema_patterns
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SPEC_ROOT = os.path.join(REPO_ROOT, "specification")
@@ -80,9 +82,12 @@ def test_every_published_version_has_a_schema_package() -> None:
 def test_models_round_trip_through_generated_schema(version: str) -> None:
     """Data dumped from the models validates against the generated schema."""
     schema_map = get_common_types_schema_map(_protocol_version(version))
-    # Formats are not checked: the `Extensions` key pattern uses Unicode
-    # property classes (`\p{...}`), which Python's `re` cannot compile.
+    # The meta-schema check does not check formats, so the `Extensions` key
+    # pattern's Unicode property classes (`\p{...}`), which Python's `re`
+    # cannot compile, are left as published here. Instances are validated
+    # against the schema after `translate_schema_patterns` rewrites them.
     Draft202012Validator(Draft202012Validator.META_SCHEMA).validate(schema_map)
+    instance_schema_defs = translate_schema_patterns(schema_map["$defs"])
 
     defs = importlib.import_module(
         f"a2ui.core.schema.{_SCHEMA_PACKAGES[version]}"
@@ -108,6 +113,17 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
         }),
     )
 
+    def validator_for(def_name: str) -> Draft202012Validator:
+        return Draft202012Validator(
+            {
+                "$schema": schema_map.get("$schema", _DRAFT_2020_12),
+                "$id": schema_map["$id"],
+                "$defs": instance_schema_defs,
+                "$ref": f"#/$defs/{def_name}",
+            },
+            registry=registry,
+        )
+
     cases: list[tuple[str, Any]] = [
         ("DataBinding", {"path": "/user/profile/name"}),
         ("ComponentCommon", {"id": "comp_header"}),
@@ -120,6 +136,11 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
         ("ChildList", {"componentId": "row_template", "path": "/items"}),
         ("Action", {"event": {"name": "submit"}}),
     ]
+    if "Extensions" in defs:
+        cases.append((
+            "ComponentCommon",
+            {"id": "comp_header", "metadata": {"extensions": {"ünïcode_tag": 1}}},
+        ))
     for def_name, instance in cases:
         adapter = TypeAdapter(defs[def_name])
         dumped = adapter.dump_python(
@@ -129,15 +150,14 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
             exclude_unset=True,
         )
         assert dumped == instance, def_name
-        Draft202012Validator(
-            {
-                "$schema": schema_map.get("$schema", _DRAFT_2020_12),
-                "$id": schema_map["$id"],
-                "$defs": schema_map["$defs"],
-                "$ref": f"#/$defs/{def_name}",
-            },
-            registry=registry,
-        ).validate(dumped)
+        validator_for(def_name).validate(dumped)
+
+    if "Extensions" in defs:
+        # The translated key pattern still rejects a key that is not an identifier.
+        with pytest.raises(ValidationError):
+            validator_for("ComponentCommon").validate(
+                {"id": "comp_header", "metadata": {"extensions": {"bad-key": 1}}}
+            )
 
 
 @pytest.mark.parametrize("version", _spec_versions())
@@ -160,7 +180,7 @@ def test_dynamic_type_index_matches_specification(version: str) -> None:
         ({"type": "string"}, index.by_scalar_kind["string"]),
         ({"type": "integer"}, index.by_scalar_kind["number"]),
         ({"type": "boolean"}, index.by_scalar_kind["boolean"]),
-        ({"type": "array", "items": {"type": "string"}}, index.catch_all),
+        ({"type": "array", "items": {"type": "string"}}, "DynamicStringList"),
     ):
         cleaned = clean_schema_node(
             {"anyOf": [literal, db_ref, fc_ref]}, dynamic_index=index
@@ -191,14 +211,33 @@ def _inline_refs(node: Any, defs: dict[str, Any]) -> Any:
 def test_catalog_defs_match_specification(version: str) -> None:
     """The defs that catalogs embed and validate with are the specification's.
 
-    Catalogs keep helper models (e.g. `TemplateChildList`) as separate defs,
-    so their refs are inlined before comparing. The one difference is
-    `FunctionCall`: the specification composes it with the catalog's function
-    union, which catalogs check separately, so catalogs embed the flat model
-    schema; it must still reject unknown keys.
+    The defs are read from a catalog whose one component refers to every
+    common type, so the catalog embeds all of them. Catalogs keep helper
+    models (e.g. `TemplateChildList`) as separate defs, so their refs are
+    inlined before comparing. The one difference is `FunctionCall`: the
+    specification composes it with the catalog's function union, which
+    catalogs check separately, so catalogs embed the flat model schema. It
+    must carry exactly the specification's envelope properties, plus `args`,
+    which v1.0 leaves to each catalog function, and reject unknown keys.
     """
     spec_defs = _load_spec_defs(version)
-    catalog_defs = get_common_types_catalog_defs(_protocol_version(version))
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test/all_common_types",
+            "components": {
+                "AllCommonTypes": {
+                    "type": "object",
+                    "properties": {
+                        name: {"$ref": f"common_types.json#/$defs/{name}"}
+                        for name in spec_defs
+                    },
+                }
+            },
+        },
+        catalog_id="https://a2ui.org/test/all_common_types",
+        protocol_version=_protocol_version(version),
+    )
+    catalog_defs = catalog.catalog_schema["$defs"]
     helpers = {
         name: schema for name, schema in catalog_defs.items() if name not in spec_defs
     }
@@ -207,6 +246,14 @@ def test_catalog_defs_match_specification(version: str) -> None:
     for name, spec_def in spec_defs.items():
         catalog_def = _inline_refs(catalog_defs[name], helpers)
         if name == "FunctionCall":
+            spec_props = set(spec_def.get("properties", {}))
+            for part in spec_def.get("allOf", []):
+                ref = part.get("$ref", "")
+                if ref.startswith("#/$defs/"):
+                    spec_props |= set(
+                        spec_defs[ref.removeprefix("#/$defs/")].get("properties", {})
+                    )
+            assert set(catalog_def["properties"]) == spec_props | {"args"}
             assert catalog_def["additionalProperties"] is False
             assert catalog_def["required"] == ["call"]
         else:

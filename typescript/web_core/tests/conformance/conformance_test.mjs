@@ -145,6 +145,12 @@ const PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
   "the FunctionCall standard definition keeps its '$ref' to" +
   " 'catalog.json#/$defs/anyFunction', so the generated catalog schema" +
   ' points outside itself';
+const V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
+  "the generated catalog schema keeps a '#/$defs/Child' reference without" +
+  ' defining Child in its own $defs';
+const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
+  'the validator accepts a function call carrying a key its catalog function' +
+  ' definition does not declare';
 const KNOWN_DIVERGENCES = new Map([
   [
     'core/catalog.yaml',
@@ -155,8 +161,44 @@ const KNOWN_DIVERGENCES = new Map([
         PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
       ],
       ['test_v091_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
+      [
+        'test_v10_published_basic_catalog_is_self_contained',
+        V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
+      ],
+      [
+        'test_v09_published_basic_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
+      [
+        'test_v09_published_minimal_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
+      [
+        'test_v091_published_basic_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
+      [
+        'test_v10_published_basic_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
     ]),
   ],
+]);
+
+/**
+ * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
+ * conformance_schema.json). An unknown key fails the case rather than being
+ * silently ignored.
+ */
+const FROM_JSON_EXPECT_KEYS = new Set([
+  'catalogId',
+  'components',
+  'functions',
+  'invalidComponents',
+  'protocolVersion',
+  'selfContained',
+  'theme',
+  'validComponents',
 ]);
 
 /** Suites that must be discovered and contain at least one case. */
@@ -1095,6 +1137,8 @@ function validateFromJsonTestCase(testCase) {
 
   if (testCase.expect) {
     const expected = testCase.expect;
+    const unknownKeys = Object.keys(expected).filter(key => !FROM_JSON_EXPECT_KEYS.has(key));
+    assert.deepStrictEqual(unknownKeys, [], `Unknown from_json expect keys: ${unknownKeys}`);
     if (expected.catalogId) {
       assert.strictEqual(catalog.id, expected.catalogId);
     }
@@ -1122,10 +1166,16 @@ function validateFromJsonTestCase(testCase) {
     if (expected.selfContained) {
       assertSelfContained(catalog.catalogSchema);
     }
-    if (expected.validComponents) {
+    if (expected.validComponents || expected.invalidComponents) {
       const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
-      for (const component of expected.validComponents) {
+      for (const component of expected.validComponents ?? []) {
         validator.validateComponent(component);
+      }
+      for (const component of expected.invalidComponents ?? []) {
+        assert.throws(
+          () => validator.validateComponent(component),
+          `Expected component to be rejected: ${JSON.stringify(component)}`,
+        );
       }
     }
   }
