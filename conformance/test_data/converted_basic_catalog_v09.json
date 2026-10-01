@@ -1165,8 +1165,7 @@
           "description": "Additional information provided by assistive technologies about an element such as instructions, format requirements, or result of an action. For example, a mute button might have a label of 'Mute' and a description of 'Silences notifications about this conversation'."
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "ComponentId": {
       "type": "string",
@@ -1186,6 +1185,7 @@
       "type": "object"
     },
     "FunctionCall": {
+      "additionalProperties": false,
       "description": "Invokes a named function on the client.",
       "properties": {
         "call": {
@@ -1215,8 +1215,7 @@
       "required": [
         "call"
       ],
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "SvgPath": {
       "additionalProperties": false,

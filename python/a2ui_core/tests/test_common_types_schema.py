@@ -37,7 +37,10 @@ from a2ui.core.schema._dynamic_types import (
     build_dynamic_type_index,
     clean_schema_node,
 )
-from a2ui.core.schema.common_types_schema import get_dynamic_type_index
+from a2ui.core.schema.common_types_schema import (
+    get_common_types_catalog_defs,
+    get_dynamic_type_index,
+)
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SPEC_ROOT = os.path.join(REPO_ROOT, "specification")
@@ -169,3 +172,42 @@ def test_dynamic_type_index_matches_specification(version: str) -> None:
         {"anyOf": [{"type": "string"}, db_ref]}, dynamic_index=index
     )
     assert plain == {"oneOf": [{"type": "string"}, db_ref]}
+
+
+def _inline_refs(node: Any, defs: dict[str, Any]) -> Any:
+    """Replaces local refs to `defs` with their content; siblings take precedence."""
+    if isinstance(node, list):
+        return [_inline_refs(item, defs) for item in node]
+    if not isinstance(node, dict):
+        return node
+    ref = node.get("$ref")
+    if isinstance(ref, str) and ref.removeprefix("#/$defs/") in defs:
+        siblings = {k: v for k, v in node.items() if k != "$ref"}
+        return _inline_refs({**defs[ref.removeprefix("#/$defs/")], **siblings}, defs)
+    return {k: _inline_refs(v, defs) for k, v in node.items()}
+
+
+@pytest.mark.parametrize("version", _spec_versions())
+def test_catalog_defs_match_specification(version: str) -> None:
+    """The defs that catalogs embed and validate with are the specification's.
+
+    Catalogs keep helper models (e.g. `TemplateChildList`) as separate defs,
+    so their refs are inlined before comparing. The one difference is
+    `FunctionCall`: the specification composes it with the catalog's function
+    union, which catalogs check separately, so catalogs embed the flat model
+    schema; it must still reject unknown keys.
+    """
+    spec_defs = _load_spec_defs(version)
+    catalog_defs = get_common_types_catalog_defs(_protocol_version(version))
+    helpers = {
+        name: schema for name, schema in catalog_defs.items() if name not in spec_defs
+    }
+
+    assert set(catalog_defs) >= set(spec_defs)
+    for name, spec_def in spec_defs.items():
+        catalog_def = _inline_refs(catalog_defs[name], helpers)
+        if name == "FunctionCall":
+            assert catalog_def["additionalProperties"] is False
+            assert catalog_def["required"] == ["call"]
+        else:
+            assert catalog_def == spec_def, name

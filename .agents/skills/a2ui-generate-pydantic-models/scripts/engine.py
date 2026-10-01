@@ -26,6 +26,32 @@ from utils import (
 # Property key through which a generator supplies a field's exact Python type.
 PYTHON_TYPE_KEY = "x-python-type"
 
+# Keywords that `map_json_type_to_python` turns into a type, or that only
+# annotate one. Strict mode rejects any other keyword, which the type would
+# not enforce.
+_STRICT_TYPE_KEYWORDS = frozenset({
+    "$ref",
+    "additionalProperties",
+    "allOf",
+    "anyOf",
+    "const",
+    "default",
+    "description",
+    "enum",
+    "items",
+    "oneOf",
+    "properties",
+    "required",
+    "type",
+})
+
+
+def python_literal(value: Any) -> str:
+    """Renders a JSON scalar as a Python literal, strings with double quotes."""
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    return repr(value)
+
 
 class PydanticCodegen:
     """Deterministic Pydantic v2 code generator from JSON Schema."""
@@ -45,14 +71,29 @@ class PydanticCodegen:
         # Whether a required `const` property defaults to its value. When
         # unset, the property must be present, as the schema requires.
         self.required_const_default = True
+        # When set, shapes that would map to a looser type (for example `Any`)
+        # or drop keywords raise `ValueError` instead.
+        self.strict = False
+
+    def _unsupported(self, prop_name: str, prop: dict[str, Any]) -> ValueError:
+        return ValueError(f"Unsupported schema for {prop_name or 'a type'}: {prop}")
 
     def map_json_type_to_python(self, prop_name: str, prop: dict[str, Any]) -> str:
-        """Maps JSON Schema property type to Python typing string."""
+        """Maps JSON Schema property type to Python typing string.
+
+        Raises:
+            ValueError: In strict mode, if the schema would map to a looser type.
+        """
+        if self.strict and (
+            set(prop) - _STRICT_TYPE_KEYWORDS
+            or ("oneOf" in prop and "anyOf" in prop)
+            or len(prop.get("allOf", [])) > 1
+            or isinstance(prop.get("type"), list)
+        ):
+            raise self._unsupported(prop_name, prop)
+
         if "const" in prop:
-            cval = prop["const"]
-            if isinstance(cval, str):
-                return f"Literal['{cval}']"
-            return f"Literal[{cval}]"
+            return f"Literal[{python_literal(prop['const'])}]"
 
         if "$ref" in prop:
             ref = prop["$ref"]
@@ -77,6 +118,8 @@ class PydanticCodegen:
                     return f"{ref.split('/')[-1]}Component"
                 elif ref.startswith("#/"):
                     return ref.split("/")[-1]
+            if self.strict:
+                raise self._unsupported(prop_name, prop)
             return "Any"
 
         if "oneOf" in prop or "anyOf" in prop:
@@ -97,9 +140,7 @@ class PydanticCodegen:
                 return self.map_json_type_to_python(prop_name, allOf_items[0])
 
         if "enum" in prop:
-            enum_vals = [
-                f'"{v}"' if isinstance(v, str) else str(v) for v in prop["enum"]
-            ]
+            enum_vals = [python_literal(v) for v in prop["enum"]]
             return f"Literal[{', '.join(enum_vals)}]"
 
         t = prop.get("type")
@@ -121,6 +162,7 @@ class PydanticCodegen:
             item_type = self.map_json_type_to_python(prop_name, items)
             return f"list[{item_type}]"
         elif t == "object":
+            add_props = prop.get("additionalProperties")
             if prop_name == "properties":
                 return "dict[str, Any]"
             if self.allow_inline and "properties" in prop:
@@ -140,12 +182,16 @@ class PydanticCodegen:
                     class_name = f"{to_pascal_case(first_prop)}Item"
                 self.inline_objects[class_name] = prop
                 return class_name
-            add_props = prop.get("additionalProperties")
+            if self.strict and ("properties" in prop or add_props is False):
+                # A nested object needs its own model to enforce its keys.
+                raise self._unsupported(prop_name, prop)
             if isinstance(add_props, dict):
                 val_type = self.map_json_type_to_python(prop_name, add_props)
                 return f"dict[str, {val_type}]"
             return "dict[str, Any]"
 
+        if self.strict and t is not None:
+            raise self._unsupported(prop_name, prop)
         return "Any"
 
     def compile_properties(

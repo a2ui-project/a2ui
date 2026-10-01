@@ -81,9 +81,13 @@ class FunctionCall(StrictBaseModel):
         cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(core_schema)
-        if is_spec_schema():
-            target = handler.resolve_ref_schema(json_schema)
-            target.update({"oneOf": [catalog_functions()]})
+        if cls is not FunctionCall:
+            return json_schema
+        if not is_spec_schema():
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        target.update({"oneOf": [catalog_functions()]})
         return json_schema
 
 
@@ -154,11 +158,33 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
 
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if cls is not AccessibilityAttributes:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        return json_schema
+
 
 class ComponentCommon(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: ComponentId = Field(...)
     accessibility: AccessibilityAttributes | None = Field(None)
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if cls is not ComponentCommon:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        return json_schema
 
 
 DynamicValue = (
@@ -211,6 +237,17 @@ class Checkable(StrictBaseModel):
             " boolean indicating validity."
         ),
     )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if cls is not Checkable:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        return json_schema
 
 
 class ActionEvent(StrictBaseModel):

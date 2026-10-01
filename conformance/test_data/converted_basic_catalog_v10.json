@@ -1446,10 +1446,15 @@
       "type": "object"
     },
     "Extensions": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}
+      },
       "type": "object",
       "description": "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions."
     },
     "FunctionCall": {
+      "additionalProperties": false,
       "description": "Invokes a named function, combining common function properties with the catalog function definition.",
       "properties": {
         "@call": {
@@ -1469,8 +1474,7 @@
       "required": [
         "@call"
       ],
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "SvgPath": {
       "additionalProperties": false,

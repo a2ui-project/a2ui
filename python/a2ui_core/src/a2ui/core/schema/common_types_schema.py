@@ -21,7 +21,7 @@ import importlib
 import json
 from typing import Any, NamedTuple, cast
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import TypeAdapter
 
 from ..common.semver import is_at_least_version, to_canonical_version
 from ..exceptions import A2uiCatalogError
@@ -121,11 +121,7 @@ def _raw_symbol_schema(
 
 
 def _clean_symbol_schema(
-    def_name: str,
-    symbol: Any,
-    raw: dict[str, Any],
-    is_v10: bool,
-    dynamic_index: DynamicTypeIndex,
+    raw: dict[str, Any], dynamic_index: DynamicTypeIndex
 ) -> dict[str, Any]:
     """Cleans the raw JSON schema of a COMMON_TYPES_DEFS symbol."""
     if "anyOf" in raw or "oneOf" in raw:
@@ -134,17 +130,6 @@ def _clean_symbol_schema(
         schema = cast(
             dict[str, Any], clean_schema_node(raw, dynamic_index=dynamic_index)
         )
-
-    if isinstance(symbol, type) and issubclass(symbol, BaseModel):
-        allow_additional = def_name in (
-            "ComponentCommon",
-            "FunctionCommon",
-            "Checkable",
-            "FunctionCall",
-            "IndexSystemFunction",
-        ) or (def_name == "AccessibilityAttributes" and not is_v10)
-        if allow_additional:
-            schema.pop("additionalProperties", None)
 
     return schema
 
@@ -191,11 +176,9 @@ def _build_common_types_schema(canonical_version: str) -> _BuiltCommonTypes:
     if is_at_least_version(canonical_version, "1.0"):
         mod = importlib.import_module("a2ui.core.schema.v1_0.common_types")
         schema_id = "https://a2ui.org/specification/v1_0/common_types.json"
-        is_v10 = True
     elif is_at_least_version(canonical_version, "0.9"):
         mod = importlib.import_module("a2ui.core.schema.v0_9.common_types")
         schema_id = "https://a2ui.org/specification/v0_9/common_types.json"
-        is_v10 = False
     else:
         raise A2uiCatalogError(
             "common_types schema is not available for protocol version"
@@ -208,8 +191,8 @@ def _build_common_types_schema(canonical_version: str) -> _BuiltCommonTypes:
     # defs next to their own function union, so they get the flat shape the
     # models validate, as before.
     with spec_schema():
-        spec_defs, spec_helpers, dynamic_index = _build_defs(defs_manifest, is_v10)
-    defs, helpers, _ = _build_defs(defs_manifest, is_v10)
+        spec_defs, spec_helpers, dynamic_index = _build_defs(defs_manifest)
+    defs, helpers, _ = _build_defs(defs_manifest)
 
     # The specification inlines helper models (e.g. `TemplateChildList` in
     # `ChildList`), so the published schema does the same.
@@ -233,13 +216,15 @@ def _build_common_types_schema(canonical_version: str) -> _BuiltCommonTypes:
     }
     return _BuiltCommonTypes(
         schema=schema,
-        catalog_defs=inline_marked_defs({"$defs": {**defs, **helpers}})["$defs"],
+        catalog_defs=_strip_const_implied_keywords(
+            inline_marked_defs({"$defs": {**defs, **helpers}})["$defs"]
+        ),
         dynamic_index=dynamic_index,
     )
 
 
 def _build_defs(
-    defs_manifest: dict[str, Any], is_v10: bool
+    defs_manifest: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any], DynamicTypeIndex]:
     """Generates the cleaned defs of a COMMON_TYPES_DEFS manifest.
 
@@ -261,9 +246,7 @@ def _build_defs(
     dynamic_index = build_dynamic_type_index(raw_defs)
 
     defs: dict[str, Any] = {
-        def_name: _clean_symbol_schema(
-            def_name, defs_manifest[def_name], raw, is_v10, dynamic_index
-        )
+        def_name: _clean_symbol_schema(raw, dynamic_index)
         for def_name, raw in raw_defs.items()
     }
     cleaned_helpers: dict[str, Any] = {

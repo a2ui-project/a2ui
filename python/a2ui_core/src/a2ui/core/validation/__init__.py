@@ -21,6 +21,7 @@ from .payload_validator import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
 )
+from .schema_patterns import translate_schema_patterns
 from ..state.validation_helpers import (
     analyze_topology,
     validate_component_integrity,
@@ -40,4 +41,5 @@ __all__ = [
     "validate_component_integrity",
     "validate_recursion_and_paths",
     "validate_composition_constraints",
+    "translate_schema_patterns",
 ]

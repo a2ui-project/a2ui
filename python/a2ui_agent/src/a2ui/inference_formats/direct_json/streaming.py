@@ -36,6 +36,7 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     ValidationConfig,
+    translate_schema_patterns,
 )
 from a2ui.core import A2uiParseError, A2uiIntegrityError, A2uiValidationError
 
@@ -254,7 +255,7 @@ class DirectJsonStreamParser:
                 ver = f"v{self._version.removeprefix('v')}"
                 if self._catalog.common_types_schema:
                     res_ct = Resource.from_contents(
-                        self._catalog.common_types_schema,
+                        translate_schema_patterns(self._catalog.common_types_schema),
                         default_specification=referencing.jsonschema.DRAFT202012,
                     )
                     registry = (
@@ -290,7 +291,7 @@ class DirectJsonStreamParser:
                                 ]
                             }
                     res_cat = Resource.from_contents(
-                        cat_schema_to_register,
+                        translate_schema_patterns(cat_schema_to_register),
                         default_specification=referencing.jsonschema.DRAFT202012,
                     )
                     registry = (
@@ -306,8 +307,11 @@ class DirectJsonStreamParser:
                             "https://a2ui.org/specification/v0_8/catalog.json", res_cat
                         )
                     )
+                # Registered resources are translated too, since the
+                # validator compiles their patterns with Python's `re`.
                 self._s2c_validator_cached = Draft202012Validator(
-                    self._catalog.s2c_schema, registry=registry
+                    translate_schema_patterns(self._catalog.s2c_schema),
+                    registry=registry,
                 )
         return self._s2c_validator_cached
 

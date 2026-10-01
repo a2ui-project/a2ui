@@ -17,7 +17,7 @@
 import json
 import re
 from typing import Any
-from engine import PYTHON_TYPE_KEY, PydanticCodegen
+from engine import PYTHON_TYPE_KEY, PydanticCodegen, python_literal
 from utils import (
     FILE_HEADER,
     ensure_v_prefix,
@@ -183,24 +183,43 @@ class _ExtraImports:
         return "\n".join(lines)
 
 
+_STRICT_SCALAR_TYPES: dict[str, str] = {
+    "string": "StrictStr",
+    "number": "StrictFloat | StrictInt",
+    "integer": "StrictInt",
+    "boolean": "StrictBool",
+}
+
+
 def _strict_literal_type(branch: dict[str, Any]) -> str:
-    """Maps a literal JSON schema branch of a dynamic def to a strict Python type."""
+    """Maps a literal JSON schema branch of a dynamic def to a strict Python type.
+
+    Raises:
+        ValueError: If the branch has a shape or keyword that the type would
+            not enforce, rather than generating a looser type.
+    """
     branch_type = branch.get("type")
-    if branch_type == "string":
-        return "StrictStr"
-    if branch_type == "number":
-        return "StrictFloat | StrictInt"
-    if branch_type == "integer":
-        return "StrictInt"
-    if branch_type == "boolean":
-        return "StrictBool"
+    allowed_keys = {"type", "description"}
+    if branch_type == "array":
+        allowed_keys.add("items")
+    elif branch_type == "object":
+        allowed_keys.add("additionalProperties")
+    unsupported = set(branch) - allowed_keys
+    if unsupported or not isinstance(branch_type, str):
+        raise ValueError(f"Unsupported literal branch in a dynamic def: {branch}")
+
+    if branch_type in _STRICT_SCALAR_TYPES:
+        return _STRICT_SCALAR_TYPES[branch_type]
     if branch_type == "array":
         items = branch.get("items")
-        item_type = _strict_literal_type(items) if isinstance(items, dict) else "Any"
-        return f"list[{item_type}]"
-    if branch_type == "object":
+        if items is None:
+            return "list[Any]"
+        if not isinstance(items, dict):
+            raise ValueError(f"Unsupported array items in a dynamic def: {items}")
+        return f"list[{_strict_literal_type(items)}]"
+    if branch_type == "object" and branch.get("additionalProperties", True) is True:
         return "dict[str, Any]"
-    return "Any"
+    raise ValueError(f"Unsupported literal branch in a dynamic def: {branch}")
 
 
 def _function_call_return_type(spec: dict[str, Any]) -> str | None:
@@ -214,6 +233,36 @@ def _function_call_return_type(spec: dict[str, Any]) -> str | None:
             if isinstance(rt, dict) and "const" in rt:
                 return str(rt["const"])
     return None
+
+
+def _not_clause_forbidden_keys(name: str, not_clause: Any) -> set[str]:
+    """Returns the keys that a `not` clause forbids on its own.
+
+    Only `{"required": [key]}` and an `anyOf` of those are supported: each
+    forbids one key, which a key check enforces exactly. Other shapes, such
+    as `{"required": [a, b]}` (forbids having both), would need other checks.
+
+    Raises:
+        ValueError: If the clause has any other shape.
+    """
+    unsupported = ValueError(f"Unsupported `not` clause in {name}: {not_clause}")
+    if isinstance(not_clause, dict) and set(not_clause) == {"required"}:
+        groups = [not_clause]
+    elif isinstance(not_clause, dict) and set(not_clause) == {"anyOf"}:
+        groups = not_clause["anyOf"]
+    else:
+        raise unsupported
+    if not isinstance(groups, list) or not groups:
+        raise unsupported
+    keys: set[str] = set()
+    for group in groups:
+        if not (isinstance(group, dict) and set(group) == {"required"}):
+            raise unsupported
+        required = group["required"]
+        if not (isinstance(required, list) and len(required) == 1):
+            raise unsupported
+        keys.add(required[0])
+    return keys
 
 
 def _literal_object_validator_code(
@@ -230,19 +279,7 @@ def _literal_object_validator_code(
     for it in union_items:
         if not (isinstance(it, dict) and it.get("type") == "object" and "not" in it):
             continue
-        not_clause = it["not"]
-        if not isinstance(not_clause, dict):
-            continue
-        if "required" in not_clause:
-            forbidden_keys.update(not_clause["required"])
-        any_of = not_clause.get("anyOf")
-        one_of = not_clause.get("oneOf")
-        branches = (any_of if isinstance(any_of, list) else []) + (
-            one_of if isinstance(one_of, list) else []
-        )
-        for branch in branches:
-            if isinstance(branch, dict) and "required" in branch:
-                forbidden_keys.update(branch["required"])
+        forbidden_keys.update(_not_clause_forbidden_keys(name, it["not"]))
 
     if forbidden_keys:
         forbidden_set_repr = (
@@ -274,6 +311,9 @@ def generate_common_types(
     """Generates common_types.py content dynamically from $defs."""
     codegen = PydanticCodegen(version)
     codegen.allow_inline = False
+    # Common types are the protocol's shared vocabulary; a shape the
+    # generator cannot express must fail generation, not loosen validation.
+    codegen.strict = True
     defs = common_data.get("$defs", {})
 
     base_symbols = get_base_common_symbols()
@@ -343,34 +383,50 @@ def generate_common_types(
         return ref.split("#/$defs/", 1)[1] if ref.startswith("#/$defs/") else None
 
     def _schema_only_type_expr(node: dict[str, Any], field_root: bool = False) -> str:
-        """Returns a Python type whose JSON schema is `node` (for `JsonSchemaAs`)."""
+        """Returns a Python type whose JSON schema is `node` (for `JsonSchemaAs`).
+
+        Raises:
+            ValueError: If `node` has keywords that the type cannot express.
+        """
         if "$ref" in node:
             ref_name = _local_ref_name(node["$ref"])
-            if ref_name is None:
-                raise ValueError(f"Unsupported $ref in a field schema: {node['$ref']}")
+            if ref_name is None or len(node) != 1:
+                raise ValueError(f"Unsupported $ref in a field schema: {node}")
             if _is_model_def(ref_name):
                 return ref_name
             # A union alias is inlined by Pydantic unless it is a named alias.
             imports.type_alias_type = True
             return schema_ref_aliases.setdefault(ref_name, f"_{ref_name}Ref")
 
-        for union_key in ("anyOf", "oneOf"):
-            if union_key in node:
-                members = ", ".join(_schema_only_type_expr(b) for b in node[union_key])
-                expr = f"Union[{members}]"
-                if union_key == "anyOf":
-                    imports.helpers.add("KeepAnyOf")
-                    expr = f"Annotated[{expr}, KeepAnyOf()]"
-                return expr
+        union_keys = [key for key in ("anyOf", "oneOf") if key in node]
+        if len(union_keys) > 1 or (
+            union_keys and set(node) - {*union_keys, "description"}
+        ):
+            raise ValueError(f"Unsupported union in a field schema: {node}")
+        for union_key in union_keys:
+            members = ", ".join(_schema_only_type_expr(b) for b in node[union_key])
+            expr = f"Union[{members}]"
+            if union_key == "anyOf":
+                imports.helpers.add("KeepAnyOf")
+                expr = f"Annotated[{expr}, KeepAnyOf()]"
+            return expr
 
-        expr = "Any"
-        if node.get("type") == "object":
-            add_props = node.get("additionalProperties")
-            if isinstance(add_props, dict):
-                expr = f"dict[str, {_schema_only_type_expr(add_props)}]"
-            else:
-                imports.helpers.add("OpenObject")
-                expr = "OpenObject"
+        # Only open objects and maps are expressible; anything else would get
+        # an empty (accept-all) schema.
+        if node.get("type") != "object" or set(node) - {
+            "type",
+            "description",
+            "additionalProperties",
+        }:
+            raise ValueError(f"Unsupported field schema: {node}")
+        add_props = node.get("additionalProperties", True)
+        if isinstance(add_props, dict):
+            expr = f"dict[str, {_schema_only_type_expr(add_props)}]"
+        elif add_props is True:
+            imports.helpers.add("OpenObject")
+            expr = "OpenObject"
+        else:
+            raise ValueError(f"Unsupported field schema: {node}")
         # A field's own description is set on the field itself.
         return (
             expr if field_root else _describe_type_expr(expr, node.get("description"))
@@ -386,8 +442,11 @@ def generate_common_types(
             return "[" + ", ".join(_render_schema_code(item) for item in node) + "]"
         if not isinstance(node, dict):
             return repr(node)
-        if "$ref" in node and len(node) == 1:
+        if isinstance(node.get("$ref"), str):
             ref = node["$ref"]
+            if len(node) != 1:
+                # Pydantic would not register the referenced def.
+                raise ValueError(f"Unsupported $ref with sibling keywords: {node}")
             ref_name = _local_ref_name(ref)
             if ref_name is not None and _is_model_def(ref_name):
                 imports.helpers.add("model_ref")
@@ -413,44 +472,108 @@ def generate_common_types(
                 items.append(f"{json.dumps(key)}: {_render_schema_code(value)}")
         return "{" + ", ".join(items) + "}"
 
-    def _spec_hook_code(spec: dict[str, Any]) -> str:
+    def _is_catalog_functions_one_of(spec: dict[str, Any]) -> bool:
+        """Returns whether the spec's `oneOf` only selects a catalog function."""
+        branches = spec.get("oneOf")
+        return (
+            isinstance(branches, list)
+            and bool(branches)
+            and all(
+                isinstance(b, dict)
+                and set(b) == {"$ref"}
+                and str(b["$ref"]).endswith(_CATALOG_FUNCTIONS_REF_SUFFIX)
+                for b in branches
+            )
+        )
+
+    def _is_required_one_of(spec: dict[str, Any]) -> bool:
+        """Returns whether the spec's `oneOf` selects between required fields."""
+        branches = spec.get("oneOf")
+        return (
+            isinstance(branches, list)
+            and bool(branches)
+            and all(isinstance(b, dict) and set(b) == {"required"} for b in branches)
+        )
+
+    def _check_model_keywords(name: str, spec: dict[str, Any]) -> None:
+        """Raises if a model def uses keywords that nothing would enforce.
+
+        The model validates its fields; `_one_of_required_validator_code`
+        validates a `oneOf` of required fields; the catalog validates the
+        function a `oneOf` of catalog functions selects. Other composition
+        next to `properties` would only be published, so it is rejected.
+        """
+        unsupported = [
+            key for key in ("allOf", "anyOf", "not", "patternProperties") if key in spec
+        ]
+        if "oneOf" in spec and not (
+            _is_required_one_of(spec) or _is_catalog_functions_one_of(spec)
+        ):
+            unsupported.append("oneOf")
+        if spec.get("unevaluatedProperties", False) is not False:
+            unsupported.append("unevaluatedProperties")
+        if isinstance(spec.get("additionalProperties"), dict):
+            unsupported.append("additionalProperties")
+        if unsupported:
+            raise ValueError(
+                f"Unsupported keywords next to properties in {name}: {unsupported}"
+            )
+
+    def _spec_hook_code(name: str, spec: dict[str, Any]) -> str:
         """Emits `__get_pydantic_json_schema__` for keywords fields cannot produce.
 
         When the spec declares properties, the model derives them and the hook
-        adds the spec's other keywords (see `_SPEC_KEYWORDS`), replacing
-        `additionalProperties` when the spec uses `unevaluatedProperties`.
-        Otherwise the spec is pure composition and the hook returns it, with
-        `$ref`s resolved through the models. Either applies only to the
-        published schema.
+        adds the spec's other keywords (see `_SPEC_KEYWORDS`). Models forbid
+        extra keys, so Pydantic emits `additionalProperties: false`; where the
+        spec leaves it out, the hook removes it. Catalogs get the same schema,
+        except when a keyword references the catalog's function union: that
+        keyword is only published, and catalogs keep the flat model schema.
+
+        Otherwise the spec is pure composition and the published schema is the
+        spec, with `$ref`s resolved through the models.
+
+        The hook applies to the model itself; subclasses keep their own schema.
 
         Returns:
             The hook method, or an empty string if the spec needs none.
+
+        Raises:
+            ValueError: If the spec uses keywords that nothing would enforce.
         """
         if "properties" in spec:
+            _check_model_keywords(name, spec)
             keywords = {k: spec[k] for k in _SPEC_KEYWORDS if k in spec}
-            if not keywords:
+            open_in_spec = "additionalProperties" not in spec
+            if not keywords and not open_in_spec:
                 return ""
-            drop = (
-                "            target.pop('additionalProperties', None)\n"
-                if "unevaluatedProperties" in keywords
-                else ""
-            )
+            lines = []
+            if open_in_spec:
+                lines.append("target.pop('additionalProperties', None)\n")
+            if keywords:
+                lines.append(f"target.update({_render_keywords_code(keywords)})\n")
             body = (
                 "        json_schema = handler(core_schema)\n"
-                "        if is_spec_schema():\n"
-                "            target = handler.resolve_ref_schema(json_schema)\n"
-                f"{drop}"
-                f"            target.update({_render_keywords_code(keywords)})\n"
-                "        return json_schema\n"
+                f"        if cls is not {name}:\n"
+                "            return json_schema\n"
             )
+            if _is_catalog_functions_one_of(spec):
+                body += (
+                    "        if not is_spec_schema():\n            return json_schema\n"
+                )
+            body += "        target = handler.resolve_ref_schema(json_schema)\n"
+            body += "".join(f"        {line}" for line in lines)
+            body += "        return json_schema\n"
         else:
+            if not any(key in spec for key in ("allOf", "anyOf", "oneOf")):
+                raise ValueError(f"Unsupported object def without properties: {name}")
             body = (
-                "        if not is_spec_schema():\n"
+                f"        if not is_spec_schema() or cls is not {name}:\n"
                 "            return handler(core_schema)\n"
                 f"        return {_render_keywords_code(spec)}\n"
             )
         imports.json_schema_hook = True
-        imports.helpers.add("is_spec_schema")
+        if "is_spec_schema()" in body:
+            imports.helpers.add("is_spec_schema")
         return (
             "\n\n    @classmethod\n"
             "    def __get_pydantic_json_schema__(\n"
@@ -533,7 +656,7 @@ def generate_common_types(
             )
         common_blocks.append(
             model_code.rstrip()
-            + _spec_hook_code(spec)
+            + _spec_hook_code(name, spec)
             + _one_of_required_validator_code(name, spec)
         )
 
@@ -542,8 +665,8 @@ def generate_common_types(
 
         Only the Unicode identifier pattern with unconstrained values is
         supported, which is what the specification uses (`Extensions`). The
-        pattern is published as is; catalogs get a plain object, because
-        their validators cannot compile `\\p{...}` classes.
+        pattern is published as is, in catalogs too; the SDK's JSON schema
+        validator supports its `\\p{...}` classes.
         """
         patterns = spec["patternProperties"]
         if (
@@ -572,11 +695,15 @@ def generate_common_types(
             "    Annotated[\n"
             "        OpenObject,\n"
             f"        AfterValidator({validator}),\n"
-            f"        JsonSchemaKeywords({_render_schema_code(keywords)},"
-            " spec_only=True),\n"
+            f"        JsonSchemaKeywords({_render_schema_code(keywords)}),\n"
             "    ],\n"
             ")"
         )
+
+    def _check_def_keywords(name: str, spec: dict[str, Any], allowed: set[str]) -> None:
+        unsupported = set(spec) - allowed
+        if unsupported:
+            raise ValueError(f"Unsupported keywords in {name}: {sorted(unsupported)}")
 
     # Dynamic compilation from $defs:
     processed: set[str] = set(imports_from_common)
@@ -700,7 +827,7 @@ def generate_common_types(
                     "required": fn_common.get("required", [call_key]),
                 }
                 fn_code = codegen.compile_object_def("FunctionCall", fn_spec)
-            fn_code = fn_code.rstrip() + _spec_hook_code(spec)
+            fn_code = fn_code.rstrip() + _spec_hook_code(name, spec)
             common_blocks.append(fn_code)
             processed.add(name)
             return
@@ -718,8 +845,8 @@ def generate_common_types(
             # Members follow the spec's branch order, which the JSON schema keeps.
             members: list[str] = []
             for branch in spec["oneOf"]:
-                if not isinstance(branch, dict) or branch.get("type") == "null":
-                    continue
+                if not isinstance(branch, dict):
+                    raise ValueError(f"Unsupported branch in {name}: {branch}")
                 if branch.get("$ref") == "#/$defs/DataBinding":
                     members.append("DataBinding")
                 elif is_function_call_branch(branch):
@@ -777,7 +904,7 @@ def generate_common_types(
         primitive_types = {
             "string": "str",
             "number": "float",
-            "integer": "float",
+            "integer": "int",
             "boolean": "bool",
         }
         if "patternProperties" in spec and "properties" not in spec:
@@ -787,16 +914,20 @@ def generate_common_types(
         elif "oneOf" in spec or "anyOf" in spec or "allOf" in spec:
             common_blocks.append(codegen.compile_union_def(name, spec))
         elif "enum" in spec:
-            enum_vals = [f'"{v}"' for v in spec["enum"]]
+            _check_def_keywords(name, spec, {"type", "description", "enum"})
+            enum_vals = [python_literal(v) for v in spec["enum"]]
             common_blocks.append(f"{name} = Literal[{', '.join(enum_vals)}]")
         elif "$ref" in spec:
             mapped = codegen.map_json_type_to_python("", spec)
             common_blocks.append(f"{name} = {mapped}")
         elif spec.get("type") in primitive_types:
+            # Constraints such as `pattern` or `minLength` would be dropped.
+            _check_def_keywords(name, spec, {"type", "description"})
             imports.type_alias_type = True
             py_type = primitive_types[spec["type"]]
             common_blocks.append(f'{name} = TypeAliasType("{name}", {py_type})')
         elif spec.get("type") == "array":
+            _check_def_keywords(name, spec, {"type", "description", "items"})
             item_type = (
                 codegen.map_json_type_to_python("", spec.get("items", {}))
                 if "items" in spec
@@ -804,7 +935,7 @@ def generate_common_types(
             )
             common_blocks.append(f"{name} = list[{item_type}]")
         else:
-            common_blocks.append(f"{name} = Any")
+            raise ValueError(f"Unsupported def {name}: {spec}")
 
         processed.add(name)
 

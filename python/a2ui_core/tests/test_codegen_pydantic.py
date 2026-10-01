@@ -589,14 +589,14 @@ def test_const_keyword_mapping():
     codegen = codegen_pydantic.PydanticCodegen("v0.9")
     assert (
         codegen.map_json_type_to_python("code", {"const": "SUCCESS"})
-        == "Literal['SUCCESS']"
+        == 'Literal["SUCCESS"]'
     )
     assert codegen.map_json_type_to_python("num", {"const": 404}) == "Literal[404]"
 
     props = {"code": {"const": "FAIL"}}
     lines = codegen.compile_properties(props, ["code"])
     assert len(lines) == 1
-    assert "    code: Literal['FAIL'] = Field(\"FAIL\")" in lines[0]
+    assert '    code: Literal["FAIL"] = Field("FAIL")' in lines[0]
 
 
 def test_file_header_preamble():
@@ -643,7 +643,7 @@ def test_default_annotations_do_not_set_model_defaults(version):
         ' description="Name shown in the UI. Defaults to \\"Guest\\" when absent.")'
         in lines
     )
-    assert "    kind: Literal['email'] = Field(\"email\")" in lines
+    assert '    kind: Literal["email"] = Field("email")' in lines
 
 
 def test_v0_9_function_call_keeps_schema_default_out_of_payload():

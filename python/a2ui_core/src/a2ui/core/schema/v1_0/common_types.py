@@ -78,6 +78,17 @@ class FunctionCommon(StrictBaseModel):
         ),
     )
 
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if cls is not FunctionCommon:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        return json_schema
+
 
 class FunctionCall(StrictBaseModel):
     """Invokes a named function, combining common function properties with the catalog function definition."""
@@ -102,7 +113,7 @@ class FunctionCall(StrictBaseModel):
     def __get_pydantic_json_schema__(
         cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
-        if not is_spec_schema():
+        if not is_spec_schema() or cls is not FunctionCall:
             return handler(core_schema)
         return {
             "type": "object",
@@ -126,10 +137,10 @@ class FunctionCall(StrictBaseModel):
 CallId = TypeAliasType("CallId", str)
 
 
-DynamicBoolean = StrictBool | DataBinding | FunctionCall
-
-
 DynamicString = StrictStr | DataBinding | FunctionCall
+
+
+DynamicBoolean = StrictBool | DataBinding | FunctionCall
 
 
 class AccessibilityAttributes(StrictBaseModel):
@@ -184,13 +195,10 @@ Extensions = TypeAliasType(
     Annotated[
         OpenObject,
         AfterValidator(_validate_extensions_keys),
-        JsonSchemaKeywords(
-            {
-                "patternProperties": {"^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}},
-                "additionalProperties": False,
-            },
-            spec_only=True,
-        ),
+        JsonSchemaKeywords({
+            "patternProperties": {"^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}},
+            "additionalProperties": False,
+        }),
     ],
 )
 
@@ -219,6 +227,17 @@ class ComponentCommon(StrictBaseModel):
     metadata: ComponentCommonMetadata | None = Field(
         None, description="Optional component-level metadata for vendor extensions."
     )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if cls is not ComponentCommon:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        return json_schema
 
 
 def _validate_literal_object(v: Any) -> dict[str, Any]:
@@ -291,10 +310,11 @@ class IndexSystemFunctionArgs(StrictBaseModel):
         cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(core_schema)
-        if is_spec_schema():
-            target = handler.resolve_ref_schema(json_schema)
-            target.pop("additionalProperties", None)
-            target.update({"unevaluatedProperties": False})
+        if cls is not IndexSystemFunctionArgs:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        target.update({"unevaluatedProperties": False})
         return json_schema
 
 
@@ -310,10 +330,11 @@ class IndexSystemFunction(StrictBaseModel):
         cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(core_schema)
-        if is_spec_schema():
-            target = handler.resolve_ref_schema(json_schema)
-            target.pop("additionalProperties", None)
-            target.update({"unevaluatedProperties": False, "returnType": "number"})
+        if cls is not IndexSystemFunction:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        target.update({"unevaluatedProperties": False, "returnType": "number"})
         return json_schema
 
 
@@ -341,6 +362,17 @@ class Checkable(StrictBaseModel):
             " boolean indicating validity."
         ),
     )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(core_schema)
+        if cls is not Checkable:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.pop("additionalProperties", None)
+        return json_schema
 
 
 class ActionEvent(StrictBaseModel):
@@ -397,11 +429,12 @@ class Surface(StrictBaseModel):
         cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(core_schema)
-        if is_spec_schema():
-            target = handler.resolve_ref_schema(json_schema)
-            target.update(
-                {SPEC_TITLE_KEY: "Surface Container Component", "allowedParents": []}
-            )
+        if cls is not Surface:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.update(
+            {SPEC_TITLE_KEY: "Surface Container Component", "allowedParents": []}
+        )
         return json_schema
 
 
@@ -435,9 +468,10 @@ class FunctionResponse(StrictBaseModel):
         cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(core_schema)
-        if is_spec_schema():
-            target = handler.resolve_ref_schema(json_schema)
-            target.update({"oneOf": [{"required": ["value"]}, {"required": ["error"]}]})
+        if cls is not FunctionResponse:
+            return json_schema
+        target = handler.resolve_ref_schema(json_schema)
+        target.update({"oneOf": [{"required": ["value"]}, {"required": ["error"]}]})
         return json_schema
 
     @model_validator(mode="after")

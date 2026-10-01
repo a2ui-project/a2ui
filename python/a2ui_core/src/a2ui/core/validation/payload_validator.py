@@ -32,6 +32,7 @@ from ..processing.format_pydantic_error import format_validation_error
 from ..schema import ProtocolVersion
 from ..common.semver import is_at_least_version
 from ..common.uax31 import is_valid_uax31_identifier
+from .schema_patterns import translate_schema_patterns
 
 
 class ValidationConfig(BaseModel):
@@ -259,7 +260,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             if "components" in base_schema and "components" not in full_schema:
                 full_schema["components"] = base_schema["components"]
         try:
-            validator = Draft202012Validator(full_schema)
+            validator = Draft202012Validator(translate_schema_patterns(full_schema))
             props = dict(comp)
             req_fields = (
                 validator.schema.get("required", [])
@@ -648,7 +649,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             return validated_args
 
         try:
-            fn_validator = Draft202012Validator(param_schema)
+            fn_validator = Draft202012Validator(translate_schema_patterns(param_schema))
             schema_errors = sorted(
                 fn_validator.iter_errors(args or {}), key=lambda e: e.path
             )
@@ -729,7 +730,9 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 ):
                     full_theme_schema["components"] = base_schema["components"]
             try:
-                theme_validator = Draft202012Validator(full_theme_schema)
+                theme_validator = Draft202012Validator(
+                    translate_schema_patterns(full_theme_schema)
+                )
                 schema_errors = sorted(
                     theme_validator.iter_errors(theme), key=lambda e: e.path
                 )
