@@ -223,6 +223,20 @@ void main() {
     final registered = [CatalogConfig(a)];
     final SchemaCatalog inline = _catalog('https://example.com/inline.json');
 
+    test('activates every registered catalog without capabilities', () {
+      final List<SchemaCatalog> active = resolveCatalogs([
+        CatalogConfig(b),
+        CatalogConfig(
+          a,
+          transformers: [
+            ComponentPruningTransformer(['Text']),
+          ],
+        ),
+      ], null);
+      expect(active.map((c) => c.id), [b.id, a.id]);
+      expect(active.last.components.keys, ['Text']);
+    });
+
     test('ignores inline catalogs unless it accepts them', () {
       expect(
         resolveCatalogs(
@@ -299,11 +313,11 @@ void main() {
       formatFactory: const ExpressFormatFactory(),
     );
 
-    test('rejects a direct JSON payload', () {
-      expect(
-        () => processor.parseResponse('Here: <a2ui-json>[]</a2ui-json>'),
-        throwsA(isA<A2uiParseError>()),
-      );
+    test('reads a direct JSON payload as text', () {
+      const response = 'Here: <a2ui-json>[]</a2ui-json>';
+      expect(processor.parseResponse(response), [
+        isA<TextPart>().having((p) => p.text, 'text', response),
+      ]);
     });
   });
 }

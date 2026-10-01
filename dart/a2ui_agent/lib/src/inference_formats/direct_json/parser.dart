@@ -28,16 +28,10 @@ final RegExp _openTag = RegExp(
 );
 final RegExp _closeTag = RegExp(r'</a2ui-json\s*>', caseSensitive: false);
 
-/// The tag that opens an Express payload, which this parser does not read.
-final RegExp _expressOpenTag = RegExp(
-  r'<a2ui(?:\s[^>]*)?>',
-  caseSensitive: false,
-);
-
 /// The start of an open tag whose end has not arrived: `<a2ui-json` cut
 /// anywhere, or followed by attributes.
 final RegExp _openTagStart = RegExp(
-  r'^<a2ui(?:-json)?\s[^>]*$',
+  r'^<a2ui-json\s[^>]*$',
   caseSensitive: false,
 );
 
@@ -100,12 +94,10 @@ class DirectJsonParser extends Parser {
   ///
   /// A close tag inside a JSON string does not end a block. Text is trimmed
   /// and dropped when empty, and markdown fences a model wraps around a
-  /// block are removed. See `conformance/agent/direct_json/response_parser.yaml`.
-  ///
-  /// Throws [A2uiParseError] if [content] carries an Express payload.
+  /// block are removed. Tags of another format are text. See
+  /// `conformance/agent/direct_json/response_parser.yaml`.
   @override
   List<RawResponsePart> unwrap(String content) {
-    _rejectExpress(content);
     final parts = <RawResponsePart>[];
     var i = 0;
     while (true) {
@@ -206,9 +198,8 @@ class DirectJsonParser extends Parser {
   /// `conformance/agent/direct_json/response_streaming.yaml`.
   ///
   /// Throws [ArgumentError] if [wrapped] differs from the first call's,
-  /// [A2uiParseError] if the stream carries an Express payload or a block
-  /// closes on text that is not JSON, and what [compile] throws for a block
-  /// that closes.
+  /// [A2uiParseError] if a block closes on text that is not JSON, and what
+  /// [compile] throws for a block that closes.
   @override
   List<ResponsePart> parseChunk(String chunk, {bool wrapped = true}) {
     if (_wrapped == null) {
@@ -249,7 +240,6 @@ class DirectJsonParser extends Parser {
         _emitted.clear();
         continue;
       }
-      _rejectExpress(input);
       final Match? open = _openTag.firstMatch(input);
       if (open != null) {
         _emitText(parts, input.substring(0, open.start));
@@ -317,16 +307,6 @@ class DirectJsonParser extends Parser {
       changed.add(message);
     }
     if (changed.isNotEmpty) parts.add(A2uiPart(changed));
-  }
-}
-
-void _rejectExpress(String content) {
-  if (_expressOpenTag.hasMatch(content)) {
-    throw A2uiParseError(
-      'The response carries an Express payload (<a2ui>); this parser reads '
-      'only the direct JSON format.',
-      rawContent: content,
-    );
   }
 }
 

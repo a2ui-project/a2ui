@@ -19,6 +19,10 @@ import '../processor/catalog_config.dart';
 /// Negotiates the catalogs the agent registered against the capabilities a
 /// renderer declared, and returns the catalogs active for the session.
 ///
+/// [rendererCapabilities] is null for a request that carries no capabilities.
+/// The renderer has then stated no preference, so every registered catalog
+/// is active, in registration order.
+///
 /// Every registered catalog the renderer supports for protocol v0.9 is
 /// active, in the renderer's preference order, so the renderer's first choice
 /// is the first catalog the model reads about. An id the renderer names and
@@ -40,9 +44,14 @@ import '../processor/catalog_config.dart';
 /// the agent accepts.
 List<SchemaCatalog> resolveCatalogs(
   List<CatalogConfig> catalogs,
-  A2uiRendererCapabilities rendererCapabilities, {
+  A2uiRendererCapabilities? rendererCapabilities, {
   bool acceptsInlineCatalogs = false,
 }) {
+  if (rendererCapabilities == null) {
+    return [
+      for (final CatalogConfig config in catalogs) config.transformedCatalog,
+    ];
+  }
   const A2uiProtocolVersion version = A2uiProtocolVersion.v0_9;
   final A2uiVersionCapabilities? capabilities = rendererCapabilities.forVersion(
     version,

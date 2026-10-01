@@ -54,11 +54,6 @@ void main() {
 
 /// Why this SDK cannot run [testCase], or null if it can.
 String? _skipReason(Map<String, Object?> testCase) {
-  final args = testCase['args']! as Map<String, Object?>;
-  if (args.containsKey('allowed_messages')) {
-    return 'The Express format takes no message allowlist: the blueprint '
-        'gives one to the direct JSON format only.';
-  }
   if (jsonEncode(testCase).contains('"callRendererFunction"')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
   }
@@ -93,7 +88,10 @@ void _runCase(Map<String, Object?> testCase) {
 
 InferenceFormat _format(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
-  return const ExpressFormatFactory().createFormat(
+  return ExpressFormatFactory(
+    allowedMessages: (args['allowed_messages'] as List<Object?>?)
+        ?.cast<String>(),
+  ).createFormat(
     caseCatalogs(args),
     examples: [
       for (final Object? path in args['examples'] as List<Object?>? ?? const [])

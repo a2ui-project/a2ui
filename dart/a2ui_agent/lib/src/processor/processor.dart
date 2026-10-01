@@ -77,11 +77,10 @@ class A2uiRequestProcessor {
   /// Each payload block becomes one [A2uiPart], checked as a renderer holding
   /// [activeCatalogs] would check it.
   ///
-  /// Throws [A2uiParseError] if a block cannot be read or [content] carries a
-  /// payload in another format, [A2uiValidationError] if a block uses
-  /// anything the catalogs do not declare, and another [A2uiError] if a
-  /// renderer would reject the messages, such as an [A2uiIntegrityError] for
-  /// a component nothing reaches from `root`.
+  /// Throws [A2uiParseError] if a block cannot be read, [A2uiValidationError]
+  /// if a block uses anything the catalogs do not declare, and another
+  /// [A2uiError] if a renderer would reject the messages, such as an
+  /// [A2uiIntegrityError] for a component nothing reaches from `root`.
   List<ResponsePart> parseResponse(String content) {
     final List<ResponsePart> parts = _format.createParser().parseResponse(
       content,

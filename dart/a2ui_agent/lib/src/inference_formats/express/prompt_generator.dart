@@ -14,6 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../prompt/allowed_messages.dart';
 import '../../prompt/generator.dart';
 import 'decompiler.dart';
 import 'schema_helper.dart';
@@ -23,7 +24,11 @@ import 'schema_helper.dart';
 class ExpressPromptGenerator extends PromptGenerator {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  const ExpressPromptGenerator(this.catalogs, {this.examples = const []});
+  const ExpressPromptGenerator(
+    this.catalogs, {
+    this.examples = const [],
+    this.allowedMessages,
+  });
 
   /// The catalogs whose components and functions the snippet describes.
   final List<SchemaCatalog> catalogs;
@@ -32,17 +37,29 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// messages making up one turn.
   final List<List<AgentToRendererMessage>> examples;
 
+  /// The message types the model may write, such as `createSurface`, or null
+  /// for all of them.
+  final List<String>? allowedMessages;
+
   /// Each of [examples] is shown as the Express block it decompiles to.
   ///
+  /// The grammar rules describe only the statements that compile to
+  /// [allowedMessages], so without `deleteSurface` the model is not told about
+  /// `deleteSurface(...)`.
+  ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
-  /// nothing the model could be told to write, and [A2uiValidationError] if
-  /// an example has no Express notation; see [ExpressDecompiler.decompile].
+  /// nothing the model could be told to write, [ArgumentError] if
+  /// [allowedMessages] names a message type v0.9 does not have, and
+  /// [A2uiValidationError] if an example has no Express notation; see
+  /// [ExpressDecompiler.decompile].
   @override
   String generate() {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    final buffer = StringBuffer(_rules);
+    final buffer = StringBuffer(
+      _rules(resolveAllowedMessages(allowedMessages)),
+    );
     if (catalogs.length == 1) {
       buffer
         ..write('\n\n')
@@ -186,7 +203,41 @@ String _indent(String text) => text.replaceAll('\n', '\n    ');
 
 /// The Express syntax contract, as the Python SDK words it, except that the
 /// examples name no real component, so a pruned one never appears.
-const String _rules = r'''# A2UI Express DSL Output Contract
+/// The output contract and the grammar rules for the [allowed] message types,
+/// numbered in order.
+///
+/// A rule is kept if a statement it describes compiles to an allowed type, or
+/// if any statement may use it, such as the rule for strings.
+String _rules(List<String> allowed) {
+  final bool creates = allowed.contains('createSurface');
+  final bool components = creates || allowed.contains('updateComponents');
+  final bool data = allowed.contains('updateDataModel');
+  final rules = <String>[
+    if (components) _componentsRule,
+    if (creates) _rootRule,
+    ..._valueRules,
+    if (components) ..._callRules,
+    if (data) _dataModelRule,
+    if (components) _templateRule,
+    if (allowed.contains('deleteSurface')) _deleteSurfaceRule,
+    if (components) ..._argumentRules,
+    if (components || data)
+      creates ? '$_surfaceRule\nroot = ComponentB(...)' : _surfaceRule,
+  ];
+  final buffer = StringBuffer(_contract);
+  for (final (int i, String rule) in rules.indexed) {
+    final number = '${i + 1}. ';
+    // Continuation lines line up with the text after the number.
+    final String body = rule.replaceAll(
+      RegExp(r'\n(?!\n)'),
+      '\n${' ' * number.length}',
+    );
+    buffer.write('\n\n$number$body');
+  }
+  return buffer.toString();
+}
+
+const String _contract = '''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
@@ -194,55 +245,67 @@ IMPORTANT: You MUST always surround the entire A2UI Express block with the senti
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
-## Grammar Rules
+## Grammar Rules''';
 
-1. Component constructors can be assigned to variables or nested inline inside parent component arguments:
-   header = ComponentA(prop1="val1")
-   root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
+const String _componentsRule =
+    '''Component constructors can be assigned to variables or nested inline inside parent component arguments:
+header = ComponentA(prop1="val1")
+root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
 
-   Keyword arguments (`param=value`) and positional arguments with `_` placeholders are supported.
+Keyword arguments (`param=value`) and positional arguments with `_` placeholders are supported.
 
-   Variable names MUST start with a letter or underscore, and only contain letters, digits, and underscores.
+Variable names MUST start with a letter or underscore, and only contain letters, digits, and underscores.''';
 
-2. The interface tree must have a single entry point assigned to the reserved variable 'root'.
+const String _rootRule =
+    'The interface tree must have a single entry point assigned to the '
+    "reserved variable 'root'.";
 
-3. Primitives:
-   - Strings: Quoted with `"` or `"""`. Support for `\n`, `\t`, `\\`, and `\"` escapes.
-     Raw Strings: Prefaced by `r` (e.g., `r"..."` or `r"""..."""`), with no escape processing.
-   - Numbers: write as integers or decimals, e.g., 42
-   - Booleans: write true or false
-   - Null values: write null
-   - Dates & Times: Values for date-time inputs (e.g. in DateTimeInput) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
+const List<String> _valueRules = [
+  r'''Primitives:
+- Strings: Quoted with `"` or `"""`. Support for `\n`, `\t`, `\\`, and `\"` escapes.
+  Raw Strings: Prefaced by `r` (e.g., `r"..."` or `r"""..."""`), with no escape processing.
+- Numbers: write as integers or decimals, e.g., 42
+- Booleans: write true or false
+- Null values: write null
+- Dates & Times: Values for date-time inputs (e.g. in DateTimeInput) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").''',
+  'Lists: represent as arrays, e.g., [child1, child2].',
+  'Maps: represent as key-value blocks, e.g., {title: "Overview", child: '
+      'contentCol}. Map keys are always literal strings (dynamic variable '
+      'resolution is not supported for keys).',
+  r'''Data bindings: prefix absolute paths in the data model with '$', e.g., $/user/firstName.
+Prefix relative list scopes with '$', e.g., $firstName.
+A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).''',
+];
 
-4. Lists: represent as arrays, e.g., [child1, child2].
+const List<String> _callRules = [
+  r'''Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").''',
+  r'''Action events: represent server-side actions using the Event helper:
+Event("save_deal", {rep: $/form/rep})''',
+  'Nested functions: call client functions directly using catalog '
+      'signatures, for example myFunction("value").',
+];
 
-5. Maps: represent as key-value blocks, e.g., {title: "Overview", child: contentCol}. Map keys are always literal strings (dynamic variable resolution is not supported for keys).
+const String _dataModelRule =
+    r'Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.';
 
-6. Data bindings: prefix absolute paths in the data model with '$', e.g., $/user/firstName.
-   Prefix relative list scopes with '$', e.g., $firstName.
-   A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).
+const String _templateRule =
+    r'''Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
+_template($/path/to/list, itemTemplate)
+And define the template component variable on another line, utilizing relative path references prefixed with $:
+itemTemplate = Image($url)''';
 
-7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
+const String _deleteSurfaceRule =
+    '''To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
+deleteSurface("dashboard-surface-1")''';
 
-8. Action events: represent server-side actions using the Event helper:
-   Event("save_deal", {rep: $/form/rep})
+const List<String> _argumentRules = [
+  "Static properties: Arguments annotated with '(static)' in the "
+      'signatures below MUST be defined as literal values or arrays inline. '
+      r'You CANNOT use a dynamic data binding path (prefixed by $) for these '
+      'arguments.',
+  '''Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.''',
+];
 
-9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
-
-10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
-
-11. Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
-    _template($/path/to/list, itemTemplate)
-    And define the template component variable on another line, utilizing relative path references prefixed with $:
-    itemTemplate = Image($url)
-
-12. To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
-    deleteSurface("dashboard-surface-1")
-
-13. Static properties: Arguments annotated with '(static)' in the signatures below MUST be defined as literal values or arrays inline. You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
-
-14. Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
-
-15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
-    surface("dashboard-surface-1")
-    root = ComponentB(...)''';
+const String _surfaceRule =
+    '''Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
+surface("dashboard-surface-1")''';

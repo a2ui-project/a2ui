@@ -230,6 +230,8 @@ ResponsePart = Union[TextPart, A2uiPart]
 
 Base interface for response parsers across all inference format strategies.
 
+A parser knows only its own format. It reads its own sentinel tags and treats everything else in a response as conversational text, including a block in another format's tags: a model that shows the other notation in prose has written text, not a payload, and adding a format must not require changing the parsers of the existing ones.
+
 ```python
 class Parser(ABC):
     """Abstract base class for response parsers.
@@ -244,6 +246,7 @@ class Parser(ABC):
 
         A caller uses this to decide whether a response is this format's business at all,
         without paying for a parse. It reads the sentinel tags only and never compiles.
+        Another format's tags do not count.
 
         Args:
             content: Raw string response emitted by the LLM, possibly partial.
@@ -264,6 +267,8 @@ class Parser(ABC):
     @abstractmethod
     def unwrap(self, content: str) -> list[RawResponsePart]:
         """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
+
+        Content outside this format's sentinel tags, including another format's tags, is a TextPart.
 
         Args:
             content: Raw string response emitted by the LLM.
@@ -603,7 +608,10 @@ class A2uiGenerator:
         """Creates an A2uiRequestProcessor bound to the specified renderer capabilities.
 
         Args:
-            renderer_capabilities: Capabilities sent by the client renderer. Must not be None.
+            renderer_capabilities: Capabilities sent by the client renderer. Must not be None:
+                a processor is negotiated for one renderer, so a request without capabilities
+                is a catalog error here, although resolve_catalogs accepts one. A language
+                with non-nullable types enforces this in the signature.
             inference_format_factory: Optional override format factory for this processor.
 
         Returns:
@@ -666,13 +674,18 @@ Negotiates renderer capabilities against a registered sequence of catalogs (`Seq
 ```python
 def resolve_catalogs(
     catalogs: Sequence[CatalogConfig],
-    renderer_capabilities: A2uiRendererCapabilities,
+    renderer_capabilities: Optional[A2uiRendererCapabilities],
     accepts_inline_catalogs: bool = False,
 ) -> list[Catalog[TComponent, TFunction]]:
     """Matches renderer capabilities against registered catalogs and returns active transformed Catalog objects.
 
     Resolution follows these rules:
 
+    - `None`, for a request that carries no capabilities object, activates every
+      registered catalog in registration order, since the renderer stated no
+      preference. Where the language allows it, the argument stays required
+      but nullable, so a caller passes `None` deliberately rather than by
+      leaving it out.
     - A present but empty `supportedCatalogIds` with no inline catalogs raises a catalog
       error, because the renderer has said it can render nothing.
     - Active catalogs come back in the renderer's preference order rather than the
@@ -875,6 +888,40 @@ The Express format package under `a2ui/inference_formats/express/` contains:
 - `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
 
 Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `parse_chunk`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
+
+#### Message allowlist
+
+Like the direct JSON factory, `ExpressFormatFactory` takes `allowed_messages` and passes it to every format it creates, so an agent can keep a model from, for example, deleting surfaces in either format. Express has no message schema to prune. Its prompt describes each message type by the statements that compile to it, and the allowlist decides which of those statements the prompt teaches: without `deleteSurface`, the prompt never mentions `deleteSurface(...)`. Rules that every statement uses, such as how to write strings, are always present. A name that is not a message type of the protocol version is an error, as it is for direct JSON.
+
+```python
+class ExpressFormatFactory(InferenceFormatFactory):
+    """Factory for instantiating ExpressFormat strategies bound to active catalogs."""
+
+    def __init__(self, allowed_messages: Optional[Sequence[str]] = None):
+        """Initializes ExpressFormatFactory.
+
+        Args:
+            allowed_messages: Optional list of allowed payload envelope names. None
+                allows every message type of the protocol version.
+        """
+        self.allowed_messages = allowed_messages
+
+    def create_format(
+        self,
+        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
+    ) -> InferenceFormat:
+        """Constructs an ExpressFormat whose prompt generator receives allowed_messages."""
+        pass
+```
+
+Like the direct JSON allowlist, this one shapes the prompt only. The parser still compiles every statement it reads.
+
+#### Grammar and parser generation
+
+[`Express.g4`](../../specification/inference_formats/express/Express.g4) is the canonical grammar, and every SDK accepts exactly the language it defines. Generating the lexer and parser from it with [ANTLR](https://www.antlr.org/) is preferred, so that a change to the grammar reaches each SDK by regenerating rather than by reimplementing. The Python SDK does this.
+
+An SDK may write its parser by hand instead, for example when the language has no maintained ANTLR runtime or the SDK avoids third-party dependencies. It then says so where the parser is defined, and a change to the grammar has to be made in that parser too. `<format>/compiler.yaml` and the round-trip test below check that the parser still accepts the grammar's language.
 
 ---
 

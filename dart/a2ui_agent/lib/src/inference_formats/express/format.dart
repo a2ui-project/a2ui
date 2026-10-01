@@ -24,30 +24,43 @@ import 'prompt_generator.dart';
 /// A2UI messages after the response is complete.
 ///
 /// See `specification/proposals/express/`.
+///
+/// The SDK calls [createFormat] with the catalogs of each request, so the
+/// options of the format are given here and passed on to every format created.
 class ExpressFormatFactory extends InferenceFormatFactory {
-  const ExpressFormatFactory();
+  const ExpressFormatFactory({this.allowedMessages});
+
+  /// The message types the model may write, such as `createSurface`, or null
+  /// for all of them. The prompt describes only the statements that compile
+  /// to these types.
+  final List<String>? allowedMessages;
 
   @override
   InferenceFormat createFormat(
     List<SchemaCatalog> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
-  }) =>
-      ExpressFormat._(List.unmodifiable(catalogs), List.unmodifiable(examples));
+  }) => ExpressFormat._(
+    List.unmodifiable(catalogs),
+    List.unmodifiable(examples),
+    allowedMessages == null ? null : List.unmodifiable(allowedMessages!),
+  );
 }
 
 /// The Express format bound to the catalogs of one request.
 ///
 /// The first catalog is the default for a surface that does not name one.
 class ExpressFormat extends InferenceFormat {
-  ExpressFormat._(this._catalogs, this._examples);
+  ExpressFormat._(this._catalogs, this._examples, this._allowedMessages);
 
   final List<SchemaCatalog> _catalogs;
   final List<List<AgentToRendererMessage>> _examples;
+  final List<String>? _allowedMessages;
 
   @override
   late final PromptGenerator promptGenerator = ExpressPromptGenerator(
     _catalogs,
     examples: _examples,
+    allowedMessages: _allowedMessages,
   );
 
   @override

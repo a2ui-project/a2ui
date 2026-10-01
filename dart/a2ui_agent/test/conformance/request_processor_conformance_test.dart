@@ -47,8 +47,8 @@ String? _skipReason(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
   if (testCase['action'] == 'create_processor' &&
       !args.containsKey('renderer_capabilities')) {
-    return 'createProcessor requires renderer capabilities, as in the '
-        'blueprint, so a request without them cannot be written.';
+    return 'createProcessor takes non-nullable renderer capabilities, so the '
+        'type system rejects a request without them before it can run.';
   }
   return null;
 }

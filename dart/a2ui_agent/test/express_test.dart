@@ -304,13 +304,6 @@ surface("s1")
         expect(() => compile(entry.value.$1), entry.value.$2);
       });
     }
-
-    test('a direct JSON payload', () {
-      expect(
-        () => processor().parseResponse('<a2ui-json>[]</a2ui-json>'),
-        throwsError<A2uiParseError>(),
-      );
-    });
   });
 
   group('promptSnippet', () {
@@ -332,6 +325,37 @@ surface("s1")
       );
       expect(snippet, contains('• formatString(value)'));
       expect(snippet, contains('• openUrl(url)'));
+    });
+
+    test('describes only the statements of the allowed messages', () {
+      String snippet(List<String> allowed) => ExpressFormatFactory(
+        allowedMessages: allowed,
+      ).createFormat([basic]).promptGenerator.generate();
+
+      final String data = snippet(['updateDataModel']);
+      expect(data, contains(r'$/path/to/key = "value"'));
+      expect(data, contains('surface("dashboard-surface-1")'));
+      expect(data, isNot(contains('root = ')));
+      expect(data, isNot(contains('deleteSurface(')));
+      expect(data, contains('\n6. Surface targeting'));
+
+      final String update = snippet(['updateComponents']);
+      expect(update, contains('_template('));
+      expect(update, isNot(contains("reserved variable 'root'")));
+      expect(update, isNot(contains('root = ComponentB(...)')));
+
+      final String delete = snippet(['deleteSurface']);
+      expect(delete, contains('deleteSurface("dashboard-surface-1")'));
+      expect(delete, isNot(contains('surface(surfaceId)')));
+    });
+
+    test('rejects an allowed message v0.9 does not have', () {
+      expect(
+        () => const ExpressFormatFactory(
+          allowedMessages: ['callFunction'],
+        ).createFormat([basic]).promptGenerator.generate(),
+        throwsA(isA<ArgumentError>()),
+      );
     });
 
     test('names each catalog when there are several', () {
@@ -364,13 +388,20 @@ surface("s1")
       );
     });
 
-    test('does not take a direct JSON block for Express', () {
-      expect(parser.hasFormatContent('<a2ui-json>[]</a2ui-json>'), isFalse);
-      expect(
-        parser.hasFormatContent('<a2ui-json>[]</a2ui-json>\n<a2ui>\n</a2ui>'),
-        isFalse,
-      );
+    test('reads a direct JSON block as text', () {
+      const json = '<a2ui-json>[]</a2ui-json>';
+      expect(parser.hasFormatContent(json), isFalse);
       expect(parser.hasFormatContent('Which city?'), isFalse);
+      const response = '$json\n<a2ui>\nroot = Text("x")\n</a2ui>';
+      expect(parser.hasFormatContent(response, complete: true), isTrue);
+      expect(parser.unwrap(response), [
+        isA<TextPart>().having((p) => p.text, 'text', json),
+        isA<RawA2uiPart>().having(
+          (p) => p.a2uiRaw,
+          'a2uiRaw',
+          'root = Text("x")',
+        ),
+      ]);
     });
 
     test('does not stream', () {

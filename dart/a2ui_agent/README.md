@@ -20,12 +20,15 @@ Implemented:
   protocol version against the ones the provider is given.
 - `A2uiGenerator.createProcessor` and `resolveCatalogs` pick the registered
   catalogs the renderer supports, after their transformers, and the inline
-  catalogs it declares when `acceptsInlineCatalogs` is true.
+  catalogs it declares when `acceptsInlineCatalogs` is true. For a request
+  that carries no capabilities, `resolveCatalogs` takes null and activates
+  every registered catalog.
 - `ComponentPruningTransformer` and `FunctionPruningTransformer` narrow a
   catalog to an allowlist.
 - `A2uiRequestProcessor.promptSnippet` teaches the model the format, the
   catalogs' components and functions, and the prompt examples, written in the
-  format.
+  format. Both format factories take `allowedMessages`, which limits the
+  prompt to the message types the model may write.
 - `A2uiRequestProcessor.parseResponse` compiles each payload block into v0.9
   messages and checks them the way a renderer would.
 - Prompt examples are checked against the active catalogs, and written in the
@@ -37,8 +40,8 @@ Implemented:
 Not supported:
 
 - Protocol versions other than v0.9.
-- A request without renderer capabilities: `resolveCatalogs` and
-  `createProcessor` require them, as in the blueprint.
+- A request without renderer capabilities in `createProcessor`, which
+  requires them, as in the blueprint.
 - In Express, standalone function calls such as `openUrl("...")` on a line of
   their own, since v0.9 has no message for them, and properties every
   component shares, such as `weight`. Decompiling messages that use what

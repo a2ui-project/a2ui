@@ -259,15 +259,19 @@ void main() {
   });
 
   group('unwrap', () {
-    test('rejects an Express payload', () {
-      expect(
-        () => parser().unwrap('<a2ui>root = Text("x")</a2ui>'),
-        throwsError<A2uiParseError>(),
-      );
-      expect(
-        () => parser().parseResponse('Here: <a2ui>\nroot = Text("x")'),
-        throwsError<A2uiParseError>(),
-      );
+    test('reads an Express payload as text', () {
+      const express = '<a2ui>root = Text("x")</a2ui>';
+      expect(parser().hasFormatContent(express), isFalse);
+      expect(parser().unwrap(express), [
+        isA<TextPart>().having((p) => p.text, 'text', express),
+      ]);
+      expect(parser().parseResponse('Here: <a2ui>\nroot = Text("x")'), [
+        isA<TextPart>().having(
+          (p) => p.text,
+          'text',
+          'Here: <a2ui>\nroot = Text("x")',
+        ),
+      ]);
     });
 
     test('finds an open block, and a closed one when asked', () {
@@ -386,15 +390,18 @@ void main() {
       expect(steps[1], hasLength(1));
     });
 
-    test('rejects an Express payload in the stream', () {
+    test('streams an Express payload as text', () {
       final DirectJsonParser reader = parser();
       expect(reader.parseChunk('Here <a2ui'), [
         isA<TextPart>().having((p) => p.text, 'text', 'Here'),
       ]);
-      expect(
-        () => reader.parseChunk('>root = Text("x")'),
-        throwsError<A2uiParseError>(),
-      );
+      expect(reader.parseChunk('>root = Text("x")</a2ui>'), [
+        isA<TextPart>().having(
+          (p) => p.text,
+          'text',
+          ' <a2ui>root = Text("x")</a2ui>',
+        ),
+      ]);
     });
 
     test('rejects a change of wrapped between chunks', () {

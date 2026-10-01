@@ -16,17 +16,10 @@ import 'dart:convert';
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../prompt/allowed_messages.dart';
 import '../../prompt/generator.dart';
 import 'parser.dart';
 import 'server_to_client.g.dart';
-
-/// The v0.9 message types, in the order the prompt describes them.
-const List<String> _messageTypes = [
-  'createSurface',
-  'updateComponents',
-  'updateDataModel',
-  'deleteSurface',
-];
 
 /// Renders the system prompt snippet teaching a model to write A2UI messages
 /// as JSON inside `<a2ui-json>` tags.
@@ -62,7 +55,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
         'A direct JSON prompt needs at least one catalog.',
       );
     }
-    final List<String> allowed = _allowed();
+    final List<String> allowed = resolveAllowedMessages(allowedMessages);
     final buffer = StringBuffer(_rules(allowed))
       ..write('\n\n## Message schema\n\n')
       ..write(
@@ -105,25 +98,6 @@ class DirectJsonPromptGenerator extends PromptGenerator {
     }
     return buffer.toString();
   }
-
-  List<String> _allowed() {
-    final List<String>? allowed = allowedMessages;
-    if (allowed == null) return _messageTypes;
-    for (final String type in allowed) {
-      if (!_messageTypes.contains(type)) {
-        throw ArgumentError.value(
-          allowedMessages,
-          'allowedMessages',
-          "'$type' is not a v0.9 message type. The types are: "
-              '${_messageTypes.join(', ')}',
-        );
-      }
-    }
-    return [
-      for (final String type in _messageTypes)
-        if (allowed.contains(type)) type,
-    ];
-  }
 }
 
 /// The v0.9 message schema, describing only the [allowed] message types.
@@ -151,7 +125,7 @@ Map<String, Object?> _messageSchema(List<String> allowed) {
 String? _messageType(Object? definition) {
   if (definition case {'properties': final Map<Object?, Object?> properties}) {
     for (final Object? key in properties.keys) {
-      if (_messageTypes.contains(key)) return key! as String;
+      if (messageTypes.contains(key)) return key! as String;
     }
   }
   return null;

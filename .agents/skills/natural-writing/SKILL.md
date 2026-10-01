@@ -32,6 +32,13 @@ Do not replace simple "is" or "are" verbs with flowery equivalents.
 
 Do not use synonyms just to avoid repeating a subject's name (e.g., "the eponymous character," "the titular protagonist," "the celebrated author"). It is acceptable to repeat the name or use pronouns naturally.
 
+### Prefer literal words to idioms
+
+Choose the word that states the meaning directly over an idiom whose meaning depends on context. Idioms are harder to read for non-native speakers and for anyone skimming instructions.
+
+- Instead of: "Leave the version _alone_."
+- Write: "Leave the version _untouched_."
+
 ## 2. Content & tone
 
 ### No "puffery" or forced significance
