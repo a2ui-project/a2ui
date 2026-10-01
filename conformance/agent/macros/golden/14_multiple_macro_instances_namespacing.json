@@ -1,0 +1,58 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "badge_1__text_1",
+          "text": "ACTIVE",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "badge_1__text_2",
+          "text": "DB",
+          "variant": "h3"
+        },
+        {
+          "component": "Row",
+          "id": "badge_1__row_1",
+          "children": ["badge_1__text_1", "badge_1__text_2"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "badge_1",
+          "child": "badge_1__row_1"
+        },
+        {
+          "component": "Text",
+          "id": "badge_2__text_1",
+          "text": "IDLE",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "badge_2__text_2",
+          "text": "Cache",
+          "variant": "h3"
+        },
+        {
+          "component": "Row",
+          "id": "badge_2__row_1",
+          "children": ["badge_2__text_1", "badge_2__text_2"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "badge_2",
+          "child": "badge_2__row_1"
+        }
+      ]
+    }
+  }
+]

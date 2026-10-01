@@ -31,23 +31,23 @@ class PreviewErrorBoundary extends Component<
   {children: ReactNode; resetKey: string},
   {error: Error | null}
 > {
-  state: {error: Error | null} = {error: null};
+  override state: {error: Error | null} = {error: null};
 
   static getDerivedStateFromError(error: Error) {
     return {error};
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('A2UI Preview Error:', error, errorInfo);
   }
 
-  componentDidUpdate(prevProps: {resetKey: string}) {
+  override componentDidUpdate(prevProps: {resetKey: string}) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
       this.setState({error: null});
     }
   }
 
-  render() {
+  override render() {
     if (this.state.error) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 p-8 text-muted-foreground">

@@ -77,7 +77,7 @@ class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof CheckBoxApi>
     }
   `;
 
-  protected readonly api = CheckBoxApi;
+  protected override readonly api = CheckBoxApi;
 
   override render() {
     const props = this.controller.props;

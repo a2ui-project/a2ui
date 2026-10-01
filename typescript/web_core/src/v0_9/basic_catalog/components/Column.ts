@@ -64,7 +64,7 @@ class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<typeof ColumnApi
     }
   `;
 
-  protected readonly api = ColumnApi;
+  protected override readonly api = ColumnApi;
 
   override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);

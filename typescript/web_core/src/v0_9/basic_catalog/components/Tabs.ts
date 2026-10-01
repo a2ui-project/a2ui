@@ -66,7 +66,7 @@ class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
     }
   `;
 
-  protected readonly api = TabsApi;
+  protected override readonly api = TabsApi;
 
   @state() activeIndex = 0;
 

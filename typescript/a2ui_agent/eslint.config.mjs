@@ -16,4 +16,23 @@
 
 import preset from '../../eslint.preset.mjs';
 
-export default [...preset];
+export default [
+  ...preset,
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/agent', '@a2ui/agent/*'],
+              message:
+                'Use relative imports within @a2ui/agent instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+];

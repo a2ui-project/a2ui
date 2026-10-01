@@ -22,16 +22,26 @@ import 'schema_helper.dart';
 class ExpressPromptGenerator extends PromptGenerator {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressPromptGenerator(this.catalogs);
+  const ExpressPromptGenerator(this.catalogs, {this.examples = const []});
 
+  /// The catalogs whose components and functions the snippet describes.
   final List<SchemaCatalog> catalogs;
+
+  /// Example turns the snippet shows the model, in order. Each is the list of
+  /// messages making up one turn.
+  final List<List<AgentToRendererMessage>> examples;
 
   /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
   /// nothing the model could be told to write.
+  ///
+  /// Rendering [examples] is not implemented yet.
   @override
   String generate() {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
+    }
+    if (examples.isNotEmpty) {
+      throw UnimplementedError('ExpressPromptGenerator.generate with examples');
     }
     final buffer = StringBuffer(_rules);
     if (catalogs.length == 1) {

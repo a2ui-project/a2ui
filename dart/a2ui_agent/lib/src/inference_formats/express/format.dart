@@ -28,21 +28,26 @@ class ExpressFormatFactory extends InferenceFormatFactory {
   const ExpressFormatFactory();
 
   @override
-  InferenceFormat createFormat(List<SchemaCatalog> catalogs) =>
-      ExpressFormat._(List.unmodifiable(catalogs));
+  InferenceFormat createFormat(
+    List<SchemaCatalog> catalogs, {
+    List<List<AgentToRendererMessage>> examples = const [],
+  }) =>
+      ExpressFormat._(List.unmodifiable(catalogs), List.unmodifiable(examples));
 }
 
 /// The Express format bound to the catalogs of one request.
 ///
 /// The first catalog is the default for a surface that does not name one.
 class ExpressFormat extends InferenceFormat {
-  ExpressFormat._(this._catalogs);
+  ExpressFormat._(this._catalogs, this._examples);
 
   final List<SchemaCatalog> _catalogs;
+  final List<List<AgentToRendererMessage>> _examples;
 
   @override
   late final PromptGenerator promptGenerator = ExpressPromptGenerator(
     _catalogs,
+    examples: _examples,
   );
 
   @override

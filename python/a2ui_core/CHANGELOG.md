@@ -8,6 +8,9 @@
   the double range, such as `1e999` or a 400-digit integer. It used to return
   `inf` for float literals and an exact `int` for integer literals. Integer
   literals longer than 4,300 digits no longer raise a bare `ValueError`.
+- **BREAKING**: Optional JSON Schema `default` annotations in generated v0.9
+  and v1.0 Pydantic models are kept in field descriptions instead of becoming
+  field values. `const` values remain fixed.
 
 ## 0.2.0 (2026-09-28)
 

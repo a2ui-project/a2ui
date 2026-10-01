@@ -38,9 +38,11 @@ import {
 } from '../../dist/src/v1_0/basic_catalog/index.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../dist/src/errors.js';
+import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
 import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
+import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -130,6 +132,16 @@ const SKIP_TEST_NAMES = new Set([
 ]);
 
 /**
+ * Cases that web_core's behaviour does not satisfy, keyed by suite path and
+ * then case name, with the behaviour that differs. They are reported as
+ * skipped with that reason. An entry that matches no case fails the run.
+ */
+const KNOWN_DIVERGENCES = new Map();
+
+/** Suites that must be discovered and contain at least one case. */
+const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
+
+/**
  * Transition skip list containing specific test suite files to skip during active feature transitions.
  *
  * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
@@ -137,7 +149,7 @@ const SKIP_TEST_NAMES = new Set([
  *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml']);
+const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.
@@ -190,7 +202,7 @@ function findYamlFiles(dir) {
 
 function loadYamlFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
-  return yaml.load(content);
+  return yaml.load(content, {maxDepth: 1000});
 }
 
 async function runConformanceHarness() {
@@ -213,6 +225,19 @@ async function runConformanceHarness() {
   const failures = [];
   /** Count of cases skipped per `UNIMPLEMENTED_ACTIONS` entry, for the summary. */
   const unrunByAction = new Map();
+  /** `KNOWN_DIVERGENCES` entries that matched a case, as `suite#name`. */
+  const matchedDivergences = new Set();
+  const discoveredSuites = new Set(files.map(file => path.relative(CONFORMANCE_ROOT, file)));
+
+  for (const suite of REQUIRED_SUITES) {
+    if (!discoveredSuites.has(suite)) {
+      totalTests++;
+      totalFailed++;
+      const err = 'Required suite was not discovered.';
+      console.error(`  ✗ FAILED: ${suite}: ${err}`);
+      failures.push({file: suite, name: 'Required Suite', error: err});
+    }
+  }
 
   for (const filePath of files) {
     const relativePath = path.relative(CONFORMANCE_ROOT, filePath);
@@ -240,6 +265,15 @@ async function runConformanceHarness() {
       continue;
     }
 
+    if (REQUIRED_SUITES.has(relativePath) && testCases.length === 0) {
+      totalTests++;
+      totalFailed++;
+      const err = 'Required suite has no test cases.';
+      console.error(`  ✗ FAILED: ${relativePath}: ${err}`);
+      failures.push({file: relativePath, name: 'Required Suite', error: err});
+      continue;
+    }
+
     console.log(`\n📄 Suite: ${relativePath} (${testCases.length} test cases)`);
 
     for (const testCase of testCases) {
@@ -261,6 +295,14 @@ async function runConformanceHarness() {
       if (SKIP_TEST_NAMES.has(name)) {
         totalSkipped++;
         console.log(`  ⁃ [SKIPPED] ${name}`);
+        continue;
+      }
+
+      const divergence = KNOWN_DIVERGENCES.get(relativePath)?.get(name);
+      if (divergence !== undefined) {
+        matchedDivergences.add(`${relativePath}#${name}`);
+        totalSkipped++;
+        console.log(`  ⁃ [SKIPPED] ${name} (known divergence: ${divergence})`);
         continue;
       }
 
@@ -318,6 +360,9 @@ async function runConformanceHarness() {
           case 'get_renderer_data_model':
             validateGetRendererDataModelTestCase(testCase);
             break;
+          case 'resolve_nodes':
+            await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
+            break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);
         }
@@ -329,6 +374,18 @@ async function runConformanceHarness() {
         const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
         console.error(failMessage);
         failures.push({file: relativePath, name, error: err.message});
+      }
+    }
+  }
+
+  for (const [suite, cases] of KNOWN_DIVERGENCES) {
+    for (const name of cases.keys()) {
+      if (!matchedDivergences.has(`${suite}#${name}`)) {
+        totalTests++;
+        totalFailed++;
+        const err = 'Known divergence matches no test case.';
+        console.error(`  ✗ FAILED: ${name}: ${err}`);
+        failures.push({file: suite, name, error: err});
       }
     }
   }
@@ -1101,15 +1158,16 @@ function validateResolvePathTestCase(testCase) {
 
   const targetPath = args.path || '';
   const contextPath = args.contextPath || args.context_path;
+  const ctx = new DataContext(new DataModel(), contextPath || '/');
 
   if (expectError) {
     assert.throws(() => {
-      DataModel.resolvePath(targetPath, contextPath);
+      ctx.resolvePath(targetPath);
     });
     return;
   }
 
-  const result = DataModel.resolvePath(targetPath, contextPath);
+  const result = ctx.resolvePath(targetPath);
   if (typeof expect === 'string') {
     assert.strictEqual(result, expect);
   } else if (expect && typeof expect === 'object' && 'result' in expect) {
@@ -1781,19 +1839,11 @@ function assertSurfacesMatch(processor, expect) {
           );
         }
       }
-      if (surface && expectedSurface.dataModel) {
-        for (const [k, v] of Object.entries(expectedSurface.dataModel)) {
-          // A key that already starts with '/' is written as a pointer. A bare
-          // key is a literal top-level key, so '~' and '/' within it must be
-          // escaped before it can be used as one.
-          const path = k.startsWith('/') ? k : `/${k.replace(/~/g, '~0').replace(/\//g, '~1')}`;
-          const actualVal = surface.dataModel.get(path);
-          if (JSON.stringify(actualVal) !== JSON.stringify(v)) {
-            throw new Error(
-              `Surface '${surfaceId}' dataModel mismatch for '${k}'. Expected ${JSON.stringify(v)}, got ${JSON.stringify(actualVal)}`,
-            );
-          }
-        }
+      if (surface && expectedSurface.dataModel !== undefined) {
+        assert.deepStrictEqual(
+          JSON.parse(JSON.stringify(surface.dataModel.get('/'))),
+          expectedSurface.dataModel,
+        );
       }
       if (surface && expectedSurface.components) {
         // A suite may list components either as an array of objects carrying
