@@ -58,7 +58,7 @@ class DataModel {
       if (value.keys.every((Object? key) => key is String)) {
         return <String, Object?>{
           for (final MapEntry<Object?, Object?> entry in value.entries)
-            entry.key! as String: _own(entry.value),
+            entry.key as String: _own(entry.value),
         };
       }
       return <Object?, Object?>{
