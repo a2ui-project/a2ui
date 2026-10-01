@@ -126,6 +126,23 @@ _SPEC_KEYWORDS: tuple[str, ...] = (
     "returnType",
 )
 
+# Keywords a model def may use: those its fields and config produce, and the
+# spec keywords its generated hook adds (`_check_model_keywords` narrows the
+# composition keywords further).
+_MODEL_KEYWORDS = frozenset({
+    "type",
+    "description",
+    "properties",
+    "required",
+    "additionalProperties",
+    *_SPEC_KEYWORDS,
+})
+
+# Defs that generated catalog components subclass (see `catalog_generators`).
+# Components inherit the model config and must stay closed, so these defs
+# forbid extra keys even where the spec leaves them open.
+_SUBCLASSED_DEFS = frozenset({"ComponentCommon"})
+
 # The Unicode identifier pattern (UAX #31), which Python's `re` cannot compile.
 _IDENTIFIER_KEY_PATTERN = r"^[\p{XID_Start}_][\p{XID_Continue}]*$"
 
@@ -222,17 +239,88 @@ def _strict_literal_type(branch: dict[str, Any]) -> str:
     raise ValueError(f"Unsupported literal branch in a dynamic def: {branch}")
 
 
-def _function_call_return_type(spec: dict[str, Any]) -> str | None:
-    """Returns the `returnType` const that a dynamic def requires of function calls."""
-    for branch in spec.get("oneOf", []):
-        if not isinstance(branch, dict) or "allOf" not in branch:
-            continue
-        for sub in branch["allOf"]:
-            props = sub.get("properties") if isinstance(sub, dict) else None
-            rt = props.get("returnType") if isinstance(props, dict) else None
-            if isinstance(rt, dict) and "const" in rt:
-                return str(rt["const"])
+_FUNCTION_CALL_REF = {"$ref": "#/$defs/FunctionCall"}
+
+
+def _function_call_branch_return_type(def_name: str, branch: Any) -> str | None:
+    """Returns the `returnType` that a dynamic def's function-call branch requires.
+
+    The branch is either a plain `FunctionCall` reference, which constrains
+    nothing, or exactly `{"allOf": [<FunctionCall ref>, {"properties":
+    {"returnType": {"const": <string>}}}]}`, which `_ReturnType` reproduces.
+
+    Raises:
+        ValueError: If the branch has any other shape, whose constraints the
+            generated type would drop.
+    """
+    if branch == _FUNCTION_CALL_REF:
+        return None
+    unsupported = ValueError(f"Unsupported FunctionCall branch in {def_name}: {branch}")
+    all_of = branch.get("allOf") if isinstance(branch, dict) else None
+    if not (
+        isinstance(branch, dict)
+        and set(branch) == {"allOf"}
+        and isinstance(all_of, list)
+        and len(all_of) == 2
+        and all_of[0] == _FUNCTION_CALL_REF
+        and isinstance(all_of[1], dict)
+        and set(all_of[1]) == {"properties"}
+    ):
+        raise unsupported
+    props = all_of[1]["properties"]
+    return_type = props.get("returnType") if isinstance(props, dict) else None
+    if not (
+        set(props) == {"returnType"}
+        and isinstance(return_type, dict)
+        and set(return_type) == {"const"}
+        and isinstance(return_type["const"], str)
+    ):
+        raise unsupported
+    return return_type["const"]
+
+
+def _local_def_name(ref: Any) -> str | None:
+    """Returns the def name of a local `#/$defs/` reference."""
+    if isinstance(ref, str) and ref.startswith("#/$defs/"):
+        return ref[len("#/$defs/") :]
     return None
+
+
+def _schema_allows_null(
+    schema: Any, defs: dict[str, Any], seen: frozenset[str] = frozenset()
+) -> bool:
+    """Returns whether a JSON schema accepts `null`.
+
+    Unknown or unsupported keywords count as accepting `null`, so callers only
+    reject `null` where the schema certainly does.
+    """
+    if not isinstance(schema, dict):
+        return schema is not False
+    if "const" in schema and schema["const"] is not None:
+        return False
+    if "enum" in schema and None not in schema["enum"]:
+        return False
+    schema_type = schema.get("type")
+    if schema_type is not None:
+        types = schema_type if isinstance(schema_type, list) else [schema_type]
+        if "null" not in types:
+            return False
+    def_name = _local_def_name(schema.get("$ref"))
+    if def_name is not None and def_name in defs and def_name not in seen:
+        if not _schema_allows_null(defs[def_name], defs, seen | {def_name}):
+            return False
+    for union_key in ("oneOf", "anyOf"):
+        branches = schema.get(union_key)
+        if isinstance(branches, list) and not any(
+            _schema_allows_null(b, defs, seen) for b in branches
+        ):
+            return False
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list) and not all(
+        _schema_allows_null(b, defs, seen) for b in all_of
+    ):
+        return False
+    return True
 
 
 def _not_clause_forbidden_keys(name: str, not_clause: Any) -> set[str]:
@@ -266,30 +354,24 @@ def _not_clause_forbidden_keys(name: str, not_clause: Any) -> set[str]:
 
 
 def _literal_object_validator_code(
-    name: str, union_items: list[Any], schema_annotation: str | None = None
+    name: str, branch: dict[str, Any], schema_annotation: str
 ) -> str:
-    """Emits the `LiteralObject` type that rejects keys forbidden by `not` clauses.
+    """Emits the `LiteralObject` type that rejects keys its `not` clause forbids.
 
     Args:
         name: The union that the literal object belongs to, for error messages.
-        union_items: The union branches, whose `not` clauses list forbidden keys.
+        branch: The union's `{"type": "object", "not": ...}` branch.
         schema_annotation: An annotation that shapes the type's JSON schema.
     """
-    forbidden_keys: set[str] = set()
-    for it in union_items:
-        if not (isinstance(it, dict) and it.get("type") == "object" and "not" in it):
-            continue
-        forbidden_keys.update(_not_clause_forbidden_keys(name, it["not"]))
-
-    if forbidden_keys:
-        forbidden_set_repr = (
-            "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
-        )
-    else:
-        forbidden_set_repr = "set()"
-    annotations = ["dict[str, Any]", "AfterValidator(_validate_literal_object)"]
-    if schema_annotation:
-        annotations.append(schema_annotation)
+    forbidden_keys = _not_clause_forbidden_keys(name, branch["not"])
+    forbidden_set_repr = (
+        "{" + ", ".join(python_literal(k) for k in sorted(forbidden_keys)) + "}"
+    )
+    annotations = [
+        "dict[str, Any]",
+        "AfterValidator(_validate_literal_object)",
+        schema_annotation,
+    ]
     return f"""def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
@@ -302,6 +384,42 @@ def _literal_object_validator_code(
     return v
 
 LiteralObject = Annotated[{", ".join(annotations)}]"""
+
+
+_REJECT_NULL_VALUES_CODE = """def _reject_null_values(value: dict[str, Any]) -> dict[str, Any]:
+    nulls = sorted(key for key, item in value.items() if item is None)
+    if nulls:
+        raise ValueError(f"Values must not be null: {nulls}")
+    return value"""
+
+
+def _wrapper_union_branches(spec: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Returns the branches of a union of single-property wrapper objects.
+
+    Each branch must be a closed object with exactly one property, which it
+    requires (for example `Action`'s `{"event": ...}` and
+    `{"functionCall": ...}`). Each branch becomes a wrapper model.
+
+    Returns:
+        The wrapped property name and the branch, for each branch, or an empty
+        list if the def is not such a union.
+    """
+    branches = spec.get("oneOf")
+    if not isinstance(branches, list) or not branches:
+        return []
+    result = []
+    for branch in branches:
+        props = branch.get("properties") if isinstance(branch, dict) else None
+        if not (
+            isinstance(props, dict)
+            and len(props) == 1
+            and branch.get("type") == "object"
+            and branch.get("required") == list(props)
+            and branch.get("additionalProperties") is False
+        ):
+            return []
+        result.append((next(iter(props)), branch))
+    return result
 
 
 def generate_common_types(
@@ -374,6 +492,20 @@ def generate_common_types(
     # and the models whose fields use them.
     schema_as_constants: dict[str, tuple[str, str]] = {}
 
+    # Names of generated symbols other than the defs themselves (helper
+    # models, wrapper models, `LiteralObject`), which must not collide with a
+    # def, a base symbol or each other.
+    claimed_names: set[str] = set()
+    # Strict references may target a def or a claimed helper model.
+    known_local_refs = set(defs)
+    codegen.known_local_refs = known_local_refs
+
+    def _claim_name(name: str) -> None:
+        if name in defs or name in base_symbols or name in claimed_names:
+            raise ValueError(f"Generated name {name} collides with another symbol")
+        claimed_names.add(name)
+        known_local_refs.add(name)
+
     def _is_model_def(def_name: str) -> bool:
         return def_name in get_base_common_class_names() or (
             "properties" in defs.get(def_name, {})
@@ -441,7 +573,7 @@ def generate_common_types(
         if isinstance(node, list):
             return "[" + ", ".join(_render_schema_code(item) for item in node) + "]"
         if not isinstance(node, dict):
-            return repr(node)
+            return python_literal(node)
         if isinstance(node.get("$ref"), str):
             ref = node["$ref"]
             if len(node) != 1:
@@ -455,7 +587,9 @@ def generate_common_types(
                 imports.helpers.add("catalog_functions")
                 return "catalog_functions()"
             raise ValueError(f"Unsupported $ref in a composition: {ref}")
-        items = [f"{json.dumps(k)}: {_render_schema_code(v)}" for k, v in node.items()]
+        items = [
+            f"{python_literal(k)}: {_render_schema_code(v)}" for k, v in node.items()
+        ]
         if "anyOf" in node:
             imports.helpers.add("KEEP_ANY_OF_MARKER")
             items.append("KEEP_ANY_OF_MARKER: True")
@@ -469,7 +603,7 @@ def generate_common_types(
                 imports.helpers.add("SPEC_TITLE_KEY")
                 items.append(f"SPEC_TITLE_KEY: {_render_schema_code(value)}")
             else:
-                items.append(f"{json.dumps(key)}: {_render_schema_code(value)}")
+                items.append(f"{python_literal(key)}: {_render_schema_code(value)}")
         return "{" + ", ".join(items) + "}"
 
     def _is_catalog_functions_one_of(spec: dict[str, Any]) -> bool:
@@ -501,11 +635,16 @@ def generate_common_types(
         The model validates its fields; `_one_of_required_validator_code`
         validates a `oneOf` of required fields; the catalog validates the
         function a `oneOf` of catalog functions selects. Other composition
-        next to `properties` would only be published, so it is rejected.
+        next to `properties` would only be published, so it is rejected, as
+        is any keyword outside `_MODEL_KEYWORDS` (for example `default` or
+        `minProperties`), and a required property the model does not declare.
         """
-        unsupported = [
+        unsupported = sorted(set(spec) - _MODEL_KEYWORDS)
+        unsupported += [
             key for key in ("allOf", "anyOf", "not", "patternProperties") if key in spec
         ]
+        if spec.get("type", "object") != "object":
+            unsupported.append("type")
         if "oneOf" in spec and not (
             _is_required_one_of(spec) or _is_catalog_functions_one_of(spec)
         ):
@@ -518,6 +657,17 @@ def generate_common_types(
             raise ValueError(
                 f"Unsupported keywords next to properties in {name}: {unsupported}"
             )
+        properties = spec.get("properties", {})
+        required = spec.get("required", [])
+        one_of_required = [
+            prop
+            for branch in (spec.get("oneOf", []) if _is_required_one_of(spec) else [])
+            for prop in branch["required"]
+        ]
+        declared = set(properties) if isinstance(properties, dict) else set()
+        undeclared = sorted((set(required) | set(one_of_required)) - declared)
+        if undeclared:
+            raise ValueError(f"{name} requires undeclared properties: {undeclared}")
 
     def _spec_hook_code(name: str, spec: dict[str, Any]) -> str:
         """Emits `__get_pydantic_json_schema__` for keywords fields cannot produce.
@@ -586,7 +736,10 @@ def generate_common_types(
         """Emits a validator for a `oneOf` that selects between required fields.
 
         For example, `FunctionResponse` requires exactly one of `value` and
-        `error`. A field counts as present when it is set, even to None.
+        `error`. A field counts as present when it is set, even to None, as
+        JSON schema's `required` counts a property that is null. Fields whose
+        schema rejects null never hold None (see `_null_check_code`), so only
+        fields whose schema accepts null, such as `value`, can be set to None.
 
         Returns:
             The validator method, or an empty string if the spec needs none.
@@ -604,6 +757,7 @@ def generate_common_types(
             for branch in branches
         )
         choices = " | ".join(", ".join(branch["required"]) for branch in branches)
+        message = python_literal(f"{name} must set exactly one of: {choices}")
         imports.model_validator = True
         return (
             '\n\n    @model_validator(mode="after")\n    def'
@@ -611,8 +765,46 @@ def generate_common_types(
             f" {field_groups!r}\n        matched = sum(\n            all(field in"
             " self.model_fields_set for field in fields)\n            for fields in"
             " branches\n        )\n        if matched != 1:\n            raise"
-            f' ValueError("{name} must set exactly one of: {choices}")\n        return'
-            " self\n"
+            f" ValueError({message})\n        return self\n"
+        )
+
+    def _null_check_code(spec: dict[str, Any]) -> str:
+        """Emits a validator that rejects null for optional non-nullable fields.
+
+        Optional fields are typed `X | None` so that they can be absent, which
+        would also accept an explicit null. The validator rejects null where
+        the spec does, under both the property name and the field name. It
+        only checks keys, so the JSON schema is unchanged.
+
+        Returns:
+            The validator method, or an empty string if the spec needs none.
+        """
+        required = set(spec.get("required", []))
+        keys: list[str] = []
+        for prop_name, prop in spec.get("properties", {}).items():
+            if prop_name in required or _schema_allows_null(prop, defs):
+                continue
+            for key in (prop_name, to_snake_case(prop_name)):
+                if key not in keys:
+                    keys.append(key)
+        if not keys:
+            return ""
+        imports.model_validator = True
+        keys_code = ", ".join(python_literal(k) for k in keys)
+        keys_code = f"({keys_code},)" if len(keys) == 1 else f"({keys_code})"
+        return (
+            '\n\n    @model_validator(mode="before")\n'
+            "    @classmethod\n"
+            "    def _reject_null_fields(cls, data: Any) -> Any:\n"
+            "        if isinstance(data, dict):\n"
+            "            nulls = [\n"
+            f"                key for key in {keys_code}\n"
+            "                if key in data and data[key] is None\n"
+            "            ]\n"
+            "            if nulls:\n"
+            '                raise ValueError(f"{cls.__name__} fields must not be'
+            ' null: {nulls}")\n'
+            "        return data\n"
         )
 
     def _compile_model(
@@ -620,15 +812,27 @@ def generate_common_types(
         spec: dict[str, Any],
         base_class: str | None = None,
         inline: bool = False,
+        helper_prefix: str | None = None,
+        inline_helpers: bool = True,
     ) -> None:
         """Compiles an object def into a model, with helper models for nested objects.
 
         A nested object property with its own properties becomes a helper model
-        named after its parent and property, for example
-        `ComponentCommonMetadata`. Helper models carry `INLINE_DEF_MARKER`, so
-        schemas put them back inline at their references, as the specification
-        does.
+        named after its parent (or `helper_prefix`) and property, for example
+        `ComponentCommonMetadata`. Helper models carry `INLINE_DEF_MARKER`
+        unless `inline_helpers` is unset, so schemas put them back inline at
+        their references, as the specification does.
+
+        A def that the spec leaves open (no `additionalProperties` and no
+        `unevaluatedProperties: false`) allows extra keys, unless generated
+        catalog components subclass it (`_SUBCLASSED_DEFS`).
+
+        Raises:
+            ValueError: If the def uses keywords that nothing would enforce, or
+                a helper model name collides with another symbol.
         """
+        if "properties" in spec:
+            _check_model_keywords(name, spec)
         model_props: dict[str, Any] = {}
         for prop_name, prop in spec.get("properties", {}).items():
             if (
@@ -636,16 +840,23 @@ def generate_common_types(
                 and prop.get("type") == "object"
                 and "properties" in prop
             ):
-                helper_name = f"{name}{to_pascal_case(prop_name)}"
-                _compile_model(helper_name, prop, inline=True)
+                helper_name = f"{helper_prefix or name}{to_pascal_case(prop_name)}"
+                _claim_name(helper_name)
+                _compile_model(helper_name, prop, inline=inline_helpers)
                 ref: dict[str, Any] = {"$ref": f"#/$defs/{helper_name}"}
                 if "description" in prop:
                     ref["description"] = prop["description"]
                 prop = ref
             model_props[prop_name] = prop
-        model_code = codegen.compile_object_def(
-            name, {**spec, "properties": model_props}, base_class=base_class
+        model_spec = {**spec, "properties": model_props}
+        open_in_spec = (
+            "additionalProperties" not in spec
+            and spec.get("unevaluatedProperties") is not False
         )
+        if open_in_spec and name not in _SUBCLASSED_DEFS:
+            model_spec["additionalProperties"] = True
+            base_class = base_class or "StrictBaseModel"
+        model_code = codegen.compile_object_def(name, model_spec, base_class=base_class)
         if inline:
             imports.helpers.add("INLINE_DEF_MARKER")
             model_code = model_code.replace(
@@ -658,6 +869,7 @@ def generate_common_types(
             model_code.rstrip()
             + _spec_hook_code(name, spec)
             + _one_of_required_validator_code(name, spec)
+            + _null_check_code(spec)
         )
 
     def _pattern_keyed_object_code(name: str, spec: dict[str, Any]) -> str:
@@ -691,7 +903,7 @@ def generate_common_types(
             "        )\n"
             "    return value\n\n\n"
             f"{name} = TypeAliasType(\n"
-            f'    "{name}",\n'
+            f"    {python_literal(name)},\n"
             "    Annotated[\n"
             "        OpenObject,\n"
             f"        AfterValidator({validator}),\n"
@@ -708,197 +920,195 @@ def generate_common_types(
     # Dynamic compilation from $defs:
     processed: set[str] = set(imports_from_common)
 
+    def _compile_wrapper_union(
+        name: str, spec: dict[str, Any], branches: list[tuple[str, dict[str, Any]]]
+    ) -> None:
+        """Compiles a union of single-property wrapper objects (e.g. `Action`).
+
+        Each branch becomes a model named `<Name><Property>Wrapper`, and a
+        nested object it wraps becomes a model named `<Name><Property>`, for
+        example `ActionEventWrapper` and `ActionEvent`. These are separate defs
+        in catalogs, which reference them.
+
+        Raises:
+            ValueError: If the def has keywords next to its `oneOf`, or a
+                generated name collides with another symbol.
+        """
+        _check_def_keywords(name, spec, {"description", "oneOf"})
+        members = []
+        for prop_name, branch in branches:
+            wrapper_name = f"{name}{to_pascal_case(prop_name)}Wrapper"
+            _claim_name(wrapper_name)
+            _compile_model(
+                wrapper_name, branch, helper_prefix=name, inline_helpers=False
+            )
+            members.append(wrapper_name)
+        common_blocks.append(f"{name} = {' | '.join(members)}")
+
+    def _compile_function_call(spec: dict[str, Any]) -> None:
+        """Compiles `FunctionCall` into a flat model.
+
+        The model is flattened so any function call validates without the
+        catalog. The spec's composition keywords and precise `args` shape are
+        expressed as JSON schema hooks over the models instead. A spec that
+        composes `FunctionCall` with `allOf` (v1.0) takes its envelope
+        properties from the def its `allOf` references.
+
+        Raises:
+            ValueError: If the spec has no properties and its `allOf` does not
+                reference exactly one def that declares `call`.
+        """
+        if "properties" in spec:
+            fn_props = dict(spec["properties"])
+            required = spec.get("required", [])
+            if "args" in fn_props:
+                args_spec = dict(fn_props["args"])
+                schema_as_constants["_FUNCTION_CALL_ARGS_SCHEMA"] = (
+                    _schema_only_type_expr(args_spec, field_root=True),
+                    "FunctionCall",
+                )
+                validators = ""
+                # Validation stays `dict[str, Any]`, so values the spec
+                # rejects as null are rejected explicitly.
+                if not _schema_allows_null(
+                    args_spec.get("additionalProperties", True), defs
+                ):
+                    if "_reject_null_values" not in processed:
+                        common_blocks.append(_REJECT_NULL_VALUES_CODE)
+                        processed.add("_reject_null_values")
+                    validators = "AfterValidator(_reject_null_values), "
+                args_spec[PYTHON_TYPE_KEY] = (
+                    f"Annotated[dict[str, Any], {validators}_FUNCTION_CALL_ARGS_SCHEMA]"
+                )
+                imports.helpers.add("JsonSchemaAs")
+                fn_props["args"] = args_spec
+        else:
+            base_refs = [
+                sub
+                for sub in spec.get("allOf", [])
+                if isinstance(sub, dict) and "$ref" in sub
+            ]
+            base_name = (
+                _local_def_name(base_refs[0]["$ref"])
+                if len(base_refs) == 1 and set(base_refs[0]) == {"$ref"}
+                else None
+            )
+            base_spec = defs.get(base_name) if base_name else None
+            base_props = base_spec.get("properties") if base_spec else None
+            if not isinstance(base_props, dict) or "call" not in base_props:
+                raise ValueError(
+                    "FunctionCall must declare properties or reference, through"
+                    f" `allOf`, one def that declares `call`: {spec}"
+                )
+            assert base_spec is not None
+            fn_props = {"call": base_props["call"]}
+            # Each catalog function declares its own `args`, so the flat model
+            # accepts any arguments object; the catalog validates its shape.
+            fn_props["args"] = base_props.get(
+                "args",
+                {"type": "object", "description": "Arguments passed to the function."},
+            )
+            fn_props.update({k: v for k, v in base_props.items() if k not in fn_props})
+            required = base_spec.get("required", [])
+        fn_spec: dict[str, Any] = {"properties": fn_props, "required": required}
+        if "description" in spec:
+            fn_spec = {"description": spec["description"], **fn_spec}
+        fn_code = codegen.compile_object_def("FunctionCall", fn_spec)
+        if version_to_underscore(version) in ("v0_9", "v0_9_1") and (
+            "returnType" in fn_props or "return_type" in fn_props
+        ):
+            serializer_method = (
+                "\n    # Hand-maintained: omit an inferred return type from"
+                ' serialized calls.\n    @model_serializer(mode="wrap")\n   '
+                " def _serialize_model(self, handler: Any) -> Any:\n        d ="
+                " handler(self)\n        if isinstance(d, dict) and"
+                ' "return_type" not in self.model_fields_set:\n           '
+                ' d.pop("returnType", None)\n            d.pop("return_type",'
+                " None)\n        return d\n"
+            )
+            fn_code = fn_code.rstrip() + serializer_method
+        common_blocks.append(
+            fn_code.rstrip()
+            + _spec_hook_code("FunctionCall", spec)
+            + _null_check_code(fn_spec)
+        )
+
+    def _compile_dynamic_def(name: str, spec: dict[str, Any]) -> None:
+        """Compiles a dynamic value union, keeping the spec's branch order.
+
+        Raises:
+            ValueError: If a branch has a shape whose constraints the union
+                would drop.
+        """
+        _check_def_keywords(name, spec, {"description", "oneOf"})
+        members: list[str] = []
+        for branch in spec["oneOf"]:
+            if not isinstance(branch, dict):
+                raise ValueError(f"Unsupported branch in {name}: {branch}")
+            if branch == {"$ref": "#/$defs/DataBinding"}:
+                member = "DataBinding"
+            elif is_function_call_branch(branch):
+                expected_rt = _function_call_branch_return_type(name, branch)
+                if expected_rt is None:
+                    member = "FunctionCall"
+                else:
+                    if "_ReturnType" not in processed:
+                        common_blocks.append(_RETURN_TYPE_ANNOTATION_CODE)
+                        processed.add("_ReturnType")
+                    member = (
+                        "Annotated[FunctionCall,"
+                        f" _ReturnType({python_literal(expected_rt)})]"
+                    )
+            elif branch.get("type") == "object" and "not" in branch:
+                # The `not` clause keeps the branch exclusive of bindings and
+                # function calls, which catalogs rely on too. The type is
+                # emitted once; a second def needing one fails generation.
+                if set(branch) != {"type", "not"}:
+                    raise ValueError(f"Unsupported literal object in {name}: {branch}")
+                _claim_name("LiteralObject")
+                imports.helpers.add("JsonSchemaKeywords")
+                not_code = _render_schema_code({"not": branch["not"]})
+                common_blocks.append(
+                    _literal_object_validator_code(
+                        name,
+                        branch,
+                        f"JsonSchemaKeywords({not_code},"
+                        ' drop=("additionalProperties",))',
+                    )
+                )
+                member = "LiteralObject"
+            else:
+                member = _strict_literal_type(branch)
+            if member in members:
+                raise ValueError(f"Duplicate {member} branch in {name}: {spec}")
+            members.append(member)
+        common_blocks.append(f"{name} = {' | '.join(members)}")
+
     def _compile_def(name: str, spec: dict[str, Any]) -> None:
         if name in processed:
             return
 
-        # Special handling for structural composite types:
-        if name == "ChildList":
-            if "oneOf" in spec and len(spec["oneOf"]) > 1:
-                template_spec = spec["oneOf"][1]
-                common_blocks.append(
-                    codegen.compile_object_def(
-                        "TemplateChildList",
-                        template_spec,
-                        base_class="StrictBaseModel, ListReference",
-                    )
-                )
-                common_blocks.append(f"ChildList = {' | '.join(_CHILD_LIST_BRANCHES)}")
-            else:
-                common_blocks.append(codegen.compile_union_def("ChildList", spec))
-            processed.add(name)
-            return
-
-        if name == "Action":
-            if "oneOf" in spec:
-                event_part = spec["oneOf"][0]
-                if "properties" in event_part and "event" in event_part["properties"]:
-                    common_blocks.append(
-                        codegen.compile_object_def(
-                            "ActionEvent", event_part["properties"]["event"]
-                        )
-                    )
-                    event_wrapper_spec = dict(event_part)
-                    event_wrapper_spec["properties"] = dict(event_part["properties"])
-                    event_wrapper_spec["properties"]["event"] = {
-                        "$ref": "#/$defs/ActionEvent",
-                        "description": (
-                            event_part["properties"]["event"].get("description", "")
-                        ),
-                    }
-                    common_blocks.append(
-                        codegen.compile_object_def(
-                            "ActionEventWrapper", event_wrapper_spec
-                        )
-                    )
-                if len(spec["oneOf"]) > 1 and "properties" in spec["oneOf"][1]:
-                    common_blocks.append(
-                        codegen.compile_object_def(
-                            "ActionFunctionCallWrapper", spec["oneOf"][1]
-                        )
-                    )
-                common_blocks.append(
-                    "Action = ActionEventWrapper | ActionFunctionCallWrapper"
-                )
-            else:
-                common_blocks.append(codegen.compile_union_def("Action", spec))
+        wrapper_branches = _wrapper_union_branches(spec)
+        if wrapper_branches:
+            _compile_wrapper_union(name, spec, wrapper_branches)
             processed.add(name)
             return
 
         if name == "FunctionCall":
-            # The model is flattened so any function call validates without the
-            # catalog. The spec's composition keywords and precise `args` shape
-            # are expressed as JSON schema hooks over the models instead.
-            if "properties" in spec:
-                fn_props = dict(spec["properties"])
-                if "args" in fn_props:
-                    args_spec = dict(fn_props["args"])
-                    schema_as_constants["_FUNCTION_CALL_ARGS_SCHEMA"] = (
-                        _schema_only_type_expr(args_spec, field_root=True),
-                        "FunctionCall",
-                    )
-                    args_spec[PYTHON_TYPE_KEY] = (
-                        "Annotated[dict[str, Any], _FUNCTION_CALL_ARGS_SCHEMA]"
-                    )
-                    imports.helpers.add("JsonSchemaAs")
-                    fn_props["args"] = args_spec
-                fn_spec = {
-                    "description": spec.get("description", "Invokes a named function."),
-                    "properties": fn_props,
-                    "required": spec.get("required", ["call"]),
-                }
-                fn_code = codegen.compile_object_def("FunctionCall", fn_spec)
-                if version_to_underscore(version) in ("v0_9", "v0_9_1") and (
-                    "returnType" in fn_props or "return_type" in fn_props
-                ):
-                    serializer_method = (
-                        "\n    # Hand-maintained: omit an inferred return type from"
-                        ' serialized calls.\n    @model_serializer(mode="wrap")\n   '
-                        " def _serialize_model(self, handler: Any) -> Any:\n        d ="
-                        " handler(self)\n        if isinstance(d, dict) and"
-                        ' "return_type" not in self.model_fields_set:\n           '
-                        ' d.pop("returnType", None)\n            d.pop("return_type",'
-                        " None)\n        return d\n"
-                    )
-                    fn_code = fn_code.rstrip() + serializer_method
-            else:
-                fn_common = defs.get("FunctionCommon", {})
-                fn_props = {}
-                call_key = (
-                    "@call" if "@call" in fn_common.get("properties", {}) else "call"
-                )
-                if call_key in fn_common.get("properties", {}):
-                    fn_props[call_key] = fn_common["properties"][call_key]
-                else:
-                    fn_props[call_key] = {
-                        "type": "string",
-                        "description": "The name of the function to call.",
-                    }
-                fn_props["args"] = {
-                    "type": "object",
-                    "description": "Arguments passed to the function.",
-                }
-                for k, v in fn_common.get("properties", {}).items():
-                    if k != call_key:
-                        fn_props[k] = v
-                fn_spec = {
-                    "description": spec.get("description", "Invokes a named function."),
-                    "properties": fn_props,
-                    "required": fn_common.get("required", [call_key]),
-                }
-                fn_code = codegen.compile_object_def("FunctionCall", fn_spec)
-            fn_code = fn_code.rstrip() + _spec_hook_code(name, spec)
-            common_blocks.append(fn_code)
+            _compile_function_call(spec)
             processed.add(name)
             return
 
         if is_dynamic_def(spec):
-            expected_rt = _function_call_return_type(spec)
-            if expected_rt and "_ReturnType" not in processed:
-                common_blocks.append(_RETURN_TYPE_ANNOTATION_CODE)
-                processed.add("_ReturnType")
-            if expected_rt:
-                fn_branch = f'Annotated[FunctionCall, _ReturnType("{expected_rt}")]'
-            else:
-                fn_branch = "FunctionCall"
-
-            # Members follow the spec's branch order, which the JSON schema keeps.
-            members: list[str] = []
-            for branch in spec["oneOf"]:
-                if not isinstance(branch, dict):
-                    raise ValueError(f"Unsupported branch in {name}: {branch}")
-                if branch.get("$ref") == "#/$defs/DataBinding":
-                    members.append("DataBinding")
-                elif is_function_call_branch(branch):
-                    members.append(fn_branch)
-                elif branch.get("type") == "object" and "not" in branch:
-                    # The `not` clause keeps the branch exclusive of bindings
-                    # and function calls, which catalogs rely on too.
-                    imports.helpers.add("JsonSchemaKeywords")
-                    not_code = _render_schema_code({"not": branch["not"]})
-                    common_blocks.append(
-                        _literal_object_validator_code(
-                            name,
-                            spec["oneOf"],
-                            f"JsonSchemaKeywords({not_code},"
-                            ' drop=("additionalProperties",))',
-                        )
-                    )
-                    members.append("LiteralObject")
-                else:
-                    members.append(_strict_literal_type(branch))
-            common_blocks.append(f"{name} = {' | '.join(members)}")
+            _compile_dynamic_def(name, spec)
             processed.add(name)
             return
 
-        # Generic schema compilation:
-        if "oneOf" in spec or "anyOf" in spec:
-            union_items = spec.get("oneOf") or spec.get("anyOf") or []
-            has_negated_object = any(
-                isinstance(it, dict) and it.get("type") == "object" and "not" in it
-                for it in union_items
-            )
-            if has_negated_object:
-                common_blocks.append(_literal_object_validator_code(name, union_items))
-
-                ref_items = []
-                non_ref_items = []
-                for item in union_items:
-                    if isinstance(item, dict) and "$ref" in item:
-                        ref_items.append(codegen.map_json_type_to_python("", item))
-                    elif (
-                        isinstance(item, dict)
-                        and item.get("type") == "object"
-                        and "not" in item
-                    ):
-                        continue
-                    else:
-                        non_ref_items.append(codegen.map_json_type_to_python("", item))
-
-                all_mapped = non_ref_items + ref_items + ["LiteralObject"]
-                common_blocks.append(f"{name} = {' | '.join(all_mapped)}")
-                processed.add(name)
-                return
+        union_items = spec.get("oneOf") or spec.get("anyOf") or []
+        if any(isinstance(it, dict) and "not" in it for it in union_items):
+            # Only dynamic value defs support a `not` branch, which
+            # `LiteralObject` enforces and publishes.
+            raise ValueError(f"Unsupported `not` branch in {name}: {spec}")
 
         # A primitive def is a named alias, so references to it stay `$ref`s.
         primitive_types = {
@@ -925,7 +1135,9 @@ def generate_common_types(
             _check_def_keywords(name, spec, {"type", "description"})
             imports.type_alias_type = True
             py_type = primitive_types[spec["type"]]
-            common_blocks.append(f'{name} = TypeAliasType("{name}", {py_type})')
+            common_blocks.append(
+                f"{name} = TypeAliasType({python_literal(name)}, {py_type})"
+            )
         elif spec.get("type") == "array":
             _check_def_keywords(name, spec, {"type", "description", "items"})
             item_type = (
@@ -954,7 +1166,8 @@ def generate_common_types(
             "if TYPE_CHECKING:\n"
             f"    {alias_name}: TypeAlias = {alias_target}\n"
             "else:\n"
-            f'    {alias_name} = TypeAliasType("{alias_target}", {alias_target})'
+            f"    {alias_name} = TypeAliasType({python_literal(alias_target)},"
+            f" {alias_target})"
         )
     # Schema-only annotations follow the aliases they use. Each is a single
     # module-level instance, which its recursion guard relies on.
@@ -970,7 +1183,8 @@ def generate_common_types(
         "\n\n".join(common_blocks[1:])
     )
     defs_manifest_lines = [
-        f'    "{key}": {_common_types_manifest_entry(key, spec, class_names)},'
+        f"    {python_literal(key)}:"
+        f" {_common_types_manifest_entry(key, spec, class_names)},"
         for key, spec in defs.items()
     ]
     manifest_code = (
@@ -993,6 +1207,63 @@ def generate_common_types(
     all_exports = sorted(list(dict.fromkeys(imports_from_common + exported_symbols)))
     all_list = ",\n".join(f'    "{s}"' for s in all_exports)
     return f"{full_code}\n__all__ = [\n{all_list},\n]\n"
+
+
+_NESTED_MODEL_KEYWORDS = frozenset({
+    "type",
+    "description",
+    "properties",
+    "required",
+    "additionalProperties",
+})
+
+
+def _extract_nested_models(
+    codegen: PydanticCodegen,
+    parent_name: str,
+    schema: dict[str, Any],
+    blocks: list[str],
+    taken_names: set[str],
+) -> dict[str, Any]:
+    """Compiles nested object properties of a payload into helper models.
+
+    A property that is an object with its own properties becomes a model named
+    `<Parent><Property>` (for example `CreateSurfaceMetadata`), appended to
+    `blocks` before its parent, and the returned schema references it.
+
+    Raises:
+        ValueError: If a helper name is taken, or a nested object uses
+            keywords that its model would not enforce.
+    """
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return schema
+    new_props: dict[str, Any] = {}
+    for prop_name, prop in props.items():
+        if (
+            isinstance(prop, dict)
+            and prop.get("type") == "object"
+            and "properties" in prop
+        ):
+            unsupported = set(prop) - _NESTED_MODEL_KEYWORDS
+            if unsupported or isinstance(prop.get("additionalProperties"), dict):
+                raise ValueError(
+                    f"Unsupported nested object {parent_name}.{prop_name}: {prop}"
+                )
+            helper_name = f"{parent_name}{to_pascal_case(prop_name)}"
+            if helper_name in taken_names:
+                raise ValueError(f"Generated name {helper_name} is already taken")
+            taken_names.add(helper_name)
+            helper_schema = _extract_nested_models(
+                codegen, helper_name, prop, blocks, taken_names
+            )
+            blocks.append(codegen.compile_object_def(helper_name, helper_schema))
+            ref: dict[str, Any] = {"$ref": f"#/$defs/{helper_name}"}
+            if "description" in prop:
+                ref["description"] = prop["description"]
+            prop = ref
+        new_props[prop_name] = prop
+    return {**schema, "properties": new_props}
 
 
 def generate_agent_to_renderer(
@@ -1028,6 +1299,12 @@ def generate_agent_to_renderer(
     ]
 
     msg_names = []
+    # Names of generated classes, which nested helper models must not reuse.
+    taken_names = (
+        set(defs_a2r)
+        | set(needed_imports)
+        | {m.replace("Message", "") for m in defs_a2r if m.endswith("Message")}
+    )
     if defs_a2r:
         for mname, mschema in defs_a2r.items():
             if not mname.endswith("Message"):
@@ -1045,6 +1322,9 @@ def generate_agent_to_renderer(
                     ref_target = payload_schema["$ref"].rsplit("/", 1)[-1]
                     a2r_blocks.append(f"{payload_name} = {ref_target}")
                 else:
+                    payload_schema = _extract_nested_models(
+                        codegen, payload_name, payload_schema, a2r_blocks, taken_names
+                    )
                     a2r_blocks.append(
                         codegen.compile_object_def(payload_name, payload_schema)
                     )

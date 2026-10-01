@@ -244,14 +244,16 @@ def topological_sort_defs(defs: dict[str, Any]) -> list[str]:
 
     visited: set[str] = set()
     order: list[str] = []
+    # Dependencies are visited in spec order, so the output does not depend on
+    # set iteration order (which varies with string hashing between runs).
+    spec_index = {name: index for index, name in enumerate(defs)}
 
     def visit(name: str) -> None:
         if name in visited:
             return
         visited.add(name)
-        for dep in graph.get(name, set()):
-            if dep in graph:
-                visit(dep)
+        for dep in sorted(graph.get(name, set()), key=spec_index.__getitem__):
+            visit(dep)
         order.append(name)
 
     # Prioritize foundational core types first

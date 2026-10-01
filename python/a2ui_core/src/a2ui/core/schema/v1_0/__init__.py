@@ -55,6 +55,7 @@ from .common_types import (
 from .agent_to_renderer import (
     ComponentsList,
     Component,
+    CreateSurfaceMetadata,
     CreateSurface,
     CreateSurfaceMessage,
     UpdateComponents,
@@ -146,6 +147,7 @@ __all__ = [
     "TemplateChildList",
     "ComponentsList",
     "Component",
+    "CreateSurfaceMetadata",
     "CreateSurface",
     "CreateSurfaceMessage",
     "UpdateComponents",

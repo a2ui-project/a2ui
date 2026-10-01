@@ -65,10 +65,8 @@ class DataBinding(StrictBaseModel):
 class FunctionCommon(StrictBaseModel):
     """Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog."""
 
-    model_config = ConfigDict(populate_by_name=True)
-    call: str = Field(
-        ..., alias="@call", description="The name of the function to call."
-    )
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    call: str = Field(..., description="The name of the function to call.")
     catalog_id: str | None = Field(
         None,
         alias="catalogId",
@@ -88,6 +86,19 @@ class FunctionCommon(StrictBaseModel):
         target = handler.resolve_ref_schema(json_schema)
         target.pop("additionalProperties", None)
         return json_schema
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("catalogId", "catalog_id")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 class FunctionCall(StrictBaseModel):
@@ -132,6 +143,19 @@ class FunctionCall(StrictBaseModel):
             ],
             "unevaluatedProperties": False,
         }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("args", "catalogId", "catalog_id")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 CallId = TypeAliasType("CallId", str)
@@ -182,6 +206,19 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("label", "description", "live", "hidden")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
+
 
 def _validate_extensions_keys(value: dict[str, Any]) -> dict[str, Any]:
     invalid = sorted(key for key in value if not is_identifier_key(key))
@@ -211,6 +248,17 @@ class ComponentCommonMetadata(StrictBaseModel):
     )
     extensions: Extensions | None = Field(None)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key for key in ("extensions",) if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
+
 
 class ComponentCommon(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -238,6 +286,19 @@ class ComponentCommon(StrictBaseModel):
         target = handler.resolve_ref_schema(json_schema)
         target.pop("additionalProperties", None)
         return json_schema
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("catalogId", "catalog_id", "accessibility", "metadata")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 def _validate_literal_object(v: Any) -> dict[str, Any]:
@@ -317,6 +378,15 @@ class IndexSystemFunctionArgs(StrictBaseModel):
         target.update({"unevaluatedProperties": False})
         return json_schema
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [key for key in ("offset",) if key in data and data[key] is None]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
+
 
 class IndexSystemFunction(StrictBaseModel):
     """Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context."""
@@ -337,6 +407,15 @@ class IndexSystemFunction(StrictBaseModel):
         target.update({"unevaluatedProperties": False, "returnType": "number"})
         return json_schema
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [key for key in ("args",) if key in data and data[key] is None]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
+
 
 class CheckRule(StrictBaseModel):
     """A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."""
@@ -350,11 +429,20 @@ class CheckRule(StrictBaseModel):
     )
     message: str | None = Field(None, description="Optional fallback error message.")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [key for key in ("message",) if key in data and data[key] is None]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
+
 
 class Checkable(StrictBaseModel):
     """Properties for components that support renderer-side checks."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     checks: list[CheckRule] | None = Field(
         None,
         description=(
@@ -373,6 +461,15 @@ class Checkable(StrictBaseModel):
         target = handler.resolve_ref_schema(json_schema)
         target.pop("additionalProperties", None)
         return json_schema
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [key for key in ("checks",) if key in data and data[key] is None]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 class ActionEvent(StrictBaseModel):
@@ -398,6 +495,19 @@ class ActionEvent(StrictBaseModel):
             " be dynamically bound to the data model. Do NOT use paths for static IDs."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("userMessage", "user_message", "context")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 class ActionEventWrapper(StrictBaseModel):
@@ -436,6 +546,19 @@ class Surface(StrictBaseModel):
             {SPEC_TITLE_KEY: "Surface Container Component", "allowedParents": []}
         )
         return json_schema
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("component", "child")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 class FunctionResponseError(StrictBaseModel):
@@ -484,6 +607,15 @@ class FunctionResponse(StrictBaseModel):
         if matched != 1:
             raise ValueError("FunctionResponse must set exactly one of: value | error")
         return self
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [key for key in ("error",) if key in data and data[key] is None]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 COMMON_TYPES_DEFS: Final[dict[str, Any]] = {

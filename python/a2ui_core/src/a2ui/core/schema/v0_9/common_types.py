@@ -26,7 +26,7 @@ from pydantic import (
     StrictStr,
     model_serializer,
 )
-from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler
+from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, model_validator
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
 from typing_extensions import TypeAliasType
@@ -50,14 +50,26 @@ from ..common_types import (
 )
 
 
+def _reject_null_values(value: dict[str, Any]) -> dict[str, Any]:
+    nulls = sorted(key for key, item in value.items() if item is None)
+    if nulls:
+        raise ValueError(f"Values must not be null: {nulls}")
+    return value
+
+
 class FunctionCall(StrictBaseModel):
     """Invokes a named function on the client."""
 
     model_config = ConfigDict(populate_by_name=True)
     call: str = Field(..., description="The name of the function to call.")
-    args: Annotated[dict[str, Any], _FUNCTION_CALL_ARGS_SCHEMA] | None = Field(
-        None, description="Arguments passed to the function."
-    )
+    args: (
+        Annotated[
+            dict[str, Any],
+            AfterValidator(_reject_null_values),
+            _FUNCTION_CALL_ARGS_SCHEMA,
+        ]
+        | None
+    ) = Field(None, description="Arguments passed to the function.")
     return_type: (
         Literal["string", "number", "boolean", "array", "object", "any", "void"] | None
     ) = Field(
@@ -89,6 +101,19 @@ class FunctionCall(StrictBaseModel):
         target.pop("additionalProperties", None)
         target.update({"oneOf": [catalog_functions()]})
         return json_schema
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("args", "returnType", "return_type")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 class _ReturnType:
@@ -138,7 +163,7 @@ DynamicString = StrictStr | DataBinding | Annotated[FunctionCall, _ReturnType("s
 class AccessibilityAttributes(StrictBaseModel):
     """Attributes to enhance accessibility when using assistive technologies like screen readers."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     label: DynamicString | None = Field(
         None,
         description=(
@@ -169,6 +194,19 @@ class AccessibilityAttributes(StrictBaseModel):
         target.pop("additionalProperties", None)
         return json_schema
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key
+                for key in ("label", "description")
+                if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
+
 
 class ComponentCommon(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -185,6 +223,17 @@ class ComponentCommon(StrictBaseModel):
         target = handler.resolve_ref_schema(json_schema)
         target.pop("additionalProperties", None)
         return json_schema
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [
+                key for key in ("accessibility",) if key in data and data[key] is None
+            ]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 DynamicValue = (
@@ -229,7 +278,7 @@ class CheckRule(StrictBaseModel):
 class Checkable(StrictBaseModel):
     """Properties for components that support client-side checks."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     checks: list[CheckRule] | None = Field(
         None,
         description=(
@@ -249,6 +298,15 @@ class Checkable(StrictBaseModel):
         target.pop("additionalProperties", None)
         return json_schema
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [key for key in ("checks",) if key in data and data[key] is None]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
+
 
 class ActionEvent(StrictBaseModel):
     """The event to dispatch to the server."""
@@ -265,6 +323,15 @@ class ActionEvent(StrictBaseModel):
             " be dynamically bound to the data model. Do NOT use paths for static IDs."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = [key for key in ("context",) if key in data and data[key] is None]
+            if nulls:
+                raise ValueError(f"{cls.__name__} fields must not be null: {nulls}")
+        return data
 
 
 class ActionEventWrapper(StrictBaseModel):

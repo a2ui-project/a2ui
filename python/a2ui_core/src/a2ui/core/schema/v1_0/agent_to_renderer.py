@@ -24,6 +24,13 @@ ComponentsList = list[dict[str, Any]]
 Component = dict[str, Any]
 
 
+class CreateSurfaceMetadata(StrictBaseModel):
+    """Optional surface-level metadata."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    extensions: Extensions | None = Field(None)
+
+
 class CreateSurface(StrictBaseModel):
     """Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree."""
 
@@ -62,7 +69,7 @@ class CreateSurface(StrictBaseModel):
         alias="dataModel",
         description="The initial root data model object for the surface.",
     )
-    metadata: dict[str, Any] | None = Field(
+    metadata: CreateSurfaceMetadata | None = Field(
         None, description="Optional surface-level metadata."
     )
 
