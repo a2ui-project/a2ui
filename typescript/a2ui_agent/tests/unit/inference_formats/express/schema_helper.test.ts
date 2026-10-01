@@ -17,17 +17,22 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
-import {describe, it, expect} from 'vitest';
-import {Catalog} from '../../../../src/internal/web_core.js';
-import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
+
+import {describe, expect, it} from 'vitest';
+
 import {
   CatalogSchemaHelper,
   commonDefName,
-  isActionSlot,
   expectsOptionObjects,
+  isActionSlot,
 } from '../../../../src/inference_formats/express/schema_helper.js';
+import {Catalog} from '../../../../src/internal/web_core.js';
+import {
+  getCatalogDocument,
+  registerCatalogDocument,
+} from '../../../../src/utils/catalog-document.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
 const basicCatalogV10 = await loadBasicCatalog('v1.0');
 const basicCatalogV09 = await loadBasicCatalog('v0.9');
@@ -35,94 +40,184 @@ const basicCatalogs = {'v1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const FIXTURES_DIR = path.join(__dirname, 'fixtures');
+const REPO_ROOT = path.resolve(__dirname, '../../../../../..');
 
-interface OracleHelperFixture {
-  component_properties: Record<string, string[]>;
-  component_required: Record<string, string[]>;
-  component_is_checkable: Record<string, boolean>;
-  component_property_enums: Record<string, string[]>;
-  function_properties: Record<string, string[]>;
-  function_required: Record<string, string[]>;
+type Schema = Record<string, unknown>;
+
+/** The `$defs` of a protocol version's common types, as published in the specification. */
+function readCommonDefs(specDir: 'v0_9' | 'v1_0'): Record<string, Schema> {
+  const file = path.join(REPO_ROOT, 'specification', specDir, 'json/common_types.json');
+  return JSON.parse(fs.readFileSync(file, 'utf8')).$defs;
+}
+
+function resolvePointer(doc: Schema, pointer: string): Schema {
+  return pointer
+    .slice(2)
+    .split('/')
+    .reduce<Schema>((node, part) => node[part] as Schema, doc);
+}
+
+function isCheckRuleList(schema: unknown): boolean {
+  const s = schema as Schema;
+  const ref = (s.items as Schema | undefined)?.$ref;
+  return s.type === 'array' && typeof ref === 'string' && ref.endsWith('/CheckRule');
+}
+
+/** The enum a property declares, directly or in a `oneOf`/`anyOf`/`allOf` member. */
+function findEnum(schema: Schema): unknown[] | undefined {
+  if (Array.isArray(schema.enum)) {
+    return schema.enum;
+  }
+  for (const key of ['oneOf', 'anyOf', 'allOf']) {
+    for (const member of (schema[key] ?? []) as Schema[]) {
+      const values = findEnum(member);
+      if (values) {
+        return values;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Splits what a component or function schema declares into the schemas that contribute its
+ * own properties and the common types it references.
+ *
+ * Own properties come from the schema itself and its inline `allOf` members, in declared
+ * order, then from `allOf` members that are local `#/...` references. The v0.9 basic catalog
+ * uses one of those, `#/$defs/CatalogComponentCommon`, to add `weight`, which therefore comes
+ * after the component's own properties, where v1.0 declares it inline.
+ */
+function declaredSchemas(doc: Schema, schema: Schema): {own: Schema[]; common: string[]} {
+  const allOf = (schema.allOf ?? []) as Schema[];
+  const refOf = (member: Schema) => (typeof member.$ref === 'string' ? member.$ref : undefined);
+  const local = allOf.filter(m => refOf(m)?.startsWith('#/'));
+  const common = allOf.filter(m => refOf(m) && !refOf(m)!.startsWith('#/'));
+  return {
+    own: [
+      schema,
+      ...allOf.filter(m => !refOf(m)),
+      ...local.map(m => resolvePointer(doc, refOf(m)!)),
+    ],
+    common: common.map(m => refOf(m)!.split('#/$defs/')[1]),
+  };
+}
+
+/**
+ * What the catalog JSON declares for a component.
+ *
+ * A reference into the common types adds only a check-rule list, after every own property:
+ * the common `Checkable` adds `checks`. Other common properties, such as `accessibility` from
+ * `ComponentCommon`, are not Express arguments, and neither are `component` and `id`.
+ */
+function declaredComponent(doc: Schema, commonDefs: Record<string, Schema>, name: string) {
+  const {own, common} = declaredSchemas(doc, (doc.components as Record<string, Schema>)[name]);
+  const ownProperties = own.map(s => (s.properties ?? {}) as Record<string, Schema>);
+  const commonCheckLists = common.flatMap(defName =>
+    Object.entries((commonDefs[defName]?.properties ?? {}) as Record<string, Schema>)
+      .filter(([, prop]) => isCheckRuleList(prop))
+      .map(([propName]) => propName),
+  );
+  const properties = [
+    ...new Set([
+      ...ownProperties.flatMap(Object.keys).filter(k => k !== 'component' && k !== 'id'),
+      ...commonCheckLists,
+    ]),
+  ];
+  const enums = new Map<string, unknown>();
+  for (const props of ownProperties) {
+    for (const [propName, prop] of Object.entries(props)) {
+      const values = findEnum(prop);
+      if (values) {
+        enums.set(propName, values);
+      }
+    }
+  }
+  const ownCheckLists = ownProperties.flatMap(props =>
+    Object.keys(props).filter(k => isCheckRuleList(props[k])),
+  );
+  return {
+    properties,
+    required: own.flatMap(s => (s.required ?? []) as string[]),
+    checkable: ownCheckLists.length + commonCheckLists.length > 0,
+    enums,
+  };
+}
+
+/** What the catalog JSON declares for the arguments of a function. */
+function declaredFunction(doc: Schema, name: string) {
+  const {own} = declaredSchemas(doc, (doc.functions as Record<string, Schema>)[name]);
+  const args = own.map(s => ((s.properties ?? {}) as Record<string, Schema>).args ?? {});
+  return {
+    properties: args.flatMap(a => Object.keys(a.properties ?? {})),
+    required: args.flatMap(a => (a.required ?? []) as string[]),
+  };
 }
 
 describe('CatalogSchemaHelper and Express schema utilities', () => {
-  describe('1. Property-order regression test (plan §4, permanent)', () => {
-    // Fixture provenance and regeneration: see fixtures/README.md.
-    it('matches Python oracle for v1.0 basic catalog', () => {
-      const v10FixturePath = path.join(FIXTURES_DIR, 'basic_v1_0_helper.json');
-      const expected = JSON.parse(fs.readFileSync(v10FixturePath, 'utf8')) as OracleHelperFixture;
+  describe.each([
+    {version: 'v1.0' as const, specDir: 'v1_0' as const},
+    {version: 'v0.9' as const, specDir: 'v0_9' as const},
+  ])('reads the $version basic catalog as its JSON declares it', ({version, specDir}) => {
+    const catalog = basicCatalogs[version];
+    const doc = getCatalogDocument(catalog);
+    const commonDefs = readCommonDefs(specDir);
+    const helper = new CatalogSchemaHelper(catalog, version);
+    const componentNames = Object.keys(doc.components as Schema);
+    const functionNames = Object.keys(doc.functions as Schema);
 
-      const cat = basicCatalogV10;
-      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+    it('knows every component and function of the catalog', () => {
+      expect([...helper.components.keys()]).toEqual(componentNames);
+      expect([...helper.functions.keys()]).toEqual(functionNames);
+    });
 
-      for (const [comp, props] of Object.entries(expected.component_properties)) {
-        expect(helper.getComponentProperties(comp), `Component properties for ${comp}`).toEqual(
-          props,
+    it.each(componentNames)('component %s', name => {
+      const declared = declaredComponent(doc, commonDefs, name);
+      expect(helper.getComponentProperties(name)).toEqual(declared.properties);
+      expect(helper.getComponentRequired(name)).toEqual(declared.required);
+      expect(helper.isCheckable(name)).toBe(declared.checkable);
+      for (const prop of declared.properties) {
+        expect(helper.getPropertyEnum(name, prop), `enum of ${name}.${prop}`).toEqual(
+          declared.enums.get(prop),
         );
-        expect(helper.getComponentRequired(comp), `Component required for ${comp}`).toEqual(
-          expected.component_required[comp],
-        );
-        expect(helper.isCheckable(comp), `isCheckable for ${comp}`).toBe(
-          expected.component_is_checkable[comp],
-        );
-      }
-
-      for (const [fn, props] of Object.entries(expected.function_properties)) {
-        expect(helper.getFunctionProperties(fn), `Function properties for ${fn}`).toEqual(props);
-        expect(helper.getFunctionRequired(fn), `Function required for ${fn}`).toEqual(
-          expected.function_required[fn],
-        );
-      }
-
-      for (const [key, allowed] of Object.entries(expected.component_property_enums)) {
-        const [comp, prop] = key.split('.');
-        expect(helper.getPropertyEnum(comp, prop), `Property enum for ${key}`).toEqual(allowed);
       }
     });
 
-    // Fixture provenance and regeneration: see fixtures/README.md.
-    it('matches Python oracle for v0.9 basic catalog', () => {
-      const v09FixturePath = path.join(FIXTURES_DIR, 'basic_v0_9_helper.json');
-      const expected = JSON.parse(fs.readFileSync(v09FixturePath, 'utf8')) as OracleHelperFixture;
+    it.each(functionNames)('function %s', name => {
+      const declared = declaredFunction(doc, name);
+      expect(helper.getFunctionProperties(name)).toEqual(declared.properties);
+      expect(helper.getFunctionRequired(name)).toEqual(declared.required);
+    });
+  });
 
-      const overridesPath = path.join(FIXTURES_DIR, 'conformance_overrides.json');
-      if (fs.existsSync(overridesPath)) {
-        const overridesAll = JSON.parse(fs.readFileSync(overridesPath, 'utf8'));
-        const overrides = overridesAll['basic_v0_9_helper.json'];
-        if (overrides && overrides.expected) {
-          if (overrides.expected.component_properties) {
-            Object.assign(expected.component_properties, overrides.expected.component_properties);
-          }
-        }
+  describe('properties that come from referenced definitions', () => {
+    const helperV10 = new CatalogSchemaHelper(basicCatalogV10, 'v1.0');
+    const helperV09 = new CatalogSchemaHelper(basicCatalogV09, 'v0.9');
+
+    it('places weight from the local CatalogComponentCommon where v1.0 declares it inline', () => {
+      // v1.0 declares `weight` last in each component's own properties; v0.9 brings it in
+      // through `allOf: [{$ref: '#/$defs/CatalogComponentCommon'}]`. Both read the same.
+      expect(helperV09.getComponentProperties('Text')).toEqual(['text', 'variant', 'weight']);
+      expect(helperV10.getComponentProperties('Text')).toEqual(['text', 'variant', 'weight']);
+    });
+
+    it('appends checks from the common Checkable last', () => {
+      for (const helper of [helperV10, helperV09]) {
+        expect(helper.getComponentProperties('Button')).toEqual([
+          'child',
+          'variant',
+          'action',
+          'weight',
+          'checks',
+        ]);
+        expect(helper.getCheckRuleProperty('Button')).toBe('checks');
+        expect(helper.isCheckable('Text')).toBe(false);
       }
+    });
 
-      const cat = basicCatalogV09;
-      const helper = new CatalogSchemaHelper(cat, 'v0.9');
-
-      for (const [comp, props] of Object.entries(expected.component_properties)) {
-        expect(helper.getComponentProperties(comp), `Component properties for ${comp}`).toEqual(
-          props,
-        );
-        expect(helper.getComponentRequired(comp), `Component required for ${comp}`).toEqual(
-          expected.component_required[comp],
-        );
-        expect(helper.isCheckable(comp), `isCheckable for ${comp}`).toBe(
-          expected.component_is_checkable[comp],
-        );
-      }
-
-      for (const [fn, props] of Object.entries(expected.function_properties)) {
-        expect(helper.getFunctionProperties(fn), `Function properties for ${fn}`).toEqual(props);
-        expect(helper.getFunctionRequired(fn), `Function required for ${fn}`).toEqual(
-          expected.function_required[fn],
-        );
-      }
-
-      for (const [key, allowed] of Object.entries(expected.component_property_enums)) {
-        const [comp, prop] = key.split('.');
-        expect(helper.getPropertyEnum(comp, prop), `Property enum for ${key}`).toEqual(allowed);
-      }
+    it('does not list accessibility from the common ComponentCommon', () => {
+      expect(helperV09.getComponentProperties('Image')).not.toContain('accessibility');
+      expect(helperV09.getComponentRequired('Image')).toEqual(['component', 'url']);
     });
   });
 
