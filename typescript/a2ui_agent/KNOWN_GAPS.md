@@ -227,11 +227,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Python's Express leaves v0.9 JSON examples untranslated
 
-- **What it is:** When examples are given as text, Python's Express prompt generator rewrites each fenced `json` block as Express only if every message in it is a `createSurface`, `updateDataModel`, `deleteSurface` or `callFunction`. A v0.9 example always contains `updateComponents`, so the block is left as JSON in an Express prompt.
-- **TypeScript:** The TypeScript prompt generator includes `updateComponents` in the list of recognized messages, correctly translating fenced v0.9 JSON example blocks to Express.
+- **What it is:** Python's Express prompt generator rewrites a fenced `json` block, in example text or in catalog instructions, as Express only if every message in it is a `createSurface`, `updateDataModel`, `deleteSurface` or `callFunction`. A v0.9 example always contains `updateComponents`, so the block is left as JSON in an Express prompt. The same happens to a v1.0 example with `callRendererFunction`.
+- **TypeScript:** Both paths share one list that also includes `updateComponents` and `callRendererFunction`, so fenced v0.9 examples and v1.0 examples with renderer function calls are translated to Express.
 - **Why it exists:** The key list in Python matches v1.0, where components travel inside `createSurface`.
 - **What it risks:** In Python, a v0.9 Express prompt shows the model JSON examples while asking for Express.
-- **Done looks like:** `updateComponents` is added to the list, in Python first.
+- **Done looks like:** `updateComponents` and `callRendererFunction` are added to the list, in Python first.
 
 ### Python's Express decompiler fails loosely on a non-object `context` or `args`
 

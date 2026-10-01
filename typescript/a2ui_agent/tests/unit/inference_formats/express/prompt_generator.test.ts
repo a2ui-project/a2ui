@@ -399,6 +399,34 @@ describe('ExpressPromptGenerator', () => {
       expect(transformed).toContain('root = Text("Hello")');
       expect(transformed).toContain('</a2ui>');
     });
+
+    it('translates fenced v0.9 examples in catalog instructions', () => {
+      const doc = JSON.parse(
+        fs.readFileSync(
+          path.join(__dirname, '../../../../../../specification/v0_9/catalogs/basic/catalog.json'),
+          'utf8',
+        ),
+      );
+      doc.instructions =
+        'Example:\n```json\n' +
+        JSON.stringify([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: basicCatalogV09.id}},
+          {
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'root', component: 'Text', text: 'Hello'}],
+            },
+          },
+        ]) +
+        '\n```';
+      const cat = Catalog.fromSchema(doc);
+      registerCatalogDocument(cat, doc);
+
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).not.toContain('```json');
+      expect(instructions).toContain('root = Text("Hello")');
+    });
   });
 
   it('prompt lists both catalogs', () => {

@@ -89,6 +89,29 @@ The host compiler will compile your A2UI Express output into the correct JSON en
     surface("dashboard-surface-1")
     root = ComponentA(...)`;
 
+/** The message types a fenced JSON example may contain to be rewritten as Express. */
+const TRANSLATABLE_MESSAGE_TYPES = [
+  'createSurface',
+  'updateComponents',
+  'updateDataModel',
+  'deleteSurface',
+  'callFunction',
+  'callRendererFunction',
+] as const;
+
+/**
+ * Returns whether a parsed JSON value is a message the decompiler can translate.
+ *
+ * @param msg One element of a fenced JSON example.
+ */
+function isTranslatableMessage(msg: unknown): boolean {
+  return (
+    !!msg &&
+    typeof msg === 'object' &&
+    TRANSLATABLE_MESSAGE_TYPES.some(type => type in (msg as Record<string, unknown>))
+  );
+}
+
 function getSchemaEnum(propSchema: unknown): string[] | undefined {
   if (!propSchema || typeof propSchema !== 'object') {
     return undefined;
@@ -266,19 +289,8 @@ export class ExpressPromptGenerator extends PromptGenerator {
       if (messages.length === 0) {
         return match;
       }
-      for (const msg of messages) {
-        if (
-          !msg ||
-          typeof msg !== 'object' ||
-          !(
-            'createSurface' in msg ||
-            'updateDataModel' in msg ||
-            'deleteSurface' in msg ||
-            'callFunction' in msg
-          )
-        ) {
-          return match;
-        }
+      if (!messages.every(isTranslatableMessage)) {
+        return match;
       }
 
       const decompiler = this.getDecompiler(catalog);
@@ -479,20 +491,8 @@ export class ExpressPromptGenerator extends PromptGenerator {
       if (messages.length === 0) {
         return match;
       }
-      for (const msg of messages) {
-        if (
-          !msg ||
-          typeof msg !== 'object' ||
-          !(
-            'createSurface' in msg ||
-            'updateComponents' in msg ||
-            'updateDataModel' in msg ||
-            'deleteSurface' in msg ||
-            'callFunction' in msg
-          )
-        ) {
-          return match;
-        }
+      if (!messages.every(isTranslatableMessage)) {
+        return match;
       }
 
       const decompiler = this.getDecompiler(catalog);
