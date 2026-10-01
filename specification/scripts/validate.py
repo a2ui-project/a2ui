@@ -517,8 +517,9 @@ def main():
             ],
             "examples": "catalogs/basic/v1/examples/*.json",
         },
-        # The iframe catalog extends a surface that also uses the basic catalog,
-        # so its examples are validated against the union of the two catalogs.
+        # The iframe and MCP catalogs extend a surface that also uses the basic
+        # catalog, so their examples are validated against the union of the
+        # two catalogs.
         "iframe": {
             "protocol_version": "v0_9",
             "root_schema": "specification/v0_9/json/server_to_client.json",
@@ -529,6 +530,17 @@ def main():
                 "specification/v0_9/catalogs/basic/catalog.json",
             ],
             "examples": "catalogs/iframe/examples/*.json",
+        },
+        "mcp": {
+            "protocol_version": "v0_9",
+            "root_schema": "specification/v0_9/json/server_to_client.json",
+            "catalog": "specification/v0_9/catalogs/basic/catalog.json",
+            "refs": [
+                "specification/v0_9/json/common_types.json",
+                "catalogs/mcp/catalog.json",
+                "specification/v0_9/catalogs/basic/catalog.json",
+            ],
+            "examples": "catalogs/mcp/examples/*.json",
         },
     }
 

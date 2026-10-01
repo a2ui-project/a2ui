@@ -2,9 +2,50 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json",
   "title": "A2UI MCP Catalog",
-  "description": "A2UI catalog for calling Model Context Protocol (MCP) tools and transforming tool results into data model updates.",
+  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines `callMcpTool` and data functions that transform tool results into data model updates, and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
   "catalogId": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json",
-  "components": {},
+  "components": {
+    "McpApp": {
+      "type": "object",
+      "description": "Renders a sandboxed Model Context Protocol application using double-iframe isolation. The application talks to the host over the MCP Apps JSON-RPC bridge; tool calls it is allowed to make are dispatched as A2UI actions. See mcp_app_specification.md for the protocol and the security controls.",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "McpApp"
+            },
+            "htmlContent": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The HTML content of the app, rendered via srcdoc inside the sandbox. A value prefixed with `url_encoded:` is decoded with decodeURIComponent before rendering."
+            },
+            "title": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "The title of the app, used as the accessible title of the frame."
+            },
+            "allowedTools": {
+              "type": "array",
+              "description": "The names of the MCP tools the app is allowed to call. The host dispatches an authorized `tools/call` request as an A2UI action named after the tool, with the tool arguments as its context, and rejects any other tool call.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowedFunctions": {
+              "$ref": "#/$defs/AllowedFunctions"
+            },
+            "data": {
+              "$ref": "#/$defs/DataPaths"
+            }
+          },
+          "required": ["component", "htmlContent"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
   "functions": {
     "callMcpTool": {
       "type": "object",
@@ -185,8 +226,38 @@
     }
   },
   "$defs": {
+    "JsonSchema": {
+      "type": "object",
+      "description": "A JSON Schema. The host validates the matching payload against it before acting on the message; an empty object accepts any value."
+    },
+    "AllowedFunctions": {
+      "type": "object",
+      "description": "A map of authorized host client function names to JSON Schemas describing their expected arguments. The host rejects a `ui/requests/function-call` request whose function is not listed or whose arguments fail validation. The functions must exist in the surface's catalog.",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonSchema"
+      }
+    },
+    "DataPaths": {
+      "type": "object",
+      "description": "Data binding configuration for the component.",
+      "properties": {
+        "paths": {
+          "type": "object",
+          "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model. The host pushes a `ui/notifications/data-model-update` notification whenever a bound value changes and writes authorized `ui/notifications/data-model-change` notifications back to the path.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["paths"],
+      "additionalProperties": false
+    },
     "anyComponent": {
-      "type": "object"
+      "oneOf": [
+        {
+          "$ref": "#/components/McpApp"
+        }
+      ]
     },
     "anyFunction": {
       "oneOf": [

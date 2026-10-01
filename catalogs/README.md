@@ -22,7 +22,9 @@ catalogs/
 │   ├── examples/
 │   └── web_app_frame_specification.md
 └── mcp/                    # MCP catalog
-    └── catalog.json
+    ├── catalog.json
+    ├── examples/
+    └── mcp_app_specification.md
 ```
 
 - Catalogs are identified by the `$id` declared inside `catalog.json`, not by

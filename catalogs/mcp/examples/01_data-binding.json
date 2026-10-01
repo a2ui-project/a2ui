@@ -1,0 +1,76 @@
+{
+  "name": "MCP App with data binding",
+  "description": "An McpApp that binds the surface data model through data.paths. The host pushes changes to the app and writes the app's data-model-change notifications back, so the sibling basic components stay in sync.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-mcp-app-data-binding",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-mcp-app-data-binding",
+        "value": {
+          "player": {
+            "name": "Ada",
+            "score": 0
+          }
+        }
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-mcp-app-data-binding",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["title", "name_field", "host_view", "score_app"],
+            "align": "stretch"
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "Score board",
+            "variant": "h2"
+          },
+          {
+            "id": "name_field",
+            "component": "TextField",
+            "label": "Player name",
+            "value": {
+              "path": "/player/name"
+            }
+          },
+          {
+            "id": "host_view",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "Host view: ${/player/name} has ${/player/score} points"
+              },
+              "returnType": "string"
+            }
+          },
+          {
+            "id": "score_app",
+            "component": "McpApp",
+            "title": "Score pad",
+            "allowedTools": ["save_score"],
+            "data": {
+              "paths": {
+                "player": "/player"
+              }
+            },
+            "htmlContent": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\" />\n    <style>\n      body { font-family: sans-serif; margin: 16px; }\n      button { margin-right: 8px; }\n    </style>\n  </head>\n  <body>\n    <p id=\"status\">Waiting for the host...</p>\n    <button id=\"add\">Add point</button>\n    <button id=\"save\">Save score</button>\n    <script>\n      // Minimal JSON-RPC bridge over postMessage, as expected by the MCP Apps sandbox proxy.\n      var nextId = 1;\n      var pending = {};\n\n      function sendRequest(method, params) {\n        var id = nextId++;\n        return new Promise(function (resolve, reject) {\n          pending[id] = { resolve: resolve, reject: reject };\n          window.parent.postMessage({ jsonrpc: '2.0', id: id, method: method, params: params }, '*');\n        });\n      }\n\n      function sendNotification(method, params) {\n        window.parent.postMessage({ jsonrpc: '2.0', method: method, params: params }, '*');\n      }\n\n      var state = { name: '', score: 0 };\n\n      function render() {\n        document.getElementById('status').textContent = state.name + ': ' + state.score;\n      }\n\n      window.addEventListener('message', function (event) {\n        var data = event.data || {};\n        if (data.method === 'ping' && data.id !== undefined) {\n          window.parent.postMessage({ jsonrpc: '2.0', id: data.id, result: {} }, '*');\n        } else if (data.method === 'ui/notifications/data-model-update') {\n          // The host sends one notification per changed key of the bound object.\n          var params = data.params || {};\n          if (params.key !== 'player') return;\n          if (params.subpath) {\n            var field = params.subpath.indexOf('/') === 0 ? params.subpath.slice(1) : params.subpath;\n            state[field] = params.value;\n          } else if (params.value && typeof params.value === 'object') {\n            state = params.value;\n          }\n          render();\n        } else if (data.id !== undefined && pending[data.id]) {\n          var request = pending[data.id];\n          delete pending[data.id];\n          if (data.error) request.reject(new Error(data.error.message));\n          else request.resolve(data.result);\n        }\n      });\n\n      document.getElementById('add').addEventListener('click', function () {\n        state.score += 1;\n        render();\n        // The host writes the value to /player/score, the path bound to the \"player\" key.\n        sendNotification('ui/notifications/data-model-change', {\n          key: 'player',\n          subpath: '/score',\n          value: state.score\n        });\n      });\n\n      document.getElementById('save').addEventListener('click', function () {\n        sendRequest('tools/call', {\n          name: 'save_score',\n          arguments: { name: state.name, score: state.score }\n        }).catch(function (err) {\n          document.getElementById('status').textContent = 'Rejected: ' + err.message;\n        });\n      });\n\n      sendRequest('ui/initialize', {\n        appInfo: { name: 'Score pad', version: '1.0.0' },\n        appCapabilities: { availableDisplayModes: ['inline'] },\n        protocolVersion: '2026-01-26'\n      }).then(function () {\n        sendNotification('ui/notifications/initialized', {});\n        sendNotification('ui/notifications/size-changed', { height: 140 });\n      });\n    </script>\n  </body>\n</html>\n"
+          }
+        ]
+      }
+    }
+  ]
+}

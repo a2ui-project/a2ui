@@ -14,7 +14,7 @@ A2UI separates UI layout from backend logic through catalogs. This catalog provi
 
 ## Catalog specification
 
-The canonical schema lives at [`catalogs/mcp/catalog.json`](../../../catalogs/mcp/catalog.json) and is bundled into this package at build time as `@a2ui/catalog-mcp/catalog.json`. The catalog ID is `https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json`, exported as `MCP_CATALOG_ID`.
+The canonical schema lives at [`catalogs/mcp/catalog.json`](../../../catalogs/mcp/catalog.json) and is bundled into this package at build time as `@a2ui/catalog-mcp/catalog.json`. The catalog ID is `https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json`, exported as `MCP_CATALOG_ID`. The bundled schema also declares the `McpApp` component described in [`catalogs/mcp/README.md`](../../../catalogs/mcp/README.md); this package implements the functions only, so a renderer that shows MCP Apps must provide its own `McpApp` component.
 
 `callMcpTool` takes two arguments:
 

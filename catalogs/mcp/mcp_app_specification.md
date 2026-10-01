@@ -219,7 +219,7 @@ Dispatched when the embedded app wants to execute a registered local A2UI v0.9 f
 ```
 
 **Host action**  
-The host checks if the target function is listed in the component's `allowedFunctions` list. If verified, it evaluates the function using the A2UI client catalog engine and returns the result (or error) to the app.
+The host checks if the target function is a key of the component's `allowedFunctions` map and validates `args` against the JSON Schema stored under that key. If verified, it evaluates the function using the A2UI client catalog engine and returns the result (or error) to the app.
 
 ### D. Frame resize request (`ui/notifications/size-changed`)
 
@@ -392,11 +392,12 @@ The `McpApp` component is registered in the A2UI Component Catalog.
         "description": "The list of MCP tools the embedded application is authorized to request."
       },
       "allowedFunctions": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "The list of local client-side functions the embedded application is authorized to call."
+        "type": "object",
+        "description": "A map of authorized local client-side function names to the JSON Schema of their arguments.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
       },
       "data": {
         "type": "object",
