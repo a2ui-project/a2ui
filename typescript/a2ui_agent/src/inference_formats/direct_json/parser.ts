@@ -25,13 +25,20 @@ import {AgentToRendererMessage} from '../../internal/web_core.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 export class DirectJsonParser extends Parser {
-  private readonly catalog: SchemaCatalog;
+  /**
+   * The active catalogs, which the blueprint's parser validates against. This parser
+   * doesn't validate yet; the catalogs are kept for when it does.
+   */
+  readonly catalogs: SchemaCatalog[];
   private readonly lexer: BlockLexer;
   private readonly decompiler: DirectJsonDecompiler;
 
-  constructor(catalog: SchemaCatalog) {
+  /**
+   * @param catalogs The active catalogs.
+   */
+  constructor(catalogs: SchemaCatalog[]) {
     super();
-    this.catalog = catalog;
+    this.catalogs = catalogs;
     this.lexer = new BlockLexer(A2UI_OPEN_TAG, A2UI_CLOSE_TAG, new Set(["'", '"']), new Set());
     this.decompiler = new DirectJsonDecompiler();
   }

@@ -36,7 +36,7 @@ export class DirectJsonFormat implements InferenceFormat {
   }
 
   createParser(): Parser {
-    return new DirectJsonParser(this.catalogs[0]);
+    return new DirectJsonParser(this.catalogs);
   }
 }
 

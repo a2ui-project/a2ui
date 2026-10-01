@@ -101,7 +101,7 @@ describe('Conformance Harness', () => {
         const catalog = testCase.catalog
           ? (await createCatalogConfig(testCase.catalog as Record<string, unknown>)).catalog
           : basicCatalogV10;
-        const parser = new DirectJsonParser(catalog);
+        const parser = new DirectJsonParser([catalog]);
 
         if (expectError) {
           assertThrows(() => {
@@ -130,7 +130,7 @@ describe('Conformance Harness', () => {
         }
       } else if (action === 'has_parts') {
         const catalog = basicCatalogV10;
-        const parser = new DirectJsonParser(catalog);
+        const parser = new DirectJsonParser([catalog]);
         const result = parser.hasFormatContent(input, {complete: true});
         expect(result).toBe(expected);
       } else if (action === 'load_catalog') {

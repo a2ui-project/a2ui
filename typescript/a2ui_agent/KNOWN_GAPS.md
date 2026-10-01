@@ -11,7 +11,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** `DirectJsonParser.compile` bypasses Zod validation and directly casts the JSON output to `AgentToRendererMessage[]` via an unchecked `as` cast.
 - **Why it exists:** The validation step was deferred to `A2uiRequestProcessor`, which runs `processMessages` on the output.
 - **What it risks:** Callers who use the `Parser` directly rather than through the `A2uiRequestProcessor` facade will receive unvalidated payloads that might not adhere to the protocol schema, leading to unpredictable runtime errors downstream.
-- **Done looks like:** Schema validation is enforced inside `compile` (e.g., using a direct Zod parse) before returning the payloads.
+- **Done looks like:** `compile` validates its output against the protocol schema and the parser's `catalogs`, which `DirectJsonFormat.createParser()` already passes in, before returning the payloads.
 
 ### State leakage across requests (Sharp edge)
 
