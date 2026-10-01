@@ -17,6 +17,10 @@ catalogs/
 │       ├── catalog.json
 │       ├── examples/
 │       └── basic_catalog_implementation_guide.md
+├── iframe/                 # iframe catalog
+│   ├── catalog.json
+│   ├── examples/
+│   └── web_app_frame_specification.md
 └── mcp/                    # MCP catalog
     └── catalog.json
 ```
