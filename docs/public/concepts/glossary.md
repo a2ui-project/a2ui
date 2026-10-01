@@ -154,24 +154,22 @@ See the [example in the basic catalog](../../../specification/v0_9/catalogs/basi
 
 ### Function <a id="renderer-function"></a>
 
-A named, catalog-defined operation with a declared argument schema and return type. Functions execute logic without sending raw executable code over the wire.
+A named, catalog-defined operation with a declared argument signature and return type. Functions execute logic without sending raw executable code between the agent and renderer.
 
 Functions are defined in catalogs and can execute on either the renderer or the agent:
 
-- **Renderer function**: A function executed on the **renderer**. Renderer functions handle client-side operations such as formatting values, validating input fields, opening URLs, or updating local views. The agent can also invoke authorized renderer functions remotely using a `callRendererFunction` message, to which the renderer replies with `rendererFunctionResponse`.
-- **Agent function**: A function executed on the **agent**. When a component or client requires server-side logic (such as checking inventory, querying a database, or verifying credentials), the renderer sends a `callAgentFunction` message to the agent, which replies with `agentFunctionResponse`.
+- **Renderer function**: A function executed on the **renderer**. Renderer functions handle client-side tasks such as formatting values, validating input fields, navigating, or controlling local UI state. The agent can also request the renderer to execute a function (for example, to display a notification or trigger device feedback).
+- **Agent function**: A function executed on the **agent**. When the UI requires server-side logic (such as checking inventory, querying a database, or verifying credentials), the renderer requests the agent to execute the function and return the result.
 
 An A2UI function is not the same as an LLM tool:
 
-| Feature      | A2UI function                                                          | LLM tool invocation                                |
-| ------------ | ---------------------------------------------------------------------- | -------------------------------------------------- |
-| Executor     | A2UI renderer (for renderer functions) or agent (for agent functions). | Model host or agent environment outside the UI.    |
-| Timing       | During UI rendering, on user interaction, or via protocol messages.    | Before or during model response generation.        |
-| Purpose      | UI logic: validation, formatting, client actions, or app operations.   | Model reasoning, web search, database retrieval.   |
-| Definition   | Declared in an A2UI catalog schema with argument and return schemas.   | Declared in a tool definition passed to the model. |
-| State access | Scoped to surface data context, local UI state, or catalog methods.    | Scoped to external tools, APIs, and services.      |
-
-See the [example in common types](../../../specification/v0_9_1/json/common_types.json#L200).
+| Feature      | A2UI function                                                            | LLM tool invocation                                |
+| ------------ | ------------------------------------------------------------------------ | -------------------------------------------------- |
+| Executor     | A2UI renderer (for renderer functions) or agent (for agent functions).   | Model host or agent environment outside the UI.    |
+| Timing       | During UI rendering, on user interaction, or as a request between turns. | Before or during model response generation.        |
+| Purpose      | UI logic: validation, formatting, client actions, or app operations.     | Model reasoning, web search, database retrieval.   |
+| Definition   | Declared in an A2UI catalog with argument and return signatures.         | Declared in a tool definition passed to the model. |
+| State access | Scoped to surface data context, local UI state, or catalog methods.      | Scoped to external tools, APIs, and services.      |
 
 ### Function call
 
@@ -179,29 +177,20 @@ An invocation of a catalog function with a set of arguments.
 
 Function calls appear in several contexts:
 
-- **Dynamic value bindings**: Calculating a component property value dynamically (for example, `formatCurrency`).
-- **Validation rules (`checks`)**: Validating inputs before submission.
-- **Component interaction triggers**: Executing a function when a user interacts with a component.
-- **Protocol messages (RPCs)**: Requesting function execution across the protocol boundary via `callRendererFunction` (agent to renderer) or `callAgentFunction` (renderer to agent).
+- **Dynamic value bindings**: Calculating a component property value dynamically (for example, formatting a date or currency).
+- **Validation rules**: Validating user input before submission.
+- **Component interaction triggers**: Executing an immediate local function when a user interacts with a component.
+- **Remote procedure calls (RPCs)**: Requesting function execution across the boundary between the agent and renderer.
 
-Function calls execute locally when the target function is implemented in the caller's environment. When the function resides across the protocol boundary, the call is dispatched as a protocol message. In architectures where the agent and renderer run within the same process (such as a standalone desktop application), these messages can be handled in-process without network serialization.
+Function calls execute locally when the target function is implemented in the caller's environment. When the function resides on the other side of the agent-renderer boundary, the call is communicated over the protocol. In architectures where the agent and renderer run within the same process (such as a standalone desktop application), these calls can execute in-process without network transport.
 
 ### Action
 
-A message sent from the renderer to the agent when a user interacts with a UI component.
+An event triggered by a user interaction with a UI component that is dispatched from the renderer to the agent.
 
-An action notifies the agent that an interaction occurred. The message includes:
+An action informs the agent that an interaction occurred (such as clicking a button or selecting an option). It conveys the user's intent along with an action name, relevant values extracted from the local data model, and an optional description of the action.
 
-- **`name`**: The identifier of the action (such as `"submit"` or `"like"`).
-- **`context`**: An optional key-value map of data model values resolved at interaction time.
-- **`userMessage`**: An optional natural-language string describing the user's action for conversational history or feedback.
-
-In component definitions, interactive components provide an `action` property. The component can be configured to:
-
-1. **Dispatch an event to the agent**: Sends an `action` message over the protocol.
-2. **Execute a function call**: Runs a catalog function directly using `functionCall`.
-
-In protocol terminology, only events dispatched to the agent produce an `action` message. Direct function calls are handled as [function calls](#function-call).
+Actions represent user intent communicated back to the agent to drive conversational turns or business logic. In contrast, when a component interaction triggers immediate behavior directly without notifying the agent (such as opening a URL or running a client-side calculation), it performs a [function call](#function-call) rather than dispatching an action.
 
 See the [detailed guide on actions](actions.md).
 
