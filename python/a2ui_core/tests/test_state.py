@@ -289,6 +289,13 @@ def test_component_model_validate():
     assert exc_info.value.details
 
 
+def test_component_model_validate_keeps_component_type_over_component_property():
+    comp = ComponentModel(
+        "c1", "Text", dummy_catalog, {"text": "Hello", "component": "Bogus"}
+    )
+    assert comp.validate() is None
+
+
 def test_validate_components_update_atomic():
     from a2ui.core.exceptions import A2uiValidationError
     from a2ui.core.validation import ValidationConfig

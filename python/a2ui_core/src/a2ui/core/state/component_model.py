@@ -164,7 +164,7 @@ class ComponentModel:
         """
         from ..validation.payload_validator import PayloadValidator
 
-        comp_dict = {"id": self.id, "component": self.type, **self.properties}
+        comp_dict = self.component_tree
         if not isinstance(self.catalog, Catalog):
             return
         validator = PayloadValidator(self.catalog, config=config)
