@@ -19,7 +19,7 @@ import typing
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler, ValidationInfo, field_validator, model_validator, StrictBool, StrictFloat, StrictInt, StrictStr
 from pydantic_core import CoreSchema, PydanticUndefined
-from typing_extensions import Self
+from typing_extensions import Self, TypeAliasType
 
 from ._json_schema import SchemaKeywords
 
@@ -170,7 +170,9 @@ class SpecBaseModel(StrictBaseModel):
 
 
 ComponentId = SingleReference
-Child = SingleReference
+# A named alias, so a field's JSON schema references `#/$defs/Child` as the
+# specification does, instead of `ComponentId`.
+Child = TypeAliasType("Child", SingleReference)
 
 
 class ComponentCommon(StrictBaseModel):
@@ -220,4 +222,6 @@ class TemplateChildList(StrictBaseModel, ListReference):
     )
 
 
-ChildList = Union[List[ComponentId], TemplateChildList]
+# A named alias, so a field's JSON schema references `#/$defs/ChildList` as
+# the specification does, instead of inlining the union.
+ChildList = TypeAliasType("ChildList", Union[List[ComponentId], TemplateChildList])

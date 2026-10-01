@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Internal JSON schema helpers for the generated common types models.
+"""Internal JSON schema helpers for the generated common types and catalog models.
 
 Some specification schemas use constructs Pydantic cannot derive from model
 fields: composition (`allOf`/`oneOf`) over other models, a reference to the
@@ -26,7 +26,7 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 from __future__ import annotations
 
 import copy
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Annotated, Any, Final
@@ -348,6 +348,49 @@ class ReturnType:
             call = call.model_copy()
             object.__setattr__(call, "return_type", self.expected)
         return call
+
+
+class SpecAllOf:
+    """Annotation that adds `allOf` members a type cannot express.
+
+    The type's schema becomes the first member of an `allOf` followed by
+    `schemas`, for example an `if`/`then` format rule. It documents the
+    specification and does not change validation.
+    """
+
+    def __init__(self, *schemas: dict[str, Any]) -> None:
+        self.schemas = schemas
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        return {"allOf": [json_schema, *copy.deepcopy(list(self.schemas))]}
+
+
+def object_keywords(
+    keywords: dict[str, Any], *, drop: tuple[str, ...] = ()
+) -> Callable[[dict[str, Any], type[Any]], None]:
+    """Returns a model `json_schema_extra` that sets object keywords.
+
+    A model uses it for keywords its fields cannot express, for example an
+    `anyOf` of required properties, or `unevaluatedProperties` in place of
+    `additionalProperties`.
+
+    Args:
+        keywords: Keywords to set on the model's schema.
+        drop: Keywords to remove first.
+    """
+
+    def apply(json_schema: dict[str, Any], _model: type[Any]) -> None:
+        for keyword in drop:
+            json_schema.pop(keyword, None)
+        json_schema.update(copy.deepcopy(keywords))
+        if "anyOf" in keywords:
+            # The `anyOf` constrains the object; its branches may overlap.
+            json_schema[KEEP_ANY_OF_MARKER] = True
+
+    return apply
 
 
 def is_identifier_key(key: str) -> bool:

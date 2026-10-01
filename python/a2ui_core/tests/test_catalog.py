@@ -886,13 +886,12 @@ def test_v1_0_catalogs_inline_component_metadata():
         json_catalog["$defs"]["ComponentCommon"]["properties"]["metadata"]
         == _INLINE_METADATA
     )
-    assert (
-        basic_catalog["components"]["Text"]["properties"]["metadata"]
-        == _INLINE_METADATA
-    )
-    for schema in (json_catalog, basic_catalog):
-        assert "ComponentCommonMetadata" not in schema["$defs"]
-        assert "Extensions" in schema["$defs"]
+    assert "ComponentCommonMetadata" not in json_catalog["$defs"]
+    assert "Extensions" in json_catalog["$defs"]
+    # As in the specification, v1.0 basic catalog components leave
+    # `ComponentCommon`, and so its metadata, to the message envelope.
+    assert "metadata" not in basic_catalog["components"]["Text"]["properties"]
+    assert "ComponentCommonMetadata" not in basic_catalog["$defs"]
     # No internal schema-generation marker leaks into a published catalog.
     for schema in (json_catalog, basic_catalog, BasicCatalog().catalog_schema):
         assert '"x-a2ui-' not in json.dumps(schema)

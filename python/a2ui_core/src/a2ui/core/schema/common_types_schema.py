@@ -358,6 +358,20 @@ def get_common_types_catalog_defs(protocol_version: ProtocolVersion) -> dict[str
     return copy.deepcopy(_get_common_types_schema(protocol_version).catalog_defs)
 
 
+def get_common_types_symbols(protocol_version: ProtocolVersion) -> dict[str, Any]:
+    """Returns the common types defs' Python symbols by def name.
+
+    These are the models and types the published common types schema is
+    generated from, for example `Checkable` or `ComponentCommon`.
+
+    Raises:
+        A2uiCatalogError: If the protocol version does not define a common_types schema
+            (e.g., version < 0.9) or is invalid.
+    """
+    module_name, _ = _COMMON_TYPES_RELEASES[_common_types_release(protocol_version)]
+    return dict(getattr(importlib.import_module(module_name), "COMMON_TYPES_DEFS"))
+
+
 def _get_common_types_schema(protocol_version: ProtocolVersion) -> _CachedCommonTypes:
     """Returns the cached common types schema for a protocol version.
 

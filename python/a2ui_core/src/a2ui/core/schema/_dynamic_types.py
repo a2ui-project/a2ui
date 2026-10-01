@@ -200,7 +200,9 @@ def resolve_dynamic_def(
     """Returns the dynamic def that a union collapses into, if any.
 
     A union without a literal branch (only a binding and a function call) is
-    not a dynamic value and does not collapse.
+    not a dynamic value and does not collapse. Neither does a union whose
+    scalar literal branch has keywords beyond its `type` (for example
+    `format`), which the dynamic def would drop.
     """
     kinds = dynamic_literal_kinds(items)
     if not kinds:
@@ -208,6 +210,12 @@ def resolve_dynamic_def(
     shape_def = dynamic_index.by_literal_shape.get(literal_shape_key(items))
     if shape_def:
         return shape_def
+    if any(
+        literal_kind(it) in _SCALAR_LITERAL_KINDS
+        and set(_strip_annotations(it)) - {"type"}
+        for it in _literal_branches(items)
+    ):
+        return None
     if len(kinds) == 1:
         scalar_def = dynamic_index.by_scalar_kind.get(next(iter(kinds)))
         if scalar_def:

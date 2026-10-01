@@ -33,11 +33,14 @@ from ..common.uax31 import (
 from ..exceptions import A2uiCatalogError
 from ..schema import ProtocolVersion
 from ..schema._dynamic_types import clean_schema_node
-from ..schema._json_schema import inline_marked_defs
+from ..schema._json_schema import INLINE_DEF_MARKER, inline_marked_defs
 from ..schema.common_types_schema import (
+    _strip_const_implied_keywords,
     get_common_types_catalog_defs,
+    get_common_types_schema_map,
     get_dynamic_type_index,
 )
+from ._spec_shape import SpecSchema, SpecShaper
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .functions import (
     AllowedCallers,
@@ -47,6 +50,7 @@ from .functions import (
     create_function_implementation,
 )
 from .reference_map import ComponentRefSpec, build_component_ref_map
+from .system_functions import system_functions_for
 
 
 def _extract_module_type_refs(modname: str, excluded: set[str]) -> set[str]:
@@ -276,6 +280,19 @@ def _collect_defs_refs(node: Any, refs: set[str]) -> None:
             _collect_defs_refs(item, refs)
 
 
+def _defs_refs(node: Any) -> set[str]:
+    """Returns the local `#/$defs/` reference targets in `node`."""
+    refs: set[str] = set()
+    _collect_defs_refs(node, refs)
+    return refs
+
+
+# Top-level catalog schema keywords that `Catalog.catalog_schema` derives.
+_DERIVED_SCHEMA_KEYWORDS: Final[frozenset[str]] = frozenset(
+    {"$schema", "catalogId", "instructions", "components", "functions", "$defs"}
+)
+
+
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any)
 TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any)
 
@@ -293,7 +310,28 @@ class Catalog(Generic[TComponent, TFunction]):
         instructions: str | None = None,
         defs: dict[str, Any] | None = None,
         common_types_defs: dict[str, Any] | None = None,
+        schema_metadata: Mapping[str, Any] | None = None,
     ):
+        """Initializes the catalog.
+
+        Args:
+            catalog_id: The catalog's ID.
+            protocol_version: The A2UI protocol version the catalog targets.
+            components: The catalog's components.
+            functions: The catalog's functions.
+            theme_schema: The JSON schema of the catalog's theme.
+            instructions: Instructions for agents that use the catalog.
+            defs: Additional catalog-level `$defs`.
+            common_types_defs: Shared type definitions that override the
+                built-in common types definitions.
+            schema_metadata: Top-level keywords of the catalog schema that it
+                does not derive itself, such as `$id`, `title`, `description`
+                and `protocolVersion`. `catalog_schema` emits them as given.
+
+        Raises:
+            A2uiCatalogError: If `protocol_version` is missing, an identifier
+                is invalid, or `schema_metadata` sets a derived keyword.
+        """
         if not protocol_version:
             raise A2uiCatalogError("protocol_version must be provided.")
         self.catalog_id = catalog_id
@@ -305,6 +343,14 @@ class Catalog(Generic[TComponent, TFunction]):
         # that validates against a reduced or customized common types document.
         self.common_types_defs: dict[str, Any] = (
             copy.deepcopy(common_types_defs) if common_types_defs else {}
+        )
+        derived = sorted(set(schema_metadata or {}) & _DERIVED_SCHEMA_KEYWORDS)
+        if derived:
+            raise A2uiCatalogError(
+                f"schema_metadata cannot set derived catalog keywords: {derived}"
+            )
+        self.schema_metadata: dict[str, Any] = copy.deepcopy(
+            dict(schema_metadata or {})
         )
 
         validate_identifiers = is_at_least_version(
@@ -337,7 +383,22 @@ class Catalog(Generic[TComponent, TFunction]):
 
     @property
     def catalog_schema(self) -> dict[str, Any]:
-        """Dynamically reconstructs the unified catalog JSON Schema on the fly."""
+        """Dynamically reconstructs the unified catalog JSON Schema on the fly.
+
+        From v0.9 on, components and functions defined by Pydantic models emit
+        the specification's shape: a component composes the defs of its base
+        models with `allOf`, and a function schema describes the whole call.
+        The common types defs they reference, transitively, then come from the
+        published common types schema with local refs. Other components and
+        functions keep the flat schemas of `ComponentApi.schema` and
+        `FunctionApi.schema` and the flat common types defs. System functions,
+        which the runtime supplies, are not declared. The schema metadata
+        (`$id`, `title`, ...) is emitted as given.
+        """
+        try:
+            protocol_version = to_protocol_version(self.protocol_version)
+        except ValueError as e:
+            raise A2uiCatalogError(str(e)) from e
         schema: dict[str, Any] = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "catalogId": self.catalog_id,
@@ -354,35 +415,73 @@ class Catalog(Generic[TComponent, TFunction]):
         if self.theme_schema:
             defs["theme"] = self.theme_schema
 
-        if self.components:
-            for comp in self.components.values():
-                s = comp.schema
-                if (
-                    isinstance(s, dict)
-                    and "$defs" in s
-                    and isinstance(s["$defs"], dict)
-                ):
-                    for def_name, def_schema in s["$defs"].items():
-                        if def_name not in defs:
-                            defs[def_name] = def_schema
+        # The runtime supplies system functions to every catalog, and the
+        # common types admit their calls, so the catalog does not declare them.
+        system_names = set(system_functions_for(self.protocol_version))
+        functions = {
+            name: fn for name, fn in self.functions.items() if name not in system_names
+        }
 
-        if self.functions:
-            for fn in self.functions.values():
-                s = fn.schema
-                if isinstance(s, type) and hasattr(s, "model_json_schema"):
-                    s = s.model_json_schema()
-                if (
-                    isinstance(s, dict)
-                    and "$defs" in s
-                    and isinstance(s["$defs"], dict)
-                ):
-                    for def_name, def_schema in s["$defs"].items():
-                        if def_name not in defs:
-                            defs[def_name] = def_schema
+        spec_components: dict[str, SpecSchema] = {}
+        spec_functions: dict[str, SpecSchema] = {}
+        if is_at_least_version(self.protocol_version, ProtocolVersion.V0_9):
+            shaper = SpecShaper(protocol_version)
+            for name, comp in self.components.items():
+                spec = shaper.component_schema(name, getattr(comp, "model_class", None))
+                if spec is not None:
+                    spec_components[name] = spec
+            for name, fn in functions.items():
+                spec = shaper.function_schema(fn)
+                if spec is not None:
+                    spec_functions[name] = spec
+        spec_shaped = [*spec_components.values(), *spec_functions.values()]
+
+        # Pydantic emits defs for the models of spec-shaped fields. Common
+        # types give way to the published defs; nested objects (for example
+        # `TabItem`) go back inline, as the specification writes them.
+        model_defs: dict[str, Any] = {}
+        if spec_shaped:
+            published = get_common_types_schema_map(protocol_version)["$defs"]
+            for spec in spec_shaped:
+                for def_name, def_schema in spec.catalog_defs.items():
+                    defs.setdefault(def_name, def_schema)
+            for spec in spec_shaped:
+                for def_name, def_schema in spec.model_defs.items():
+                    if def_name not in published and def_name not in defs:
+                        model_defs.setdefault(
+                            def_name, {**def_schema, INLINE_DEF_MARKER: True}
+                        )
+
+        for name, comp in self.components.items():
+            if name in spec_components:
+                continue
+            s = comp.schema
+            if isinstance(s, dict) and isinstance(s.get("$defs"), dict):
+                for def_name, def_schema in s["$defs"].items():
+                    if def_name not in defs:
+                        defs[def_name] = def_schema
+
+        flat_functions: dict[str, Any] = {}
+        for name, fn in functions.items():
+            if name in spec_functions:
+                continue
+            s = fn.schema
+            if isinstance(s, type) and hasattr(s, "model_json_schema"):
+                s = s.model_json_schema()
+            flat_functions[name] = s
+            if isinstance(s, dict) and isinstance(s.get("$defs"), dict):
+                for def_name, def_schema in s["$defs"].items():
+                    if def_name not in defs:
+                        defs[def_name] = def_schema
 
         if self.components:
             comp_schemas: dict[str, Any] = {}
             for name, comp in self.components.items():
+                if name in spec_components:
+                    comp_schemas[name] = _strip_const_implied_keywords(
+                        spec_components[name].schema
+                    )
+                    continue
                 s = comp.schema
                 if isinstance(s, dict):
                     s = copy.deepcopy(s)
@@ -406,12 +505,15 @@ class Catalog(Generic[TComponent, TFunction]):
                 comp_schemas[name] = s
             schema["components"] = comp_schemas
 
-        if self.functions:
+        if functions:
             fn_schemas: dict[str, Any] = {}
-            for name, fn in self.functions.items():
-                s = fn.schema
-                if isinstance(s, type) and hasattr(s, "model_json_schema"):
-                    s = s.model_json_schema()
+            for name in functions:
+                if name in spec_functions:
+                    fn_schemas[name] = _strip_const_implied_keywords(
+                        spec_functions[name].schema
+                    )
+                    continue
+                s = flat_functions[name]
                 if isinstance(s, dict):
                     s = copy.deepcopy(s)
                     if "$defs" in s:
@@ -428,25 +530,19 @@ class Catalog(Generic[TComponent, TFunction]):
                 "discriminator": {"propertyName": "component"},
             }
 
-        if self.functions:
-            any_fn_refs = [
-                {"$ref": f"#/functions/{name}"} for name in self.functions.keys()
-            ]
+        if functions:
+            any_fn_refs = [{"$ref": f"#/functions/{name}"} for name in functions]
             defs["anyFunction"] = {
                 "oneOf": any_fn_refs,
             }
 
-        if defs:
-            schema["$defs"] = defs
+        if defs or model_defs:
+            schema["$defs"] = {**defs, **model_defs}
         # Models that stand for nested objects (e.g. `ComponentCommonMetadata`)
         # go back inline, as the specification writes them.
         schema = inline_marked_defs(schema)
 
         referenced_dynamics: set[str] = set()
-        try:
-            protocol_version = to_protocol_version(self.protocol_version)
-        except ValueError as e:
-            raise A2uiCatalogError(str(e)) from e
         dynamic_index = get_dynamic_type_index(protocol_version)
         cleaned_schema = cast(
             dict[str, Any],
@@ -456,6 +552,14 @@ class Catalog(Generic[TComponent, TFunction]):
                 dynamic_index=dynamic_index,
             ),
         )
+
+        if spec_shaped:
+            self._add_published_common_types(
+                cleaned_schema,
+                referenced_dynamics | _defs_refs(cleaned_schema),
+                protocol_version,
+            )
+            return self._with_schema_metadata(cleaned_schema)
 
         if referenced_dynamics:
             if "$defs" not in cleaned_schema:
@@ -499,7 +603,86 @@ class Catalog(Generic[TComponent, TFunction]):
                             **cleaned_schema["$defs"][dyn],
                         }
 
-        return cleaned_schema
+        return self._with_schema_metadata(cleaned_schema)
+
+    def _with_schema_metadata(self, schema: dict[str, Any]) -> dict[str, Any]:
+        """Returns `schema` with the schema metadata after `$schema`.
+
+        The metadata is added after cleaning, which drops `title` keywords.
+        """
+        if not self.schema_metadata:
+            return schema
+        rest = {k: v for k, v in schema.items() if k != "$schema"}
+        return {
+            "$schema": schema["$schema"],
+            **copy.deepcopy(self.schema_metadata),
+            **rest,
+        }
+
+    def _add_published_common_types(
+        self,
+        schema: dict[str, Any],
+        seeds: set[str],
+        protocol_version: ProtocolVersion,
+    ) -> None:
+        """Adds the common types defs that `seeds` reference, transitively.
+
+        A name resolves to the catalog's own def first, then to this catalog's
+        `common_types_defs`, then to the published common types schema, whose
+        cross-document references become local. A published def that would
+        reference a def nobody supplies (for example the function union of a
+        catalog without functions) is replaced by its flat catalog form, which
+        validates on its own. Names outside the published schema (for example
+        helper models of flat components) use the catalog form.
+        """
+        defs: dict[str, Any] = schema.setdefault("$defs", {})
+        published: dict[str, Any] = _normalize_external_schema_refs(
+            get_common_types_schema_map(protocol_version)["$defs"]
+        )
+        catalog_form = get_common_types_catalog_defs(protocol_version)
+        overrides = self.common_types_defs
+        # Flat component and function schemas carry Pydantic's copies of the
+        # common types they use; those give way to the resolved defs.
+        for name in list(defs):
+            if name not in self.defs and (name in published or name in catalog_form):
+                del defs[name]
+        own = set(defs)
+
+        flat: set[str] = set()
+        while True:
+            chosen: dict[str, Any] = {}
+            queue = deque(sorted(seeds))
+            while queue:
+                name = queue.popleft()
+                if name in own or name in chosen:
+                    continue
+                if name in overrides:
+                    chosen[name] = overrides[name]
+                elif name in published and name not in flat:
+                    chosen[name] = published[name]
+                elif name in catalog_form:
+                    chosen[name] = catalog_form[name]
+                else:
+                    continue
+                queue.extend(sorted(_defs_refs(chosen[name])))
+            available = own | set(chosen)
+            dangling = {
+                name
+                for name, def_schema in chosen.items()
+                if name in published
+                and name not in flat
+                and name not in overrides
+                and name in catalog_form
+                and _defs_refs(def_schema) - available
+            }
+            if not dangling:
+                break
+            flat |= dangling
+
+        # The returned schema gets copies, so mutating it leaves this
+        # catalog's `common_types_defs` intact.
+        for name in sorted(chosen):
+            defs[name] = copy.deepcopy(chosen[name])
 
     def get_component(self, name: str) -> TComponent | None:
         """Directly retrieves a component by name."""
