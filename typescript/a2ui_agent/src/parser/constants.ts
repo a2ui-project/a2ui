@@ -16,16 +16,11 @@
 
 export const DEFAULT_ROOT_ID = 'root';
 
-// Message types (v0.8)
-export const MSG_TYPE_BEGIN_RENDERING = 'beginRendering';
-export const MSG_TYPE_SURFACE_UPDATE = 'surfaceUpdate';
-export const MSG_TYPE_DATA_MODEL_UPDATE = 'dataModelUpdate';
-export const MSG_TYPE_DELETE_SURFACE = 'deleteSurface';
-
 // Message types (v0.9 and v1.0)
 export const MSG_TYPE_CREATE_SURFACE = 'createSurface';
 export const MSG_TYPE_UPDATE_COMPONENTS = 'updateComponents';
 export const MSG_TYPE_UPDATE_DATA_MODEL = 'updateDataModel';
+export const MSG_TYPE_DELETE_SURFACE = 'deleteSurface';
 
 // Conversational text (non-A2UI)
 export const MSG_TYPE_TEXT = 'text';
