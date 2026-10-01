@@ -16,29 +16,27 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {
   ComponentContext,
   MessageProcessor,
   Catalog,
   SurfaceModel,
   Subscription,
-  A2uiClientAction,
-} from '../../index.js';
+} from '../../../v0_9/index.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
   type WebComponentImplementation,
-} from '../../universal/index.js';
+} from '../../index.js';
 
-describe('Button Component', () => {
+describe('Card Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
     basicCatalog.components.forEach(c => registerUniversalElement(c));
-    // Ensure components are registered
   });
 
   after(teardownTestDom);
@@ -64,27 +62,14 @@ describe('Button Component', () => {
           surfaceId: 'test-surface',
           components: [
             {
-              id: 'btn1',
-              component: 'Button',
+              id: 'comp1',
+              component: 'Card',
               child: 'txt1',
-              action: {event: {name: 'submit_clicked'}},
-            },
-            {
-              id: 'btn_disabled',
-              component: 'Button',
-              child: 'txt1',
-              checks: [
-                {
-                  condition: false,
-                  message: 'Disabled',
-                },
-              ],
-              action: {event: {name: 'ignored'}},
             },
             {
               id: 'txt1',
               component: 'Text',
-              text: 'Click Me',
+              text: 'hello',
             },
           ],
         },
@@ -102,51 +87,21 @@ describe('Button Component', () => {
     }
   });
 
-  it('should render and dispatch action on click', async () => {
-    const el = document.createElement('a2ui-basic-button') as A2uiWebComponentElement;
+  it('should render and display child content', async () => {
+    const el = document.createElement('a2ui-card') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
-    const context = new ComponentContext(surface, 'btn1');
+    const context = new ComponentContext(surface, 'comp1');
     await asyncUpdate(el, e => {
       e.context = context;
     });
 
-    const button = el.querySelector('button');
-    assert.notStrictEqual(button, null);
-    assert.strictEqual(button?.disabled, false);
-
-    const dispatched = {action: null as A2uiClientAction | null};
-    subscription = surface.onAction.subscribe((action: A2uiClientAction) => {
-      dispatched.action = action;
-    });
-
-    button?.click();
-    await new Promise(resolve => setTimeout(resolve, 0));
-    assert.notStrictEqual(dispatched.action, null);
-    assert.strictEqual(dispatched.action?.name, 'submit_clicked');
-  });
-
-  it('should be disabled when isValid is false', async () => {
-    const el = document.createElement('a2ui-basic-button') as A2uiWebComponentElement;
-    element = el;
-    document.body.appendChild(el);
-
-    const context = new ComponentContext(surface, 'btn_disabled');
-    await asyncUpdate(el, e => {
-      e.context = context;
-    });
-
-    const button = el.querySelector('button');
-    assert.notStrictEqual(button, null);
-    assert.strictEqual(button?.disabled, true);
-
-    let dispatchedAction = false;
-    subscription = surface.onAction.subscribe(() => {
-      dispatchedAction = true;
-    });
-
-    button?.click();
-    assert.strictEqual(dispatchedAction, false);
+    assert.notStrictEqual(el, null);
+    const cardDiv = el.querySelector('.a2ui-card');
+    assert.notStrictEqual(cardDiv, null);
+    const textEl = el.querySelector('a2ui-basic-text');
+    assert.notStrictEqual(textEl, null);
+    assert.strictEqual(el.textContent?.includes('hello'), true);
   });
 });

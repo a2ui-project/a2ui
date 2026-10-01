@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-import type {UniversalAudioPlayerProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {AudioPlayerSupportedApis} from './supported_apis.js';
 
-export const AUDIO_PLAYER_TAG_NAME = 'a2ui-audioplayer';
-
-export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<UniversalAudioPlayerProps> {
-  static readonly tagName = AUDIO_PLAYER_TAG_NAME;
+export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlayerSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-audioplayer';
+  /** @nocollapse */
   static override styles = css`
     .a2ui-audio-player {
       display: flex;

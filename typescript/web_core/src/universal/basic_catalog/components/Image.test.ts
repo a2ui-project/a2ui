@@ -16,26 +16,27 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {
   ComponentContext,
   MessageProcessor,
   Catalog,
   SurfaceModel,
   Subscription,
-} from '../../index.js';
+} from '../../../v0_9/index.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
   type WebComponentImplementation,
-} from '../../universal/index.js';
+} from '../../index.js';
+import {ImageApi} from '../../../v0_9/basic_catalog/components/basic_components.js';
 
-describe('Divider Component', () => {
+describe('Image Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
@@ -63,7 +64,10 @@ describe('Divider Component', () => {
           components: [
             {
               id: 'comp1',
-              component: 'Divider',
+              component: 'Image',
+              url: 'http://example.com/image.png',
+              description: 'An example image',
+              variant: 'avatar',
             },
           ],
         },
@@ -81,8 +85,8 @@ describe('Divider Component', () => {
     }
   });
 
-  it('should render an hr element', async () => {
-    const el = document.createElement('a2ui-divider') as A2uiWebComponentElement;
+  it('should render img element with correct attributes and classes', async () => {
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -92,9 +96,39 @@ describe('Divider Component', () => {
     });
 
     assert.notStrictEqual(el, null);
-    const hr = el.querySelector('hr');
-    assert.notStrictEqual(hr, null);
-    assert.strictEqual(hr?.classList.contains('a2ui-divider'), true);
-    assert.strictEqual(hr?.classList.contains('horizontal'), true);
+    const img = el.querySelector('img');
+    assert.notStrictEqual(img, null);
+    assert.strictEqual(img?.getAttribute('src'), 'http://example.com/image.png');
+    assert.strictEqual(img?.getAttribute('alt'), 'An example image');
+    assert.strictEqual(img?.classList.contains('a2ui-image'), true);
+    assert.strictEqual(img?.classList.contains('avatar'), true);
+  });
+
+  describe('ImageApi schema validation', () => {
+    it('should parse valid image with description', () => {
+      const validImage = {
+        url: 'https://example.com/image.png',
+        description: 'An example image',
+      };
+      const parsed = ImageApi.schema.parse(validImage);
+      assert.strictEqual(parsed.url, 'https://example.com/image.png');
+      assert.strictEqual(parsed.description, 'An example image');
+    });
+
+    it('should parse valid image without description', () => {
+      const validImage = {
+        url: 'https://example.com/image.png',
+      };
+      const parsed = ImageApi.schema.parse(validImage);
+      assert.strictEqual(parsed.url, 'https://example.com/image.png');
+      assert.strictEqual(parsed.description, undefined);
+    });
+
+    it('should throw on invalid image', () => {
+      const invalidImage = {
+        url: 123, // Invalid type
+      };
+      assert.throws(() => ImageApi.schema.parse(invalidImage));
+    });
   });
 });

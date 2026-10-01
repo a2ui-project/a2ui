@@ -16,13 +16,13 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
-import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../index.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
+import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../../v0_9/index.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
   type WebComponentImplementation,
-} from '../../universal/index.js';
+} from '../../index.js';
 import {setMarkdownRenderer} from '../directives/markdown.js';
 
 describe('Text Component', () => {
@@ -30,7 +30,7 @@ describe('Text Component', () => {
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 

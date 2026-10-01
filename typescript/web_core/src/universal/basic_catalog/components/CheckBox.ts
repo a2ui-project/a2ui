@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-import type {UniversalCheckBoxProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {CheckBoxSupportedApis} from './supported_apis.js';
 
-export const CHECK_BOX_TAG_NAME = 'a2ui-checkbox';
-
-export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<UniversalCheckBoxProps> {
-  static readonly tagName = CHECK_BOX_TAG_NAME;
+export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-checkbox';
   /**
    * The styles of the checkbox can be customized by redefining the following
    * CSS variables:
@@ -35,6 +33,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<UniversalChe
    * - `--a2ui-checkbox-color-error`: Color for invalid state. Defaults to `red`.
    * - `--a2ui-checkbox-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,

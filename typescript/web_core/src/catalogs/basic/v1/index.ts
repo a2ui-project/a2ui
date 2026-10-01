@@ -66,10 +66,13 @@ export type {
   ColorVariantHoverOptions,
 } from '../../../universal/basic_catalog/styles/default.js';
 export {Context} from '../../../universal/basic_catalog/context/context.js';
+export type {
+  MarkdownRenderer,
+  MarkdownRendererOptions,
+  MarkdownRendererTagClassMap,
+} from '../../../universal/basic_catalog/context/markdown.js';
 export {
   markdown,
   setMarkdownRenderer,
   getMarkdownRenderer,
-  type MarkdownRenderer,
-  type MarkdownRendererOptions,
-} from '../../../universal/basic_catalog/index.js';
+} from '../../../universal/basic_catalog/directives/directives.js';

@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-import type {UniversalSliderProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {SliderSupportedApis} from './supported_apis.js';
 
-export const SLIDER_TAG_NAME = 'a2ui-slider';
-
-export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSliderProps> {
-  static readonly tagName = SLIDER_TAG_NAME;
+export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-slider';
   /**
    * The slider can be customized with the following CSS variables:
    *
@@ -31,6 +29,8 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSlide
    * - `--a2ui-slider-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-slider-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-slider-container {
@@ -69,7 +69,8 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<UniversalSlide
 
     const min = props.min ?? 0;
     const max = props.max ?? 100;
-    const steps = props.steps;
+    // `steps` is new in v1.0.
+    const steps = 'steps' in props ? props.steps : undefined;
     const stepVal =
       typeof steps === 'number' && steps > 0 && max > min ? (max - min) / steps : nothing;
 

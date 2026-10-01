@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-import type {UniversalDateTimeInputProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-
-export const DATE_TIME_INPUT_TAG_NAME = 'a2ui-datetimeinput';
+import type {DateTimeInputSupportedApis} from './supported_apis.js';
 
 /**
  * Returns the current date formatted as YYYY-MM-DD in the user's local timezone.
@@ -66,8 +63,9 @@ function normalizeDateTimeValue(value: string | null | undefined, type: string):
   return '';
 }
 
-export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<UniversalDateTimeInputProps> {
-  static readonly tagName = DATE_TIME_INPUT_TAG_NAME;
+export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTimeInputSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-datetimeinput';
   /**
    * The styles of the datetime input can be customized by redefining the following
    * CSS variables:
@@ -80,6 +78,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<Univers
    * - `--a2ui-datetimeinput-padding`: Controls the padding of inputs.
    * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-date-time-container {

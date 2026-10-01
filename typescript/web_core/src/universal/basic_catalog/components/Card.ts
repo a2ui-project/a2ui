@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-import type {UniversalCardProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {CardSupportedApis} from './supported_apis.js';
 
-export const CARD_TAG_NAME = 'a2ui-card';
-
-export class A2uiCardElement extends BasicCatalogA2uiLitElement<UniversalCardProps> {
-  static readonly tagName = CARD_TAG_NAME;
+export class A2uiCardElement extends BasicCatalogA2uiLitElement<CardSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-card';
   /**
    * The styles of the card can be customized by redefining the following
    * CSS variables:
@@ -32,6 +30,8 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<UniversalCardPro
    * - `--a2ui-card-padding`: The padding of the card. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-card-box-shadow`: The box shadow of the card. Defaults to `0 2px 4px rgba(0,0,0,0.1)`.
    * - `--a2ui-card-margin`: The outer margin of the card. Defaults to `--a2ui-spacing-m`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-card {

@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-import type {UniversalColumnProps} from '../types.js';
-
 import {html, nothing, css, PropertyValues} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {ColumnSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
-
-export const COLUMN_TAG_NAME = 'a2ui-basic-column';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -47,8 +44,9 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<UniversalColumnProps> {
-  static readonly tagName = COLUMN_TAG_NAME;
+export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-basic-column';
 
   /**
    * The styles of the column can be customized by redefining the following
@@ -56,6 +54,8 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<Universal
    *
    * - `--a2ui-column-gap`: The gap between items in the column. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-column-width`: The width of the column. Defaults to `100%`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,

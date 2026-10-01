@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-import type {UniversalModalProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {ModalSupportedApis} from './supported_apis.js';
 
-export const MODAL_TAG_NAME = 'a2ui-modal';
-
-export class A2uiLitModal extends BasicCatalogA2uiLitElement<UniversalModalProps> {
-  static readonly tagName = MODAL_TAG_NAME;
+export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-modal';
   /**
    * The styles of the modal can be customized by redefining the following
    * CSS variables:
@@ -33,6 +31,8 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<UniversalModalProps
    * - `--a2ui-modal-border-radius`: Controls the border radius of the modal content.
    * - `--a2ui-modal-box-shadow`: Controls the box shadow of the modal content.
    * - `--a2ui-modal-backdrop-bg`: Controls the background of the backdrop.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,

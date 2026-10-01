@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-import type {UniversalTextFieldProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {TextFieldSupportedApis} from './supported_apis.js';
 
-export const TEXT_FIELD_TAG_NAME = 'a2ui-basic-textfield';
-
-export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<UniversalTextFieldProps> {
-  static readonly tagName = TEXT_FIELD_TAG_NAME;
+export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFieldSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-basic-textfield';
   /**
    * The styles of the text field can be customized by redefining the following
    * CSS variables:
@@ -40,6 +38,8 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<Univer
    * It also inherits global input variables:
    * - `--a2ui-color-input`: Background color.
    * - `--a2ui-color-on-input`: Text color.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,
@@ -91,7 +91,8 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<Univer
 
     const classes = {'a2ui-textfield': true, invalid: isInvalid};
 
-    const placeholder = props.placeholder || nothing;
+    // `placeholder` is new in v1.0.
+    const placeholder = ('placeholder' in props && props.placeholder) || nothing;
 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}

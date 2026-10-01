@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-import type {UniversalTabsProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {TabsSupportedApis} from './supported_apis.js';
 
-export const TABS_TAG_NAME = 'a2ui-tabs';
-
-export class A2uiLitTabs extends BasicCatalogA2uiLitElement<UniversalTabsProps> {
-  static readonly tagName = TABS_TAG_NAME;
+export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-tabs';
   /**
    * The styles of the tabs can be customized by redefining the following
    * CSS variables:
@@ -35,6 +33,8 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<UniversalTabsProps> 
    * - `--a2ui-tabs-header-background-active`: Controls the background of the active tab button. Defaults to `transparent`.
    * - `--a2ui-tabs-header-color-active`: Controls the text color of the active tab button. Defaults to `var(--a2ui-color-primary, #007bff)`.
    * - `--a2ui-tabs-content-padding`: Controls the padding of the tab content. Defaults to `var(--a2ui-spacing-m, 16px) 0`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-tabs {

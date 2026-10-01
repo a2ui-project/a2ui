@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-import type {UniversalButtonProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-
-export const BUTTON_TAG_NAME = 'a2ui-basic-button';
+import type {ButtonSupportedApis} from './supported_apis.js';
 
 /**
  * A button component that can be used to trigger an action.
  */
-export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<UniversalButtonProps> {
-  static readonly tagName = BUTTON_TAG_NAME;
+export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<ButtonSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-basic-button';
   /**
    * The styles of the button can be customized by redefining the following
    * CSS variables:
@@ -41,6 +39,8 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<Universal
    * - `--a2ui-button-border-radius`: The border radius of the button. Defaults to `--a2ui-border-radius`.
    * - `--a2ui-button-padding`: The padding of the button. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-button-margin`: The outer margin of the button. Defaults to `--a2ui-spacing-m`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-button {

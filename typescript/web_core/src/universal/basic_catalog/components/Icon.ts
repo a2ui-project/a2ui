@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-import type {UniversalIconProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-
-export const ICON_TAG_NAME = 'a2ui-icon';
+import type {IconSupportedApis} from './supported_apis.js';
 
 const ICON_NAME_OVERRIDES: Record<string, string> = {
   play: 'play_arrow',
@@ -33,8 +30,9 @@ function toMaterialIconName(name: string): string {
   return name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
-export class A2uiIconElement extends BasicCatalogA2uiLitElement<UniversalIconProps> {
-  static readonly tagName = ICON_TAG_NAME;
+export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-icon';
   /**
    * The icon component can be customized with the following CSS variables:
    *
@@ -42,6 +40,8 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<UniversalIconPro
    * - `--a2ui-icon-color`: Color tint applied to the icon.
    * - `--a2ui-icon-font-family`: Override the font family for icons. Defaults to 'Material Icons', 'Material Symbols Outlined'.
    * - `--a2ui-icon-font-variation-settings`: Complete override for font-variation-settings.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-icon {

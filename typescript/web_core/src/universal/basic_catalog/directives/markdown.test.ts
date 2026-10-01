@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
-import {setupTestDom, teardownTestDom} from '../../test/dom-setup.js';
+import {setupTestDom, teardownTestDom} from '../../../test/dom-setup.js';
 import type {MarkdownRenderer} from '../context/markdown.js';
 import {
   markdown,

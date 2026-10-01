@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-import type {UniversalDividerProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {DividerSupportedApis} from './supported_apis.js';
 
-export const DIVIDER_TAG_NAME = 'a2ui-divider';
-
-export class A2uiDividerElement extends BasicCatalogA2uiLitElement<UniversalDividerProps> {
-  static readonly tagName = DIVIDER_TAG_NAME;
+export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-divider';
   /**
    * The styles of the divider can be customized by redefining the following
    * CSS variables:
    *
    * - `--a2ui-divider-border`: The styling for the divider border. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
    * - `--a2ui-divider-spacing`: The spacing around the divider. Defaults to `--a2ui-spacing-m`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-divider {

@@ -14,103 +14,72 @@
  * limitations under the License.
  */
 
-import * as universal from '../../../../universal/basic_catalog/components/index.js';
-import * as v1_0Apis from './basic_components.js';
-import type {WebComponentImplementation} from '../../../../universal/index.js';
+import {toWebComponentImplementation} from '../../../../universal/index.js';
+import {
+  A2uiAudioPlayerElement,
+  A2uiBasicButtonElement,
+  A2uiBasicColumnElement,
+  A2uiBasicRowElement,
+  A2uiBasicTextElement,
+  A2uiBasicTextFieldElement,
+  A2uiCardElement,
+  A2uiCheckBoxElement,
+  A2uiChoicePickerElement,
+  A2uiDateTimeInputElement,
+  A2uiDividerElement,
+  A2uiIconElement,
+  A2uiImageElement,
+  A2uiListElement,
+  A2uiModalElement,
+  A2uiSliderElement,
+  A2uiTabsElement,
+  A2uiVideoElement,
+} from '../../../../universal/basic_catalog/components/index.js';
+import {
+  AudioPlayerApi,
+  ButtonApi,
+  CardApi,
+  CheckBoxApi,
+  ChoicePickerApi,
+  ColumnApi,
+  DateTimeInputApi,
+  DividerApi,
+  IconApi,
+  ImageApi,
+  ListApi,
+  ModalApi,
+  RowApi,
+  SliderApi,
+  TabsApi,
+  TextApi,
+  TextFieldApi,
+  VideoApi,
+} from './basic_components.js';
 
-export const A2uiAudioPlayer: WebComponentImplementation<typeof v1_0Apis.AudioPlayerApi.schema> = {
-  ...v1_0Apis.AudioPlayerApi,
-  tagName: universal.AUDIO_PLAYER_TAG_NAME,
-  element: universal.A2uiAudioPlayerElement,
-};
-export const A2uiButton: WebComponentImplementation<typeof v1_0Apis.ButtonApi.schema> = {
-  ...v1_0Apis.ButtonApi,
-  tagName: universal.BUTTON_TAG_NAME,
-  element: universal.A2uiBasicButtonElement,
-};
-export const A2uiCard: WebComponentImplementation<typeof v1_0Apis.CardApi.schema> = {
-  ...v1_0Apis.CardApi,
-  tagName: universal.CARD_TAG_NAME,
-  element: universal.A2uiCardElement,
-};
-export const A2uiCheckBox: WebComponentImplementation<typeof v1_0Apis.CheckBoxApi.schema> = {
-  ...v1_0Apis.CheckBoxApi,
-  tagName: universal.CHECK_BOX_TAG_NAME,
-  element: universal.A2uiCheckBoxElement,
-};
-export const A2uiChoicePicker: WebComponentImplementation<typeof v1_0Apis.ChoicePickerApi.schema> =
-  {
-    ...v1_0Apis.ChoicePickerApi,
-    tagName: universal.CHOICE_PICKER_TAG_NAME,
-    element: universal.A2uiChoicePickerElement,
-  };
-export const A2uiColumn: WebComponentImplementation<typeof v1_0Apis.ColumnApi.schema> = {
-  ...v1_0Apis.ColumnApi,
-  tagName: universal.COLUMN_TAG_NAME,
-  element: universal.A2uiBasicColumnElement,
-};
-export const A2uiDateTimeInput: WebComponentImplementation<
-  typeof v1_0Apis.DateTimeInputApi.schema
-> = {
-  ...v1_0Apis.DateTimeInputApi,
-  tagName: universal.DATE_TIME_INPUT_TAG_NAME,
-  element: universal.A2uiDateTimeInputElement,
-};
-export const A2uiDivider: WebComponentImplementation<typeof v1_0Apis.DividerApi.schema> = {
-  ...v1_0Apis.DividerApi,
-  tagName: universal.DIVIDER_TAG_NAME,
-  element: universal.A2uiDividerElement,
-};
-export const A2uiIcon: WebComponentImplementation<typeof v1_0Apis.IconApi.schema> = {
-  ...v1_0Apis.IconApi,
-  tagName: universal.ICON_TAG_NAME,
-  element: universal.A2uiIconElement,
-};
-export const A2uiImage: WebComponentImplementation<typeof v1_0Apis.ImageApi.schema> = {
-  ...v1_0Apis.ImageApi,
-  tagName: universal.IMAGE_TAG_NAME,
-  element: universal.A2uiImageElement,
-};
-export const A2uiList: WebComponentImplementation<typeof v1_0Apis.ListApi.schema> = {
-  ...v1_0Apis.ListApi,
-  tagName: universal.LIST_TAG_NAME,
-  element: universal.A2uiListElement,
-};
-export const A2uiModal: WebComponentImplementation<typeof v1_0Apis.ModalApi.schema> = {
-  ...v1_0Apis.ModalApi,
-  tagName: universal.MODAL_TAG_NAME,
-  element: universal.A2uiLitModal,
-};
-export const A2uiRow: WebComponentImplementation<typeof v1_0Apis.RowApi.schema> = {
-  ...v1_0Apis.RowApi,
-  tagName: universal.ROW_TAG_NAME,
-  element: universal.A2uiBasicRowElement,
-};
-export const A2uiSlider: WebComponentImplementation<typeof v1_0Apis.SliderApi.schema> = {
-  ...v1_0Apis.SliderApi,
-  tagName: universal.SLIDER_TAG_NAME,
-  element: universal.A2uiSliderElement,
-};
-export const A2uiTabs: WebComponentImplementation<typeof v1_0Apis.TabsApi.schema> = {
-  ...v1_0Apis.TabsApi,
-  tagName: universal.TABS_TAG_NAME,
-  element: universal.A2uiLitTabs,
-};
-export const A2uiText: WebComponentImplementation<typeof v1_0Apis.TextApi.schema> = {
-  ...v1_0Apis.TextApi,
-  tagName: universal.TEXT_TAG_NAME,
-  element: universal.A2uiBasicTextElement,
-};
-export const A2uiTextField: WebComponentImplementation<typeof v1_0Apis.TextFieldApi.schema> = {
-  ...v1_0Apis.TextFieldApi,
-  tagName: universal.TEXT_FIELD_TAG_NAME,
-  element: universal.A2uiBasicTextFieldElement,
-};
-export const A2uiVideo: WebComponentImplementation<typeof v1_0Apis.VideoApi.schema> = {
-  ...v1_0Apis.VideoApi,
-  tagName: universal.VIDEO_TAG_NAME,
-  element: universal.A2uiVideoElement,
-};
+export const A2uiAudioPlayer = toWebComponentImplementation(A2uiAudioPlayerElement, AudioPlayerApi);
+export const A2uiButton = toWebComponentImplementation(A2uiBasicButtonElement, ButtonApi);
+export const A2uiCard = toWebComponentImplementation(A2uiCardElement, CardApi);
+export const A2uiCheckBox = toWebComponentImplementation(A2uiCheckBoxElement, CheckBoxApi);
+export const A2uiChoicePicker = toWebComponentImplementation(
+  A2uiChoicePickerElement,
+  ChoicePickerApi,
+);
+export const A2uiColumn = toWebComponentImplementation(A2uiBasicColumnElement, ColumnApi);
+export const A2uiDateTimeInput = toWebComponentImplementation(
+  A2uiDateTimeInputElement,
+  DateTimeInputApi,
+);
+export const A2uiDivider = toWebComponentImplementation(A2uiDividerElement, DividerApi);
+export const A2uiIcon = toWebComponentImplementation(A2uiIconElement, IconApi);
+export const A2uiImage = toWebComponentImplementation(A2uiImageElement, ImageApi);
+export const A2uiList = toWebComponentImplementation(A2uiListElement, ListApi);
+export const A2uiModal = toWebComponentImplementation(A2uiModalElement, ModalApi);
+export const A2uiRow = toWebComponentImplementation(A2uiBasicRowElement, RowApi);
+export const A2uiSlider = toWebComponentImplementation(A2uiSliderElement, SliderApi);
+export const A2uiTabs = toWebComponentImplementation(A2uiTabsElement, TabsApi);
+export const A2uiText = toWebComponentImplementation(A2uiBasicTextElement, TextApi);
+export const A2uiTextField = toWebComponentImplementation(A2uiBasicTextFieldElement, TextFieldApi);
+export const A2uiVideo = toWebComponentImplementation(A2uiVideoElement, VideoApi);
 
 export {
   BASIC_COMPONENTS,

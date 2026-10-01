@@ -14,27 +14,27 @@
  * limitations under the License.
  */
 
-import type {UniversalTextProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {consume} from '@lit/context';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {TextSupportedApis} from './supported_apis.js';
 import {Context} from '../context/context.js';
 import type {MarkdownRenderer} from '../context/markdown.js';
 import {markdown} from '../directives/directives.js';
 
-export const TEXT_TAG_NAME = 'a2ui-basic-text';
-
 const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
-export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<UniversalTextProps> {
-  static readonly tagName = TEXT_TAG_NAME;
+export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-basic-text';
   /**
    * The styles of the text component can be customized by redefining the following
    * CSS variables:
    *
    * - `--a2ui-text-color-text`: The color of the text. Defaults to `--a2ui-color-on-background`.
    * - `--a2ui-text-caption-color`: The color for caption text. Defaults to `light-dark(#666, #aaa)`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host {

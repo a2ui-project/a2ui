@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-import type {UniversalListProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {ListSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
-
-export const LIST_TAG_NAME = 'a2ui-list';
 
 function getChildKey(child: any): string {
   return typeof child === 'object' && child !== null
@@ -29,8 +26,10 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-export class A2uiListElement extends BasicCatalogA2uiLitElement<UniversalListProps> {
-  static readonly tagName = LIST_TAG_NAME;
+export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-list';
+  /** @nocollapse */
   static override styles = css`
     .a2ui-list {
       display: flex;
@@ -59,7 +58,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<UniversalListPro
     if (!props) return nothing;
 
     const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
-    const listStyle = props.listStyle;
+    const listStyle = (props as any).listStyle;
     const direction = props.direction || 'vertical';
 
     if (listStyle === 'ordered') {

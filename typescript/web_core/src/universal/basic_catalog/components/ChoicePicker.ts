@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-import type {UniversalChoicePickerProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {ChoicePickerSupportedApis} from './supported_apis.js';
 
-export const CHOICE_PICKER_TAG_NAME = 'a2ui-choicepicker';
-
-export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<UniversalChoicePickerProps> {
-  static readonly tagName = CHOICE_PICKER_TAG_NAME;
+export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePickerSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-choicepicker';
   /**
    * The styles of the choice picker can be customized by redefining the following
    * CSS variables:
@@ -36,6 +34,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<Universa
    * - `--a2ui-choicepicker-filter-padding`: Padding for the filter input. Defaults to `--a2ui-spacing-xs` and `--a2ui-spacing-s` (4px 8px).
    * - `--a2ui-choicepicker-chip-padding`: Padding for chips. Defaults to `--a2ui-spacing-s` and `--a2ui-spacing-m` (4px 8px).
    * - `--a2ui-choicepicker-chip-border-radius`: Border radius for chips. Defaults to `999px`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,

@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-import type {UniversalImageProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {styleMap} from 'lit/directives/style-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {ImageSupportedApis} from './supported_apis.js';
 
-export const IMAGE_TAG_NAME = 'a2ui-image';
-
-export class A2uiImageElement extends BasicCatalogA2uiLitElement<UniversalImageProps> {
-  static readonly tagName = IMAGE_TAG_NAME;
+export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-image';
   /**
    * The styles of the image can be customized by redefining the following
    * CSS variables:
@@ -34,6 +32,8 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<UniversalImageP
    * - `--a2ui-image-small-feature-size`: Controls the max-width of the `smallFeature` variant. Defaults to `100px`.
    * - `--a2ui-image-large-feature-size`: Controls the max-height of the `largeFeature` variant. Defaults to `400px`.
    * - `--a2ui-image-header-size`: Controls the height of the `header` variant. Defaults to `200px`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-image {

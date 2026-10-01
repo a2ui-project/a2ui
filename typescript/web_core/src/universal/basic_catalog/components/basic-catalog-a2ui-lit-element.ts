@@ -15,22 +15,33 @@
  */
 
 import {html, nothing} from 'lit';
+import type {z} from 'zod';
 import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
 import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
-import {A2uiLitElement, type ResolvedChildList, type A2uiChildRef} from '../../index.js';
+import type {AccessibilityAttributesSchema} from '../../../types/common-types.js';
+import {A2uiLitElement} from '../../index.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
 import {isValidCssColor} from '../theme.js';
-import type {
-  UniversalCommonProps,
-  UniversalCheckableProps,
-  UniversalAccessibilityAttributes,
-} from '../types.js';
 
-export type {ResolvedChildList, A2uiChildRef, A2uiChildRef as ResolvedChildRef};
+/** Resolved accessibility attributes, as rendered onto the element. */
+type ResolvedAccessibilityAttributes = ResolveA2uiProps<
+  z.infer<typeof AccessibilityAttributesSchema>
+>;
 
-export type InferredBasicCatalogProps<T> = T extends ComponentApi
-  ? ResolveA2uiProps<InferredComponentApiSchemaType<T>>
-  : T;
+/**
+ * The resolved props this base class reads. Not every protocol version
+ * defines all of them, so each one is optional.
+ */
+interface CommonResolvedProps {
+  weight?: number;
+  accessibility?: ResolvedAccessibilityAttributes;
+}
+
+/** Props that the binder adds to components with validation checks. */
+interface CheckableResolvedProps {
+  isValid?: boolean;
+  validationErrors?: string[];
+}
 
 /**
  * Internal base class for the built-in Basic Catalog components.
@@ -38,13 +49,13 @@ export type InferredBasicCatalogProps<T> = T extends ComponentApi
  * Extends `A2uiLitElement` to inject global basic catalog CSS, map `props.weight` to flex,
  * and calculate `--a2ui-color-primary` CSS variables from the surface theme.
  *
+ * @template Api The component API, or a union of the APIs of every protocol
+ *     version the element supports. Props are inferred from each API's schema.
  * @internal
  */
-export abstract class BasicCatalogA2uiLitElement<
-  ApiOrProps extends UniversalCommonProps | ComponentApi = UniversalCommonProps,
-> extends A2uiLitElement<
-  ApiOrProps extends ComponentApi ? ApiOrProps : ComponentApi,
-  InferredBasicCatalogProps<ApiOrProps>
+export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> extends A2uiLitElement<
+  Api,
+  ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
 > {
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
@@ -71,7 +82,7 @@ export abstract class BasicCatalogA2uiLitElement<
   override willUpdate(changedProperties: Map<string, any>) {
     super.willUpdate(changedProperties);
 
-    const props = this.controller?.props as UniversalCommonProps | undefined;
+    const props = this.controller?.props as CommonResolvedProps | undefined;
     if (props && props.weight !== undefined) {
       this.style.flex = String(props.weight);
     } else {
@@ -105,7 +116,7 @@ export abstract class BasicCatalogA2uiLitElement<
     this.applyAccessibilityAttributes(props?.accessibility);
   }
 
-  protected renderValidationErrors(props?: UniversalCheckableProps) {
+  protected renderValidationErrors(props?: CheckableResolvedProps) {
     if (props?.isValid === false && props.validationErrors?.length) {
       return props.validationErrors.map(
         (msg: string) => html`<div class="error a2ui-error-message">${msg}</div>`,
@@ -114,7 +125,7 @@ export abstract class BasicCatalogA2uiLitElement<
     return nothing;
   }
 
-  private applyAccessibilityAttributes(a11y?: UniversalAccessibilityAttributes): void {
+  private applyAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
     this.setOrRemoveAttribute('aria-label', a11y?.label);
     this.setOrRemoveAttribute('aria-description', a11y?.description);
     this.setOrRemoveAttribute('aria-live', a11y?.live);

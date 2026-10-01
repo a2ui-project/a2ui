@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-import type {UniversalRowProps} from '../types.js';
-
 import {html, nothing, css, PropertyValues} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {RowSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
-
-export const ROW_TAG_NAME = 'a2ui-basic-row';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -47,14 +44,17 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
-export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<UniversalRowProps> {
-  static readonly tagName = ROW_TAG_NAME;
+export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<RowSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-basic-row';
 
   /**
    * The styles of the row can be customized by redefining the following
    * CSS variables:
    *
    * - `--a2ui-row-gap`: The gap between items in the row. Defaults to `--a2ui-spacing-m`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     :host,

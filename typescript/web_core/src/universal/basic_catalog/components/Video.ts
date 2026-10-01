@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-import type {UniversalVideoProps} from '../types.js';
-
 import {html, nothing, css} from 'lit';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {VideoSupportedApis} from './supported_apis.js';
 
-export const VIDEO_TAG_NAME = 'a2ui-video';
-
-export class A2uiVideoElement extends BasicCatalogA2uiLitElement<UniversalVideoProps> {
-  static readonly tagName = VIDEO_TAG_NAME;
+export class A2uiVideoElement extends BasicCatalogA2uiLitElement<VideoSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-video';
   /**
    * The styles of the video can be customized by redefining the following
    * CSS variables:
    *
    * - `--a2ui-video-border-radius`: Controls the rounded corners of the video. Defaults to `0`.
+   *
+   * @nocollapse
    */
   static override styles = css`
     .a2ui-video-container {
@@ -50,7 +50,7 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<UniversalVideoP
       <div class="a2ui-video-container">
         <video
           src=${props.url || nothing}
-          poster=${props.posterUrl || props.poster || nothing}
+          poster=${('posterUrl' in props && props.posterUrl) || nothing}
           controls
           class="a2ui-video"
         >

@@ -16,26 +16,26 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {
   ComponentContext,
   MessageProcessor,
   Catalog,
   SurfaceModel,
   Subscription,
-} from '../../index.js';
+} from '../../../v0_9/index.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
   type WebComponentImplementation,
-} from '../../universal/index.js';
+} from '../../index.js';
 
-describe('AudioPlayer Component', () => {
+describe('Divider Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
@@ -63,8 +63,7 @@ describe('AudioPlayer Component', () => {
           components: [
             {
               id: 'comp1',
-              component: 'AudioPlayer',
-              url: 'http://example.com/audio.mp3',
+              component: 'Divider',
             },
           ],
         },
@@ -82,8 +81,8 @@ describe('AudioPlayer Component', () => {
     }
   });
 
-  it('should render and attach url correctly', async () => {
-    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+  it('should render an hr element', async () => {
+    const el = document.createElement('a2ui-divider') as A2uiWebComponentElement;
     element = el;
     document.body.appendChild(el);
 
@@ -93,9 +92,9 @@ describe('AudioPlayer Component', () => {
     });
 
     assert.notStrictEqual(el, null);
-    const audio = el.querySelector('audio');
-    assert.notStrictEqual(audio, null);
-    assert.strictEqual(audio?.getAttribute('src'), 'http://example.com/audio.mp3');
-    assert.strictEqual(audio?.classList.contains('a2ui-audio'), true);
+    const hr = el.querySelector('hr');
+    assert.notStrictEqual(hr, null);
+    assert.strictEqual(hr?.classList.contains('a2ui-divider'), true);
+    assert.strictEqual(hr?.classList.contains('horizontal'), true);
   });
 });
