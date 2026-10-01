@@ -33,7 +33,7 @@ import {
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
 } from '../../errors.js';
-import {ExpressCompiler, pyStr} from './compiler.js';
+import {ExpressCompiler, formatErrorMessage} from './compiler.js';
 import {ExpressDecompiler} from './decompiler.js';
 import {
   ExpressCompilerError,
@@ -128,7 +128,7 @@ export class ExpressParser extends Parser {
 
         const helpMessage = e.helpMessage || 'Please correct the syntax error in your Express DSL.';
         const ErrorClass = compilationErrorClass(e);
-        const message = pyStr(e);
+        const message = formatErrorMessage(e);
 
         const wrapped = new ErrorClass(message, {
           rawContent: formatContent,

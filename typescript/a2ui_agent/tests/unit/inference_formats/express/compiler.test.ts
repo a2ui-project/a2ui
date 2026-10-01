@@ -461,6 +461,19 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
   });
 
+  describe('_template argument errors', () => {
+    it('shows a non-path first argument as JSON', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      expect(() =>
+        compiler.compile('root = Column(_template([1, "a", null], item))\nitem = Text("x")'),
+      ).toThrow(
+        new ExpressParseError(
+          'The first argument to _template must be a dynamic data binding path (prefixed by $), got: [1,"a",null]',
+        ),
+      );
+    });
+  });
+
   describe('Statement handling', () => {
     it('compiles statements separated by semicolons on one line', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');

@@ -185,9 +185,10 @@ function isAtLeastVersion(version: string, minVersion: string): boolean {
 }
 
 /**
- * Formats an exception reproducing Python's `str(e)` for error wrapping (compiler.py:290).
+ * Formats an error for wrapping in another error's message. Syntax errors carry their
+ * line number, which their own message leaves out.
  */
-export function pyStr(e: unknown): string {
+export function formatErrorMessage(e: unknown): string {
   if (e instanceof ExpressSyntaxError) {
     return `${e.message} (line ${e.line})`;
   }
@@ -198,31 +199,10 @@ export function pyStr(e: unknown): string {
 }
 
 /**
- * Formats an AST value reproducing Python's `str(v)` / `repr(v)` in error messages.
+ * Formats a value for an error message: strings as they are, anything else as JSON.
  */
-function pyRepr(v: unknown): string {
-  if (typeof v === 'string') {
-    return v;
-  }
-  if (v === null) {
-    return 'None';
-  }
-  if (typeof v === 'boolean') {
-    return v ? 'True' : 'False';
-  }
-  if (typeof v === 'number') {
-    return String(v);
-  }
-  if (Array.isArray(v)) {
-    return `[${v.map(pyRepr).join(', ')}]`;
-  }
-  if (typeof v === 'object') {
-    const entries = Object.entries(v as Record<string, unknown>).map(
-      ([k, val]) => `'${k}': ${typeof val === 'string' ? `'${val}'` : pyRepr(val)}`,
-    );
-    return `{${entries.join(', ')}}`;
-  }
-  return String(v);
+function formatValue(v: unknown): string {
+  return typeof v === 'string' ? v : JSON.stringify(v);
 }
 
 /**
@@ -396,7 +376,7 @@ export class ExpressCompiler {
         if (e instanceof ExpressSyntaxError && e.isLexer) {
           throw e;
         }
-        const innerMsg = pyStr(e);
+        const innerMsg = formatErrorMessage(e);
         const parseErr = new ExpressParseError(`Failed to parse expression: ${innerMsg}`);
         // Set ES2022 cause after construction matching Python's `raise ... from e`
         (parseErr as unknown as {cause?: unknown}).cause = e;
@@ -1037,7 +1017,7 @@ export class ExpressCompiler {
           const pathVal = this._compileValue(fnArgs[0], rawSymbols, ctx, isAction);
           if (!pathVal || typeof pathVal !== 'object' || !('path' in pathVal)) {
             throw new ExpressParseError(
-              `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${pyRepr(fnArgs[0])}`,
+              `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
             );
           }
           const compIdVal = this._compileValue(fnArgs[1], rawSymbols, ctx, isAction);
