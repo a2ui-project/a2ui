@@ -142,7 +142,7 @@ struct MessageProcessorConformanceTests {
       )
     }
 
-    let rawMessages = testCase["messages"] as? [[String: Any]] ?? []
+    let rawMessages = extractRawMessages(from: testCase)
     var neededIDs = Set<String>()
     for msg in rawMessages {
       if let create = msg["createSurface"] as? [String: Any],
@@ -175,6 +175,19 @@ struct MessageProcessorConformanceTests {
     return catalogs
   }
 
+  private func extractRawMessages(from testCase: [String: Any]) -> [[String: Any]] {
+    if let msgList = testCase["messages"] as? [[String: Any]] {
+      return msgList
+    }
+    if let msgDict = testCase["messages"] as? [String: Any] {
+      if let wrappedList = msgDict["messages"] as? [[String: Any]] {
+        return wrappedList
+      }
+      return [msgDict]
+    }
+    return []
+  }
+
   private func decodeMessages(from rawMessages: [[String: Any]]) throws -> [ServerToClientMessage] {
     let parser = MessageParser()
     return try rawMessages.map { dict in
@@ -194,7 +207,7 @@ struct MessageProcessorConformanceTests {
       validationConfig: strictMode ? .strict : .relaxed
     )
 
-    let rawMessages = testCase["messages"] as? [[String: Any]] ?? []
+    let rawMessages = extractRawMessages(from: testCase)
     if testCase["expectError"] != nil {
       do {
         let messages = try decodeMessages(from: rawMessages)
@@ -285,7 +298,7 @@ struct MessageProcessorConformanceTests {
   private func runGetRendererDataModelCase(_ testCase: [String: Any], name: String) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase)
     let processor = MessageProcessor(catalogs: catalogs)
-    let rawMessages = testCase["messages"] as? [[String: Any]] ?? []
+    let rawMessages = extractRawMessages(from: testCase)
     let messages = try decodeMessages(from: rawMessages)
     processor.process(messages: messages)
 
