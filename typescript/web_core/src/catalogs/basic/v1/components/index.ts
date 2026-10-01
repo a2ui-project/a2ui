@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {toWebComponentImplementation} from '../../../../universal/index.js';
+import {toWebComponentImplementation} from '../../../../universal/to_web_component_implementation.js';
 import {
   A2uiAudioPlayerElement,
   A2uiBasicButtonElement,
