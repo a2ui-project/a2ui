@@ -1,4 +1,4 @@
-# A2UI MCP App Component Specification (v0.9)
+# A2UI MCP App Component Specification (v1.0)
 
 ## A Specification for Sandboxed, Model Context Protocol Components in the Agent-to-UI Protocol
 
@@ -10,7 +10,7 @@ Status: In progress
 This specification defines the A2UI MCP App Component (`McpApp`) for the secure, sandboxed rendering of Model Context Protocol (MCP) applications in the Agent-to-UI (A2UI) protocol. This document has two purposes:
 
 1. **Platform implementation blueprint:** It provides client-side platform developers with instructions to implement compliant `McpApp` components in any native rendering framework (such as Lit or Angular) while maintaining security guarantees.
-2. **Interoperable application standard:** It defines the communication interface and message schemas between the A2UI host and the sandboxed MCP application. It uses the `@modelcontextprotocol/ext-apps/app-bridge` specification to support A2UI v0.9 capabilities, including local client-side function execution and two-way local data binding.
+2. **Interoperable application standard:** It defines the communication interface and message schemas between the A2UI host and the sandboxed MCP application. It uses the `@modelcontextprotocol/ext-apps/app-bridge` specification to support A2UI v1.0 capabilities, including local client-side function execution and two-way local data binding.
 
 # 1. Introduction and motivation
 
@@ -22,7 +22,7 @@ The A2UI protocol is designed to stream structured, type-safe JSON component tre
 
 The `McpApp` component resolves these needs. It runs the embedded application inside a sandboxed double-iframe proxy using the `@modelcontextprotocol/ext-apps/app-bridge` library.
 
-In A2UI v0.9, the following features are integrated into the MCP App Bridge:
+In A2UI v1.0, the following features are integrated into the MCP App Bridge:
 
 1. **Local client-side function execution:** Allowing the sandboxed application to trigger local host functions (such as system checks or opening links) that are registered in the A2UI catalog.
 2. **Two-way local data binding:** Synchronizing state between the MCP application's internal model and the parent A2UI local Data Model without requiring round-trips to the remote agent.
@@ -53,7 +53,7 @@ All communications between the host, the sandbox proxy, and the embedded app use
 
 ### Protocol Methods Summary
 
-The following table outlines the protocol methods used in the `McpApp` lifecycle and whether they are standard MCP Apps protocol methods or A2UI-specific extensions introduced to support A2UI v0.9 capabilities.
+The following table outlines the protocol methods used in the `McpApp` lifecycle and whether they are standard MCP Apps protocol methods or A2UI-specific extensions introduced to support A2UI v1.0 capabilities.
 
 | Method                                    | Direction                | Type         | Origin             | Purpose                                 |
 | ----------------------------------------- | ------------------------ | ------------ | ------------------ | --------------------------------------- |
@@ -200,7 +200,7 @@ To avoid infinite update loops and redundant echoes, both sides should implement
 
 ### C. Local client-side function execution (`ui/requests/function-call`)
 
-Dispatched when the embedded app wants to execute a registered local A2UI v0.9 function.
+Dispatched when the embedded app wants to execute a registered local A2UI v1.0 function.
 
 **Message schema**
 
@@ -219,7 +219,7 @@ Dispatched when the embedded app wants to execute a registered local A2UI v0.9 f
 ```
 
 **Host action**  
-The host checks if the target function is listed in the component's `allowedFunctions` list. If verified, it evaluates the function using the A2UI client catalog engine and returns the result (or error) to the app.
+The host checks if the target function is a key of the component's `allowedFunctions` map and validates `args` against the JSON Schema stored under that key. If verified, it evaluates the function using the A2UI client catalog engine and returns the result (or error) to the app.
 
 ### D. Frame resize request (`ui/notifications/size-changed`)
 
@@ -392,11 +392,12 @@ The `McpApp` component is registered in the A2UI Component Catalog.
         "description": "The list of MCP tools the embedded application is authorized to request."
       },
       "allowedFunctions": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "The list of local client-side functions the embedded application is authorized to call."
+        "type": "object",
+        "description": "A map of authorized local client-side function names to the JSON Schema of their arguments.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
       },
       "data": {
         "type": "object",

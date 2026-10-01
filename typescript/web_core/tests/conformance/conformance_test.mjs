@@ -166,6 +166,7 @@ const KNOWN_DIVERGENCES = new Map([
         'test_v10_published_basic_catalog_is_self_contained',
         V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
       ],
+      ['test_v10_published_mcp_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
       [
         'test_v09_published_basic_catalog_rejects_function_call_extra_key',
         FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
