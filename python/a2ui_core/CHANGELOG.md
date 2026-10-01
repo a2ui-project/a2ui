@@ -3,9 +3,9 @@
 - **BREAKING**: `ComponentModel.component_tree` names the component under
   `component`, as an `updateComponents` message does, instead of `type`. A
   property named `type` no longer replaces the component type in the tree,
-  and is kept ([#2929](https://github.com/a2ui-project/a2ui/issues/2929)).
-  `ComponentModel.validate` validates that same dict, so a property named
-  `component` or `id` no longer replaces the model's own during validation.
+  and is kept. `ComponentModel.validate` validates that same dict, so a
+  property named `component` or `id` no longer replaces the model's own
+  during validation ([#2930](https://github.com/a2ui-project/a2ui/pull/2930)).
 - JSON Schema patterns are validated with `regex` (`SchemaValidator` in
   `a2ui.core.validation`), supporting Unicode property escapes such as
   `\p{XID_Start}` and `\p{XID_Continue}` natively and anchoring `$` to the end
