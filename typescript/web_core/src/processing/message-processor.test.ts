@@ -26,7 +26,7 @@ import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/ty
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
 import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
-import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+import {A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 
 /**

@@ -24,6 +24,20 @@ private final class ExtendedStackResultBox<T>: @unchecked Sendable {
   var result: Result<T, Error>?
 }
 
+/// Concrete `FunctionImplementation` for conformance testing.
+public struct ConformanceFunctionImplementation: FunctionImplementation, Sendable {
+  public let api: FunctionAPI
+
+  public init(api: FunctionAPI) {
+    self.api = api
+  }
+
+  @MainActor
+  public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .null
+  }
+}
+
 /// Test helper providing repository path resolution, YAML/JSON loading, and catalog setup.
 public enum ConformanceTestHelper {
   /// Resolves the repository root URL using `#filePath` or `A2UI_CONFORMANCE_DIR`.
@@ -191,18 +205,73 @@ public enum ConformanceTestHelper {
 
     let context = Context(dialect: .draft2020_12, remoteSchema: remoteSchemas)
     var components: [AnyComponentAPI] = []
-    for (componentName, componentSchemaValue) in catalogSchema["components"]?.objectValue ?? [:] {
-      var fullComponentObject = componentSchemaValue.objectValue ?? [:]
-      if !allDefinitions.isEmpty {
-        var componentDefinitions = fullComponentObject["$defs"]?.objectValue ?? [:]
-        for (key, definition) in allDefinitions where componentDefinitions[key] == nil {
-          componentDefinitions[key] = definition
+    if let compObj = catalogSchema["components"]?.objectValue {
+      for (componentName, componentSchemaValue) in compObj {
+        var fullComponentObject = componentSchemaValue.objectValue ?? [:]
+        if !allDefinitions.isEmpty {
+          var componentDefinitions = fullComponentObject["$defs"]?.objectValue ?? [:]
+          for (key, definition) in allDefinitions where componentDefinitions[key] == nil {
+            componentDefinitions[key] = definition
+          }
+          fullComponentObject["$defs"] = .object(componentDefinitions)
         }
-        fullComponentObject["$defs"] = .object(componentDefinitions)
-      }
 
-      if let schema = try? Schema(rawSchema: .object(fullComponentObject), context: context) {
-        components.append(AnyComponentAPI(name: componentName, schema: schema))
+        if let schema = try? Schema(rawSchema: .object(fullComponentObject), context: context) {
+          components.append(AnyComponentAPI(name: componentName, schema: schema))
+        }
+      }
+    } else if let compArray = catalogSchema["components"]?.arrayValue {
+      for compVal in compArray {
+        guard let name = compVal["name"]?.stringValue else { continue }
+        var fullComponentObject = compVal["schema"]?.objectValue ?? ["type": .string("object")]
+        if !allDefinitions.isEmpty {
+          var componentDefinitions = fullComponentObject["$defs"]?.objectValue ?? [:]
+          for (key, definition) in allDefinitions where componentDefinitions[key] == nil {
+            componentDefinitions[key] = definition
+          }
+          fullComponentObject["$defs"] = .object(componentDefinitions)
+        }
+        if let schema = try? Schema(rawSchema: .object(fullComponentObject), context: context) {
+          components.append(AnyComponentAPI(name: name, schema: schema))
+        }
+      }
+    }
+
+    var functions: [any FunctionImplementation] = []
+    if let funcObj = catalogSchema["functions"]?.objectValue {
+      for (funcName, funcVal) in funcObj {
+        let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
+        let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
+        var paramObj = funcVal["parameters"]?.objectValue ?? [:]
+        if !allDefinitions.isEmpty {
+          var paramDefs = paramObj["$defs"]?.objectValue ?? [:]
+          for (key, definition) in allDefinitions where paramDefs[key] == nil {
+            paramDefs[key] = definition
+          }
+          paramObj["$defs"] = .object(paramDefs)
+        }
+        if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
+          let api = FunctionAPI(name: funcName, returnType: retType, schema: schema)
+          functions.append(ConformanceFunctionImplementation(api: api))
+        }
+      }
+    } else if let funcArray = catalogSchema["functions"]?.arrayValue {
+      for funcVal in funcArray {
+        guard let name = funcVal["name"]?.stringValue else { continue }
+        let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
+        let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
+        var paramObj = funcVal["parameters"]?.objectValue ?? [:]
+        if !allDefinitions.isEmpty {
+          var paramDefs = paramObj["$defs"]?.objectValue ?? [:]
+          for (key, definition) in allDefinitions where paramDefs[key] == nil {
+            paramDefs[key] = definition
+          }
+          paramObj["$defs"] = .object(paramDefs)
+        }
+        if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
+          let api = FunctionAPI(name: name, returnType: retType, schema: schema)
+          functions.append(ConformanceFunctionImplementation(api: api))
+        }
       }
     }
 
@@ -212,7 +281,12 @@ public enum ConformanceTestHelper {
     }
 
     let catalogID = catalogSchema["catalogId"]?.stringValue ?? "test_catalog"
-    return Catalog(id: catalogID, components: components, themeSchema: themeSchema)
+    return Catalog(
+      id: catalogID,
+      components: components,
+      functions: functions,
+      themeSchema: themeSchema
+    )
   }
 
   /// Recursively converts arbitrary YAML data (`[String: Any]`, `[Any]`, primitives)

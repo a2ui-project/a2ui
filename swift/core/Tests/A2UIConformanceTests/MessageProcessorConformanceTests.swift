@@ -127,19 +127,26 @@ struct MessageProcessorConformanceTests {
       ]
     }
 
-    let openSchema = try Schema(instance: "{\"type\": \"object\"}")
-    for i in 0..<catalogs.count {
-      var comps = catalogs[i].components
-      comps["Button"] = AnyComponentAPI(name: "Button", schema: openSchema)
-      comps["Label"] = AnyComponentAPI(name: "Label", schema: openSchema)
-      if comps["Text"] == nil {
-        comps["Text"] = AnyComponentAPI(name: "Text", schema: openSchema)
+    if testCase["catalogs"] == nil {
+      let openSchema = try Schema(instance: "{\"type\": \"object\"}")
+      for i in 0..<catalogs.count {
+        var comps = catalogs[i].components
+        if comps["Button"] == nil {
+          comps["Button"] = AnyComponentAPI(name: "Button", schema: openSchema)
+        }
+        if comps["Label"] == nil {
+          comps["Label"] = AnyComponentAPI(name: "Label", schema: openSchema)
+        }
+        if comps["Text"] == nil {
+          comps["Text"] = AnyComponentAPI(name: "Text", schema: openSchema)
+        }
+        catalogs[i] = Catalog(
+          id: catalogs[i].id,
+          components: comps.map { $0.value },
+          functions: Array(catalogs[i].functions.values),
+          themeSchema: catalogs[i].themeSchema
+        )
       }
-      catalogs[i] = Catalog(
-        id: catalogs[i].id,
-        components: comps.map { $0.value },
-        themeSchema: catalogs[i].themeSchema
-      )
     }
 
     let rawMessages = extractRawMessages(from: testCase)
