@@ -1090,8 +1090,13 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
 
 def validate_common_types_schema_case(case: dict[str, Any]) -> None:
     from a2ui.core.catalog import get_common_types_schema_json
+    from a2ui.core.common import to_protocol_version
 
-    generated = json.loads(get_common_types_schema_json(resolve_protocol_version(case)))
+    generated = json.loads(
+        get_common_types_schema_json(
+            to_protocol_version(resolve_protocol_version(case) or "")
+        )
+    )
     exp_path = os.path.join(CONFORMANCE_ROOT, "..", case["expectFile"])
     with open(exp_path, "r", encoding="utf-8") as f:
         expected = json.load(f)

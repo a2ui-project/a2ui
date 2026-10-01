@@ -21,6 +21,7 @@ import json
 import pytest
 
 from a2ui.core import A2uiValidationError, get_common_types_schema_map
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonStreamParser
 from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, A2uiCatalog, CatalogConfig
 from a2ui.schema.utils import get_basic_catalog_path
@@ -46,7 +47,9 @@ def _stream_create_surface(catalog: A2uiCatalog, extensions: dict[str, int]) -> 
 
 
 def test_catalog_common_types_come_from_core(basic_catalog: A2uiCatalog) -> None:
-    assert basic_catalog.common_types_schema == get_common_types_schema_map("1.0")
+    assert basic_catalog.common_types_schema == get_common_types_schema_map(
+        ProtocolVersion.V1_0
+    )
 
 
 @pytest.mark.parametrize("key", ["good_key", "名前", "_x"])

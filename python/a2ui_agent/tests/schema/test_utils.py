@@ -87,10 +87,17 @@ class TestSchemaUtils(unittest.TestCase):
     def test_load_common_types_schema_matches_core(self):
         """Verifies the agent's common types schema is the one a2ui-core generates."""
         from a2ui.core import get_common_types_schema_map
+        from a2ui.core.schema import ProtocolVersion
 
-        for ver in ["0.9", "0.9.1", "1.0", "v1_0"]:
+        for ver, protocol_version in [
+            ("0.9", ProtocolVersion.V0_9),
+            ("0.9.1", ProtocolVersion.V0_9_1),
+            ("1.0", ProtocolVersion.V1_0),
+            ("v1_0", ProtocolVersion.V1_0),
+        ]:
             self.assertEqual(
-                load_common_types_schema(ver), get_common_types_schema_map(ver)
+                load_common_types_schema(ver),
+                get_common_types_schema_map(protocol_version),
             )
         self.assertEqual(load_common_types_schema("0.8"), {})
         with self.assertRaises(A2uiCatalogError):

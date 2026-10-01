@@ -18,6 +18,7 @@ from typing import get_args
 
 from a2ui.core import A2uiCatalogError, Catalog, get_common_types_schema_map
 from a2ui.core.schema import (
+    ProtocolVersion,
     A2uiClientMessageListWrapper,
     A2uiClientActionMessage,
     A2uiRendererErrorMessage,
@@ -137,28 +138,24 @@ def test_seamless_programmatic_construction_snake_or_alias():
 @pytest.mark.parametrize(
     ("version", "schema_version"),
     [
-        ("0.9", "v0_9"),
-        ("0.9.1", "v0_9"),
-        ("v0_9_2", "v0_9"),
-        ("1.0", "v1_0"),
-        ("1.0.0-rc.1", "v1_0"),
-        ("1.1", "v1_0"),
+        (ProtocolVersion.V0_9, "v0_9"),
+        (ProtocolVersion.V0_9_1, "v0_9"),
+        (ProtocolVersion.V1_0, "v1_0"),
     ],
 )
 def test_common_types_schema_follows_release_line(
-    version: str, schema_version: str
+    version: ProtocolVersion, schema_version: str
 ) -> None:
-    """Patch and pre-release versions use the schema of their release line."""
+    """v0.9.1 uses the schema of its release line, v0.9."""
     schema = get_common_types_schema_map(version)
     assert schema["$id"] == (
         f"https://a2ui.org/specification/{schema_version}/common_types.json"
     )
 
 
-@pytest.mark.parametrize("version", ["0.8", "not-a-version", ""])
-def test_common_types_schema_rejects_unsupported_versions(version: str) -> None:
+def test_common_types_schema_rejects_unsupported_versions() -> None:
     with pytest.raises(A2uiCatalogError):
-        get_common_types_schema_map(version)
+        get_common_types_schema_map(ProtocolVersion.V0_8)
 
 
 def test_catalog_schema_returns_independent_copies() -> None:

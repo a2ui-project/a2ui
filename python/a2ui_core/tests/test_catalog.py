@@ -25,6 +25,7 @@ from a2ui.core.catalog import (
     get_common_types_schema_json,
     get_common_types_schema_map,
 )
+from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.catalog.catalog import TComponent, TFunction
@@ -836,7 +837,10 @@ def test_payload_validator_foreign_catalog_identifier_validation():
 # ==============================================================================
 
 
-@pytest.mark.parametrize("version", ["0.9", "0.9.1", "1.0"])
+@pytest.mark.parametrize(
+    "version",
+    [ProtocolVersion.V0_9, ProtocolVersion.V0_9_1, ProtocolVersion.V1_0],
+)
 def test_get_common_types_schema_map_and_json_agree(version):
     # Content is checked against the specification by core/common_types.yaml,
     # which reads the JSON form only.
@@ -845,27 +849,35 @@ def test_get_common_types_schema_map_and_json_agree(version):
 
 
 def test_get_common_types_schema_supported_versions():
-    # v0.9 string and enum forms
-    res_09 = get_common_types_schema_map("0.9")
+    res_09 = get_common_types_schema_map(ProtocolVersion.V0_9)
     assert res_09["$id"] == "https://a2ui.org/specification/v0_9/common_types.json"
-    assert get_common_types_schema_map("v0.9") == res_09
-    assert get_common_types_schema_map(ProtocolVersion.V0_9) == res_09
+    # v0.9.1 publishes v0.9's common types unchanged.
+    assert get_common_types_schema_map(ProtocolVersion.V0_9_1) == res_09
 
-    # v0.9.1 string and enum forms
-    res_091 = get_common_types_schema_map("0.9.1")
-    assert get_common_types_schema_map("v0.9.1") == res_091
-    assert get_common_types_schema_map(ProtocolVersion.V0_9_1) == res_091
-
-    # v1.0 string and enum forms
-    res_10 = get_common_types_schema_map("1.0")
+    res_10 = get_common_types_schema_map(ProtocolVersion.V1_0)
     assert res_10["$id"] == "https://a2ui.org/specification/v1_0/common_types.json"
-    assert get_common_types_schema_map("v1.0") == res_10
-    assert get_common_types_schema_map("1.0.0") == res_10
-    assert get_common_types_schema_map(ProtocolVersion.V1_0) == res_10
 
-    # Forward compatibility for >= 1.0 (e.g. 1.1)
-    assert get_common_types_schema_map("1.1") == res_10
-    assert get_common_types_schema_json("1.1") == get_common_types_schema_json("1.0")
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("0.8", ProtocolVersion.V0_8),
+        ("v0.9", ProtocolVersion.V0_9),
+        ("0.9.1", ProtocolVersion.V0_9_1),
+        ("1.0", ProtocolVersion.V1_0),
+        ("1.0.0", ProtocolVersion.V1_0),
+        ("1.0.0-beta.1", ProtocolVersion.V1_0),
+        (ProtocolVersion.V1_0, ProtocolVersion.V1_0),
+    ],
+)
+def test_to_protocol_version(version, expected):
+    assert to_protocol_version(version) is expected
+
+
+@pytest.mark.parametrize("version", ["", "invalid_version", "1.1", "0.9.2"])
+def test_to_protocol_version_rejects_unknown_versions(version):
+    with pytest.raises(ValueError, match="Unknown protocol version"):
+        to_protocol_version(version)
 
 
 @pytest.mark.parametrize(
@@ -874,26 +886,16 @@ def test_get_common_types_schema_supported_versions():
 def test_get_common_types_schema_unsupported_versions(getter):
     # v0.8 has no common_types.json
     with pytest.raises(A2uiCatalogError, match="common_types schema is not available"):
-        getter("0.8")
-
-    with pytest.raises(A2uiCatalogError, match="common_types schema is not available"):
         getter(ProtocolVersion.V0_8)
-
-    # Empty or invalid version
-    with pytest.raises(A2uiCatalogError, match="protocol_version must be provided"):
-        getter("")
-
-    with pytest.raises(A2uiCatalogError, match="Invalid protocol version"):
-        getter("invalid_version")
 
 
 def test_get_common_types_schema_map_returns_deepcopy():
-    res1 = get_common_types_schema_map("1.0")
+    res1 = get_common_types_schema_map(ProtocolVersion.V1_0)
     res1["$defs"]["MutatedKey"] = {"type": "string"}
 
-    res2 = get_common_types_schema_map("1.0")
+    res2 = get_common_types_schema_map(ProtocolVersion.V1_0)
     assert "MutatedKey" not in res2["$defs"]
-    assert "MutatedKey" not in get_common_types_schema_json("1.0")
+    assert "MutatedKey" not in get_common_types_schema_json(ProtocolVersion.V1_0)
 
 
 def test_catalog_from_json_determines_common_types_automatically():

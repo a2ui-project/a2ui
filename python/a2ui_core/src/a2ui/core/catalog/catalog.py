@@ -25,7 +25,7 @@ else:
     from typing_extensions import TypeVar
 from pydantic import BaseModel
 
-from ..common.semver import is_at_least_version, parse_semver
+from ..common.semver import is_at_least_version, parse_semver, to_protocol_version
 from ..common.uax31 import (
     assert_uax31_identifier as assert_uax31_identifier,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
@@ -443,7 +443,11 @@ class Catalog(Generic[TComponent, TFunction]):
         schema = inline_marked_defs(schema)
 
         referenced_dynamics: set[str] = set()
-        dynamic_index = get_dynamic_type_index(self.protocol_version)
+        try:
+            protocol_version = to_protocol_version(self.protocol_version)
+        except ValueError as e:
+            raise A2uiCatalogError(str(e)) from e
+        dynamic_index = get_dynamic_type_index(protocol_version)
         cleaned_schema = cast(
             dict[str, Any],
             clean_schema_node(
@@ -462,9 +466,9 @@ class Catalog(Generic[TComponent, TFunction]):
             # Versions without common types (v0.8) fall back to v0.9, as the
             # dynamic type index does.
             common_types_version = (
-                self.protocol_version
-                if is_at_least_version(self.protocol_version, ProtocolVersion.V0_9)
-                else ProtocolVersion.V0_9
+                ProtocolVersion.V0_9
+                if protocol_version is ProtocolVersion.V0_8
+                else protocol_version
             )
             dynamic_defs = {
                 **get_common_types_catalog_defs(common_types_version),

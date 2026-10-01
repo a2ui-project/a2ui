@@ -23,8 +23,8 @@ from typing import Any, Final, NamedTuple, cast
 
 from pydantic import TypeAdapter
 
-from ..common.semver import to_semver
 from ..exceptions import A2uiCatalogError
+from . import ProtocolVersion
 from ._dynamic_types import (
     DynamicTypeIndex,
     build_dynamic_type_index,
@@ -162,9 +162,7 @@ class _BuiltCommonTypes(NamedTuple):
     dynamic_index: DynamicTypeIndex
 
 
-# Common types schemas by release line (major, minor). Patch and pre-release
-# versions use their line's schema: v0.9.1 publishes v0.9's common_types.json
-# unchanged, and a 1.0.0 pre-release is a v1.0 version.
+# Common types schemas by release line (major, minor).
 _COMMON_TYPES_RELEASES: Final[dict[tuple[int, int], tuple[str, str]]] = {
     (0, 9): (
         "a2ui.core.schema.v0_9.common_types",
@@ -176,32 +174,32 @@ _COMMON_TYPES_RELEASES: Final[dict[tuple[int, int], tuple[str, str]]] = {
     ),
 }
 
+# The release line that serves each protocol version. v0.9.1 publishes v0.9's
+# common_types.json unchanged. v0.8 has no common types.
+_RELEASE_BY_VERSION: Final[dict[ProtocolVersion, tuple[int, int]]] = {
+    ProtocolVersion.V0_9: (0, 9),
+    ProtocolVersion.V0_9_1: (0, 9),
+    ProtocolVersion.V1_0: (1, 0),
+}
+
 
 def _common_types_release(
-    protocol_version: Any, fall_back_to_oldest: bool = False
+    protocol_version: ProtocolVersion, fall_back_to_oldest: bool = False
 ) -> tuple[int, int]:
     """Returns the common types release line that serves a protocol version.
 
     Args:
-        protocol_version: Protocol version string, ProtocolVersion enum, or SemVer object.
-        fall_back_to_oldest: Whether versions older than every release line
-            (e.g. v0.8) use the oldest one instead of raising.
+        protocol_version: The protocol version.
+        fall_back_to_oldest: Whether a version without common types (v0.8)
+            uses the oldest release line instead of raising.
 
     Raises:
-        A2uiCatalogError: If the version is missing or unparsable, or predates
-            every common types release line and `fall_back_to_oldest` is false.
+        A2uiCatalogError: If the version has no common types and
+            `fall_back_to_oldest` is false.
     """
-    if not protocol_version:
-        raise A2uiCatalogError("protocol_version must be provided.")
-    parsed = to_semver(protocol_version)
-    if parsed is None:
-        raise A2uiCatalogError(
-            f"Invalid protocol version for common_types schema: '{protocol_version}'"
-        )
-    line = (parsed.major, parsed.minor)
-    candidates = [release for release in _COMMON_TYPES_RELEASES if release <= line]
-    if candidates:
-        return max(candidates)
+    release = _RELEASE_BY_VERSION.get(protocol_version)
+    if release is not None:
+        return release
     if fall_back_to_oldest:
         return min(_COMMON_TYPES_RELEASES)
     raise A2uiCatalogError(
@@ -328,14 +326,11 @@ def _get_cached_common_types(release: tuple[int, int]) -> _CachedCommonTypes:
 # `__all__`, so neither `import *` nor the package facades re-export them.
 
 
-def get_dynamic_type_index(protocol_version: Any) -> DynamicTypeIndex:
+def get_dynamic_type_index(protocol_version: ProtocolVersion) -> DynamicTypeIndex:
     """Returns the dynamic value def index for a protocol version.
 
-    Versions without a common_types schema (e.g. v0.8) fall back to the v0.9
+    Versions without a common_types schema (v0.8) fall back to the v0.9
     definitions, matching the catalog's dynamic defs.
-
-    Raises:
-        A2uiCatalogError: If the protocol version is missing or unparsable.
     """
     release = _common_types_release(protocol_version, fall_back_to_oldest=True)
     return _get_cached_common_types(release).dynamic_index
@@ -349,7 +344,7 @@ def get_all_dynamic_type_names() -> frozenset[str]:
     ))
 
 
-def get_common_types_catalog_defs(protocol_version: Any) -> dict[str, Any]:
+def get_common_types_catalog_defs(protocol_version: ProtocolVersion) -> dict[str, Any]:
     """Returns the common types defs in the `$ref` form that catalogs use.
 
     Unlike the published schema, helper models (e.g. `TemplateChildList`) are
@@ -357,51 +352,51 @@ def get_common_types_catalog_defs(protocol_version: Any) -> dict[str, Any]:
     generated from the same models reference them by name.
 
     Raises:
-        A2uiCatalogError: If the protocol version does not define a common_types schema
-            (e.g., version < 0.9) or is invalid.
+        A2uiCatalogError: If the protocol version has no common_types schema
+            (v0.8).
     """
     return copy.deepcopy(_get_common_types_schema(protocol_version).catalog_defs)
 
 
-def _get_common_types_schema(protocol_version: Any) -> _CachedCommonTypes:
+def _get_common_types_schema(protocol_version: ProtocolVersion) -> _CachedCommonTypes:
     """Returns the cached common types schema for a protocol version.
 
     Generated dynamically from the build-time Pydantic models for the target protocol version.
 
     Raises:
-        A2uiCatalogError: If the protocol version does not define a common_types schema
-            (e.g., version < 0.9) or is invalid.
+        A2uiCatalogError: If the protocol version has no common_types schema
+            (v0.8).
     """
     return _get_cached_common_types(_common_types_release(protocol_version))
 
 
-def get_common_types_schema_map(protocol_version: Any) -> dict[str, Any]:
+def get_common_types_schema_map(protocol_version: ProtocolVersion) -> dict[str, Any]:
     """Returns the common types JSON schema as a dictionary for a protocol version.
 
     Args:
-        protocol_version: Protocol version string, ProtocolVersion enum, or SemVer object
-            (e.g., "v0.9", "0.9.1", "1.0", "v1.0").
+        protocol_version: The protocol version. Use `to_protocol_version` to
+            convert a version string.
 
     Returns:
         A fresh copy of the schema generated from the build-time Pydantic models.
 
     Raises:
-        A2uiCatalogError: If the protocol version does not define a common_types schema
-            (e.g., version < 0.9) or is invalid.
+        A2uiCatalogError: If the protocol version has no common_types schema
+            (v0.8).
     """
     return copy.deepcopy(_get_common_types_schema(protocol_version).schema)
 
 
-def get_common_types_schema_json(protocol_version: Any) -> str:
+def get_common_types_schema_json(protocol_version: ProtocolVersion) -> str:
     """Returns the common types JSON schema as a JSON string for a protocol version.
 
     Args:
-        protocol_version: Protocol version string, ProtocolVersion enum, or SemVer object
-            (e.g., "v0.9", "0.9.1", "1.0", "v1.0").
+        protocol_version: The protocol version. Use `to_protocol_version` to
+            convert a version string.
 
     Raises:
-        A2uiCatalogError: If the protocol version does not define a common_types schema
-            (e.g., version < 0.9) or is invalid.
+        A2uiCatalogError: If the protocol version has no common_types schema
+            (v0.8).
     """
     return _get_common_types_schema(protocol_version).json
 

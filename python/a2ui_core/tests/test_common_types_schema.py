@@ -33,6 +33,8 @@ from pydantic import TypeAdapter
 from referencing import Registry, Resource
 
 from a2ui.core.catalog import Catalog, get_common_types_schema_map
+from a2ui.core.common import to_protocol_version
+from a2ui.core.schema import ProtocolVersion
 # `test_dynamic_type_index_matches_specification` checks how the schema
 # builder classifies dynamic value defs. That index is an internal detail with
 # no public entry point, and its effect on catalogs is too indirect to pin
@@ -60,9 +62,9 @@ def _spec_versions() -> list[str]:
     return sorted(os.path.basename(os.path.dirname(os.path.dirname(p))) for p in paths)
 
 
-def _protocol_version(version: str) -> str:
-    """Turns a directory name into a protocol version: 'v0_9_1' -> '0.9.1'."""
-    return version[1:].replace("_", ".")
+def _protocol_version(version: str) -> ProtocolVersion:
+    """Turns a directory name into a protocol version: 'v0_9_1' -> V0_9_1."""
+    return to_protocol_version(version[1:].replace("_", "."))
 
 
 def _load_spec_defs(version: str) -> dict[str, Any]:

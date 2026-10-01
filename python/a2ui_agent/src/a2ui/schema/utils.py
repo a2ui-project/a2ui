@@ -276,15 +276,19 @@ def load_common_types_schema(version: str) -> dict[str, Any]:
         predate common types (v0.8).
 
     Raises:
-        A2uiCatalogError: If the version cannot be parsed.
+        A2uiCatalogError: If the version is not a known protocol version.
     """
-    from a2ui.core import get_common_types_schema_map
-    from a2ui.core.common import to_semver
+    from a2ui.core import A2uiCatalogError, get_common_types_schema_map
+    from a2ui.core.common import to_protocol_version
+    from a2ui.core.schema import ProtocolVersion
 
-    parsed = to_semver(version)
-    if parsed is not None and (parsed.major, parsed.minor) < (0, 9):
+    try:
+        protocol_version = to_protocol_version(version)
+    except ValueError as e:
+        raise A2uiCatalogError(str(e)) from e
+    if protocol_version is ProtocolVersion.V0_8:
         return {}
-    return get_common_types_schema_map(version)
+    return get_common_types_schema_map(protocol_version)
 
 
 def wrap_as_json_array(a2ui_schema: dict[str, Any]) -> dict[str, Any]:
