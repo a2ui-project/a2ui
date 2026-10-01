@@ -685,13 +685,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private processCreateSurfaceOp(op: InternalCreateSurfaceOp): void {
     const {surfaceId, catalogId, theme, sendDataModel, components, dataModel} = op;
 
-    const catalog =
-      catalogId !== undefined ? this.catalogs.find(c => c.id === catalogId) : this.catalogs[0];
+    const msgVersion = op.version;
+    const catalog = resolveSurfaceDefaultCatalog(this.catalogs, catalogId, msgVersion);
     if (!catalog) {
       throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
     }
 
-    const msgVersion = op.version;
     if (
       catalog.protocolVersion &&
       msgVersion &&
@@ -741,6 +740,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       sendDataModel ?? false,
       undefined,
       op.rootId ?? 'root',
+      op.metadata,
     );
     this.model.addSurface(surface);
 
@@ -770,7 +770,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     surface: SurfaceModel<T>,
   ): void {
     const {id, component} = comp;
-    const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+    const rawCatalogId = (comp as any).catalogId;
 
     if (typeof id !== 'string' || !id) {
       throw new A2uiValidationError(
@@ -806,37 +806,37 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
-    const {id, component, ...properties} = comp;
+    const {id, component, catalogId, metadata: rawMetadata, ...properties} = comp;
     if (typeof id !== 'string') return;
-    const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+    const metadata = extractComponentMetadata(rawMetadata);
+    const targetCatalog = resolveComponentTargetCatalog(catalogId, surface);
     const existing = surface.componentsModel.get(id);
-
-    let targetCatalog = surface.defaultCatalog;
-    if (typeof rawCatalogId === 'string' && rawCatalogId) {
-      const found = surface.availableCatalogs.get(rawCatalogId);
-      if (found) {
-        targetCatalog = found;
-      }
-    }
 
     if (existing) {
       const componentType = typeof component === 'string' ? component : existing.type;
       if (
         componentType !== existing.type ||
-        (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
+        (catalogId && existing.catalog?.id !== targetCatalog.id)
       ) {
         // Recreate component if type or catalog changes
         surface.componentsModel.removeComponent(id);
-        const newComponent = new ComponentModel(id, componentType, properties, targetCatalog);
+        const newComponent = new ComponentModel(
+          id,
+          componentType,
+          properties,
+          targetCatalog,
+          metadata,
+        );
         surface.componentsModel.addComponent(newComponent);
       } else {
+        existing.metadata = metadata;
         existing.properties = properties;
       }
     } else {
       if (typeof component !== 'string' || !component) {
         throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
       }
-      const newComponent = new ComponentModel(id, component, properties, targetCatalog);
+      const newComponent = new ComponentModel(id, component, properties, targetCatalog, metadata);
       surface.componentsModel.addComponent(newComponent);
     }
   }
@@ -957,7 +957,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (typeof id !== 'string') continue;
 
       let compCatalog = surface.defaultCatalog;
-      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+      const rawCatalogId = (comp as any).catalogId;
       if (typeof rawCatalogId === 'string' && rawCatalogId) {
         const found = surface.availableCatalogs.get(rawCatalogId);
         if (found) {
@@ -1046,14 +1046,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const {id, component, ...properties} = comp;
       if (typeof id !== 'string' || !id) continue;
 
-      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
-      let targetCatalog = surface.defaultCatalog;
-      if (typeof rawCatalogId === 'string' && rawCatalogId) {
-        const found = surface.availableCatalogs.get(rawCatalogId);
-        if (found) {
-          targetCatalog = found;
-        }
-      }
+      const rawCatalogId = (comp as any).catalogId;
+      const targetCatalog = resolveComponentTargetCatalog(rawCatalogId, surface);
+      delete properties.catalogId;
+      delete properties.metadata;
 
       const existing = candidateModel.get(id);
       const componentType = (typeof component === 'string' ? component : existing?.type) || '';
@@ -1083,4 +1079,37 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       rootId: this.validationConfig.rootId ?? surface.rootId,
     });
   }
+}
+
+function extractComponentMetadata(rawMetadata: unknown): Record<string, unknown> | undefined {
+  if (rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)) {
+    return rawMetadata as Record<string, unknown>;
+  }
+  return undefined;
+}
+
+function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
+  catalogs: ReadonlyArray<Catalog<T>>,
+  catalogId: string | undefined,
+  msgVersion: string | undefined,
+): Catalog<T> | undefined {
+  if (catalogId !== undefined) {
+    return catalogs.find(c => c.id === catalogId);
+  }
+  return (
+    catalogs.find(c =>
+      msgVersion ? isCatalogVersionCompatible(c.protocolVersion, msgVersion) : true,
+    ) ?? catalogs[0]
+  );
+}
+
+function resolveComponentTargetCatalog<T extends ComponentApi>(
+  rawCatalogId: unknown,
+  surface: SurfaceModel<T>,
+): Catalog<T> {
+  if (typeof rawCatalogId === 'string' && rawCatalogId) {
+    const found = surface.availableCatalogs.get(rawCatalogId);
+    if (found) return found;
+  }
+  return surface.defaultCatalog;
 }

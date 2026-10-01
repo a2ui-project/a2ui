@@ -158,6 +158,10 @@
   suite cannot be parsed, when a case has no `name` or `action`, or when an
   action has no handler. Suites the core library cannot run are named in
   `UNRUNNABLE_SUITES` with a reason.
+- Move `@index` (`IndexApi`, `IndexArgs`, `IndexImplementation`) from
+  `a2ui.core.basic_catalog.v1_0` (`v1_0/operator_apis.py` removed) to
+  `a2ui.core.catalog`, where `system_functions_for` supplies it to v1.0 and
+  later catalogs.
 
 ## 0.1.1
 

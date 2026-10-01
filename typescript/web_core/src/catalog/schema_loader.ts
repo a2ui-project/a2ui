@@ -345,6 +345,9 @@ function convertPropertyToZod(
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
   }
+  if (propSchema instanceof z.ZodType) {
+    return propSchema;
+  }
 
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
     const resolvedRef = convertRefToZod(

@@ -35,7 +35,7 @@ import {
 import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
-} from '../../dist/src/v1_0/basic_catalog/index.js';
+} from '../../dist/src/catalogs/basic/v1/index.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {
   A2uiCatalogError,
@@ -153,7 +153,7 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml']);
+const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.

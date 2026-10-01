@@ -83,7 +83,7 @@ For example, to override the primary color, you can simply add this to your app'
 }
 ```
 
-See the default styles in [default.ts](../../../typescript/web_core/src/v0_9/basic_catalog/styles/default.ts).
+See the default styles in [default.ts](../../../typescript/web_core/src/universal/basic_catalog/styles/default.ts).
 
 **See some examples per-platform:**
 

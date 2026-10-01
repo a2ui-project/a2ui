@@ -141,16 +141,16 @@ a2ui/core/
 │   ├── events                      # EventSource / listener plumbing
 │   └── semver                      # Protocol version comparison
 ├── expressions/                    # Protocol-version-agnostic expression parser
-├── basic_catalog/                  # Bundled default components and operators
+├── basic_catalog/                  # Bundled default components and functions
 │   ├── v0_8/                       # Conforms to spec v0.8
 │   ├── v0_9/                       # Conforms to spec v0.9, v0.9.1
 │   ├── v1_0/                       # Conforms to spec v1.0
-│   ├── operator_apis               # Operator function signatures
-│   └── locale_config               # Locale defaults for formatting functions
+│   └── locale_formatting           # CLDR locale rules Babel does not implement
 ├── catalog/                        # Catalog declarations
 │   ├── catalog                     # Catalog base class & inlining
 │   ├── components                  # Component declarations & API
-│   └── functions                   # Function declarations & implementations
+│   ├── functions                   # Function declarations & implementations
+│   └── system_functions            # Runtime-supplied '@' functions, shared by all versions
 ├── state/                          # Reactive Layout State Models
 │   ├── component_model             # Component property structures
 │   ├── data_model                  # Value dictionary binding paths

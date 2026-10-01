@@ -202,7 +202,7 @@ class GenericBinder:
         self.listeners: set[Callable[[dict[str, Any]], None]] = set()
         self.current_props: dict[str, Any] = {}
         self.comp_unsub: Callable[[], None] | None = None
-        self._action_closures: dict[str, tuple[Any, Callable[[], None]]] = {}
+        self._action_closures: dict[str, tuple[Any, Callable[[], Any]]] = {}
 
         resolved_schema = schema
         cat = context.component_model.catalog
@@ -371,13 +371,13 @@ class GenericBinder:
             bound.unsubscribe()
         return bound.value
 
-    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], None]:
+    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], Any]:
         cache_key = "/".join(path)
         cached = self._action_closures.get(cache_key)
         if cached is not None and cached[0] == value:
             return cached[1]
 
-        def closure() -> None:
+        def closure() -> Any:
             if isinstance(value, dict):
                 fc = (
                     value["functionCall"]
@@ -385,10 +385,9 @@ class GenericBinder:
                     else value
                 )
                 if isinstance(fc.get("call"), str):
-                    self.context.data_context.resolve_dynamic_value(fc)
-                    return
+                    return self.context.data_context.resolve_dynamic_value(fc)
             resolved = self.context.data_context.resolve_action(value)
-            self.context.dispatch_action(resolved)
+            return self.context.dispatch_action(resolved)
 
         self._action_closures[cache_key] = (value, closure)
         return closure
