@@ -122,6 +122,27 @@ describe('ExpressDecompiler', () => {
         'surface("default")\n$/title = "Found Restaurants"\n$/items = [{name: "Xi\'an Famous Foods", rating: 4.5}]',
       );
     });
+
+    it('writes empty strings, zero, false and empty lists', () => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const write = (path: string, value: unknown) => ({
+        version: 'v0.9',
+        updateDataModel: {surfaceId: 'default', path, value},
+      });
+      const messages = [
+        write('/empty', ''),
+        write('/zero', 0),
+        write('/off', false),
+        write('/none', []),
+        write('/nothing', {}),
+      ] as unknown as AgentToRendererMessage[];
+      const decompiler = new ExpressDecompiler([catalog], version);
+      expect(decompiler.decompile(messages)).toBe(
+        'surface("default")\n$/empty = ""\n$/zero = 0\n$/off = false\n$/none = []',
+      );
+      expect(decompiler.decompile(messages[1])).toBe('surface("default")\n$/zero = 0');
+      expect(decompiler.decompile(messages[4])).toBe('surface("default")');
+    });
   });
 
   describe('Writing templates', () => {
