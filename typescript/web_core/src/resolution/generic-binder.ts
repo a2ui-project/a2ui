@@ -297,6 +297,14 @@ type ActionLike =
   | {event: {name: string; context?: Record<string, unknown>}}
   | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}};
 
+/**
+ * Evaluates to true for object types with a string index signature, such as
+ * `Record<string, unknown>`. Every object type is assignable to the weak
+ * `{functionCall?: any}` member of `ActionLike`, so these are checked
+ * separately: they carry data, not an action.
+ */
+type HasStringIndex<T> = string extends keyof T ? true : false;
+
 /** Evaluates to true if type T can contain a dynamic binding. */
 type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
@@ -316,7 +324,9 @@ export interface ResolvedChildRef {
  * For example, an `Action` object becomes a callable `() => Promise<void>` function.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
-  ? (() => Promise<void>) | Extract<T, undefined>
+  ? HasStringIndex<NonNullable<T>> extends true
+    ? Exclude<T, DynamicTypes>
+    : (() => Promise<void>) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never

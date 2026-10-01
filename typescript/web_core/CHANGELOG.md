@@ -1,7 +1,7 @@
 ## Unreleased
 
+- Fix `ResolveA2uiProp` resolving props declared as `Record<string, unknown>` (for example `z.record(z.unknown())`) to action thunks instead of their data type: every object type is assignable to the `{functionCall?: any}` member of `ActionLike`, so object types with a string index signature are now treated as data. [#2939](https://github.com/a2ui-project/a2ui/pull/2939)
 - Add `ComponentNode.id`, a string unique across the document and stable for the node's lifetime, for renderers and components to use as a rendering key or as the base of DOM `id`s and accessibility references. [#2887](https://github.com/a2ui-project/a2ui/pull/2887)
-
 - Universal elements accept an optional `node` (`A2uiWebComponentElement.node`): `A2uiLitElement` takes its `context` from it and passes each child its own node, and `renderA2uiNode` accepts a `ComponentNode`. `context` remains supported, so parents can move to nodes one at a time. [#2880](https://github.com/a2ui-project/a2ui/pull/2880)
 
 - Expose `ComponentNode.context`, the context the resolver bound the node with (undefined on placeholders). [#2879](https://github.com/a2ui-project/a2ui/pull/2879)
