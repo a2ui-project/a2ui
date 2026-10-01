@@ -1010,39 +1010,95 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
                     validator.validate_component(component)
 
 
-def _normalize_schema_for_comparison(value: Any) -> Any:
-    """Ignore enum ordering, which JSON Schema defines as semantically irrelevant."""
-    if isinstance(value, dict):
-        normalized = {
-            key: _normalize_schema_for_comparison(item) for key, item in value.items()
-        }
-        if isinstance(normalized.get("enum"), list):
-            normalized["enum"] = sorted(
-                normalized["enum"], key=lambda item: json.dumps(item, sort_keys=True)
+def consolidate_spec_catalog(catalog_path: str, common_types_path: str) -> Any:
+    """Returns the expected schema of an `expectCatalog` case.
+
+    Every `$ref` into another document becomes local, and the common types
+    defs the catalog references, transitively, are added to its `$defs`. The
+    catalog's own defs win on a name clash. Nothing else changes.
+    """
+
+    def load(path: str) -> Any:
+        full_path = os.path.join(CONFORMANCE_ROOT, "..", path)
+        with open(full_path, "r", encoding="utf-8") as f:
+            return localize(json.load(f))
+
+    def localize(node: Any) -> Any:
+        if isinstance(node, list):
+            return [localize(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+        return {
+            key: (
+                "#" + value.split("#", 1)[1]
+                if key == "$ref" and isinstance(value, str) and "#/" in value
+                else localize(value)
             )
-        return normalized
-    if isinstance(value, list):
-        return [_normalize_schema_for_comparison(item) for item in value]
-    return value
+            for key, value in node.items()
+        }
+
+    def refs(node: Any) -> set[str]:
+        found: set[str] = set()
+        if isinstance(node, list):
+            for item in node:
+                found |= refs(item)
+        elif isinstance(node, dict):
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                found.add(ref[len("#/$defs/") :])
+            for value in node.values():
+                found |= refs(value)
+        return found
+
+    catalog = load(catalog_path)
+    common_defs = load(common_types_path)["$defs"]
+    defs = catalog.setdefault("$defs", {})
+    pending = refs(catalog)
+    while pending:
+        name = pending.pop()
+        if name not in defs and name in common_defs:
+            defs[name] = common_defs[name]
+            pending |= refs(defs[name])
+    return catalog
+
+
+def normalize_set_keywords(node: Any) -> Any:
+    """Sorts the values of keywords whose order has no meaning.
+
+    `enum` values and `required` names form sets. The generated models may
+    emit them in another order, for example because `typing` caches `Literal`
+    unions regardless of their values' order.
+    """
+    if isinstance(node, list):
+        return [normalize_set_keywords(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    normalized = {key: normalize_set_keywords(value) for key, value in node.items()}
+    for keyword in ("enum", "required"):
+        # Inside `properties`, a property with this name holds a schema object.
+        values = normalized.get(keyword)
+        if isinstance(values, list):
+            normalized[keyword] = sorted(values, key=json.dumps)
+    return normalized
+
+
+def build_basic_catalog(p_ver: str) -> Catalog[Any, Any]:
+    """Returns the Python basic catalog of a protocol version."""
+    if p_ver == "v1.0":
+        from a2ui.core.basic_catalog.v1_0 import BasicCatalog
+    elif p_ver == "v0.9":
+        from a2ui.core.basic_catalog.v0_9 import BasicCatalog
+    elif p_ver == "v0.8":
+        from a2ui.core.basic_catalog.v0_8 import BasicCatalog
+    else:
+        raise AssertionError(f"No basic catalog for protocolVersion {p_ver!r}")
+    return BasicCatalog()
 
 
 def validate_catalog_schema_case(case: dict[str, Any]) -> None:
     p_ver = resolve_protocol_version(case)
-    if case.get("useBasicCatalog") or case.get("catalog") == "BasicCatalog":
-        if p_ver == "v1.0":
-            from a2ui.core.basic_catalog.v1_0 import BasicCatalog
-
-            cat: Catalog[Any, Any] = BasicCatalog()
-        elif p_ver == "v0.9":
-            from a2ui.core.basic_catalog.v0_9 import BasicCatalog
-
-            cat = BasicCatalog()
-        elif p_ver == "v0.8":
-            from a2ui.core.basic_catalog.v0_8 import BasicCatalog
-
-            cat = BasicCatalog()
-        else:
-            raise ValueError(f"BasicCatalog not supported for version {p_ver}")
+    if case.get("useBasicCatalog"):
+        cat = build_basic_catalog(p_ver)
     else:
         c_path = case.get("catalogPath") or case.get("catalogFile")
         if c_path:
@@ -1067,23 +1123,15 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
             with assert_raises(expect_err):
                 Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
             return
-        else:
-            cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+        cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
 
-    assert cat is not None
-
-    exp_path = case.get("expectPath") or case.get("expectFile")
-    if exp_path:
-        full_exp_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", exp_path))
-        with open(full_exp_p, "r", encoding="utf-8") as f:
-            expected = json.load(f)
-    else:
-        expected = case.get("expect")
-
-    if expected is not None:
-        assert _normalize_schema_for_comparison(cat.catalog_schema) == (
-            _normalize_schema_for_comparison(expected)
+    if "expectCatalog" in case:
+        spec = case["expectCatalog"]
+        assert normalize_set_keywords(cat.catalog_schema) == normalize_set_keywords(
+            consolidate_spec_catalog(spec["catalogPath"], spec["commonTypesPath"])
         )
+    elif "expect" in case:
+        assert cat.catalog_schema == case["expect"]
 
 
 def validate_common_types_schema_case(case: dict[str, Any]) -> None:

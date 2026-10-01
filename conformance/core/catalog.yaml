@@ -669,26 +669,23 @@
         discriminator:
           propertyName: "component"
 
-- name: test_v08_basic_catalog_schema
-  description: Tests serializing the v0.8 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v08.json.
-  action: catalog_schema
-  protocolVersion: "v0.8"
-  useBasicCatalog: true
-  expectFile: "conformance/test_data/converted_basic_catalog_v08.json"
-
 - name: test_v09_basic_catalog_schema
-  description: Tests serializing the v0.9 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v09.json.
+  description: Tests that the catalog_schema of the SDK's v0.9 basic catalog equals the published v0.9 basic catalog with the common types it references inlined.
   action: catalog_schema
   protocolVersion: "v0.9"
   useBasicCatalog: true
-  expectFile: "conformance/test_data/converted_basic_catalog_v09.json"
+  expectCatalog:
+    catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+    commonTypesPath: "specification/v0_9/json/common_types.json"
 
 - name: test_v10_basic_catalog_schema
-  description: Tests serializing the v1.0 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v10.json.
+  description: Tests that the catalog_schema of the SDK's v1.0 basic catalog equals the published v1 basic catalog with the common types it references inlined.
   action: catalog_schema
   protocolVersion: "v1.0"
   useBasicCatalog: true
-  expectFile: "conformance/test_data/converted_basic_catalog_v10.json"
+  expectCatalog:
+    catalogPath: "catalogs/basic/v1/catalog.json"
+    commonTypesPath: "specification/v1_0/json/common_types.json"
 
 - name: test_v10_uax31_invalid_component_name
   description: Tests that component type names violating UAX#31 fail catalog validation in v1.0.

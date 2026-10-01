@@ -121,19 +121,14 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 /**
  * Transition skip list containing specific test case names to skip.
  *
- * 'test_v09_basic_catalog_schema' and 'test_v10_basic_catalog_schema' test Python-specific
- * dictionary schema export structures from Python ADK and are skipped in Web Core TS conformance.
- *
- * The remaining entries are known web_core divergences that the Python and Dart
- * engines already satisfy:
+ * The entries are known web_core divergences that the Python and Dart engines
+ * already satisfy:
  *
  * - 'test_v08_topology_card_child_reachable': the v0.8 reference map does not
  *   treat a single-child property such as `Card.child` as a component
  *   reference, so strict validation reports the child as orphaned.
  */
 const SKIP_TEST_NAMES = new Set([
-  'test_v09_basic_catalog_schema',
-  'test_v10_basic_catalog_schema',
   'test_v08_topology_card_child_reachable',
 ]);
 
@@ -152,10 +147,16 @@ const V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
 const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
   'the validator accepts a function call carrying a key its catalog function' +
   ' definition does not declare';
+const CATALOG_SCHEMA_NOT_SPEC_SHAPED =
+  "web_core has no basic catalog whose catalogSchema reproduces the spec catalog: catalogSchema" +
+  " emits components flat instead of as 'allOf' over the common types, and the catalog's $id," +
+  ' function descriptions and common types $defs differ';
 const KNOWN_DIVERGENCES = new Map([
   [
     'core/catalog.yaml',
     new Map([
+      ['test_v09_basic_catalog_schema', CATALOG_SCHEMA_NOT_SPEC_SHAPED],
+      ['test_v10_basic_catalog_schema', CATALOG_SCHEMA_NOT_SPEC_SHAPED],
       ['test_v09_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
       [
         'test_v09_published_minimal_catalog_is_self_contained',
@@ -1370,41 +1371,6 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
   assert.deepStrictEqual(JSON.parse(JSON.stringify(caps)), testCase.expect);
 }
 
-function getBasicCatalog(version) {
-  const norm = toCanonicalVersion(version) || version;
-  if (norm === '1.0') {
-    return new Catalog(
-      'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
-      'v1.0',
-      v1_0Components,
-      V1_0_BASIC_FUNCTIONS,
-      undefined,
-      undefined,
-    );
-  }
-  if (norm === '0.9' || norm === '0.9.1') {
-    return new Catalog(
-      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-      'v0.9',
-      v0_9Components,
-      V0_9_BASIC_FUNCTIONS,
-      V0_9_ThemeSchema,
-      undefined,
-    );
-  }
-  if (norm === '0.8') {
-    return new Catalog(
-      'https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json',
-      'v0.8',
-      v0_8Components,
-      [],
-      V0_8_ThemeSchema,
-      undefined,
-    );
-  }
-  throw new Error(`Unsupported BasicCatalog protocol version: ${version}`);
-}
-
 function assertCatalogSchemaMatches(actual, expected) {
   if (expected.$schema) {
     assert.strictEqual(actual.$schema, expected.$schema, '$schema mismatch');
@@ -1470,52 +1436,88 @@ function assertCatalogSchemaMatches(actual, expected) {
 
 function validateCatalogSchemaTestCase(testCase) {
   const pVer = testCase.protocolVersion || testCase.args?.version || 'v0.8';
-  let catalog;
-
-  if (testCase.useBasicCatalog || testCase.catalog === 'BasicCatalog') {
-    catalog = getBasicCatalog(pVer);
+  const cPath = testCase.catalogPath || testCase.catalogFile;
+  let rawSchema;
+  if (cPath) {
+    const fullP = path.resolve(CONFORMANCE_ROOT, '../', cPath);
+    rawSchema = JSON.parse(fs.readFileSync(fullP, 'utf8'));
   } else {
-    const cPath = testCase.catalogPath || testCase.catalogFile;
-    let rawSchema;
-    if (cPath) {
-      const fullP = path.resolve(CONFORMANCE_ROOT, '../', cPath);
-      rawSchema = JSON.parse(fs.readFileSync(fullP, 'utf8'));
-    } else {
-      rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
-    }
-
-    if (testCase.expectError) {
-      try {
-        Catalog.fromSchema(rawSchema, pVer);
-      } catch (err) {
-        if (testCase.expectError.code && !err.message.includes(testCase.expectError.code)) {
-          throw new Error(
-            `Expected error containing '${testCase.expectError.code}', but got '${err.message}'`,
-          );
-        }
-        return;
-      }
-      throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
-    }
-
-    catalog = Catalog.fromSchema(rawSchema, pVer);
+    rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
   }
 
+  if (testCase.expectError) {
+    try {
+      Catalog.fromSchema(rawSchema, pVer);
+    } catch (err) {
+      if (testCase.expectError.code && !err.message.includes(testCase.expectError.code)) {
+        throw new Error(
+          `Expected error containing '${testCase.expectError.code}', but got '${err.message}'`,
+        );
+      }
+      return;
+    }
+    throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
+  }
+
+  const catalog = Catalog.fromSchema(rawSchema, pVer);
   assert.ok(catalog, 'Catalog should be initialized.');
 
-  const expPath = testCase.expectFile || testCase.expectPath;
-  let expected;
-  if (expPath) {
-    const fullExpP = path.resolve(CONFORMANCE_ROOT, '../', expPath);
-    expected = JSON.parse(fs.readFileSync(fullExpP, 'utf8'));
-  } else {
-    expected = testCase.expect;
+  if (testCase.expectCatalog) {
+    const {catalogPath, commonTypesPath} = testCase.expectCatalog;
+    assert.deepStrictEqual(
+      catalog.catalogSchema,
+      consolidateSpecCatalog(catalogPath, commonTypesPath),
+    );
+  } else if (testCase.expect !== undefined) {
+    assertCatalogSchemaMatches(catalog.catalogSchema, testCase.expect);
   }
+}
 
-  if (expected !== undefined) {
-    const actual = catalog.catalogSchema;
-    assertCatalogSchemaMatches(actual, expected);
+/**
+ * Returns the expected schema of an `expectCatalog` case: the catalog at
+ * `catalogPath` with every `$ref` into another document made local, and the
+ * common types defs it references, transitively, added to its `$defs`. The
+ * catalog's own defs win on a name clash. Nothing else changes.
+ */
+function consolidateSpecCatalog(catalogPath, commonTypesPath) {
+  const localize = node => {
+    if (Array.isArray(node)) return node.map(localize);
+    if (node === null || typeof node !== 'object') return node;
+    return Object.fromEntries(
+      Object.entries(node).map(([key, value]) => [
+        key,
+        key === '$ref' && typeof value === 'string' && value.includes('#/')
+          ? '#' + value.slice(value.indexOf('#') + 1)
+          : localize(value),
+      ]),
+    );
+  };
+  const refs = (node, found = new Set()) => {
+    if (Array.isArray(node)) {
+      node.forEach(item => refs(item, found));
+    } else if (node !== null && typeof node === 'object') {
+      if (typeof node.$ref === 'string' && node.$ref.startsWith('#/$defs/')) {
+        found.add(node.$ref.slice('#/$defs/'.length));
+      }
+      Object.values(node).forEach(value => refs(value, found));
+    }
+    return found;
+  };
+  const load = p =>
+    localize(JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', p), 'utf8')));
+
+  const catalog = load(catalogPath);
+  const commonDefs = load(commonTypesPath).$defs;
+  catalog.$defs ??= {};
+  const pending = [...refs(catalog)];
+  while (pending.length > 0) {
+    const name = pending.pop();
+    if (!(name in catalog.$defs) && name in commonDefs) {
+      catalog.$defs[name] = commonDefs[name];
+      pending.push(...refs(commonDefs[name]));
+    }
   }
+  return catalog;
 }
 
 import {z} from 'zod';
