@@ -19,6 +19,23 @@ import {TestBed} from '@angular/core/testing';
 import {getCanvas, loadExample, wait, Version} from '../utils';
 
 for (const useUniversal of [false, true]) {
+  // With universal components on, the basic catalog renders web_core's
+  // elements and every other Angular component renders in its
+  // `a2ui-ng-<name>` host element; off, each renders as its own selector.
+  const tag = useUniversal
+    ? {
+        grid: 'a2ui-ng-customgrid',
+        slider: 'a2ui-ng-customslider',
+        card: 'a2ui-card',
+        button: 'a2ui-basic-button',
+      }
+    : {
+        grid: 'a2ui-custom-grid',
+        slider: 'a2ui-custom-slider',
+        card: 'a2ui-v09-card',
+        button: 'a2ui-v09-button',
+      };
+
   describe(`Example: Native Angular Grid (useUniversalComponents: ${useUniversal})`, () => {
     let canvas: HTMLElement;
 
@@ -37,9 +54,7 @@ for (const useUniversal of [false, true]) {
       const textContent = canvas.textContent || '';
       expect(textContent).toContain('Native Container Component Showcase');
       expect(textContent).toContain('Interactive 2x2 Component Grid');
-      expect(
-        canvas.querySelector('a2ui-custom-grid') || canvas.querySelector('a2ui-ng-customgrid'),
-      ).toBeTruthy();
+      expect(canvas.querySelector(tag.grid)).toBeTruthy();
     });
 
     it('should instantiate native Angular component children (CustomSlider)', () => {
@@ -47,8 +62,22 @@ for (const useUniversal of [false, true]) {
       expect(textContent).toContain('Master Volume (Native)');
       expect(textContent).toContain('Brightness Level (Native)');
 
-      const customSliders = canvas.querySelectorAll('a2ui-custom-slider, a2ui-ng-customslider');
-      expect(customSliders.length).toBe(2);
+      const customSliders = canvas.querySelectorAll(tag.slider);
+      expect(customSliders.length).toBe(3);
+    });
+
+    it('should host a native component inside a universal component', async () => {
+      const nested = canvas.querySelectorAll(`${tag.card} ${tag.slider}`);
+      expect(nested.length).toBe(1);
+      expect(nested[0].textContent).toContain('Contrast (Native, inside universal Card)');
+
+      const slider = nested[0].querySelector('input[type="range"]') as HTMLInputElement;
+      slider.value = '80';
+      slider.dispatchEvent(new Event('input'));
+      await wait(50);
+      TestBed.inject(ApplicationRef).tick();
+
+      expect(canvas.textContent || '').toContain('Contrast: 80%');
     });
 
     it('should instantiate universal web component children (Card, Text, Button)', () => {
@@ -56,25 +85,14 @@ for (const useUniversal of [false, true]) {
       expect(textContent).toContain('Universal Web Component: Text & Card');
       expect(textContent).toContain('Universal Button Action');
 
-      expect(
-        canvas.querySelector('a2ui-v09-card') ||
-          canvas.querySelector('a2ui-card') ||
-          canvas.querySelector('a2ui-basic-card') ||
-          canvas.querySelector('a2ui-ng-card'),
-      ).toBeTruthy();
-      expect(
-        canvas.querySelector('a2ui-v09-button') ||
-          canvas.querySelector('a2ui-basic-button') ||
-          canvas.querySelector('a2ui-button') ||
-          canvas.querySelector('a2ui-ng-button'),
-      ).toBeTruthy();
+      expect(canvas.querySelector(tag.card)).toBeTruthy();
+      expect(canvas.querySelector(tag.button)).toBeTruthy();
     });
 
     it('should update reactive data binding across native and universal components', async () => {
-      const slider = (canvas.querySelector('a2ui-custom-slider input[type="range"]') ||
-        canvas.querySelector('a2ui-ng-customslider input[type="range"]') ||
-        canvas.querySelector('input[type="range"]')) as HTMLInputElement;
-      expect(slider).toBeTruthy();
+      const [volume] = Array.from(canvas.querySelectorAll(tag.slider));
+      expect(volume.textContent).toContain('Master Volume (Native)');
+      const slider = volume.querySelector('input[type="range"]') as HTMLInputElement;
 
       slider.value = '80';
       slider.dispatchEvent(new Event('input'));
