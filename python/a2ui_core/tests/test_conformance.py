@@ -1082,43 +1082,50 @@ def normalize_set_keywords(node: Any) -> Any:
     return normalized
 
 
-def build_basic_catalog(p_ver: str) -> Catalog[Any, Any]:
-    """Returns the Python basic catalog of a protocol version."""
-    if p_ver == "v1.0":
-        from a2ui.core.basic_catalog.v1_0 import BasicCatalog
-    elif p_ver == "v0.9":
-        from a2ui.core.basic_catalog.v0_9 import BasicCatalog
-    elif p_ver == "v0.8":
-        from a2ui.core.basic_catalog.v0_8 import BasicCatalog
-    else:
-        raise AssertionError(f"No basic catalog for protocolVersion {p_ver!r}")
-    return BasicCatalog()
+def sdk_catalog(catalog_id: Any) -> Catalog[Any, Any] | None:
+    """Returns the SDK's own implementation of a published catalog, if any.
+
+    The SDK implements the basic catalog of each protocol version with
+    generated models. A catalog with any other id has no such implementation.
+    """
+    from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
+
+    for module in (v0_8, v0_9, v1_0):
+        catalog = module.BasicCatalog()
+        if catalog.catalog_id == catalog_id:
+            return catalog
+    return None
 
 
 def validate_catalog_schema_case(case: dict[str, Any]) -> None:
     p_ver = resolve_protocol_version(case)
-    if case.get("useBasicCatalog"):
-        cat = build_basic_catalog(p_ver)
+    c_path = case.get("catalogPath") or case.get("catalogFile")
+    if c_path:
+        full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
+        with open(full_p, "r", encoding="utf-8") as f:
+            c_schema = json.load(f)
     else:
-        c_path = case.get("catalogPath") or case.get("catalogFile")
-        if c_path:
-            full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
-            with open(full_p, "r", encoding="utf-8") as f:
-                c_schema = json.load(f)
-        else:
-            c_schema = (
-                case.get("catalogSchema")
-                or case.get("catalog")
-                or case.get("schema")
-                or case
-            )
-        c_id = (
-            resolve_catalog_id(case)
-            or (c_schema.get("catalogId") if isinstance(c_schema, dict) else None)
-            or "https://a2ui.org/catalogs/basic"
+        c_schema = (
+            case.get("catalogSchema")
+            or case.get("catalog")
+            or case.get("schema")
+            or case
         )
+    c_id = (
+        resolve_catalog_id(case)
+        or (c_schema.get("catalogId") if isinstance(c_schema, dict) else None)
+        or "https://a2ui.org/catalogs/basic"
+    )
+    # A published catalog that the SDK implements itself is checked through
+    # that implementation, which builds catalog_schema from its models.
+    cat = sdk_catalog(c_id) if c_path else None
+    if cat is not None:
+        assert cat.protocol_version == p_ver, (
+            f"{c_path} is the SDK's {cat.protocol_version} catalog, but the case"
+            f" sets protocolVersion {p_ver}"
+        )
+    else:
         expect_err = case.get("expectError")
-
         if expect_err:
             with assert_raises(expect_err):
                 Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)

@@ -121,7 +121,7 @@
         },
         "catalogPath": {
           "type": "string",
-          "description": "File path to catalog schema JSON file."
+          "description": "Repository-relative path to a catalog schema JSON file. In a catalog_schema case, an SDK that implements the catalog with this file's catalogId itself (for example its basic catalog) checks that implementation; otherwise it loads the file as a JSON catalog."
         },
         "catalogId": {
           "type": "string",
@@ -199,10 +199,6 @@
         "assertions": {
           "$ref": "#/$defs/AccessibilityAssertions",
           "description": "Accessibility assertions to verify."
-        },
-        "useBasicCatalog": {
-          "type": "boolean",
-          "description": "Whether to use the SDK's own basic catalog implementation for the case's protocol version."
         },
         "expectFile": {
           "type": "string",
