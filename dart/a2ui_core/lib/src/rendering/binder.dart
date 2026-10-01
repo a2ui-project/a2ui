@@ -556,22 +556,7 @@ class GenericBinder {
   }
 
   Object? _resolveEventAction(DataContext dataContext, Object? value) {
-    if (value is! Map) {
-      return dataContext.resolveSync(value);
-    }
-    final map = Map<String, dynamic>.from(value);
-    final Object? eventObj = map['event'];
-    if (eventObj is Map) {
-      final Map<String, dynamic> ev = _resolveActionFields(
-        dataContext,
-        Map<String, dynamic>.from(eventObj),
-      );
-      return {...map, 'event': ev};
-    }
-    if (map.containsKey('name')) {
-      return _resolveActionFields(dataContext, map);
-    }
-    return dataContext.resolveSync(value);
+    return dataContext.resolveAction(value) ?? dataContext.resolveSync(value);
   }
 
   /// Permanently disconnects this binder, including an interrupted rebuild.

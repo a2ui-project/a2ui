@@ -196,6 +196,46 @@ class DataContext {
   void set(String relativePath, Object? value) {
     dataModel.set(resolvePath(relativePath), value);
   }
+
+  /// Resolves an action payload by evaluating dynamic values in its context and userMessage.
+  Map<String, dynamic>? resolveAction(Object? action) {
+    if (action == null) return null;
+    if (action is String) {
+      return {
+        'event': {'name': action, 'context': <String, Object?>{}}
+      };
+    }
+    if (action is! Map) return null;
+    final map = Map<String, dynamic>.from(action);
+    final Object? eventObj = map['event'];
+    if (eventObj is Map) {
+      final Map<String, dynamic> ev = _resolveActionFields(
+        Map<String, dynamic>.from(eventObj),
+      );
+      return {...map, 'event': ev};
+    }
+    if (map.containsKey('name')) {
+      return _resolveActionFields(map);
+    }
+    return map;
+  }
+
+  Map<String, dynamic> _resolveActionFields(Map<String, dynamic> map) {
+    final result = Map<String, dynamic>.from(map);
+    final Object? ctx = result['context'];
+    if (ctx is Map) {
+      result['context'] = <String, Object?>{
+        for (final MapEntry<Object?, Object?> e in ctx.entries)
+          e.key.toString(): resolveSync(e.value),
+      };
+    } else {
+      result['context'] = <String, Object?>{};
+    }
+    if (result.containsKey('userMessage')) {
+      result['userMessage'] = resolveSync(result['userMessage']);
+    }
+    return result;
+  }
 }
 
 /// Context provided to components during rendering.

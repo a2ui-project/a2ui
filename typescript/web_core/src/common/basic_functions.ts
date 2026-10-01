@@ -485,7 +485,7 @@ export function executeOpenUrl(urlInput: unknown): void {
   if (!target || typeof window === 'undefined' || !window.open) return;
 
   const baseHref =
-    typeof window.location !== 'undefined' && window.location.href
+    typeof window !== 'undefined' && typeof window.location !== 'undefined' && window.location.href
       ? window.location.href
       : undefined;
 
@@ -496,11 +496,18 @@ export function executeOpenUrl(urlInput: unknown): void {
     throw new A2uiExpressionError(`Invalid URL specified: ${target}`, 'openUrl', e);
   }
 
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+  if (
+    url.protocol !== 'https:' &&
+    url.protocol !== 'http:' &&
+    url.protocol !== 'mailto:' &&
+    url.protocol !== 'tel:'
+  ) {
     throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
   }
 
-  window.open(url.href, '_blank', 'noopener,noreferrer');
+  if (typeof window !== 'undefined' && window.open) {
+    window.open(url.href, '_blank', 'noopener,noreferrer');
+  }
 }
 
 // ---------------------------------------------------------------------------

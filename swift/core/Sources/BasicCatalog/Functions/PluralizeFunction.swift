@@ -92,11 +92,23 @@ public final class PluralizeFunction: FunctionImplementation, @unchecked Sendabl
       return .string(other)
     }
 
-    let category =
-      resolver?.pluralCategory(for: numberValue)
-      ?? defaultCategory(for: numberValue)
+    let category: String
+    if numberValue == 0 && arguments["zero"] != nil {
+      category = "zero"
+    } else if numberValue == 1 && arguments["one"] != nil {
+      category = "one"
+    } else if numberValue == 2 && arguments["two"] != nil {
+      category = "two"
+    } else {
+      category =
+        resolver?.pluralCategory(for: numberValue).rawValue
+        ?? defaultCategory(for: numberValue).rawValue
+    }
 
-    return .string(arguments[category.rawValue]?.stringValue ?? other)
+    if let selected = arguments[category]?.stringValue {
+      return .string(selected)
+    }
+    return .string(other)
   }
 
   private func defaultCategory(for value: Double) -> PluralCategory {

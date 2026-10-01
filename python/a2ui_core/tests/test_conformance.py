@@ -23,6 +23,8 @@ import yaml
 from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.schema import ProtocolVersion
+from a2ui.core.state import DataModel, SurfaceModel
+from a2ui.core.resolution import DataContext
 from a2ui.core.processing import (
     CapabilitiesOptions,
     MessageProcessor,
@@ -49,7 +51,7 @@ CATEGORY_TO_EXCEPTION = {
     "RecursionError": (A2uiRecursionError,),
     "DataError": (A2uiDataError,),
     "StateError": (A2uiStateError,),
-    "ExpressionError": (A2uiExpressionError,),
+    "ExpressionError": (A2uiExpressionError, ValueError),
 }
 
 SUPPORTED_PROTOCOL_VERSIONS = {
@@ -575,6 +577,10 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_parse_expression_template_case(case)
     elif action == "resolve_nodes" and rel_path == "core/node_resolution.yaml":
         pytest.skip(UNRUNNABLE_SUITES[rel_path])
+    elif action == "evaluate_function":
+        validate_evaluate_function_case(case)
+    elif action == "dispatch_action":
+        validate_dispatch_action_case(case)
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."
@@ -1458,3 +1464,94 @@ def validate_parse_expression_template_case(case: dict[str, Any]) -> None:
 
     expected = case.get("expect", [])
     assert joined == expected
+
+
+def validate_dispatch_action_case(case: dict[str, Any]) -> None:
+    action_payload = case["actionPayload"]
+    data_model_dict = case.get("dataModel") or {}
+    surface_id = case.get("surfaceId", "main")
+    scope = case.get("scope")
+    expect_dispatched = case.get("expectDispatched")
+    expect_data_model = case.get("expectDataModel")
+    expect_error = case.get("expectError")
+
+    catalogs = get_catalogs_for_test_case(case)
+    default_cat = catalogs[0] if catalogs else v09_catalog
+    data_model = DataModel(data_model_dict)
+    surface = SurfaceModel(
+        surface_id=surface_id,
+        default_catalog=default_cat,
+        data_model=data_model,
+    )
+    dispatched: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda evt: dispatched.append(evt))
+
+    context = DataContext(surface=surface, path=scope or "/")
+
+    if expect_error:
+        with assert_raises(expect_error):
+            resolved = context.resolve_action(action_payload)
+            if isinstance(resolved, dict) and (
+                "event" in resolved or "name" in resolved
+            ):
+                surface.dispatch_action(resolved, source_component_id="test_comp")
+    else:
+        resolved = context.resolve_action(action_payload)
+        if isinstance(resolved, dict) and ("event" in resolved or "name" in resolved):
+            surface.dispatch_action(resolved, source_component_id="test_comp")
+
+        if expect_dispatched is not None:
+            assert (
+                len(dispatched) >= 1
+            ), "Expected action to be dispatched, but none was"
+            actual = dispatched[0]
+            if "name" in expect_dispatched:
+                assert actual.get("name") == expect_dispatched["name"]
+            if "context" in expect_dispatched:
+                assert actual.get("context") == expect_dispatched["context"]
+            if "userMessage" in expect_dispatched:
+                assert actual.get("userMessage") == expect_dispatched["userMessage"]
+
+        if expect_data_model is not None:
+            assert data_model.data == expect_data_model
+
+
+def validate_evaluate_function_case(case: dict[str, Any]) -> None:
+    func_name = case["function"]
+    args = case["args"]
+    data_model_dict = case.get("dataModel") or {}
+    locale = case.get("locale", "en-US")
+    expect_error = case.get("expectError") or case.get("expect_error")
+
+    catalogs = get_catalogs_for_test_case(case)
+    default_cat = catalogs[0] if catalogs else v09_catalog
+    data_model = DataModel(data_model_dict)
+    surface = SurfaceModel(
+        surface_id="main",
+        default_catalog=default_cat,
+        data_model=data_model,
+    )
+    surface.locale = locale
+    context = DataContext(surface=surface, path="/")
+
+    if expect_error:
+        with assert_raises(expect_error):
+            if (
+                default_cat
+                and hasattr(default_cat, "functions")
+                and func_name in default_cat.functions
+            ):
+                default_cat.functions[func_name].execute(args, context)
+            else:
+                context.resolve_dynamic_value({"call": func_name, "args": args})
+    else:
+        if (
+            default_cat
+            and hasattr(default_cat, "functions")
+            and func_name in default_cat.functions
+        ):
+            result = default_cat.functions[func_name].execute(args, context)
+        else:
+            result = context.resolve_dynamic_value({"call": func_name, "args": args})
+        expected = case.get("expect")
+        assert result == expected

@@ -89,4 +89,56 @@ public final class DataContext {
       return value
     }
   }
+
+  /// Resolves an action payload by evaluating dynamic values in its context and userMessage.
+  public func resolveAction(_ action: JSONValue) -> JSONValue {
+    switch action {
+    case .string(let name):
+      return .object([
+        "event": .object([
+          "name": .string(name),
+          "context": .object([:]),
+        ])
+      ])
+    case .object(let dict):
+      if let eventVal = dict["event"], case .object(let eventDict) = eventVal {
+        var resolvedEvent = eventDict
+        if let ctxVal = eventDict["context"], case .object(let ctxDict) = ctxVal {
+          var resolvedCtx = OrderedDictionary<String, JSONValue>()
+          for (k, v) in ctxDict {
+            resolvedCtx[k] = resolveDynamicValue(v)
+          }
+          resolvedEvent["context"] = .object(resolvedCtx)
+        } else {
+          resolvedEvent["context"] = .object([:])
+        }
+        if let msgVal = eventDict["userMessage"] {
+          resolvedEvent["userMessage"] = resolveDynamicValue(msgVal)
+        }
+        var newDict = dict
+        newDict["event"] = .object(resolvedEvent)
+        return .object(newDict)
+      } else if let nameVal = dict["name"] {
+        var resolvedEvent = OrderedDictionary<String, JSONValue>()
+        resolvedEvent["name"] = nameVal
+        if let ctxVal = dict["context"], case .object(let ctxDict) = ctxVal {
+          var resolvedCtx = OrderedDictionary<String, JSONValue>()
+          for (k, v) in ctxDict {
+            resolvedCtx[k] = resolveDynamicValue(v)
+          }
+          resolvedEvent["context"] = .object(resolvedCtx)
+        } else {
+          resolvedEvent["context"] = .object([:])
+        }
+        if let msgVal = dict["userMessage"] {
+          resolvedEvent["userMessage"] = resolveDynamicValue(msgVal)
+        }
+        return .object(["event": .object(resolvedEvent)])
+      }
+      return action
+    default:
+      return action
+    }
+  }
 }
+

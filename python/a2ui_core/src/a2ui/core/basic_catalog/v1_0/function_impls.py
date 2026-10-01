@@ -110,12 +110,15 @@ def _length_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None
-        or len(_to_str(args.get("value", ""))) >= int(args["min"])
-    ) and (
-        args.get("max") is None
-        or len(_to_str(args.get("value", ""))) <= int(args["max"])
+    val = args.get("value")
+    if isinstance(val, list):
+        l = len(val)
+    elif val is None:
+        l = 0
+    else:
+        l = len(_to_str(val))
+    valid = (args.get("min") is None or l >= int(args["min"])) and (
+        args.get("max") is None or l <= int(args["max"])
     )
     return {"valid": valid}
 
@@ -128,12 +131,25 @@ def _numeric_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"])
-    ) and (
-        args.get("max") is None or _to_float(args["value"]) <= _to_float(args["max"])
-    )
-    return {"valid": valid}
+    try:
+        val = _to_float(args["value"])
+    except (ValueError, TypeError):
+        return {"valid": False}
+    min_val = args.get("min")
+    if min_val is not None:
+        try:
+            if val < _to_float(min_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    max_val = args.get("max")
+    if max_val is not None:
+        try:
+            if val > _to_float(max_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    return {"valid": True}
 
 
 NumericImplementation = create_function_implementation(NumericApi, _numeric_execute)
@@ -387,12 +403,24 @@ def create_pluralize_implementation(
 PluralizeImplementation = create_pluralize_implementation(None)
 
 
+_ALLOWED_URL_SCHEMES = ("http:", "https:", "mailto:", "tel:")
+
+
 # Actions
 def _open_url_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> None:
+    url = args.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return None
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    scheme = f"{parsed.scheme.lower()}:"
+    if scheme not in _ALLOWED_URL_SCHEMES:
+        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
     return None
 
 
@@ -405,7 +433,10 @@ def _and_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return all(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise ValueError("AndFunction requires at least 2 values")
+    return all(_to_bool(v) for v in values)
 
 
 AndImplementation = create_function_implementation(AndApi, _and_execute)
@@ -416,7 +447,10 @@ def _or_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return any(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise ValueError("OrFunction requires at least 2 values")
+    return any(_to_bool(v) for v in values)
 
 
 OrImplementation = create_function_implementation(OrApi, _or_execute)

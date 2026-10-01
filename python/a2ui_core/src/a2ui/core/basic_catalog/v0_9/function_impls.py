@@ -94,9 +94,12 @@ def _regex_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return bool(
-        re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
-    )
+    pattern = _to_str(args.get("pattern", ""))
+    val = _to_str(args.get("value", ""))
+    try:
+        return bool(re.search(pattern, val))
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern '{pattern}': {e}") from e
 
 
 RegexImplementation = create_function_implementation(RegexApi, _regex_execute)
@@ -107,12 +110,15 @@ def _length_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return (
-        args.get("min") is None
-        or len(_to_str(args.get("value", ""))) >= int(args["min"])
-    ) and (
-        args.get("max") is None
-        or len(_to_str(args.get("value", ""))) <= int(args["max"])
+    val = args.get("value")
+    if isinstance(val, list):
+        l = len(val)
+    elif val is None:
+        l = 0
+    else:
+        l = len(_to_str(val))
+    return (args.get("min") is None or l >= int(args["min"])) and (
+        args.get("max") is None or l <= int(args["max"])
     )
 
 
@@ -124,11 +130,25 @@ def _numeric_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return (
-        args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"])
-    ) and (
-        args.get("max") is None or _to_float(args["value"]) <= _to_float(args["max"])
-    )
+    try:
+        val = _to_float(args["value"])
+    except (ValueError, TypeError):
+        return False
+    min_val = args.get("min")
+    if min_val is not None:
+        try:
+            if val < _to_float(min_val):
+                return False
+        except (ValueError, TypeError):
+            return False
+    max_val = args.get("max")
+    if max_val is not None:
+        try:
+            if val > _to_float(max_val):
+                return False
+        except (ValueError, TypeError):
+            return False
+    return True
 
 
 NumericImplementation = create_function_implementation(NumericApi, _numeric_execute)
@@ -271,9 +291,15 @@ def create_format_date_implementation(
         if not val:
             return ""
         try:
-            dt = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+            val_str = str(val)
+            if val_str.endswith("Z"):
+                val_str = val_str[:-1] + "+00:00"
+            dt = datetime.datetime.fromisoformat(val_str)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(datetime.timezone.utc)
             if fmt == "ISO":
-                return dt.isoformat().replace("+00:00", ".000Z")
+                millis = int(dt.microsecond / 1000)
+                return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}.{millis:03d}Z"
 
             loc = get_locale(locale)
 
@@ -348,7 +374,9 @@ def create_pluralize_implementation(
         else:
             category = loc.plural_form(val)
 
-        res = args.get(category) or args.get("other") or ""
+        res = args.get(category)
+        if res is None:
+            res = args.get("other", "")
         return str(res)
 
     return create_function_implementation(PluralizeApi, _pluralize)
@@ -357,12 +385,24 @@ def create_pluralize_implementation(
 PluralizeImplementation = create_pluralize_implementation(None)
 
 
+_ALLOWED_URL_SCHEMES = ("http:", "https:", "mailto:", "tel:")
+
+
 # Actions
 def _open_url_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> None:
+    url = args.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return None
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    scheme = f"{parsed.scheme.lower()}:"
+    if scheme not in _ALLOWED_URL_SCHEMES:
+        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
     return None
 
 
@@ -375,7 +415,10 @@ def _and_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return all(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise ValueError("AndFunction requires at least 2 values")
+    return all(_to_bool(v) for v in values)
 
 
 AndImplementation = create_function_implementation(AndApi, _and_execute)
@@ -386,7 +429,10 @@ def _or_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return any(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise ValueError("OrFunction requires at least 2 values")
+    return any(_to_bool(v) for v in values)
 
 
 OrImplementation = create_function_implementation(OrApi, _or_execute)

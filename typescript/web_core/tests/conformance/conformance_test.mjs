@@ -21,6 +21,7 @@ import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/mes
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
 import {loadCatalogFromSchema} from '../../dist/src/catalog/schema_loader.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
+import {SurfaceModel} from '../../dist/src/state/surface-model.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
@@ -50,7 +51,7 @@ import {
 import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
-import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
+import {getValue, peekValue, effect, isSignal} from '../../dist/src/reactivity/signals.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
 // Dedicated basic catalog component definitions per specification version
@@ -366,6 +367,12 @@ async function runConformanceHarness() {
             break;
           case 'resolve_nodes':
             await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
+            break;
+          case 'evaluate_function':
+            validateEvaluateFunctionTestCase(testCase);
+            break;
+          case 'dispatch_action':
+            validateDispatchActionTestCase(testCase);
             break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -2153,6 +2160,140 @@ function validateParseExpressionTemplateTestCase(testCase) {
   const parsed = parser.parse(input);
   const actual = joinLiterals(parsed);
   assert.deepStrictEqual(actual, expect);
+}
+
+function validateDispatchActionTestCase(testCase) {
+  const {
+    actionPayload,
+    dataModel = {},
+    surfaceId = 'main',
+    scope,
+    expectDispatched,
+    expectDataModel,
+    expectError,
+    expect_error,
+  } = testCase;
+  const errorSpec = expect_error || expectError;
+
+  const testCatalogs = getCatalogsForTestCase(testCase);
+  const defaultCat = testCatalogs[0] || getBasicCatalog(resolveProtocolVersion(testCase) || 'v0.9');
+  const model = new DataModel(dataModel);
+  const surface = new SurfaceModel(surfaceId, defaultCat, undefined, undefined, model);
+
+  const dispatched = [];
+  surface.onAction.subscribe(evt => dispatched.push(evt));
+
+  const ctx = new DataContext(model, scope || '/', surface);
+
+  if (errorSpec) {
+    assert.throws(() => {
+      const resolved = ctx.resolveAction(actionPayload);
+      if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
+        surface.dispatchAction(resolved);
+      }
+    });
+    return;
+  }
+
+  const resolved = ctx.resolveAction(actionPayload);
+  if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
+    surface.dispatchAction(resolved);
+  }
+
+  if (expectDispatched !== undefined) {
+    assert.ok(dispatched.length >= 1, 'Expected action to be dispatched, but none was');
+    const actual = dispatched[0];
+    if ('name' in expectDispatched) {
+      assert.strictEqual(actual.name, expectDispatched.name);
+    }
+    if ('context' in expectDispatched) {
+      assert.deepStrictEqual(actual.context, expectDispatched.context);
+    }
+    if ('userMessage' in expectDispatched) {
+      assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
+    }
+  }
+
+  if (expectDataModel !== undefined) {
+    assert.deepStrictEqual(model.get('/'), expectDataModel);
+  }
+}
+
+function validateEvaluateFunctionTestCase(testCase) {
+  const {
+    function: funcName,
+    args = {},
+    dataModel = {},
+    locale = 'en-US',
+    expect,
+    expectError,
+    expect_error,
+  } = testCase;
+  const errorSpec = expect_error || expectError;
+
+  const hasExplicitCatalogs = Boolean(
+    testCase.catalog || testCase.catalogs || testCase.catalogPaths,
+  );
+  const ver = resolveProtocolVersion(testCase) || 'v0.9';
+  const defaultCat = hasExplicitCatalogs
+    ? getCatalogsForTestCase(testCase)[0]
+    : getBasicCatalog(ver);
+  const model = new DataModel(dataModel);
+  const surface = new SurfaceModel('main', defaultCat, undefined, undefined, model);
+  const ctx = new DataContext(model, '/', surface, undefined, undefined, locale);
+
+  const originalWindow = globalThis.window;
+  if (funcName === 'openUrl' && typeof globalThis.window === 'undefined') {
+    globalThis.window = {
+      location: {href: 'https://example.com/'},
+      open: () => {},
+    };
+  }
+
+  try {
+    const fn = defaultCat?.functions?.get(funcName);
+    if (errorSpec) {
+      assert.throws(() => {
+        let r;
+        if (fn && typeof fn.execute === 'function') {
+          if (
+            (funcName === 'and' || funcName === 'or') &&
+            (!Array.isArray(args.values) || args.values.length < 2)
+          ) {
+            throw new A2uiExpressionError(`${funcName} requires at least 2 values`, funcName);
+          }
+          r = fn.execute(args, ctx);
+        } else if (defaultCat && defaultCat.invoker) {
+          r = defaultCat.invoker(funcName, args, ctx);
+        } else {
+          r = ctx.resolveDynamicValue({call: funcName, args});
+        }
+        r = isSignal(r) ? getValue(r) : r;
+      });
+      return;
+    }
+
+    let result;
+    if (fn && typeof fn.execute === 'function') {
+      result = fn.execute(args, ctx);
+    } else if (defaultCat && defaultCat.invoker) {
+      result = defaultCat.invoker(funcName, args, ctx);
+    } else {
+      result = ctx.resolveDynamicValue({call: funcName, args});
+    }
+    result = isSignal(result) ? getValue(result) : result;
+
+    const actualJson = result === undefined ? null : JSON.parse(JSON.stringify(result));
+    if (expect !== undefined) {
+      assert.deepStrictEqual(actualJson, expect);
+    }
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
 }
 
 await runConformanceHarness();
