@@ -26,6 +26,7 @@ from jsonschema import Draft202012Validator
 import jsonschema.exceptions
 import referencing.exceptions
 from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiCatalogError
+from ..catalog import system_functions_for
 from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..processing.format_pydantic_error import format_validation_error
 from ..schema import ProtocolVersion
@@ -500,8 +501,6 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 fn_schema = funcs_schema[name]
                 base_schema = cat_schema
         if fn_def is None and name.startswith("@"):
-            from ..catalog.system_functions import system_functions_for
-
             ver = getattr(self.catalog, "protocol_version", None)
             fn_def = system_functions_for(ver).get(name)
         return fn_def, fn_schema, base_schema

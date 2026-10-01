@@ -763,7 +763,7 @@ def test_index_is_a_system_function_rather_than_a_catalog_export():
     """
     import a2ui.core.basic_catalog as basic_catalog
     from a2ui.core.basic_catalog import v0_9, v1_0
-    from a2ui.core.catalog.system_functions import IndexApi, IndexArgs
+    from a2ui.core.catalog import IndexApi, IndexArgs
 
     assert IndexApi.name == "@index"
     assert IndexApi.return_type == "number"
@@ -780,7 +780,7 @@ def test_system_functions_carry_forward_to_later_versions():
     about '@index' still has to restate it, and would silently lose the
     function if it forgot.
     """
-    from a2ui.core.catalog.system_functions import system_functions_for
+    from a2ui.core.catalog import system_functions_for
 
     assert set(system_functions_for("v0.9")) == set()
     assert set(system_functions_for(None)) == set()
@@ -795,7 +795,7 @@ def test_index_rejects_a_sequence_context(context):
     Casting the bound method to int used to raise TypeError. The context is
     now treated as having no iteration scope.
     """
-    from a2ui.core.catalog.system_functions import IndexImplementation
+    from a2ui.core.catalog import IndexImplementation
     from a2ui.core.exceptions import A2uiValidationError
 
     with pytest.raises(A2uiValidationError, match="collection template"):
@@ -807,12 +807,22 @@ def test_index_rejects_a_non_numeric_index(index):
     """A non-numeric iteration index is a validation error that names the value."""
     from types import SimpleNamespace
 
-    from a2ui.core.catalog.system_functions import IndexImplementation
+    from a2ui.core.catalog import IndexImplementation
     from a2ui.core.exceptions import A2uiValidationError
 
     for context in (SimpleNamespace(index=index), {"index": index}):
         with pytest.raises(A2uiValidationError, match="numeric iteration index"):
             IndexImplementation.execute({}, context)
+
+
+@pytest.mark.parametrize("offset", [{"path": "/i"}, float("nan")])
+def test_index_rejects_a_non_numeric_offset(offset):
+    """An unconvertible offset is a validation error that names the value."""
+    from a2ui.core.catalog import IndexImplementation
+    from a2ui.core.exceptions import A2uiValidationError
+
+    with pytest.raises(A2uiValidationError, match="numeric offset"):
+        IndexImplementation.execute({"offset": offset}, {"index": 0})
 
 
 def test_index_args_match_the_version_specific_model():
@@ -823,7 +833,7 @@ def test_index_args_match_the_version_specific_model():
     """
     from pydantic import ValidationError
 
-    from a2ui.core.catalog.system_functions import IndexArgs
+    from a2ui.core.catalog import IndexArgs
     from a2ui.core.schema.v1_0.common_types import IndexSystemFunctionArgs
 
     accepted = ({}, {"offset": 1}, {"offset": 1.5}, {"offset": {"path": "/i"}})

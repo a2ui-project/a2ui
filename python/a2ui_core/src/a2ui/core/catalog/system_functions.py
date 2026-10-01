@@ -28,11 +28,12 @@ that wants these functions in its catalog references them, as
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
 from ..common.semver import is_at_least_version
+from ..exceptions import A2uiValidationError
 from ..schema import ProtocolVersion
 from ..schema.common_types import DynamicNumber, StrictBaseModel
 from .functions import (
@@ -49,7 +50,7 @@ INDEX_FUNCTION_NAME = "@index"
 # object none, so the explanation stays out here.
 class IndexArgs(StrictBaseModel):
 
-    offset: Optional[DynamicNumber] = Field(
+    offset: DynamicNumber | None = Field(
         None,
         description=(
             "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based"
@@ -75,10 +76,13 @@ def _index_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> int:
-    from ..exceptions import A2uiValidationError
-
     offset = args.get("offset")
-    offset_val = int(offset) if offset is not None else 0
+    try:
+        offset_val = int(offset) if offset is not None else 0
+    except (TypeError, ValueError) as exc:
+        raise A2uiValidationError(
+            f"@index requires a numeric offset, got {offset!r}."
+        ) from exc
     raw_index: Any = None
     if context is not None:
         # A sequence context has an `index` method, not an iteration index.

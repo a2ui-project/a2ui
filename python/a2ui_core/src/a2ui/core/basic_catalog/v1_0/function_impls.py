@@ -18,9 +18,10 @@ import re
 from typing import Any
 from ...resolution.data_context import DataContext
 from ...common.events import AbortSignal
-from ...catalog.functions import (
+from ...catalog import (
     FunctionImplementation,
     create_function_implementation,
+    system_functions_for,
 )
 from .function_apis import (
     RequiredApi,
@@ -38,7 +39,6 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from ...catalog.system_functions import system_functions_for
 from ...expressions.expression_parser import ExpressionParser
 from ...schema.v1_0.constants import PROTOCOL_VERSION
 from ..locale_formatting import apply_currency_spacing, get_locale
