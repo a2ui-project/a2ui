@@ -36,6 +36,8 @@ void main() {
     ).createProcessor(A2uiRendererCapabilities.forCatalogIds([catalog.id]));
   });
 
+  /// Waits for the whole response, then parses it at once with
+  /// [A2uiRequestProcessor.parseResponse].
   test(
     'a direct JSON agent turn produces a surface the renderer accepts',
     () async {
@@ -54,6 +56,25 @@ void main() {
     timeout: timeout,
   );
 
+  /// Parses the response chunk by chunk with [Parser.parseChunk] while it
+  /// streams, and hands each part to a renderer as soon as it is parsed.
+  ///
+  /// The parser returns a message as soon as it is valid JSON and matches the
+  /// catalog. While the model keeps writing that message, the parser returns
+  /// it again after every chunk that changes it. Each time, it returns the
+  /// whole message, from its start to the last complete component, not only
+  /// the new part. If the model is in the middle of a component, the parser
+  /// collects chunks until the component is complete, and then return.
+  /// A message that did not change is
+  /// not returned again. However, there is exception: `text` or `label` values
+  /// are returned before the component is complete.
+  ///
+  /// The test passes each message to the renderer. The renderer replaces the
+  /// components it already holds with the ones in the message, by id.
+  ///
+  /// A component can name a child that a later chunk brings. The renderer
+  /// runs with [ValidationConfig.relaxed], so it accepts that reference, and
+  /// the child fills in when it arrives.
   test(
     'a streamed direct JSON turn builds the surface as it arrives',
     () async {
