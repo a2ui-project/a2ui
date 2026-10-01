@@ -62,10 +62,10 @@ Where the port follows Python even though conformance disagrees, `typescript/a2u
 
 ### **Test Posture**
 
-- **Overall**: 667 tests: 608 pass, 59 are skipped, none fail, and there are no expected failures.
+- **Overall**: 669 tests: 610 pass, 59 are skipped, none fail, and there are no expected failures.
 - **Main conformance runners**: 166 cases, 107 pass and 59 are skipped, across the legacy suites and the `catalog_provider`, `catalog_resolution` and `direct_json/prompt_generator` suites. The `KNOWN_FAILURES` list (`tests/conformance/loader.ts`) is empty. Cases are skipped by the protocol version, format or action they declare, not by name: 39 declare `v0.8`, 14 are legacy cases superseded by the newer suites, 4 generate skills (`UNIMPLEMENTED_ACTIONS`), and one each uses Elemental and Atom. None is skipped for a defect. An action the runner does not handle fails the test instead of passing without assertions.
 - **Express conformance runner**: 86 cases, all pass. Its `KNOWN_FAILURES` and `UNSUPPORTED` lists are empty. That includes the cases Python fails and the multi-catalog case Python marks unsupported; `KNOWN_GAPS.md` lists them so Python issues can be filed.
-- **Unit tests**: 415 pass. The Express unit tests state their expected values inline and record no output from Python. The schema helper tests derive each basic catalog component's property order, required properties, checkability and enums, and each function's argument order, from the catalog JSON. Cases already in `conformance/agent/express/` are left to the Express conformance runner.
+- **Unit tests**: 417 pass. The Express unit tests state their expected values inline and record no output from Python. The schema helper tests derive each basic catalog component's property order, required properties, checkability and enums, and each function's argument order, from the catalog JSON. Cases already in `conformance/agent/express/` are left to the Express conformance runner.
 
 ### **Streaming Coverage**
 
