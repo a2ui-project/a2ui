@@ -3,6 +3,20 @@
 ## Unreleased
 
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
+- Execute `functionCall` and `call` component actions locally in
+  `GenericBinder`, against the component's data context. A function that
+  throws, fails asynchronously or is missing from the catalog is reported
+  through `SurfaceModel.onError` with code `EXECUTION_ERROR` rather than
+  escaping the action callback.
+- **Behavior change:** `SurfaceModel.dispatchAction` only emits agent-bound
+  `event` and `name` actions. A direct caller that passes a `functionCall`
+  payload previously had the function run against the root data context; the
+  call is now ignored. Run local functions through the binder or
+  `DataContext.resolveSync` instead.
+- Action `context` values are resolved one entry at a time, so a context key
+  named `path` or `call` reaches the agent as a literal key instead of being
+  read as a data binding or function call.
+- Added optional `userMessage` field to `A2uiClientAction`.
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
 - `ExpressionParser` accepts number literals with a leading decimal point
   (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. A `.`
