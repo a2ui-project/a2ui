@@ -128,9 +128,7 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
  *   treat a single-child property such as `Card.child` as a component
  *   reference, so strict validation reports the child as orphaned.
  */
-const SKIP_TEST_NAMES = new Set([
-  'test_v08_topology_card_child_reachable',
-]);
+const SKIP_TEST_NAMES = new Set(['test_v08_topology_card_child_reachable']);
 
 /**
  * Cases that web_core's behaviour does not satisfy, keyed by suite path and
@@ -148,7 +146,7 @@ const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
   'the validator accepts a function call carrying a key its catalog function' +
   ' definition does not declare';
 const CATALOG_SCHEMA_NOT_SPEC_SHAPED =
-  "web_core has no basic catalog whose catalogSchema reproduces the spec catalog: catalogSchema" +
+  'web_core has no basic catalog whose catalogSchema reproduces the spec catalog: catalogSchema' +
   " emits components flat instead of as 'allOf' over the common types, and the catalog's $id," +
   ' function descriptions and common types $defs differ';
 const KNOWN_DIVERGENCES = new Map([
@@ -2297,6 +2295,13 @@ function validateParseExpressionTemplateTestCase(testCase) {
   const parsed = parser.parse(input);
   const actual = joinLiterals(parsed);
   assert.deepStrictEqual(actual, expect);
+}
+
+function getBasicCatalog(version) {
+  const v = toCanonicalVersion(version) || version;
+  if (v === '1.0') return v1_0BasicCatalog;
+  if (v === '0.8') return v0_8BasicCatalog;
+  return v0_9BasicCatalog;
 }
 
 function validateDispatchActionTestCase(testCase) {
