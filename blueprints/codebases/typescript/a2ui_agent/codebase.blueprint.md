@@ -53,7 +53,7 @@ Protocol versions are handled in a few fixed places, and adding a version means 
 
 ### **Test Posture**
 
-- **Overall**: 222 passing tests, 60 skipped, 0 failing, 0 expected failures.
+- **Overall**: 223 passing tests, 60 skipped, 0 failing, 0 expected failures.
 - **Conformance**: 106 passing cases and 60 skipped (out of 166), across the legacy suites and the `catalog_provider`, `catalog_resolution` and `direct_json/prompt_generator` suites. `KNOWN_FAILURES` in `tests/conformance/loader.ts` is empty.
 - **Why cases are skipped**: 39 declare protocol `v0.8`, which is permanently out of scope, 14 are legacy cases superseded by the newer suites, 4 generate skills, and 3 use an unimplemented inference format (Express, Elemental, Atom). None are skipped for an implementation defect.
 
