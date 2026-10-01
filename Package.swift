@@ -52,6 +52,18 @@ let package = Package(
     ),
   ],
   targets: [
+    // ── Build Tools & Plugins ──
+    .executableTarget(
+      name: "A2UISchemaGenerator",
+      path: "swift/core/Tools/A2UISchemaGenerator"
+    ),
+    .plugin(
+      name: "A2UISchemaGeneratorPlugin",
+      capability: .buildTool(),
+      dependencies: ["A2UISchemaGenerator"],
+      path: "swift/core/Plugins/A2UISchemaGeneratorPlugin"
+    ),
+
     // ── Core ──
     .target(
       name: "A2UIJSON",
@@ -59,7 +71,8 @@ let package = Package(
         .product(name: "JSONSchema", package: "swift-json-schema"),
         .product(name: "OrderedJSON", package: "swift-json-schema"),
       ],
-      path: "swift/core/Sources/A2UIJSON"
+      path: "swift/core/Sources/A2UIJSON",
+      plugins: ["A2UISchemaGeneratorPlugin"]
     ),
     .target(
       name: "A2UICore",
@@ -78,7 +91,8 @@ let package = Package(
         .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
       ],
       path: "swift/core/Sources/BasicCatalog",
-      resources: [.process("Resources")]
+      resources: [.process("Resources")],
+      plugins: ["A2UISchemaGeneratorPlugin"]
     ),
 
     // ── SwiftUI ──

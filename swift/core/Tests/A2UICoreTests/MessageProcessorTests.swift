@@ -280,7 +280,7 @@ struct MessageProcessorTests {
           }
         }
         """))
-    #expect(processor.surface(id: "s1") == nil)
+    #expect(processor.surfaceGroupModel["s1"] == nil)
     #expect(handler.capturedErrors.count == 1)
   }
 
@@ -540,9 +540,9 @@ struct MessageProcessorTests {
           }
         }
         """))
-    #expect(processor.surface(id: "s2") != nil)
+    #expect(processor.surfaceGroupModel["s2"] != nil)
     processor.dispose()
-    #expect(processor.surface(id: "s2") == nil)
+    #expect(processor.surfaceGroupModel["s2"] == nil)
   }
 }
 

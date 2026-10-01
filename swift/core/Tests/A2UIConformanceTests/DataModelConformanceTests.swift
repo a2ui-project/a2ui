@@ -14,9 +14,7 @@
 
 import A2UICore
 import BasicCatalog
-#if canImport(Combine)
 import Combine
-#endif
 import Foundation
 import OrderedJSON
 import Testing
@@ -30,17 +28,17 @@ struct DataModelConformanceTests {
     var changeCount = 0
     var currentValue: JSONValue?
     #if canImport(Combine)
-    private var cancellable: AnyCancellable?
+      private var cancellable: AnyCancellable?
     #endif
 
     init(model: DataModel, path: String) throws {
       self.path = path
       self.currentValue = model.get(path)
       #if canImport(Combine)
-      self.cancellable = try model.watch(path) { [weak self] newValue in
-        self?.changeCount += 1
-        self?.currentValue = newValue
-      }
+        self.cancellable = try model.watch(path) { [weak self] newValue in
+          self?.changeCount += 1
+          self?.currentValue = newValue
+        }
       #endif
     }
   }

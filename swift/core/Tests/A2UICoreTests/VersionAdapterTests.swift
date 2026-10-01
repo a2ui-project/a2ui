@@ -338,7 +338,7 @@ struct VersionAdapterTests {
     )
 
     processor.process(payload: payload)
-    let surface = try #require(processor.surface(id: "s1"))
+    let surface = try #require(processor.surfaceGroupModel["s1"])
     #expect(surface.dataModel.get("/greeting") == .string("Hello"))
     #expect(surface.componentsModel.get("root")?.type == "Text")
   }

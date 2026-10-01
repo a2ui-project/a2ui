@@ -414,7 +414,7 @@ struct StateEngineV10Tests {
     )
 
     processor.process(message: createMsg)
-    #expect(processor.surface(id: "s1") == nil)
+    #expect(processor.surfaceGroupModel["s1"] == nil)
   }
 
   @Test func prototypePollutionKeysIgnoredAndEmptyArrayPadding() {
