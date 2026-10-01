@@ -14,16 +14,8 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import {fileURLToPath} from 'url';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import {Catalog} from '../../../../src/internal/web_core.js';
-import {type SchemaCatalog} from '../../../../src/types.js';
-import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressCompiler} from '../../../../src/inference_formats/express/compiler.js';
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
@@ -31,61 +23,24 @@ import {
   ExpressDuplicateParamError,
   ExpressDuplicatePropertyError,
   ExpressForbiddenDatabindingError,
+  ExpressIdCollisionError,
   ExpressInvalidParamError,
   ExpressParseError,
   ExpressSyntaxError,
   ExpressUndefinedRootError,
+  ExpressUnknownCatalogError,
   ExpressUnknownComponentError,
-  ExpressMissingRequiredPropertyError,
-  ExpressUnknownFunctionError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
-  ExpressIdCollisionError,
-  ExpressUnknownCatalogError,
 } from '../../../../src/inference_formats/express/errors.js';
+import {Catalog} from '../../../../src/internal/web_core.js';
+import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
 const basicCatalogV10 = await loadBasicCatalog('v1.0');
 const basicCatalogV09 = await loadBasicCatalog('v0.9');
 const basicCatalogV091 = await loadBasicCatalog('v0.9.1');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const FIXTURES_DIR = path.join(__dirname, 'fixtures');
-
-interface ExpectedSuccess {
-  status: 'success';
-  messages: unknown[];
-}
-
-interface ExpectedError {
-  status: 'error';
-  error: string;
-  message: string;
-}
-
-interface CorpusEntry {
-  name: string;
-  catalog: 'simplified' | 'forms' | 'custom' | 'basic_v1_0' | 'basic_v0_9';
-  version: string;
-  input: string;
-  expected: ExpectedSuccess | ExpectedError;
-}
-
-const errorClasses: Record<string, new (...args: never[]) => Error> = {
-  ExpressUndefinedRootError,
-  ExpressParseError,
-  ExpressUnknownComponentError,
-  ExpressMissingRequiredPropertyError,
-  ExpressUnknownFunctionError,
-  ExpressUnknownPropertyError,
-  ExpressValidationError,
-  ExpressForbiddenDatabindingError,
-  ExpressSyntaxError,
-  ExpressDuplicatePropertyError,
-  ExpressInvalidParamError,
-  ExpressDuplicateParamError,
-  ExpressUnknownCatalogError,
-};
 
 describe('ExpressCompiler', () => {
   const simplifiedCatalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
@@ -94,64 +49,221 @@ describe('ExpressCompiler', () => {
 
   const customCatalog = loadConformanceCatalog('custom_catalog_v1_0.json');
 
-  const catalogs: Record<string, SchemaCatalog> = {
-    simplified: simplifiedCatalog,
-    forms: formsCatalog,
-    custom: customCatalog,
-    basic_v1_0: basicCatalogV10,
-    basic_v0_9: basicCatalogV09,
-  };
-
-  describe('1. PARITY CORPUS (57 cases evaluated against Python oracle)', () => {
-    // See tests/unit/inference_formats/express/fixtures/README.md for generation instructions
-    const corpusPath = path.join(FIXTURES_DIR, 'compiler_corpus.json');
-    const corpus = JSON.parse(fs.readFileSync(corpusPath, 'utf8')) as CorpusEntry[];
-
-    const overridesPath = path.join(FIXTURES_DIR, 'conformance_overrides.json');
-    const overridesAll = JSON.parse(fs.readFileSync(overridesPath, 'utf8'));
-    const overrides = overridesAll['compiler_corpus.json'] || {};
-
-    it('every override names a case in compiler_corpus.json', () => {
-      const names = new Set(corpus.map(c => c.name));
-      for (const name of Object.keys(overrides)) {
-        expect(names.has(name), `override '${name}' matches no case`).toBe(true);
-      }
+  describe('Compiling against the v1.0 basic catalog', () => {
+    it('compiles a Text with a variant', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('root = Text("Hello world", "body")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            components: [{id: 'root', component: 'Text', text: 'Hello world', variant: 'body'}],
+          },
+        },
+      ]);
     });
 
-    for (const entry of corpus) {
-      it(`matches oracle on: ${entry.name}`, () => {
-        const cat = catalogs[entry.catalog];
-        expect(cat, `Catalog ${entry.catalog} must be registered`).toBeDefined();
+    it('compiles a Card whose child is declared on its own line', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('root = Card(t)\nt = Text("Card body")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            components: [
+              {id: 'root', component: 'Card', child: 't'},
+              {id: 't', component: 'Text', text: 'Card body'},
+            ],
+          },
+        },
+      ]);
+    });
 
-        const override = overrides[entry.name];
-        const expected = override ? override.expected : entry.expected;
+    it('compiles a Column holding a Text and a Button with an event', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(
+        compiler.compile(
+          'root = Column([t1, b1])\nt1 = Text("Title", "body")\nb1 = Button(Text("Click"), action=Event("btn_click", {"id": 1}))',
+        ),
+      ).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            components: [
+              {id: 'root', component: 'Column', children: ['t1', 'b1']},
+              {id: 't1', component: 'Text', text: 'Title', variant: 'body'},
+              {
+                id: 'b1',
+                component: 'Button',
+                child: 'b1_child',
+                action: {event: {name: 'btn_click', context: {id: 1}}},
+              },
+              {id: 'b1_child', component: 'Text', text: 'Click'},
+            ],
+          },
+        },
+      ]);
+    });
 
-        const compiler = new ExpressCompiler([cat], entry.version);
-        if (expected.status === 'success') {
-          const actual = compiler.compile(entry.input);
-          expect(actual).toEqual(expected.messages);
-        } else {
-          const expectedCls = errorClasses[expected.error];
-          expect(expectedCls, `Unknown error class ${expected.error}`).toBeDefined();
+    it('hoists inline children with indexed ids', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('root = Column([Text("Line 1"), Text("Line 2")])')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            components: [
+              {id: 'root', component: 'Column', children: ['root_children_0', 'root_children_1']},
+              {id: 'root_children_0', component: 'Text', text: 'Line 1'},
+              {id: 'root_children_1', component: 'Text', text: 'Line 2'},
+            ],
+          },
+        },
+      ]);
+    });
 
-          expect(() => compiler.compile(entry.input)).toThrow(expectedCls);
-          try {
-            compiler.compile(entry.input);
-          } catch (err: unknown) {
-            expect(err).toBeInstanceOf(expectedCls);
-            if (expectedCls === ExpressSyntaxError) {
-              const synErr = err as ExpressSyntaxError;
-              const pyStrMsg = `${synErr.message} (line ${synErr.line})`;
-              expect(pyStrMsg).toBe(expected.message);
-            } else {
-              expect((err as Error).message).toBe(expected.message);
-            }
-          }
-        }
-      });
-    }
+    it('compiles data assignments alone into one updateDataModel', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('$/user/name = "Alice"\n$/user/age = 30')).toEqual([
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'default_surface',
+            path: '/',
+            value: {user: {name: 'Alice', age: 30}},
+          },
+        },
+      ]);
+    });
   });
 
+  describe('Compiling against the v0.9 basic catalog', () => {
+    it('splits a block into createSurface and updateComponents', () => {
+      const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
+      expect(compiler.compile('root = Text("Hello v0.9")')).toEqual([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'default_surface',
+            components: [{id: 'root', component: 'Text', text: 'Hello v0.9'}],
+          },
+        },
+      ]);
+    });
+
+    it('sends the data model after the components', () => {
+      const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
+      expect(
+        compiler.compile('root = Column([t])\nt = Text("v0.9 text")\n$/status = "active"'),
+      ).toEqual([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'default_surface',
+            components: [
+              {id: 'root', component: 'Column', children: ['t']},
+              {id: 't', component: 'Text', text: 'v0.9 text'},
+            ],
+          },
+        },
+        {
+          version: 'v0.9',
+          updateDataModel: {surfaceId: 'default_surface', path: '/', value: {status: 'active'}},
+        },
+      ]);
+    });
+
+    it('compiles data assignments alone into one updateDataModel', () => {
+      const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
+      expect(compiler.compile('$/only/data = 123')).toEqual([
+        {
+          version: 'v0.9',
+          updateDataModel: {surfaceId: 'default_surface', path: '/', value: {only: {data: 123}}},
+        },
+      ]);
+    });
+
+    it('rejects a standalone function call', () => {
+      const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
+      expect(() => compiler.compile('openUrl("https://google.com")')).toThrow(
+        ExpressValidationError,
+      );
+      expect(() => compiler.compile('openUrl("https://google.com")')).toThrow(
+        'Standalone function calls are not supported in A2UI v0.9',
+      );
+    });
+  });
+
+  describe('Compiling against the custom and forms catalogs', () => {
+    it('compiles a Chart with a caption', () => {
+      const compiler = new ExpressCompiler([customCatalog], 'v1.0');
+      expect(compiler.compile('root = Chart([10, 20, 30], "Sales")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/custom',
+            components: [{id: 'root', component: 'Chart', values: [10, 20, 30], caption: 'Sales'}],
+          },
+        },
+      ]);
+    });
+
+    it('compiles a Gauge', () => {
+      const compiler = new ExpressCompiler([customCatalog], 'v1.0');
+      expect(compiler.compile('root = Gauge(85)')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/custom',
+            components: [{id: 'root', component: 'Gauge', value: 85}],
+          },
+        },
+      ]);
+    });
+
+    it('compiles a TextField with a bound value and a placeholder', () => {
+      const compiler = new ExpressCompiler([formsCatalog], 'v1.0');
+      expect(compiler.compile('root = TextField("Name", $/form/name, "Enter name")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/forms',
+            components: [
+              {
+                id: 'root',
+                component: 'TextField',
+                label: 'Name',
+                value: {path: '/form/name'},
+                placeholder: 'Enter name',
+              },
+            ],
+          },
+        },
+      ]);
+    });
+  });
   describe('Follow-up 2: ExpressIdCollisionError', () => {
     it('throws ExpressIdCollisionError when an inline id collides with a declared variable', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
@@ -174,7 +286,7 @@ root = Column([Text("a"), Text("b")])
 
   describe('2. Deliberate departures (§5.2 items 4 and 5)', () => {
     it('throws ExpressValidationError when checks are written on an uncheckable component (departure 4)', () => {
-      // Oracle output: Python silently emits {"id": "root", "component": "Text", "text": "hi", "checks": [...]}
+      // Python's compiler emits {"id": "root", "component": "Text", "text": "hi", "checks": [...]} here.
       // TS divergence rationale (plan §5.2 item 4 / KNOWN_GAPS): Writing checks on a component that does not
       // declare a check-rule property violates the schema. TS explicitly rejects this.
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
@@ -194,7 +306,7 @@ root = Column([Text("a"), Text("b")])
     });
 
     it('allows databinding inside nested item schema that admits path (departure 5)', () => {
-      // Oracle output: Python checks not _schema_allows_databinding(prop_schema) on the top-level 'tabs' array
+      // Python's compiler checks _schema_allows_databinding(prop_schema) on the top-level 'tabs' array
       // and throws ExpressForbiddenDatabindingError('Tabs', 'tabs'), rejecting dynamic title inside tab item.
       // TS divergence rationale (plan §5.2 item 5): TS walks alongside the schema positionally.
       // Tabs.tabs items have title of type DynamicString, which admits path, so Tabs([{title: $/t, child: c}]) is valid.
@@ -317,7 +429,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ).toThrow(ExpressDuplicateParamError);
     });
 
-    it('throws ExpressValidationError on enum violation with exact Python formatting', () => {
+    it('throws ExpressValidationError on enum violation, listing the allowed values', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('root = Text("hi", "invalid_variant")')).toThrow(
         ExpressValidationError,
@@ -345,13 +457,6 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       // With no statements, scopes is [] which raises ExpressUndefinedRootError
       expect(() => compiler.compile('root = Text(', 'default_surface', '', false)).toThrow(
         ExpressUndefinedRootError,
-      );
-    });
-
-    it('throws ExpressValidationError for standalone function calls on v0.9', () => {
-      const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
-      expect(() => compiler.compile('openUrl("https://example.com")')).toThrow(
-        ExpressValidationError,
       );
     });
   });

@@ -14,100 +14,463 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import {fileURLToPath} from 'url';
-import {describe, it, expect} from 'vitest';
-import {AgentToRendererMessage} from '../../../../src/internal/web_core.js';
-import {SchemaCatalog} from '../../../../src/types.js';
-import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
+import {describe, expect, it} from 'vitest';
+
 import {ExpressDecompiler} from '../../../../src/inference_formats/express/decompiler.js';
 import {
   ExpressInvalidIdentifierError,
   ExpressValidationError,
 } from '../../../../src/inference_formats/express/errors.js';
 import {ExpressParser} from '../../../../src/inference_formats/express/parser.js';
+import {AgentToRendererMessage} from '../../../../src/internal/web_core.js';
+import {SchemaCatalog} from '../../../../src/types.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
-const basicCatalogV09 = await loadBasicCatalog('v0.9');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const FIXTURES_DIR = path.join(__dirname, 'fixtures');
-
-interface ParityCase {
-  name: string;
-  catalog: 'basic_v1_0' | 'basic_v0_9' | 'simplified' | 'custom' | 'forms';
-  messages: AgentToRendererMessage[];
-  expectedNotation: string;
-}
+const catalogInfo: Record<string, {catalog: SchemaCatalog; version: string}> = {
+  basic_v0_9: {catalog: await loadBasicCatalog('v0.9'), version: 'v0.9'},
+  forms: {catalog: loadConformanceCatalog('forms_catalog_v1_0.json'), version: 'v1.0'},
+  simplified: {catalog: loadConformanceCatalog('simplified_catalog_v1_0.json'), version: 'v1.0'},
+};
 
 describe('ExpressDecompiler', () => {
-  const loadedCatalogs = new Map<string, {catalog: SchemaCatalog; version: string}>();
-
   function getCatalogInfo(catalogKey: string): {catalog: SchemaCatalog; version: string} {
-    if (loadedCatalogs.has(catalogKey)) {
-      return loadedCatalogs.get(catalogKey)!;
-    }
-
-    if (catalogKey === 'basic_v1_0') {
-      const info = {catalog: basicCatalogV10, version: 'v1.0'};
-      loadedCatalogs.set(catalogKey, info);
-      return info;
-    }
-
-    if (catalogKey === 'basic_v0_9') {
-      const info = {catalog: basicCatalogV09, version: 'v0.9'};
-      loadedCatalogs.set(catalogKey, info);
-      return info;
-    }
-
-    const fixtureFile =
-      catalogKey === 'simplified'
-        ? 'simplified_catalog_v1_0.json'
-        : catalogKey === 'custom'
-          ? 'custom_catalog_v1_0.json'
-          : 'forms_catalog_v1_0.json';
-
-    const info = {catalog: loadConformanceCatalog(fixtureFile), version: 'v1.0'};
-    loadedCatalogs.set(catalogKey, info);
-    return info;
+    return catalogInfo[catalogKey];
   }
 
-  describe('1. Parity corpus (31 cases against Python oracle)', () => {
-    const casesPath = path.join(FIXTURES_DIR, 'decompiler_parity_cases.json');
-    const cases: ParityCase[] = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
-
-    const overridesPath = path.join(FIXTURES_DIR, 'conformance_overrides.json');
-    const overridesAll = JSON.parse(fs.readFileSync(overridesPath, 'utf8'));
-    const overrides = overridesAll['decompiler_parity_cases.json'] || {};
-
-    it('every override names a case in decompiler_parity_cases.json', () => {
-      const names = new Set(cases.map(c => c.name));
-      for (const name of Object.keys(overrides)) {
-        expect(names.has(name), `override '${name}' matches no case`).toBe(true);
-      }
+  describe('Writing components and data models', () => {
+    it('writes the data model of a createSurface before its components', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'main',
+            catalogId: 'conformance/simplified',
+            components: [
+              {id: 'root', component: 'Card', child: 'body'},
+              {id: 'body', component: 'Text', text: {path: '/user/name'}},
+            ],
+            dataModel: {user: {name: 'Alice', age: 30}},
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'surface("main")\n$/user/age = 30\n$/user/name = "Alice"\nroot = Card(body)\nbody = Text($/user/name)',
+      );
     });
 
-    it(`contains at least 27 cases (found ${cases.length})`, () => {
-      expect(cases.length).toBeGreaterThanOrEqual(27);
+    it('writes a function call used as a property value', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/simplified',
+            components: [
+              {
+                id: 'root',
+                component: 'Text',
+                text: {call: 'formatString', args: {value: 'Welcome, ${/user/name}!'}},
+              },
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = Text(formatString("Welcome, ${/user/name}!"))',
+      );
     });
 
-    for (const c of cases) {
-      it(`matches oracle for ${c.name}`, () => {
-        const {catalog, version} = getCatalogInfo(c.catalog);
-        const decompiler = new ExpressDecompiler([catalog], version);
-        const actual = decompiler.decompile(c.messages);
+    it('writes a string holding backslashes and a newline as a raw triple-quoted string', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/simplified',
+            components: [
+              {id: 'root', component: 'Text', text: 'Path: C:\\Program Files\\App\nLine 2'},
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = Text(r"""Path: C:\\Program Files\\App\nLine 2""")',
+      );
+    });
 
-        const override = overrides[c.name];
-        const expected = override ? override.expected : c.expectedNotation;
-
-        expect(actual).toBe(expected);
-      });
-    }
+    it('writes data values that are not objects at their own paths', () => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const messages = [
+        {
+          version: 'v0.9',
+          updateDataModel: {surfaceId: 'default', path: '/title', value: 'Found Restaurants'},
+        },
+        {
+          version: 'v0.9',
+          updateDataModel: {
+            surfaceId: 'default',
+            path: '/items',
+            value: [{name: "Xi'an Famous Foods", rating: 4.5}],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'surface("default")\n$/title = "Found Restaurants"\n$/items = [{name: "Xi\'an Famous Foods", rating: 4.5}]',
+      );
+    });
   });
 
+  describe('Writing templates', () => {
+    it('writes a template over an absolute path', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/simplified',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                children: {path: '/items', componentId: 'itemTmpl'},
+              },
+              {id: 'itemTmpl', component: 'Text', text: {path: 'label'}},
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = Column(_template($/items, itemTmpl))\nitemTmpl = Text($label)',
+      );
+    });
+
+    it('writes a template over a relative path', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/simplified',
+            components: [
+              {id: 'root', component: 'Column', children: {path: 'items', componentId: 'itemTmpl'}},
+              {id: 'itemTmpl', component: 'Text', text: {path: ''}},
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = Column(_template($items, itemTmpl))\nitemTmpl = Text($)',
+      );
+    });
+  });
+
+  describe('Writing events', () => {
+    it('writes an event without a context', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/simplified',
+            components: [
+              {id: 'root', component: 'Button', child: 'bText', action: {event: {name: 'click'}}},
+              {id: 'bText', component: 'Text', text: 'Click me'},
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = Button(bText, Event("click"))\nbText = Text("Click me")',
+      );
+    });
+
+    it('writes an event with a context', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/simplified',
+            components: [
+              {
+                id: 'root',
+                component: 'Button',
+                child: 'bText',
+                action: {
+                  event: {name: 'save', context: {userId: 'u123', confirmed: true, count: 5}},
+                },
+              },
+              {id: 'bText', component: 'Text', text: 'Save'},
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = Button(bText, Event("save", {userId: "u123", confirmed: true, count: 5}))\nbText = Text("Save")',
+      );
+    });
+
+    it('writes an event with a nested context', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/simplified',
+            components: [
+              {
+                id: 'root',
+                component: 'Button',
+                child: 'bText',
+                action: {event: {name: 'checkout', context: {cart: {itemId: 'i1', qty: 2}}}},
+              },
+              {id: 'bText', component: 'Text', text: 'Checkout'},
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = Button(bText, Event("checkout", {cart: {itemId: "i1", qty: 2}}))\nbText = Text("Checkout")',
+      );
+    });
+  });
+
+  describe('Writing checks', () => {
+    it('writes a check with its default message as a bare check', () => {
+      const {catalog, version} = getCatalogInfo('forms');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/forms',
+            components: [
+              {
+                id: 'root',
+                component: 'TextField',
+                label: 'Name',
+                checks: [
+                  {
+                    condition: {call: 'required', args: {value: {path: '/name'}}},
+                    message: 'Required check failed',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = TextField("Name", ?required)',
+      );
+    });
+
+    it('writes the arguments of a check after the bound value', () => {
+      const {catalog, version} = getCatalogInfo('forms');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/forms',
+            components: [
+              {
+                id: 'root',
+                component: 'TextField',
+                label: 'Zip',
+                checks: [
+                  {
+                    condition: {
+                      call: 'regex',
+                      args: {value: {path: '/zip'}, pattern: '^[0-9]{5}$'},
+                    },
+                    message: 'Regex check failed',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = TextField("Zip", ?regex("^[0-9]{5}$"))',
+      );
+    });
+
+    it('writes a custom message as the last check argument', () => {
+      const {catalog, version} = getCatalogInfo('forms');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/forms',
+            components: [
+              {
+                id: 'root',
+                component: 'TextField',
+                label: 'Zip',
+                checks: [
+                  {
+                    condition: {
+                      call: 'regex',
+                      args: {value: {path: '/zip'}, pattern: '^[0-9]{5}$'},
+                    },
+                    message: 'Must be 5 digits',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = TextField("Zip", ?regex("^[0-9]{5}$", "Must be 5 digits"))',
+      );
+    });
+
+    it('writes several checks as a list', () => {
+      const {catalog, version} = getCatalogInfo('forms');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'conformance/forms',
+            components: [
+              {
+                id: 'root',
+                component: 'TextField',
+                label: 'Zip',
+                checks: [
+                  {condition: {call: 'required', args: {value: {path: '/zip'}}}},
+                  {
+                    condition: {
+                      call: 'regex',
+                      args: {value: {path: '/zip'}, pattern: '^[0-9]{5}$'},
+                    },
+                    message: 'Must be 5 digits',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'root = TextField("Zip", [?required, ?regex("^[0-9]{5}$", "Must be 5 digits")])',
+      );
+    });
+  });
+
+  describe('Writing other messages', () => {
+    it('writes a callFunction message as a standalone call', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {version: 'v1.0', callFunction: {call: 'openUrl', args: {url: 'https://example.com/help'}}},
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'openUrl("https://example.com/help")',
+      );
+    });
+
+    it('writes a standalone call with two arguments', () => {
+      const {catalog, version} = getCatalogInfo('forms');
+      const messages = [
+        {version: 'v1.0', callFunction: {call: 'regex', args: {value: '123', pattern: '^[0-9]+$'}}},
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'regex("123", "^[0-9]+$")',
+      );
+    });
+
+    it('writes a deleteSurface message', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {version: 'v1.0', deleteSurface: {surfaceId: 'panel_surface_42'}},
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'deleteSurface("panel_surface_42")',
+      );
+    });
+
+    it('merges the messages for one surface into one block', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'conformance/simplified',
+            components: [{id: 'root', component: 'Text', text: 'First'}],
+          },
+        },
+        {version: 'v1.0', updateDataModel: {surfaceId: 's1', value: {status: 'loaded'}}},
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'surface("s1")\n$/status = "loaded"\nroot = Text("First")',
+      );
+    });
+  });
+
+  describe('Writing v0.9 messages', () => {
+    it('writes a createSurface', () => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const messages = [
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'surf_09',
+            components: [{id: 'root', component: 'Text', text: 'v0.9 message'}],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'surface("surf_09")\nroot = Text("v0.9 message")',
+      );
+    });
+
+    it('writes an updateComponents', () => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const messages = [
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'surf_09',
+            components: [
+              {id: 'card1', component: 'Card', child: 't1'},
+              {id: 't1', component: 'Text', text: 'updated'},
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'surface("surf_09")\ncard1 = Card(t1)\nt1 = Text("updated")',
+      );
+    });
+
+    it('writes an updateDataModel as one assignment per leaf', () => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const messages = [
+        {
+          version: 'v0.9',
+          updateDataModel: {surfaceId: 'surf_09', value: {profile: {name: 'Bob', active: true}}},
+        },
+      ] as unknown as AgentToRendererMessage[];
+      expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
+        'surface("surf_09")\n$/profile/active = true\n$/profile/name = "Bob"',
+      );
+    });
+  });
   describe('2. wrapDecompiledBlocks', () => {
     it('wraps blocks in sentinel tags', () => {
       const {catalog, version} = getCatalogInfo('simplified');

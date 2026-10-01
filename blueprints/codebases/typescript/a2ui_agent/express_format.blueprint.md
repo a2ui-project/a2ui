@@ -474,7 +474,10 @@ each case Python still fails.
    property-order comparison from section 4 as a permanent test, including the
    `checks` placement on the six Checkable components. Done 2026-09-24 in `8d86513f`:
    loaders register the parsed catalog JSON (`src/utils/catalog-document.ts`), and
-   the helper tables for both basic catalogs are pinned against Python's.
+   the helper tables for both basic catalogs were pinned against Python's. Those
+   recorded tables have since been replaced: `schema_helper.test.ts` now derives the
+   expected property order, required lists, checkability and enums from the catalog
+   JSON itself.
 2. Add codegen and check the generated lexer, parser, and visitor into the
    repository so a plain `yarn build` never runs the generator. Exclude the
    generated directory from eslint and prettier. Done 2026-09-23 with antlr-ng and
