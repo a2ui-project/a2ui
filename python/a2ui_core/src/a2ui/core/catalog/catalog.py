@@ -300,10 +300,9 @@ class Catalog(Generic[TComponent, TFunction]):
         self.protocol_version = protocol_version
         self.instructions = instructions
         self.defs: dict[str, Any] = copy.deepcopy(defs) if defs else {}
-        # Shared type definitions supplied by the catalog's own common types
-        # document. These take precedence over the built-in definitions derived
-        # from the Pydantic schema models, so a catalog that ships a reduced or
-        # customized common types document validates against that document.
+        # Shared type definitions that override the built-in common types
+        # definitions derived from the Pydantic schema models, for a catalog
+        # that validates against a reduced or customized common types document.
         self.common_types_defs: dict[str, Any] = (
             copy.deepcopy(common_types_defs) if common_types_defs else {}
         )
@@ -482,15 +481,17 @@ class Catalog(Generic[TComponent, TFunction]):
                             referenced_dynamics.add(target)
                             queue.append(target)
 
+            # The returned schema gets copies, so mutating it leaves this
+            # catalog's `common_types_defs` intact.
             for dyn in sorted(referenced_dynamics):
                 if dyn in dynamic_defs:
                     if dyn not in cleaned_schema["$defs"]:
-                        cleaned_schema["$defs"][dyn] = dynamic_defs[dyn]
+                        cleaned_schema["$defs"][dyn] = copy.deepcopy(dynamic_defs[dyn])
                     elif isinstance(cleaned_schema["$defs"][dyn], dict) and isinstance(
                         dynamic_defs[dyn], dict
                     ):
                         cleaned_schema["$defs"][dyn] = {
-                            **dynamic_defs[dyn],
+                            **copy.deepcopy(dynamic_defs[dyn]),
                             **cleaned_schema["$defs"][dyn],
                         }
 
@@ -658,12 +659,7 @@ class Catalog(Generic[TComponent, TFunction]):
                         )
                     )
 
-        common_types_defs = None
-        if is_at_least_version(p_ver, ProtocolVersion.V0_9):
-            common_types_defs = _normalize_external_schema_refs(
-                get_common_types_catalog_defs(p_ver)
-            )
-
+        # `catalog_schema` merges in the built-in common types defs.
         return CatalogApi(
             catalog_id=catalog_id,
             protocol_version=p_ver,
@@ -674,7 +670,6 @@ class Catalog(Generic[TComponent, TFunction]):
             or {},
             instructions=inlined_catalog_schema.get("instructions"),
             defs=inlined_catalog_schema.get("$defs"),
-            common_types_defs=common_types_defs,
         )
 
 

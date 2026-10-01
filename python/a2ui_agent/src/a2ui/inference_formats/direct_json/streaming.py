@@ -36,6 +36,7 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     ValidationConfig,
+    restore_original_patterns,
     translate_schema_patterns,
 )
 from a2ui.core import A2uiParseError, A2uiIntegrityError, A2uiValidationError
@@ -340,7 +341,8 @@ class DirectJsonStreamParser:
                         if errors:
                             err = best_match(errors) or errors[0]
                             raise A2uiValidationError(
-                                f"Validation failed: {err.message}"
+                                "Validation failed:"
+                                f" {restore_original_patterns(err.message)}"
                             )
 
             # Consolidated appending logic

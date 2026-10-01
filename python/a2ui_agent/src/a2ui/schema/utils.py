@@ -28,7 +28,6 @@ from .constants import (
     A2UI_ASSET_PACKAGE,
     SPECIFICATION_DIR,
     ENCODING,
-    COMMON_TYPES_SCHEMA_KEY,
 )
 from .catalog_provider import FileSystemCatalogProvider
 
@@ -203,8 +202,6 @@ def load_from_bundled_resource(
         raise A2uiCatalogError(f"Unknown A2UI version: {version}")
 
     if resource_key not in version_spec_map:
-        if resource_key == COMMON_TYPES_SCHEMA_KEY:
-            return {}
         from a2ui.core import A2uiCatalogError
 
         raise A2uiCatalogError(
@@ -262,6 +259,32 @@ def load_from_bundled_resource(
         logging.debug("Could not load schema from source repo: %s", e)
 
     raise IOError(f"Could not load schema {filename} for version {version}")
+
+
+def load_common_types_schema(version: str) -> dict[str, Any]:
+    """Returns the common types schema for a protocol version.
+
+    a2ui-core generates the schema from the same Pydantic models it validates
+    payloads with, so prompts, pruning, and streaming validation share one
+    source of truth with payload validation.
+
+    Args:
+        version: The protocol version string (e.g. '1.0', '0.9.1', 'v0_9').
+
+    Returns:
+        The common types JSON schema, or an empty dictionary for versions that
+        predate common types (v0.8).
+
+    Raises:
+        A2uiCatalogError: If the version cannot be parsed.
+    """
+    from a2ui.core import get_common_types_schema_map
+    from a2ui.core.common import to_semver
+
+    parsed = to_semver(version)
+    if parsed is not None and (parsed.major, parsed.minor) < (0, 9):
+        return {}
+    return get_common_types_schema_map(version)
 
 
 def wrap_as_json_array(a2ui_schema: dict[str, Any]) -> dict[str, Any]:

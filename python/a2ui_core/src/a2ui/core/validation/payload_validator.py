@@ -32,7 +32,7 @@ from ..processing.format_pydantic_error import format_validation_error
 from ..schema import ProtocolVersion
 from ..common.semver import is_at_least_version
 from ..common.uax31 import is_valid_uax31_identifier
-from .schema_patterns import translate_schema_patterns
+from .schema_patterns import restore_original_patterns, translate_schema_patterns
 
 
 class ValidationConfig(BaseModel):
@@ -81,6 +81,19 @@ def _schema_has_property(schema: Any, prop_name: str) -> bool:
     if "oneOf" in schema and isinstance(schema["oneOf"], list):
         return any(_schema_has_property(sub, prop_name) for sub in schema["oneOf"])
     return False
+
+
+def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bool:
+    """Returns whether a schema error reports an unknown property.
+
+    Those are the errors that `allow_unknown_elements` tolerates. A key
+    rejected by `patternProperties` (e.g. an `Extensions` key that is not a
+    UAX #31 identifier) breaks a key format rather than naming an unknown
+    property, so it is not one of them.
+    """
+    if err.validator not in ("additionalProperties", "unevaluatedProperties"):
+        return False
+    return not (isinstance(err.schema, dict) and "patternProperties" in err.schema)
 
 
 class PayloadValidator(Generic[TComponent, TFunction]):
@@ -280,7 +293,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             schema_errors = sorted(validator.iter_errors(props), key=lambda e: e.path)
             for err in schema_errors:
                 err_code = self._map_json_schema_error_code(err.validator)
-                if allow_unknown and err_code == "extra_field":
+                if allow_unknown and _is_unknown_property_error(err):
                     continue
                 path_str = ".".join(str(p) for p in err.path)
                 errors.append(
@@ -289,7 +302,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         if path_str
                         else f"components.{comp_id or 'unknown'}",
                         code=err_code,
-                        message=err.message,
+                        message=restore_original_patterns(err.message),
                     )
                 )
         except referencing.exceptions.Unresolvable as ref_err:
@@ -656,7 +669,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             errors = []
             for err in schema_errors:
                 err_code = self._map_json_schema_error_code(err.validator)
-                if allow_unknown and err_code == "extra_field":
+                if allow_unknown and _is_unknown_property_error(err):
                     continue
                 path_str = ".".join(str(p) for p in err.path)
                 errors.append(
@@ -665,7 +678,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         if path_str
                         else f"functions.{name}",
                         code=err_code,
-                        message=err.message,
+                        message=restore_original_patterns(err.message),
                     )
                 )
             if errors:
@@ -741,7 +754,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                         A2uiErrorDetail(
                             path=".".join(str(p) for p in err.path) or "theme",
                             code=self._map_json_schema_error_code(err.validator),
-                            message=err.message,
+                            message=restore_original_patterns(err.message),
                         )
                         for err in schema_errors
                     ]

@@ -19,11 +19,11 @@ from __future__ import annotations
 import copy
 import importlib
 import json
-from typing import Any, NamedTuple, cast
+from typing import Any, Final, NamedTuple, cast
 
 from pydantic import TypeAdapter
 
-from ..common.semver import is_at_least_version, to_canonical_version
+from ..common.semver import to_semver
 from ..exceptions import A2uiCatalogError
 from ._dynamic_types import (
     DynamicTypeIndex,
@@ -162,8 +162,56 @@ class _BuiltCommonTypes(NamedTuple):
     dynamic_index: DynamicTypeIndex
 
 
-def _build_common_types_schema(canonical_version: str) -> _BuiltCommonTypes:
-    """Re-generates the common types JSON schema from Pydantic models for a canonical version.
+# Common types schemas by release line (major, minor). Patch and pre-release
+# versions use their line's schema: v0.9.1 publishes v0.9's common_types.json
+# unchanged, and a 1.0.0 pre-release is a v1.0 version.
+_COMMON_TYPES_RELEASES: Final[dict[tuple[int, int], tuple[str, str]]] = {
+    (0, 9): (
+        "a2ui.core.schema.v0_9.common_types",
+        "https://a2ui.org/specification/v0_9/common_types.json",
+    ),
+    (1, 0): (
+        "a2ui.core.schema.v1_0.common_types",
+        "https://a2ui.org/specification/v1_0/common_types.json",
+    ),
+}
+
+
+def _common_types_release(
+    protocol_version: Any, fall_back_to_oldest: bool = False
+) -> tuple[int, int]:
+    """Returns the common types release line that serves a protocol version.
+
+    Args:
+        protocol_version: Protocol version string, ProtocolVersion enum, or SemVer object.
+        fall_back_to_oldest: Whether versions older than every release line
+            (e.g. v0.8) use the oldest one instead of raising.
+
+    Raises:
+        A2uiCatalogError: If the version is missing or unparsable, or predates
+            every common types release line and `fall_back_to_oldest` is false.
+    """
+    if not protocol_version:
+        raise A2uiCatalogError("protocol_version must be provided.")
+    parsed = to_semver(protocol_version)
+    if parsed is None:
+        raise A2uiCatalogError(
+            f"Invalid protocol version for common_types schema: '{protocol_version}'"
+        )
+    line = (parsed.major, parsed.minor)
+    candidates = [release for release in _COMMON_TYPES_RELEASES if release <= line]
+    if candidates:
+        return max(candidates)
+    if fall_back_to_oldest:
+        return min(_COMMON_TYPES_RELEASES)
+    raise A2uiCatalogError(
+        "common_types schema is not available for protocol version"
+        f" '{protocol_version}'."
+    )
+
+
+def _build_common_types_schema(release: tuple[int, int]) -> _BuiltCommonTypes:
+    """Re-generates the common types JSON schema from Pydantic models for a release line.
 
     Returns:
         The published schema, where helper models (e.g. `TemplateChildList`)
@@ -172,20 +220,17 @@ def _build_common_types_schema(canonical_version: str) -> _BuiltCommonTypes:
         component schemas reference them (models of nested objects, e.g.
         `ComponentCommonMetadata`, stay inline); and the dynamic value def
         index.
-    """
-    if is_at_least_version(canonical_version, "1.0"):
-        mod = importlib.import_module("a2ui.core.schema.v1_0.common_types")
-        schema_id = "https://a2ui.org/specification/v1_0/common_types.json"
-    elif is_at_least_version(canonical_version, "0.9"):
-        mod = importlib.import_module("a2ui.core.schema.v0_9.common_types")
-        schema_id = "https://a2ui.org/specification/v0_9/common_types.json"
-    else:
-        raise A2uiCatalogError(
-            "common_types schema is not available for protocol version"
-            f" '{canonical_version}'."
-        )
 
-    defs_manifest: dict[str, Any] = getattr(mod, "COMMON_TYPES_DEFS", {})
+    Raises:
+        A2uiCatalogError: If the release's schema module defines no `COMMON_TYPES_DEFS`.
+    """
+    module_name, schema_id = _COMMON_TYPES_RELEASES[release]
+    mod = importlib.import_module(module_name)
+    defs_manifest: dict[str, Any] | None = getattr(mod, "COMMON_TYPES_DEFS", None)
+    if not defs_manifest:
+        raise A2uiCatalogError(
+            f"Schema module '{module_name}' does not define COMMON_TYPES_DEFS."
+        )
 
     # The published schema uses the specification's shape. Catalogs embed the
     # defs next to their own function union, so they get the flat shape the
@@ -256,12 +301,6 @@ def _build_defs(
     return defs, cleaned_helpers, dynamic_index
 
 
-def _common_types_cache_key(canonical_version: str) -> str:
-    if is_at_least_version(canonical_version, "1.0"):
-        return "1.0"
-    return "0.9.1" if canonical_version == "0.9.1" else "0.9"
-
-
 class _CachedCommonTypes(NamedTuple):
     schema: dict[str, Any]
     json: str
@@ -269,19 +308,19 @@ class _CachedCommonTypes(NamedTuple):
     dynamic_index: DynamicTypeIndex
 
 
-_SCHEMA_CACHE: dict[str, _CachedCommonTypes] = {}
+_SCHEMA_CACHE: dict[tuple[int, int], _CachedCommonTypes] = {}
 
 
-def _get_cached_common_types(cache_key: str) -> _CachedCommonTypes:
-    if cache_key not in _SCHEMA_CACHE:
-        built = _build_common_types_schema(cache_key)
-        _SCHEMA_CACHE[cache_key] = _CachedCommonTypes(
+def _get_cached_common_types(release: tuple[int, int]) -> _CachedCommonTypes:
+    if release not in _SCHEMA_CACHE:
+        built = _build_common_types_schema(release)
+        _SCHEMA_CACHE[release] = _CachedCommonTypes(
             schema=built.schema,
             json=json.dumps(built.schema, indent=2),
             catalog_defs=built.catalog_defs,
             dynamic_index=built.dynamic_index,
         )
-    return _SCHEMA_CACHE[cache_key]
+    return _SCHEMA_CACHE[release]
 
 
 # The two dynamic type accessors below are shared with other a2ui-core modules
@@ -292,18 +331,22 @@ def _get_cached_common_types(cache_key: str) -> _CachedCommonTypes:
 def get_dynamic_type_index(protocol_version: Any) -> DynamicTypeIndex:
     """Returns the dynamic value def index for a protocol version.
 
-    Versions without a common_types schema (e.g. v0.8) and unparsable versions
-    fall back to the v0.9 definitions, matching the catalog's dynamic defs.
+    Versions without a common_types schema (e.g. v0.8) fall back to the v0.9
+    definitions, matching the catalog's dynamic defs.
+
+    Raises:
+        A2uiCatalogError: If the protocol version is missing or unparsable.
     """
-    canonical = to_canonical_version(protocol_version) if protocol_version else None
-    if not canonical or not is_at_least_version(canonical, "0.9"):
-        canonical = "0.9"
-    return _get_cached_common_types(_common_types_cache_key(canonical)).dynamic_index
+    release = _common_types_release(protocol_version, fall_back_to_oldest=True)
+    return _get_cached_common_types(release).dynamic_index
 
 
 def get_all_dynamic_type_names() -> frozenset[str]:
     """Returns the dynamic value def names across all common_types versions."""
-    return get_dynamic_type_index("0.9").names | get_dynamic_type_index("1.0").names
+    return frozenset().union(*(
+        _get_cached_common_types(release).dynamic_index.names
+        for release in _COMMON_TYPES_RELEASES
+    ))
 
 
 def get_common_types_catalog_defs(protocol_version: Any) -> dict[str, Any]:
@@ -329,22 +372,7 @@ def _get_common_types_schema(protocol_version: Any) -> _CachedCommonTypes:
         A2uiCatalogError: If the protocol version does not define a common_types schema
             (e.g., version < 0.9) or is invalid.
     """
-    if not protocol_version:
-        raise A2uiCatalogError("protocol_version must be provided.")
-
-    canonical = to_canonical_version(protocol_version)
-    if not canonical:
-        raise A2uiCatalogError(
-            f"Invalid protocol version for common_types schema: '{protocol_version}'"
-        )
-
-    if not is_at_least_version(canonical, "0.9"):
-        raise A2uiCatalogError(
-            "common_types schema is not available for protocol version"
-            f" '{protocol_version}'."
-        )
-
-    return _get_cached_common_types(_common_types_cache_key(canonical))
+    return _get_cached_common_types(_common_types_release(protocol_version))
 
 
 def get_common_types_schema_map(protocol_version: Any) -> dict[str, Any]:

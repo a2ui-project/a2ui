@@ -27,6 +27,7 @@ from a2ui.schema.utils import (
     get_basic_catalog_path,
     get_basic_examples_dir,
     get_spec_dir,
+    load_common_types_schema,
     load_from_bundled_resource,
     wrap_as_json_array,
     deep_update,
@@ -60,22 +61,40 @@ class TestSchemaUtils(unittest.TestCase):
             )
         self.assertIn("Resource key 'missing_key' not found", str(ctx.exception))
 
-    def test_load_from_bundled_resource_common_types_fallback(self):
-        """Verifies load_from_bundled_resource fallback for common_types key."""
-        spec_map = {"1.0": {"s2c": "s2c_path.json"}}
-        res = load_from_bundled_resource(
-            version="v1.0", resource_key="common_types", spec_map=spec_map
-        )
-        self.assertEqual(res, {})
+    def test_load_from_bundled_resource_common_types_not_bundled(self):
+        """Verifies common types are not a bundled resource; a2ui-core generates them."""
+        from a2ui.schema.constants import COMMON_TYPES_SCHEMA_KEY, PROTOCOL_VERSION_MAP
+
+        with self.assertRaises(A2uiCatalogError) as ctx:
+            load_from_bundled_resource(
+                version="1.0",
+                resource_key=COMMON_TYPES_SCHEMA_KEY,
+                spec_map=PROTOCOL_VERSION_MAP,
+            )
+        self.assertIn("Resource key 'common_types' not found", str(ctx.exception))
 
     def test_load_from_bundled_resource_semver_normalization(self):
         """Verifies load_from_bundled_resource normalizes various version formats to canonical keys."""
         spec_map = {"1.0": {"s2c": "s2c_path.json"}}
         for ver in ["v1_0", "1.0.0", "v1.0", "1.0", "V1.0"]:
-            res = load_from_bundled_resource(
-                version=ver, resource_key="common_types", spec_map=spec_map
+            # The version resolves to the "1.0" entry, which lacks the key.
+            with self.assertRaises(A2uiCatalogError) as ctx:
+                load_from_bundled_resource(
+                    version=ver, resource_key="missing_key", spec_map=spec_map
+                )
+            self.assertIn("Resource key 'missing_key' not found", str(ctx.exception))
+
+    def test_load_common_types_schema_matches_core(self):
+        """Verifies the agent's common types schema is the one a2ui-core generates."""
+        from a2ui.core import get_common_types_schema_map
+
+        for ver in ["0.9", "0.9.1", "1.0", "v1_0"]:
+            self.assertEqual(
+                load_common_types_schema(ver), get_common_types_schema_map(ver)
             )
-            self.assertEqual(res, {})
+        self.assertEqual(load_common_types_schema("0.8"), {})
+        with self.assertRaises(A2uiCatalogError):
+            load_common_types_schema("not-a-version")
 
     def test_load_from_bundled_resource_real_schema(self):
         """Verifies load_from_bundled_resource successfully loads a real schema with version normalization."""

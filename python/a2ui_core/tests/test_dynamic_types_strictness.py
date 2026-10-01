@@ -211,7 +211,9 @@ def test_v09_dynamic_types_enforce_return_type(
     assert "return_type" not in omitted.model_fields_set
     assert omitted.model_dump(by_alias=True, exclude_unset=True) == {"call": "fn"}
     # Round-trip through model_dump(by_alias=True) re-validates cleanly
-    revalidated = adapter.validate_python(adapter.dump_python(omitted, by_alias=True))
+    revalidated = adapter.validate_python(
+        adapter.dump_python(omitted, by_alias=True, exclude_none=True)
+    )
     assert revalidated.return_type == expected_return_type
 
     # Matching explicit returnType is valid

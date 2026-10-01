@@ -967,7 +967,7 @@
           "type": "array"
         },
         "value": {
-          "$ref": "#/$defs/DynamicValue",
+          "$ref": "#/$defs/DynamicStringList",
           "description": "The list of currently selected values. This should be bound to a string array in the data model."
         },
         "displayStyle": {
@@ -1761,6 +1761,23 @@
       "oneOf": [
         {
           "type": "string"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicStringList": {
+      "description": "Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.",
+      "oneOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         {
           "$ref": "#/$defs/DataBinding"

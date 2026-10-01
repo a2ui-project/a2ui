@@ -23,6 +23,9 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any, Final, NamedTuple
 
 from ._json_schema import KEEP_ANY_OF_MARKER, SPEC_TITLE_KEY
@@ -37,12 +40,23 @@ def is_type(item: Any, target_type: str) -> bool:
 
 
 # Literal kinds that select a specific dynamic def when they are the only
-# literal branch of a union. Container literals (arrays and objects) always
-# collapse to the catch-all dynamic def.
+# literal branch of a union. Container literals (arrays and objects) select a
+# dynamic def by their full shape instead (e.g. `DynamicStringList`), and
+# otherwise collapse to the catch-all dynamic def.
 _SCALAR_LITERAL_KINDS: Final[frozenset[str]] = frozenset({
     "string",
     "number",
     "boolean",
+})
+
+# Keywords that annotate a schema without constraining it; literal shapes
+# ignore them, so a documented branch matches an undocumented one.
+_ANNOTATION_KEYWORDS: Final[frozenset[str]] = frozenset({
+    "default",
+    "description",
+    "examples",
+    "title",
+    SPEC_TITLE_KEY,
 })
 
 
@@ -51,15 +65,19 @@ class DynamicTypeIndex(NamedTuple):
 
     A dynamic def is a union that accepts a data binding, a function call, and
     one or more literal branches (e.g. `DynamicString` or `DynamicValue`).
+    The mappings are read-only, since indexes are cached and shared.
     """
 
     names: frozenset[str]
-    by_scalar_kind: dict[str, str]
+    by_scalar_kind: Mapping[str, str]
     catch_all: str | None
+    # Defs with container literal branches (e.g. `DynamicStringList`), keyed
+    # by `literal_shape_key` of their union branches.
+    by_literal_shape: Mapping[str, str] = MappingProxyType({})
 
 
 EMPTY_DYNAMIC_INDEX: Final[DynamicTypeIndex] = DynamicTypeIndex(
-    names=frozenset(), by_scalar_kind={}, catch_all=None
+    names=frozenset(), by_scalar_kind=MappingProxyType({}), catch_all=None
 )
 
 
@@ -86,6 +104,16 @@ def literal_kind(item: Any) -> str:
     return "unknown"
 
 
+def _literal_branches(items: list[Any]) -> list[Any]:
+    return [
+        it
+        for it in items
+        if not is_ref(it, "DataBinding")
+        and not is_function_call_branch(it)
+        and not is_type(it, "null")
+    ]
+
+
 def dynamic_literal_kinds(items: list[Any]) -> frozenset[str] | None:
     """Returns the literal kinds of a dynamic union, or None if it is not dynamic.
 
@@ -96,12 +124,30 @@ def dynamic_literal_kinds(items: list[Any]) -> frozenset[str] | None:
         return None
     if not any(is_function_call_branch(it) for it in items):
         return None
-    return frozenset(
-        literal_kind(it)
-        for it in items
-        if not is_ref(it, "DataBinding")
-        and not is_function_call_branch(it)
-        and not is_type(it, "null")
+    return frozenset(literal_kind(it) for it in _literal_branches(items))
+
+
+def _strip_annotations(node: Any, is_properties_dict: bool = False) -> Any:
+    if isinstance(node, list):
+        return [_strip_annotations(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    return {
+        k: _strip_annotations(
+            v, is_properties_dict=k == "properties" and not is_properties_dict
+        )
+        for k, v in node.items()
+        if is_properties_dict or k not in _ANNOTATION_KEYWORDS
+    }
+
+
+def literal_shape_key(items: list[Any]) -> str:
+    """Returns a canonical key of the literal branches of a dynamic union."""
+    return json.dumps(
+        sorted(
+            json.dumps(_strip_annotations(it), sort_keys=True)
+            for it in _literal_branches(items)
+        )
     )
 
 
@@ -113,13 +159,15 @@ def _union_items(schema: Any) -> list[Any] | None:
 
 
 def build_dynamic_type_index(defs: dict[str, Any]) -> DynamicTypeIndex:
-    """Indexes the dynamic value defs of a `$defs` map by their literal kinds."""
+    """Indexes the dynamic value defs of a `$defs` map by their literal branches."""
     kinds_by_name: dict[str, frozenset[str]] = {}
+    shape_by_name: dict[str, str] = {}
     for name, schema in defs.items():
         items = _union_items(schema)
         kinds = dynamic_literal_kinds(items) if items is not None else None
-        if kinds is not None:
+        if items is not None and kinds is not None:
             kinds_by_name[name] = kinds
+            shape_by_name[name] = literal_shape_key(items)
 
     if not kinds_by_name:
         return EMPTY_DYNAMIC_INDEX
@@ -133,10 +181,16 @@ def build_dynamic_type_index(defs: dict[str, Any]) -> DynamicTypeIndex:
     catch_all = next(
         (name for name, kinds in kinds_by_name.items() if kinds >= all_kinds), None
     )
+    by_literal_shape = {
+        shape_by_name[name]: name
+        for name, kinds in kinds_by_name.items()
+        if name != catch_all and not kinds <= _SCALAR_LITERAL_KINDS
+    }
     return DynamicTypeIndex(
         names=frozenset(kinds_by_name),
-        by_scalar_kind=by_scalar_kind,
+        by_scalar_kind=MappingProxyType(by_scalar_kind),
         catch_all=catch_all,
+        by_literal_shape=MappingProxyType(by_literal_shape),
     )
 
 
@@ -151,6 +205,9 @@ def resolve_dynamic_def(
     kinds = dynamic_literal_kinds(items)
     if not kinds:
         return None
+    shape_def = dynamic_index.by_literal_shape.get(literal_shape_key(items))
+    if shape_def:
+        return shape_def
     if len(kinds) == 1:
         scalar_def = dynamic_index.by_scalar_kind.get(next(iter(kinds)))
         if scalar_def:
