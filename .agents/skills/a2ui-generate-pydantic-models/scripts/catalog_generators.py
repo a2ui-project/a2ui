@@ -296,7 +296,7 @@ def generate_basic_catalog_functions(
                     args_class_name,
                     {"properties": args_props, "required": args_req},
                     json_schema_extra=(
-                        _args_object_keywords(fname, args_schema)
+                        _args_schema_keywords(fname, args_schema)
                         if spec_faithful
                         else None
                     ),
@@ -369,8 +369,10 @@ def generate_basic_catalog_functions(
         name for name in ("Annotated", "Literal") if f"{name}[" in body_text
     ]
     helpers = set(codegen.used_helpers)
-    if "object_keywords(" in body_text:
-        helpers.add("object_keywords")
+    if "SchemaKeywords(" in body_text:
+        helpers.add("SchemaKeywords")
+    if "KEEP_ANY_OF_MARKER" in body_text:
+        helpers.add("KEEP_ANY_OF_MARKER")
     helpers_line = f"{_helpers_import(helpers)}\n" if helpers else ""
     header = (
         f"{FILE_HEADER}\nfrom typing import {', '.join(sorted(typing_names))}\nfrom"
@@ -382,12 +384,14 @@ def generate_basic_catalog_functions(
     return header + body_text + "\n"
 
 
-def _args_object_keywords(fname: str, args_schema: dict[str, Any]) -> str | None:
+def _args_schema_keywords(fname: str, args_schema: dict[str, Any]) -> str | None:
     """Returns the `json_schema_extra` of a function's args model, if needed.
 
     The args model closes the object with `additionalProperties: false`; the
     specification may close it with `unevaluatedProperties` instead or add an
-    `anyOf` of required properties, which the model then sets itself.
+    `anyOf` of required properties, which the model then declares with
+    `SchemaKeywords`. The `anyOf` is kept as is, since its branches may
+    overlap.
 
     Raises:
         ValueError: If the args schema uses a keyword the model cannot carry.
@@ -406,13 +410,16 @@ def _args_object_keywords(fname: str, args_schema: dict[str, Any]) -> str | None
     keywords = {k: args_schema[k] for k in args_schema if k in object_keys}
     if not keywords:
         return None
+    items = [f"{python_literal(k)}: {python_literal(v)}" for k, v in keywords.items()]
+    if "anyOf" in keywords:
+        items.append("KEEP_ANY_OF_MARKER: True")
     drop = (
         ', drop=("additionalProperties",)'
         if "unevaluatedProperties" in keywords
         and "additionalProperties" not in args_schema
         else ""
     )
-    return f"object_keywords({python_literal(keywords)}{drop})"
+    return f"SchemaKeywords({{{', '.join(items)}}}{drop})"
 
 
 def generate_basic_catalog_styles(

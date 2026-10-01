@@ -26,7 +26,7 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Annotated, Any, Final
@@ -366,31 +366,6 @@ class SpecAllOf:
     ) -> JsonSchemaValue:
         json_schema = handler(schema)
         return {"allOf": [json_schema, *copy.deepcopy(list(self.schemas))]}
-
-
-def object_keywords(
-    keywords: dict[str, Any], *, drop: tuple[str, ...] = ()
-) -> Callable[[dict[str, Any], type[Any]], None]:
-    """Returns a model `json_schema_extra` that sets object keywords.
-
-    A model uses it for keywords its fields cannot express, for example an
-    `anyOf` of required properties, or `unevaluatedProperties` in place of
-    `additionalProperties`.
-
-    Args:
-        keywords: Keywords to set on the model's schema.
-        drop: Keywords to remove first.
-    """
-
-    def apply(json_schema: dict[str, Any], _model: type[Any]) -> None:
-        for keyword in drop:
-            json_schema.pop(keyword, None)
-        json_schema.update(copy.deepcopy(keywords))
-        if "anyOf" in keywords:
-            # The `anyOf` constrains the object; its branches may overlap.
-            json_schema[KEEP_ANY_OF_MARKER] = True
-
-    return apply
 
 
 def is_identifier_key(key: str) -> bool:

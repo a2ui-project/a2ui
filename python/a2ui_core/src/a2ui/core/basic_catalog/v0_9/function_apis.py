@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 from pydantic import BaseModel, Field, ConfigDict
 from ...schema.v0_9.common_types import StrictBaseModel, DataBinding, DynamicBoolean, DynamicNumber, DynamicString, DynamicValue, FunctionCall
-from ...schema._json_schema import object_keywords
+from ...schema._json_schema import KEEP_ANY_OF_MARKER, SchemaKeywords
 from ...catalog.functions import FunctionApi
 
 
@@ -36,7 +36,7 @@ class RequiredApi(FunctionApi):
 class RegexArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -54,10 +54,11 @@ class RegexApi(FunctionApi):
 class LengthArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {
                 "anyOf": [{"required": ["min"]}, {"required": ["max"]}],
                 "unevaluatedProperties": False,
+                KEEP_ANY_OF_MARKER: True,
             },
             drop=("additionalProperties",),
         ),
@@ -81,10 +82,11 @@ class LengthApi(FunctionApi):
 class NumericArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {
                 "anyOf": [{"required": ["min"]}, {"required": ["max"]}],
                 "unevaluatedProperties": False,
+                KEEP_ANY_OF_MARKER: True,
             },
             drop=("additionalProperties",),
         ),
@@ -104,7 +106,7 @@ class NumericApi(FunctionApi):
 class EmailArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -121,7 +123,7 @@ class EmailApi(FunctionApi):
 class FormatStringArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -147,7 +149,7 @@ class FormatStringApi(FunctionApi):
 class FormatNumberArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -178,7 +180,7 @@ class FormatNumberApi(FunctionApi):
 class FormatCurrencyArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -212,7 +214,7 @@ class FormatCurrencyApi(FunctionApi):
 class FormatDateArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -242,7 +244,7 @@ class FormatDateApi(FunctionApi):
 class PluralizeArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -307,7 +309,7 @@ class OpenUrlApi(FunctionApi):
 class AndArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -326,7 +328,7 @@ class AndApi(FunctionApi):
 class OrArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
@@ -345,7 +347,7 @@ class OrApi(FunctionApi):
 class NotArgs(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra=object_keywords(
+        json_schema_extra=SchemaKeywords(
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
