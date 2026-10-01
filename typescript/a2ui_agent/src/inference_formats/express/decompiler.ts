@@ -740,9 +740,9 @@ export class ExpressDecompiler {
           ctxReprs.push(`${kRepr}: ${this.decompileValue(v, compIds, false, helper)}`);
         }
         if (ctxReprs.length > 0) {
-          return `Event("${name}", {${ctxReprs.join(', ')}})`;
+          return `Event(${decompileString(name)}, {${ctxReprs.join(', ')}})`;
         }
-        return `Event("${name}")`;
+        return `Event(${decompileString(name)})`;
       }
 
       if ('functionCall' in obj && obj.functionCall && typeof obj.functionCall === 'object') {

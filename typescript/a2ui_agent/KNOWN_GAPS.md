@@ -247,3 +247,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Python reads both fields with `.get(..., {})` and uses the result as a dict without checking it.
 - **What it risks:** A malformed example gives Python users a stack trace, or a wrong Express example with no error.
 - **Done looks like:** Python raises a validation error for both fields, and a conformance case in `agent/express/decompiler.yaml` pins it for both SDKs.
+
+### Python's Express decompiler doesn't escape event names
+
+- **What it is:** Python's decompiler writes an event as `Event("<name>")` without escaping the name, so a name containing `"` or `\` produces Express that doesn't parse, or parses to a different name.
+- **TypeScript:** The name is written with the same string quoting as other string values, and a test checks that such a name compiles back unchanged.
+- **Why it exists:** Python formats the name with an f-string instead of its string decompiler.
+- **What it risks:** A Python example with such an event name shows the model invalid Express.
+- **Done looks like:** Python quotes the name like other strings, and a conformance case in `agent/express/decompiler.yaml` pins the round trip.
