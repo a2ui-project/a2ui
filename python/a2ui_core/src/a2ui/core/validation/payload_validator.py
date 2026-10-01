@@ -26,6 +26,7 @@ from jsonschema import Draft202012Validator
 import jsonschema.exceptions
 import referencing.exceptions
 from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiCatalogError
+from ..catalog import system_functions_for
 from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..processing.format_pydantic_error import format_validation_error
 from ..schema import ProtocolVersion
@@ -520,14 +521,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 base_schema = cat_schema
         if fn_def is None and name.startswith("@"):
             ver = getattr(self.catalog, "protocol_version", None)
-            if (
-                name == "@index"
-                and ver
-                and is_at_least_version(ver, ProtocolVersion.V1_0)
-            ):
-                from ..basic_catalog.v1_0.function_impls import IndexImplementation
-
-                fn_def = IndexImplementation
+            fn_def = system_functions_for(ver).get(name)
         return fn_def, fn_schema, base_schema
 
     def _validate_model_function(

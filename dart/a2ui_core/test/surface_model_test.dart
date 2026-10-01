@@ -55,5 +55,69 @@ void main() {
       // double-counted.
       expect(actionCount, 1);
     });
+
+    test('ignores functionCall and call actions without emitting onAction', () {
+      final surface = SurfaceModel<ComponentApi>('s1', catalog: catalog);
+      var actionCount = 0;
+      surface.onAction.addListener((_) => actionCount++);
+
+      surface.dispatchAction({
+        'functionCall': {'call': 'doTask', 'args': <String, dynamic>{}},
+      }, 'c1');
+      expect(actionCount, 0);
+
+      surface.dispatchAction({
+        'call': 'doTask',
+        'args': <String, dynamic>{},
+      }, 'c1');
+      expect(actionCount, 0);
+    });
+
+    test('dispatches direct name action with userMessage', () {
+      final surface = SurfaceModel<ComponentApi>('s1', catalog: catalog);
+      A2uiClientAction? dispatched;
+      surface.onAction.addListener((action) => dispatched = action);
+
+      surface.dispatchAction({
+        'name': 'submit_name',
+        'userMessage': 'Action performed',
+        'context': {'key': 'val'},
+      }, 'c1');
+
+      expect(dispatched, isNotNull);
+      expect(dispatched!.name, 'submit_name');
+      expect(dispatched!.userMessage, 'Action performed');
+      expect(dispatched!.context, {'key': 'val'});
+    });
+
+    test('safely normalizes non-map context and non-string userMessage', () {
+      final surface = SurfaceModel<ComponentApi>('s1', catalog: catalog);
+      A2uiClientAction? dispatched;
+      surface.onAction.addListener((action) => dispatched = action);
+
+      surface.dispatchAction({
+        'name': 'test_action',
+        'context': 'not_a_map',
+        'userMessage': 12345,
+      }, 'c1');
+
+      expect(dispatched, isNotNull);
+      expect(dispatched!.name, 'test_action');
+      expect(dispatched!.context, isEmpty);
+      expect(dispatched!.userMessage, isNull);
+    });
+
+    test('ignores an event whose name is not a string', () async {
+      final surface = SurfaceModel<ComponentApi>('s1', catalog: catalog);
+      A2uiClientAction? dispatched;
+      surface.onAction.addListener((action) => dispatched = action);
+
+      await surface.dispatchAction({
+        'event': {'name': 42},
+      }, 'c1');
+      await surface.dispatchAction({'name': 42}, 'c1');
+
+      expect(dispatched, isNull);
+    });
   });
 }

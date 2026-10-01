@@ -589,6 +589,33 @@ def test_generic_binder_action_closure():
     binder.dispose()
 
 
+def test_generic_binder_action_closure_returns_dispatch_result():
+    cat = BasicCatalog()
+    comp = ComponentModel(
+        "btn_submit",
+        "Button",
+        cat,
+        {"onClick": {"event": {"name": "submit_form"}}},
+    )
+    surface = SurfaceModel("s1", cat)
+    ctx = DataContext(surface, path="/")
+    captured = []
+
+    def custom_dispatch(action: dict[str, Any], component_id: str) -> str:
+        captured.append((action, component_id))
+        return "dispatched_result"
+
+    context = ComponentContext(comp, ctx, dispatch_action_callback=custom_dispatch)
+    binder = GenericBinder(
+        context,
+        schema={"properties": {"onClick": {"$ref": "common_types.json#/$defs/Action"}}},
+    )
+    result = binder.current_props["onClick"]()
+    assert result == "dispatched_result"
+    assert len(captured) == 1
+    binder.dispose()
+
+
 def test_generic_binder_function_call_action_closure():
     executed_calls: list[dict[str, Any]] = []
 
@@ -637,7 +664,8 @@ def test_generic_binder_function_call_action_closure():
 
     # Invoking action closure should execute catalog function locally with resolved args
     # and MUST NOT emit an on_action event.
-    binder.current_props["onClick"]()
+    res = binder.current_props["onClick"]()
+    assert res == "order_placed"
     assert len(executed_calls) == 1
     assert executed_calls[0] == {"orderId": "ORD-123"}
     assert len(dispatched_actions) == 0
@@ -648,8 +676,9 @@ def test_generic_binder_function_call_action_closure():
 def test_generic_binder_unwrapped_call_action_closure():
     executed_calls: list[dict[str, Any]] = []
 
-    def mock_submit(args: dict[str, Any]) -> None:
+    def mock_submit(args: dict[str, Any]) -> str:
         executed_calls.append(args)
+        return "direct_done"
 
     from a2ui.core.catalog import FunctionImplementation
 
@@ -688,7 +717,8 @@ def test_generic_binder_unwrapped_call_action_closure():
     }
     binder = GenericBinder(context, schema=action_schema)
 
-    binder.current_props["onClick"]()
+    res = binder.current_props["onClick"]()
+    assert res == "direct_done"
     assert len(executed_calls) == 1
     assert executed_calls[0] == {"orderId": "ORD-456"}
     assert len(dispatched_actions) == 0

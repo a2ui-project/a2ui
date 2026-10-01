@@ -221,6 +221,46 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
+  it('gives every node a document-unique id that lives as long as the node', () => {
+    const first = setup();
+    const second = setup();
+    for (const {surface} of [first, second]) {
+      add(surface, 'root', 'Column', {children: ['a', 'a']});
+      add(surface, 'a', 'Text', {text: 'dup'});
+    }
+    const nodes = [first, second].flatMap(({resolver}) => {
+      const root = getValue(resolver.rootNode);
+      assert.ok(root);
+      return [root, ...(props(root).children as ComponentNode[])];
+    });
+    assert.strictEqual(nodes.length, 6);
+    assert.strictEqual(new Set(nodes.map(n => n.id)).size, 6);
+    for (const node of nodes) {
+      assert.match(node.id, /^a2ui-n\d+$/);
+    }
+
+    // A property update keeps the node, so the id stays.
+    const root = nodes[0];
+    const before = child(root, 'children', 0);
+    const model = first.surface.componentsModel.get('a');
+    assert.ok(model);
+    model.properties = {text: 'changed'};
+    assert.strictEqual(child(root, 'children', 0), before);
+    assert.strictEqual(child(root, 'children', 0).id, before.id);
+
+    // A type change replaces the node, and the replacement has a new id.
+    first.surface.componentsModel.removeComponent('a');
+    add(first.surface, 'a', 'Button', {label: 'now a button'});
+    const after = child(root, 'children', 0);
+    assert.notStrictEqual(after, before);
+    assert.notStrictEqual(after.id, before.id);
+    // The serialized form keeps naming the component, not the node.
+    assert.strictEqual(root.toJSON().id, 'root');
+
+    first.resolver.dispose();
+    second.resolver.dispose();
+  });
+
   it('resolves an explicit children list in order', () => {
     const {surface, resolver} = setup();
     add(surface, 'root', 'Column', {children: ['c1', 'c2']});

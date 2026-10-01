@@ -40,26 +40,17 @@ See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
 
 ### PyPI
 
-Releasing `a2ui-core` or `a2ui-agent-sdk` means running one GitHub Actions
-workflow. There is no version file to edit and no script to run locally.
+Releasing `a2ui-core`, `a2ui-agent-sdk`, or both is performed by providing a prompt to an AI assistant within the `a2ui` project directory.
 
-1. Check the Unreleased sections of the changelogs. If both are empty, there is
-   nothing to release.
-    - a2ui_core [CHANGELOG](../../python/a2ui_core/CHANGELOG.md)
-    - a2ui_agent [CHANGELOG](../../python/a2ui_agent/CHANGELOG.md)
+```text
+Release a2ui-core, a2ui-agent-sdk, or both with a <major|minor|patch> bump
+```
 
-2. Run the [Release Python SDKs](../../.github/workflows/release-pypi.yml)
-   workflow from the Actions tab, on `main`. Pick the package, pick a bump
-   level, optionally provide your name and CLA-signed email for the changelog
-   commit, and leave `dry_run` enabled for the first run. A dry run stages the
-   build in the Artifact Registry, removes it again, and pushes nothing.
+The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/) and [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) that link to them.
 
-3. Check the dry run output, then run it again with `dry_run` disabled.
+#### How it works behind the scenes
 
-4. Open and merge the changelog pull request. The release run prepares the edit
-   on a branch and puts a one-click link in its job summary. Do this before the
-   next release: until it lands, the entries stay under `## Unreleased` and the
-   next release repeats them in its notes.
+Publishing is handled by the [Release Python SDKs](../../.github/workflows/release-pypi.yml) workflow on `main`. There is no version file to edit and no package build or upload to run locally.
 
 The workflow works out the new version from the latest release tag, tags the
 release, builds, stages the artifacts in the OSS Exit Gate Artifact Registry,
@@ -69,6 +60,8 @@ finishes. The GitHub release is updated with a link to the published version
 once it appears on PyPI, either by the release run itself or by the hourly
 [Confirm PyPI publication](../../.github/workflows/release-verify-pypi.yml)
 workflow.
+
+If an assistant is unavailable, maintainers can dispatch the workflow manually from the Actions tab on `main`. Always run with `dry_run: true` first to verify the plan and artifact staging before running with `dry_run: false`.
 
 #### The release only pushes tags
 
@@ -84,14 +77,15 @@ requires linear history, so a tag created on a branch commit would be left
 unreachable once the pull request is squashed, and the `git describe` check in
 [python_ci.yml](../../.github/workflows/python_ci.yml) would start failing.
 
-#### Why the changelog pull request is not opened for you
+#### Why the workflow does not open the changelog pull request directly
 
-The release prepares the changelog edit on a `release/changelog-*` branch and
+The release workflow prepares the changelog edit on a `release/changelog-*` branch and
 stops there. It could open the pull request, but that pull request could never
 be merged: GitHub does not start workflow runs for events caused by the
 built-in `GITHUB_TOKEN`, so none of the required checks would ever report, and
 the ruleset allows no bypass. Opening it yourself from the link in the job
-summary costs one click and gets a normal CI run.
+summary (or having an AI assistant open it using user credentials) allows
+the required CI checks to run.
 
 #### Versions come from git tags
 

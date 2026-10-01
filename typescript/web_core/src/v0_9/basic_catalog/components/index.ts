@@ -14,6 +14,73 @@
  * limitations under the License.
  */
 
+import {toWebComponentImplementation} from '../../../universal/to_web_component_implementation.js';
+import {
+  A2uiAudioPlayerElement,
+  A2uiBasicButtonElement,
+  A2uiBasicColumnElement,
+  A2uiBasicRowElement,
+  A2uiBasicTextElement,
+  A2uiBasicTextFieldElement,
+  A2uiCardElement,
+  A2uiCheckBoxElement,
+  A2uiChoicePickerElement,
+  A2uiDateTimeInputElement,
+  A2uiDividerElement,
+  A2uiIconElement,
+  A2uiImageElement,
+  A2uiListElement,
+  A2uiModalElement,
+  A2uiSliderElement,
+  A2uiTabsElement,
+  A2uiVideoElement,
+} from '../../../universal/basic_catalog/components/index.js';
+import {
+  AudioPlayerApi,
+  ButtonApi,
+  CardApi,
+  CheckBoxApi,
+  ChoicePickerApi,
+  ColumnApi,
+  DateTimeInputApi,
+  DividerApi,
+  IconApi,
+  ImageApi,
+  ListApi,
+  ModalApi,
+  RowApi,
+  SliderApi,
+  TabsApi,
+  TextApi,
+  TextFieldApi,
+  VideoApi,
+} from './basic_components.js';
+
+export const A2uiAudioPlayer = toWebComponentImplementation(A2uiAudioPlayerElement, AudioPlayerApi);
+export const A2uiButton = toWebComponentImplementation(A2uiBasicButtonElement, ButtonApi);
+export const A2uiCard = toWebComponentImplementation(A2uiCardElement, CardApi);
+export const A2uiCheckBox = toWebComponentImplementation(A2uiCheckBoxElement, CheckBoxApi);
+export const A2uiChoicePicker = toWebComponentImplementation(
+  A2uiChoicePickerElement,
+  ChoicePickerApi,
+);
+export const A2uiColumn = toWebComponentImplementation(A2uiBasicColumnElement, ColumnApi);
+export const A2uiDateTimeInput = toWebComponentImplementation(
+  A2uiDateTimeInputElement,
+  DateTimeInputApi,
+);
+export const A2uiDivider = toWebComponentImplementation(A2uiDividerElement, DividerApi);
+export const A2uiIcon = toWebComponentImplementation(A2uiIconElement, IconApi);
+export const A2uiImage = toWebComponentImplementation(A2uiImageElement, ImageApi);
+export const A2uiList = toWebComponentImplementation(A2uiListElement, ListApi);
+export const A2uiModal = toWebComponentImplementation(A2uiModalElement, ModalApi);
+export const A2uiRow = toWebComponentImplementation(A2uiBasicRowElement, RowApi);
+export const A2uiSlider = toWebComponentImplementation(A2uiSliderElement, SliderApi);
+export const A2uiTabs = toWebComponentImplementation(A2uiTabsElement, TabsApi);
+export const A2uiText = toWebComponentImplementation(A2uiBasicTextElement, TextApi);
+export const A2uiTextField = toWebComponentImplementation(A2uiBasicTextFieldElement, TextFieldApi);
+export const A2uiVideo = toWebComponentImplementation(A2uiVideoElement, VideoApi);
+
 export {
   BASIC_COMPONENTS,
   AudioPlayerApi,
@@ -35,22 +102,3 @@ export {
   TextFieldApi,
   VideoApi,
 } from './basic_components.js';
-
-export {A2uiAudioPlayer} from './AudioPlayer.js';
-export {A2uiButton} from './Button.js';
-export {A2uiCard} from './Card.js';
-export {A2uiCheckBox} from './CheckBox.js';
-export {A2uiChoicePicker} from './ChoicePicker.js';
-export {A2uiColumn} from './Column.js';
-export {A2uiDateTimeInput} from './DateTimeInput.js';
-export {A2uiDivider} from './Divider.js';
-export {A2uiIcon} from './Icon.js';
-export {A2uiImage} from './Image.js';
-export {A2uiList} from './List.js';
-export {A2uiModal} from './Modal.js';
-export {A2uiRow} from './Row.js';
-export {A2uiSlider} from './Slider.js';
-export {A2uiTabs} from './Tabs.js';
-export {A2uiText} from './Text.js';
-export {A2uiTextField} from './TextField.js';
-export {A2uiVideo} from './Video.js';

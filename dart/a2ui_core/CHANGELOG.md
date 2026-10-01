@@ -4,6 +4,20 @@
 
 - Support reserved protocol key prefix (`@path`, `@call`) in `DataBinding` and `FunctionCall`, dynamic prefix doubling unescaping (`@@path` → `@path`) during dynamic evaluation, and `@path` in dynamic setter generation.
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
+- Execute `functionCall` and `call` component actions locally in
+  `GenericBinder`, against the component's data context. A function that
+  throws, fails asynchronously or is missing from the catalog is reported
+  through `SurfaceModel.onError` with code `EXECUTION_ERROR` rather than
+  escaping the action callback.
+- **Behavior change:** `SurfaceModel.dispatchAction` only emits agent-bound
+  `event` and `name` actions. A direct caller that passes a `functionCall`
+  payload previously had the function run against the root data context; the
+  call is now ignored. Run local functions through the binder or
+  `DataContext.resolveSync` instead.
+- Action `context` values are resolved one entry at a time, so a context key
+  named `path` or `call` reaches the agent as a literal key instead of being
+  read as a data binding or function call.
+- Added optional `userMessage` field to `A2uiClientAction`.
 - Remove `A2uiCompileError` from `a2ui_core` (compilation is an agent SDK responsibility).
 - `ExpressionParser` accepts number literals with a leading decimal point
   (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. A `.`
@@ -12,6 +26,12 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+- `MessageProcessor`, `PayloadValidator`, and `Catalog` align surface lifecycle
+  error reporting (`A2uiIntegrityError` and `A2uiRecursionError` extending
+  `A2uiValidationError`, per-message completeness validation, safe no-op
+  `deleteSurface` on unknown surfaces), support `"v0.9.1"` in
+  `A2uiProtocolVersion.tryParse`, and pass the `message_processor_v0_9.yaml`,
+  `validator_v0_9.yaml`, and `catalog.yaml` conformance suites.
 - `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template
   length (`maxTemplateLength = 10000`), and template parts
   (`maxTemplateParts = 1000`) limits across nested interpolations and

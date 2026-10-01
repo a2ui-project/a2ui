@@ -709,13 +709,8 @@ def test_generated_python_syntax_validity():
 SPEC_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", "specification"))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 
-# Functions the engine adds to a version's basic catalog beyond the ones the
-# published catalog declares. The '@' namespace is reserved for functions the
-# renderer supplies, so they have no entry in the catalog document.
-SYSTEM_FUNCTIONS: dict[str, frozenset[str]] = {
-    "v0_9": frozenset(),
-    "v1_0": frozenset({"@index"}),
-}
+# The versions whose basic catalog the specification publishes with functions.
+CATALOG_VERSIONS = ("v0_9", "v1_0")
 
 
 def _published_function_names(version: str) -> set[str]:
@@ -744,38 +739,115 @@ def _exported_function_names(module) -> set[str]:
     }
 
 
-@pytest.mark.parametrize("version", sorted(SYSTEM_FUNCTIONS))
+@pytest.mark.parametrize("version", CATALOG_VERSIONS)
 def test_basic_catalog_exports_exactly_the_published_functions(version: str):
     """The exported function APIs are those the catalog declares, and no others.
 
     An agent can only call what the published catalog advertises, so an API the
     catalog does not declare is unreachable, and a declared function with no API
-    is uncallable. Comparing the two sets catches both.
+    is uncallable. Comparing the two sets catches both. Functions in the '@'
+    namespace come from the runtime rather than from any catalog document, so
+    they are not exported here.
     """
     module = importlib.import_module(f"a2ui.core.basic_catalog.{version}")
-    expected = _published_function_names(version) | SYSTEM_FUNCTIONS[version]
 
-    assert _exported_function_names(module) == expected
+    assert _exported_function_names(module) == _published_function_names(version)
 
 
-def test_index_api_is_scoped_to_v1_0():
-    from a2ui.core.basic_catalog.v1_0.operator_apis import IndexApi, IndexArgs
+def test_index_is_a_system_function_rather_than_a_catalog_export():
+    """'@index' reaches a catalog from the runtime, not from a version package.
+
+    The renderer supplies '@index' to every v1.0 catalog, including catalogs
+    that never declare it, so publishing it from the basic catalog's package
+    would put it out of reach of the others.
+    """
+    import a2ui.core.basic_catalog as basic_catalog
     from a2ui.core.basic_catalog import v0_9, v1_0
+    from a2ui.core.catalog import IndexApi, IndexArgs
 
     assert IndexApi.name == "@index"
     assert IndexApi.return_type == "number"
-    assert IndexApi.schema == IndexArgs
+    assert IndexApi.schema is IndexArgs
 
-    # '@index' arrives with v1.0, and the shared package is version-agnostic.
-    import a2ui.core.basic_catalog as basic_catalog
+    for module in (basic_catalog, v0_9, v1_0):
+        assert not hasattr(module, "IndexApi")
 
-    assert not hasattr(basic_catalog, "IndexApi")
 
-    assert not hasattr(v0_9, "IndexApi")
-    assert "IndexApi" not in v0_9.__all__
+def test_system_functions_carry_forward_to_later_versions():
+    """A system function is defined once and inherited by every later version.
 
-    assert hasattr(v1_0, "IndexApi")
-    assert "IndexApi" in v1_0.__all__
+    Binding one per version would mean a protocol version that changes nothing
+    about '@index' still has to restate it, and would silently lose the
+    function if it forgot.
+    """
+    from a2ui.core.catalog import system_functions_for
+
+    assert set(system_functions_for("v0.9")) == set()
+    assert set(system_functions_for(None)) == set()
+    for version in ("v1.0", "v1.1", "v2.0"):
+        assert set(system_functions_for(version)) == {"@index"}
+
+
+@pytest.mark.parametrize("context", [["a", "b"], ("a",), "text"])
+def test_index_rejects_a_sequence_context(context):
+    """A sequence's `index` method is not an iteration index.
+
+    Casting the bound method to int used to raise TypeError. The context is
+    now treated as having no iteration scope.
+    """
+    from a2ui.core.catalog import IndexImplementation
+    from a2ui.core.exceptions import A2uiValidationError
+
+    with pytest.raises(A2uiValidationError, match="collection template"):
+        IndexImplementation.execute({}, context)
+
+
+@pytest.mark.parametrize("index", ["first", object()])
+def test_index_rejects_a_non_numeric_index(index):
+    """A non-numeric iteration index is a validation error that names the value."""
+    from types import SimpleNamespace
+
+    from a2ui.core.catalog import IndexImplementation
+    from a2ui.core.exceptions import A2uiValidationError
+
+    for context in (SimpleNamespace(index=index), {"index": index}):
+        with pytest.raises(A2uiValidationError, match="numeric iteration index"):
+            IndexImplementation.execute({}, context)
+
+
+@pytest.mark.parametrize("offset", [{"path": "/i"}, float("nan")])
+def test_index_rejects_a_non_numeric_offset(offset):
+    """An unconvertible offset is a validation error that names the value."""
+    from a2ui.core.catalog import IndexImplementation
+    from a2ui.core.exceptions import A2uiValidationError
+
+    with pytest.raises(A2uiValidationError, match="numeric offset"):
+        IndexImplementation.execute({"offset": offset}, {"index": 0})
+
+
+def test_index_args_match_the_version_specific_model():
+    """The shared argument model admits what the v1.0 schema admits.
+
+    '@index' is validated through one version-neutral model, so a version whose
+    generated model drifts from it would be validated against the wrong shape.
+    """
+    from pydantic import ValidationError
+
+    from a2ui.core.catalog import IndexArgs
+    from a2ui.core.schema.v1_0.common_types import IndexSystemFunctionArgs
+
+    accepted = ({}, {"offset": 1}, {"offset": 1.5}, {"offset": {"path": "/i"}})
+    rejected = ({"offset": "1"}, {"offset": True}, {"offset": 1, "extra": 1})
+
+    for args in accepted:
+        assert IndexArgs.model_validate(args)
+        assert IndexSystemFunctionArgs.model_validate(args)
+
+    for args in rejected:
+        with pytest.raises(ValidationError):
+            IndexArgs.model_validate(args)
+        with pytest.raises(ValidationError):
+            IndexSystemFunctionArgs.model_validate(args)
 
 
 def test_validate_version_field_non_dict_context():

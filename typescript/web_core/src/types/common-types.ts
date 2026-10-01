@@ -336,10 +336,8 @@ export const IndexSystemFunctionSchema = z
       .object({
         'offset': DynamicNumberSchema.optional(),
       })
-      .strict()
       .optional(),
   })
-  .strict()
   .refine(data => data['@call'] !== undefined || data.call !== undefined, {
     message: "Either '@call' or 'call' must be '@index'.",
   })

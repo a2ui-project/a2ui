@@ -18,9 +18,10 @@ import re
 from typing import Any
 from ...resolution.data_context import DataContext
 from ...common.events import AbortSignal
-from ...catalog.functions import (
+from ...catalog import (
     FunctionImplementation,
     create_function_implementation,
+    system_functions_for,
 )
 from .function_apis import (
     RequiredApi,
@@ -38,10 +39,8 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from .operator_apis import (
-    IndexApi,
-)
 from ...expressions.expression_parser import ExpressionParser
+from ...schema.v1_0.constants import PROTOCOL_VERSION
 from ..locale_formatting import apply_currency_spacing, get_locale
 from babel.numbers import format_decimal, format_currency, get_currency_symbol
 import re as _re
@@ -162,41 +161,6 @@ def _email_execute(
 
 
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
-
-
-# System Functions
-def _index_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> int:
-    offset = args.get("offset")
-    offset_val = int(offset) if offset is not None else 0
-    idx: int | None = None
-    if context is not None:
-        if hasattr(context, "index") and getattr(context, "index") is not None:
-            idx = int(getattr(context, "index"))
-        elif (
-            isinstance(context, dict)
-            and "index" in context
-            and context["index"] is not None
-        ):
-            idx = int(context["index"])
-
-    if idx is None:
-        if context is not None:
-            from ...exceptions import A2uiValidationError
-
-            raise A2uiValidationError(
-                "@index function can only be evaluated inside a collection template"
-                " iteration scope."
-            )
-        idx = 0
-
-    return idx + offset_val
-
-
-IndexImplementation = create_function_implementation(IndexApi, _index_execute)
 
 
 def _adapt_ast_part_for_v10(part: Any) -> Any:
@@ -520,7 +484,7 @@ def create_basic_catalog_functions(
         LengthImplementation,
         NumericImplementation,
         EmailImplementation,
-        IndexImplementation,
+        *system_functions_for(PROTOCOL_VERSION).values(),
         FormatStringImplementation,
         create_format_number_implementation(locale),
         create_format_currency_implementation(locale),
