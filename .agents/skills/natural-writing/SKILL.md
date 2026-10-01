@@ -148,10 +148,10 @@ Do not assume a book exists or contains a specific fact without verification.
 
 ### Link what you mention
 
-In text published to GitHub (pull request descriptions, review replies, issues), link everything the reader may want to open: files, functions and line ranges, test and conformance cases, packages, issues, pull requests and external pages.
+In prose (GitHub comments, CL descriptions, READMEs, documentation and similar) link everything the reader may want to open: files, functions and line ranges, test and conformance cases, packages, issues, pull requests and external pages.
 
 - Pin links to code to a commit SHA rather than a branch, so line anchors keep pointing at the lines you meant after the branch moves. For a Markdown file, add `?plain=1` so a line anchor such as `#L10-L20` works.
-- Link only to what the reader can see at the link target. If your change is not pushed yet, link to the current version, or post the reply after the push.
+- Link only to what the reader can see at the link target. If your change is not pushed yet, link to the current version, or post/update the reply after the push.
 - Before posting, check that every link resolves.
 
 ## 6. Communication (chat context)
