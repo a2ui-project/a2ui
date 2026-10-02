@@ -24,7 +24,7 @@ export 'src/core/common.dart';
 export 'src/core/common_schemas.dart';
 export 'src/core/component_model.dart';
 // Rendering support.
-export 'src/core/contexts.dart' hide ComponentContext;
+export 'src/core/data_context.dart';
 // State management.
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';
@@ -41,6 +41,7 @@ export 'src/primitives/event_notifier.dart';
 export 'src/primitives/protocol_version.dart';
 // Reactivity (re-exports preact_signals primitives).
 export 'src/primitives/reactivity.dart';
+export 'src/primitives/resolved_binding.dart';
 export 'src/processing/basic_functions.dart';
 export 'src/processing/expressions.dart';
 // Processing & expressions.
@@ -49,7 +50,6 @@ export 'src/rendering/binder.dart' show ChildNode, maxDynamicChildListSize;
 export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
 export 'src/resolution/node_resolver.dart';
-export 'src/resolution/resolved_binding.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `MessageProcessor` is the entry point, and
 // `PayloadValidator` checks one item against one catalog.

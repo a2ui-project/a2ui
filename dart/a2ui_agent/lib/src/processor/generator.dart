@@ -16,8 +16,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
 import '../inference_formats/direct_json/format.dart';
-import '../utils/catalog_resolver.dart';
 import 'catalog_config.dart';
+import 'catalog_resolver.dart';
 import 'processor.dart';
 
 /// The long-lived entry point to the agent SDK.

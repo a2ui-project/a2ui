@@ -63,6 +63,7 @@ All SDK implementations of `a2ui_agent` must maintain a standardized directory l
 a2ui_agent/
 ├── processor/                 # High-level application facade package
 │   ├── catalog_config         # CatalogConfig structure for catalog registration
+│   ├── catalog_resolver       # resolve_catalogs capability resolution function
 │   ├── processor              # A2uiRequestProcessor facade implementation
 │   ├── generator              # A2uiGenerator class
 │   └── catalog_providers      # Catalog provider classes
@@ -83,11 +84,9 @@ a2ui_agent/
 │   └── response_part          # RawResponsePart, RawA2uiPart, TextPart, A2uiPart data structures
 ├── prompt/                    # Prompt Generation contracts
 │   └── generator              # Abstract PromptGenerator base class
-├── catalog_transformers/      # Catalog and Protocol Transformers
-│   ├── base                   # Abstract CatalogTransformer class
-│   └── pruning                # ComponentPruningTransformer, FunctionPruningTransformer
-└── utils/                     # Utility helpers layer
-    └── catalog_resolver       # resolve_catalogs capability resolution function
+└── catalog_transformers/      # Catalog and Protocol Transformers
+    ├── base                   # Abstract CatalogTransformer class
+    └── pruning                # ComponentPruningTransformer, FunctionPruningTransformer
 ```
 
 ---
@@ -665,9 +664,15 @@ class A2uiRequestProcessor:
 
 ---
 
-### G. Utility Helpers (`a2ui.utils`)
+### G. Catalog Resolution (`a2ui.processor.catalog_resolver`)
 
-#### `resolve_catalogs` (`a2ui.utils.catalog_resolver`)
+#### `resolve_catalogs` (`a2ui.processor.catalog_resolver`)
+
+This function lives in `processor/` rather than a separate utility package: its
+signature takes `CatalogConfig`, which `processor/` owns, and `A2uiGenerator` in
+`processor/generator` is its only caller. A `utils/` package holding it would
+depend on `processor/` while `processor/` depends back on it, which is an import
+cycle in any implementation that follows this layout.
 
 Negotiates renderer capabilities against a registered sequence of catalogs (`Sequence[CatalogConfig]`) to select matching active schemas for a session.
 

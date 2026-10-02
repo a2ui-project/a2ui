@@ -12,7 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'catalog.dart';
+/// The type of value a function returns.
+enum A2uiReturnType {
+  string,
+  number,
+  boolean,
+  array,
+  object,
+  any,
+  void_;
+
+  /// The JSON value used in the A2UI protocol.
+  String get jsonValue => this == void_ ? 'void' : name;
+
+  /// Parses from the JSON string representation, falling back to [any] for
+  /// unrecognized or extension return types (such as v1.0 `validationResult`).
+  static A2uiReturnType fromJson(String value) {
+    if (value == 'void') return void_;
+    for (final A2uiReturnType candidate in values) {
+      if (candidate.name == value) return candidate;
+    }
+    return any;
+  }
+}
 
 /// A JSON Pointer path to a value in the data model.
 class DataBinding {
