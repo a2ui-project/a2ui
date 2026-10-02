@@ -56,8 +56,21 @@ String? _skipReason(Map<String, Object?> testCase) {
 
 void _runCase(Map<String, Object?> testCase) {
   final Map<String, String> surfaceCatalogs = {};
+  final List<Map<String, Object?>> steps = _steps(testCase);
+  final List<Map<String, Object?>> allPayloads = [
+    for (final Map<String, Object?> step in steps)
+      if (step['messages'] ?? step['payload'] case final List<Object?> raw)
+        for (final Object? item in raw) (item as Map).cast<String, Object?>(),
+  ];
 
-  for (final Map<String, Object?> step in _steps(testCase)) {
+  final processor = MessageProcessor<ComponentApi>(
+    catalogs: _catalogsFor(_documentsFor(testCase), allPayloads),
+    protocolVersion: A2uiProtocolVersion.v0_9,
+    commonTypesSchema: _commonTypesFor(testCase),
+  );
+
+  for (var stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+    final Map<String, Object?> step = steps[stepIndex];
     final Object? rawPayload = step['messages'] ?? step['payload'];
     if (rawPayload is! List) continue;
     final List<Map<String, Object?>> payload = [
@@ -65,9 +78,6 @@ void _runCase(Map<String, Object?> testCase) {
         (item as Map).cast<String, Object?>(),
     ];
 
-    // Which catalog each surface was created against, carried across steps so
-    // a later step that only updates a surface can seed it against the same
-    // catalog the case named when it created it.
     for (final envelope in payload) {
       if (envelope['createSurface'] case final Map<String, Object?> body) {
         if (body['surfaceId'] case final String surfaceId) {
@@ -78,29 +88,18 @@ void _runCase(Map<String, Object?> testCase) {
       }
     }
 
-    // A fresh processor per step, as the reference Python harness does: each
-    // step is an independent payload, not a continuation of the previous one.
-    final processor = MessageProcessor<ComponentApi>(
-      catalogs: _catalogsFor(_documentsFor(testCase), payload),
-      protocolVersion: A2uiProtocolVersion.v0_9,
-      commonTypesSchema: _commonTypesFor(testCase),
-    );
-
-    // An incremental payload presupposes a surface the client already holds.
-    // The case carries only the payload, so that surface is established here
-    // before the payload is applied; without it every incremental case would
-    // fail as "surface not found" rather than on what it means to test.
-    _seedReferencedSurfaces(processor, payload, surfaceCatalogs);
+    // An incremental single-step payload presupposes a surface the client
+    // already holds. Multi-step cases create the surface in an earlier step and
+    // retain it on the shared processor across steps.
+    if (stepIndex == 0) {
+      _seedReferencedSurfaces(processor, payload, surfaceCatalogs);
+    }
 
     final Object? expectError = step['expectError'] ??
         step['expect_error'] ??
-        testCase['expectError'] ??
-        testCase['expect_error'];
-    // A case states one payload and expects a verdict on it. The processor is
-    // built with the default strict config, so a payload that creates a
-    // surface is checked as a whole render once applied: a missing root, a
-    // reference to nothing and an unreachable component all report from
-    // `processMessages` itself.
+        (stepIndex == steps.length - 1
+            ? (testCase['expectError'] ?? testCase['expect_error'])
+            : null);
     void run() {
       processor.processMessages(
         AgentToRendererMessage.parseAll(

@@ -20,12 +20,14 @@ on:
     branches: [main]
     paths:
       - "swift/core/**"
+      - "conformance/**"
       - "Package.swift"
       - ".github/workflows/swift_build_and_test.yml"
   pull_request:
     branches: [main]
     paths:
       - "swift/core/**"
+      - "conformance/**"
       - "Package.swift"
       - ".github/workflows/swift_build_and_test.yml"
 

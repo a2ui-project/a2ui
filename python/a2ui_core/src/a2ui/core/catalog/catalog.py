@@ -1081,7 +1081,7 @@ class Catalog(Generic[TComponent, TFunction]):
             if isinstance(raw_defs, dict):
                 common_types_defs = _normalize_external_schema_refs(dict(raw_defs))
 
-        cat = Catalog[ComponentApi, FunctionApi](
+        return Catalog[ComponentApi, FunctionApi](
             catalog_id=catalog_id,
             protocol_version=p_ver,
             components=components,
@@ -1093,4 +1093,3 @@ class Catalog(Generic[TComponent, TFunction]):
             defs=inlined_catalog_schema.get("$defs"),
             common_types_defs=common_types_defs,
         )
-        return cat

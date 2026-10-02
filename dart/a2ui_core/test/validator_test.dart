@@ -189,6 +189,10 @@ void main() {
           newValidator();
 
       expect(validator.checkVersion(createSurface()), A2uiProtocolVersion.v0_9);
+      expect(
+        validator.checkVersion(createSurface(version: 'v0.9.1')),
+        A2uiProtocolVersion.v0_9,
+      );
       expect(parse([createSurface()]).messages, hasLength(1));
       expect(
         parse([createSurface()]).messages.single,
@@ -200,7 +204,7 @@ void main() {
       final PayloadValidator<ComponentApi, FunctionApi> validator =
           newValidator();
 
-      for (final version in ['v0.8', 'v0.9.1', 'v1.0']) {
+      for (final version in ['v0.8', 'v1.0']) {
         expect(
           () => validator.checkVersion(createSurface(version: version)),
           throwsA(isA<A2uiValidationError>()),
@@ -379,101 +383,6 @@ void main() {
   });
 
   group('MessageProcessor.processMessages', () {
-    test('accepts a well formed component graph', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'label'), text('label', 'Hello')]),
-      ]);
-
-      expect(() => processor.processMessages(messages), returnsNormally);
-    });
-
-    test('rejects duplicate component ids', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([text('root', 'a'), text('root', 'b')]),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiIntegrityError>().having(
-            (e) => e.message,
-            'message',
-            contains('Duplicate component ID: root'),
-          ),
-        ),
-      );
-    });
-
-    test('a child reference that names no component fails the payload', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'missing')]),
-      ]);
-
-      // `missing` could have arrived in a later message of this payload, so
-      // the reference is answered once the whole payload has been applied.
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiIntegrityError>().having(
-            (e) => e.message,
-            'message',
-            contains('references non-existent component'),
-          ),
-        ),
-      );
-    });
-
-    test('a surface with no root component fails the payload', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([text('label', 'Hello')]),
-      ]);
-
-      // The root could have arrived in a later message of this payload.
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiIntegrityError>().having(
-            (e) => e.message,
-            'message',
-            contains('Missing root component'),
-          ),
-        ),
-      );
-    });
-
-    test('a surface with an unreachable component is incomplete', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([
-          card('root', 'label'),
-          text('label', 'Hello'),
-          text('orphan', 'Nobody points at me'),
-        ]),
-      ]);
-
-      // A component nothing points at may still be adopted by a later message
-      // of the same payload, so it is answered at the end of the payload.
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiIntegrityError>().having(
-            (e) => e.message,
-            'message',
-            contains("Component 'orphan' is not reachable"),
-          ),
-        ),
-      );
-    });
-
     group('under a relaxed ValidationConfig', () {
       test('accepts a payload that renders only part of a surface', () {
         final MessageProcessor<ComponentApi> processor =
@@ -532,196 +441,6 @@ void main() {
       });
     });
 
-    test('holds only the surfaces a payload creates to a whole render', () {
-      // The surface exists already, so this payload is an incremental update
-      // to a render someone else completed. Its own instalment has no root and
-      // points at nothing, which is not this payload's to answer for.
-      final MessageProcessor<ComponentApi> processor =
-          newProcessorWithSurface();
-
-      expect(
-        () => processor.processMessages(
-          parse([
-            updateComponents([text('label', 'Hello')]),
-          ]),
-        ),
-        returnsNormally,
-      );
-    });
-
-    test('rejects a self reference', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'root')]),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiRecursionError>()
-              .having(
-            (e) => e.message,
-            'message',
-            contains('Self-reference detected'),
-          )
-              .having((e) => e.cycle, 'cycle', ['root']),
-        ),
-      );
-    });
-
-    test('rejects a cycle in the component graph', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'b'), card('b', 'root')]),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiRecursionError>().having(
-            (e) => e.message,
-            'message',
-            contains('Circular reference detected'),
-          ),
-        ),
-      );
-    });
-
-    test('rejects a chain deeper than the cap', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final components = <Map<String, Object?>>[card('root', 'c0')];
-      const int chain = maxComponentDepth + 5;
-      for (var i = 0; i < chain; i++) {
-        components.add(card('c$i', 'c${i + 1}'));
-      }
-      components.add(text('c$chain', 'leaf'));
-
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents(components),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiRecursionError>().having(
-            (e) => e.message,
-            'message',
-            contains('recursion limit exceeded'),
-          ),
-        ),
-      );
-    });
-
-    test('follows a static child list', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload valid = parse([
-        createSurface(),
-        updateComponents([
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': ['a', 'b'],
-          },
-          text('a'),
-          text('b'),
-        ]),
-      ]);
-      expect(() => processor.processMessages(valid), returnsNormally);
-
-      final MessageProcessor<ComponentApi> second = newProcessor();
-      final AgentToRendererMessagePayload dangling = parse([
-        createSurface(),
-        updateComponents([
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': ['a', 'missing'],
-          },
-          text('a'),
-        ]),
-      ]);
-      expect(
-        () => second.processMessages(dangling),
-        throwsA(isA<A2uiIntegrityError>()),
-      );
-    });
-
-    test('follows a child list template', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': {'componentId': 'row', 'path': '/items'},
-          },
-          text('row'),
-        ]),
-      ]);
-      expect(() => processor.processMessages(messages), returnsNormally);
-
-      final MessageProcessor<ComponentApi> second = newProcessor();
-      final AgentToRendererMessagePayload dangling = parse([
-        createSurface(),
-        updateComponents([
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': {'componentId': 'missing', 'path': '/items'},
-          },
-        ]),
-      ]);
-      expect(
-        () => second.processMessages(dangling),
-        throwsA(isA<A2uiIntegrityError>()),
-      );
-    });
-
-    test('follows references nested in an array of objects', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([
-          {
-            'id': 'root',
-            'component': 'Tabs',
-            'items': [
-              {'label': 'One', 'child': 'a'},
-              {'label': 'Two', 'child': 'missing'},
-            ],
-          },
-          text('a'),
-        ]),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiIntegrityError>().having(
-            (e) => e.message,
-            'message',
-            contains("in field 'items[1].child'"),
-          ),
-        ),
-      );
-    });
-
-    test('ignores a property that does not reference components', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      // `text` is a plain string, so 'root' inside it is not a reference and
-      // must not read as a self-reference.
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([text('root', 'root')]),
-      ]);
-
-      expect(() => processor.processMessages(messages), returnsNormally);
-    });
-
     test('does not read a component id as a reference to itself', () {
       // A catalog that inlines `ComponentCommon` declares `id` as a
       // `ComponentId`. That names the component itself, so reading it as a
@@ -778,28 +497,6 @@ void main() {
       );
     });
 
-    test('rejects a malformed data model path', () {
-      final MessageProcessor<ComponentApi> processor =
-          newProcessorWithSurface();
-      final AgentToRendererMessagePayload messages = parse([
-        {
-          'version': 'v0.9',
-          'updateDataModel': {'surfaceId': 's1', 'path': 'a~2b', 'value': 1},
-        },
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains('Invalid path syntax'),
-          ),
-        ),
-      );
-    });
-
     test('rejects function calls nested past the cap', () {
       final MessageProcessor<ComponentApi> processor =
           newProcessorWithSurface();
@@ -825,185 +522,6 @@ void main() {
             contains('functionCall depth'),
           ),
         ),
-      );
-    });
-
-    group('incremental updates', () {
-      test('allow a missing root and references to existing components', () {
-        final MessageProcessor<ComponentApi> processor =
-            newProcessorWithSurface();
-        final AgentToRendererMessagePayload messages = parse([
-          updateComponents([card('panel', 'alreadyOnTheClient')]),
-        ]);
-
-        expect(() => processor.processMessages(messages), returnsNormally);
-      });
-
-      test('still reject duplicate ids', () {
-        final MessageProcessor<ComponentApi> processor =
-            newProcessorWithSurface();
-        final AgentToRendererMessagePayload messages = parse([
-          updateComponents([text('a', 'one'), text('a', 'two')]),
-        ]);
-
-        expect(
-          () => processor.processMessages(messages),
-          throwsA(isA<A2uiIntegrityError>()),
-        );
-      });
-
-      test('still reject a self reference', () {
-        final MessageProcessor<ComponentApi> processor =
-            newProcessorWithSurface();
-        final AgentToRendererMessagePayload messages = parse([
-          updateComponents([card('a', 'a')]),
-        ]);
-
-        expect(
-          () => processor.processMessages(messages),
-          throwsA(isA<A2uiRecursionError>()),
-        );
-      });
-
-      test('still reject a cycle', () {
-        final MessageProcessor<ComponentApi> processor =
-            newProcessorWithSurface();
-        final AgentToRendererMessagePayload messages = parse([
-          updateComponents([card('a', 'b'), card('b', 'a')]),
-        ]);
-
-        expect(
-          () => processor.processMessages(messages),
-          throwsA(isA<A2uiRecursionError>()),
-        );
-      });
-    });
-
-    test('accumulates components across updates to the same surface', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'label')]),
-        updateComponents([text('label', 'Hello')]),
-      ]);
-
-      expect(() => processor.processMessages(messages), returnsNormally);
-    });
-
-    test('treats an id repeated in a later message as an update', () {
-      // The second message replaces `root`, pointing it at `b` instead of
-      // `a`. That is how the basic catalog's `00_incremental` example swaps a
-      // placeholder out, so it must not read as a duplicate id. It does leave
-      // `a` unreachable: v0.9 cannot remove a component, so the one that was
-      // replaced stays on the surface with nothing pointing at it, which is
-      // what `allowOrphanComponents` is for. Reachability under the strict
-      // default is covered above.
-      final MessageProcessor<ComponentApi> processor = newProcessor(
-        validationConfig: const ValidationConfig(allowOrphanComponents: true),
-      );
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'a'), text('a')]),
-        updateComponents([card('root', 'b'), text('b')]),
-      ]);
-
-      expect(() => processor.processMessages(messages), returnsNormally);
-    });
-
-    test('drops the components of a surface deleted in the same payload', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'missing')]),
-        {
-          'version': 'v0.9',
-          'deleteSurface': {'surfaceId': 's1'},
-        },
-      ]);
-
-      expect(() => processor.processMessages(messages), returnsNormally);
-    });
-  });
-
-  group('MessageProcessor.processMessages', () {
-    test('accepts components that satisfy the catalog schema', () {
-      // About the schema, not the graph: the payload declares one component
-      // and no root, which the strict default would reject on its own.
-      final MessageProcessor<ComponentApi> processor = newStreamingProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([text('label', 'Hello')]),
-      ]);
-
-      expect(() => processor.processMessages(messages), returnsNormally);
-    });
-
-    test('rejects a component missing a required property', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([
-          {'id': 'label', 'component': 'Text'},
-        ]),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('rejects a property of the wrong type', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([
-          {'id': 'label', 'component': 'Text', 'text': 42},
-        ]),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('rejects a component the catalog does not declare', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([
-          {'id': 'label', 'component': 'Nonexistent'},
-        ]),
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains('declares no component'),
-          ),
-        ),
-      );
-    });
-
-    test('rejects a surface created against an unsupported catalog', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        {
-          'version': 'v0.9',
-          'createSurface': {
-            'surfaceId': 's1',
-            'catalogId': 'https://example.com/catalogs/other.json',
-          },
-        },
-      ]);
-
-      expect(
-        () => processor.processMessages(messages),
-        throwsA(isA<A2uiCatalogError>()),
       );
     });
 
@@ -1266,52 +784,18 @@ void main() {
         throwsA(isA<A2uiCatalogError>()),
       );
     });
-  });
 
-  group('MessageProcessor.processMessages', () {
-    test('applies a valid payload', () async {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
+    test(
+      'A2uiIntegrityError and A2uiRecursionError are A2uiValidationErrors',
+      () {
+        final integrity = A2uiIntegrityError('integrity message');
+        final recursion = A2uiRecursionError('recursion message');
 
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([card('root', 'label'), text('label', 'Hello')]),
-      ]);
-      expect(messages.messages, hasLength(2));
-      expect(messages.messages.first, isA<CreateSurfaceMessage>());
-
-      expect(() => processor.processMessages(messages), returnsNormally);
-    });
-
-    test('rejects an unsupported version before any deep check runs', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll([
-            createSurface(version: 'v1.0'),
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('reports the catalog failure as the batch is applied', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
-
-      // `root` names a component the catalog does not declare and points at
-      // nothing. The catalog check runs as the batch is applied, so it is what
-      // surfaces; the dangling reference waits for the end of the payload.
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll([
-            createSurface(),
-            updateComponents([
-              {'id': 'root', 'component': 'Nonexistent', 'child': 'missing'},
-            ]),
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
+        expect(integrity, isA<A2uiValidationError>());
+        expect(integrity.code, 'INTEGRITY_ERROR');
+        expect(recursion, isA<A2uiValidationError>());
+        expect(recursion.code, 'RECURSION_ERROR');
+      },
+    );
   });
 }

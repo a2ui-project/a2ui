@@ -166,6 +166,36 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
+  it('binds each resolved node with a context for its component and data path', () => {
+    const {surface, resolver} = setup();
+    surface.dataModel.set('/items', [{name: 'A'}]);
+    add(surface, 'root', 'Column', {children: {componentId: 'item_tpl', path: '/items'}});
+    add(surface, 'item_tpl', 'Text', {text: {path: 'name'}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root?.context);
+    assert.strictEqual(root.context.componentModel.id, 'root');
+    assert.strictEqual(root.context.dataContext.path, '/');
+    const item = child(root, 'children', 0);
+    assert.ok(item.context);
+    assert.strictEqual(item.context.componentModel.id, 'item_tpl');
+    assert.strictEqual(item.context.dataContext.path, '/items/0');
+    assert.strictEqual(item.context.dataContext.parent, root.context.dataContext);
+    resolver.dispose();
+  });
+
+  it('gives a placeholder no context and its resolved replacement one', () => {
+    const {surface, resolver} = setup();
+    add(surface, 'root', 'Card', {child: 'late'});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(child(root, 'child').context, undefined);
+    add(surface, 'late', 'Text', {text: 'Hi'});
+    const late = child(root, 'child');
+    assert.strictEqual(late.isPlaceholder, false);
+    assert.strictEqual(late.context?.componentModel.id, 'late');
+    resolver.dispose();
+  });
+
   it('resolves data-bound properties reactively', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/username', 'Alice');
@@ -189,6 +219,46 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     assert.strictEqual(textNode.type, 'Text');
     assert.strictEqual(bound(textNode, 'text'), 'Hello');
     resolver.dispose();
+  });
+
+  it('gives every node a document-unique id that lives as long as the node', () => {
+    const first = setup();
+    const second = setup();
+    for (const {surface} of [first, second]) {
+      add(surface, 'root', 'Column', {children: ['a', 'a']});
+      add(surface, 'a', 'Text', {text: 'dup'});
+    }
+    const nodes = [first, second].flatMap(({resolver}) => {
+      const root = getValue(resolver.rootNode);
+      assert.ok(root);
+      return [root, ...(props(root).children as ComponentNode[])];
+    });
+    assert.strictEqual(nodes.length, 6);
+    assert.strictEqual(new Set(nodes.map(n => n.id)).size, 6);
+    for (const node of nodes) {
+      assert.match(node.id, /^a2ui-n\d+$/);
+    }
+
+    // A property update keeps the node, so the id stays.
+    const root = nodes[0];
+    const before = child(root, 'children', 0);
+    const model = first.surface.componentsModel.get('a');
+    assert.ok(model);
+    model.properties = {text: 'changed'};
+    assert.strictEqual(child(root, 'children', 0), before);
+    assert.strictEqual(child(root, 'children', 0).id, before.id);
+
+    // A type change replaces the node, and the replacement has a new id.
+    first.surface.componentsModel.removeComponent('a');
+    add(first.surface, 'a', 'Button', {label: 'now a button'});
+    const after = child(root, 'children', 0);
+    assert.notStrictEqual(after, before);
+    assert.notStrictEqual(after.id, before.id);
+    // The serialized form keeps naming the component, not the node.
+    assert.strictEqual(root.toJSON().id, 'root');
+
+    first.resolver.dispose();
+    second.resolver.dispose();
   });
 
   it('resolves an explicit children list in order', () => {

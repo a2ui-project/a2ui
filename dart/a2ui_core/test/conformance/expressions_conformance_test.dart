@@ -84,7 +84,8 @@ void main() {
       }
       final name = testCase['name'] as String;
       final input = testCase['input'] as String;
-      final Object? expectError = testCase['expect_error'];
+      final Object? expectError =
+          testCase['expect_error'] ?? testCase['expectError'];
 
       test(name, () {
         if (expectError != null) {
@@ -109,7 +110,7 @@ void main() {
         }
 
         final expected = testCase['expect'] as List<Object?>;
-        expect(_joinLiterals(parser.parse(input)), equals(expected));
+        expect(_joinLiterals(parser.parse(input)), equals(expected, 1000));
       });
     }
   });

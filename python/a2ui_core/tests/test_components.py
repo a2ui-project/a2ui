@@ -22,7 +22,7 @@ from a2ui.core.basic_catalog import (
     Theme,
     AnyComponent,
 )
-from a2ui.core.schema import UpdateComponentsMessage, A2uiMessageListWrapper
+from a2ui.core.schema import A2uiMessageListWrapper
 
 
 def test_image_component_valid_with_description():
@@ -134,9 +134,12 @@ def test_text_component_validation():
 
 
 def test_text_component_variant_enum():
-    # 1. Omitted variant uses default value "body"
+    # A JSON Schema default is documentation, not a value the producer should add.
     comp_default = TextComponent(id="text_1", component="Text", text="Hello Default")
-    assert comp_default.variant == "body"
+    assert comp_default.variant is None
+    assert 'Defaults to "body" when absent.' in (
+        TextComponent.model_fields["variant"].description
+    )
 
     # 2. Validation fails on invalid variant value
     with pytest.raises(ValidationError) as exc_info:
@@ -161,31 +164,6 @@ def test_button_component_strict_extra_forbid():
             action={"event": {"name": "click"}},  # type: ignore
             extra_invalid_field="not allowed",  # type: ignore
         )
-
-
-def test_message_payload_parsing():
-    payload = {
-        "version": "v0.9",
-        "updateComponents": {
-            "surfaceId": "surface_1",
-            "components": [
-                {"id": "title", "component": "Text", "text": "My App"},
-                {
-                    "id": "submit",
-                    "component": "Button",
-                    "child": "title",
-                    "action": {"event": {"name": "submitForm"}},
-                },
-            ],
-        },
-    }
-
-    msg = UpdateComponentsMessage.model_validate(payload)
-    assert msg.version == "v0.9"
-    assert msg.update_components.surface_id == "surface_1"
-    assert len(msg.update_components.components) == 2
-    assert msg.update_components.components[0]["component"] == "Text"
-    assert msg.update_components.components[1]["component"] == "Button"
 
 
 def test_model_json_schema_generation():

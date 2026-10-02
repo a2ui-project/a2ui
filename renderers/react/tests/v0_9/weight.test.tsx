@@ -15,7 +15,7 @@
  */
 
 import {describe, it, expect} from 'vitest';
-import {renderA2uiComponent} from '../utils';
+import {renderA2uiComponent, renderedElement} from '../utils';
 import {getWeightStyle} from '../../src/v0_9/catalog/basic/utils';
 import {Image, Text, Card, Row, Column} from '../../src/v0_9/catalog/basic';
 
@@ -50,14 +50,14 @@ describe('weight property is honored on basic catalog components', () => {
   for (const {name, impl, props} of cases) {
     it(`${name} applies flex when weight is set`, () => {
       const {view} = renderA2uiComponent(impl, {...props, weight: 2});
-      const root = view.container.firstChild as HTMLElement;
+      const root = renderedElement(view.container);
       expect(root.style.flexGrow).toBe('2');
       expect(root.style.minWidth).toBe('0px');
     });
 
     it(`${name} does not apply flex when weight is unset`, () => {
       const {view} = renderA2uiComponent(impl, props);
-      const root = view.container.firstChild as HTMLElement;
+      const root = renderedElement(view.container);
       expect(root.style.flex).toBe('');
     });
   }

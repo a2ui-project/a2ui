@@ -44,13 +44,13 @@ export {
   injectBasicCatalogStyles,
   /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
   computeColorVariant,
-} from './basic_catalog/styles/default.js';
+} from '../universal/basic_catalog/styles/default.js';
 export type {
   /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
   ColorVariantLightDarkOptions,
   /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
   ColorVariantHoverOptions,
-} from './basic_catalog/styles/default.js';
+} from '../universal/basic_catalog/styles/default.js';
 
 export {
   type Signal,

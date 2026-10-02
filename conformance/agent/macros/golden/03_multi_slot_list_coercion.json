@@ -1,0 +1,28 @@
+[
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "multi_1__text_1",
+          "text": "Action Group",
+          "variant": "h2"
+        },
+        {
+          "component": "Column",
+          "id": "multi_1__column_1",
+          "children": ["multi_1__text_1", "action_btn_1", "action_btn_2"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "multi_1",
+          "child": "multi_1__column_1"
+        }
+      ]
+    }
+  }
+]

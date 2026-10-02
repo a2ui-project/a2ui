@@ -345,6 +345,9 @@ function convertPropertyToZod(
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
   }
+  if (propSchema instanceof z.ZodType) {
+    return propSchema;
+  }
 
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
     const resolvedRef = convertRefToZod(
@@ -925,11 +928,12 @@ function parseThemeSchema(
     catalogSchema.styles ??
     (defs?.theme as Record<string, unknown> | undefined);
   if (rawTheme && typeof rawTheme === 'object') {
-    return convertComponentJsonSchemaToZod(
-      rawTheme as Record<string, unknown>,
-      catalogSchema,
-      false,
-    );
+    const rawThemeObj = rawTheme as Record<string, unknown>;
+    const normalizedThemeSchema =
+      'properties' in rawThemeObj || 'allOf' in rawThemeObj || rawThemeObj.type === 'object'
+        ? rawThemeObj
+        : {type: 'object', properties: rawThemeObj};
+    return convertComponentJsonSchemaToZod(normalizedThemeSchema, catalogSchema, false);
   }
   return undefined;
 }

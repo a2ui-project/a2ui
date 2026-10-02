@@ -27,6 +27,7 @@ public final class MessageProcessor: ObservableObject {
 
   private let catalogs: [String: AnyCatalog]
   private let validator: A2UIValidator
+  private let validationConfig: ValidationConfig
   private weak var actionHandler: (any ActionHandling)?
   private let errorMapper = MessageErrorMapper()
 
@@ -48,6 +49,7 @@ public final class MessageProcessor: ObservableObject {
       uniquingKeysWith: { _, last in last }
     )
     self.validator = A2UIValidator(catalogs: anyCatalogs, config: validationConfig)
+    self.validationConfig = validationConfig
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
   }
@@ -131,7 +133,7 @@ public final class MessageProcessor: ObservableObject {
     ]
 
     if options.includeInlineCatalogs {
-      let inlineCatalogs = catalogs.values.map { generateInlineCatalog($0) }
+      let inlineCatalogs = supportedCatalogIDs.compactMap { catalogs[$0] }.map { generateInlineCatalog($0) }
       versionCaps["inlineCatalogs"] = .array(inlineCatalogs)
     }
 
@@ -157,7 +159,8 @@ public final class MessageProcessor: ObservableObject {
   private func generateInlineCatalog(_ catalog: AnyCatalog) -> JSONValue {
     var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
 
-    for (name, componentAPI) in catalog.components {
+    for name in catalog.components.keys.sorted() {
+      guard let componentAPI = catalog.components[name] else { continue }
       let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
       let processedSchema = processRefs(schemaJSON)
 
@@ -192,7 +195,8 @@ public final class MessageProcessor: ObservableObject {
     }
 
     var functionsArray: [JSONValue] = []
-    for (_, functionImplementation) in catalog.functions {
+    for key in catalog.functions.keys.sorted() {
+      guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
       let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
       let processedParameters = processRefs(schemaJSON)
@@ -209,9 +213,11 @@ public final class MessageProcessor: ObservableObject {
     }
 
     var catalogDictionary: OrderedDictionary<String, JSONValue> = [
-      "catalogId": .string(catalog.id),
-      "components": .object(componentsDictionary),
+      "catalogId": .string(catalog.id)
     ]
+    if !componentsDictionary.isEmpty {
+      catalogDictionary["components"] = .object(componentsDictionary)
+    }
     if !functionsArray.isEmpty {
       catalogDictionary["functions"] = .array(functionsArray)
     }
@@ -367,7 +373,9 @@ public final class MessageProcessor: ObservableObject {
     _ theme: [String: JSONValue]?,
     against catalog: AnyCatalog
   ) throws {
-    guard let theme, let themeSchema = catalog.themeSchema else { return }
+    guard let theme,
+      let themeSchema = catalog.themeSchema
+    else { return }
 
     let themeInstance: JSONValue = .object(
       OrderedDictionary(uniqueKeysWithValues: theme)
@@ -401,12 +409,12 @@ public final class MessageProcessor: ObservableObject {
   private func processUpdateComponents(_ msg: UpdateComponentsMessage) throws {
     guard let surface = surfaceGroupModel.surfacesMap[msg.surfaceID] else {
       throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
+        "Surface not found for message: \(msg.surfaceID)",
         details: [
           A2UIErrorDetail(
             path: "updateComponents.surfaceId",
             code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
+            message: "Surface not found for message: \(msg.surfaceID)"
           )
         ]
       )
@@ -419,31 +427,22 @@ public final class MessageProcessor: ObservableObject {
   private func processUpdateDataModel(_ msg: UpdateDataModelMessage) throws {
     guard let surface = surfaceGroupModel.surfacesMap[msg.surfaceID] else {
       throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
+        "Surface not found for message: \(msg.surfaceID)",
         details: [
           A2UIErrorDetail(
             path: "updateDataModel.surfaceId",
             code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
+            message: "Surface not found for message: \(msg.surfaceID)"
           )
         ]
       )
     }
-    surface.dataModel.set(msg.path, value: msg.value)
+    try surface.dataModel.setThrowing(msg.path, value: msg.value)
   }
 
   private func processDeleteSurface(_ msg: DeleteSurfaceMessage) throws {
     guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {
-      throw A2UIIntegrityError(
-        "Surface not found: \(msg.surfaceID)",
-        details: [
-          A2UIErrorDetail(
-            path: "deleteSurface.surfaceId",
-            code: "SURFACE_NOT_FOUND",
-            message: "Surface not found: \(msg.surfaceID)"
-          )
-        ]
-      )
+      return
     }
     surfaceGroupModel.removeSurface(id: msg.surfaceID)
   }

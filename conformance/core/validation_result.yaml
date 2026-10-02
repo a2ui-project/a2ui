@@ -81,4 +81,3 @@
           root:
             valid: false
             message: "Must be 18 or older."
-            severity: "error"

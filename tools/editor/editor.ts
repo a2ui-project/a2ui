@@ -68,7 +68,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   @state()
   accessor #lastMessages: v0_8.Types.ServerToClientMessage[] | null = null;
 
-  static styles = [
+  static override styles = [
     unsafeCSS(v0_8.Styles.structuralStyles),
     css`
       :host {
@@ -857,7 +857,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     this.#snackbar.hide(id);
   }
 
-  render() {
+  override render() {
     if (!this.#ready) {
       return html`Loading...`;
     }

@@ -31,13 +31,13 @@ class V10AgentCapabilities(StrictBaseModel):
         ),
     )
     accepts_inline_catalogs: bool | None = Field(
+        None,
         alias="acceptsInlineCatalogs",
         description=(
             "A boolean indicating if the agent can accept an 'inlineCatalogs' array in"
             " the renderer's a2uiRendererCapabilities. If omitted, this defaults to"
             " false."
         ),
-        default=False,
     )
 
 

@@ -18,12 +18,6 @@ from .components import (
     ComponentImplementation,
     ModelComponentApi,
 )
-from .reference_map import (
-    ComponentRefSpec,
-    analyze_child_ref_schema,
-    build_component_ref_map,
-    extract_child_refs_from_val,
-)
 from .functions import (
     AllowedCallers,
     FunctionApi,
@@ -33,22 +27,40 @@ from .functions import (
     InferA2uiReturnType,
     create_function_implementation,
 )
+from .reference_map import (
+    ComponentRefSpec,
+    analyze_child_ref_schema,
+    build_component_ref_map,
+    extract_child_refs_from_val,
+)
+from .system_functions import (
+    INDEX_FUNCTION_NAME,
+    IndexApi,
+    IndexArgs,
+    IndexImplementation,
+    system_functions_for,
+)
 
 __all__ = [
-    "Catalog",
     "AllowedCallers",
+    "Catalog",
     "ComponentApi",
     "ComponentImplementation",
     "ComponentRefSpec",
-    "ModelComponentApi",
     "FunctionApi",
     "FunctionImplementation",
     "FunctionInvoker",
     "FunctionReturnType",
+    "INDEX_FUNCTION_NAME",
+    "IndexApi",
+    "IndexArgs",
+    "IndexImplementation",
     "InferA2uiReturnType",
+    "ModelComponentApi",
     "analyze_child_ref_schema",
     "build_component_ref_map",
     "create_function_implementation",
     "extract_child_refs_from_val",
     "is_valid_uax31_identifier",
+    "system_functions_for",
 ]

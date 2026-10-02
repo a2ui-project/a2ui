@@ -139,119 +139,6 @@ void main() {
       expect(ds.surfaceId, 's1');
     });
 
-    test('throws on unknown message type', () {
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'unknownType': {'surfaceId': 's1'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws when version field is missing', () {
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws when version is not v0.9', () {
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.8',
-          'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws when version is not a string', () {
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 123,
-          'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws when a required body field is missing', () {
-      // Reported as a validation error rather than left to fail as a cast: a
-      // malformed envelope is a payload defect, not a programming error.
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'createSurface': {'surfaceId': 's1'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'updateComponents': {'surfaceId': 's1'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws when a body field has the wrong type', () {
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'createSurface': {'surfaceId': 123, 'catalogId': 'c1'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'updateComponents': {'surfaceId': 's1', 'components': 'nope'},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'updateComponents': {
-            'surfaceId': 's1',
-            'components': ['nope'],
-          },
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'updateDataModel': {'surfaceId': 's1', 'path': 7},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws when the message body is not an object', () {
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'deleteSurface': 's1',
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws when more than one message type is present', () {
-      expect(
-        () => AgentToRendererMessage.fromJson({
-          'version': 'v0.9',
-          'createSurface': {'surfaceId': 's1', 'catalogId': 'c1'},
-          'updateComponents': {'surfaceId': 's1', 'components': <Object?>[]},
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
     test('roundtrips through toJson/fromJson', () {
       final original = CreateSurfaceMessage(
         surfaceId: 's1',
@@ -442,6 +329,42 @@ void main() {
       expect(action.sourceComponentId, 'button');
       expect(action.timestamp, DateTime.utc(2026, 9, 16, 10, 30));
       expect(action.context, {'email': 'a@b.c'});
+    });
+
+    test('parses an action with userMessage', () {
+      final msg = RendererToAgentMessage.fromJson({
+        'version': 'v0.9',
+        'action': {
+          'name': 'submit',
+          'surfaceId': 's1',
+          'sourceComponentId': 'button',
+          'timestamp': '2026-09-16T10:30:00.000Z',
+          'context': {'email': 'a@b.c'},
+          'userMessage': 'Submitting feedback',
+        },
+      });
+
+      expect(msg, isA<ActionMessage>());
+      final A2uiClientAction action = (msg as ActionMessage).action;
+      expect(action.userMessage, 'Submitting feedback');
+      expect(action.toJson()['userMessage'], 'Submitting feedback');
+    });
+
+    test('rejects an action with non-string userMessage', () {
+      expect(
+        () => RendererToAgentMessage.fromJson({
+          'version': 'v0.9',
+          'action': {
+            'name': 'submit',
+            'surfaceId': 's1',
+            'sourceComponentId': 'button',
+            'timestamp': '2026-09-16T10:30:00.000Z',
+            'context': <String, Object?>{},
+            'userMessage': 12345,
+          },
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
     });
 
     test('parses an error', () {

@@ -26,8 +26,11 @@ class A2uiError implements Exception {
 class A2uiValidationError extends A2uiError {
   final Object? details;
 
-  A2uiValidationError(String message, {this.details})
-      : super(message, 'VALIDATION_ERROR');
+  A2uiValidationError(
+    String message, {
+    this.details,
+    String code = 'VALIDATION_ERROR',
+  }) : super(message, code);
 }
 
 /// Thrown during DataModel mutations (invalid paths, type mismatches).
@@ -72,19 +75,19 @@ class A2uiCatalogError extends A2uiError {
 
 /// Thrown for a structurally invalid component graph: unreachable roots,
 /// duplicate ids, dangling references.
-class A2uiIntegrityError extends A2uiError {
+class A2uiIntegrityError extends A2uiValidationError {
   /// The component ids involved, when known.
   final List<String> componentIds;
 
-  A2uiIntegrityError(String message, {this.componentIds = const []})
-      : super(message, 'INTEGRITY_ERROR');
+  A2uiIntegrityError(super.message, {this.componentIds = const []})
+      : super(code: 'INTEGRITY_ERROR');
 }
 
 /// Thrown when a component graph cycles or exceeds the depth cap.
-class A2uiRecursionError extends A2uiError {
+class A2uiRecursionError extends A2uiValidationError {
   /// The chain of component ids that produced the cycle, when known.
   final List<String> cycle;
 
-  A2uiRecursionError(String message, {this.cycle = const []})
-      : super(message, 'RECURSION_ERROR');
+  A2uiRecursionError(super.message, {this.cycle = const []})
+      : super(code: 'RECURSION_ERROR');
 }

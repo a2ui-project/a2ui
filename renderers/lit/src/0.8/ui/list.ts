@@ -26,7 +26,7 @@ export class List extends Root {
   @property({reflect: true, type: String})
   accessor direction: 'vertical' | 'horizontal' = 'vertical';
 
-  static styles = [
+  static override styles = [
     structuralStyles,
     css`
       * {
@@ -59,7 +59,7 @@ export class List extends Root {
     `,
   ];
 
-  render() {
+  override render() {
     return html`<section
       class=${classMap(this.theme.components.List)}
       style=${this.theme.additionalStyles?.List

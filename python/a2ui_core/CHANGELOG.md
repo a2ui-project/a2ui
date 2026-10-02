@@ -8,6 +8,9 @@
   the double range, such as `1e999` or a 400-digit integer. It used to return
   `inf` for float literals and an exact `int` for integer literals. Integer
   literals longer than 4,300 digits no longer raise a bare `ValueError`.
+- **BREAKING**: Optional JSON Schema `default` annotations in generated v0.9
+  and v1.0 Pydantic models are kept in field descriptions instead of becoming
+  field values. `const` values remain fixed.
 
 ## 0.2.0 (2026-09-28)
 
@@ -155,6 +158,10 @@
   suite cannot be parsed, when a case has no `name` or `action`, or when an
   action has no handler. Suites the core library cannot run are named in
   `UNRUNNABLE_SUITES` with a reason.
+- Move `@index` (`IndexApi`, `IndexArgs`, `IndexImplementation`) from
+  `a2ui.core.basic_catalog.v1_0` (`v1_0/operator_apis.py` removed) to
+  `a2ui.core.catalog`, where `system_functions_for` supplies it to v1.0 and
+  later catalogs.
 
 ## 0.1.1
 

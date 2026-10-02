@@ -317,12 +317,18 @@ export function extractFunctionDefinition(funcName, funcDef, catalogDefs = {}, c
     returnType = 'boolean';
   }
 
+  let requiresUserActivation =
+    funcDef.requiresUserActivation ?? funcDef.properties?.requiresUserActivation?.const;
+
   let argsSchema = funcDef.properties?.args;
   if (!argsSchema && Array.isArray(funcDef.allOf)) {
     for (const sub of funcDef.allOf) {
-      if (sub.properties?.args) {
+      if (!argsSchema && sub.properties?.args) {
         argsSchema = sub.properties.args;
-        break;
+      }
+      if (requiresUserActivation === undefined) {
+        requiresUserActivation =
+          sub.requiresUserActivation ?? sub.properties?.requiresUserActivation?.const;
       }
     }
   }
@@ -331,7 +337,13 @@ export function extractFunctionDefinition(funcName, funcDef, catalogDefs = {}, c
     ? flattenSchema(argsSchema, catalogDefs, commonDefs)
     : {properties: {}, required: []};
 
-  return {returnType, argsProps, argsRequired, description: funcDef.description};
+  return {
+    returnType,
+    requiresUserActivation: Boolean(requiresUserActivation),
+    argsProps,
+    argsRequired,
+    description: funcDef.description,
+  };
 }
 
 /**
@@ -406,12 +418,8 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
 
   for (const funcName of funcNames) {
     const funcDef = catalogJson.functions[funcName];
-    const {returnType, argsProps, argsRequired, description} = extractFunctionDefinition(
-      funcName,
-      funcDef,
-      catalogDefs,
-      commonDefs,
-    );
+    const {returnType, requiresUserActivation, argsProps, argsRequired, description} =
+      extractFunctionDefinition(funcName, funcDef, catalogDefs, commonDefs);
     const apiName = `${toPascalCase(funcName)}Api`;
     apiNames.push(apiName);
 
@@ -423,6 +431,9 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
     bodyCode += `export const ${apiName} = {\n`;
     bodyCode += `  name: '${funcName}' as const,\n`;
     bodyCode += `  returnType: '${returnType}' as const,\n`;
+    if (requiresUserActivation) {
+      bodyCode += `  requiresUserActivation: true as const,\n`;
+    }
     bodyCode += `  schema: z.object({\n`;
 
     for (const [argName, argDef] of Object.entries(argsProps)) {

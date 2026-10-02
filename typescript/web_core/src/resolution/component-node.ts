@@ -18,6 +18,8 @@ import {EventEmitter, EventSource} from '../common/events.js';
 import type {ComponentApi} from '../catalog/types.js';
 import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
+import type {ComponentContext} from './component-context.js';
+import {nextNodeId} from './node-id.js';
 
 /** The component type name used for pending and cyclic placeholder nodes. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
@@ -64,6 +66,13 @@ export interface ComponentNode<
    * insertions or reorders.
    */
   readonly instanceId: string;
+  /**
+   * Identifies this node instance across the whole document, so it can serve
+   * as a DOM id, a rendering key, or an ARIA reference target. Assigned when
+   * the node is created; a replaced node (type or catalog change, re-add,
+   * sibling reorder) gets a new one. Never persist it.
+   */
+  readonly id: string;
   /** The component id from the payload. */
   readonly componentId: string;
   /**
@@ -75,6 +84,8 @@ export interface ComponentNode<
   readonly dataPath: string;
   /** The resolved catalog entry for `type`; undefined while a placeholder. */
   readonly impl: C | undefined;
+  /** The context the resolver bound this node with; undefined while a placeholder. */
+  readonly context: ComponentContext | undefined;
   /** Why this node is or is not resolved. */
   readonly state: NodeState;
   /** Resolved, reactive properties. Read with `getValue`/`peekValue`. */
@@ -127,10 +138,13 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   TProps
 > {
   readonly instanceId: string;
+  readonly id = nextNodeId();
   readonly componentId: string;
   readonly type: string;
+
   readonly dataPath: string;
   readonly impl: ComponentApi | undefined;
+  readonly context: ComponentContext | undefined;
   readonly state: NodeState;
   readonly props: Signal<TProps>;
 
@@ -149,6 +163,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
    * @param dataPath Data model scope path.
    * @param initialProps Initial resolved properties.
    * @param impl Optional catalog component definition.
+   * @param context The context the node is bound with; absent on placeholders.
    * @param state Initial resolution state.
    */
   constructor(
@@ -158,6 +173,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     dataPath: string,
     initialProps: TProps,
     impl?: ComponentApi,
+    context?: ComponentContext,
     state: NodeState = 'resolved',
   ) {
     this.instanceId = instanceId;
@@ -166,6 +182,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     this.dataPath = dataPath;
     this.props = signal(initialProps);
     this.impl = impl;
+    this.context = context;
     this.state = state;
   }
 

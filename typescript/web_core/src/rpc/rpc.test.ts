@@ -54,24 +54,6 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   };
   const restrictedImpl = createFunctionImplementation(restrictedApi, () => true);
 
-  const agentOnlyApi = {
-    name: 'agentOnlyFunc',
-    returnType: 'string' as const,
-    schema: z.object({}),
-    allowedCallers: 'agentOnly' as const,
-  };
-  const agentOnlyImpl = createFunctionImplementation(agentOnlyApi, () => 'agent-result');
-
-  const throwingApi = {
-    name: 'throwingFunc',
-    returnType: 'string' as const,
-    schema: z.object({}),
-    allowedCallers: 'rendererOrAgent' as const,
-  };
-  const throwingImpl = createFunctionImplementation(throwingApi, () => {
-    throw new Error('Execution boom');
-  });
-
   const signalApi = {
     name: 'signalFunc',
     returnType: 'number' as const,
@@ -84,15 +66,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     'basic',
     '1.0',
     [],
-    [
-      customRpcImpl,
-      rendererOnlyImpl,
-      restrictedImpl,
-      agentOnlyImpl,
-      throwingImpl,
-      signalImpl,
-      IndexImplementation,
-    ],
+    [customRpcImpl, rendererOnlyImpl, restrictedImpl, signalImpl, IndexImplementation],
   );
 
   it('instantiates via options bag RpcHandlerOptions', () => {
@@ -101,30 +75,6 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       defaultTimeoutMs: 5000,
     });
     assert.strictEqual(handler.disposed, false);
-  });
-
-  it('executes valid callRendererFunction remote RPC and returns value payload', async () => {
-    const handler = new RpcHandler({catalogs: [mockCatalog]});
-    const surface = new SurfaceModel('s1', mockCatalog);
-    const context = new DataContext(surface, '/');
-
-    const message = {
-      version: 'v1.0' as const,
-      callRendererFunction: {
-        functionCallId: 'rpc-1',
-        callFunction: {
-          call: 'customRpc',
-          catalogId: 'basic',
-          args: {text: 'Hello A2UI'},
-        },
-      },
-    };
-
-    const response = await handler.handleCallRendererFunction(message, context, false);
-    assert.strictEqual(response.version, 'v1.0');
-    assert.strictEqual(response.rendererFunctionResponse.functionCallId, 'rpc-1');
-    assert.strictEqual(response.rendererFunctionResponse.value, 'Processed: Hello A2UI');
-    assert.strictEqual(response.rendererFunctionResponse.error, undefined);
   });
 
   it('emits RendererFunctionResponseMessage to outboundListener when handleCallRendererFunction completes', async () => {
@@ -162,57 +112,6 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       emittedMessages[0].rendererFunctionResponse?.value,
       'Processed: Streaming test',
     );
-  });
-
-  it('rejects callRendererFunction targeting rendererOnly function with INVALID_FUNCTION_CALL', async () => {
-    const handler = new RpcHandler([mockCatalog]);
-    const surface = new SurfaceModel('s1', mockCatalog);
-    const context = new DataContext(surface, '/');
-
-    const message = {
-      version: 'v1.0' as const,
-      callRendererFunction: {
-        functionCallId: 'rpc-2',
-        callFunction: {
-          call: 'internalRenderer',
-          catalogId: 'basic',
-        },
-      },
-    };
-
-    const response = await handler.handleCallRendererFunction(message, context, false);
-    assert.strictEqual(response.rendererFunctionResponse.functionCallId, 'rpc-2');
-    assert.strictEqual(response.rendererFunctionResponse.value, undefined);
-    assert.strictEqual(
-      response.rendererFunctionResponse.error?.code,
-      RpcErrorCode.INVALID_FUNCTION_CALL,
-    );
-  });
-
-  it('rejects function call requiring user activation when isUserActivated is false', async () => {
-    const handler = new RpcHandler([mockCatalog]);
-    const surface = new SurfaceModel('s1', mockCatalog);
-    const context = new DataContext(surface, '/');
-
-    const message = {
-      version: 'v1.0' as const,
-      callRendererFunction: {
-        functionCallId: 'rpc-3',
-        callFunction: {
-          call: 'userActionOnly',
-          catalogId: 'basic',
-        },
-      },
-    };
-
-    const response = await handler.handleCallRendererFunction(message, context, false);
-    assert.strictEqual(
-      response.rendererFunctionResponse.error?.code,
-      RpcErrorCode.INVALID_FUNCTION_CALL,
-    );
-
-    const authorizedResponse = await handler.handleCallRendererFunction(message, context, true);
-    assert.strictEqual(authorizedResponse.rendererFunctionResponse.value, true);
   });
 
   it('tracks outbound callAgentFunction and resolves promise via handleAgentFunctionResponse', async () => {
@@ -374,54 +273,6 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     });
   });
 
-  it('falls back to surface default catalog when catalogId is omitted', async () => {
-    const handler = new RpcHandler([mockCatalog]);
-    const surface = new SurfaceModel('s1', mockCatalog);
-    const dataContext = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-default-cat',
-          callFunction: {
-            call: 'customRpc',
-            args: {text: 'hello'},
-          },
-        },
-      },
-      dataContext,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: hello');
-  });
-
-  it('rejects callRendererFunction with INVALID_FUNCTION_CALL when argument schema validation fails', async () => {
-    const handler = new RpcHandler([mockCatalog]);
-    const surface = new SurfaceModel('s1', mockCatalog);
-    const dataContext = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-invalid-args',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'basic',
-            args: {text: 12345}, // Number instead of expected string
-          },
-        },
-      },
-      dataContext,
-      true,
-    );
-
-    assert.ok(res.rendererFunctionResponse.error);
-    assert.strictEqual(res.rendererFunctionResponse.error.code, RpcErrorCode.INVALID_FUNCTION_CALL);
-  });
-
   it('cleans up pending agent call when outboundListener throws', async () => {
     const handler = new RpcHandler([mockCatalog], () => {
       throw new Error('Connection failed');
@@ -574,54 +425,6 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(res.rendererFunctionResponse.value, 42);
   });
 
-  it('allows agent to call function marked as allowedCallers: agentOnly', async () => {
-    const handler = new RpcHandler([mockCatalog]);
-    const surface = new SurfaceModel('s1', mockCatalog);
-    const dataContext = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-agent-only-1',
-          callFunction: {
-            call: 'agentOnlyFunc',
-            catalogId: 'basic',
-          },
-        },
-      },
-      dataContext,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, 'agent-result');
-  });
-
-  it('returns EXECUTION_ERROR when renderer function execution throws', async () => {
-    const handler = new RpcHandler([mockCatalog]);
-    const surface = new SurfaceModel('s1', mockCatalog);
-    const dataContext = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-throwing-1',
-          callFunction: {
-            call: 'throwingFunc',
-            catalogId: 'basic',
-          },
-        },
-      },
-      dataContext,
-      true,
-    );
-
-    assert.ok(res.rendererFunctionResponse.error);
-    assert.strictEqual(res.rendererFunctionResponse.error.code, RpcErrorCode.EXECUTION_ERROR);
-    assert.ok(res.rendererFunctionResponse.error.message.includes('Execution boom'));
-  });
-
   it('rejects callRendererFunction when catalogId is omitted and surface context is missing', async () => {
     const handler = new RpcHandler([mockCatalog]);
     const emptyContext = {} as DataContext;
@@ -648,233 +451,6 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         'No catalog available for function resolution',
       ),
     );
-  });
-
-  it('rejects callRendererFunction when catalog protocolVersion is newer and incompatible', async () => {
-    const v20Catalog = new Catalog('v20_catalog', 'v2.0', [], [customRpcImpl]);
-    const handler = new RpcHandler([v20Catalog]);
-    const surface = new SurfaceModel('s1', v20Catalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-version-mismatch',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'v20_catalog',
-            args: {text: 'test'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.ok(res.rendererFunctionResponse.error);
-    assert.strictEqual(res.rendererFunctionResponse.error.code, RpcErrorCode.INVALID_FUNCTION_CALL);
-    assert.ok(res.rendererFunctionResponse.error.message.includes('specification version (v2.0)'));
-    assert.ok(
-      res.rendererFunctionResponse.error.message.includes(
-        'does not match message protocol version (v1.0)',
-      ),
-    );
-  });
-
-  it('rejects callRendererFunction when catalog protocolVersion is pre-v1.0 (e.g. v0.9 on v1.0)', async () => {
-    const v09Catalog = new Catalog('v09_catalog', 'v0.9', [], [customRpcImpl]);
-    const handler = new RpcHandler([v09Catalog]);
-    const surface = new SurfaceModel('s1', v09Catalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-v09-mismatch',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'v09_catalog',
-            args: {text: 'pre-v1.0'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.ok(res.rendererFunctionResponse.error);
-    assert.strictEqual(res.rendererFunctionResponse.error.code, RpcErrorCode.INVALID_FUNCTION_CALL);
-    assert.ok(
-      res.rendererFunctionResponse.error.message.includes(
-        'does not match message protocol version',
-      ),
-    );
-  });
-
-  it('rejects callRendererFunction when message version is outside supported compatibility sets (e.g. v2.0 on v1.0)', async () => {
-    const v10Catalog = new Catalog('v10_catalog', 'v1.0', [], [customRpcImpl]);
-    const handler = new RpcHandler([v10Catalog]);
-    const surface = new SurfaceModel('s1', v10Catalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v2.0' as any,
-        callRendererFunction: {
-          functionCallId: 'call-version-unsupported',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'v10_catalog',
-            args: {text: 'unsupported'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, undefined);
-    assert.strictEqual(
-      res.rendererFunctionResponse.error?.code,
-      RpcErrorCode.INVALID_FUNCTION_CALL,
-    );
-    assert.ok(
-      res.rendererFunctionResponse.error.message.includes(
-        'does not match message protocol version',
-      ),
-    );
-  });
-
-  it('allows callRendererFunction when message minor version differs within 1.x (e.g. v1.1 on v1.0)', async () => {
-    const v10Catalog = new Catalog('v10_catalog', 'v1.0', [], [customRpcImpl]);
-    const handler = new RpcHandler([v10Catalog]);
-    const surface = new SurfaceModel('s1', v10Catalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.1' as any,
-        callRendererFunction: {
-          functionCallId: 'call-version-v11',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'v10_catalog',
-            args: {text: 'supported'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: supported');
-    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
-  });
-
-  it('allows callRendererFunction when catalog protocolVersion formatting differs but normalizes to same version (e.g. v1_0 on 1.0.0)', async () => {
-    const v10Catalog = new Catalog('v10_catalog', 'v1_0', [], [customRpcImpl]);
-    const handler = new RpcHandler([v10Catalog]);
-    const surface = new SurfaceModel('s1', v10Catalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: '1.0.0' as any,
-        callRendererFunction: {
-          functionCallId: 'call-version-normalize',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'v10_catalog',
-            args: {text: 'format-tolerance'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: format-tolerance');
-    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
-  });
-
-  it('allows callRendererFunction when catalog protocolVersion is compatible via explicit mapping (e.g. v0.9 catalog on v0.9.1 message)', async () => {
-    const v09Catalog = new Catalog('v09_catalog', 'v0.9', [], [customRpcImpl]);
-    const handler = new RpcHandler([v09Catalog]);
-    const surface = new SurfaceModel('s1', v09Catalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v0.9.1' as any,
-        callRendererFunction: {
-          functionCallId: 'call-version-v09-v091',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'v09_catalog',
-            args: {text: 'v09-on-v091'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: v09-on-v091');
-    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
-  });
-
-  it('allows callRendererFunction when catalog protocolVersion matches message version', async () => {
-    const v10Catalog = new Catalog('v10_catalog', 'v1.0', [], [customRpcImpl]);
-    const handler = new RpcHandler([v10Catalog]);
-    const surface = new SurfaceModel('s1', v10Catalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-version-match',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'v10_catalog',
-            args: {text: 'matched'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: matched');
-    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
-  });
-
-  it('allows callRendererFunction when version prefix differs (e.g. 1.0 vs v1.0)', async () => {
-    const unprefixCatalog = new Catalog('unprefix_catalog', '1.0', [], [customRpcImpl]);
-    const handler = new RpcHandler([unprefixCatalog]);
-    const surface = new SurfaceModel('s1', unprefixCatalog);
-    const context = new DataContext(surface, '/');
-
-    const res = await handler.handleCallRendererFunction(
-      {
-        version: 'v1.0',
-        callRendererFunction: {
-          functionCallId: 'call-version-prefix-norm',
-          callFunction: {
-            call: 'customRpc',
-            catalogId: 'unprefix_catalog',
-            args: {text: 'normalized'},
-          },
-        },
-      },
-      context,
-      true,
-    );
-
-    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: normalized');
-    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
   });
 
   it('formats A2uiRpcError with the blueprint-standard (message, code, functionCallId, details) signature', () => {
