@@ -18,9 +18,10 @@ import json
 import os
 import tempfile
 import unittest
+from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import Catalog
-from a2ui.schema.constants import VERSION_1_0
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
+from a2ui.schema.constants import VERSION_1_0
 
 
 class TestElementalPromptGenerator(unittest.TestCase):
@@ -124,13 +125,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         elemental_format = ElementalFormat(catalog=self.catalog)
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="You are an HTML generator.",
-            workflow_description="Please output Elemental HTML.",
-            include_schema=True,
-        )
-        self.assertIn("You are an HTML generator.", prompt)
-        self.assertIn("Please output Elemental HTML.", prompt)
+        prompt = generator.generate()
         self.assertIn("# A2UI Elemental Output Contract", prompt)
         self.assertIn("interface Text {", prompt)
 
@@ -234,10 +229,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         elemental_format = ElementalFormat(catalog=self.catalog)
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
+        prompt = generator.generate()
 
         # Check checks property maps to FunctionCall[]
         self.assertIn("checks?: FunctionCall[]", prompt)
@@ -264,15 +256,12 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertIn("genericObject?: Record<string, any>", prompt)
 
     def test_allowed_components_pruning(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        pruned_catalog = ComponentPruningTransformer(["Text"]).transform(self.catalog)
+        elemental_format = ElementalFormat(catalog=pruned_catalog)
         generator = elemental_format.prompt_generator
 
         # Only allow Text component, which should prune RichComponent
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            allowed_components=["Text"],
-        )
+        prompt = generator.generate()
         self.assertNotIn("interface RichComponent", prompt)
         self.assertIn("interface Text", prompt)
 
@@ -298,12 +287,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         )
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=False,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
         self.assertIn('<ui-rich-component id="root" ref-string="hello" />', prompt)
@@ -328,12 +312,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         )
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=True,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
         self.assertIn("---BEGIN example_1---", prompt)
@@ -359,11 +338,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         generator = elemental_format.prompt_generator
         generator.parser = None
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=False,
-        )
+        prompt = generator.generate()
         self.assertIn("```html", prompt)
 
     def test_transform_examples_edge_cases(self):

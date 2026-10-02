@@ -14,17 +14,24 @@
 
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
-from typing import Any, Type
+from collections.abc import Sequence
+from typing import Any, Type, cast
+
+from google.adk.utils.feature_decorator import experimental
+
 from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+
 from a2ui.parser import (
     A2uiCompilationError,
     A2uiCompilationParseError,
     A2uiCompilationValidationError,
     Parser,
-    ResponsePart,
+    RawA2uiPart,
+    RawResponsePart,
+    TextPart,
 )
-from google.adk.utils.feature_decorator import experimental
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
+from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from .compiler import ExpressCompiler
 from .decompiler import _ExpressDecompiler
 from .errors import ExpressParseError, ExpressValidationError
@@ -73,7 +80,7 @@ class ExpressParser(Parser):
         self.surface_id = surface_id
         self.version = version
 
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
+    def has_format_content(self, content: str, complete: bool = False) -> bool:
         """Checks whether the given content string contains A2UI Express sentinel tags.
 
         Args:
@@ -90,7 +97,22 @@ class ExpressParser(Parser):
             )
         return A2UI_INFERENCE_OPEN_TAG[:-1] in content
 
-    def unwrap(self, content: str) -> list[ResponsePart]:
+    def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
+        """Wraps interleaved text and raw A2UI blocks into a unified response string."""
+        out: list[str] = []
+        for block in blocks:
+            inner = block.part if isinstance(block, RawResponsePart) else block
+            if isinstance(inner, RawA2uiPart):
+                out.append(
+                    f"{A2UI_INFERENCE_OPEN_TAG}\n{inner.a2ui_raw}\n{A2UI_INFERENCE_CLOSE_TAG}"
+                )
+            elif isinstance(inner, TextPart):
+                out.append(inner.text or "")
+            elif isinstance(inner, str):
+                out.append(inner)
+        return "\n".join(out)
+
+    def unwrap(self, content: str) -> list[RawResponsePart]:
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
         from a2ui.parser.lexer import BlockLexer
 
@@ -100,16 +122,15 @@ class ExpressParser(Parser):
             string_delimiters={"'", '"'},
             single_line_comments={"#"},
         )
-        return lexer.tokenize(content)
+        return cast(list[RawResponsePart], lexer.tokenize(content))
 
-    def compile(
-        self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
+    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Compiles raw Express DSL to structured A2UI messages."""
         compiler = ExpressCompiler(self.catalog, version=self.version)
         try:
-            return compiler.compile(
-                format_content, surface_id=self.surface_id, is_final=is_final
+            return cast(
+                list[AgentToRendererMessage],
+                compiler.compile(format_content, surface_id=self.surface_id),
             )
         except (SyntaxError, ValueError) as e:
             orig_err = e
@@ -131,10 +152,6 @@ class ExpressParser(Parser):
                 details=details,
             ) from e
 
-    def decompile(self, val: dict[str, Any] | list[dict[str, Any]]) -> str:
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles a structured A2UI payload into this format's raw notation."""
-        return _ExpressDecompiler(self.catalog).decompile(val)
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return _ExpressDecompiler(self.catalog).wrap_decompiled_blocks(blocks)
+        return _ExpressDecompiler(self.catalog).decompile(a2ui_payload)

@@ -173,14 +173,12 @@ class ContactAgent:
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
 
         instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_examples=True,
-                include_schema=True,
-                validate_examples=False,  # Missing inline_catalogs for OrgChart and WebFrame validation
-            )
+            "\n\n".join([
+                ROLE_DESCRIPTION,
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ])
             if inference_format
             else get_text_prompt()
         )

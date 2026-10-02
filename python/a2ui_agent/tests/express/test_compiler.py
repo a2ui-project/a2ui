@@ -166,17 +166,19 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             )
 
             # Decompiler
+            from a2ui.core.schema.v1_0 import AgentToRendererMessage
+            from pydantic import TypeAdapter
+
+            adapter = TypeAdapter(list[AgentToRendererMessage])
             decompiler = ExpressParser(cat_input)
-            decompiled_dsl = decompiler.decompile(envelope)
+            decompiled_dsl = decompiler.decompile(adapter.validate_python([envelope]))
             self.assertIn("repField = TextField(", decompiled_dsl)
 
             # Prompt Generator
             from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
             fmt = ExpressFormat(catalog=cat_input)
-            prompt = fmt.prompt_generator.generate(
-                role_description="", include_schema=True
-            )
+            prompt = fmt.prompt_generator.generate()
             self.assertIn("TextField(", prompt)
 
             # Parser

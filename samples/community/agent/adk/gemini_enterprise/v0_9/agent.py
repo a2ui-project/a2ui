@@ -188,13 +188,11 @@ class A2uiDemoAgent:
         model_name = model_env.split("/")[-1]
 
         instruction = (
-            schema_manager.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
-            )
+            "\n\n".join([
+                ROLE_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                schema_manager.prompt_generator.generate(),
+            ])
             if schema_manager
             else get_text_prompt()
         )

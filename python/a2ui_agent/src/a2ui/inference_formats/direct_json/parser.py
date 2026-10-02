@@ -15,12 +15,21 @@
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
+
 from a2ui.core import A2uiCatalogError, A2uiParseError, Catalog, CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+
+
 from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
 from a2ui.parser.parser import Parser
 from a2ui.parser.payload_fixer import parse_and_fix
-from a2ui.parser.response_part import ResponsePart
+from a2ui.parser.response_part import (
+    RawA2uiPart,
+    RawResponsePart,
+    ResponsePart,
+    TextPart,
+)
 from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
 
@@ -110,34 +119,41 @@ class DirectJsonParser(Parser):
         self._validator = validator
         self._stream_parser: Any | None = None
 
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-
+    def has_format_content(self, content: str, complete: bool = False) -> bool:
         if complete:
             return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
         return A2UI_OPEN_TAG in content
 
-    def unwrap(self, content: str) -> list[ResponsePart]:
+    def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
+        """Converts a sequence of RawResponseParts to a string with enclosing tags."""
+        out: list[str] = []
+        for block in blocks:
+            if isinstance(block, RawResponsePart):
+                if isinstance(block.part, TextPart):
+                    out.append(block.part.text)
+                elif isinstance(block.part, RawA2uiPart):
+                    out.append(f"{A2UI_OPEN_TAG}{block.part.a2ui_raw}{A2UI_CLOSE_TAG}")
+        return "".join(out)
+
+    def unwrap(self, content: str) -> list[RawResponsePart]:
         """Tokenizes response content into raw format-content parts.
 
         Args:
             content: The raw response content.
 
         Returns:
-            A list of unwrapped ResponsePart objects.
+            A list of unwrapped RawResponsePart objects.
         """
-        return unwrap_response(content)
+        return cast(list[RawResponsePart], unwrap_response(content))
 
-    def compile(
-        self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
+    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Validates and compiles raw A2UI JSON schema content.
 
         Args:
             format_content: The raw A2UI JSON string.
 
         Returns:
-            A list of compiled A2UI message dictionaries.
+            A list of compiled A2UI messages.
         """
         json_data = parse_and_fix(format_content)
         # TODO: Leverage MessageProcessor to validate the json data.
@@ -150,31 +166,20 @@ class DirectJsonParser(Parser):
                     f"Validation failed with {len(errs)} error(s)",
                     details=errs,
                 )
-        return json_data
+        return cast(list[AgentToRendererMessage], json_data)
 
     @property
     def supports_streaming(self) -> bool:
         return True
 
-    def process_chunk(self, chunk: str) -> list[ResponsePart]:
-        """Processes streamed token chunks incrementally.
-
-        Args:
-            chunk: The next token text chunk.
-
-        Returns:
-            A list of parsed or completed ResponsePart objects.
-        """
+    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
+        """Processes streamed token chunks incrementally."""
         from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
         if not self._stream_parser:
             self._stream_parser = DirectJsonStreamParser(self._catalogs)
-        return self._stream_parser.process_chunk(chunk)
+        return self._stream_parser.parse_chunk(chunk, wrapped=wrapped)
 
-    def decompile(self, val: dict[str, Any]) -> str:
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles a structured A2UI payload into this format's raw notation."""
-        return _DirectJsonDecompiler().decompile(val)
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return _DirectJsonDecompiler().wrap_decompiled_blocks(blocks)
+        return _DirectJsonDecompiler().decompile(a2ui_payload)

@@ -52,25 +52,37 @@ def test_direct_json_parser_methods():
     assert parser.has_format_content("<a2ui-json>", complete=True) is False
     assert parser.has_format_content("<a2ui-json></a2ui-json>", complete=True) is True
 
-    # 2. process_chunk incremental streaming
-    parts1 = parser.process_chunk("<a2ui-json>")
+    # 2. parse_chunk incremental streaming
+    parts1 = parser.parse_chunk("<a2ui-json>")
     assert parts1 == []  # Buffering open tag
 
-    parts2 = parser.process_chunk(
+    parts2 = parser.parse_chunk(
         '[{"beginRendering": {"surfaceId": "main", "root": "c1"}}]</a2ui-json>'
     )
     assert len(parts2) == 1
     assert parts2[0].is_final is True
 
-    # 3. decompile and wrap_decompiled_blocks
-    payload = {"beginRendering": {"surfaceId": "s1", "root": "c1"}}
+    # 3. decompile and wrap
+    from a2ui.core.schema.v0_8 import AgentToRendererMessage
+    from a2ui.parser import RawA2uiPart, RawResponsePart
+    from pydantic import TypeAdapter
+
+    payload = [
+        TypeAdapter(AgentToRendererMessage).validate_python(
+            {"beginRendering": {"surfaceId": "s1", "root": "c1"}}
+        )
+    ]
     decompiled = parser.decompile(payload)
     assert "beginRendering" in decompiled
     assert '"surfaceId": "s1"' in decompiled
 
-    wrapped = parser.wrap_decompiled_blocks(
-        ['{"beginRendering": {"surfaceId": "s1", "root": "c1"}}']
-    )
+    wrapped = parser.wrap([
+        RawResponsePart(
+            part=RawA2uiPart(
+                a2ui_raw='{"beginRendering": {"surfaceId": "s1", "root": "c1"}}'
+            )
+        )
+    ])
     assert wrapped == (
         '<a2ui-json>\n{"beginRendering": {"surfaceId": "s1", "root":'
         ' "c1"}}\n</a2ui-json>'

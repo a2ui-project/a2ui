@@ -225,9 +225,9 @@ def test_parser_conformance(name, test_case):
         expect_error = step.get("expectError") or test_case.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
-                parser.process_chunk(step["input"])
+                parser.parse_chunk(step["input"])
         else:
-            parts = parser.process_chunk(step["input"])
+            parts = parser.parse_chunk(step["input"])
             assert_parts_match(parts, step["expect"])
 
 
@@ -381,16 +381,22 @@ def test_schema_manager_conformance(name, test_case):
             accepts_inline_catalogs=accepts_inline,
         )
 
-        output = direct_json_format.generate_system_prompt(
-            role_description=role,
-            workflow_description=workflow,
-            ui_description=ui_desc,
-            include_schema=args.get("includeSchema", False),
-            include_examples=args.get("includeExamples", False),
+        selected_catalog = direct_json_format.get_selected_catalog(
             client_ui_capabilities=args.get("clientUiCapabilities"),
             allowed_components=args.get("allowedComponents"),
             allowed_messages=args.get("allowedMessages"),
         )
+        direct_json_format.prompt_generator.selected_catalog = selected_catalog
+        snippet = direct_json_format.prompt_generator.generate()
+        parts = []
+        if role:
+            parts.append(role)
+        parts.append(snippet)
+        if workflow:
+            parts.append(workflow)
+        if ui_desc:
+            parts.append(f"## UI Description:\n{ui_desc}")
+        output = "\n\n".join(parts)
 
         output_normalized = re.sub(r"\s+", "", output.strip())
 
@@ -481,9 +487,9 @@ def test_schema_manager_conformance(name, test_case):
             expect_error = step.get("expectError") or test_case.get("expectError")
             if expect_error:
                 with assert_raises(expect_error):
-                    parser.process_chunk(step["input"])
+                    parser.parse_chunk(step["input"])
             else:
-                parts = parser.process_chunk(step["input"])
+                parts = parser.parse_chunk(step["input"])
                 assert_parts_match(parts, step["expect"])
 
 
@@ -546,36 +552,15 @@ KNOWN_GAPS = {
         "the text before a block is attached to the same part as the payload"
         " rather than being a part of its own"
     ),
-    # `wrap` is `wrap_decompiled_blocks` here and takes raw payload strings
-    # rather than parts, so it always writes a tagged block and can neither
-    # write a text part nor leave the tags off.
-    "test_wrap_express_text_only_parts_are_the_text": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
-        " part cannot be written"
-    ),
-    "test_wrap_text_only_parts_are_the_text": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
-        " part cannot be written"
-    ),
-    "test_wrap_express_no_parts_is_an_empty_string": (
-        "wrap_decompiled_blocks writes an empty tagged block rather than an"
-        " empty string"
-    ),
-    "test_wrap_no_parts_is_an_empty_string": (
-        "wrap_decompiled_blocks writes an empty tagged block rather than an"
-        " empty string"
-    ),
+    # `wrap` joins parts with `\n`, and `unwrap` attaches preceding text to the
+    # payload part rather than keeping it as a separate text part.
     "test_wrap_express_restores_tags_and_order": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " part is dropped and does not survive the round trip"
+        "round-trip unwrap attaches preceding text to the payload part rather"
+        " than keeping it as a separate text part"
     ),
     "test_wrap_keeps_text_and_blocks_in_order": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " parts are dropped and do not survive the round trip"
-    ),
-    "test_wrap_express_tags_sit_on_their_own_lines": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " part is dropped"
+        "round-trip unwrap attaches preceding text to the payload part rather"
+        " than keeping it as a separate text part"
     ),
     # Direct JSON unwrapping raises where the suites return parts. These are
     # the three decisions the suite header calls out as departures from
@@ -594,15 +579,6 @@ KNOWN_GAPS = {
     "test_unwrap_unterminated_block_is_not_final": (
         "an unterminated block raises ParseError rather than coming back as a"
         " part that is not final"
-    ),
-    # The rest.
-    "test_parse_response_express_unwrapped_compiles_the_whole_body": (
-        "parse_response takes no `wrapped` argument, so a response the case"
-        " declares unwrapped cannot be handed to the compiler whole"
-    ),
-    "test_parse_response_unwrapped_compiles_the_whole_body": (
-        "parse_response takes no `wrapped` argument, so a response the case"
-        " declares unwrapped cannot be handed to the compiler whole"
     ),
     # Compiler. The direct JSON parser validates components against the catalog
     # but not the message envelope, so the envelope's `version` goes unchecked.
@@ -735,10 +711,14 @@ cases_decompiler = get_marked_conformance_cases(
 
 @pytest.mark.parametrize("name, test_case", cases_decompiler)
 def test_decompiler_conformance(name, test_case):
+    from a2ui.core.schema.v1_0 import AgentToRendererMessage
+    from pydantic import TypeAdapter
+
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
 
-    notation = parser.decompile(messages if len(messages) > 1 else messages[0])
+    adapter = TypeAdapter(list[AgentToRendererMessage])
+    notation = parser.decompile(adapter.validate_python(messages))
 
     for fragment in test_case.get("expect_contains", []):
         assert fragment in notation, f"{fragment!r} not in {notation!r}"
@@ -755,12 +735,6 @@ def test_decompiler_conformance(name, test_case):
 # compiles each block it finds.
 #
 # The unwrap and wrap cases carry no catalog, because neither call consults one.
-#
-# This SDK names `wrap` `wrap_decompiled_blocks` and gives it a list of raw
-# payload strings rather than the parts the blueprint declares, so it can only
-# write blocks and has nowhere to put a text part. The harness calls it with the
-# raw blocks a case names; a case whose parts are not all payload therefore
-# fails, and is marked as the gap it is rather than worked around here.
 
 
 def assert_raw_parts_match(actual_parts, expected_parts):
@@ -776,10 +750,21 @@ def assert_raw_parts_match(actual_parts, expected_parts):
 
 
 def wrap_parts(parser, parts):
-    """Writes parts back out through whatever this SDK offers for `wrap`."""
-    return parser.wrap_decompiled_blocks(
-        [part["a2ui_raw"] for part in parts if "a2ui_raw" in part]
-    )
+    """Writes parts back out through `parser.wrap`."""
+    from a2ui.parser import RawA2uiPart, RawResponsePart, TextPart
+
+    raw_parts = []
+    for part in parts:
+        if "a2ui_raw" in part:
+            raw_parts.append(
+                RawResponsePart(
+                    part=RawA2uiPart(a2ui_raw=part["a2ui_raw"]),
+                    is_final=part.get("is_final", True),
+                )
+            )
+        elif "text" in part:
+            raw_parts.append(RawResponsePart(part=TextPart(text=part["text"])))
+    return parser.wrap(raw_parts)
 
 
 cases_response_parser = get_marked_conformance_cases(

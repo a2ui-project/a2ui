@@ -149,13 +149,17 @@ class TestSpecificationRoundtripAllFormats:
         if not all_components:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
 
-        surface_payload = {
-            "version": "v1.0",
-            "createSurface": {
-                "surfaceId": surface_id,
-                "components": all_components,
-            },
-        }
+        from a2ui.core.schema.v1_0 import CreateSurfaceMessage
+
+        surface_payload = [
+            CreateSurfaceMessage.model_validate({
+                "version": "v1.0",
+                "createSurface": {
+                    "surfaceId": surface_id,
+                    "components": all_components,
+                },
+            })
+        ]
 
         processed = 0
 

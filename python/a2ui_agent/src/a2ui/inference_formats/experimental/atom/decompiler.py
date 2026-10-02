@@ -15,8 +15,10 @@
 """Decompilation engine for A2UI Atom format."""
 
 import json
+from collections.abc import Sequence
 from typing import Any
 from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
 
 
 class AtomDecompiler:
@@ -34,22 +36,56 @@ class AtomDecompiler:
         """
         self.catalog = catalog
 
-    def decompile(self, payload: dict[str, Any]) -> str:
-        """Decompiles an A2UI JSON payload dictionary into Atom S-expression syntax.
+    def decompile(
+        self,
+        payload: (
+            Sequence[AgentToRendererMessage]
+            | Sequence[dict[str, Any]]
+            | dict[str, Any]
+            | str
+        ),
+    ) -> str:
+        """Decompiles an A2UI JSON payload into Atom S-expression syntax.
 
         Args:
-            payload: The A2UI JSON message dictionary payload.
+            payload: Sequence of AgentToRendererMessage objects, dicts, or raw JSON string.
 
         Returns:
             The decompiled Atom S-expression formatted string.
         """
+        raw_items: Sequence[Any]
+        if isinstance(payload, str):
+            parsed = json.loads(payload)
+            raw_items = parsed if isinstance(parsed, list) else [parsed]
+        elif isinstance(payload, dict):
+            raw_items = [payload]
+        else:
+            raw_items = payload
+
+        return "\n".join(
+            self._decompile_message(
+                item.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(item, "model_dump")
+                else item
+            )
+            for item in raw_items
+        )
+
+    def _decompile_message(self, payload: dict[str, Any]) -> str:
+        """Decompiles a single A2UI message dict into Atom S-expression syntax."""
         if "deleteSurface" in payload:
+
             surf_id = payload["deleteSurface"].get("surfaceId", "main")
             return f'(deleteSurface "{surf_id}")'
 
-        if "callFunction" in payload:
-            call_obj = payload["callFunction"]
-            func_name = call_obj.get("call", "")
+        if "callRendererFunction" in payload or "callFunction" in payload:
+            func_op = payload.get("callRendererFunction")
+            if isinstance(func_op, dict) and "callFunction" in func_op:
+                call_obj = func_op["callFunction"]
+            else:
+                call_obj = payload.get("callFunction", {})
+            func_name = call_obj.get("@call") or call_obj.get("call", "")
+
             args = call_obj.get("args", {})
             args_str = " ".join(
                 [f":{k} {self._format_val(v)}" for k, v in args.items()]
@@ -206,14 +242,3 @@ class AtomDecompiler:
         if isinstance(val, str):
             return f'"{val}"'
         return str(val)
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Wraps decompiled Atom S-expression blocks within <a2ui> sentinel tags.
-
-        Args:
-            blocks: A list of decompiled S-expression string blocks.
-
-        Returns:
-            The formatted text block enclosed in sentinel tags.
-        """
-        return "<a2ui>\n" + "\n\n".join(blocks) + "\n</a2ui>"

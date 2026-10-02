@@ -43,7 +43,7 @@ def _stream_create_surface(catalog: Catalog, extensions: dict[str, int]) -> None
         },
     }
     parser = DirectJsonStreamParser(catalogs=[catalog])
-    parser.process_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
+    parser.parse_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
 
 
 def test_catalog_common_types_come_from_core() -> None:

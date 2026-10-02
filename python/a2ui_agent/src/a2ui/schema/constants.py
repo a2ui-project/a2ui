@@ -93,18 +93,6 @@ A2UI_INFERENCE_CLOSE_TAG = "</a2ui>"
 A2UI_SCHEMA_BLOCK_START = "---BEGIN A2UI JSON SCHEMA---"
 A2UI_SCHEMA_BLOCK_END = "---END A2UI JSON SCHEMA---"
 
-DEFAULT_WORKFLOW_RULES = f"""
-The generated response MUST follow these rules:
-- The response can contain one or more A2UI JSON blocks.
-- Each A2UI JSON block MUST be wrapped in `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags.
-- Between or around these blocks, you can provide conversational text.
-- The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
-- Top-Down Component Ordering: Within the `components` list of a message:
-    - The 'root' component MUST be the FIRST element.
-    - Parent components MUST appear before their child components.
-    This specific ordering allows the streaming parser to yield and render the UI incrementally as it arrives.
-"""
-
 # A2UI Tool constants
 A2UI_TOOL_NAME = "send_a2ui_json_to_client"
 A2UI_VALIDATED_JSON_KEY = "validated_a2ui_json"

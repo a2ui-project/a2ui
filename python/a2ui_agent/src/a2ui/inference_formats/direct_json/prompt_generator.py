@@ -14,16 +14,29 @@
 
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
-from collections.abc import Mapping, Sequence
-from typing import Any, TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 from a2ui.core import Catalog, CatalogApi
-from a2ui.core.schema.v0_9 import V09Capabilities
+
 from a2ui.prompt import PromptGenerator
 from a2ui.schema.catalog import render_as_llm_instructions
+from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.direct_json import DirectJsonFormat
+
+DEFAULT_WORKFLOW_RULES = f"""
+The generated response MUST follow these rules:
+- The response can contain one or more A2UI JSON blocks.
+- Each A2UI JSON block MUST be wrapped in `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags.
+- Between or around these blocks, you can provide conversational text.
+- The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
+- Top-Down Component Ordering: Within the `components` list of a message:
+    - The 'root' component MUST be the FIRST element.
+    - Parent components MUST appear before their child components.
+    This specific ordering allows the streaming parser to yield and render the UI incrementally as it arrives.
+"""
 
 
 class DirectJsonPromptGenerator(PromptGenerator):
@@ -41,8 +54,6 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
     def generate_base_rules(self) -> str:
         """Returns default JSON workflow rules."""
-        from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
-
         return DEFAULT_WORKFLOW_RULES
 
     def generate_catalog_instructions(
@@ -110,47 +121,37 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
     def generate(
         self,
-        role_description: str,
+        role_description: str = "",
         workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
+        **kwargs: Any,
     ) -> str:
-        """Assembles prompt instructions contract for standard JSON."""
-        self._allowed_messages = allowed_messages
-        selected_catalog = self._format.get_selected_catalog(
-            client_ui_capabilities, allowed_components, allowed_messages
-        )
-        self.selected_catalog = selected_catalog
+        """Assembles prompt instructions contract for standard JSON.
 
-        examples_str = ""
-        if include_examples:
-            examples_str = self._format.load_examples(
-                selected_catalog, validate=validate_examples
-            )
-        parts = [role_description]
+        Returns:
+            The generated prompt snippet for A2UI Direct JSON.
+        """
+        selected_catalog = self.selected_catalog
+        if selected_catalog is None and self._format._supported_catalogs:
+            selected_catalog = self._format.get_selected_catalog()
+            self.selected_catalog = selected_catalog
 
-        from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
+        parts: list[str] = []
+        if role_description:
+            parts.append(role_description)
 
         rules = DEFAULT_WORKFLOW_RULES
         if workflow_description:
             rules += f"\n{workflow_description}"
         parts.append(f"## Workflow Description:\n{rules}")
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
+        instructions = self._catalog_description(include_schema=True)
+        if instructions:
+            parts.append(instructions)
 
-        if include_schema:
-            instructions = self._catalog_description(include_schema=True)
-            if instructions:
-                parts.append(instructions)
-
-        if examples_str:
-            parts.append(f"### Examples:\n{examples_str}")
+        if selected_catalog is not None:
+            examples_str = self._format.load_examples(selected_catalog, validate=False)
+            if examples_str:
+                parts.append(f"### Examples:\n{examples_str}")
 
         return "\n\n".join(parts)
 

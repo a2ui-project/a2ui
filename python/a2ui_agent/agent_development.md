@@ -66,22 +66,15 @@ Notes:
 
 ### Step 2: Generate System Prompt
 
-Use the `generate_system_prompt` method to assemble the LLM's system
-instructions. This method takes your high-level descriptions (role, workflow, UI
-goals) and automatically injects the relevant A2UI JSON Schema and few-shot
-examples from your catalog configuration.
+Use `prompt_generator.generate()` to generate the A2UI prompt snippet (containing workflow rules, the A2UI JSON Schema, and few-shot examples from your catalog configuration) and combine it with your high-level role and UI descriptions.
 
 ```python
-instruction = schema_manager.generate_system_prompt(
-    role_description="You are a helpful assistant...",
-    workflow_description="Analyze the request and return UI...",
-    ui_description="Use the following components...",
-    include_schema=True,  # Injects the raw JSON schema
-    include_examples=True,  # Injects few-shot examples
-    # Optional: prune schema to save tokens
-    allowed_components=["Heading", "Text", "Button"],
-    allowed_messages=["CreateSurfaceMessage", "UpdateSurfaceMessage"],
-)
+instruction = "\n\n".join([
+    "You are a helpful assistant...",
+    schema_manager.prompt_generator.generate(),
+    "Analyze the request and return UI...",
+    "## UI Description:\nUse the following components...",
+])
 ```
 
 ### Step 3: Build an LLM Agent with the System Prompt
@@ -212,7 +205,7 @@ parser = DirectJsonStreamParser(catalogs=[selected_catalog])
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
     # Process text chunks as they arrive
-    response_parts = parser.process_chunk(chunk.text)
+    response_parts = parser.parse_chunk(chunk.text)
 
     for part in response_parts:
         if part.a2ui_json:
@@ -237,20 +230,19 @@ for chunk in llm_response_stream:
 ### 1. Simple Agents with Static Schemas
 
 For agents with a fixed set of UI capabilities, simply use the `schema_manager`
-to generate the system instruction.
+to generate the prompt snippet and combine it with your instructions.
 
 **Example Samples:**
 [restaurant_finder](../../samples/agent/adk/restaurant_finder)
 
 ```python
 # Generate system prompt
-instruction = schema_manager.generate_system_prompt(
-    role_description="You are a helpful assistant...",
-    workflow_description="Analyze the request and return UI...",
-    ui_description="Use the following components...",
-    include_schema=True,
-    include_examples=True,
-)
+instruction = "\n\n".join([
+    "You are a helpful assistant...",
+    schema_manager.prompt_generator.generate(),
+    "Analyze the request and return UI...",
+    "## UI Description:\nUse the following components...",
+])
 
 # Use with your LLM framework (e.g., ADK)
 agent = LlmAgent(instruction=instruction, ...)

@@ -14,19 +14,42 @@
 
 """Standard Direct JSON format decompiler."""
 
+from collections.abc import Sequence
 import json
+
 from typing import Any
-from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
+
+from a2ui.core.schema import AgentToRendererMessage
 
 
 class _DirectJsonDecompiler:
     """Private helper to decompile structured JSON payloads."""
 
-    def decompile(self, val: dict[str, Any]) -> str:
+    def decompile(
+        self,
+        a2ui_payload: (
+            Sequence[AgentToRendererMessage]
+            | Sequence[dict[str, Any]]
+            | dict[str, Any]
+            | str
+        ),
+    ) -> str:
         """Decompiles a structured JSON payload to pretty-printed JSON."""
-        return json.dumps(val, indent=2)
+        raw_items: Sequence[Any]
+        if isinstance(a2ui_payload, str):
+            parsed = json.loads(a2ui_payload)
+            raw_items = parsed if isinstance(parsed, list) else [parsed]
+        elif isinstance(a2ui_payload, dict):
+            raw_items = [a2ui_payload]
+        else:
+            raw_items = a2ui_payload
 
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Wraps JSON string blocks within <a2ui-json> tags."""
-        full_json = "\n".join(blocks)
-        return f"{A2UI_OPEN_TAG}\n{full_json}\n{A2UI_CLOSE_TAG}"
+        return json.dumps(
+            [
+                item.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(item, "model_dump")
+                else item
+                for item in raw_items
+            ],
+            indent=2,
+        )

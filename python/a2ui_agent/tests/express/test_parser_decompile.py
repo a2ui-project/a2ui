@@ -87,20 +87,25 @@ class TestExpressParser(unittest.TestCase):
         self.assertEqual(get_compiled_text('r"""hello "world" """'), 'hello "world" ')
 
         # 5. Decompiler Formatting Choices
+        from a2ui.core.schema.v1_0 import AgentToRendererMessage
+        from pydantic import TypeAdapter
+
+        adapter = TypeAdapter(list[AgentToRendererMessage])
+
         envelope_quote = compiler.compile('root = Text("hello \\"world\\"")')
-        decompiled_quote = decompiler.decompile(envelope_quote)
+        decompiled_quote = decompiler.decompile(adapter.validate_python(envelope_quote))
         self.assertIn('root = Text("hello \\"world\\"")', decompiled_quote)
 
         envelope_nl = compiler.compile('root = Text("hello \\n world")')
-        decompiled_nl = decompiler.decompile(envelope_nl)
+        decompiled_nl = decompiler.decompile(adapter.validate_python(envelope_nl))
         self.assertIn('root = Text("""hello \n world""")', decompiled_nl)
 
         envelope_cr = compiler.compile('root = Text("hello \\r \\"")')
-        decompiled_cr = decompiler.decompile(envelope_cr)
+        decompiled_cr = decompiler.decompile(adapter.validate_python(envelope_cr))
         self.assertIn('root = Text("hello \\r \\"")', decompiled_cr)
 
         envelope_raw = compiler.compile('root = Text("C:\\\\path\\\\to\\\\file")')
-        decompiled_raw = decompiler.decompile(envelope_raw)
+        decompiled_raw = decompiler.decompile(adapter.validate_python(envelope_raw))
         self.assertIn('root = Text(r"C:\\path\\to\\file")', decompiled_raw)
 
         # 6. Additional Edge Cases

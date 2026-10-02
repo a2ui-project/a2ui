@@ -61,16 +61,14 @@ def test_schema_strategy_prompt_generation(test_catalog):
     )
 
     direct_json_format = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
-    prompt = direct_json_format.generate_system_prompt(
-        role_description="You are a helpful assistant.",
-        workflow_description="Please adhere to constraints.",
-        include_schema=True,
+    selected = direct_json_format.get_selected_catalog(
         client_ui_capabilities={
             "supportedCatalogIds": ["https://a2ui.org/test_catalog"]
-        },
+        }
     )
-    assert "You are a helpful assistant." in prompt
-    assert "Please adhere to constraints." in prompt
+    direct_json_format.prompt_generator.selected_catalog = selected
+    prompt = direct_json_format.prompt_generator.generate()
+    assert "## Workflow Description:" in prompt
     assert "### Catalog Schema:" in prompt
 
 
@@ -153,15 +151,15 @@ def test_supports_streaming_property(test_catalog):
     assert elemental_fmt.parser.supports_streaming is False
 
 
-def test_process_chunk_raises_not_implemented(test_catalog):
+def test_parse_chunk_raises_not_implemented(test_catalog):
     express_parser = ExpressParser(test_catalog)
     with pytest.raises(NotImplementedError) as exc_info:
-        express_parser.process_chunk("chunk")
+        express_parser.parse_chunk("chunk")
     assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
 
     elemental_parser = ElementalParser(test_catalog)
     with pytest.raises(NotImplementedError) as exc_info:
-        elemental_parser.process_chunk("chunk")
+        elemental_parser.parse_chunk("chunk")
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)
 
 
@@ -174,10 +172,20 @@ def test_decompiler_delegation(test_catalog):
         def load(self):
             return test_catalog.catalog_schema
 
+    from a2ui.core.schema.v0_9 import AgentToRendererMessage as V09Message
+    from a2ui.core.schema.v1_0 import AgentToRendererMessage as V10Message
+    from a2ui.parser import RawA2uiPart, RawResponsePart
+    from pydantic import TypeAdapter
+
     config = CatalogConfig(name="test_catalog", provider=DummyProvider())
     # Verify Direct JSON Parser Decompile
     direct_json_fmt = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
-    payload = {"createSurface": {"surfaceId": "main"}}
+    payload = [
+        TypeAdapter(V09Message).validate_python({
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "main", "catalogId": "test_catalog"},
+        })
+    ]
     direct_decompile = direct_json_fmt.parser.decompile(payload)
     assert "createSurface" in direct_decompile
     assert "main" in direct_decompile
@@ -185,39 +193,44 @@ def test_decompiler_delegation(test_catalog):
     # Verify Express Parser Decompile
     express_fmt = ExpressFormat(catalog=test_catalog)
     expr_parser = express_fmt.parser
-    envelope = {
-        "version": "v1.0",
-        "createSurface": {
-            "surfaceId": "main",
-            "components": [{
-                "id": "root",
-                "component": "Text",
-                "text": "Hello World",
-            }],
-        },
-    }
+    envelope = [
+        TypeAdapter(V10Message).validate_python({
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "main",
+                "catalogId": "test_catalog",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "Hello World",
+                }],
+            },
+        })
+    ]
     decompiled_dsl = expr_parser.decompile(envelope)
     assert 'root = Text("Hello World")' in decompiled_dsl
 
-    # Verify wrap_decompiled_blocks implementation
+    # Verify wrap implementation
     assert (
-        direct_json_fmt.parser.wrap_decompiled_blocks(["{}", "{}"])
+        direct_json_fmt.parser.wrap(
+            [RawResponsePart(part=RawA2uiPart(a2ui_raw="{}\n{}"))]
+        )
         == "<a2ui-json>\n{}\n{}\n</a2ui-json>"
     )
     assert (
-        expr_parser.wrap_decompiled_blocks(["a = 1", "b = 2"])
+        expr_parser.wrap([RawResponsePart(part=RawA2uiPart(a2ui_raw="a = 1\nb = 2"))])
         == "<a2ui>\na = 1\nb = 2\n</a2ui>"
     )
 
-    # Verify abstract PromptGenerator generate pass
+    # Verify abstract PromptGenerator generate
     from a2ui.prompt.generator import PromptGenerator
 
     class DummyPromptGenerator(PromptGenerator):
 
-        def generate(self, *args, **kwargs):
-            return super().generate(*args, **kwargs)
+        def generate(self) -> str:
+            return "role"
 
-    assert DummyPromptGenerator().generate("role") == "role"
+    assert DummyPromptGenerator().generate() == "role"
 
     # Verify invalid catalog_id check
     from a2ui.core import A2uiCatalogError

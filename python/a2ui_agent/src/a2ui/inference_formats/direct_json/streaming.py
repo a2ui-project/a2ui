@@ -19,27 +19,8 @@ import copy
 import json
 import logging
 import re
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from a2ui.parser.constants import *
-from a2ui.schema.constants import (
-    VERSION_0_9,
-    VERSION_0_8,
-    A2UI_OPEN_TAG,
-    A2UI_CLOSE_TAG,
-    SURFACE_ID_KEY,
-    CATALOG_COMPONENTS_KEY,
-    DEFAULT_CUTTABLE_KEYS,
-)
-from a2ui.core.validation import analyze_topology
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.schema_helper import CatalogSchemaHelper
-from a2ui.core.validation import (
-    RELAXED_VALIDATION,
-    STRICT_VALIDATION,
-    SchemaValidator,
-    ValidationConfig,
-)
 from a2ui.core import (
     A2uiCatalogError,
     A2uiIntegrityError,
@@ -49,6 +30,31 @@ from a2ui.core import (
     CatalogApi,
     PayloadValidator,
 )
+from a2ui.core.validation import (
+    RELAXED_VALIDATION,
+    STRICT_VALIDATION,
+    SchemaValidator,
+    ValidationConfig,
+    analyze_topology,
+)
+
+
+from a2ui.parser.constants import (
+    MSG_TYPE_CREATE_SURFACE,
+    MSG_TYPE_SURFACE_UPDATE,
+    MSG_TYPE_UPDATE_COMPONENTS,
+)
+from a2ui.parser.response_part import ResponsePart
+from a2ui.schema.constants import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    CATALOG_COMPONENTS_KEY,
+    DEFAULT_CUTTABLE_KEYS,
+    SURFACE_ID_KEY,
+    VERSION_0_8,
+    VERSION_0_9,
+)
+from a2ui.schema.schema_helper import CatalogSchemaHelper
 
 logger = logging.getLogger(__name__)
 
@@ -550,7 +556,7 @@ class DirectJsonStreamParser:
 
         self._deleted_surfaces.add(sid)
 
-    def process_chunk(self, chunk: str) -> list[ResponsePart]:
+    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
         """Processes a chunk of text and returns any complete A2UI messages found.
 
         This is the primary entry point for the streaming parser. It handles the
@@ -559,10 +565,12 @@ class DirectJsonStreamParser:
 
         Args:
             chunk: The chunk of raw text (e.g., from an LLM stream) to process.
+            wrapped: Whether the stream is wrapped in A2UI tags.
 
         Returns:
             A list of parsed A2UI message dictionaries.
         """
+        del wrapped
         messages = []
         self._buffer += chunk
 
@@ -650,9 +658,11 @@ class DirectJsonStreamParser:
 
         if messages:
             logger.debug(
-                f"DEBUG: process_chunk returning {len(messages)} messages: {messages}"
+                f"DEBUG: parse_chunk returning {len(messages)} messages: {messages}"
             )
         return messages
+
+    process_chunk = parse_chunk
 
     def _reset_json_state(self) -> None:
         """Resets the JSON-specific parsing state (e.g., at the end of a block)."""

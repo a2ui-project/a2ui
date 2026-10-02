@@ -18,13 +18,14 @@ Compiles A2UI catalog schemas into compact plain-text signatures and
 instruction blocks.
 """
 
-from collections.abc import Mapping, Sequence
 import json
 import re
-from typing import Any, TYPE_CHECKING
-from a2ui.prompt import PromptGenerator
-from a2ui.core.schema.v0_9 import V09Capabilities
+from typing import TYPE_CHECKING, Any
 
+from a2ui.parser import RawA2uiPart, RawResponsePart
+from a2ui.prompt import PromptGenerator
+
+from .decompiler import _ExpressDecompiler
 from .parser import ExpressParser
 from .schema_helper import CatalogSchemaHelper
 
@@ -384,37 +385,15 @@ class ExpressPromptGenerator(PromptGenerator):
         )
         return desc
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured JSON surface block into Express DSL.
-
-        Args:
-            val: The structured JSON dictionary representing surface instructions.
-
-        Returns:
-            The Express DSL string representation of the surface.
-        """
+    def _wrap_raw_blocks(self, blocks: list[str]) -> str:
         parser = self.parser or self._format.parser
         if not parser:
             self._format._ensure_catalog()
             parser = self._format.parser
             assert parser is not None
-        return parser.decompile(val)
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Encloses decompiled DSL code blocks in markdown code fences and sentinel tags.
-
-        Args:
-            blocks: A list of Express DSL snippet strings.
-
-        Returns:
-            The enclosed and formatted markdown block.
-        """
-        parser = self.parser or self._format.parser
-        if not parser:
-            self._format._ensure_catalog()
-            parser = self._format.parser
-            assert parser is not None
-        return parser.wrap_decompiled_blocks(blocks)
+        return parser.wrap(
+            [RawResponsePart(part=RawA2uiPart(a2ui_raw="\n".join(blocks)))]
+        )
 
     def _replace_json_block_in_instructions(self, match: re.Match[str]) -> str:
         json_content = match.group(1).strip()
@@ -436,14 +415,18 @@ class ExpressPromptGenerator(PromptGenerator):
                         "updateDataModel",
                         "deleteSurface",
                         "callFunction",
+                        "callRendererFunction",
                     ]
                 ):
-                    dsl_clean = self.decompile(msg)
+                    if not self.catalog:
+                        self._format._ensure_catalog()
+                    assert self.catalog is not None
+                    dsl_clean = _ExpressDecompiler(self.catalog)._decompile_message(msg)
                     dsl_blocks.append(dsl_clean)
                 else:
                     return str(match.group(0))
 
-            full_dsl = self.wrap_decompiled_blocks(dsl_blocks)
+            full_dsl = self._wrap_raw_blocks(dsl_blocks)
             return f"```\n{full_dsl}\n```"
         except Exception:
             return str(match.group(0))
@@ -468,14 +451,20 @@ class ExpressPromptGenerator(PromptGenerator):
                         "updateDataModel",
                         "deleteSurface",
                         "callFunction",
+                        "callRendererFunction",
                     ]
                 ):
-                    decompiled = self.decompile(msg)
+                    if not self.catalog:
+                        self._format._ensure_catalog()
+                    assert self.catalog is not None
+                    decompiled = _ExpressDecompiler(self.catalog)._decompile_message(
+                        msg
+                    )
                     blocks.append(decompiled)
                 else:
                     return str(match.group(0))
 
-            return self.wrap_decompiled_blocks(blocks)
+            return self._wrap_raw_blocks(blocks)
         except Exception:
             return str(match.group(0))
 
@@ -496,50 +485,31 @@ class ExpressPromptGenerator(PromptGenerator):
 
     def generate(
         self,
-        role_description: str,
+        role_description: str = "",
         workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
+        **kwargs: Any,
     ) -> str:
-        """Assembles the complete system instruction block for the LLM.
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
+        """Assembles the system instruction snippet for the LLM.
 
         Returns:
-            The complete system prompt string explaining A2UI Express and its catalog.
+            The prompt snippet explaining A2UI Express and its catalog.
         """
-        from a2ui.schema.catalog import prune_catalog_components
+        parts: list[str] = []
+        if role_description:
+            parts.append(role_description)
 
-        catalog = self._format.catalog if self._format else None
-        if catalog and allowed_components:
-            catalog = prune_catalog_components(catalog, allowed_components)
+        rules = self.generate_base_rules()
+        if rules:
+            if workflow_description:
+                rules += f"\n{workflow_description}"
+            parts.append(f"## Workflow Description:\n{rules}")
 
-        if self._format:
-            self.helper = CatalogSchemaHelper(catalog) if catalog else None
-            self.parser = ExpressParser(catalog) if catalog else None
+        catalog_inst = self.generate_catalog_instructions(include_schema=True)
+        if catalog_inst:
+            parts.append(catalog_inst)
 
-        return super().generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            ui_description=ui_description,
-            client_ui_capabilities=client_ui_capabilities,
-            allowed_components=allowed_components,
-            allowed_messages=allowed_messages,
-            include_schema=include_schema,
-            include_examples=include_examples,
-            validate_examples=validate_examples,
-        )
+        examples = self.generate_examples(validate=False)
+        if examples:
+            parts.append(f"### Examples:\n{examples}")
+
+        return "\n\n".join(parts)

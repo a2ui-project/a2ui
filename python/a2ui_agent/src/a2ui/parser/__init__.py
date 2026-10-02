@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from __future__ import annotations
+
 from .errors import (
     A2uiCompilationError,
     A2uiCompilationParseError,
@@ -18,14 +21,24 @@ from .errors import (
 )
 from .parser import Parser, parse_response
 from .payload_fixer import parse_and_fix
-from .response_part import ResponsePart
+from .response_part import (
+    A2uiPart,
+    RawA2uiPart,
+    RawResponsePart,
+    ResponsePart,
+    TextPart,
+)
 
 __all__ = [
     "A2uiCompilationError",
     "A2uiCompilationParseError",
     "A2uiCompilationValidationError",
+    "A2uiPart",
     "Parser",
+    "RawA2uiPart",
+    "RawResponsePart",
     "ResponsePart",
+    "TextPart",
     "parse_and_fix",
     "parse_response",
 ]

@@ -158,14 +158,12 @@ class ContactAgent:
         """Builds the LLM agent for the contact agent."""
 
         instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
-            )
+            "\n\n".join([
+                ROLE_DESCRIPTION,
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ])
             if inference_format
             else get_text_prompt()
         )

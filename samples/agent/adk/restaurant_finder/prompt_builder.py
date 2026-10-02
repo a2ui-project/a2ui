@@ -56,15 +56,24 @@ def get_text_prompt() -> str:
     """
 
 
+def get_ui_prompt(inference_format: DirectJsonFormat) -> str:
+    """Constructs the full system prompt for a UI-enabled restaurant agent."""
+    return "\n\n".join([
+        ROLE_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        inference_format.prompt_generator.generate(),
+    ])
+
+
 if __name__ == "__main__":
-    # Example of how to use the A2UI Schema Manager to generate a system prompt
+    # Example of how to use the A2UI inference format to generate a system prompt
     # In your actual application, you would call this from your main agent logic.
 
     # You can now easily construct a prompt with the relevant examples.
     # For a different agent (e.g., a flight booker), you would pass in
     # different examples but use the same `get_ui_prompt` function.
     version = VERSION_0_9
-    restaurant_prompt = DirectJsonFormat(
+    inference_format = DirectJsonFormat(
         version,
         catalogs=[
             CatalogConfig.from_catalog(
@@ -74,13 +83,8 @@ if __name__ == "__main__":
             )
         ],
         schema_modifiers=[remove_strict_validation],
-    ).generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=True,
     )
+    restaurant_prompt = get_ui_prompt(inference_format)
 
     print(restaurant_prompt)
 

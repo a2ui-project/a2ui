@@ -83,17 +83,19 @@ class DirectJsonFormat(InferenceFormat):
             self._prompt_generator = DirectJsonPromptGenerator(self)
         return self._prompt_generator
 
+    def create_parser(self) -> DirectJsonParser:
+        """Creates a new parser instance bound to this format strategy."""
+        if not self._supported_catalogs:
+            raise A2uiCatalogError(
+                "No supported catalogs configured for the Direct JSON format."
+            )
+        return DirectJsonParser(self._supported_catalogs)
+
     @property
     def parser(self) -> DirectJsonParser:
         """The parser instance configured for this Direct JSON format."""
         if self._parser is None:
-            if not self._supported_catalogs:
-                raise A2uiCatalogError(
-                    "No supported catalogs configured for the Direct JSON format."
-                )
-            self._parser = DirectJsonParser(
-                self._supported_catalogs,
-            )
+            self._parser = self.create_parser()
         return self._parser
 
     @property
