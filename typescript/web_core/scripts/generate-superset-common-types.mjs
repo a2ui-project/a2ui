@@ -632,7 +632,6 @@ export const CommonSchemas = {
     outTs += `  ${name}: ${name}Schema,\n`;
   }
   outTs += `};\n\n`;
-  outTs += `export * from './helpers.js';\n`;
 
   writeFileSync(destinationFile, outTs);
   console.log(`Successfully generated superset common types in ${destinationFile}`);

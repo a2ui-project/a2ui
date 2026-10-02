@@ -22,8 +22,8 @@ import {
   ChildList,
   DataBinding,
   FunctionCall,
-  childRefKindOf,
 } from '../types/common-types.js';
+import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
