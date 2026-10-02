@@ -15,7 +15,7 @@
  */
 
 import {basicCatalog as basicCatalogV09} from '@a2ui/lit/v0_9';
-import {basicCatalog as basicCatalogV10} from '@a2ui/lit/v1_0';
+import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {
   ExampleData,
   ExampleModule,
