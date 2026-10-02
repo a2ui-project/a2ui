@@ -66,7 +66,8 @@ const server = http.createServer((req, res) => {
   }
   if (!fs.existsSync(filePath)) {
     const reqExt = path.extname(pathname);
-    if (!reqExt || reqExt === '.html') {
+    const isStaticAsset = reqExt && reqExt !== '.html' && mimeTypes[reqExt];
+    if (!isStaticAsset) {
       filePath = path.join(distDir, 'index.html'); // SPA routing fallback
     } else {
       res.writeHead(404, {'Content-Type': 'text/plain'});

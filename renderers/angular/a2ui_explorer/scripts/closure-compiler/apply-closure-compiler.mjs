@@ -285,7 +285,7 @@ await new Promise((resolve, reject) => {
       const indexPath = path.join(distDir, 'index.html');
       if (fs.existsSync(indexPath)) {
         let indexHtml = fs.readFileSync(indexPath, 'utf8');
-        indexHtml = indexHtml.replace(/<link\s+rel="modulepreload"[^>]*>/g, '');
+        indexHtml = indexHtml.replace(/<link\s+[^>]*?rel="modulepreload"[^>]*?>/gi, '');
         fs.writeFileSync(indexPath, indexHtml, 'utf8');
       }
 
