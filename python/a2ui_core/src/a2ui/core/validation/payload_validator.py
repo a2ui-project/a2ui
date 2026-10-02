@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 import referencing.exceptions
 
 from ..catalog import system_functions_for
-from ..catalog.catalog import Catalog, TComponent, TFunction
+from ..catalog.catalog import CatalogApi, TComponent, TFunction
 from ..common.semver import is_at_least_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
@@ -102,10 +102,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
 
     def __init__(
         self,
-        catalog: Catalog[TComponent, TFunction],
+        catalog: CatalogApi,
         config: ValidationConfig | None = None,
     ) -> None:
-        self.catalog: Catalog[TComponent, TFunction] = catalog
+        self.catalog: CatalogApi = catalog
         self.config = config
 
     def validate_component(

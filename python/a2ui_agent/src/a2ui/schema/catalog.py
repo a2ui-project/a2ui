@@ -34,13 +34,16 @@ from a2ui.core import (
     STRICT_VALIDATION,
 )
 
-
 if TYPE_CHECKING:
     # The packaging hook imports this module against the published a2ui-core,
     # which may predate CatalogApi, so it is needed for type checking only.
     from a2ui.core import CatalogApi
 
-from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
+from .catalog_provider import (
+    A2uiCatalogProvider,
+    FileSystemCatalogProvider,
+    InMemoryCatalogProvider,
+)
 from .constants import (
     A2UI_SCHEMA_BLOCK_START,
     A2UI_SCHEMA_BLOCK_END,
@@ -81,8 +84,7 @@ def _iter_payload_components(payload: Any) -> Iterator[dict[str, Any]]:
 
 @dataclass
 class CatalogConfig:
-    """
-    Configuration for a catalog of components.
+    """Configuration for a catalog of components.
 
     A catalog consists of a provider that knows how to load the schema,
     and optionally a path or glob pattern to examples.
@@ -98,6 +100,25 @@ class CatalogConfig:
     provider: A2uiCatalogProvider
     examples_path: str | None = None
     custom_cuttable_keys: frozenset[str] | None = None
+
+    def __post_init__(self) -> None:
+        self.examples_path = resolve_examples_path(self.examples_path)
+
+    @classmethod
+    def from_catalog(
+        cls,
+        name: str,
+        catalog: CatalogApi,
+        examples_path: str | None = None,
+        custom_cuttable_keys: frozenset[str] | None = None,
+    ) -> CatalogConfig:
+        """Returns a CatalogConfig backed by an a2ui_core Catalog instance."""
+        return cls(
+            name=name,
+            provider=InMemoryCatalogProvider(catalog.catalog_schema),
+            examples_path=examples_path,
+            custom_cuttable_keys=custom_cuttable_keys,
+        )
 
     @classmethod
     def from_path(
@@ -119,7 +140,7 @@ class CatalogConfig:
         return cls(
             name=name,
             provider=catalog_provider,
-            examples_path=resolve_examples_path(examples_path),
+            examples_path=examples_path,
             custom_cuttable_keys=custom_cuttable_keys,
         )
 
@@ -417,7 +438,7 @@ class A2uiCatalog:
 
         root_common_types = []
         for ref in external_refs:
-            if "common_types.json#/$defs/" in ref:
+            if "common_types.json#/$defs/" in ref or ref.startswith("#/$defs/"):
                 root_common_types.append(ref.split("#/$defs/")[-1])
 
         new_common_types_schema = copy.deepcopy(dict(self.common_types_schema))

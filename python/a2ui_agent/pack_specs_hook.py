@@ -57,13 +57,6 @@ class PackSpecsBuildHook(BuildHookInterface):
         )
         a2ui_utils = load_module(project_root, schema_path, "utils.py", "_utils_load")
 
-        basic_catalog_constants = load_module(
-            project_root,
-            "a2ui.basic_catalog",
-            "constants.py",
-            "_basic_catalog_constants_load",
-        )
-
         protocol_version_map = a2ui_constants.PROTOCOL_VERSION_MAP
         a2ui_asset_package = a2ui_constants.A2UI_ASSET_PACKAGE
         specification_dir = a2ui_constants.SPECIFICATION_DIR
@@ -91,9 +84,6 @@ class PackSpecsBuildHook(BuildHookInterface):
         )
 
         self._pack_schemas(repo_root, protocol_version_map, target_base)
-        self._pack_basic_catalogs(
-            repo_root, basic_catalog_constants.BASIC_CATALOG_PATHS, target_base
-        )
 
         # Automatically regenerate ANTLR parser from Express.g4 in specification/
         express_dir = os.path.join(
@@ -210,14 +200,6 @@ class PackSpecsBuildHook(BuildHookInterface):
             os.makedirs(target_dir, exist_ok=True)
 
             for _schema_key, source_rel_path in schema_map.items():
-                self._copy_schema(repo_root, source_rel_path, target_dir)
-
-    def _pack_basic_catalogs(self, repo_root, catalog_paths, target_base):
-        for ver, path_map in catalog_paths.items():
-            target_dir = os.path.join(target_base, ver)
-            os.makedirs(target_dir, exist_ok=True)
-
-            for _key, source_rel_path in path_map.items():
                 self._copy_schema(repo_root, source_rel_path, target_dir)
 
     def _copy_schema(self, repo_root, source_rel_path, target_dir):

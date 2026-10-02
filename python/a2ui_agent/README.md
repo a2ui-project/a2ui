@@ -22,11 +22,6 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`payload_fixer.py`**: Utilities to automatically correct common LLM output
   issues in A2UI payloads.
 
-## Basic Catalog (`src/a2ui/basic_catalog`)
-
-- **`provider.py`**: Implementation of `BasicCatalog` for handling the basic
-  A2UI components.
-
 ## A2A (`src/a2ui/a2a`)
 
 - **`extension.py`**: Utilities for managing the A2UI extension URI and activation logic.
