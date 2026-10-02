@@ -510,7 +510,7 @@ export function executePluralize(
 /** Opens a specified URL in a new browser tab. */
 export function executeOpenUrl(urlInput: unknown): void {
   const target = typeof urlInput === 'string' ? urlInput : undefined;
-  if (!target || typeof window === 'undefined' || !window.open) return;
+  if (!target || typeof window === 'undefined' || typeof window['open'] !== 'function') return;
 
   const baseHref =
     typeof window !== 'undefined' && typeof window.location !== 'undefined' && window.location.href
@@ -533,9 +533,7 @@ export function executeOpenUrl(urlInput: unknown): void {
     throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
   }
 
-  if (typeof window !== 'undefined' && window.open) {
-    window.open(url.href, '_blank', 'noopener,noreferrer');
-  }
+  window.open(url.href, '_blank', 'noopener,noreferrer');
 }
 
 // ---------------------------------------------------------------------------

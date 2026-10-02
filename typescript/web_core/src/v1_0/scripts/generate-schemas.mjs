@@ -205,26 +205,26 @@ export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;`;
 
   const commonEntries = defKeys.map(k => `  ${k}: ${k}Schema,`).join('\n');
   commonTs += `export const CommonSchemas = {\n${commonEntries}\n};\n\n`;
-  commonTs += `export * from './helpers.js';\n`;
 
   writeFileSync(join(destDir, 'common-types.ts'), commonTs);
 
-  const allExportNames = new Set(Object.keys(commonJson.$defs));
+  const pureCommonNames = new Set(Object.keys(commonJson.$defs));
+  const helperNames = new Set();
   const helpersPath = join(destDir, 'helpers.ts');
   if (existsSync(helpersPath)) {
     const helpersContent = readFileSync(helpersPath, 'utf8');
     const matches = helpersContent.matchAll(/export\s+const\s+([A-Za-z0-9_]+Schema)/g);
     for (const m of matches) {
-      allExportNames.add(m[1].replace(/Schema$/, ''));
+      helperNames.add(m[1].replace(/Schema$/, ''));
     }
   }
-  return allExportNames;
+  return {pureCommonNames, helperNames};
 }
 
 /**
  * Generates v1.0 catalog-definition.ts.
  */
-function generateCatalogDefinition(commonDefNames) {
+function generateCatalogDefinition({pureCommonNames, helperNames}) {
   const catalogDefJson = JSON.parse(readFileSync(join(specDir, 'catalog_definition.json'), 'utf8'));
   let bodyCode = '';
 
@@ -251,18 +251,23 @@ function generateCatalogDefinition(commonDefNames) {
     bodyCode += code + '\n\n';
   }
 
-  const neededImports = Array.from(commonDefNames)
+  const commonImports = Array.from(pureCommonNames)
     .map(name => `${name}Schema`)
-    .filter(schemaName => bodyCode.includes(schemaName))
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
+    .sort();
+  const helperImports = Array.from(helperNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
   let catalogDefTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";
-  if (neededImports.length > 0) {
-    catalogDefTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
-  } else {
-    catalogDefTs += '\n';
+  if (commonImports.length > 0) {
+    catalogDefTs += `import {${commonImports.join(', ')}} from './common-types.js';\n`;
   }
-  catalogDefTs += bodyCode;
+  if (helperImports.length > 0) {
+    catalogDefTs += `import {${helperImports.join(', ')}} from './helpers.js';\n`;
+  }
+  catalogDefTs += '\n' + bodyCode;
 
   writeFileSync(join(destDir, 'catalog-definition.ts'), catalogDefTs);
 }
@@ -270,7 +275,7 @@ function generateCatalogDefinition(commonDefNames) {
 /**
  * Generates v1.0 agent-to-renderer.ts.
  */
-function generateIncomingMessageSchemas(commonDefNames) {
+function generateIncomingMessageSchemas({pureCommonNames, helperNames}) {
   const a2rJson = JSON.parse(readFileSync(join(specDir, 'agent_to_renderer.json'), 'utf8'));
   const a2rMsgNames = a2rJson.oneOf.map(ref => ref.$ref.replace('#/$defs/', ''));
 
@@ -285,18 +290,23 @@ function generateIncomingMessageSchemas(commonDefNames) {
   bodyCode += `export const AgentToRendererMessageSchema = z.union([\n  ${a2rMsgNames.map(m => `${m}Schema`).join(',\n  ')},\n]);\n`;
   bodyCode += `export type AgentToRendererMessage = z.infer<typeof AgentToRendererMessageSchema>;\n`;
 
-  const neededImports = Array.from(commonDefNames)
+  const commonImports = Array.from(pureCommonNames)
     .map(name => `${name}Schema`)
-    .filter(schemaName => bodyCode.includes(schemaName))
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
+    .sort();
+  const helperImports = Array.from(helperNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
   let a2rTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";
-  if (neededImports.length > 0) {
-    a2rTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
-  } else {
-    a2rTs += '\n';
+  if (commonImports.length > 0) {
+    a2rTs += `import {${commonImports.join(', ')}} from './common-types.js';\n`;
   }
-  a2rTs += bodyCode;
+  if (helperImports.length > 0) {
+    a2rTs += `import {${helperImports.join(', ')}} from './helpers.js';\n`;
+  }
+  a2rTs += '\n' + bodyCode;
 
   writeFileSync(join(destDir, 'agent-to-renderer.ts'), a2rTs);
 }
@@ -304,7 +314,7 @@ function generateIncomingMessageSchemas(commonDefNames) {
 /**
  * Generates v1.0 renderer-to-agent.ts.
  */
-function generateOutgoingMessageSchemas(commonDefNames) {
+function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
   const r2aJson = JSON.parse(readFileSync(join(specDir, 'renderer_to_agent.json'), 'utf8'));
   const r2aMessageProps = r2aJson.oneOf.map(item => item.required.find(k => k !== 'version'));
   const r2aMessageNames = [];
@@ -331,18 +341,23 @@ function generateOutgoingMessageSchemas(commonDefNames) {
   bodyCode += `export const RendererToAgentMessageSchema = z.union([\n  ${r2aMessageNames.map(m => `${m}Schema`).join(',\n  ')},\n]);\n`;
   bodyCode += `export type RendererToAgentMessage = z.infer<typeof RendererToAgentMessageSchema>;\n`;
 
-  const neededImports = Array.from(commonDefNames)
+  const commonImports = Array.from(pureCommonNames)
     .map(name => `${name}Schema`)
-    .filter(schemaName => bodyCode.includes(schemaName))
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
+    .sort();
+  const helperImports = Array.from(helperNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
   let r2aTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";
-  if (neededImports.length > 0) {
-    r2aTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
-  } else {
-    r2aTs += '\n';
+  if (commonImports.length > 0) {
+    r2aTs += `import {${commonImports.join(', ')}} from './common-types.js';\n`;
   }
-  r2aTs += bodyCode;
+  if (helperImports.length > 0) {
+    r2aTs += `import {${helperImports.join(', ')}} from './helpers.js';\n`;
+  }
+  r2aTs += '\n' + bodyCode;
 
   writeFileSync(join(destDir, 'renderer-to-agent.ts'), r2aTs);
 }
