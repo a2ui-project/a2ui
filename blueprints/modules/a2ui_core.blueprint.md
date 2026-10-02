@@ -131,70 +131,52 @@ The core modular components are organized within the `a2ui.core` namespace. Publ
 
 ```text
 a2ui/core/
-├── exceptions                      # Root exception hierarchy & RPC error codes
-├── primitives/                     # Layer 0: shared building blocks, imports only exceptions
-│   ├── events                      # EventSource / listener plumbing
-│   ├── return_type                 # A2uiReturnType, shared by catalog and message types
-│   ├── schema_resolution           # Subschema `$ref` expansion, shared by catalog and validation
-│   └── semver                      # Protocol version comparison
-├── expressions/                    # Protocol-version-agnostic expression parser
-├── basic_catalog/                  # Bundled default components and operators
-│   ├── v0_8/                       # Conforms to spec v0.8
-│   ├── v0_9/                       # Conforms to spec v0.9, v0.9.1
-│   ├── v1_0/                       # Conforms to spec v1.0
-│   ├── operator_apis               # Operator function signatures
-│   └── locale_config               # Locale defaults for formatting functions
-├── catalog/                        # Catalog declarations
-│   ├── catalog                     # Catalog base class & inlining
-│   ├── components                  # Component declarations & API
-│   └── functions                   # Function declarations & implementations
-├── state/                          # Reactive Layout State Models
+├── primitives/                     # Layer 0: shared building blocks, importing nothing above
+│   ├── errors                      # Root exception hierarchy
+│   ├── cancellation                # Cancellation signalling for long-running functions
+│   ├── data_path                   # JSON Pointer (RFC 6901) parsing & validation
+│   ├── event_notifier              # EventSource / listener plumbing
+│   ├── protocol_version            # Protocol version comparison & gating
+│   ├── reactivity                  # Signal primitives, re-exported for renderers
+│   ├── reference_schema            # How a property names its child components
+│   ├── resolved_binding            # Property value snapshots (ResolvedBinding / WritableBinding)
+│   └── schema_resolution           # Subschema `$ref` expansion, shared by catalog and validation
+├── core/                           # Protocol models, catalogs and reactive layout state
+│   ├── catalog                     # Catalog base class, component & function declarations
+│   ├── minimal_catalog             # Bundled default components and operators
+│   ├── common_schemas              # Shared JSON Schema fragments
+│   ├── common                      # Shared protocol value types, incl. A2uiReturnType
+│   ├── messages                    # Agent-to-renderer & renderer-to-agent envelopes
+│   ├── renderer_capabilities       # Catalogs a renderer can render per protocol version
 │   ├── component_model             # Component property structures
 │   ├── data_model                  # Value dictionary binding paths
 │   ├── surface_model               # Single UI surface container
-│   ├── surface_components_model    # Inlined graph topology & integrity checks
-│   └── surface_group_model         # Collection of active surfaces
-├── processing/                     # Mutation processing engine
-│   ├── message_processor           # Single MessageProcessor entrypoint
-│   ├── operations                  # InternalOperation union (version-neutral vocabulary)
-│   └── adapters/                   # Spec Version Adapters
-│       ├── base                    # VersionAdapter interface & ProtocolVersion enum
-│       ├── factory                 # VersionAdapterFactory (hardcoded adapter resolution)
-│       ├── v0_8                    # v0.8 adapter
-│       ├── v0_9                    # v0.9 adapter
-│       └── v1_0                    # v1.0 adapter
-├── rpc/                            # Bidirectional Remote Procedure Call engine
-│   └── rpc_handler                 # RpcHandler isolating RPC lifecycle, timeout, & callbacks
+│   ├── surface_group_model         # Collection of active surfaces
+│   ├── data_context                # Path binding & function evaluator
+│   └── component_context           # Per-component rendering scope (deprecated)
 ├── validation/                     # Layout validation layer
 │   ├── validator                   # Core PayloadValidator class
-│   └── catalog_schema_validator    # JSON schema catalog validator
-├── resolution/                     # View Tree Resolution & Rendering Engine
-│   ├── component_node              # Living node in view hierarchy (Signal props)
-│   ├── component_context           # Per-component resolution scope
+│   ├── validation_config           # Which graph checks a surface must pass
+│   ├── component_graph             # Graph topology & integrity checks
+│   ├── component_refs              # Which properties reference other components
+│   └── common_types                # Autogenerated protocol type models
+├── rendering/                      # Schema-driven property binding
+│   └── binder                      # GenericBinder, behaviour scraping, child lists
+├── resolution/                     # View tree resolution engine
 │   ├── node_resolver               # Protocol-version-agnostic node resolution
-│   ├── generic_binder              # Schema-driven property binding
-│   └── data_context                # Path binding & function evaluator (Internal)
-└── schema/                         # Autogenerated protocol models
-    ├── v0_8/                       # Models for spec v0.8
-    │   ├── common_types
-    │   ├── agent_to_renderer
-    │   ├── renderer_to_agent
-    │   └── renderer_capabilities
-    ├── v0_9/                       # Models for spec v0.9 and v0.9.1
-    │   ├── common_types
-    │   ├── agent_to_renderer
-    │   ├── renderer_to_agent
-    │   └── renderer_capabilities
-    └── v1_0/                       # Models for spec v1.0
-        ├── common_types
-        ├── agent_to_renderer
-        ├── renderer_to_agent
-        └── renderer_capabilities
+│   ├── component_node              # Living node in view hierarchy (Signal props)
+│   └── ref_fields                  # Classifies a schema's child-reference properties
+└── processing/                     # Mutation processing engine
+    ├── processor                   # Single MessageProcessor entrypoint
+    ├── expressions                 # Protocol-version-agnostic expression parser
+    └── basic_functions             # Built-in operator implementations
 ```
 
 Layout rules hold across every implementation:
 
-- **Package names are normative.** The validation package is `validation` and the resolution package is `resolution`. Naming them `validating` or `rendering` is a deviation, since `rendering` in particular suggests UI work that this layer does not do.
+- **Package names are normative.** The validation package is `validation`, schema-driven property binding is `rendering`, and view-tree resolution is `resolution`. Naming validation `validating`, or collapsing `rendering` into `resolution`, is a deviation.
+- **`primitives` sits below everything and imports nothing above it.** Anything two layers both need — the exception hierarchy, a shared protocol enum, schema reference expansion, resolved property snapshots — belongs there rather than in whichever layer happened to introduce it.
+- **Modules not yet in every implementation** — RPC handling, per-version schema models and spec version adapters — are described in the layer sections below and are not reflected in the tree above until they exist.
 
 ---
 
