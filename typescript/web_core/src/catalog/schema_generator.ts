@@ -20,7 +20,7 @@ import {ComponentApi, FunctionApi, CatalogInterface} from './types.js';
 import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
-import {normalizeVersionString, toCanonicalVersion} from '../common/semver.js';
+import {isAtLeastVersion, normalizeVersionString, toCanonicalVersion} from '../common/semver.js';
 
 const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>> = {
   '0.8': V08_STANDARD_DEFS,
@@ -31,20 +31,28 @@ const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>
 
 /**
  * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
+ *
+ * An explicit `options.protocolVersion` wins over the catalog's own `protocolVersion`, so a
+ * caller can serialize a catalog against another version's definitions. A version with no
+ * entry of its own at or above 1.0, such as 1.0.1 or 1.1, gets the v1.0 definitions, as the
+ * schema loader and payload validator already treat such versions as v1.0. Any other
+ * version falls back to the v0.9 definitions.
  */
 function getStandardDefsForCatalog(
-  _catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
   options?: GenerateCatalogSchemaOptions,
 ): Record<string, unknown> {
   if (options?.standardDefs) {
     return options.standardDefs;
   }
-  if (options?.protocolVersion) {
-    const key =
-      toCanonicalVersion(options.protocolVersion) ??
-      normalizeVersionString(options.protocolVersion);
+  const version = options?.protocolVersion ?? catalog.protocolVersion;
+  if (version) {
+    const key = toCanonicalVersion(version) ?? normalizeVersionString(version);
     if (key in STANDARD_DEFS_BY_VERSION) {
       return STANDARD_DEFS_BY_VERSION[key];
+    }
+    if (isAtLeastVersion(version, '1.0')) {
+      return V10_STANDARD_DEFS;
     }
   }
   return V09_STANDARD_DEFS;

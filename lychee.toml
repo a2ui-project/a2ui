@@ -18,7 +18,9 @@
 
 # HTTP status codes treated as success. 403/429 are frequent false negatives
 # from sites that block or throttle automated checkers rather than real breakage.
-accept = [200, 206, 403, 429]
+# 503 is how github.com throttles requests for /blob/ pages from CI, even with a
+# token: on each run a different set of valid links gets it.
+accept = [200, 206, 403, 429, 503]
 
 # Skip mailto: links (this is lychee's default; stated explicitly for clarity).
 include_mail = false

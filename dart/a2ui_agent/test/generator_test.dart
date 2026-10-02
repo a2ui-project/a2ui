@@ -223,6 +223,20 @@ void main() {
     final registered = [CatalogConfig(a)];
     final SchemaCatalog inline = _catalog('https://example.com/inline.json');
 
+    test('activates every registered catalog without capabilities', () {
+      final List<SchemaCatalog> active = resolveCatalogs([
+        CatalogConfig(b),
+        CatalogConfig(
+          a,
+          transformers: [
+            ComponentPruningTransformer(['Text']),
+          ],
+        ),
+      ], null);
+      expect(active.map((c) => c.id), [b.id, a.id]);
+      expect(active.last.components.keys, ['Text']);
+    });
+
     test('ignores inline catalogs unless it accepts them', () {
       expect(
         resolveCatalogs(
@@ -245,6 +259,52 @@ void main() {
         throwsA(isA<A2uiCatalogError>()),
       );
     });
+
+    test('activates accepted inline catalogs after the registered ones', () {
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [a.id],
+            inlineCatalogs: [inline],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [a, inline],
+      );
+    });
+
+    test('prefers the registration to an inline catalog with its id', () {
+      final SchemaCatalog redefined = _catalog(a.id, ['Other']);
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [a.id],
+            inlineCatalogs: [redefined, redefined],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [a],
+      );
+    });
+
+    test('activates one of two inline catalogs sharing an id', () {
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [],
+            inlineCatalogs: [
+              inline,
+              _catalog(inline.id, ['Other']),
+            ],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [inline],
+      );
+    });
   });
 
   group('A2uiRequestProcessor.parseResponse', () {
@@ -253,11 +313,11 @@ void main() {
       formatFactory: const ExpressFormatFactory(),
     );
 
-    test('rejects a direct JSON payload', () {
-      expect(
-        () => processor.parseResponse('Here: <a2ui-json>[]</a2ui-json>'),
-        throwsA(isA<A2uiParseError>()),
-      );
+    test('reads a direct JSON payload as text', () {
+      const response = 'Here: <a2ui-json>[]</a2ui-json>';
+      expect(processor.parseResponse(response), [
+        isA<TextPart>().having((p) => p.text, 'text', response),
+      ]);
     });
   });
 }

@@ -14,7 +14,10 @@
 
 /// The Express syntax tree and the parser that builds it.
 ///
-/// Follows `specification/inference_formats/express/Express.g4`.
+/// Follows `specification/inference_formats/express/Express.g4`. The parser
+/// is written by hand, so a change to the grammar has to be made here too,
+/// until it is generated with ANTLR:
+/// https://github.com/a2ui-project/a2ui/issues/2969.
 library;
 
 import 'package:a2ui_core/a2ui_core.dart';
