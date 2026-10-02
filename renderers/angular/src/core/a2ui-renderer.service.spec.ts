@@ -17,7 +17,7 @@
 import {Injectable} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
-import {BasicCatalog} from '../catalog/basic/basic-catalog';
+import {BasicCatalog} from '../basic-catalog';
 import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {MarkdownRenderer} from './markdown';

@@ -16,7 +16,7 @@
 
 import {Injectable} from '@angular/core';
 import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
-import {BasicCatalogBase as BasicCatalogBaseV10} from '@a2ui/angular/v1_0';
+import {BasicCatalogBase as BasicCatalogBaseV10} from '@a2ui/angular';
 import {customSliderComponentDeclaration} from './custom-slider.component';
 import {customGridComponentDeclaration} from './custom-grid.component';
 

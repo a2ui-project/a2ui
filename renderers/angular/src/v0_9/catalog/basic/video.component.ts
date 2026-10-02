@@ -17,7 +17,7 @@
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {BoundProperty} from '../../core/types';
+import {BoundProperty} from '@a2ui/angular';
 
 /**
  * Angular implementation of the A2UI Video component (v0.9).

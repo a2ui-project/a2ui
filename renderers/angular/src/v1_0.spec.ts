@@ -23,10 +23,10 @@ import {
   BASIC_FUNCTIONS,
   provideA2UI,
   SurfaceComponent,
-} from './index';
+} from './public-api';
 import {isWebComponentImplementation} from '@a2ui/web_core/v1_0';
 
-describe('@a2ui/angular/v1_0', () => {
+describe('@a2ui/angular v1.0 & BasicCatalog', () => {
   describe('BasicCatalog', () => {
     it('should have v1.0 catalog ID and protocolVersion', () => {
       const catalog = new BasicCatalog();

@@ -22,14 +22,13 @@ import {
   makeEnvironmentProviders,
   Optional,
 } from '@angular/core';
+import {A2UI_RENDERER_CONFIG, type RendererConfiguration} from './core/a2ui-renderer.service';
 import {
-  A2UI_RENDERER_CONFIG,
   AngularCatalog,
-  AngularComponentImplementation,
+  type AngularComponentImplementation,
   createComponentImplementation,
-  RendererConfiguration,
   UniversalOnlyComponent,
-} from '@a2ui/angular/v0_9';
+} from './catalog/types';
 import {
   BASIC_FUNCTIONS,
   createBasicCatalogFunctions,

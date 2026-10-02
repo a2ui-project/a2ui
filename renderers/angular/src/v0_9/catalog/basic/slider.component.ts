@@ -17,7 +17,7 @@
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {BoundProperty} from '../../core/types';
+import {BoundProperty} from '@a2ui/angular';
 
 /**
  * Angular implementation of the A2UI Slider component (v0.9).
