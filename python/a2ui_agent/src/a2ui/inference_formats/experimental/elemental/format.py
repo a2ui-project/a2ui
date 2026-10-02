@@ -50,7 +50,11 @@ class ElementalFormat(InferenceFormat):
             self._prompt_generator = ElementalPromptGenerator(self)
         return self._prompt_generator
 
-    @property
-    def parser(self) -> Parser:
+    def create_parser(self) -> Parser:
+        """Creates a new parser instance bound to this format strategy."""
         self._ensure_catalog()
         return ElementalParser(self.catalog, self.surface_id)
+
+    @property
+    def parser(self) -> Parser:
+        return self.create_parser()

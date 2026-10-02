@@ -116,7 +116,11 @@ class TestExpressIntegration(unittest.TestCase):
                 }],
             },
         }
-        decompiled_dsl = decompiler.decompile(wire_json_dict)
+        from a2ui.core.schema.v1_0 import AgentToRendererMessage
+        from pydantic import TypeAdapter
+
+        adapter = TypeAdapter(list[AgentToRendererMessage])
+        decompiled_dsl = decompiler.decompile(adapter.validate_python([wire_json_dict]))
         self.assertIn(
             'root = Tabs([{title: "Overview", "user-id-hyphen": 123, "session token'
             ' space": "abc", valid_id: true}])',
@@ -148,13 +152,19 @@ class TestExpressIntegration(unittest.TestCase):
                 }],
             },
         }
-        decompiled_msg = decompiler.decompile(multiline_msg_envelope)
+        decompiled_msg = decompiler.decompile(
+            adapter.validate_python([multiline_msg_envelope])
+        )
         self.assertIn('"""First Line\nSecond Line"""', decompiled_msg)
 
     def test_sentinel_spacing_literal_matching_multiline_strings_and_boolean_allof_schemas(
         self,
     ):
         """Regression tests for sentinel spacing, literal string matching, multiline string preservation, and boolean allOf schemas."""
+        from a2ui.core.schema.v1_0 import AgentToRendererMessage
+        from pydantic import TypeAdapter
+
+        adapter = TypeAdapter(list[AgentToRendererMessage])
         compiler = ExpressCompiler(self.catalog)
         decompiler = ExpressParser(self.catalog)
 
@@ -167,15 +177,16 @@ class TestExpressIntegration(unittest.TestCase):
 
         # 2. Regression test: Decompiler string literals matching component IDs but not references
         wire_json = {
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test_surf",
                 "components": [
                     {"id": "root", "component": "Column", "children": ["text1"]},
                     {"id": "text1", "component": "Text", "text": "text1"},
                 ],
-            }
+            },
         }
-        decompiled_dsl = decompiler.decompile(wire_json)
+        decompiled_dsl = decompiler.decompile(adapter.validate_python([wire_json]))
         self.assertIn('text1 = Text("text1")', decompiled_dsl)
 
         # 3. Regression test: Preserve empty lines in multi-line strings
@@ -198,7 +209,6 @@ This is bold.
             "<a2ui>\n"
             "root = Column([text1])\n"
             'text1 = Text("Hello")\n'
-            'btn = Button("Cli'
         )
         parts = ExpressParser(self.catalog).parse_response(truncated_response)
         self.assertEqual(len(parts), 1)
@@ -209,7 +219,13 @@ This is bold.
         self.assertEqual(len(compiled_components), 2)
         self.assertEqual(compiled_components[0]["id"], "root")
         self.assertEqual(compiled_components[1]["id"], "text1")
-        self.assertFalse(any(c["id"] == "btn" for c in compiled_components))
+
+        # Also verify ExpressCompiler with is_final=False on partial statement
+        partial_dsl = 'root = Column([text1])\ntext1 = Text("Hello")\nbtn = Button("Cli'
+        partial_res = ExpressCompiler(self.catalog).compile(partial_dsl, is_final=False)
+        partial_comps = partial_res[0]["createSurface"]["components"]
+        self.assertEqual(len(partial_comps), 2)
+        self.assertFalse(any(c["id"] == "btn" for c in partial_comps))
 
     def test_parser_compilation_error_handling(self):
         """Verify that parsing invalid Express syntax raises A2uiCompilationError with error details."""

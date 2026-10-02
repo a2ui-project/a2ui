@@ -65,8 +65,12 @@ class ExpressFormat(InferenceFormat):
             self._prompt_generator = ExpressPromptGenerator(self)
         return self._prompt_generator
 
+    def create_parser(self) -> Parser:
+        """Creates a new parser instance bound to this format strategy."""
+        self._ensure_catalog()
+        return ExpressParser(self.catalog, self.surface_id, version=self.version)
+
     @property
     def parser(self) -> Parser:
         """The parser instance configured for this Express format."""
-        self._ensure_catalog()
-        return ExpressParser(self.catalog, self.surface_id, version=self.version)
+        return self.create_parser()

@@ -75,10 +75,14 @@ class AtomFormat(InferenceFormat):
             self._prompt_generator = AtomPromptGenerator(self)
         return self._prompt_generator
 
+    def create_parser(self) -> Parser:
+        """Creates a new parser instance bound to this format strategy."""
+        self._ensure_catalog()
+        return AtomParser(self.catalog, self.surface_id)
+
     @property
     def parser(self) -> Parser:
         """The parser instance configured for Atom format."""
         if self._parser is None:
-            self._ensure_catalog()
-            self._parser = AtomParser(self.catalog, self.surface_id)
+            self._parser = self.create_parser()
         return self._parser

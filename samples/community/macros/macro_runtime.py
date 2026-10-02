@@ -68,10 +68,10 @@ class MacroAgentRuntime:
 
     def generate_system_prompt(self, role_description: str) -> str:
         """Generates system instruction with catalog schema and formatting rules."""
-        return self.format.prompt_generator.generate(
-            role_description=role_description,
-            include_schema=True,
-        )
+        return "\n\n".join([
+            role_description,
+            self.format.prompt_generator.generate(),
+        ])
 
     def compile_dsl(self, dsl: str, surface_id: str = "main") -> List[Dict[str, Any]]:
         """Compiles Express DSL containing macros and lowers output messages to transport."""

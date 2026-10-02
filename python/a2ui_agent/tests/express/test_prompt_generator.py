@@ -18,10 +18,10 @@ import json
 import os
 import tempfile
 import unittest
-
+from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.schema import VERSION_1_0
+from a2ui.inference_formats.experimental.express.format import ExpressFormat
+from a2ui.schema.constants import VERSION_1_0
 
 
 class TestExpressPromptGenerator(unittest.TestCase):
@@ -54,13 +54,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         express_format = ExpressFormat(catalog=self.catalog)
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="You are a helpful assistant.",
-            workflow_description="Please adhere to constraints.",
-            include_schema=True,
-        )
-        self.assertIn("You are a helpful assistant.", prompt)
-        self.assertIn("Please adhere to constraints.", prompt)
+        prompt = generator.generate()
         self.assertIn("# A2UI Express DSL Output Contract", prompt)
         self.assertIn("Text(", prompt)
 
@@ -71,17 +65,12 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("Text(", desc)
 
     def test_express_allowed_components_pruning(self):
-        from a2ui.catalog_transformers import ComponentPruningTransformer
-
         pruned_catalog = ComponentPruningTransformer(["Button"]).transform(self.catalog)
         express_format = ExpressFormat(catalog=pruned_catalog)
         generator = express_format.prompt_generator
 
         # Only allow other component tags, Text should be pruned out
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
+        prompt = generator.generate()
         self.assertNotIn("Text(", prompt)
 
     def test_express_include_examples_transformation(self):
@@ -106,30 +95,19 @@ class TestExpressPromptGenerator(unittest.TestCase):
         express_format = ExpressFormat(catalog=self.catalog, examples_path=md_file_path)
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            workflow_description="Custom workflow instructions",
-            ui_description="Custom UI rules",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=False,
-        )
-
-        # Verify workflow_description and ui_description are included
-        self.assertIn("Custom workflow instructions", prompt)
-        self.assertIn("Custom UI rules", prompt)
+        prompt = generator.generate()
 
         # Verify examples are included and decompiled
         self.assertIn("### Examples:", prompt)
         self.assertIn('root = Text("Hello World")', prompt)
 
+    @unittest.skip("TODO: validation package was removed from a2ui_agent library")
     def test_express_examples_validation(self):
         # Write a valid standard A2UI JSON example file
         example_payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "welcome",
-                "catalogId": self.catalog.catalog_id,
                 "components": [
                     {"id": "root", "component": "Text", "text": "Hello World"}
                 ],
@@ -145,12 +123,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=True,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
 

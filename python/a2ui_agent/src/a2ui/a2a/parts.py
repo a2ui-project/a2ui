@@ -13,16 +13,14 @@
 # limitations under the License.
 
 import logging
-from typing import Any, AsyncIterable, TYPE_CHECKING
+from typing import AsyncIterable, TYPE_CHECKING, Any
+
+from a2a.types import DataPart, Part, TextPart
+
 from a2ui.parser import Parser
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
-from a2a.types import (
-    Part,
-    DataPart,
-    TextPart,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +193,7 @@ async def stream_response_to_parts(
     async for token in token_stream:
         logger.info("-----------------------------")
         logger.info(f"--- AGENT: Received token:\n{token}")
-        response_parts = parser.process_chunk(token)
+        response_parts = parser.parse_chunk(token)
         logger.info(
             "--- AGENT: Response"
             f" parts:\n{[part.a2ui_json for part in response_parts]}\n"

@@ -226,7 +226,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
         + '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1",'
         ' "components": [{"id": "root", "component": "Text", "text": "Hello"}'
     )
-    parser.process_chunk(chunk1)
+    parser.parse_chunk(chunk1)
 
     assert MSG_TYPE_UPDATE_COMPONENTS in parser.msg_types
     assert parser.msg_types.count(MSG_TYPE_UPDATE_COMPONENTS) == 1
@@ -235,7 +235,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
     chunk2 = (
         f', {{"id": "c1", "component": "Text", "text": "hi"}}]}}}} {A2UI_CLOSE_TAG}'
     )
-    parser.process_chunk(chunk2)
+    parser.parse_chunk(chunk2)
 
     # After completion, msg_types is reset
     assert not parser.msg_types
@@ -252,7 +252,7 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
         ' "test_catalog"}}]'
         + A2UI_CLOSE_TAG
     )
-    list(parser.process_chunk(chunk_cs))
+    list(parser.parse_chunk(chunk_cs))
 
     # 2. Update components with a relative path
     chunk_uc = (
@@ -264,7 +264,7 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
     )
 
     messages = []
-    for part in parser.process_chunk(chunk_uc):
+    for part in parser.parse_chunk(chunk_uc):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 
@@ -284,7 +284,7 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
         ' "test_catalog"}}]'
         + A2UI_CLOSE_TAG
     )
-    list(parser.process_chunk(chunk_cs))
+    list(parser.parse_chunk(chunk_cs))
 
     # 2. Update components with an absolute path
     chunk_uc = (
@@ -295,7 +295,7 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
     )
 
     messages = []
-    for part in parser.process_chunk(chunk_uc):
+    for part in parser.parse_chunk(chunk_uc):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 
@@ -315,7 +315,7 @@ def test_v09_single_top_level_object(mock_catalog):
         + A2UI_CLOSE_TAG
     )
     messages = []
-    for part in parser.process_chunk(chunk):
+    for part in parser.parse_chunk(chunk):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 
@@ -336,7 +336,7 @@ def test_v09_multiple_top_level_objects(mock_catalog):
         + A2UI_CLOSE_TAG
     )
     messages = []
-    for part in parser.process_chunk(chunk):
+    for part in parser.parse_chunk(chunk):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 

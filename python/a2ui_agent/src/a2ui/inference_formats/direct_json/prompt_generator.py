@@ -15,16 +15,28 @@
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
 from collections.abc import Sequence
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.inference_formats.direct_json.schema_prompt import schema_to_prompt
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
-from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
+from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, DEFAULT_WORKFLOW_RULES
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.direct_json import DirectJsonFormat
+
+DEFAULT_WORKFLOW_RULES = f"""
+The generated response MUST follow these rules:
+- The response can contain one or more A2UI JSON blocks.
+- Each A2UI JSON block MUST be wrapped in `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags.
+- Between or around these blocks, you can provide conversational text.
+- The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
+- Top-Down Component Ordering: Within the `components` list of a message:
+    - The 'root' component MUST be the FIRST element.
+    - Parent components MUST appear before their child components.
+    This specific ordering allows the streaming parser to yield and render the UI incrementally as it arrives.
+"""
 
 
 class DirectJsonPromptGenerator(PromptGenerator):
@@ -76,15 +88,16 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
     def generate(
         self,
-        role_description: str,
+        role_description: str = "",
         workflow_description: str = "",
         ui_description: str = "",
         client_ui_capabilities: Any = None,
         allowed_components: Sequence[str] | None = None,
         allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
+        include_schema: bool = True,
         include_examples: bool = False,
         validate_examples: bool = False,
+        **kwargs: Any,
     ) -> str:
         """Assembles prompt instructions contract for standard JSON.
 
@@ -107,6 +120,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
             include_schema: Whether to include component schemas in the prompt.
             include_examples: Whether to include few-shot examples.
             validate_examples: Whether to validate few-shot examples on generation.
+            **kwargs: Additional format options.
 
         Returns:
             The complete generated prompt system instruction.
@@ -122,7 +136,9 @@ class DirectJsonPromptGenerator(PromptGenerator):
             )
         catalogs: Sequence[CatalogApi] = self._format.catalogs
 
-        parts = [role_description]
+        parts: list[str] = []
+        if role_description:
+            parts.append(role_description)
 
         rules = DEFAULT_WORKFLOW_RULES
         if workflow_description:

@@ -167,7 +167,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
     parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     # 1. Send partial chunk that triggers sniffing
     chunk1 = A2UI_OPEN_TAG + '[{"surfaceUpdate": {"surfaceId": "s1", "components": ['
-    parser.process_chunk(chunk1)
+    parser.parse_chunk(chunk1)
 
     # Sniffing should have added surfaceUpdate
     assert MSG_TYPE_SURFACE_UPDATE in parser.msg_types
@@ -178,7 +178,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
         '{"id": "root", "component": {"Text": {"text": "hi"}}}]}]'
         f" {A2UI_CLOSE_TAG}"
     )
-    parser.process_chunk(chunk2)
+    parser.parse_chunk(chunk2)
 
     # After completion, msg_types is reset
     assert parser.msg_types == []
@@ -194,7 +194,7 @@ def test_v08_path_heuristic_adds_slash(mock_catalog):
         + '[{"beginRendering": {"surfaceId": "s1", "root": "root"}}]'
         + A2UI_CLOSE_TAG
     )
-    list(parser.process_chunk(chunk_br))
+    list(parser.parse_chunk(chunk_br))
 
     # 2. Send surfaceUpdate with a relative path
     chunk_su = (
@@ -205,7 +205,7 @@ def test_v08_path_heuristic_adds_slash(mock_catalog):
     )
 
     messages = []
-    for part in parser.process_chunk(chunk_su):
+    for part in parser.parse_chunk(chunk_su):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 

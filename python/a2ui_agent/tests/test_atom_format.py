@@ -17,12 +17,15 @@
 from pathlib import Path
 import unittest
 from typing import Any
+from pydantic import TypeAdapter
+from a2ui.core.schema.v1_0 import AgentToRendererMessage
 from a2ui.inference_formats.experimental.atom.compiler import AtomCompiler
 from a2ui.inference_formats.experimental.atom.decompiler import AtomDecompiler
 
 from a2ui.schema.utils import find_repo_root
 
 REPO_ROOT = Path(find_repo_root())
+_MESSAGES_ADAPTER = TypeAdapter(list[AgentToRendererMessage])
 
 
 class MockCatalog:
@@ -128,7 +131,9 @@ class TestAtomFormat(unittest.TestCase):
                 ],
             },
         }
-        decompiled_text = self.decompiler.decompile(original)
+        decompiled_text = self.decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([original])
+        )
         self.assertIn('(data $/title "Welcome")', decompiled_text)
         self.assertIn("(Card", decompiled_text)
         self.assertIn('(Text :text "Hello")', decompiled_text)
@@ -231,8 +236,12 @@ class TestAtomFormat(unittest.TestCase):
         self.assertEqual(len(compiled), 1)
         self.assertIn("createSurface", compiled[0])
 
-        # Test wrap_decompiled_blocks
-        wrapped = parser.wrap_decompiled_blocks(['(Card (Text "Hello"))'])
+        # Test wrap
+        from a2ui.parser import RawA2uiPart, RawResponsePart
+
+        wrapped = parser.wrap(
+            [RawResponsePart(part=RawA2uiPart(a2ui_raw='(Card (Text "Hello"))'))]
+        )
         self.assertIn("<a2ui>", wrapped)
         self.assertIn("</a2ui>", wrapped)
 
@@ -258,12 +267,7 @@ class TestAtomFormat(unittest.TestCase):
         fmt = AtomFormat(catalog=cat, examples_path="/tmp/examples")
         self.assertEqual(fmt.examples_path, "/tmp/examples")
         prompt_gen = fmt.prompt_generator
-        prompt = prompt_gen.generate(
-            role_description="You are a helpful UI generator.",
-            workflow_description="Follow standard A2UI guidelines.",
-        )
-        self.assertIn("You are a helpful UI generator.", prompt)
-        self.assertIn("Follow standard A2UI guidelines.", prompt)
+        prompt = prompt_gen.generate()
         self.assertIn(
             "Output the user interface using compact A2UI Atom S-Expression notation.",
             prompt,
@@ -293,15 +297,25 @@ class TestAtomFormat(unittest.TestCase):
         """Test decompilation of deleteSurface and callFunction payloads."""
         del_payload = {"version": "v1.0", "deleteSurface": {"surfaceId": "surf1"}}
         self.assertEqual(
-            self.decompiler.decompile(del_payload), '(deleteSurface "surf1")'
+            self.decompiler.decompile(_MESSAGES_ADAPTER.validate_python([del_payload])),
+            '(deleteSurface "surf1")',
         )
 
         call_payload = {
             "version": "v1.0",
-            "callFunction": {"call": "openUrl", "args": {"url": "https://a2ui.org"}},
+            "callRendererFunction": {
+                "functionCallId": "call_1",
+                "callFunction": {
+                    "catalogId": "basic",
+                    "call": "openUrl",
+                    "args": {"url": "https://a2ui.org"},
+                },
+            },
         }
         self.assertEqual(
-            self.decompiler.decompile(call_payload),
+            self.decompiler.decompile(
+                _MESSAGES_ADAPTER.validate_python([call_payload])
+            ),
             '(callFunction "openUrl" :url "https://a2ui.org")',
         )
 
@@ -317,9 +331,14 @@ class TestAtomFormat(unittest.TestCase):
         """Test decompilation of updateDataModel payload with primitives."""
         payload = {
             "version": "v1.0",
-            "updateDataModel": {"value": {"score": 100, "active": True, "note": None}},
+            "updateDataModel": {
+                "surfaceId": "main",
+                "value": {"score": 100, "active": True, "note": None},
+            },
         }
-        decompiled = self.decompiler.decompile(payload)
+        decompiled = self.decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([payload])
+        )
         self.assertIn("(data $/score 100 $/active true $/note null)", decompiled)
 
     def test_decompile_multiple_children_and_events(self):
@@ -327,6 +346,7 @@ class TestAtomFormat(unittest.TestCase):
         payload = {
             "version": "v1.0",
             "createSurface": {
+                "surfaceId": "main",
                 "components": [
                     {"id": "root", "component": "Column", "children": ["c1", "c2"]},
                     {"id": "c1", "component": "Text", "text": {"path": "title"}},
@@ -336,10 +356,12 @@ class TestAtomFormat(unittest.TestCase):
                         "action": {"event": {"name": "submit"}},
                         "child": "c1",
                     },
-                ]
+                ],
             },
         }
-        decompiled = self.decompiler.decompile(payload)
+        decompiled = self.decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([payload])
+        )
         self.assertIn("(Column", decompiled)
         self.assertIn("$/title", decompiled)
         self.assertIn('(Event "submit")', decompiled)
@@ -391,13 +413,16 @@ class TestAtomFormat(unittest.TestCase):
         payload = {
             "version": "v1.0",
             "createSurface": {
+                "surfaceId": "main",
                 "components": [
                     {"id": "node_0", "component": "Text", "text": "First"},
                     {"id": "node_1", "component": "Text", "text": "Second"},
-                ]
+                ],
             },
         }
-        decompiled = self.decompiler.decompile(payload)
+        decompiled = self.decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([payload])
+        )
         self.assertIn('(Text :text "First")', decompiled)
 
     def test_compiler_schema_expects_single_child_and_helpers(self):
@@ -561,7 +586,7 @@ class TestAtomFormat(unittest.TestCase):
         self.assertIn("CustomWidgetZ", comp_types)
 
         # 2. Decompile back to S-expression and verify round-trip integrity
-        decompiled = decompiler.decompile(compiled)
+        decompiled = decompiler.decompile(_MESSAGES_ADAPTER.validate_python([compiled]))
         self.assertIn("(CustomSlotCardY", decompiled)
         self.assertIn("(CustomContainerX", decompiled)
         self.assertIn('(CustomWidgetZ :label_text "Hello Synthetic"', decompiled)
@@ -788,7 +813,7 @@ class TestAtomFormat(unittest.TestCase):
         prompt_gen = fmt.prompt_generator
         func_sigs = prompt_gen._generate_function_signatures()
         self.assertIsInstance(func_sigs, str)
-        prompt_full = prompt_gen.generate(include_schema=True, include_examples=True)
+        prompt_full = prompt_gen.generate()
         self.assertIn("Instructions", prompt_full)
 
     def test_catalog_schema_helper_wrapper_direct(self):

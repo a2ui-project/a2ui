@@ -576,36 +576,15 @@ KNOWN_GAPS = {
         "the text before a block is attached to the same part as the payload"
         " rather than being a part of its own"
     ),
-    # `wrap` is `wrap_decompiled_blocks` here and takes raw payload strings
-    # rather than parts, so it always writes a tagged block and can neither
-    # write a text part nor leave the tags off.
-    "test_wrap_express_text_only_parts_are_the_text": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
-        " part cannot be written"
-    ),
-    "test_wrap_text_only_parts_are_the_text": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
-        " part cannot be written"
-    ),
-    "test_wrap_express_no_parts_is_an_empty_string": (
-        "wrap_decompiled_blocks writes an empty tagged block rather than an"
-        " empty string"
-    ),
-    "test_wrap_no_parts_is_an_empty_string": (
-        "wrap_decompiled_blocks writes an empty tagged block rather than an"
-        " empty string"
-    ),
+    # `wrap` joins parts with `\n`, and `unwrap` attaches preceding text to the
+    # payload part rather than keeping it as a separate text part.
     "test_wrap_express_restores_tags_and_order": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " part is dropped and does not survive the round trip"
+        "round-trip unwrap attaches preceding text to the payload part rather"
+        " than keeping it as a separate text part"
     ),
     "test_wrap_keeps_text_and_blocks_in_order": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " parts are dropped and do not survive the round trip"
-    ),
-    "test_wrap_express_tags_sit_on_their_own_lines": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " part is dropped"
+        "round-trip unwrap attaches preceding text to the payload part rather"
+        " than keeping it as a separate text part"
     ),
     # Direct JSON unwrapping raises where the suites return parts. These are
     # the three decisions the suite header calls out as departures from
@@ -624,15 +603,6 @@ KNOWN_GAPS = {
     "test_unwrap_unterminated_block_is_not_final": (
         "an unterminated block raises ParseError rather than coming back as a"
         " part that is not final"
-    ),
-    # The rest.
-    "test_parse_response_express_unwrapped_compiles_the_whole_body": (
-        "parse_response takes no `wrapped` argument, so a response the case"
-        " declares unwrapped cannot be handed to the compiler whole"
-    ),
-    "test_parse_response_unwrapped_compiles_the_whole_body": (
-        "parse_response takes no `wrapped` argument, so a response the case"
-        " declares unwrapped cannot be handed to the compiler whole"
     ),
     # Express reserved keys (#3006). v1.0 writes a data binding as `@path` and
     # a function call as `@call`, and the compiler still writes `path` and
@@ -817,10 +787,21 @@ def assert_raw_parts_match(actual_parts, expected_parts):
 
 
 def wrap_parts(parser, parts):
-    """Writes parts back out through whatever this SDK offers for `wrap`."""
-    return parser.wrap_decompiled_blocks(
-        [part["a2ui_raw"] for part in parts if "a2ui_raw" in part]
-    )
+    """Writes parts back out through `parser.wrap`."""
+    from a2ui.parser import RawA2uiPart, RawResponsePart, TextPart
+
+    raw_parts = []
+    for part in parts:
+        if "a2ui_raw" in part:
+            raw_parts.append(
+                RawResponsePart(
+                    part=RawA2uiPart(a2ui_raw=part["a2ui_raw"]),
+                    is_final=part.get("is_final", True),
+                )
+            )
+        elif "text" in part:
+            raw_parts.append(RawResponsePart(part=TextPart(text=part["text"])))
+    return parser.wrap(raw_parts)
 
 
 cases_response_parser = get_marked_conformance_cases(

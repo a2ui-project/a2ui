@@ -14,14 +14,10 @@
 
 """Prompt compiler for A2UI Atom inference format."""
 
-from collections.abc import Mapping, Sequence
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
-
-# CatalogSchemaHelper import handled lazily inside class
 
 if TYPE_CHECKING:
     from .format import AtomFormat
@@ -177,46 +173,33 @@ class AtomPromptGenerator(PromptGenerator):
         self,
         role_description: str = "",
         workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = True,
-        include_examples: bool = True,
-        validate_examples: bool = False,
+        **kwargs: Any,
     ) -> str:
-        """Generates a complete system prompt configured for Atom S-expression UI generation.
-
-        Args:
-            role_description: The system role description text.
-            workflow_description: Additional workflow guidance text.
-            ui_description: Target UI requirement details.
-            client_ui_capabilities: Optional client UI capabilities specification.
-            allowed_components: Optional list of allowed component names.
-            allowed_messages: Optional list of allowed message types.
-            include_schema: Whether to include component and function catalog signatures.
-            include_examples: Whether to include prompt examples.
-            validate_examples: Whether to validate prompt examples.
+        """Generates a prompt snippet configured for Atom S-expression UI generation.
 
         Returns:
-            The complete system prompt string.
+            The prompt snippet string.
         """
-        parts = []
+        parts: list[str] = []
         if role_description:
             parts.append(role_description)
 
         rules = ATOM_RULES
         if workflow_description:
-            rules += f"\n\n{workflow_description}"
+            rules += f"\n{workflow_description}"
         parts.append(f"## Instructions:\n{rules}")
 
-        if include_schema and self.schema_helper:
+        if self.schema_helper:
             comp_sigs = self._generate_component_signatures()
             func_sigs = self._generate_function_signatures()
             if comp_sigs:
                 parts.append(f"## Component Catalog Signatures:\n{comp_sigs}")
             if func_sigs:
                 parts.append(f"## Function Signatures:\n{func_sigs}")
+
+        examples = self.generate_examples(validate=False)
+        if examples:
+            parts.append(f"### Examples:\n{examples}")
 
         return "\n\n".join(parts)
 

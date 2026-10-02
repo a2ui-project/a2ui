@@ -125,12 +125,11 @@ def run_inference_and_validate(
     from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
     express_format = ExpressFormat(catalog=catalog)
-    system_instruction = express_format.prompt_generator.generate(
-        role_description=(
-            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
-            " DSL."
-        ),
-        include_schema=True,
+    role_description = (
+        "You are a helpful UI assistant that outputs interfaces using A2UI Express DSL."
+    )
+    system_instruction = (
+        f"{role_description}\n\n{express_format.prompt_generator.generate()}"
     )
 
     # 3. Construct conversion task prompt

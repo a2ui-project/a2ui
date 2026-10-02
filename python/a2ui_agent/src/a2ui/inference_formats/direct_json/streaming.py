@@ -415,6 +415,10 @@ class DirectJsonStreamParser:
 
         self._deleted_surfaces.add(sid)
 
+    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
+        """Processes a chunk of text and returns complete A2UI messages found."""
+        return self.process_chunk(chunk)
+
     def process_chunk(self, chunk: str) -> list[ResponsePart]:
         """Processes a chunk of text and returns any complete A2UI messages found.
 

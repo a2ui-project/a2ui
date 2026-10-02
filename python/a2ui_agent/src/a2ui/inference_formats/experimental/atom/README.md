@@ -57,9 +57,7 @@ catalog = BasicCatalog(VERSION_1_0)
 atom_fmt = AtomFormat(catalog=catalog, surface_id="main")
 
 # 2. Generate system prompt instructions
-prompt = atom_fmt.prompt_generator.generate(
-    role_description="You are a UI generator assistant."
-)
+prompt = atom_fmt.prompt_generator.generate()
 
 # 3. Parse and compile model responses
 raw_response = """

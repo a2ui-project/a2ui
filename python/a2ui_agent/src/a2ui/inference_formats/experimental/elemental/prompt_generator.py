@@ -18,19 +18,18 @@ Translates standard JSON catalog schemas into TypeScript/TSX interface
 definitions and instruction blocks for on-device models.
 """
 
-from collections.abc import Mapping, Sequence
 import json
 import re
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from a2ui.core import CatalogApi
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
 )
+from a2ui.parser import RawA2uiPart, RawResponsePart
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
-
+from .decompiler import _ElementalDecompiler
 from .parser import ElementalParser
 
 if TYPE_CHECKING:
@@ -412,14 +411,15 @@ class ElementalPromptGenerator(PromptGenerator):
                         "updateDataModel",
                         "deleteSurface",
                         "callFunction",
+                        "callRendererFunction",
                     ]
                 ):
-                    parser = self.parser or self._format.parser
-                    if not parser:
+                    if not self.catalog:
                         self._format._ensure_catalog()
-                        parser = self._format.parser
-                        assert parser is not None
-                    decompiled = parser.decompile(msg)
+                    assert self.catalog is not None
+                    decompiled = _ElementalDecompiler(self.catalog)._decompile_message(
+                        msg
+                    )
                     blocks.append(decompiled)
                 else:
                     return str(match.group(0))
@@ -429,7 +429,9 @@ class ElementalPromptGenerator(PromptGenerator):
                 self._format._ensure_catalog()
                 parser = self._format.parser
                 assert parser is not None
-            return parser.wrap_decompiled_blocks(blocks)
+            return parser.wrap(
+                [RawResponsePart(part=RawA2uiPart(a2ui_raw="\n\n".join(blocks)))]
+            )
 
         except Exception:
             return str(match.group(0))
@@ -451,52 +453,31 @@ class ElementalPromptGenerator(PromptGenerator):
 
     def generate(
         self,
-        role_description: str,
+        role_description: str = "",
         workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
+        **kwargs: Any,
     ) -> str:
-        """Assembles the complete system instruction block for the LLM.
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
+        """Assembles the system instruction snippet for the LLM.
 
         Returns:
-            The complete system prompt string explaining A2UI Elemental and its catalog.
+            The prompt snippet explaining A2UI Elemental and its catalog.
         """
-        catalog = self.catalog
-
-        prompt = self._catalog_description(include_schema=True)
-
-        parts = [role_description]
-
         rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
         if workflow_description:
-            rules += f"\n\n{workflow_description}"
+            rules += f"\n{workflow_description}"
+        parts: list[str] = []
+        if role_description:
+            parts.append(role_description)
         parts.append(f"## Workflow Description:\n{rules}")
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
+        if self.helper:
+            prompt = self._catalog_description(include_schema=True)
+            if prompt:
+                parts.append(prompt)
 
-        if include_schema and self.helper:
-            parts.append(prompt)
-
-        if include_examples and self._format.examples_path and catalog:
+        if self._format.examples_path and self.catalog:
             raw_examples = load_examples(
-                [catalog], self._format.examples_path, validate=validate_examples
+                [self.catalog], self._format.examples_path, validate=False
             )
             if raw_examples:
                 formatted_examples = self.transform_examples(raw_examples)
@@ -549,21 +530,22 @@ class ElementalPromptGenerator(PromptGenerator):
                             html_parts = []
                             for item in parsed_json:
                                 if isinstance(item, dict):
-                                    parser = self.parser or self._format.parser
-                                    if not parser:
+                                    if not self.catalog:
                                         self._format._ensure_catalog()
-                                        parser = self._format.parser
-                                        assert parser is not None
-                                    html_parts.append(parser.decompile(item))
+                                    assert self.catalog is not None
+                                    html_parts.append(
+                                        _ElementalDecompiler(
+                                            self.catalog
+                                        )._decompile_message(item)
+                                    )
                             html_block = "\n\n".join(html_parts)
                         elif isinstance(parsed_json, dict):
-                            parser = self.parser or self._format.parser
-                            if not parser:
+                            if not self.catalog:
                                 self._format._ensure_catalog()
-                                parser_inst = self._format.parser
-                                assert parser_inst is not None
-                                parser = parser_inst
-                            html_block = parser.decompile(parsed_json)
+                            assert self.catalog is not None
+                            html_block = _ElementalDecompiler(
+                                self.catalog
+                            )._decompile_message(parsed_json)
 
                         else:
                             continue

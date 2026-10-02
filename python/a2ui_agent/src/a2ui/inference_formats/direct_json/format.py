@@ -77,14 +77,18 @@ class DirectJsonFormat(InferenceFormat):
             self._prompt_generator = DirectJsonPromptGenerator(self)
         return self._prompt_generator
 
+    def create_parser(self) -> DirectJsonParser:
+        """Creates a new parser instance bound to this format strategy."""
+        return DirectJsonParser(
+            self._catalogs,
+            progressive_keys=self._progressive_keys,
+        )
+
     @property
     def parser(self) -> DirectJsonParser:
         """The parser instance configured for this Direct JSON format."""
         if self._parser is None:
-            self._parser = DirectJsonParser(
-                self._catalogs,
-                progressive_keys=self._progressive_keys,
-            )
+            self._parser = self.create_parser()
         return self._parser
 
     @property

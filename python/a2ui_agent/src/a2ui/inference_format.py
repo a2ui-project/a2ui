@@ -12,79 +12,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unified interface coordinating prompt generation and parsing of LLM response payloads."""
+"""Abstract InferenceFormat and InferenceFormatFactory facades."""
 
-from collections.abc import Mapping, Sequence
-import warnings
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any
-from a2ui.prompt import PromptGenerator
+from collections.abc import Sequence
+
+from a2ui.core.catalog import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.parser import Parser
-from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.prompt import PromptGenerator
+
+
+class InferenceFormatFactory(ABC):
+    """Abstract interface for constructing InferenceFormat strategies bound to active catalogs."""
+
+    @abstractmethod
+    def create_format(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+    ) -> InferenceFormat:
+        """Constructs an InferenceFormat instance bound to the provided active catalogs.
+
+        Args:
+            catalogs: List of active Catalog instances.
+            examples: Optional list of few-shot example turns, each a list of messages.
+
+        Returns:
+            An InferenceFormat strategy instance.
+        """
 
 
 class InferenceFormat(ABC):
-    """Interface coordinating system prompt generation and response parsing."""
+    """Coordinator facade pairing a prompt generator (input) and parser (output) for a format."""
+
+    _parser: Parser | None = None
 
     @property
     @abstractmethod
     def prompt_generator(self) -> PromptGenerator:
-        """The PromptGenerator instance associated with this inference format."""
-        pass
+        """Returns the format prompt generator instance."""
+
+    @abstractmethod
+    def create_parser(self) -> Parser:
+        """Creates a new parser instance bound to this format strategy."""
 
     @property
-    @abstractmethod
     def parser(self) -> Parser:
-        """The Parser instance associated with this inference format."""
-        pass
+        """Returns a cached parser instance associated with this inference format."""
+        if self._parser is None:
+            self._parser = self.create_parser()
+        return self._parser
 
     @property
     def supports_streaming(self) -> bool:
         """Whether this inference format supports streaming token chunk parsing."""
         return self.parser.supports_streaming
 
-    def generate_system_prompt(
-        self,
-        role_description: str,
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-    ) -> str:
-        """Generates a system prompt for all LLM requests (deprecated compatibility helper).
 
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete system prompt string.
-        """
-        warnings.warn(
-            "generate_system_prompt is deprecated. Use prompt_generator.generate(...)"
-            " instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            ui_description=ui_description,
-            client_ui_capabilities=client_ui_capabilities,
-            allowed_components=allowed_components,
-            allowed_messages=allowed_messages,
-            include_schema=include_schema,
-            include_examples=include_examples,
-            validate_examples=validate_examples,
-        )
+__all__ = [
+    "InferenceFormat",
+    "InferenceFormatFactory",
+]
