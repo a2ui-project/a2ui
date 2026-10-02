@@ -179,6 +179,8 @@ It is an error to try to create a surface with a `surfaceId` that already exists
 
 The `createSurface` message implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`). The `Surface` component always has `"child": "root"` and cannot be modified using `updateComponents`. To render the component tree, one of the components sent to the surface MUST have `"id": "root"`, which mounts as the child of `Surface`.
 
+The initial `createSurface` message and subsequent `updateComponents`, `updateDataModel` or `deleteSurface` message for the surface do not need to use the same protocol version. A renderer that supports multiple protocol versions must allow a surface to be created or modified with messages of any of its supported protocol versions.
+
 **Properties:**
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
@@ -492,7 +494,7 @@ This structure is designed to be both flexible and strictly validated.
 
 #### Mixable catalogs and component resolution logic
 
-Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent). All catalog IDs specified at the component and function-call levels and at the surface-level must refer to catalogs which use the same A2UI specification version.
+Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent).
 
 When resolving a component (or function call), the renderer evaluates catalog identity using the following strict resolution order:
 
@@ -502,6 +504,10 @@ When resolving a component (or function call), the renderer evaluates catalog id
 
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
+
+#### Catalog protocol independence
+
+Component catalogs are expressed as JSON catalog definition documents formatted according to a specific catalog description version (specified by `protocolVersion` in `catalog_definition.json`). However, the content of a catalog definition is not considered to be tied to a specific protocol version. A catalog originally configured for one protocol version (e.g., `v0.9`) can be targeted by wire messages expressed in a different protocol version (e.g., `v1.0`) without needing to redefine or duplicate the catalog for each protocol version upgrade.
 
 ### Catalog-Agnostic Accessibility Requirements
 
