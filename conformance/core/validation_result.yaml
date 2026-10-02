@@ -30,13 +30,13 @@
                 component: TextField
                 label: "Email"
                 value:
-                  path: "/email"
+                  "@path": "/email"
                 checks:
                   - condition:
-                      call: "email"
+                      "@call": "email"
                       args:
                         value:
-                          path: "/email"
+                          "@path": "/email"
   expect:
     surfaces:
       form_surface:
@@ -65,13 +65,13 @@
                 component: TextField
                 label: "Age"
                 value:
-                  path: "/age"
+                  "@path": "/age"
                 checks:
                   - condition:
-                      call: "numeric"
+                      "@call": "numeric"
                       args:
                         value:
-                          path: "/age"
+                          "@path": "/age"
                         min: 18
                     message: "Must be 18 or older."
   expect:

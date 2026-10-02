@@ -38,11 +38,13 @@ class A2uiRequestProcessor {
   final InferenceFormat _format;
 
   /// Checks each of [examples] on its own, as a renderer holding
-  /// [activeCatalogs] would check it on surfaces that start empty.
+  /// [activeCatalogs] would check it on surfaces that start empty, and then
+  /// renders [promptSnippet], which writes each example in the format.
   ///
   /// Throws the [A2uiError] that renderer would report for the first message
   /// it rejects, such as an [A2uiValidationError] for a component the
-  /// catalogs do not declare.
+  /// catalogs do not declare, and the [A2uiValidationError] the format
+  /// reports for an example it cannot write.
   A2uiRequestProcessor({
     required this.activeCatalogs,
     this.examples = const [],
@@ -54,13 +56,20 @@ class A2uiRequestProcessor {
     for (final List<AgentToRendererMessage> example in examples) {
       validatePayloads(activeCatalogs, [example]);
     }
+    // Writing the examples in the format can fail too, so it happens here.
+    if (examples.isNotEmpty) {
+      _promptSnippet = _format.promptGenerator.generate();
+    }
   }
+
+  String? _promptSnippet;
 
   /// The system prompt snippet teaching the LLM the format, the components
   /// and functions of [activeCatalogs], and [examples].
   ///
   /// The agent adds its own role and workflow instructions around it.
-  String get promptSnippet => _format.promptGenerator.generate();
+  String get promptSnippet =>
+      _promptSnippet ??= _format.promptGenerator.generate();
 
   /// Parses a complete LLM response into text and v0.9 A2UI messages, in the
   /// order the LLM emitted them.
@@ -68,11 +77,10 @@ class A2uiRequestProcessor {
   /// Each payload block becomes one [A2uiPart], checked as a renderer holding
   /// [activeCatalogs] would check it.
   ///
-  /// Throws [A2uiParseError] if a block cannot be read or [content] carries a
-  /// payload in another format, [A2uiValidationError] if a block uses
-  /// anything the catalogs do not declare, and another [A2uiError] if a
-  /// renderer would reject the messages, such as an [A2uiIntegrityError] for
-  /// a component nothing reaches from `root`.
+  /// Throws [A2uiParseError] if a block cannot be read, [A2uiValidationError]
+  /// if a block uses anything the catalogs do not declare, and another
+  /// [A2uiError] if a renderer would reject the messages, such as an
+  /// [A2uiIntegrityError] for a component nothing reaches from `root`.
   List<ResponsePart> parseResponse(String content) {
     final List<ResponsePart> parts = _format.createParser().parseResponse(
       content,

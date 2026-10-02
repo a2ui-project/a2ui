@@ -32,7 +32,7 @@
             "component": "TextField",
             "label": "Username",
             "value": {
-              "path": "/username"
+              "@path": "/username"
             },
             "variant": "shortText"
           },
@@ -41,7 +41,7 @@
             "component": "TextField",
             "label": "Password",
             "value": {
-              "path": "/password"
+              "@path": "/password"
             },
             "variant": "obscured"
           },
@@ -55,10 +55,10 @@
                 "name": "login_submitted",
                 "context": {
                   "user": {
-                    "path": "/username"
+                    "@path": "/username"
                   },
                   "pass": {
-                    "path": "/password"
+                    "@path": "/password"
                   }
                 }
               }

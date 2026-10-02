@@ -27,7 +27,7 @@
             "component": "TextField",
             "label": "Type something:",
             "value": {
-              "path": "/inputValue"
+              "@path": "/inputValue"
             },
             "variant": "shortText"
           },
@@ -41,7 +41,7 @@
             "id": "result_text",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "You typed: ${/inputValue}"
               }

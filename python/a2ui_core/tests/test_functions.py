@@ -555,7 +555,7 @@ def test_call_agent_function_helper_and_response_event():
             "surfaceId": "s1",
             "functionCallId": "call-98",
             "callFunction": {
-                "call": "verifyProvider",
+                "@call": "verifyProvider",
                 "catalogId": "basic",
                 "args": {"providerId": "PRV-102"},
             },

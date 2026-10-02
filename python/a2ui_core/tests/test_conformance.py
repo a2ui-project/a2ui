@@ -88,7 +88,17 @@ CONFORMANCE_ROOT = os.environ.get(
     "CONFORMANCE_ROOT",
     os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conformance")),
 )
+SPEC_ROOT = os.environ.get(
+    "SPEC_ROOT",
+    os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../specification")),
+)
 CORE_DIR = os.path.join(CONFORMANCE_ROOT, "core")
+
+
+def _version_dir(ver: str) -> str:
+    v = ver.lower().replace(".", "_")
+    return v if v.startswith("v") else f"v{v}"
+
 
 basic_catalog = v0_9.BasicCatalog()
 v08_catalog = v0_8.BasicCatalog()
@@ -257,22 +267,38 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                 )
                 catalogs_map[c_id] = cat
                 specified_catalogs.append(cat)
-        elif "catalogId" in cat_spec:
-            c_id = cat_spec["catalogId"]
+        elif "components" in cat_spec or "catalogId" in cat_spec:
+            c_id = (
+                cat_spec.get("catalogId")
+                or resolve_catalog_id(case)
+                or f"catalog-{case.get('name')}"
+            )
             p_ver = resolve_protocol_version(case) or "v0.9"
             c_comps = cat_spec.get("components")
             c_theme = cat_spec.get("theme")
             c_funcs = cat_spec.get("functions")
             if c_comps or c_theme or c_funcs:
                 c_schema = {"catalogId": c_id}
+                if not c_funcs:
+                    c_schema["$defs"] = {"anyFunction": {"not": {}}}
                 if c_comps:
                     c_schema["components"] = c_comps
                 if c_theme:
                     c_schema["theme"] = c_theme
                 if c_funcs:
                     c_schema["functions"] = c_funcs
+                common_types_schema = None
+                c_types_path = os.path.join(
+                    SPEC_ROOT, _version_dir(p_ver), "json", "common_types.json"
+                )
+                if os.path.exists(c_types_path):
+                    with open(c_types_path, "r", encoding="utf-8") as f:
+                        common_types_schema = json.load(f)
                 cat = Catalog.from_json(
-                    c_schema, catalog_id=c_id, protocol_version=p_ver
+                    c_schema,
+                    catalog_id=c_id,
+                    protocol_version=p_ver,
+                    common_types_schema=common_types_schema,
                 )
             else:
                 default_comps = (
@@ -430,9 +456,15 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
         and specified_catalogs
     ):
         return specified_catalogs
-    return specified_catalogs + [
-        c for c in catalogs_map.values() if c not in specified_catalogs
-    ]
+    return (
+        specified_catalogs
+        + [cur_basic]
+        + [
+            c
+            for c in catalogs_map.values()
+            if c not in specified_catalogs and c != cur_basic
+        ]
+    )
 
 
 @contextlib.contextmanager
@@ -1245,13 +1277,15 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
         from a2ui.core.rpc import CallOptions
         from a2ui.core.schema.v1_0.common_types import FunctionCall
 
+        call_fn = outbound_call["callFunction"]
+        call_name = call_fn.get("@call") or call_fn.get("call")
         fut = processor.call_agent_function(
             surface_id=outbound_call["surfaceId"],
             call=FunctionCall(
-                call=outbound_call["callFunction"]["call"],
-                catalogId=outbound_call["callFunction"].get("catalogId")
+                call=call_name,
+                catalogId=call_fn.get("catalogId")
                 or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-                args=outbound_call["callFunction"].get("args"),
+                args=call_fn.get("args"),
             ),
             options=CallOptions(
                 function_call_id=outbound_call["functionCallId"],
@@ -1273,13 +1307,15 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
         expected_err = case.get("expectError") or case.get("expect", {}).get("error")
 
         def _start_call(spec: dict[str, Any]) -> Any:
+            call_fn = spec["callFunction"]
+            call_name = call_fn.get("@call") or call_fn.get("call")
             return processor.call_agent_function(
                 surface_id=spec["surfaceId"],
                 call=FunctionCall(
-                    call=spec["callFunction"]["call"],
-                    catalogId=spec["callFunction"].get("catalogId")
+                    call=call_name,
+                    catalogId=call_fn.get("catalogId")
                     or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-                    args=spec["callFunction"].get("args"),
+                    args=call_fn.get("args"),
                 ),
                 options=CallOptions(
                     function_call_id=spec["functionCallId"],

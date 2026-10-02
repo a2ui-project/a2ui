@@ -184,6 +184,29 @@ def _email_execute(
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
 
 
+def _adapt_ast_part_for_v10(part: Any) -> Any:
+    if not isinstance(part, dict):
+        return part
+    if (
+        "path" in part
+        and isinstance(part["path"], str)
+        and "componentId" not in part
+        and "@path" not in part
+    ):
+        return {"@path": part["path"]}
+    if "call" in part and isinstance(part["call"], str) and "@call" not in part:
+        args = {}
+        raw_args = part.get("args")
+        if isinstance(raw_args, dict):
+            for k, v in raw_args.items():
+                args[k] = _adapt_ast_part_for_v10(v)
+        res = {"@call": part["call"], "args": args}
+        if "returnType" in part:
+            res["returnType"] = part["returnType"]
+        return res
+    return part
+
+
 # Formatting
 def _format_string(
     args: dict[str, Any],
@@ -203,7 +226,12 @@ def _format_string(
     resolved_parts = []
     for part in parts:
         if context and hasattr(context, "resolve_dynamic_value"):
-            resolved = context.resolve_dynamic_value(part)
+            dyn_part = (
+                _adapt_ast_part_for_v10(part)
+                if getattr(context, "is_v10", False)
+                else part
+            )
+            resolved = context.resolve_dynamic_value(dyn_part)
         else:
             resolved = part
         resolved_parts.append(_to_str(resolved))

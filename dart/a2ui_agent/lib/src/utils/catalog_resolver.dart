@@ -19,6 +19,10 @@ import '../processor/catalog_config.dart';
 /// Negotiates the catalogs the agent registered against the capabilities a
 /// renderer declared, and returns the catalogs active for the session.
 ///
+/// [rendererCapabilities] is null for a request that carries no capabilities.
+/// The renderer has then stated no preference, so every registered catalog
+/// is active, in registration order.
+///
 /// Every registered catalog the renderer supports for protocol v0.9 is
 /// active, in the renderer's preference order, so the renderer's first choice
 /// is the first catalog the model reads about. An id the renderer names and
@@ -28,16 +32,26 @@ import '../processor/catalog_config.dart';
 /// visible both in the prompt and in what the processor accepts.
 ///
 /// Inline catalogs the renderer declares are ignored unless
-/// [acceptsInlineCatalogs] is true. Accepting them is not implemented yet.
+/// [acceptsInlineCatalogs] is true. An accepted inline catalog is active as
+/// the renderer declared it, after the registered ones: no transformer
+/// applies to it, since transformers belong to a registration. One whose id
+/// is already active is dropped, so a renderer that names a catalog and also
+/// redefines it gets the agent's registration.
 ///
 /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
-/// for v0.9, and [A2uiCatalogError] if no registered catalog is supported by
-/// the renderer.
+/// for v0.9, and [A2uiCatalogError] if no catalog is active: the renderer
+/// supports none of the registered catalogs and declares no inline catalog
+/// the agent accepts.
 List<SchemaCatalog> resolveCatalogs(
   List<CatalogConfig> catalogs,
-  A2uiRendererCapabilities rendererCapabilities, {
+  A2uiRendererCapabilities? rendererCapabilities, {
   bool acceptsInlineCatalogs = false,
 }) {
+  if (rendererCapabilities == null) {
+    return [
+      for (final CatalogConfig config in catalogs) config.transformedCatalog,
+    ];
+  }
   const A2uiProtocolVersion version = A2uiProtocolVersion.v0_9;
   final A2uiVersionCapabilities? capabilities = rendererCapabilities.forVersion(
     version,
@@ -49,9 +63,6 @@ List<SchemaCatalog> resolveCatalogs(
       details: rendererCapabilities.toJson(),
     );
   }
-  if (acceptsInlineCatalogs && capabilities.inlineCatalogs.isNotEmpty) {
-    throw UnimplementedError('resolveCatalogs with inline catalogs');
-  }
 
   final Map<String, CatalogConfig> registered = {
     for (final CatalogConfig config in catalogs) config.catalog.id: config,
@@ -62,6 +73,13 @@ List<SchemaCatalog> resolveCatalogs(
     })
       config.transformedCatalog,
   ];
+  if (acceptsInlineCatalogs) {
+    for (final SchemaCatalog inline in capabilities.inlineCatalogs) {
+      if (active.every((SchemaCatalog c) => c.id != inline.id)) {
+        active.add(inline);
+      }
+    }
+  }
   if (active.isEmpty) {
     throw A2uiCatalogError(
       'The renderer supports none of the catalogs registered with this '

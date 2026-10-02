@@ -40,12 +40,12 @@
               - id: item_index
                 component: Text
                 text:
-                  call: "@index"
+                  "@call": "@index"
                   args: {}
               - id: item_text
                 component: Text
                 text:
-                  path: ""
+                  "@path": ""
   expect:
     surfaces:
       main:
@@ -85,7 +85,7 @@
               - id: text
                 component: Text
                 text:
-                  call: "@index"
+                  "@call": "@index"
                   args:
                     offset: 1
   expect:
@@ -128,7 +128,7 @@
               - id: nested_text
                 component: Text
                 text:
-                  call: "@index"
+                  "@call": "@index"
                   args:
                     offset: 1
   expect:
@@ -155,7 +155,7 @@
               - id: root
                 component: Text
                 text:
-                  call: "@index"
+                  "@call": "@index"
                   args: {}
       expectError:
         category: "ValidationError"

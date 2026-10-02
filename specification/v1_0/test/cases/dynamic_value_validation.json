@@ -104,7 +104,7 @@
               "id": "root",
               "component": "TestComponent",
               "value": {
-                "path": "/my/data/pointer"
+                "@path": "/my/data/pointer"
               }
             }
           ]
@@ -123,7 +123,7 @@
               "id": "root",
               "component": "TestComponent",
               "value": {
-                "call": "openUrl",
+                "@call": "openUrl",
                 "args": {
                   "url": "https://example.com"
                 }
@@ -145,7 +145,7 @@
               "id": "root",
               "component": "TestComponent",
               "value": {
-                "path": "/my/data/pointer",
+                "@path": "/my/data/pointer",
                 "extra": "field"
               }
             }
@@ -165,11 +165,71 @@
               "id": "root",
               "component": "TestComponent",
               "value": {
-                "call": "openUrl",
+                "@call": "openUrl",
                 "args": {
                   "url": "https://example.com"
                 },
                 "extra": "field"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid plain object containing literal path and call keys",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "path": "/var/log/system.log",
+                "call": "incoming"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid plain object with escaped @@path key",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "@@path": "/static/path",
+                "@@type": "CustomType"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Invalid dynamic object with unknown single-@ key",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "@if": true,
+                "then": "active"
               }
             }
           ]

@@ -192,8 +192,21 @@ bool allowsBinding(Map<String, Object?>? schema) {
 }
 
 /// Whether [schema] holds the id of another component.
+///
+/// v0.9 names the shared type `ComponentId`; v1.0 names a single child
+/// `Child`.
 bool isComponentId(Map<String, Object?>? schema) =>
-    schema != null && _refName(schema) == 'ComponentId';
+    schema != null &&
+    switch (_refName(schema)) {
+      'ComponentId' || 'Child' => true,
+      _ => false,
+    };
+
+/// Whether [schema] is a list of children: component ids, or a template that
+/// repeats one component over a list in the data model.
+bool isChildList(Map<String, Object?>? schema) =>
+    schema != null &&
+    (_refName(schema) == 'ChildList' || _alternatives(schema).any(isChildList));
 
 /// Whether [schema] is an action: an event for the agent, or a local call.
 bool isAction(Map<String, Object?>? schema) =>
