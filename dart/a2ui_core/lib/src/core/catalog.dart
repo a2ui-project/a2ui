@@ -690,7 +690,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         _restoreRefs(item);
       }
     } else if (node is Map<String, Object?>) {
-      final map = node;
+      final Map<String, Object?> map = node;
       final Object? desc = map['description'];
       if (desc is String && desc.startsWith('REF:')) {
         final List<String> parts = desc.substring(4).split('|');
