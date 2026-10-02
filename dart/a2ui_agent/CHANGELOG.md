@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- pub.dev now recognizes the license. The package `LICENSE` linked
+  `https://` where the Apache text has `http://`, which pana does not match,
+  and carried the root's notice for `eval/bin/transcrypt`, a file outside
+  this package. Also a longer `description`.
 - Payload validation builds its `MessageProcessor` with `defaultVersion`.
 - Validation forwards `catalog.protocolVersion` when constructing its
   signature-only `Catalog` for `MessageProcessor`.
