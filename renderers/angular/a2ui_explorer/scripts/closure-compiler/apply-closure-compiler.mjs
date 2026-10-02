@@ -281,6 +281,14 @@ await new Promise((resolve, reject) => {
       );
       fs.writeFileSync(mainFile, compiled, 'utf8');
 
+      // Strip leftover modulepreload link tags from index.html since chunks were compiled into main
+      const indexPath = path.join(distDir, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        let indexHtml = fs.readFileSync(indexPath, 'utf8');
+        indexHtml = indexHtml.replace(/<link\s+rel="modulepreload"[^>]*>/g, '');
+        fs.writeFileSync(indexPath, indexHtml, 'utf8');
+      }
+
       // Stub out non-main chunk files with dummy comments so browser loading of leftover chunk tags succeeds
       for (const file of files) {
         if (file !== mainFile) {
