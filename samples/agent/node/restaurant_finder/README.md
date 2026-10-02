@@ -77,7 +77,7 @@ Endpoints provided by the server:
 2. Turn the message, or the UI action it carries, into a query for the model (`src/user_query.ts`).
 3. Stream the model's text for the turn from the backend (`src/model.ts`): `GeminiBackend` keeps one chat per conversation and answers `get_restaurants` tool calls (`src/tools.ts`); `StubBackend` returns the canned response. In Direct JSON, the text goes through the `@a2ui/agent` stream processor as it arrives.
 4. Publish the A2UI messages as `working` status updates. The A2A details, one `application/a2ui+json` data part per A2UI message and the task's status events, live in `src/a2a.ts`.
-5. Validate the full text with the `@a2ui/agent` processor for the picked version and catalogs. If it fails, ask the model once more with the error, as the Python sample does.
+5. Validate the full text with the `@a2ui/agent` processor for the picked version and catalogs. A reply that holds no A2UI fails too. If it fails, ask the model once more with the error, as the Python sample does.
 6. End the turn with a final `input-required` status, or `completed` after a booking is submitted.
 
 The system prompt (`src/prompt.ts`) is the agent's role and UI rules followed by the `@a2ui/agent` prompt snippet, which holds the format's rules, the catalog schemas and the examples (`examples/<version>/`, loaded by `src/examples.ts`). It is the same for both backends.
