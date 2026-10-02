@@ -285,9 +285,35 @@ describe('A2uiController', () => {
   });
 
   it('dispose() detaches the component and data subscriptions', async () => {
-    const mockHost = await createMockHost(context);
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'bound_comp',
+                component: 'Text',
+                text: {'@path': '/myText'},
+              },
+            ],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'test-surface',
+            value: {myText: 'BeforeDispose'},
+          },
+        },
+      ]),
+    );
+    const boundContext = new ComponentContextClass(surface, 'bound_comp');
+    const mockHost = await createMockHost(boundContext);
     const controller = mockHost.testController;
     assert.strictEqual(mockHost.isConnected, true);
+    assert.strictEqual(controller.props.text, 'BeforeDispose');
 
     let updateCount = 0;
     mockHost.requestUpdate = () => {
@@ -326,7 +352,7 @@ describe('A2uiController', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     assert.strictEqual(updateCount, callsAfterDispose);
-    assert.notStrictEqual(controller.props.text, 'AfterDispose');
+    assert.strictEqual(controller.props.text, 'BeforeDispose');
   });
 
   it('dispose() and hostDisconnected() are safe to repeat', async () => {
