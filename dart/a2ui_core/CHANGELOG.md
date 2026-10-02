@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Deprecated:** `SchemaCatalog` is renamed `CatalogApi`, matching
+  `ComponentApi` and `FunctionApi`. `SchemaCatalog` stays as a deprecated alias
+  and will be removed in a later release.
+- Support reserved protocol key prefix (`@path`, `@call`) in `DataBinding` and `FunctionCall`, dynamic prefix doubling unescaping (`@@path` → `@path`) during dynamic evaluation, and `@path` in dynamic setter generation.
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Execute `functionCall` and `call` component actions locally in
   `GenericBinder`, against the component's data context. A function that
@@ -25,6 +29,12 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+- `MessageProcessor`, `PayloadValidator`, and `Catalog` align surface lifecycle
+  error reporting (`A2uiIntegrityError` and `A2uiRecursionError` extending
+  `A2uiValidationError`, per-message completeness validation, safe no-op
+  `deleteSurface` on unknown surfaces), support `"v0.9.1"` in
+  `A2uiProtocolVersion.tryParse`, and pass the `message_processor_v0_9.yaml`,
+  `validator_v0_9.yaml`, and `catalog.yaml` conformance suites.
 - `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template
   length (`maxTemplateLength = 10000`), and template parts
   (`maxTemplateParts = 1000`) limits across nested interpolations and

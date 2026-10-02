@@ -23,7 +23,7 @@ class _TextFormatFactory extends InferenceFormatFactory {
 
   @override
   InferenceFormat createFormat(
-    List<SchemaCatalog> catalogs, {
+    List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
   }) => _TextFormat(catalogs, examples);
 }
@@ -31,7 +31,7 @@ class _TextFormatFactory extends InferenceFormatFactory {
 class _TextFormat extends InferenceFormat {
   const _TextFormat(this.catalogs, this.examples);
 
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
   final List<List<AgentToRendererMessage>> examples;
 
   @override
@@ -45,7 +45,7 @@ class _TextFormat extends InferenceFormat {
 class _TextPromptGenerator extends PromptGenerator {
   const _TextPromptGenerator(this.catalogs, {required this.examples});
 
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
   final List<List<AgentToRendererMessage>> examples;
 
   @override
@@ -77,7 +77,7 @@ class _TextParser extends Parser {
 
 /// A catalog with an id and components named [components], each taking a
 /// required string `text`.
-SchemaCatalog _catalog(String id, [List<String> components = const []]) =>
+CatalogApi _catalog(String id, [List<String> components = const []]) =>
     Catalog.fromJson({
       'catalogId': id,
       'components': {
@@ -111,11 +111,8 @@ List<AgentToRendererMessage> _example(String catalogId, String component) => [
 ];
 
 void main() {
-  final SchemaCatalog a = _catalog('https://example.com/a.json', [
-    'Text',
-    'Card',
-  ]);
-  final SchemaCatalog b = _catalog('https://example.com/b.json');
+  final CatalogApi a = _catalog('https://example.com/a.json', ['Text', 'Card']);
+  final CatalogApi b = _catalog('https://example.com/b.json');
 
   A2uiGenerator generator({
     InferenceFormatFactory format = const ExpressFormatFactory(),
@@ -221,7 +218,21 @@ void main() {
 
   group('resolveCatalogs', () {
     final registered = [CatalogConfig(a)];
-    final SchemaCatalog inline = _catalog('https://example.com/inline.json');
+    final CatalogApi inline = _catalog('https://example.com/inline.json');
+
+    test('activates every registered catalog without capabilities', () {
+      final List<CatalogApi> active = resolveCatalogs([
+        CatalogConfig(b),
+        CatalogConfig(
+          a,
+          transformers: [
+            ComponentPruningTransformer(['Text']),
+          ],
+        ),
+      ], null);
+      expect(active.map((c) => c.id), [b.id, a.id]);
+      expect(active.last.components.keys, ['Text']);
+    });
 
     test('ignores inline catalogs unless it accepts them', () {
       expect(
@@ -245,6 +256,52 @@ void main() {
         throwsA(isA<A2uiCatalogError>()),
       );
     });
+
+    test('activates accepted inline catalogs after the registered ones', () {
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [a.id],
+            inlineCatalogs: [inline],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [a, inline],
+      );
+    });
+
+    test('prefers the registration to an inline catalog with its id', () {
+      final CatalogApi redefined = _catalog(a.id, ['Other']);
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [a.id],
+            inlineCatalogs: [redefined, redefined],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [a],
+      );
+    });
+
+    test('activates one of two inline catalogs sharing an id', () {
+      expect(
+        resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.forCatalogIds(
+            [],
+            inlineCatalogs: [
+              inline,
+              _catalog(inline.id, ['Other']),
+            ],
+          ),
+          acceptsInlineCatalogs: true,
+        ),
+        [inline],
+      );
+    });
   });
 
   group('A2uiRequestProcessor.parseResponse', () {
@@ -253,11 +310,11 @@ void main() {
       formatFactory: const ExpressFormatFactory(),
     );
 
-    test('rejects a direct JSON payload', () {
-      expect(
-        () => processor.parseResponse('Here: <a2ui-json>[]</a2ui-json>'),
-        throwsA(isA<A2uiParseError>()),
-      );
+    test('reads a direct JSON payload as text', () {
+      const response = 'Here: <a2ui-json>[]</a2ui-json>';
+      expect(processor.parseResponse(response), [
+        isA<TextPart>().having((p) => p.text, 'text', response),
+      ]);
     });
   });
 }

@@ -19,7 +19,7 @@ signatures, and requirements directly from standard catalog JSON schemas.
 """
 
 from typing import Any
-from a2ui.core import Catalog
+from a2ui.core import Catalog, CatalogApi
 from a2ui.schema import A2uiCatalog
 
 
@@ -38,7 +38,7 @@ class CatalogSchemaHelper:
 
     def __init__(
         self,
-        catalog: Catalog[Any, Any] | A2uiCatalog,
+        catalog: CatalogApi | A2uiCatalog,
     ):
         """Initializes the helper with a Catalog or an A2uiCatalog.
 

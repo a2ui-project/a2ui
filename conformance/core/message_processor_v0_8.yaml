@@ -85,6 +85,39 @@
         dataModel:
           count: 42
 
+- name: test_v08_data_model_update_path_and_value_map
+  description: Tests that v0.8 dataModelUpdate normalizes relative paths and recursively converts nested valueMap entries into plain objects.
+  action: process_messages
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  messages:
+    - beginRendering:
+        surfaceId: "s_v08"
+        catalogId: "v08-cat"
+        root: "root"
+    - dataModelUpdate:
+        surfaceId: "s_v08"
+        path: "user"
+        contents:
+          - key: "name"
+            valueString: "Alice"
+          - key: "profile"
+            valueMap:
+              - key: "age"
+                valueNumber: 30
+              - key: "active"
+                valueBoolean: true
+  expect:
+    surfaces:
+      s_v08:
+        dataModel:
+          user:
+            name: "Alice"
+            profile:
+              age: 30
+              active: true
+
 - name: test_v08_get_renderer_capabilities
   description: Tests generating v0.8 renderer capabilities structure.
   action: get_renderer_capabilities

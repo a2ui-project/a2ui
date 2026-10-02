@@ -95,12 +95,7 @@ KNOWN_PROPERTY_GAPS: dict[str, dict[str, PropertyGap]] = {
         "FunctionCall": PropertyGap(
             specification_only=(),
             sdk_only=("args",),
-            reason=(
-                "The flat-shape deviation recorded in ACCEPTED_DEVIATIONS. The"
-                " specification carries per-function argument schemas in the"
-                " catalog's anyFunction union rather than a shared 'args'"
-                " property."
-            ),
+            reason="The flat-shape deviation recorded in ACCEPTED_DEVIATIONS.",
         ),
     },
 }

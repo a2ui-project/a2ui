@@ -19,16 +19,26 @@ export {basicCatalog} from './catalog.js';
 export * from '../../expressions/expression_parser.js';
 export * from './functions/basic_functions.js';
 export * from './functions/basic_functions_api.js';
-export * from './theme.js';
-export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
-export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';
-export {Context} from './context/context.js';
+export * from '../../universal/basic_catalog/theme.js';
+export {
+  injectBasicCatalogStyles,
+  computeColorVariant,
+} from '../../universal/basic_catalog/styles/default.js';
+export type {
+  ColorVariantLightDarkOptions,
+  ColorVariantHoverOptions,
+} from '../../universal/basic_catalog/styles/default.js';
+export {Context} from '../../universal/basic_catalog/context/context.js';
 export type {
   MarkdownRenderer,
   MarkdownRendererOptions,
   MarkdownRendererTagClassMap,
-} from './context/markdown.js';
-export {markdown, setMarkdownRenderer, getMarkdownRenderer} from './directives/directives.js';
+} from '../../universal/basic_catalog/context/markdown.js';
+export {
+  markdown,
+  setMarkdownRenderer,
+  getMarkdownRenderer,
+} from '../../universal/basic_catalog/directives/directives.js';
 
 /**
  * The theme schema for the basic catalog.
@@ -36,4 +46,4 @@ export {markdown, setMarkdownRenderer, getMarkdownRenderer} from './directives/d
  * Alias of {@link BasicCatalogThemeSchema}, kept for callers that refer to the
  * schema by the version-neutral `ThemeSchema` name.
  */
-export {BasicCatalogThemeSchema as ThemeSchema} from './theme.js';
+export {BasicCatalogThemeSchema as ThemeSchema} from '../../universal/basic_catalog/theme.js';

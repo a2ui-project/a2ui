@@ -45,6 +45,10 @@ struct ValidatorConformanceTests {
       "a later update of the same component in one payload is reported as a duplicate ID",
     "test_v09_incremental_update_duplicate_component_id_error":
       "a later update of the same component in one payload is reported as a duplicate ID",
+    "test_v09_theme_schema_validation_error":
+      "theme schema validation is handled at surface creation, not by component payload validator",
+    "test_v09_incremental_update_same_component_id_across_messages":
+      "a later update of the same component in one payload is reported as a duplicate ID",
   ]
 
   /// Steps that `A2UIValidator` can't pass, keyed by case name, as zero-based step indexes.

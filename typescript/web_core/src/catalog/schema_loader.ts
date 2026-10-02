@@ -31,7 +31,7 @@ import {
   FunctionCallSchema,
   ChildSchema,
 } from '../types/common-types.js';
-import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
+import {Catalog, type CatalogApi, type ComponentApi, type FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 /**
  * Protocol version assumed for a catalog schema that does not declare one.
@@ -344,6 +344,9 @@ function convertPropertyToZod(
 ): z.ZodTypeAny {
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
+  }
+  if (propSchema instanceof z.ZodType) {
+    return propSchema;
   }
 
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
@@ -925,11 +928,12 @@ function parseThemeSchema(
     catalogSchema.styles ??
     (defs?.theme as Record<string, unknown> | undefined);
   if (rawTheme && typeof rawTheme === 'object') {
-    return convertComponentJsonSchemaToZod(
-      rawTheme as Record<string, unknown>,
-      catalogSchema,
-      false,
-    );
+    const rawThemeObj = rawTheme as Record<string, unknown>;
+    const normalizedThemeSchema =
+      'properties' in rawThemeObj || 'allOf' in rawThemeObj || rawThemeObj.type === 'object'
+        ? rawThemeObj
+        : {type: 'object', properties: rawThemeObj};
+    return convertComponentJsonSchemaToZod(normalizedThemeSchema, catalogSchema, false);
   }
   return undefined;
 }
@@ -951,7 +955,7 @@ function parseThemeSchema(
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, unknown>,
   protocolVersion?: string,
-): Catalog<ComponentApi, FunctionApi> {
+): CatalogApi {
   const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
     throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");

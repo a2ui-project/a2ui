@@ -267,4 +267,166 @@ void main() {
       },
     );
   });
+
+  group('DataContext v1.0 protocol version gating', () {
+    late DataModel dataModel;
+
+    setUp(() {
+      dataModel = DataModel();
+      dataModel.set('/user/name', 'Alice');
+      dataModel.set('/items/0', 'Widget');
+    });
+
+    Object? mockInvoker(
+      String name,
+      Map<String, dynamic> args,
+      DataContext context,
+    ) {
+      if (name == 'uppercase') {
+        return (args['value'] as String).toUpperCase();
+      }
+      return null;
+    }
+
+    test('v1.0 resolves @path and treats plain path as literal', () {
+      final context = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+
+      expect(context.resolveSync({'@path': '/user/name'}), 'Alice');
+
+      final plainMap = <String, dynamic>{'path': '/user/name'};
+      expect(context.resolveSync(plainMap), {'path': '/user/name'});
+    });
+
+    test('v1.0 resolves @call and treats plain call as literal', () {
+      final context = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+
+      final dynamicCall = <String, dynamic>{
+        '@call': 'uppercase',
+        'args': {'value': 'hello'},
+      };
+      expect(context.resolveSync(dynamicCall), 'HELLO');
+
+      final plainCall = <String, dynamic>{
+        'call': 'uppercase',
+        'args': {'value': 'hello'},
+      };
+      expect(context.resolveSync(plainCall), {
+        'call': 'uppercase',
+        'args': {'value': 'hello'},
+      });
+    });
+
+    test('v1.0 unescapes doubled @@ keys in plain objects', () {
+      final context = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+
+      final escaped = <String, dynamic>{
+        '@@path': '/static/file',
+        '@@type': 'custom',
+      };
+      expect(context.resolveSync(escaped), {
+        '@path': '/static/file',
+        '@type': 'custom',
+      });
+    });
+
+    test('v1.0 throws A2uiValidationError on unknown single-@ keys', () {
+      final context = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+
+      expect(
+        () => context.resolveSync({'@invalidDirective': true}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('pre-v1.0 resolves plain path and call without unescaping @@', () {
+      final context = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v0.9',
+      );
+
+      expect(context.resolveSync({'path': '/user/name'}), 'Alice');
+      expect(context.resolveSync({'@path': '/user/name'}), {
+        '@path': '/user/name',
+      });
+
+      final plainCall = <String, dynamic>{
+        'call': 'uppercase',
+        'args': {'value': 'hello'},
+      };
+      expect(context.resolveSync(plainCall), 'HELLO');
+
+      final escaped = <String, dynamic>{'@@path': '/static/file'};
+      expect(context.resolveSync(escaped), {'@@path': '/static/file'});
+
+      // Unknown @ keys should not throw in v0.9
+      expect(context.resolveSync({'@foo': 'bar'}), {'@foo': 'bar'});
+    });
+
+    test('v1.0 resolveListenable unescapes @@ keys and validates directives',
+        () {
+      final context = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+
+      final escaped = <String, dynamic>{'@@path': '/static/file'};
+      final ReadonlySignal<Object?> signal = context.resolveListenable(escaped);
+      expect(signal.value, {'@path': '/static/file'});
+
+      expect(
+        () => context.resolveListenable({'@invalid': true}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('isV10 matches versions >= 1.0 semantically', () {
+      final ctx1 = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.1',
+      );
+      expect(ctx1.isV10, isTrue);
+
+      final ctx2 = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: '2.0.0',
+      );
+      expect(ctx2.isV10, isTrue);
+
+      final ctx3 = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v0.9.1',
+      );
+      expect(ctx3.isV10, isFalse);
+    });
+  });
 }

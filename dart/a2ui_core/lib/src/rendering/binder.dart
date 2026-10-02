@@ -478,10 +478,13 @@ class GenericBinder {
     );
     if (hasEvent || hasFunctionCall) return BehaviorNode(Behavior.action);
 
+    final bool isV10 = context.dataContext.isV10;
     bool hasPath = schemasToInspect.any(
       (s) =>
           s['properties'] != null &&
-          (s['properties'] as Map)['path'] != null &&
+          (isV10
+              ? (s['properties'] as Map)['@path'] != null
+              : (s['properties'] as Map)['path'] != null) &&
           (s['properties'] as Map)['componentId'] == null,
     );
     if (hasPath) return BehaviorNode(Behavior.dynamic);

@@ -26,8 +26,9 @@ void main() {
       expect(A2uiProtocolVersion.supportedVersions, "'v0.9'");
     });
 
-    test('parses the supported version', () {
+    test('parses the supported version and v0.9.1 alias', () {
       expect(A2uiProtocolVersion.fromJson('v0.9'), A2uiProtocolVersion.v0_9);
+      expect(A2uiProtocolVersion.fromJson('v0.9.1'), A2uiProtocolVersion.v0_9);
     });
 
     test('rejects an unspecified version', () {
@@ -51,7 +52,7 @@ void main() {
     });
 
     test('rejects earlier and later protocol versions', () {
-      for (final version in ['v0.8', 'v1.0', 'v0.9.1', '0.9', '']) {
+      for (final version in ['v0.8', 'v1.0', '0.9', '']) {
         expect(
           () => A2uiProtocolVersion.fromJson(version),
           throwsA(

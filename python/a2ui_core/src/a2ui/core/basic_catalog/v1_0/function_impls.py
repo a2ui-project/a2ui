@@ -18,9 +18,10 @@ import re
 from typing import Any
 from ...resolution.data_context import DataContext
 from ...common.events import AbortSignal
-from ...catalog.functions import (
+from ...catalog import (
     FunctionImplementation,
     create_function_implementation,
+    system_functions_for,
 )
 from .function_apis import (
     RequiredApi,
@@ -38,10 +39,8 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from .operator_apis import (
-    IndexApi,
-)
 from ...expressions.expression_parser import ExpressionParser
+from ...schema.v1_0.constants import PROTOCOL_VERSION
 from ..locale_formatting import apply_currency_spacing, get_locale
 from babel.numbers import format_decimal, format_currency, get_currency_symbol
 import re as _re
@@ -164,39 +163,27 @@ def _email_execute(
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
 
 
-# System Functions
-def _index_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> int:
-    offset = args.get("offset")
-    offset_val = int(offset) if offset is not None else 0
-    idx: int | None = None
-    if context is not None:
-        if hasattr(context, "index") and getattr(context, "index") is not None:
-            idx = int(getattr(context, "index"))
-        elif (
-            isinstance(context, dict)
-            and "index" in context
-            and context["index"] is not None
-        ):
-            idx = int(context["index"])
-
-    if idx is None:
-        if context is not None:
-            from ...exceptions import A2uiValidationError
-
-            raise A2uiValidationError(
-                "@index function can only be evaluated inside a collection template"
-                " iteration scope."
-            )
-        idx = 0
-
-    return idx + offset_val
-
-
-IndexImplementation = create_function_implementation(IndexApi, _index_execute)
+def _adapt_ast_part_for_v10(part: Any) -> Any:
+    if not isinstance(part, dict):
+        return part
+    if (
+        "path" in part
+        and isinstance(part["path"], str)
+        and "componentId" not in part
+        and "@path" not in part
+    ):
+        return {"@path": part["path"]}
+    if "call" in part and isinstance(part["call"], str) and "@call" not in part:
+        args = {}
+        raw_args = part.get("args")
+        if isinstance(raw_args, dict):
+            for k, v in raw_args.items():
+                args[k] = _adapt_ast_part_for_v10(v)
+        res = {"@call": part["call"], "args": args}
+        if "returnType" in part:
+            res["returnType"] = part["returnType"]
+        return res
+    return part
 
 
 # Formatting
@@ -218,7 +205,12 @@ def _format_string(
     resolved_parts = []
     for part in parts:
         if context and hasattr(context, "resolve_dynamic_value"):
-            resolved = context.resolve_dynamic_value(part)
+            dyn_part = (
+                _adapt_ast_part_for_v10(part)
+                if getattr(context, "is_v10", False)
+                else part
+            )
+            resolved = context.resolve_dynamic_value(dyn_part)
         else:
             resolved = part
         resolved_parts.append(_to_str(resolved))
@@ -492,7 +484,7 @@ def create_basic_catalog_functions(
         LengthImplementation,
         NumericImplementation,
         EmailImplementation,
-        IndexImplementation,
+        *system_functions_for(PROTOCOL_VERSION).values(),
         FormatStringImplementation,
         create_format_number_implementation(locale),
         create_format_currency_implementation(locale),

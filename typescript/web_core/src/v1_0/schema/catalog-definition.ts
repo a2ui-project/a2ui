@@ -25,7 +25,7 @@ export const FunctionCallValidationSchemaSchema = z
     'description': z.string().optional(),
     'properties': z
       .object({
-        'call': z.object({'const': z.string()}),
+        '@call': z.object({'const': z.string()}),
         'args': z.record(z.string(), z.any()).optional(),
       })
       .strict(),

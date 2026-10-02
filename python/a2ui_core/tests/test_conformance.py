@@ -30,37 +30,26 @@ from a2ui.core.processing import (
 )
 from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.core.exceptions import (
-    A2uiError,
-    A2uiParseError,
-    A2uiValidationError,
     A2uiCatalogError,
-    A2uiIntegrityError,
     A2uiDataError,
+    A2uiError,
     A2uiExpressionError,
+    A2uiIntegrityError,
+    A2uiParseError,
+    A2uiRecursionError,
+    A2uiStateError,
+    A2uiValidationError,
 )
 
 CATEGORY_TO_EXCEPTION = {
-    "ParseError": (A2uiParseError, A2uiExpressionError, A2uiError, ValueError),
-    "ValidationError": (
-        A2uiValidationError,
-        A2uiExpressionError,
-        A2uiError,
-        ValueError,
-    ),
-    "CatalogError": (A2uiCatalogError, A2uiError),
-    "IntegrityError": (
-        A2uiIntegrityError,
-        A2uiValidationError,
-        A2uiError,
-        ValueError,
-    ),
-    "RecursionError": (
-        A2uiValidationError,
-        A2uiExpressionError,
-        A2uiError,
-        ValueError,
-    ),
-    "DataError": (A2uiDataError, A2uiError, ValueError),
+    "ParseError": (A2uiParseError, A2uiExpressionError),
+    "ValidationError": (A2uiValidationError,),
+    "CatalogError": (A2uiCatalogError,),
+    "IntegrityError": (A2uiIntegrityError, A2uiRecursionError),
+    "RecursionError": (A2uiRecursionError,),
+    "DataError": (A2uiDataError,),
+    "StateError": (A2uiStateError,),
+    "ExpressionError": (A2uiExpressionError,),
 }
 
 SUPPORTED_PROTOCOL_VERSIONS = {
@@ -97,7 +86,17 @@ CONFORMANCE_ROOT = os.environ.get(
     "CONFORMANCE_ROOT",
     os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conformance")),
 )
+SPEC_ROOT = os.environ.get(
+    "SPEC_ROOT",
+    os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../specification")),
+)
 CORE_DIR = os.path.join(CONFORMANCE_ROOT, "core")
+
+
+def _version_dir(ver: str) -> str:
+    v = ver.lower().replace(".", "_")
+    return v if v.startswith("v") else f"v{v}"
+
 
 basic_catalog = v0_9.BasicCatalog()
 v08_catalog = v0_8.BasicCatalog()
@@ -266,25 +265,50 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                 )
                 catalogs_map[c_id] = cat
                 specified_catalogs.append(cat)
-        elif "catalogId" in cat_spec:
-            c_id = cat_spec["catalogId"]
+        elif "components" in cat_spec or "catalogId" in cat_spec:
+            c_id = (
+                cat_spec.get("catalogId")
+                or resolve_catalog_id(case)
+                or f"catalog-{case.get('name')}"
+            )
             p_ver = resolve_protocol_version(case) or "v0.9"
             c_comps = cat_spec.get("components")
             c_theme = cat_spec.get("theme")
-            if c_comps or c_theme:
+            c_funcs = cat_spec.get("functions")
+            if c_comps or c_theme or c_funcs:
                 c_schema = {"catalogId": c_id}
+                if not c_funcs:
+                    c_schema["$defs"] = {"anyFunction": {"not": {}}}
                 if c_comps:
                     c_schema["components"] = c_comps
                 if c_theme:
                     c_schema["theme"] = c_theme
+                if c_funcs:
+                    c_schema["functions"] = c_funcs
+                common_types_schema = None
+                c_types_path = os.path.join(
+                    SPEC_ROOT, _version_dir(p_ver), "json", "common_types.json"
+                )
+                if os.path.exists(c_types_path):
+                    with open(c_types_path, "r", encoding="utf-8") as f:
+                        common_types_schema = json.load(f)
                 cat = Catalog.from_json(
-                    c_schema, catalog_id=c_id, protocol_version=p_ver
+                    c_schema,
+                    catalog_id=c_id,
+                    protocol_version=p_ver,
+                    common_types_schema=common_types_schema,
                 )
             else:
+                default_comps = (
+                    []
+                    if case.get("action")
+                    in ("get_client_capabilities", "get_renderer_capabilities")
+                    else list(basic_catalog.components.values())
+                )
                 cat = Catalog(
                     catalog_id=c_id,
                     protocol_version=p_ver,
-                    components=list(basic_catalog.components.values()),
+                    components=default_comps,
                 )
             catalogs_map[c_id] = cat
             specified_catalogs.append(cat)
@@ -311,20 +335,29 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                     p_ver = item.get("protocolVersion") or version
                     c_comps = item.get("components")
                     c_theme = item.get("theme")
-                    if c_comps or c_theme:
+                    c_funcs = item.get("functions")
+                    if c_comps or c_theme or c_funcs:
                         c_schema = {"catalogId": c_id}
                         if c_comps:
                             c_schema["components"] = c_comps
                         if c_theme:
                             c_schema["theme"] = c_theme
+                        if c_funcs:
+                            c_schema["functions"] = c_funcs
                         cat = Catalog.from_json(
                             c_schema, catalog_id=c_id, protocol_version=p_ver
                         )
                     else:
+                        default_comps = (
+                            []
+                            if case.get("action")
+                            in ("get_client_capabilities", "get_renderer_capabilities")
+                            else list(basic_catalog.components.values())
+                        )
                         cat = Catalog(
                             catalog_id=c_id,
                             protocol_version=p_ver,
-                            components=list(basic_catalog.components.values()),
+                            components=default_comps,
                         )
                     catalogs_map[c_id] = cat
                     specified_catalogs.append(cat)
@@ -416,9 +449,20 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                     add_catalog_id(item["beginRendering"]["catalogId"], scan_version)
 
     scan(messages)
-    return specified_catalogs + [
-        c for c in catalogs_map.values() if c not in specified_catalogs
-    ]
+    if (
+        case.get("action") in ("get_client_capabilities", "get_renderer_capabilities")
+        and specified_catalogs
+    ):
+        return specified_catalogs
+    return (
+        specified_catalogs
+        + [cur_basic]
+        + [
+            c
+            for c in catalogs_map.values()
+            if c not in specified_catalogs and c != cur_basic
+        ]
+    )
 
 
 @contextlib.contextmanager
@@ -696,6 +740,16 @@ def _assert_expected_surface_state(
                                     f" {p_val}"
                                 )
 
+                if isinstance(comps_expected, list) and all(
+                    surface.components_model.get(c_id) is not None
+                    for c_id, _ in comp_items
+                ):
+                    assert len(surface.components_model.keys) == len(comp_items), (
+                        f"Surface '{s_id}' component count mismatch: expected"
+                        f" {len(comp_items)}, got"
+                        f" {len(surface.components_model.keys)}"
+                    )
+
             if "validationResult" in s_exp:
                 resolved_nodes = _resolve_surface_components(surface)
                 val_res_exp = s_exp["validationResult"]
@@ -730,7 +784,9 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
         if not messages:
             continue
 
-        expect_error = step.get("expectError") or case.get("expectError")
+        expect_error = step.get("expectError") or (
+            case.get("expectError") if idx == len(steps) - 1 else None
+        )
 
         if expect_error:
             with assert_raises(expect_error):
@@ -806,12 +862,26 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
 def validate_capabilities_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     processor = MessageProcessor(catalogs)
-    ver = resolve_protocol_version(case) or "v0.9"
-    p_ver = ProtocolVersion(ver)
-    caps = processor.get_renderer_capabilities(CapabilitiesOptions(versions=[p_ver]))
+    args = case.get("args") or {}
+    raw_versions = args.get("versions") or (
+        [args["version"]]
+        if "version" in args
+        else [resolve_protocol_version(case) or "v0.9"]
+    )
+    p_versions = [
+        ProtocolVersion(v) if v in ProtocolVersion._value2member_map_ else v
+        for v in raw_versions
+    ]
+    opts = CapabilitiesOptions(
+        versions=p_versions,
+        include_inline_catalogs=bool(args.get("includeInlineCatalogs", False)),
+        component_envelope_ref=args.get(
+            "componentEnvelopeRef", "common_types.json#/$defs/ComponentCommon"
+        ),
+    )
+    caps = processor.get_renderer_capabilities(opts)
     expected = case.get("expect", {})
-    for k, v in expected.items():
-        assert k in caps
+    assert caps == expected
 
 
 def validate_from_json_case(case: dict[str, Any]) -> None:
@@ -1201,13 +1271,15 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
         from a2ui.core.rpc import CallOptions
         from a2ui.core.schema.v1_0.common_types import FunctionCall
 
+        call_fn = outbound_call["callFunction"]
+        call_name = call_fn.get("@call") or call_fn.get("call")
         fut = processor.call_agent_function(
             surface_id=outbound_call["surfaceId"],
             call=FunctionCall(
-                call=outbound_call["callFunction"]["call"],
-                catalogId=outbound_call["callFunction"].get("catalogId")
+                call=call_name,
+                catalogId=call_fn.get("catalogId")
                 or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-                args=outbound_call["callFunction"].get("args"),
+                args=call_fn.get("args"),
             ),
             options=CallOptions(
                 function_call_id=outbound_call["functionCallId"],
@@ -1229,13 +1301,15 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
         expected_err = case.get("expectError") or case.get("expect", {}).get("error")
 
         def _start_call(spec: dict[str, Any]) -> Any:
+            call_fn = spec["callFunction"]
+            call_name = call_fn.get("@call") or call_fn.get("call")
             return processor.call_agent_function(
                 surface_id=spec["surfaceId"],
                 call=FunctionCall(
-                    call=spec["callFunction"]["call"],
-                    catalogId=spec["callFunction"].get("catalogId")
+                    call=call_name,
+                    catalogId=call_fn.get("catalogId")
                     or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-                    args=spec["callFunction"].get("args"),
+                    args=call_fn.get("args"),
                 ),
                 options=CallOptions(
                     function_call_id=spec["functionCallId"],

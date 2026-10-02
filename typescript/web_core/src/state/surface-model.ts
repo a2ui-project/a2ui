@@ -147,6 +147,8 @@ export class SurfaceModel<
     dataModel?: DataModel,
     /** Identifier of the root component on this surface (defaults to `'root'`). */
     readonly rootId: string = 'root',
+    /** Optional surface-level metadata for vendor extensions. */
+    readonly metadata?: Record<string, unknown>,
   ) {
     if (
       availableCatalogs !== undefined &&

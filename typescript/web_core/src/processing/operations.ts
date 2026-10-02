@@ -50,6 +50,8 @@ export interface InternalCreateSurfaceOp {
   readonly version?: string;
   /** Root component ID for the surface (defaults to `'root'`). */
   readonly rootId?: string;
+  /** Optional surface-level metadata for vendor extensions. */
+  readonly metadata?: Record<string, unknown>;
 }
 
 /**

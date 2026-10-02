@@ -1344,20 +1344,20 @@
     "DataBinding": {
       "additionalProperties": false,
       "properties": {
-        "path": {
+        "@path": {
           "description": "A JSON Pointer path to a value in the data model.",
           "type": "string"
         }
       },
       "required": [
-        "path"
+        "@path"
       ],
       "type": "object"
     },
     "FunctionCall": {
       "additionalProperties": false,
       "properties": {
-        "call": {
+        "@call": {
           "description": "The name of the function to call.",
           "type": "string"
         },
@@ -1372,7 +1372,7 @@
         }
       },
       "required": [
-        "call"
+        "@call"
       ],
       "type": "object",
       "description": "Invokes a named function."

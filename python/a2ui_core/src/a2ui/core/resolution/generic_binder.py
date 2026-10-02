@@ -149,7 +149,7 @@ def classify_schema_behavior(schema: Any) -> BehaviorNode:
     return BehaviorNode(BehaviorType.STATIC)
 
 
-def _classify_value_fallback(key: str, val: Any) -> BehaviorNode:
+def _classify_value_fallback(key: str, val: Any, is_v10: bool = False) -> BehaviorNode:
     """Fallback classification derived dynamically from property key and value shapes."""
     if key == "checks" or (
         isinstance(val, list)
@@ -164,16 +164,22 @@ def _classify_value_fallback(key: str, val: Any) -> BehaviorNode:
             return BehaviorNode(BehaviorType.CHECKABLE)
         if "componentId" in val and ("path" in val or "dataBinding" in val):
             return BehaviorNode(BehaviorType.STRUCTURAL)
-        if "path" in val or "call" in val:
-            return BehaviorNode(BehaviorType.DYNAMIC)
+        if is_v10:
+            if "@path" in val or "@call" in val:
+                return BehaviorNode(BehaviorType.DYNAMIC)
+        else:
+            if "path" in val or "call" in val:
+                return BehaviorNode(BehaviorType.DYNAMIC)
         if "event" in val or "functionCall" in val:
             return BehaviorNode(BehaviorType.ACTION)
-        shape = {k: _classify_value_fallback(k, v) for k, v in val.items()}
+        shape = {
+            k: _classify_value_fallback(k, v, is_v10=is_v10) for k, v in val.items()
+        }
         return BehaviorNode(BehaviorType.OBJECT, shape=shape)
 
     if isinstance(val, list):
         elem = (
-            _classify_value_fallback("", val[0])
+            _classify_value_fallback("", val[0], is_v10=is_v10)
             if val
             else BehaviorNode(BehaviorType.STATIC)
         )
@@ -202,7 +208,7 @@ class GenericBinder:
         self.listeners: set[Callable[[dict[str, Any]], None]] = set()
         self.current_props: dict[str, Any] = {}
         self.comp_unsub: Callable[[], None] | None = None
-        self._action_closures: dict[str, tuple[Any, Callable[[], None]]] = {}
+        self._action_closures: dict[str, tuple[Any, Callable[[], Any]]] = {}
 
         resolved_schema = schema
         cat = context.component_model.catalog
@@ -257,7 +263,9 @@ class GenericBinder:
         result: dict[str, Any] = {}
 
         for k, v in val_obj.items():
-            child_behavior = shape.get(k) or _classify_value_fallback(k, v)
+            child_behavior = shape.get(k) or _classify_value_fallback(
+                k, v, is_v10=self.context.data_context.is_v10
+            )
             result[k] = self._resolve_and_bind(
                 v, child_behavior, result, k, [*path, k], is_sync
             )
@@ -279,7 +287,10 @@ class GenericBinder:
                 behavior is not None and behavior.type == BehaviorType.DYNAMIC
             ) or (
                 raw_val is not None
-                and _classify_value_fallback(k, raw_val).type == BehaviorType.DYNAMIC
+                and _classify_value_fallback(
+                    k, raw_val, is_v10=self.context.data_context.is_v10
+                ).type
+                == BehaviorType.DYNAMIC
             )
             if is_dynamic and k:
                 setter_name = f"set{k[0].upper() + k[1:]}"
@@ -287,9 +298,12 @@ class GenericBinder:
 
     def _create_setter(self, raw_val: Any) -> Callable[[Any], None]:
         def setter(new_value: Any) -> None:
-            if isinstance(raw_val, dict) and "path" in raw_val:
-                path_val = raw_val["path"]
-                if isinstance(path_val, str):
+            if isinstance(raw_val, dict):
+                binding_key = "@path" if self.context.data_context.is_v10 else "path"
+                path_val = raw_val.get(binding_key)
+                if isinstance(path_val, str) and (
+                    self.context.data_context.is_v10 or "componentId" not in raw_val
+                ):
                     self.context.data_context.set(path_val, new_value)
 
         return setter
@@ -371,24 +385,24 @@ class GenericBinder:
             bound.unsubscribe()
         return bound.value
 
-    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], None]:
+    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], Any]:
         cache_key = "/".join(path)
         cached = self._action_closures.get(cache_key)
         if cached is not None and cached[0] == value:
             return cached[1]
 
-        def closure() -> None:
+        def closure() -> Any:
             if isinstance(value, dict):
                 fc = (
                     value["functionCall"]
                     if isinstance(value.get("functionCall"), dict)
                     else value
                 )
-                if isinstance(fc.get("call"), str):
-                    self.context.data_context.resolve_dynamic_value(fc)
-                    return
+                call_name = fc.get("@call") or fc.get("call")
+                if isinstance(call_name, str):
+                    return self.context.data_context.resolve_dynamic_value(fc)
             resolved = self.context.data_context.resolve_action(value)
-            self.context.dispatch_action(resolved)
+            return self.context.dispatch_action(resolved)
 
         self._action_closures[cache_key] = (value, closure)
         return closure

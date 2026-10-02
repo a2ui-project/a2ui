@@ -30,7 +30,7 @@ class PydanticCodegen:
     def __init__(self, version: str):
         self.version = ensure_v_prefix(version)
         self.dir_name = version_to_underscore(self.version)
-        self.spec_dot = self.version
+        self.spec_dot = "v" + self.dir_name[1:].replace("_", ".")
         self.inline_objects: dict[str, dict[str, Any]] = {}
         self.allow_inline = True
 

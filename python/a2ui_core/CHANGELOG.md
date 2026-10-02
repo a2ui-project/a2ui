@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Add `CatalogApi`, the name for a schema-only `Catalog[ComponentApi, FunctionApi]`, exported from `a2ui.core`. `Catalog.from_json` returns it.
 - Execute `functionCall` and `call` component actions locally in `GenericBinder` and prevent `SurfaceModel.dispatch_action` from emitting them as agent-facing `on_action` events.
 - `ExpressionParser` accepts number literals with a leading decimal point
   (`.5`, `-.5`, `+.5`, `.5e2`), including as function-call arguments. `.foo`
@@ -158,6 +159,10 @@
   suite cannot be parsed, when a case has no `name` or `action`, or when an
   action has no handler. Suites the core library cannot run are named in
   `UNRUNNABLE_SUITES` with a reason.
+- Move `@index` (`IndexApi`, `IndexArgs`, `IndexImplementation`) from
+  `a2ui.core.basic_catalog.v1_0` (`v1_0/operator_apis.py` removed) to
+  `a2ui.core.catalog`, where `system_functions_for` supplies it to v1.0 and
+  later catalogs.
 
 ## 0.1.1
 

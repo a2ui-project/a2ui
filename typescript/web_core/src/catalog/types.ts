@@ -19,6 +19,8 @@ import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {SpecVersion} from '../spec_versions.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
 import {
@@ -27,6 +29,7 @@ import {
   type ComponentRefMap,
 } from './reference-map.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 
 export type {ComponentChildRefs};
 
@@ -329,35 +332,7 @@ export class Catalog<
 
     this.themeSchema = themeSchema;
     this.instructions = instructions;
-
-    this.invoker = (name, rawArgs, ctx, abortSignal) => {
-      const fn = this.functions.get(name);
-      if (!fn) {
-        throw new A2uiExpressionError(`Function not found in catalog '${this.id}': ${name}`, name);
-      }
-      const execute = (fn as Partial<FunctionImplementation>).execute;
-      if (typeof execute !== 'function') {
-        throw new A2uiExpressionError(
-          `Function '${name}' in catalog '${this.id}' is schema-only and has no implementation.`,
-          name,
-        );
-      }
-
-      // Provides runtime safety: Coerces and strips invalid arguments before execute()
-      try {
-        const safeArgs = fn.schema.parse(rawArgs);
-        return execute.call(fn, safeArgs, ctx, abortSignal);
-      } catch (e: any) {
-        if (e?.name === 'ZodError' || e instanceof z.ZodError) {
-          throw new A2uiExpressionError(
-            `Validation failed for function '${name}': ${e.message}`,
-            name,
-            e.errors ?? e.issues,
-          );
-        }
-        throw e;
-      }
-    };
+    this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions);
   }
 
   /**
@@ -370,10 +345,73 @@ export class Catalog<
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
-  static fromSchema(
-    catalogSchema: Record<string, any>,
-    protocolVersion?: string,
-  ): Catalog<ComponentApi, FunctionApi> {
+  static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
     return loadCatalogFromSchema(catalogSchema, protocolVersion);
+  }
+}
+
+/**
+ * A catalog whose components and functions carry schemas only.
+ *
+ * What `Catalog.fromSchema` produces, and what agents work with: they prompt
+ * and validate against signatures but never execute a function. A renderer
+ * that executes functions needs a catalog of `FunctionImplementation`s instead.
+ */
+export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+
+function createCatalogInvoker<F extends FunctionApi>(
+  catalogId: string,
+  protocolVersion: ProtocolVersion | string,
+  functions: ReadonlyMap<string, F>,
+): FunctionInvoker {
+  return (name, rawArgs, ctx, abortSignal) => {
+    const fn =
+      functions.get(name) ??
+      (isAtLeastVersion(protocolVersion, SpecVersion.V1_0) && name === '@index'
+        ? (IndexImplementation as unknown as F)
+        : undefined);
+    if (!fn) {
+      throw new A2uiExpressionError(`Function not found in catalog '${catalogId}': ${name}`, name);
+    }
+    assertUserActivation(fn, ctx);
+    const execute = (fn as Partial<FunctionImplementation>).execute;
+    if (typeof execute !== 'function') {
+      throw new A2uiExpressionError(
+        `Function '${name}' in catalog '${catalogId}' is schema-only and has no implementation.`,
+        name,
+      );
+    }
+
+    try {
+      const safeArgs = fn.schema.parse(rawArgs);
+      return execute.call(fn, safeArgs, ctx, abortSignal);
+    } catch (e: any) {
+      if (e?.name === 'ZodError' || e instanceof z.ZodError) {
+        throw new A2uiExpressionError(
+          `Validation failed for function '${name}': ${e.message}`,
+          name,
+          e.errors ?? e.issues,
+        );
+      }
+      throw e;
+    }
+  };
+}
+
+function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {
+  if (!fn.requiresUserActivation) return;
+  const isPassive = Boolean(
+    (ctx as {isPassiveEvaluation?: boolean} | undefined)?.isPassiveEvaluation,
+  );
+  const isActivated = Boolean((ctx as {isUserActivated?: boolean} | undefined)?.isUserActivated);
+  const browserUnactivated =
+    !isActivated &&
+    typeof navigator !== 'undefined' &&
+    !(navigator.userActivation?.isActive ?? true);
+  if (isPassive || browserUnactivated) {
+    throw new A2uiExpressionError(
+      `Function '${fn.name}' requires user activation and cannot be evaluated without an active user gesture.`,
+      fn.name,
+    );
   }
 }

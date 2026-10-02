@@ -23,6 +23,7 @@ from utils import (
     extract_exported_symbols,
     find_common_refs,
     get_base_common_symbols,
+    is_at_least_v10,
     is_modern_terminology,
     to_pascal_case,
     to_snake_case,
@@ -49,6 +50,8 @@ def generate_common_types(
         "DynamicBoolean",
         "DynamicStringList",
     }
+    if is_at_least_v10(version):
+        versioned_symbols.add("DataBinding")
     # Any class/type defined in base common_types.py is imported and not repeated in versioned folders
     imports_from_common = [
         s
@@ -208,10 +211,13 @@ def generate_common_types(
             else:
                 fn_common = defs.get("FunctionCommon", {})
                 fn_props = {}
-                if "call" in fn_common.get("properties", {}):
-                    fn_props["call"] = fn_common["properties"]["call"]
+                call_key = (
+                    "@call" if "@call" in fn_common.get("properties", {}) else "call"
+                )
+                if call_key in fn_common.get("properties", {}):
+                    fn_props[call_key] = fn_common["properties"][call_key]
                 else:
-                    fn_props["call"] = {
+                    fn_props[call_key] = {
                         "type": "string",
                         "description": "The name of the function to call.",
                     }
@@ -220,12 +226,12 @@ def generate_common_types(
                     "description": "Arguments passed to the function.",
                 }
                 for k, v in fn_common.get("properties", {}).items():
-                    if k != "call":
+                    if k != call_key:
                         fn_props[k] = v
                 fn_spec = {
                     "description": "Invokes a named function.",
                     "properties": fn_props,
-                    "required": fn_common.get("required", ["call"]),
+                    "required": fn_common.get("required", [call_key]),
                 }
                 common_blocks.append(
                     codegen.compile_object_def("FunctionCall", fn_spec)
@@ -317,6 +323,16 @@ def generate_common_types(
                     )
                 else:
                     forbidden_set_repr = "set()"
+                if is_at_least_v10(version):
+                    single_at_check = f"""
+    for k in v.keys():
+        if k.startswith("@") and not k.startswith("@@"):
+            raise ValueError(
+                f"Object in {name} cannot contain unrecognized reserved directive: '{{k}}'"
+            )"""
+                else:
+                    single_at_check = ""
+
                 validator_code = f"""def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
@@ -325,7 +341,7 @@ def generate_common_types(
     if found:
         raise ValueError(
             f"Object in {name} cannot contain forbidden properties: {{', '.join(sorted(found))}}"
-        )
+        ){single_at_check}
     return v
 
 LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_object)]"""

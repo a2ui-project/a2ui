@@ -17,7 +17,7 @@ from collections.abc import Mapping, Sequence
 import copy
 import re
 import sys
-from typing import Any, Callable, Final, Generic, cast
+from typing import Any, Callable, Final, Generic, TypeAlias, cast
 
 if sys.version_info >= (3, 13):
     from typing import TypeVar
@@ -944,7 +944,7 @@ class Catalog(Generic[TComponent, TFunction]):
         protocol_version: str | None = None,
         catalog_id: str | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
-    ) -> "Catalog[ComponentApi, FunctionApi]":
+    ) -> "CatalogApi":
         """Constructs a schema-only Catalog directly from raw JSON Schema.
 
         Args:
@@ -1081,7 +1081,7 @@ class Catalog(Generic[TComponent, TFunction]):
             if isinstance(raw_defs, dict):
                 common_types_defs = _normalize_external_schema_refs(dict(raw_defs))
 
-        cat = Catalog[ComponentApi, FunctionApi](
+        return CatalogApi(
             catalog_id=catalog_id,
             protocol_version=p_ver,
             components=components,
@@ -1093,4 +1093,13 @@ class Catalog(Generic[TComponent, TFunction]):
             defs=inlined_catalog_schema.get("$defs"),
             common_types_defs=common_types_defs,
         )
-        return cat
+
+
+CatalogApi: TypeAlias = Catalog[ComponentApi, FunctionApi]
+"""A catalog whose components and functions carry schemas only.
+
+What ``Catalog.from_json`` produces, and what agents work with: they prompt and
+validate against signatures but never evaluate a function. A renderer that
+evaluates functions needs a catalog of ``FunctionImplementation`` instances
+instead.
+"""
