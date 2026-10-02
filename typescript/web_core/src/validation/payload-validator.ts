@@ -24,6 +24,7 @@ import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/com
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
 import type {ValidationConfig} from './integrity-checker.js';
+import {validateReservedDirectives} from '../resolution/data-context.js';
 
 /**
  * Envelope keys that are addressed by the processor rather than described by a
@@ -215,7 +216,12 @@ export class PayloadValidator {
     }
 
     const record = val as Record<string, unknown>;
-    const rawName = record['call'] ?? record['function'];
+    if (this.enforceIdentifiers) {
+      validateReservedDirectives(Object.keys(record), this.catalog.protocolVersion);
+    }
+    const rawName = this.enforceIdentifiers
+      ? record['@call']
+      : (record['call'] ?? record['function']);
     if (typeof rawName === 'string' && rawName.length > 0) {
       const rawArgs = record['args'];
       const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;

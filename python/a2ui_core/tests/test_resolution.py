@@ -983,3 +983,50 @@ def test_data_context_execute_function_exceeds_max_args():
         A2uiExpressionError, match="exceeds maximum allowed arguments count"
     ):
         ctx._execute_function("dummy_fn", oversized_args)
+
+
+def test_generic_binder_v10_literal_path_no_setter():
+    # In v1.0, {"path": "/x"} is literal data and must not get a setter writing to /x
+    from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV10
+
+    cat = BasicCatalogV10()
+    data_model = DataModel({"x": "initial"})
+    comp = ComponentModel(
+        "custom1",
+        "CustomCard",
+        cat,
+        {"details": {"path": "/x"}},
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "details": {"type": "object"},
+        },
+    }
+    binder = GenericBinder(context, schema=schema)
+    assert "setDetails" not in binder.current_props
+    binder.dispose()
+
+
+def test_adapt_ast_part_for_v10_preserves_arg_names():
+    from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+
+    part = {
+        "call": "myFunction",
+        "args": {
+            "path": "/x",
+            "nested": {"path": "/y"},
+        },
+    }
+    adapted = _adapt_ast_part_for_v10(part)
+    assert adapted == {
+        "@call": "myFunction",
+        "args": {
+            "path": "/x",
+            "nested": {"@path": "/y"},
+        },
+    }

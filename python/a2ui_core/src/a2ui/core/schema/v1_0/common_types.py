@@ -30,7 +30,6 @@ from ..common_types import (
     ChildList,
     ComponentId,
     ComponentReference,
-    DataBinding,
     ListReference,
     SingleReference,
     StrictBaseModel,
@@ -38,11 +37,22 @@ from ..common_types import (
 )
 
 
+class DataBinding(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    path: str = Field(
+        ...,
+        alias="@path",
+        description="A JSON Pointer path to a value in the data model.",
+    )
+
+
 class FunctionCommon(StrictBaseModel):
     """Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog."""
 
     model_config = ConfigDict(populate_by_name=True)
-    call: str = Field(..., description="The name of the function to call.")
+    call: str = Field(
+        ..., alias="@call", description="The name of the function to call."
+    )
     catalog_id: str | None = Field(
         None,
         alias="catalogId",
@@ -57,7 +67,9 @@ class FunctionCall(StrictBaseModel):
     """Invokes a named function."""
 
     model_config = ConfigDict(populate_by_name=True)
-    call: str = Field(..., description="The name of the function to call.")
+    call: str = Field(
+        ..., alias="@call", description="The name of the function to call."
+    )
     args: dict[str, Any] | None = Field(
         None, description="Arguments passed to the function."
     )
@@ -146,13 +158,19 @@ class ComponentCommon(StrictBaseModel):
 def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
-    forbidden = {"call", "path"}
+    forbidden = {"@call", "@path"}
     found = forbidden.intersection(v.keys())
     if found:
         raise ValueError(
             "Object in DynamicValue cannot contain forbidden properties:"
             f" {', '.join(sorted(found))}"
         )
+    for k in v.keys():
+        if k.startswith("@") and not k.startswith("@@"):
+            raise ValueError(
+                "Object in DynamicValue cannot contain unrecognized reserved"
+                f" directive: '{k}'"
+            )
     return v
 
 
@@ -192,7 +210,7 @@ class IndexSystemFunction(StrictBaseModel):
     """Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context."""
 
     model_config = ConfigDict(populate_by_name=True)
-    call: Literal["@index"] = Field("@index")
+    call: Literal["@index"] = Field("@index", alias="@call")
     args: IndexSystemFunctionArgs | None = Field(None)
 
 

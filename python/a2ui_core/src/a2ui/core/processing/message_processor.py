@@ -189,7 +189,7 @@ class MessageProcessor:
                 version=cast(Any, op.version),
                 call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                     functionCallId=op.function_call_id,
-                    callFunction=FunctionCall(
+                    callFunction=FunctionCall(  # type: ignore[call-arg]
                         call=op.call,
                         catalogId=op.catalog_id,
                         args=op.args,
@@ -450,7 +450,7 @@ class MessageProcessor:
             version=cast(Any, op.version),
             call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                 functionCallId=op.function_call_id,
-                callFunction=FunctionCall(
+                callFunction=FunctionCall(  # type: ignore[call-arg]
                     call=op.call,
                     catalogId=op.catalog_id,
                     args=op.args,

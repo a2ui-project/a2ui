@@ -41,6 +41,7 @@ public final class SurfaceViewModel: ObservableObject {
   }
   public let theme: [String: JSONValue]?
   public let sendDataModel: Bool
+  public let protocolVersion: String?
 
   public let dataModel: DataModel
   public let componentsModel: SurfaceComponentsModel
@@ -66,7 +67,8 @@ public final class SurfaceViewModel: ObservableObject {
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    sendDataModel: Bool = false
+    sendDataModel: Bool = false,
+    protocolVersion: String? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
@@ -74,6 +76,7 @@ public final class SurfaceViewModel: ObservableObject {
     self.theme = theme
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
+    self.protocolVersion = protocolVersion
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()
     self.nodeResolver = NodeResolver(
@@ -82,7 +85,8 @@ public final class SurfaceViewModel: ObservableObject {
       defaultCatalogID: self.defaultCatalogID,
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
-      actionHandler: actionHandler
+      actionHandler: actionHandler,
+      protocolVersion: protocolVersion
     )
 
     setUpSubscriptions()
@@ -94,7 +98,8 @@ public final class SurfaceViewModel: ObservableObject {
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    sendDataModel: Bool = false
+    sendDataModel: Bool = false,
+    protocolVersion: String? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
@@ -104,7 +109,8 @@ public final class SurfaceViewModel: ObservableObject {
       defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
       theme: theme,
       actionHandler: actionHandler,
-      sendDataModel: sendDataModel
+      sendDataModel: sendDataModel,
+      protocolVersion: protocolVersion
     )
   }
 
@@ -113,7 +119,8 @@ public final class SurfaceViewModel: ObservableObject {
     catalog: any CatalogProtocol,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    sendDataModel: Bool = false
+    sendDataModel: Bool = false,
+    protocolVersion: String? = nil
   ) {
     let anyCatalog = catalog.eraseToAnyCatalog()
     self.init(
@@ -122,7 +129,8 @@ public final class SurfaceViewModel: ObservableObject {
       defaultCatalogID: anyCatalog.id,
       theme: theme,
       actionHandler: actionHandler,
-      sendDataModel: sendDataModel
+      sendDataModel: sendDataModel,
+      protocolVersion: protocolVersion
     )
   }
 

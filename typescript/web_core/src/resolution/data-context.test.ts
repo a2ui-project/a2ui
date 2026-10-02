@@ -25,10 +25,13 @@ import {
   MAX_DYNAMIC_VALUE_DEPTH,
   getKnownSchemaKeys,
   validateFunctionArgs,
+  isSingleAtKey,
+  unescapeObjectKey,
+  validateReservedDirectives,
 } from './data-context.js';
 import {Catalog} from '../catalog/types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/common-types.js';
-import {A2uiExpressionError} from '../errors.js';
+import {A2uiExpressionError, A2uiValidationError} from '../errors.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -818,10 +821,10 @@ describe('DataContext', () => {
       const ctx = new DataContext(mockSurface, '/');
 
       const sig = ctx.resolveSignal({
-        call: 'greet',
+        '@call': 'greet',
         args: {
-          name: {path: '/validVal'},
-          junk: {path: '/junkVal'},
+          name: {'@path': '/validVal'},
+          junk: {'@path': '/junkVal'},
         },
         returnType: 'any',
       });
@@ -859,7 +862,7 @@ describe('DataContext', () => {
       const ctx = new DataContext(mockSurface, '/');
 
       const res = ctx.resolveDynamicValue({
-        call: 'greet',
+        '@call': 'greet',
         args: {
           name: 'Alice',
           junk: 'extra',
@@ -898,9 +901,44 @@ describe('DataContext', () => {
         dispatchError: () => {},
       }) as any;
 
-    it('invokes the named catalog rather than the default', () => {
+    it('invokes the named catalog rather than the default in v1.0', () => {
       const primary = makeCatalog('cat-primary', 'from-primary');
       const secondary = makeCatalog('cat-secondary', 'from-secondary');
+      const ctx = new DataContext(makeSurface(primary, [primary, secondary]), '/');
+
+      assert.strictEqual(
+        ctx.resolveDynamicValue({'@call': 'greet', args: {}, catalogId: 'cat-secondary'} as any),
+        'from-secondary',
+      );
+    });
+
+    it('invokes the named catalog rather than the default in v0.9', () => {
+      const primary = new Catalog(
+        'cat-primary',
+        '0.9',
+        [],
+        [
+          {
+            name: 'greet',
+            returnType: 'string',
+            schema: z.object({}),
+            execute: () => 'from-primary',
+          },
+        ],
+      );
+      const secondary = new Catalog(
+        'cat-secondary',
+        '0.9',
+        [],
+        [
+          {
+            name: 'greet',
+            returnType: 'string',
+            schema: z.object({}),
+            execute: () => 'from-secondary',
+          },
+        ],
+      );
       const ctx = new DataContext(makeSurface(primary, [primary, secondary]), '/');
 
       assert.strictEqual(
@@ -914,7 +952,7 @@ describe('DataContext', () => {
       const secondary = makeCatalog('cat-secondary', 'from-secondary');
       const ctx = new DataContext(makeSurface(primary, [primary, secondary]), '/');
 
-      assert.strictEqual(ctx.resolveDynamicValue({call: 'greet', args: {}}), 'from-primary');
+      assert.strictEqual(ctx.resolveDynamicValue({'@call': 'greet', args: {}}), 'from-primary');
     });
 
     it('reports an unavailable named catalog through the surface error channel', () => {
@@ -927,7 +965,7 @@ describe('DataContext', () => {
       const ctx = new DataContext(surface, '/');
 
       assert.strictEqual(
-        ctx.resolveDynamicValue({call: 'greet', args: {}, catalogId: 'cat-missing'} as any),
+        ctx.resolveDynamicValue({'@call': 'greet', args: {}, catalogId: 'cat-missing'} as any),
         undefined,
       );
       assert.ok(dispatchedError);
@@ -945,7 +983,7 @@ describe('DataContext', () => {
       const ctx = new DataContext(surface, '/');
 
       const sub = ctx.subscribeDynamicValue(
-        {call: 'greet', args: {}, catalogId: 'cat-missing'} as any,
+        {'@call': 'greet', args: {}, catalogId: 'cat-missing'} as any,
         () => {},
       );
 
@@ -959,7 +997,7 @@ describe('DataContext', () => {
 
   describe('Phase 3 resolution parity (deep object recursion, hasPath, onWarning, index scope)', () => {
     it('recursively resolves dynamic bindings inside nested plain objects both synchronously and reactively', () => {
-      const cat = new Catalog('cat', '1.0', []);
+      const cat = new Catalog('cat', '0.9', []);
       const surface = new SurfaceModel('s1', cat);
       surface.dataModel.set('/user', {name: 'Alice', role: 'Admin'});
 
@@ -996,7 +1034,7 @@ describe('DataContext', () => {
     });
 
     it('emits MISSING_DATA_BINDING on surface.onWarning for absent paths but not for explicit null paths', () => {
-      const cat = new Catalog('cat', '1.0', []);
+      const cat = new Catalog('cat', '0.9', []);
       const surface = new SurfaceModel('s1', cat);
       surface.dataModel.set('/', {explicitNull: null});
 
@@ -1028,7 +1066,7 @@ describe('DataContext', () => {
     });
 
     it('resolves getIndex() from explicit index or trailing numeric segment across parent chain', () => {
-      const cat = new Catalog('cat', '1.0', []);
+      const cat = new Catalog('cat', '0.9', []);
       const surface = new SurfaceModel('s1', cat);
 
       const rootCtx = new DataContext(surface, '/items/7/details');
@@ -1042,6 +1080,148 @@ describe('DataContext', () => {
 
       const explicitOverrideCtx = loopItemCtx.nested('sub', 42);
       assert.strictEqual(explicitOverrideCtx.getIndex(), 42);
+    });
+  });
+
+  describe('Reserved protocol prefix (@) and escaping in v1.0', () => {
+    it('isSingleAtKey and unescapeObjectKey helper functions operate correctly', () => {
+      assert.strictEqual(isSingleAtKey('@path'), true);
+      assert.strictEqual(isSingleAtKey('@call'), true);
+      assert.strictEqual(isSingleAtKey('@'), true);
+      assert.strictEqual(isSingleAtKey('@@path'), false);
+      assert.strictEqual(isSingleAtKey('@@@path'), false);
+      assert.strictEqual(isSingleAtKey('path'), false);
+      assert.strictEqual(isSingleAtKey('call'), false);
+
+      assert.strictEqual(unescapeObjectKey('@@path'), '@path');
+      assert.strictEqual(unescapeObjectKey('@@type'), '@type');
+      assert.strictEqual(unescapeObjectKey('@@@path'), '@@path');
+      assert.strictEqual(unescapeObjectKey('@path'), '@path');
+      assert.strictEqual(unescapeObjectKey('path'), 'path');
+
+      assert.doesNotThrow(() =>
+        validateReservedDirectives(['@path', '@call', '@@custom', 'normal'], '1.0'),
+      );
+      assert.throws(
+        () => validateReservedDirectives(['@unknown'], '1.0'),
+        (err: any) => err instanceof A2uiValidationError && err.code === 'INVALID_RESERVED_KEY',
+      );
+      assert.doesNotThrow(() => validateReservedDirectives(['@unknown'], '0.9'));
+    });
+
+    it('resolves @path and @call in a v1.0 surface context', () => {
+      const cat = new Catalog('cat', '1.0', []);
+      const surface = new SurfaceModel('s1', cat);
+      surface.dataModel.set('/user', {name: 'Alice', role: 'Admin'});
+
+      const ctx = new DataContext(surface, '/');
+      const input = {
+        profile: {
+          displayName: {'@path': '/user/name'},
+          role: {'@path': '/user/role'},
+        },
+      };
+
+      const resolved = ctx.resolveDynamicValue<any>(input);
+      assert.deepStrictEqual(resolved, {
+        profile: {
+          displayName: 'Alice',
+          role: 'Admin',
+        },
+      });
+
+      const updates: any[] = [];
+      const sub = ctx.subscribeDynamicValue<any>(input, val => updates.push(val));
+      assert.strictEqual(sub.value.profile.displayName, 'Alice');
+
+      surface.dataModel.set('/user/name', 'Bob');
+      assert.strictEqual(updates.length, 1);
+      assert.strictEqual(updates[0].profile.displayName, 'Bob');
+      sub.unsubscribe();
+    });
+
+    it('treats plain path and call keys as static literal data in v1.0', () => {
+      const cat = new Catalog('cat', '1.0', []);
+      const surface = new SurfaceModel('s1', cat);
+      surface.dataModel.set('/user/name', 'Alice');
+
+      const warnings: Array<{code: string; message: string}> = [];
+      surface.onWarning.subscribe(w => {
+        warnings.push(w);
+      });
+
+      const ctx = new DataContext(surface, '/');
+      const literalInput = {
+        metadata: {
+          path: '/var/log/app.log',
+          call: 'audit',
+        },
+      };
+
+      const resolved = ctx.resolveDynamicValue<any>(literalInput);
+      assert.deepStrictEqual(resolved, {
+        metadata: {
+          path: '/var/log/app.log',
+          call: 'audit',
+        },
+      });
+      // No warnings emitted because plain "path" is not a DataBinding in v1.0
+      assert.strictEqual(warnings.length, 0);
+    });
+
+    it('unescapes doubled @@ keys during dynamic evaluation in v1.0', () => {
+      const cat = new Catalog('cat', '1.0', []);
+      const surface = new SurfaceModel('s1', cat);
+      surface.dataModel.set('/item/title', 'Widget');
+
+      const ctx = new DataContext(surface, '/');
+      const inputWithEscaping = {
+        '@@path': '/static/file',
+        '@@type': 'Card',
+        dynamicTitle: {'@path': '/item/title'},
+      };
+
+      const resolved = ctx.resolveDynamicValue<any>(inputWithEscaping);
+      assert.deepStrictEqual(resolved, {
+        '@path': '/static/file',
+        '@type': 'Card',
+        dynamicTitle: 'Widget',
+      });
+
+      const sub = ctx.subscribeDynamicValue<any>(inputWithEscaping, () => {});
+      assert.deepStrictEqual(sub.value, {
+        '@path': '/static/file',
+        '@type': 'Card',
+        dynamicTitle: 'Widget',
+      });
+      sub.unsubscribe();
+    });
+
+    it('rejects unrecognized single-@ keys in v1.0 dynamic objects with A2uiValidationError', () => {
+      const cat = new Catalog('cat', '1.0', []);
+      const surface = new SurfaceModel('s1', cat);
+      const ctx = new DataContext(surface, '/');
+
+      assert.throws(
+        () => ctx.resolveDynamicValue({'@invalid': 123}),
+        (err: any) => err instanceof A2uiValidationError && err.code === 'INVALID_RESERVED_KEY',
+      );
+
+      assert.throws(
+        () => ctx.resolveDynamicValue({'@if': true, then: 'yes'}),
+        (err: any) => err instanceof A2uiValidationError && err.code === 'INVALID_RESERVED_KEY',
+      );
+
+      assert.throws(
+        () => ctx.resolveDynamicValue({'@': 'bare'}),
+        (err: any) => err instanceof A2uiValidationError && err.code === 'INVALID_RESERVED_KEY',
+      );
+
+      // In pre-v1.0 (v0.9), single-@ keys are not rejected as protocol reserved keys
+      const v09Cat = new Catalog('cat', '0.9', []);
+      const v09Surface = new SurfaceModel('s1', v09Cat);
+      const v09Ctx = new DataContext(v09Surface, '/');
+      assert.doesNotThrow(() => v09Ctx.resolveDynamicValue({'@custom': 'allowed in 0.9'}));
     });
   });
 });

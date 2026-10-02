@@ -35,14 +35,14 @@
             "id": "metric_icon",
             "component": "Icon",
             "name": {
-              "path": "/icon"
+              "@path": "/icon"
             }
           },
           {
             "id": "metric_name",
             "component": "Text",
             "text": {
-              "path": "/metricName"
+              "@path": "/metricName"
             },
             "variant": "caption"
           },
@@ -50,10 +50,10 @@
             "id": "value",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/value"
+                  "@path": "/value"
                 },
                 "currency": "USD"
               }
@@ -69,14 +69,14 @@
             "id": "trend_icon",
             "component": "Icon",
             "name": {
-              "path": "/trendIcon"
+              "@path": "/trendIcon"
             }
           },
           {
             "id": "trend_text",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "+${/trendPercent}% from last month"
               }
