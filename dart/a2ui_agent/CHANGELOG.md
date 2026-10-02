@@ -1,5 +1,9 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## Unreleased
+
+- Exclude `accessibility` and `weight` common properties from Express positional component properties.
+
 ## 0.0.1-wip005
 
 - Declared the rest of the agent SDK blueprint API for protocol v0.9. These

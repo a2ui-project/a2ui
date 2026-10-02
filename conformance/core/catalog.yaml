@@ -560,7 +560,6 @@
   action: catalog_schema
   protocolVersion: "v0.9"
   catalog:
-    $schema: "https://json-schema.org/draft/2020-12/schema"
     catalogId: "https://a2ui.org/catalogs/v09/composed"
     components:
       Text:
@@ -657,7 +656,6 @@
   action: catalog_schema
   protocolVersion: "v0.9"
   catalog:
-    $schema: "https://json-schema.org/draft/2020-12/schema"
     catalogId: "https://a2ui.org/catalogs/v09/composed"
     components:
       Text:

@@ -338,9 +338,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if (allOf is List) {
       for (final Object? sub in allOf) {
         if (sub is! Map) continue;
-        final Map<String, Object?> subMap = sub is Map<String, Object?>
-            ? sub
-            : sub.cast<String, Object?>();
+        final Map<String, Object?> subMap =
+            sub is Map<String, Object?> ? sub : sub.cast<String, Object?>();
         final Object? ref = subMap[r'$ref'];
         if (ref is String) {
           if (_isComponentCommonRef(ref)) {
@@ -402,10 +401,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String pointer,
   ) {
     if (!pointer.startsWith('#/')) return null;
-    final Iterable<String> segments = pointer
-        .substring(2)
-        .split('/')
-        .map((s) => s.replaceAllMapped(
+    final Iterable<String> segments =
+        pointer.substring(2).split('/').map((s) => s.replaceAllMapped(
               RegExp(r'~([01])'),
               (m) => m[1] == '1' ? '/' : '~',
             ));

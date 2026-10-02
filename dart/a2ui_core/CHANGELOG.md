@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), mapping `accessibility` and `checks` mixins and omitting envelope keys from component properties in `Catalog.fromJson`.
+- Standardize on `catalogSchema` getter for rebuilding specification-compliant catalog documents.
+- Allows `catalogId` and `catalogID` envelope properties during component validation in `PayloadValidator`.
+- Falls back to `commonTypes` in `resolveSchemaRefs` when pointers are not local to the catalog document.
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Execute `functionCall` and `call` component actions locally in
   `GenericBinder`, against the component's data context. A function that
