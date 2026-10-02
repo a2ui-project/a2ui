@@ -27,7 +27,7 @@ import 'test_infra/renderer_catalog.dart';
 void main() {
   const timeout = Timeout(Duration(minutes: 3));
 
-  late SchemaCatalog catalog;
+  late CatalogApi catalog;
   late A2uiRequestProcessor processor;
 
   setUp(() {

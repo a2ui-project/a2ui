@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Deprecated:** `SchemaCatalog` is renamed `CatalogApi`, matching
+  `ComponentApi` and `FunctionApi`. `SchemaCatalog` stays as a deprecated alias
+  and will be removed in a later release.
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Execute `functionCall` and `call` component actions locally in
   `GenericBinder`, against the component's data context. A function that

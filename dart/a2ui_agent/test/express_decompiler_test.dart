@@ -27,7 +27,7 @@ import 'package:test/test.dart';
 /// cases here cover the messages it cannot, the values it writes as the map
 /// literal they compile from, and examples in a prompt.
 void main() {
-  final SchemaCatalog basic = Catalog.fromJson(
+  final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
           File(
             '../../specification/v0_9/catalogs/basic/catalog.json',
@@ -35,7 +35,7 @@ void main() {
         )
         as Map<String, Object?>,
   );
-  final SchemaCatalog custom = Catalog.fromJson({
+  final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
     'components': {
       'Gauge': {

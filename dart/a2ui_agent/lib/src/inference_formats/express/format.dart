@@ -37,7 +37,7 @@ class ExpressFormatFactory extends InferenceFormatFactory {
 
   @override
   InferenceFormat createFormat(
-    List<SchemaCatalog> catalogs, {
+    List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
   }) => ExpressFormat._(
     List.unmodifiable(catalogs),
@@ -52,7 +52,7 @@ class ExpressFormatFactory extends InferenceFormatFactory {
 class ExpressFormat extends InferenceFormat {
   ExpressFormat._(this._catalogs, this._examples, this._allowedMessages);
 
-  final List<SchemaCatalog> _catalogs;
+  final List<CatalogApi> _catalogs;
   final List<List<AgentToRendererMessage>> _examples;
   final List<String>? _allowedMessages;
 

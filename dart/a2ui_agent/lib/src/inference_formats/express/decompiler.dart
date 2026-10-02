@@ -43,10 +43,10 @@ class ExpressDecompiler {
   /// its catalog.
   ExpressDecompiler(this.catalogs);
 
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {
-    for (final SchemaCatalog catalog in catalogs)
+    for (final CatalogApi catalog in catalogs)
       catalog.id: CatalogSchemaHelper(catalog),
   };
 
@@ -203,7 +203,7 @@ class ExpressDecompiler {
   /// The first catalog declaring every component in [components], or the
   /// default catalog if none does.
   CatalogSchemaHelper _helperDeclaring(List<Map<String, Object?>> components) {
-    for (final SchemaCatalog catalog in catalogs) {
+    for (final CatalogApi catalog in catalogs) {
       final CatalogSchemaHelper helper = _helpers[catalog.id]!;
       if (components.every((c) => helper.isComponent('${c['component']}'))) {
         return helper;

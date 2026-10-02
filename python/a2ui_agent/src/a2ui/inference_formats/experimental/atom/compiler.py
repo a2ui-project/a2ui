@@ -17,7 +17,7 @@
 import re
 import json
 from typing import Any
-from a2ui.core import Catalog
+from a2ui.core import CatalogApi
 from a2ui.schema import A2uiCatalog
 
 
@@ -242,7 +242,7 @@ class AtomCompiler:
         node_counter: Auto-incrementing node ID generator counter.
     """
 
-    def __init__(self, catalog: Catalog[Any, Any] | A2uiCatalog | Any):
+    def __init__(self, catalog: CatalogApi | A2uiCatalog | Any):
         """Initializes an AtomCompiler instance.
 
         Args:

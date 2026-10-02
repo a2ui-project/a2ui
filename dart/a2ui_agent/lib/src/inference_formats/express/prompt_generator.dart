@@ -31,7 +31,7 @@ class ExpressPromptGenerator extends PromptGenerator {
   });
 
   /// The catalogs whose components and functions the snippet describes.
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
   /// Example turns the snippet shows the model, in order. Each is the list of
   /// messages making up one turn.
@@ -72,7 +72,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         'default. To build a surface from another catalog, name it in the '
         'surface line, e.g. surface("my-surface", "${catalogs.last.id}").',
       );
-      for (final SchemaCatalog catalog in catalogs) {
+      for (final CatalogApi catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));

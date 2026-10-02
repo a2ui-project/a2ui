@@ -36,7 +36,7 @@ abstract class CatalogProvider {
   /// Throws [A2uiCatalogError] for every failure: a document that cannot be
   /// read or is not JSON, a declaration that conflicts with the provider's,
   /// a version other than v0.9, or an id or version that nothing states.
-  SchemaCatalog load();
+  CatalogApi load();
 }
 
 /// Loads a catalog from a JSON document on the file system.
@@ -61,7 +61,7 @@ class FileSystemCatalogProvider extends CatalogProvider {
   final String? catalogId;
 
   @override
-  SchemaCatalog load() {
+  CatalogApi load() {
     final String text;
     try {
       text = readTextFile(path);
@@ -113,7 +113,7 @@ class InMemoryCatalogProvider extends CatalogProvider {
   final String? catalogId;
 
   @override
-  SchemaCatalog load() => _load(
+  CatalogApi load() => _load(
     catalog,
     protocolVersion: protocolVersion,
     catalogId: catalogId,
@@ -125,7 +125,7 @@ class InMemoryCatalogProvider extends CatalogProvider {
 /// provider's [catalogId] and [protocolVersion].
 ///
 /// [source] names the document in error messages.
-SchemaCatalog _load(
+CatalogApi _load(
   Map<String, Object?> document, {
   required A2uiProtocolVersion? protocolVersion,
   required String? catalogId,

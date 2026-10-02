@@ -46,13 +46,13 @@ final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 /// no state.
 class DirectJsonParser extends Parser {
   DirectJsonParser(
-    List<SchemaCatalog> catalogs, {
+    List<CatalogApi> catalogs, {
     Set<String> progressiveKeys = const {},
   }) : catalogs = List.unmodifiable(catalogs),
        progressiveKeys = Set.unmodifiable(progressiveKeys);
 
   /// The catalogs payloads are validated against.
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
   /// The string properties whose value a streamed payload may show before
   /// the value is complete, such as the text of a `Text` component.

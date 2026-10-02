@@ -22,7 +22,7 @@ const String basicCatalogPath =
     '../../../specification/v0_9/catalogs/basic/catalog.json';
 
 /// Reads the published v0.9 basic catalog.
-SchemaCatalog loadBasicCatalog() => Catalog.fromJson(
+CatalogApi loadBasicCatalog() => Catalog.fromJson(
   jsonDecode(File(basicCatalogPath).readAsStringSync()) as Map<String, Object?>,
 );
 
@@ -33,7 +33,7 @@ SchemaCatalog loadBasicCatalog() => Catalog.fromJson(
 /// test only validates messages, so each function keeps its signature and
 /// cannot be invoked.
 Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
-  SchemaCatalog catalog,
+  CatalogApi catalog,
 ) => Catalog<ComponentApi, FunctionImplementation>(
   id: catalog.id,
   components: catalog.components.values.toList(),

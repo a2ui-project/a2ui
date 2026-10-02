@@ -30,6 +30,7 @@ from a2ui.core import (
     A2uiErrorDetail,
     A2uiValidationError,
     Catalog,
+    CatalogApi,
     PayloadValidator,
     STRICT_VALIDATION,
 )
@@ -241,7 +242,7 @@ class A2uiCatalog:
         raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
 
     @property
-    def core_catalog(self) -> Catalog[Any, Any]:
+    def core_catalog(self) -> CatalogApi:
         return Catalog.from_json(
             catalog_schema=self.catalog_schema,
             protocol_version=self.version,

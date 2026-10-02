@@ -91,8 +91,14 @@ abstract class FunctionImplementation extends FunctionApi {
 /// A catalog whose components and functions carry schemas only.
 ///
 /// What [Catalog.fromJson] produces, and what agents work with: they prompt
-/// and validate against signatures but never evaluate a function.
-typedef SchemaCatalog = Catalog<ComponentApi, FunctionApi>;
+/// and validate against signatures but never evaluate a function. A renderer
+/// that evaluates functions needs a catalog of [FunctionImplementation]s
+/// instead.
+typedef CatalogApi = Catalog<ComponentApi, FunctionApi>;
+
+/// The former name of [CatalogApi].
+@Deprecated('Use CatalogApi instead.')
+typedef SchemaCatalog = CatalogApi;
 
 /// A collection of available components and functions.
 ///
@@ -149,7 +155,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// Throws [A2uiCatalogError] if the document is malformed or conflicts with
   /// [expectedCatalogId].
-  static SchemaCatalog fromJson(
+  static CatalogApi fromJson(
     Map<String, Object?> json, {
     String? expectedCatalogId,
   }) {
@@ -183,7 +189,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     // and [catalogSchema] rebuilds it from the parts rather than caching it.
     final document = inlineLocalRefs(json, json)! as Map<String, Object?>;
 
-    return SchemaCatalog(
+    return CatalogApi(
       id: rawId,
       components: _parseComponents(
         document['components'],

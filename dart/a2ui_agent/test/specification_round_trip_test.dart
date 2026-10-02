@@ -30,7 +30,7 @@ import 'package:test/test.dart';
 /// listed with the reason, and checked to fail.
 void main() {
   const catalogPath = '../../specification/v0_9/catalogs/basic/catalog.json';
-  final SchemaCatalog basic = Catalog.fromJson(
+  final CatalogApi basic = Catalog.fromJson(
     jsonDecode(File(catalogPath).readAsStringSync()) as Map<String, Object?>,
   );
   final List<File> examples =
@@ -131,7 +131,7 @@ List<AgentToRendererMessage> _forExpress(
 /// The surfaces a renderer holds after applying [messages]: for each, its
 /// catalog, its components and its data model.
 Map<String, Object?> _render(
-  SchemaCatalog catalog,
+  CatalogApi catalog,
   List<AgentToRendererMessage> messages,
 ) {
   final renderer = MessageProcessor<ComponentApi>(
@@ -159,7 +159,7 @@ Map<String, Object?> _render(
 /// [catalog] as a catalog `MessageProcessor` can hold, with functions that
 /// cannot be invoked.
 Catalog<ComponentApi, FunctionImplementation> _rendererCatalog(
-  SchemaCatalog catalog,
+  CatalogApi catalog,
 ) => Catalog<ComponentApi, FunctionImplementation>(
   id: catalog.id,
   components: catalog.components.values.toList(),

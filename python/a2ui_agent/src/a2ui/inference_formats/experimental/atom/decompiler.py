@@ -16,7 +16,7 @@
 
 import json
 from typing import Any
-from a2ui.core import Catalog
+from a2ui.core import CatalogApi
 from a2ui.schema import A2uiCatalog
 
 
@@ -27,7 +27,7 @@ class AtomDecompiler:
         catalog: The catalog containing component and function schemas.
     """
 
-    def __init__(self, catalog: Catalog[Any, Any] | A2uiCatalog | None = None):
+    def __init__(self, catalog: CatalogApi | A2uiCatalog | None = None):
         """Initializes an AtomDecompiler instance.
 
         Args:

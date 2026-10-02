@@ -24,13 +24,13 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// declare, and otherwise the [A2uiError] a renderer would report for the
 /// first message it rejects.
 void validatePayloads(
-  List<SchemaCatalog> catalogs,
+  List<CatalogApi> catalogs,
   Iterable<List<AgentToRendererMessage>> payloads,
 ) {
   for (final payload in payloads) {
     for (final CreateSurfaceMessage message
         in payload.whereType<CreateSurfaceMessage>()) {
-      if (catalogs.every((SchemaCatalog c) => c.id != message.catalogId)) {
+      if (catalogs.every((CatalogApi c) => c.id != message.catalogId)) {
         throw A2uiValidationError(
           "Surface '${message.surfaceId}' names catalog "
           "'${message.catalogId}', which is not active. Active catalogs: "
@@ -41,7 +41,7 @@ void validatePayloads(
     }
   }
   final renderer = MessageProcessor<ComponentApi>(
-    catalogs: [for (final SchemaCatalog catalog in catalogs) _signed(catalog)],
+    catalogs: [for (final CatalogApi catalog in catalogs) _signed(catalog)],
     protocolVersion: A2uiProtocolVersion.v0_9,
   );
   try {
@@ -58,7 +58,7 @@ void validatePayloads(
 /// `MessageProcessor` keeps surface state, and a surface invokes functions, so
 /// its catalogs carry [FunctionImplementation]s rather than signatures.
 /// Validation never invokes one, so each function keeps its signature only.
-Catalog<ComponentApi, FunctionImplementation> _signed(SchemaCatalog catalog) =>
+Catalog<ComponentApi, FunctionImplementation> _signed(CatalogApi catalog) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: catalog.id,
       components: catalog.components.values.toList(),

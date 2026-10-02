@@ -37,11 +37,11 @@ class MessageReader {
   /// its surface is not created by the payload and no catalog declares it.
   MessageReader(this.catalogs);
 
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
   late final Map<String, PayloadValidator<ComponentApi, FunctionApi>>
   _validators = {
-    for (final SchemaCatalog catalog in catalogs)
+    for (final CatalogApi catalog in catalogs)
       catalog.id: PayloadValidator(
         catalog: catalog,
         protocolVersion: A2uiProtocolVersion.v0_9,
@@ -107,7 +107,7 @@ class MessageReader {
     String? surfaceCatalogId,
   ) {
     if (surfaceCatalogId != null) return _validators[surfaceCatalogId]!;
-    for (final SchemaCatalog catalog in catalogs) {
+    for (final CatalogApi catalog in catalogs) {
       if (catalog.components.containsKey(component['component'])) {
         return _validators[catalog.id]!;
       }

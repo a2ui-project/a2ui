@@ -26,7 +26,7 @@ import 'package:test/test.dart';
 /// those suites do not: the v0.9 message shapes, decisions of this SDK, and
 /// the checks `A2uiRequestProcessor` runs across blocks.
 void main() {
-  final SchemaCatalog basic = Catalog.fromJson(
+  final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
           File(
             '../../specification/v0_9/catalogs/basic/catalog.json',
@@ -34,7 +34,7 @@ void main() {
         )
         as Map<String, Object?>,
   );
-  final SchemaCatalog custom = Catalog.fromJson({
+  final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
     'components': {
       'Gauge': {
@@ -48,7 +48,7 @@ void main() {
     },
   });
 
-  A2uiRequestProcessor processor([List<SchemaCatalog>? catalogs]) =>
+  A2uiRequestProcessor processor([List<CatalogApi>? catalogs]) =>
       A2uiRequestProcessor(
         activeCatalogs: catalogs ?? [basic],
         formatFactory: const ExpressFormatFactory(),

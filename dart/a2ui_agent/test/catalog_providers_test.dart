@@ -42,7 +42,7 @@ void main() {
 
   group('InMemoryCatalogProvider', () {
     test('loads a document naming its id, given the version', () {
-      final SchemaCatalog catalog = InMemoryCatalogProvider(
+      final CatalogApi catalog = InMemoryCatalogProvider(
         document(id: 'a'),
         protocolVersion: v0_9,
       ).load();
@@ -114,7 +114,7 @@ void main() {
 
   group('FileSystemCatalogProvider', () {
     test('loads the published v0.9 basic catalog', () {
-      final SchemaCatalog catalog = const FileSystemCatalogProvider(
+      final CatalogApi catalog = const FileSystemCatalogProvider(
         basicPath,
         protocolVersion: v0_9,
       ).load();

@@ -22,7 +22,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 class CatalogSchemaHelper {
   CatalogSchemaHelper(this.catalog);
 
-  final SchemaCatalog catalog;
+  final CatalogApi catalog;
 
   /// Checks a compiled component against its schema in [catalog].
   late final PayloadValidator<ComponentApi, FunctionApi> validator =

@@ -27,7 +27,7 @@ void main() {
   test(
     'an Express agent turn produces a surface the renderer accepts',
     () async {
-      final SchemaCatalog catalog = loadBasicCatalog();
+      final CatalogApi catalog = loadBasicCatalog();
 
       // 1. At agent startup: register the catalogs the agent supports.
       final generator = A2uiGenerator(
