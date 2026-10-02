@@ -2532,7 +2532,19 @@
 <li>The <code>functions</code> field in catalog meta-schemas (<code>catalog_definition.json</code>) is now formalized as a JSON object map of function name to its definition, matching the map structure used in catalog files.</li>
 <li>Standard JSON Schema metadata fields (<code>$schema</code>, <code>$id</code>, <code>title</code>, and <code>description</code>) are supported in catalogs, preventing validation failures on inline catalogs with strict property checks.</li>
 <li>Identifier naming rules across all catalog entities (component names, function names, and argument keys) must conform to Unicode Standard Annex #31 (UAX #31).</li>
-<li>The <code>@index</code> built-in function dynamically retrieves iteration indices during list template rendering. The <code>@</code> prefix is reserved for core system context evaluations.</li>
+<li>Reserved <code>@</code> prefix across protocol keys (<code>@path</code> for data bindings, <code>@call</code> for function calls, <code>@index</code> for template iteration). Plain objects containing <code>"path"</code> or <code>"call"</code> keys are treated as literal dictionary values and are no longer intercepted as dynamic directives. Unknown single-<code>@</code> keys (<code>^@([^@]|$)</code>) in dynamic objects are disallowed, and literal <code>@</code> keys in plain objects are escaped via prefix doubling (<code>"@@path"</code> → <code>"@path"</code>).</li>
+</ul>
+<blockquote>
+<p>[!WARNING]
+Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</code> → <code>"@path":</code> or <code>"call":</code> → <code>"@call":</code>. Only <code>DataBinding</code> and <code>FunctionCall</code> positions take the prefix. These keep their unprefixed spelling in v1.0:</p>
+<ul>
+<li><code>ChildList</code> template objects: <code>{"componentId": "itemTemplate", "path": "/items"}</code>.</li>
+<li>The <code>updateDataModel</code> message envelope's <code>path</code> field, which is a message parameter rather than a data binding.</li>
+<li>Any <code>"call"</code> that is ordinary data rather than a directive, such as the <code>call</code> entry in the basic catalog's <code>Icon</code> name enum.</li>
+</ul>
+<p>Rewrite only the objects a renderer evaluates as a <code>DynamicValue</code>. In those objects, every key that needs a literal leading <code>@</code> must be escaped by doubling it, whatever follows the prefix: <code>"@@type"</code> for a literal <code>"@type"</code>, <code>"@@"</code> for a literal <code>"@"</code>. An unescaped leading <code>@</code> is reserved for protocol directives and is rejected.</p>
+</blockquote>
+<ul>
 <li>Standardized the names of core architectural components, renaming "client" to <em>renderer</em> and "server" to <em>agent</em> (e.g., <code>server_to_client</code> schemas are renamed to <code>agent_to_renderer</code>), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.</li>
 <li>Catalogs can now define composition constraints (<code>allowedParents</code> and <code>allowedChildren</code>) on component definitions, using <code>"Surface"</code> as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.</li>
 <li><code>CheckRule</code> in <code>common_types.json</code> supports dynamic structured validation result objects (<code>ValidationResult</code>) returned directly by function evaluations or data bindings (containing <code>valid</code>, <code>code</code>, <code>message</code>, and <code>severity</code>), and <code>message</code> on <code>CheckRule</code> is made optional as a fallback error message.</li>

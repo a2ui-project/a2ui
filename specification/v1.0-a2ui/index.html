@@ -3143,7 +3143,7 @@
 <h3 id="common-types">Common types<a class="headerlink" href="#common-types" title="Permanent link">¶</a></h3>
 <p>The [<code>common_types.json</code>] schema defines reusable primitives used throughout the protocol.</p>
 <ul>
-<li><strong><code>DynamicString</code> / <code>DynamicNumber</code> / <code>DynamicBoolean</code> / <code>DynamicStringList</code></strong>: The core of the data binding system. Any property that can be bound to data is defined as a <code>Dynamic*</code> type. It accepts either a literal value, a <code>path</code> string (<a href="https://datatracker.ietf.org/doc/html/rfc6901">JSON Pointer</a>), or a <code>FunctionCall</code> (function call).</li>
+<li><strong><code>DynamicString</code> / <code>DynamicNumber</code> / <code>DynamicBoolean</code> / <code>DynamicStringList</code></strong>: The core of the data binding system. Any property that can be bound to data is defined as a <code>Dynamic*</code> type. It accepts either a literal value, a <code>DataBinding</code> (<code>{"@path": "..."}</code> using <a href="https://datatracker.ietf.org/doc/html/rfc6901">JSON Pointer</a>), or a <code>FunctionCall</code> (<code>{"@call": "...", "args": {...}}</code>).</li>
 <li><strong><code>ChildList</code></strong>: Defines how containers hold children. It supports:</li>
 <li><code>array</code>: A static array of <code>ComponentId</code> component references.</li>
 <li>
@@ -4109,7 +4109,14 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 </table>
 <h3 id="functions">Functions<a class="headerlink" href="#functions" title="Permanent link">¶</a></h3>
 <blockquote>
-<p><strong>System Namespace Rule (<code>@</code> Prefix)</strong>: Function names beginning with <code>@</code> (e.g., <code>@index</code>) represent universal system context evaluations available across all catalogs. Custom catalogs MUST NOT define functions prefixed with <code>@</code>.</p>
+<p><strong>Reserved Protocol Directives (<code>@</code> Prefix)</strong>: The <code>@</code> prefix is strictly reserved for protocol-level directives and system context functions:</p>
+<ul>
+<li><strong><code>@path</code></strong>: Represents a dynamic data binding to a path in the data model (e.g. <code>{"@path": "/user/name"}</code>).</li>
+<li><strong><code>@call</code></strong>: Represents a catalog or system function invocation (e.g. <code>{"@call": "formatString", "args": {...}}</code>).</li>
+<li><strong><code>@index</code></strong>: Represents the universal system context function returning the 0-based iteration index during list template rendering (<code>{"@call": "@index"}</code>). Custom catalogs MUST NOT define functions prefixed with <code>@</code>.</li>
+</ul>
+<p><strong>Single-<code>@</code> Directive Rule</strong>: Any key in a dynamic object matching <code>^@([^@]|$)</code> (a leading <code>@</code> that is not doubled, including a key consisting of <code>@</code> alone) that is not a recognized protocol directive is disallowed and rejected by renderers and validators. This reserves the single-<code>@</code> namespace for future protocol extensions without breaking backward compatibility.</p>
+<p><strong>Escaping via Prefix Doubling</strong>: Plain objects that require literal property names starting with <code>@</code> must escape them by doubling the prefix: <code>"@@path"</code> evaluates to <code>"@path"</code>, <code>"@@type"</code> evaluates to <code>"@type"</code>, etc. Plain objects with <code>"path"</code> and <code>"call"</code> keys are literal objects and are never intercepted as dynamic bindings.</p>
 </blockquote>
 <table>
 <thead>
