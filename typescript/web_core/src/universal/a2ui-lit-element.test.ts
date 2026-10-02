@@ -190,6 +190,25 @@ describe('A2uiLitElement', () => {
 
     assert.strictEqual(controllerCreatedCount, 1);
     assert.strictEqual(disposedCount, 0);
+    assert.strictEqual((el as any)._controllerContext, context2);
+
+    document.body.removeChild(el);
+  });
+
+  it('replaces its controller when assigned partial mock contexts without dataContext', async () => {
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, (e: any) => {
+      e.context = {} as ComponentContext;
+    });
+    assert.strictEqual(controllerCreatedCount, 1);
+
+    await asyncUpdate(el, (e: any) => {
+      e.context = {} as ComponentContext;
+    });
+    assert.strictEqual(disposedCount, 1);
+    assert.strictEqual(controllerCreatedCount, 2);
 
     document.body.removeChild(el);
   });

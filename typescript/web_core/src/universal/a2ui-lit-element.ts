@@ -254,7 +254,7 @@ export abstract class A2uiLitElement<
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
   protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
-    if (!childRef) return nothing;
+    if (!childRef || !this.context?.dataContext) return nothing;
     const {surface, path: parentPath} = this.context.dataContext;
     if (!surface) {
       return nothing;
@@ -311,6 +311,7 @@ export abstract class A2uiLitElement<
     }
     if (contextChanged && this.context) {
       if (this._controller && bindsSameComponent(this._controllerContext, this.context)) {
+        this._controllerContext = this.context;
         return;
       }
       if (this._controller) {
@@ -344,7 +345,9 @@ function bindsSameComponent(
   b: ComponentContext | undefined,
 ): boolean {
   if (a === b) return true;
-  if (!a || !b) return false;
+  if (!a?.componentModel || !b?.componentModel || !a.dataContext || !b.dataContext) {
+    return false;
+  }
   return (
     a.componentModel === b.componentModel &&
     a.surfaceComponents === b.surfaceComponents &&
