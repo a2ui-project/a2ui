@@ -172,6 +172,15 @@ export const CallMcpToolApi = {
   description: 'Invokes a tool on a connected Model Context Protocol (MCP) server.',
 };
 
+/** Options of `createCallMcpToolImplementation`. */
+export interface CallMcpToolOptions {
+  /**
+   * The A2UI protocol version given to decoded messages that carry no `version`, such as the
+   * payloads of MCP catalog servers that predate the field. Defaults to `'v0.9'`.
+   */
+  readonly defaultVersion?: string;
+}
+
 /**
  * Creates the `callMcpTool` function implementation.
  *
@@ -180,11 +189,15 @@ export const CallMcpToolApi = {
  *
  * @param getMcpClientForTool Callback that resolves the MCP client for a tool name.
  * @param processor Message processor that applies decoded A2UI messages.
+ * @param options The version given to messages without one; see `CallMcpToolOptions`.
  */
 export function createCallMcpToolImplementation(
   getMcpClientForTool: McpClientResolver,
   processor: MessageProcessor<any>,
+  {defaultVersion = 'v0.9'}: CallMcpToolOptions = {},
 ): FunctionImplementation {
+  const withVersion = (message: A2uiMessage) => ensureMessageVersion(message, defaultVersion);
+
   /** Cache of decoded A2UI messages keyed by resource URI. */
   const a2uiMessagesByResourceUri = new Map<string, A2uiMessage[]>();
 
@@ -264,13 +277,13 @@ export function createCallMcpToolImplementation(
         const resourceMessages = await readA2uiResource(client, uri);
         // Skip recreating surfaces that already exist to avoid throwing A2uiStateError.
         if (!createsExistingSurface(resourceMessages, processor)) {
-          processor.processMessages(resourceMessages.map(ensureMessageVersion));
+          processor.processMessages(resourceMessages.map(withVersion));
         }
       }
 
       const messages = extractA2uiMessages(result.content);
       if (messages.length > 0) {
-        processor.processMessages(messages.map(ensureMessageVersion));
+        processor.processMessages(messages.map(withVersion));
       }
 
       return result;
@@ -374,9 +387,9 @@ function createsExistingSurface(
 
 /**
  * Ensures an A2UI message carries a version identifier before processing,
- * defaulting to 'v0.9' for MCP v0.9 catalog payloads when not explicitly provided.
+ * defaulting to `defaultVersion` ('v0.9', for MCP v0.9 catalog payloads) when not explicitly provided.
  */
-export function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
+export function ensureMessageVersion(message: A2uiMessage, defaultVersion = 'v0.9'): A2uiMessage {
   if (
     typeof message === 'object' &&
     message !== null &&
@@ -384,7 +397,7 @@ export function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
   ) {
     return {
       ...(message as unknown as Record<string, unknown>),
-      version: 'v0.9',
+      version: defaultVersion,
     } as A2uiMessage;
   }
   return message;

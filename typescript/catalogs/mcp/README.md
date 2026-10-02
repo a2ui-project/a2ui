@@ -270,20 +270,208 @@ Useful JMESPath idioms:
 - **Mapping and filtering**: Use `rows[*]` to project over a list (`rows[]` flattens instead), and `rows[?@ != null]` to filter out non-matching `regexCapture` entries.
 - **Newlines**: Raw strings do not process escape sequences (`'\n'` is literal). Use JSON string literals (`` `"\n"` ``) or pass newline characters in through `data`.
 
+## A2UI v1.0: `@a2ui/catalog-mcp/v1_0`
+
+The package also implements the [v1 MCP catalog](../../../catalogs/mcp/v1/catalog.json) for A2UI protocol v1.0, whose id is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares the same functions as the v0.9 catalog and adds the `McpApp` component. Three entry points expose it, all built on `@a2ui/web_core/v1_0`:
+
+| Entry point                         | Contents                                                                                                                                          | Environment     |
+| :---------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------- |
+| `@a2ui/catalog-mcp/v1_0`            | Everything: `mcpCatalog` with the `McpApp` component and the data functions, the sandbox configuration, the host bridge, and the functions below. | Browser         |
+| `@a2ui/catalog-mcp/v1_0/functions`  | `MCP_CATALOG_ID`, `createMcpCatalogFunctions`, `callMcpTool` and the data functions for the v1 catalog. Imports nothing that needs a DOM.         | Browser or Node |
+| `@a2ui/catalog-mcp/v1_0/components` | The `McpApp` component, its API and `McpAppBridge`, without the functions.                                                                        | Browser         |
+
+`@a2ui/catalog-mcp/v1_0/catalog.json` is the bundled v1 catalog schema. The functions are the implementations of the root entry point, which are protocol-agnostic; `createMcpCatalogFunctions` differs only in that A2UI messages found in tool results without a `version` are processed as `v1.0` messages (`createCallMcpToolImplementation` of the root entry point takes the same `defaultVersion` option). Everything in the [quick start](#quick-start) applies with `@a2ui/catalog-mcp/v1_0/functions` in place of `@a2ui/catalog-mcp`, `@a2ui/web_core/v1_0` in place of `@a2ui/web_core/v0_9`, `'1.0'` as the catalog version, and `"version": "v1.0"` in messages. `McpApp` is a universal component built on `A2uiLitElement`, so a renderer that shows it needs `lit`, which is a peer dependency.
+
+### The McpApp component
+
+`McpApp` renders an [MCP App](https://github.com/modelcontextprotocol/ext-apps) in a surface. The app is an HTML document the agent sends in the component's `htmlContent`; it runs in a sandboxed inner frame behind a proxy page served from the host's origin (see [Sandbox asset](#sandbox-asset)) and talks to the host with the MCP Apps JSON-RPC protocol over `postMessage`, using `AppBridge` from `@modelcontextprotocol/ext-apps` on the host side. An app written with the MCP Apps App SDK works as it is; the [catalog examples](../../../catalogs/mcp/v1/examples) show the raw protocol.
+
+#### Registration
+
+The component is a custom element that any renderer able to host universal components can render. `mcpCatalog` holds the component and the data functions under the MCP catalog id, so a surface that only shows apps registers it as it is:
+
+```typescript
+import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
+import {mcpCatalog} from '@a2ui/catalog-mcp/v1_0';
+
+const processor = new MessageProcessor([basicCatalog, mcpCatalog]);
+```
+
+A surface is bound to one catalog: the `catalogId` of its `createSurface` message selects one of the registered catalogs, and only that catalog's components and functions are available in it. Surfaces that mix apps with basic components, as the [data binding example](../../../catalogs/mcp/v1/examples/01_data-binding.json) does, or that call `callMcpTool`, therefore use a catalog that carries everything under the MCP catalog id:
+
+```typescript
+import {basicCatalog, Catalog, MessageProcessor} from '@a2ui/web_core/v1_0';
+import {createMcpCatalogFunctions, MCP_CATALOG_ID, mcpCatalog} from '@a2ui/catalog-mcp/v1_0';
+
+const catalogs: Catalog<any>[] = [];
+const processor = new MessageProcessor(catalogs, onAction);
+catalogs.push(
+  new Catalog(
+    MCP_CATALOG_ID,
+    '1.0',
+    [...basicCatalog.components.values(), ...mcpCatalog.components.values()],
+    [...basicCatalog.functions.values(), ...createMcpCatalogFunctions(() => client, processor)],
+  ),
+);
+```
+
+The `Catalog` type parameter is `WebComponentImplementation` from `@a2ui/web_core/v1_0` when the compiler cannot infer it.
+
+#### Properties
+
+| Property           | Type                                | Purpose                                                                                                                                                                                        |
+| :----------------- | :---------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `htmlContent`      | `DynamicString`, required           | The HTML document of the app, rendered through `srcdoc`. A value prefixed with `url_encoded:` is decoded with `decodeURIComponent` first. An empty value loads nothing.                        |
+| `title`            | `DynamicString`                     | Accessible name of the frame, unless `accessibility.label` is set. Defaults to "MCP App".                                                                                                      |
+| `allowedTools`     | array of tool names                 | The tools the app may call. A `tools/call` request for a listed tool is dispatched as an A2UI action named after the tool, with the arguments as its context; any other tool call is rejected. |
+| `allowedFunctions` | map of function name to JSON Schema | Catalog functions the app may call through `ui/requests/function-call`, each with the schema of its arguments. Unlisted functions and invalid arguments are rejected.                          |
+| `data.paths`       | map of key to JSON pointer          | Data model paths bound into the app. Their values are sent when the app is initialized and whenever they change, and the app can write them back.                                              |
+| `accessibility`    | `AccessibilityAttributes`           | `label` becomes the accessible name of the frame.                                                                                                                                              |
+
+The message that renders the feedback form of [`catalogs/mcp/v1/examples/00_inline-tool-call.json`](../../../catalogs/mcp/v1/examples/00_inline-tool-call.json), markup shortened:
+
+```json
+{
+  "version": "v1.0",
+  "updateComponents": {
+    "surfaceId": "gallery-mcp-app-tool-call",
+    "components": [
+      {
+        "id": "root",
+        "component": "McpApp",
+        "title": "Feedback form",
+        "allowedTools": ["submit_feedback"],
+        "htmlContent": "<!doctype html><html><body><button id=\"send\">Send feedback</button><script>...</script></body></html>"
+      }
+    ]
+  }
+}
+```
+
+The app inside sends `ui/initialize`, gets the host's capabilities back, and later calls the `submit_feedback` tool with the form values. The host answers the call at once with an empty result and dispatches an action named `submit_feedback` from the `root` component, with the arguments as its context, which reaches the agent like any other action. A tool that is not listed gets a JSON-RPC error (`-32602`).
+
+#### What the host does
+
+For each `McpApp`, the host:
+
+- answers `ui/initialize` with its capabilities (`openLinks`, `logging`, `serverTools`), its name and version (`DEFAULT_MCP_APP_HOST_INFO`), and the frame's dimensions as the host context, then sends `ui/notifications/host-context-changed` when the frame is resized;
+- sends one `ui/notifications/data-model-update` per key of `data.paths` once the app reports `ui/notifications/initialized`, and one more whenever a bound value changes: a whole value for primitives, one update per changed field, with `subpath`, for objects;
+- writes `ui/notifications/data-model-change` notifications to the bound path (or the `subpath` under it) without echoing them back, and drops changes to keys that are not bound;
+- dispatches allowed `tools/call` requests as actions, runs allowed `ui/requests/function-call` requests through the surface catalog and answers with `{status: 'success', result}` or a JSON-RPC error, and applies `ui/notifications/size-changed` to the frame;
+- logs `notifications/message` to the console.
+
+Every payload from the app is checked for prototype pollution keys, nesting depth and size before it is used. Anything that fails is rejected with a JSON-RPC error (requests) or dropped with a `console.warn` (notifications). Property changes are applied live: a new `htmlContent` reloads the app and connects a fresh bridge, and the allowlists are read on every request.
+
+#### Styling
+
+The component has no `height` property; it is 500px tall until the app asks for a size, and it is styled through CSS custom properties, which can be set on any ancestor:
+
+| Property                               | Default                                                              | Purpose                                |
+| :------------------------------------- | :------------------------------------------------------------------- | :------------------------------------- |
+| `--a2ui-sandboxed-frame-height`        | `500px`                                                              | Height until the app asks for one.     |
+| `--a2ui-sandboxed-frame-border`        | `var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)` | Border around the frame.               |
+| `--a2ui-sandboxed-frame-border-radius` | `var(--a2ui-border-radius, 8px)`                                     | Corner radius.                         |
+| `--a2ui-sandboxed-frame-background`    | `#fff`                                                               | Background behind transparent content. |
+
+An app that asks for a size through `ui/notifications/size-changed` resizes the frame and the element within the limits of the bridge (100px to 2000px high, 200px to 3000px wide).
+
+### Sandbox asset
+
+Untrusted content never runs directly in the host page. The host embeds `sandbox.html`, an un-sandboxed proxy page served from the host's own origin, and the proxy creates a strictly sandboxed inner frame for the app: `sandbox="allow-scripts"` only, so no `allow-same-origin`, no forms, no modal dialogs, no top navigation, no popups, and every sensitive permission denied. This double iframe keeps the outer frame reachable for developer tools and browser extensions, which crash with `SecurityError` when they meet a sandboxed frame directly in the page, while the app runs in an opaque origin with no access to the host's cookies, storage or DOM. The proxy checks the embedding page's origin, relays messages between the host and the inner frame, and rejects everything else.
+
+The proxy is shipped in the `sandbox/` directory of the published package (`dist/sandbox/` in the repository):
+
+| File               | Purpose                                                                                      |
+| :----------------- | :------------------------------------------------------------------------------------------- |
+| `sandbox.html`     | The page `McpApp` loads. Its CSP keeps the inner frame from loading external URLs.           |
+| `sandbox-url.html` | The same proxy for external URLs, used by `@a2ui/catalog-iframe`. `McpApp` does not load it. |
+| `sandbox.js`       | The proxy script, shared by both pages.                                                      |
+
+Copy that directory into your app's static assets so it is served at `/a2ui-sandbox/` on your origin:
+
+- Angular CLI: add an entry to the `assets` array of your build options in `angular.json`:
+
+  ```json
+  {
+    "glob": "**/*",
+    "input": "node_modules/@a2ui/catalog-mcp/sandbox",
+    "output": "a2ui-sandbox"
+  }
+  ```
+
+- Vite: either copy the directory into `public/a2ui-sandbox/` (Vite serves `publicDir` as is), or use a static-copy plugin such as `vite-plugin-static-copy` with `{src: 'node_modules/@a2ui/catalog-mcp/sandbox/*', dest: 'a2ui-sandbox'}`.
+
+- Plain static server: copy `node_modules/@a2ui/catalog-mcp/sandbox` to `<web root>/a2ui-sandbox`.
+
+The proxy is the same one `@a2ui/catalog-iframe` ships, so an application that uses both packages serves either copy once.
+
+The default proxy URL is `/a2ui-sandbox/sandbox.html`, resolved against the document base URL. To serve the directory somewhere else, set the base URL once at startup:
+
+```typescript
+import {configureSandbox} from '@a2ui/catalog-mcp/v1_0';
+
+configureSandbox({baseUrl: '/static/frames/'});
+```
+
+`resolveSandboxUrl('html')` returns the URL the component loads.
+
+The proxy runs a self-test on startup: it fails unless it is isolated from the top window, which is only the case when the proxy is served from another origin than the host page. On the default same-origin deployment the test cannot pass, so the URL carries `disable_security_self_test=true` automatically. To serve the proxy from a dedicated origin (the stronger isolation), point `baseUrl` at it and list the host origin in the proxy page, which then keeps the self-test enabled:
+
+```html
+<meta name="a2ui-sandbox-host-origins" content="https://app.example.com" />
+```
+
+`configureSandbox({disableSecuritySelfTest: true | false})` overrides the automatic choice.
+
+### Host bridge
+
+The component owns its bridge; this section is for hosts that embed an MCP App frame without the component. `McpAppBridge` connects one frame to the surface that renders it. It takes the frame element, a `FrameHost` (five functions: read, write and subscribe to a data model path, invoke a catalog function, dispatch an action), a function that returns the component's current properties, and a callback for size requests. It creates the `AppBridge` and its `PostMessageTransport` to the frame, subscribes to the bound paths and watches the frame's size; the proxy handshake stays with the caller:
+
+```typescript
+import {McpAppBridge, resolveSandboxUrl} from '@a2ui/catalog-mcp/v1_0';
+
+const sandboxUrl = resolveSandboxUrl('html');
+frame.src = sandboxUrl.href;
+
+const bridge = new McpAppBridge({
+  frame,
+  host,
+  getProps: () => ({
+    allowedTools: props.allowedTools,
+    allowedFunctions: props.allowedFunctions,
+    dataPaths: props.data?.paths,
+  }),
+  onSizeChange: (width, height) => resize(frame, width, height),
+});
+bridge.start();
+// Later, when the component is removed:
+bridge.dispose();
+```
+
+A bridge is used once: create a new one when the frame content changes. Tests can pass a `transport` of their own instead of the frame's `postMessage` channel.
+
 ## Module layout
 
-| File                               | Responsibility                                                                      |
-| :--------------------------------- | :---------------------------------------------------------------------------------- |
-| `src/catalog.json`                 | Copy of `catalogs/mcp/catalog.json` made by `scripts/copy-catalog.js` at build time |
-| `src/index.ts`                     | Package entry: `MCP_CATALOG_ID`, `createMcpCatalogFunctions`, and public exports    |
-| `src/functions/callMcpTool.ts`     | MCP tool execution, UI resource discovery, caching, and message decoding            |
-| `src/functions/jmespath.ts`        | Standard JMESPath evaluation against data documents                                 |
-| `src/functions/split.ts`           | String and string-array splitting                                                   |
-| `src/functions/regexCapture.ts`    | Linear-time RE2 capture group extraction                                            |
-| `src/functions/regexReplace.ts`    | Literal RE2 string replacement                                                      |
-| `src/functions/updateDataModel.ts` | Writing key-value updates into the calling surface data model                       |
-| `src/functions/common.ts`          | Shared helpers for async argument settling, RE2 pattern caching, and coercion       |
-| `src/dynamic-values.ts`            | Resolution of dynamic values nested in literal containers                           |
+| File                                        | Responsibility                                                                                                                                                                       |
+| :------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/catalog.json`                          | Copy of `catalogs/mcp/catalog.json` made by the `copy-catalog` build step                                                                                                            |
+| `src/index.ts`                              | Package entry: `MCP_CATALOG_ID`, `createMcpCatalogFunctions`, and public exports                                                                                                     |
+| `src/functions/callMcpTool.ts`              | MCP tool execution, UI resource discovery, caching, and message decoding                                                                                                             |
+| `src/functions/jmespath.ts`                 | Standard JMESPath evaluation against data documents                                                                                                                                  |
+| `src/functions/split.ts`                    | String and string-array splitting                                                                                                                                                    |
+| `src/functions/regexCapture.ts`             | Linear-time RE2 capture group extraction                                                                                                                                             |
+| `src/functions/regexReplace.ts`             | Literal RE2 string replacement                                                                                                                                                       |
+| `src/functions/updateDataModel.ts`          | Writing key-value updates into the calling surface data model                                                                                                                        |
+| `src/functions/common.ts`                   | Shared helpers for async argument settling, RE2 pattern caching, and coercion                                                                                                        |
+| `src/dynamic-values.ts`                     | Resolution of dynamic values nested in literal containers                                                                                                                            |
+| `src/v1_0/catalog.json`                     | Copy of `catalogs/mcp/v1/catalog.json` made by the `copy-catalog` build step                                                                                                         |
+| `src/v1_0/index.ts`                         | `@a2ui/catalog-mcp/v1_0`: the v1 catalog, the component, the sandbox configuration, the bridge and the functions                                                                     |
+| `src/v1_0/functions.ts`                     | `@a2ui/catalog-mcp/v1_0/functions`: the v1 `MCP_CATALOG_ID`, `createMcpCatalogFunctions` and the functions, DOM-free                                                                 |
+| `src/v1_0/catalog.ts`                       | `mcpCatalog`: the `McpApp` component and the data functions under the v1 catalog id                                                                                                  |
+| `src/v1_0/components/mcp_app.ts`            | The `McpApp` universal component and its API                                                                                                                                         |
+| `src/v1_0/components/mcp_app_bridge.ts`     | `McpAppBridge`: `AppBridge` setup, tool calls, function calls and data model sync                                                                                                    |
+| `src/v1_0/components/payload_validation.ts` | JSON Schema validation of function call arguments against `allowedFunctions`                                                                                                         |
+| `src/shared/sandbox/`                       | Copy of `typescript/catalogs/shared/sandbox/` made by the `copy-shared` build step: the proxy, the base element, the host adapter and the helpers shared with `@a2ui/catalog-iframe` |
 
 ## Building
 
@@ -300,14 +488,16 @@ yarn workspace @a2ui/catalog-mcp build
 
 ## Running tests
 
-Tests run on Node's test runner with the `tsx` loader, directly against the
-TypeScript sources, so they do not require a build (the `test` script copies
-`catalog.json` first):
+The function tests run on Node's test runner with the `tsx` loader, directly against the TypeScript sources, plus a smoke test that imports the built `@a2ui/catalog-mcp/v1_0/functions` entry point. The v1.0 component, catalog and shared sandbox tests run with Karma in headless Chrome against the real sandbox proxy and a fixture app built on the MCP Apps App SDK. The `test` script runs both:
 
 ```bash
 # Every test in the MCP catalog workspace
 yarn workspace @a2ui/catalog-mcp test
 
-# Or a single file
+# Only the Node tests, or only the browser tests
+yarn workspace @a2ui/catalog-mcp test:node
+yarn workspace @a2ui/catalog-mcp test:karma
+
+# Or a single Node test file
 node --import tsx --test typescript/catalogs/mcp/src/functions/jmespath.test.ts
 ```
