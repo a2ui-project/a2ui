@@ -272,7 +272,7 @@ surface("s1")
       // which a processor checking one response on its own does not hold.
       'components without root': (
         r'$/title = "x"; title = Text($/title)',
-        throwsError<A2uiStateError>(),
+        throwsError<A2uiIntegrityError>(),
       ),
       'too many arguments': (
         'root = Card(a, b); a = Text("A"); b = Text("B")',
@@ -284,7 +284,7 @@ surface("s1")
       ),
       'a block without root': (
         'title = Text("x")',
-        throwsError<A2uiStateError>(),
+        throwsError<A2uiIntegrityError>(),
       ),
       'a block without components or data': (
         'surface("s1")',
