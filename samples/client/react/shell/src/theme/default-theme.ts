@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {Theme} from '@a2ui/react';
+import type {Theme} from '@a2ui/react/v0_8';
 
 /**
  * Default theme for the React shell - matches the Lit shell theme exactly.

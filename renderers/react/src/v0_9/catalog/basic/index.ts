@@ -16,7 +16,7 @@
 
 import {Catalog} from '@a2ui/web_core/v0_9';
 import {BASIC_FUNCTIONS, BasicCatalogThemeSchema} from '@a2ui/web_core/v0_9/basic_catalog';
-import type {ReactComponentImplementation} from '../../react_component_implementation';
+import type {ReactComponentImplementation} from '../../../react_component_implementation';
 
 import {Text} from './components/Text';
 import {Image} from './components/Image';
@@ -36,8 +36,6 @@ import {CheckBox} from './components/CheckBox';
 import {ChoicePicker} from './components/ChoicePicker';
 import {Slider} from './components/Slider';
 import {DateTimeInput} from './components/DateTimeInput';
-
-export * from '../../markdown-context';
 
 const basicComponents: ReactComponentImplementation[] = [
   Text,

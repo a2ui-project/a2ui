@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import {createComponentImplementation} from '../../../adapter';
+import {createComponentImplementation} from '../../../../adapter';
 import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {getBaseLeafStyle, useBasicCatalogStyles} from '../utils';
 

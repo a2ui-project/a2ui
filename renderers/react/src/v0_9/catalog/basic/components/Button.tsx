@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {createComponentImplementation} from '../../../adapter';
+import {createComponentImplementation} from '../../../../adapter';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
 import styles from './Button.module.css';

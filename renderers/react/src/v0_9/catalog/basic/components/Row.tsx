@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {createComponentImplementation} from '../../../adapter';
+import {createComponentImplementation} from '../../../../adapter';
 import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {ChildList} from './ChildList';
 import {mapJustify, mapAlign, getWeightStyle, useBasicCatalogStyles} from '../utils';

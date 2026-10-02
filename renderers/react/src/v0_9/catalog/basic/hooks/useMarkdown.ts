@@ -15,7 +15,7 @@
  */
 
 import {useState, useEffect} from 'react';
-import {useMarkdownRenderer} from '../../../markdown-context';
+import {useMarkdownRenderer} from '../../../../markdown-context';
 import type {MarkdownRendererOptions} from '@a2ui/web_core';
 
 let warningLogged = false;

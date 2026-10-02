@@ -15,7 +15,7 @@
  */
 
 import React, {useState} from 'react';
-import {createComponentImplementation} from '../../../adapter';
+import {createComponentImplementation} from '../../../../adapter';
 import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
 import styles from './ChoicePicker.module.css';
