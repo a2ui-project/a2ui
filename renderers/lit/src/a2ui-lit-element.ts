@@ -14,11 +14,4 @@
  * limitations under the License.
  */
 
-import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
-
-/**
- * Interface representing an A2UI component implementation in Lit / Web Components.
- *
- * Re-exported for backwards compatibility as a type alias for `WebComponentImplementation`.
- */
-export type LitComponentApi = WebComponentImplementation;
+export {A2uiLitElement} from '@a2ui/web_core/universal';

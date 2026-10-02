@@ -14,4 +14,6 @@
  * limitations under the License.
  */
 
-import './local-gallery.js';
+export {basicCatalog as basicCatalogV09} from '@a2ui/lit/v0_9';
+export {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
+export {LocalGallery} from './local-gallery.js';

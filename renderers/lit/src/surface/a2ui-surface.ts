@@ -16,9 +16,9 @@
 
 import {html, nothing, LitElement, PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
-import {SurfaceModel, ComponentContext} from '@a2ui/web_core/v0_9';
+import {SurfaceModel, ComponentContext, Catalog} from '@a2ui/web_core';
 import {renderA2uiNode} from './render-a2ui-node.js';
-import {LitComponentApi} from '../types.js';
+import type {LitComponentApi} from '../types.js';
 
 /**
  * A Lit component that renders an A2UI Surface.
@@ -103,7 +103,9 @@ export class A2uiSurface extends LitElement {
 
     try {
       const rootContext = new ComponentContext(this.surface, 'root', '/');
-      return html`${renderA2uiNode(rootContext, this.surface.defaultCatalog)}`;
+      const activeCatalog = (rootContext.componentModel.catalog ??
+        this.surface.defaultCatalog) as Catalog<LitComponentApi>;
+      return renderA2uiNode(rootContext, activeCatalog);
     } catch (e) {
       console.error('Error creating root context:', e);
       return html`<div>Error rendering surface</div>`;

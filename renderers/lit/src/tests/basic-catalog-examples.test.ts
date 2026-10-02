@@ -17,7 +17,7 @@
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {MessageProcessor, GenericBinder, ComponentContext} from '@a2ui/web_core/v0_9';
-import {basicCatalog} from '../catalogs/basic/index.js';
+import {basicCatalog} from '../v0_9/catalogs/basic/index.js';
 import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import fs from 'fs';
 import path from 'path';

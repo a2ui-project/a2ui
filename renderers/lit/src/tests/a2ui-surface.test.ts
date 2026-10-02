@@ -35,7 +35,7 @@ describe('A2uiSurface', () => {
     // Dynamically import component files *after* setting up JSDOM globals
     // to prevent LitElement from evaluating in an empty Node context and crashing.
     await import('../surface/a2ui-surface.js');
-    basicCatalog = (await import('../catalogs/basic/index.js')).basicCatalog;
+    basicCatalog = (await import('../v0_9/catalogs/basic/index.js')).basicCatalog;
   });
   after(teardownTestDom);
 
