@@ -42,12 +42,13 @@ from prompt_builder import (
     UI_DESCRIPTION,
 )
 from tools import get_restaurants
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.parser import ResponsePart, parse_response
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
+    CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
@@ -93,8 +94,10 @@ class RestaurantAgent:
         return DirectJsonFormat(
             version=version,
             catalogs=[
-                BasicCatalog.get_config(
-                    version=version, examples_path=f"examples/{version}"
+                CatalogConfig.from_catalog(
+                    "basic",
+                    BasicCatalog(version),
+                    examples_path=f"examples/{version}",
                 )
             ],
             schema_modifiers=[remove_strict_validation],

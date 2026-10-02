@@ -20,7 +20,8 @@ from typing import Any, Dict, List, Sequence, Tuple, Type
 
 from pydantic import TypeAdapter
 
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core import Catalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog
@@ -46,11 +47,12 @@ class MacroAgentRuntime:
         self.protocol_version = protocol_version
 
         # 1. Base Catalog
-        basic_config = BasicCatalog.get_config(catalog_version)
+        core_basic_cat = BasicCatalog(catalog_version)
+
         self.server_catalog = A2uiCatalog(
             version=catalog_version,
             name="basic",
-            catalog_schema=basic_config.provider.load(),
+            catalog_schema=core_basic_cat.catalog_schema,
             s2c_schema=load_from_bundled_resource(
                 catalog_version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
             ),

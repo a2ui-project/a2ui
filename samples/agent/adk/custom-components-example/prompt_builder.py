@@ -14,7 +14,6 @@
 
 import json
 
-from a2ui.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     A2UI_CLOSE_TAG,

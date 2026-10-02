@@ -191,7 +191,7 @@ def test_macro_naming_conventions():
 
 
 def make_test_catalog(components: Optional[dict[str, Any]] = None) -> A2uiCatalog:
-    from a2ui.basic_catalog.provider import BasicCatalog
+    from a2ui.core.basic_catalog import BasicCatalog
     from a2ui.schema.catalog import A2uiCatalog
     from a2ui.schema.constants import (
         SERVER_TO_CLIENT_SCHEMA_KEY,
@@ -199,11 +199,10 @@ def make_test_catalog(components: Optional[dict[str, Any]] = None) -> A2uiCatalo
     )
     from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
 
-    basic_config = BasicCatalog.get_config("0.9.1")
     cat_schema = (
         {"components": components}
         if components is not None
-        else basic_config.provider.load()
+        else BasicCatalog("0.9.1").catalog_schema
     )
     return A2uiCatalog(
         version="0.9.1",
@@ -367,7 +366,7 @@ def test_processor_argument_coercion():
 
 def test_macro_parser_parse_response():
     """Verifies that MacroParser.parse_response returns ResponsePart objects with fully expanded macros."""
-    from a2ui.basic_catalog.provider import BasicCatalog
+    from a2ui.core.basic_catalog import BasicCatalog
     from a2ui.schema.catalog import A2uiCatalog
     from a2ui.schema.constants import (
         SERVER_TO_CLIENT_SCHEMA_KEY,
@@ -387,11 +386,10 @@ def test_macro_parser_parse_response():
             )
         )
 
-    basic_config = BasicCatalog.get_config("0.9.1")
     cat = A2uiCatalog(
         version="0.9.1",
         name="basic",
-        catalog_schema=basic_config.provider.load(),
+        catalog_schema=BasicCatalog("0.9.1").catalog_schema,
         s2c_schema=load_from_bundled_resource(
             "0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
         ),

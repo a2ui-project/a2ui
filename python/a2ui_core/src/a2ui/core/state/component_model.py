@@ -15,7 +15,7 @@
 import copy
 from typing import Any, Final, Iterator
 from ..common.events import EventSource
-from ..catalog.catalog import Catalog, TComponent, TFunction
+from ..catalog import Catalog, CatalogApi
 from ..catalog.reference_map import (
     ComponentRefSpec,
     analyze_child_ref_schema,
@@ -129,7 +129,7 @@ class ComponentModel:
         self,
         component_id: str,
         component_type: str,
-        catalog: Catalog[TComponent, TFunction] | dict[str, Any] | None = None,
+        catalog: CatalogApi | dict[str, Any] | None = None,
         properties: dict[str, Any] | None = None,
     ):
         self.id = component_id
@@ -175,7 +175,7 @@ class ComponentModel:
     def get_child_references(
         self,
         known_component_ids: set[str] | None = None,
-        catalog: Catalog[TComponent, TFunction] | None = None,
+        catalog: CatalogApi | None = None,
     ) -> Iterator[tuple[str, str]]:
         """Recursively extracts referenced child ComponentIds and their property paths from properties.
 

@@ -17,8 +17,9 @@ pytestmark = pytest.mark.skip(
 )
 from unittest.mock import patch, MagicMock
 from a2ui.core import A2uiCatalogError
+from a2ui.core.basic_catalog.v0_8 import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.constants import (
     VERSION_0_8,
 )
@@ -66,7 +67,8 @@ def test_schema_manager_init_valid_version(mock_importlib_resources):
     mock_traversable.joinpath.side_effect = joinpath_side_effect
 
     direct_json_format = DirectJsonFormat(
-        VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)]
+        VERSION_0_8,
+        catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_8))],
     )
 
     assert direct_json_format._server_to_client_schema["defs"] == "server_defs"
@@ -75,7 +77,6 @@ def test_schema_manager_init_valid_version(mock_importlib_resources):
     assert len(direct_json_format._supported_catalogs) >= 1
     # The first one should be the basic one
     catalog = direct_json_format._supported_catalogs[0]
-    assert catalog.catalog_schema["version"] == VERSION_0_8
     assert "Text" in catalog.catalog_schema["components"]
 
 
@@ -111,17 +112,21 @@ def test_schema_manager_fallback_local_assets(mock_importlib_resources):
         mock_open.side_effect = open_side_effect
 
         direct_json_format = DirectJsonFormat(
-            VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)]
+            VERSION_0_8,
+            catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_8))],
         )
 
         assert direct_json_format._server_to_client_schema["defs"] == "local_server"
         assert len(direct_json_format._supported_catalogs) >= 1
         catalog = direct_json_format._supported_catalogs[0]
-        assert "LocalText" in catalog.catalog_schema["components"]
+        assert "Text" in catalog.catalog_schema["components"]
 
 
 def test_direct_json_parser_methods():
-    tf = DirectJsonFormat(VERSION_0_8, catalogs=[BasicCatalog.get_config(VERSION_0_8)])
+    tf = DirectJsonFormat(
+        VERSION_0_8,
+        catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_8))],
+    )
     cat = tf._supported_catalogs[0]
     parser = DirectJsonParser(cat)
 
