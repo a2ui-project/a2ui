@@ -19,11 +19,11 @@
 import {z} from 'zod';
 import {
   CallIdSchema,
-  ComponentsListSchema,
   ExtensionsSchema,
   FunctionCallSchema,
   FunctionResponseSchema,
 } from './common-types.js';
+import {ComponentsListSchema} from './helpers.js';
 
 export const CreateSurfaceMessageSchema = z
   .object({
