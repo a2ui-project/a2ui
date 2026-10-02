@@ -15,9 +15,7 @@
 import copy
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="TODO: validation package was removed from a2ui_agent library"
-)
+
 from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
@@ -208,7 +206,7 @@ def assertResponseContainsText(response, expected_text):
 
 
 def test_add_msg_type_deduplication(mock_catalog):
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
     parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
     assert parser.msg_types == [MSG_TYPE_UPDATE_COMPONENTS]
@@ -220,7 +218,7 @@ def test_add_msg_type_deduplication(mock_catalog):
 
 
 def test_streaming_msg_type_deduplication(mock_catalog):
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     # 1. Send partial chunk that triggers sniffing
     chunk1 = (
         A2UI_OPEN_TAG
@@ -244,7 +242,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 
 def test_v09_path_heuristic_relative_path(mock_catalog):
     """Tests that v0.9 allows relative paths (no leading slash)."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     # Disable validation to avoid needing full catalog for this test
     parser._validator = None
 
@@ -278,7 +276,7 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
 
 def test_v09_path_heuristic_absolute_path(mock_catalog):
     """Tests that v0.9 still supports absolute paths (leading slash)."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     parser._validator = None
 
     # 1. Create surface
@@ -310,7 +308,7 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
 
 def test_v09_single_top_level_object(mock_catalog):
     """Tests that v0.9 supports a single top-level object without array wrapping."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
 
     chunk = (
         A2UI_OPEN_TAG
@@ -328,7 +326,7 @@ def test_v09_single_top_level_object(mock_catalog):
 
 def test_v09_multiple_top_level_objects(mock_catalog):
     """Tests that v0.9 supports multiple consecutive top-level objects without array wrapping."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
 
     chunk = (
         A2UI_OPEN_TAG
@@ -350,7 +348,7 @@ def test_v09_multiple_top_level_objects(mock_catalog):
 
 def test_v09_leaf_component_child_fields_not_heuristic(mock_catalog):
     """Tests that components with no child fields defined in reference_map do not use heuristics."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     child_fields = parser._get_child_fields_for_obj(
         {"component": "Text", "id": "t1", "text": "Hello world", "customProp": "Value"}
     )

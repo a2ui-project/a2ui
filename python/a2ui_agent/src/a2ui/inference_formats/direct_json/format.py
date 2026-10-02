@@ -91,9 +91,8 @@ class DirectJsonFormat(InferenceFormat):
                 raise A2uiCatalogError(
                     "No supported catalogs configured for the Direct JSON format."
                 )
-            default_catalog = self._supported_catalogs[0]
             self._parser = DirectJsonParser(
-                default_catalog,
+                self._supported_catalogs,
             )
         return self._parser
 

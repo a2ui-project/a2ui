@@ -32,7 +32,9 @@ Usage Example:
   ```
 """
 
+from collections.abc import Sequence
 import logging
+from typing import cast
 from a2a import types as a2a_types
 from a2ui.a2a.parts import create_a2ui_part, parse_content_to_parts
 from a2ui.core import CatalogApi
@@ -63,17 +65,23 @@ class A2uiPartConverter:
 
     def __init__(
         self,
-        a2ui_catalog: CatalogApi,
+        a2ui_catalog: CatalogApi | Sequence[CatalogApi],
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
         version: str = constants.VERSION_0_8,
         parser: Parser | None = None,
     ):
-        self._catalog = a2ui_catalog
+        catalogs: list[CatalogApi] = (
+            list(a2ui_catalog)
+            if isinstance(a2ui_catalog, (list, tuple))
+            else [cast(CatalogApi, a2ui_catalog)]
+        )
+        self._catalogs = catalogs
+        self._catalog = catalogs[0]
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
         self._version = version
-        self._parser = parser or DirectJsonParser(a2ui_catalog)
+        self._parser = parser or DirectJsonParser(catalogs)
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
         """Converts a GenAI part to A2A parts, with A2UI validation.
