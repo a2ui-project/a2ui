@@ -19,8 +19,9 @@ import shutil
 from typing import Any, Iterator, Optional, Union
 import yaml
 
+from a2ui.core import Catalog, CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema import A2uiCatalog, CatalogConfig
+from a2ui.schema import CatalogConfig
 
 
 def _clean_catalog_name(catalog: Any) -> str:
@@ -42,20 +43,21 @@ def _clean_catalog_name(catalog: Any) -> str:
 def _resolve_catalogs_list(
     catalogs: Optional[list[Union[str, Any]]],
     fmt: InferenceFormat,
-) -> list[A2uiCatalog]:
+) -> list[CatalogApi]:
     """Resolves catalog instances from list of strings, configs, or format defaults."""
     if catalogs is not None:
-        resolved: list[A2uiCatalog] = []
+        resolved: list[CatalogApi] = []
         for c in catalogs:
             if isinstance(c, str):
-                resolved.append(A2uiCatalog.from_json_file(c))
+                cat_name = os.path.splitext(os.path.basename(c))[0] or "custom"
+                resolved.append(CatalogConfig.from_path(cat_name, c).to_catalog())
             elif isinstance(c, CatalogConfig):
-                resolved.append(A2uiCatalog.from_config(c))
-            elif isinstance(c, A2uiCatalog):
+                resolved.append(c.to_catalog())
+            elif isinstance(c, Catalog):
                 resolved.append(c)
         return resolved
 
-    defaults: list[A2uiCatalog] = []
+    defaults: list[CatalogApi] = []
     if hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
         defaults.extend(fmt._supported_catalogs)
     if hasattr(fmt, "catalog") and fmt.catalog:

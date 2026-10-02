@@ -160,11 +160,13 @@ class AtomPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot Atom examples."""
+        from a2ui.schema.catalog import load_examples
+
         target_catalog = catalog or self.format.catalog
         if not target_catalog or not self.format or not self.format.examples_path:
             return ""
-        raw_examples = target_catalog.load_examples(
-            self.format.examples_path, validate=validate
+        raw_examples = load_examples(
+            target_catalog, self.format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""

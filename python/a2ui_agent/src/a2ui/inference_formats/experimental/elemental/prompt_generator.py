@@ -22,7 +22,7 @@ from collections.abc import Mapping, Sequence
 import json
 import re
 from typing import Any, TYPE_CHECKING
-from a2ui.schema import A2uiCatalog
+from a2ui.core import Catalog, CatalogApi
 from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
 )
@@ -116,8 +116,9 @@ class ElementalPromptGenerator(PromptGenerator):
         Args:
             format_inst: An ElementalFormat instance.
         """
+        assert format_inst.catalog is not None
         self._format = format_inst
-        self.catalog: A2uiCatalog = format_inst.catalog
+        self.catalog: CatalogApi = format_inst.catalog
         self.helper: CatalogSchemaHelper = CatalogSchemaHelper(format_inst.catalog)
         self.catalog_id: str = format_inst.catalog.catalog_id
         self.parser: ElementalParser | None = None
@@ -142,11 +143,13 @@ class ElementalPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot Elemental examples."""
+        from a2ui.schema.catalog import load_examples
+
         target_catalog = catalog or self.catalog
         if not target_catalog or not self._format or not self._format.examples_path:
             return ""
-        raw_examples = target_catalog.load_examples(
-            self._format.examples_path, validate=validate
+        raw_examples = load_examples(
+            target_catalog, self._format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""
@@ -469,9 +472,11 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
+        from a2ui.schema.catalog import load_examples, prune_catalog_components
+
         catalog = self.catalog
-        if allowed_components or allowed_messages:
-            catalog = catalog.with_pruning(allowed_components, allowed_messages)
+        if allowed_components:
+            catalog = prune_catalog_components(catalog, allowed_components)
             self.catalog = catalog
             self.helper = CatalogSchemaHelper(catalog)
             self.catalog_id = catalog.catalog_id
@@ -493,8 +498,8 @@ class ElementalPromptGenerator(PromptGenerator):
             parts.append(prompt)
 
         if include_examples and self._format.examples_path and catalog:
-            raw_examples = catalog.load_examples(
-                self._format.examples_path, validate=validate_examples
+            raw_examples = load_examples(
+                catalog, self._format.examples_path, validate=validate_examples
             )
             if raw_examples:
                 formatted_examples = self.transform_examples(raw_examples)

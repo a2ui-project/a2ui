@@ -137,7 +137,6 @@ def _parse_and_validate_in_process(
         if isinstance(strategy, DirectJsonFormat)
         else getattr(strategy, "catalog")
     )
-    validator = catalog.validator
 
     parts = strategy.parser.parse_response(completion)
     compiled_jsons = []
@@ -158,7 +157,7 @@ def _parse_and_validate_in_process(
         )
 
     MessageProcessor(
-        [catalog.core_catalog],
+        [catalog],
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     ).process_messages(compiled_jsons)
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}

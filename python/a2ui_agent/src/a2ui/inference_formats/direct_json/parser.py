@@ -15,13 +15,12 @@
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
 from typing import Any
-from a2ui.parser.parser import Parser
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-from a2ui.core import A2uiParseError
-from a2ui.parser.payload_fixer import parse_and_fix
+from a2ui.core import A2uiParseError, Catalog, CatalogApi
 from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
+from a2ui.parser.parser import Parser
+from a2ui.parser.payload_fixer import parse_and_fix
+from a2ui.parser.response_part import ResponsePart
+from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
 
 def unwrap_response(content: str) -> list[ResponsePart]:
@@ -72,11 +71,11 @@ def unwrap_response(content: str) -> list[ResponsePart]:
 class DirectJsonParser(Parser):
     """Concrete parser implementation for standard A2UI JSON schema responses (Direct JSON Format)."""
 
-    def __init__(self, catalog: A2uiCatalog, validator: Any = None):
+    def __init__(self, catalog: CatalogApi, validator: Any = None):
         """Initializes the DirectJsonParser.
 
         Args:
-            catalog: The A2uiCatalog mapping schema identifiers.
+            catalog: The Catalog mapping schema identifiers.
             validator: Optional callable invoked with the parsed payload. It may
                 return a list of `A2uiErrorDetail`, which `compile` raises as an
                 `A2uiValidationError`, or raise on its own.

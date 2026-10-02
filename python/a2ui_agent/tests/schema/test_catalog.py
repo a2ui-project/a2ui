@@ -14,37 +14,40 @@
 
 import pytest
 
+from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog, v0_8, v0_9, v1_0
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.schema.catalog import A2uiCatalogProvider, CatalogConfig
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 
 BASIC_CATALOG_NAME = "basic"
 
 
+class _DictCatalogProvider(A2uiCatalogProvider):
+
+    def __init__(self, schema: dict):
+        self._schema = schema
+
+    def load(self) -> dict:
+        return self._schema
+
+
 def test_catalog_id_property():
     catalog_id = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-    catalog = A2uiCatalog(
-        version=VERSION_0_8,
+    config = CatalogConfig(
         name=BASIC_CATALOG_NAME,
-        s2c_schema={},
-        common_types_schema={},
-        catalog_schema={"catalogId": catalog_id},
+        provider=_DictCatalogProvider({"catalogId": catalog_id}),
     )
+    catalog = config.to_catalog(version=VERSION_0_8)
     assert catalog.catalog_id == catalog_id
 
 
 def test_catalog_id_missing_raises_error():
-    catalog = A2uiCatalog(
-        version=VERSION_0_8,
+    config = CatalogConfig(
         name=BASIC_CATALOG_NAME,
-        s2c_schema={},
-        common_types_schema={},
-        catalog_schema={},  # No catalogId
+        provider=_DictCatalogProvider({}),  # No catalogId
     )
-    with pytest.raises(
-        ValueError, match=f"Catalog '{BASIC_CATALOG_NAME}' missing catalogId"
-    ):
-        _ = catalog.catalog_id
+    with pytest.raises(A2uiCatalogError, match="missing 'catalogId'"):
+        config.to_catalog(version=VERSION_0_8)
 
 
 def test_resolve_examples_path_handling():

@@ -15,9 +15,9 @@
 import json
 import re
 from typing import Any
+from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser import Parser, ResponsePart
-from a2ui.schema import A2uiCatalog
 from google.adk.utils.feature_decorator import experimental
 
 from .prompt_generator import ExpressPromptGenerator
@@ -30,7 +30,7 @@ class ExpressFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: A2uiCatalog | None = None,
+        catalog: CatalogApi | None = None,
         surface_id: str = "main",
         examples_path: str | None = None,
         version: str = "v1.0",

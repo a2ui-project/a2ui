@@ -25,6 +25,7 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 
 
@@ -108,7 +109,7 @@ def test_sample_examples_validation(config):
                     content = json.load(f)
                     try:
                         if do_validate:
-                            catalog.validate_components(content)
+                            validate_components(catalog, content)
                     except Exception as e:
                         pytest.fail(
                             f"Validation failed for {full_path} in sample"

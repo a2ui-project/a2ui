@@ -65,7 +65,6 @@ def a2ui_scorer(version: str) -> Scorer:
             experiments={"version_1_0"} if version == "1.0" else None,
         )
         catalog = direct_json_format.get_selected_catalog()
-        validator = catalog.validator
 
         answer_text = state.output.completion or ""
 
@@ -97,7 +96,7 @@ def a2ui_scorer(version: str) -> Scorer:
 
             answer_text = json.dumps(all_messages, indent=2)
             MessageProcessor(
-                [catalog.core_catalog],
+                [catalog],
                 options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
             ).process_messages(all_messages)
             return Score(

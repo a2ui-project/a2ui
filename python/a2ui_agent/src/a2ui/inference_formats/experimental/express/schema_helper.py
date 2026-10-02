@@ -20,7 +20,6 @@ signatures, and requirements directly from standard catalog JSON schemas.
 
 from typing import Any
 from a2ui.core import Catalog, CatalogApi
-from a2ui.schema import A2uiCatalog
 
 
 class CatalogSchemaHelper:
@@ -38,27 +37,21 @@ class CatalogSchemaHelper:
 
     def __init__(
         self,
-        catalog: CatalogApi | A2uiCatalog,
+        catalog: CatalogApi,
     ):
-        """Initializes the helper with a Catalog or an A2uiCatalog.
+        """Initializes the helper with a Catalog.
 
         Args:
-            catalog: A Catalog or an A2uiCatalog.
+            catalog: A Catalog instance.
         """
-        if isinstance(catalog, A2uiCatalog):
-            self.catalog_model = catalog.core_catalog
-        elif isinstance(catalog, Catalog):
+        if isinstance(catalog, Catalog):
             self.catalog_model = catalog
         else:
             raise TypeError(f"Unsupported catalog type: {type(catalog)}")
 
         self.catalog = self.catalog_model.catalog_schema or {}
-        self.components = {
-            name: comp.schema for name, comp in self.catalog_model.components.items()
-        }
-        self.functions = {
-            name: fn.schema for name, fn in self.catalog_model.functions.items()
-        }
+        self.components = dict(self.catalog.get("components", {}))
+        self.functions = dict(self.catalog.get("functions", {}))
         self._load_mappings()
 
     def _load_mappings(self) -> None:

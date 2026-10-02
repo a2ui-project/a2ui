@@ -52,6 +52,7 @@ from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 from a2ui.a2a import (
     get_a2ui_agent_extension,
@@ -336,7 +337,7 @@ class RestaurantAgent:
                             "--- RestaurantAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        selected_catalog.validate_components(parsed_json_data)
+                        validate_components(selected_catalog, parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

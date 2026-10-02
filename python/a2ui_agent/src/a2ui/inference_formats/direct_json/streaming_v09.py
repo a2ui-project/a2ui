@@ -23,17 +23,18 @@ from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
 from a2ui.core.validation import RELAXED_VALIDATION
-from a2ui.core import A2uiValidationError
-
-if TYPE_CHECKING:
-    from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import A2uiValidationError, CatalogApi
 
 
 class DirectJsonStreamParserV09(DirectJsonStreamParser):
     """Streaming parser implementation for A2UI v0.9 specification."""
 
-    def __init__(self, catalog: A2uiCatalog):
-        super().__init__(catalog=catalog)
+    def __init__(
+        self,
+        catalog: CatalogApi,
+        custom_cuttable_keys: frozenset[str] | None = None,
+    ):
+        super().__init__(catalog=catalog, custom_cuttable_keys=custom_cuttable_keys)
         # v0.9 default root is "root"
         self._default_root_id = DEFAULT_ROOT_ID
 
@@ -263,7 +264,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         }
         if self.surface_id:
             payload[SURFACE_ID_KEY] = self.surface_id
-        version = getattr(self._catalog, 'version', None) or 'v0.9'
+        version = getattr(self._catalog, 'protocol_version', None) or 'v0.9'
         if not str(version).startswith('v'):
             version = f'v{version}'
         return {'version': version, MSG_TYPE_UPDATE_COMPONENTS: payload}

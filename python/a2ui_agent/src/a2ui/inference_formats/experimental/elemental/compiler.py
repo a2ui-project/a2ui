@@ -23,7 +23,6 @@ import re
 from html.parser import HTMLParser
 from typing import Any
 from a2ui.core import CatalogApi
-from a2ui.schema import A2uiCatalog
 from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
 )
@@ -315,7 +314,7 @@ class _CompileContext:
 class ElementalCompiler:
     """Compilation pipeline for A2UI Elemental HTML."""
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog):
+    def __init__(self, catalog: CatalogApi):
         self.helper = CatalogSchemaHelper(catalog)
         self.expr_parser = ElementalExpressionParser()
 

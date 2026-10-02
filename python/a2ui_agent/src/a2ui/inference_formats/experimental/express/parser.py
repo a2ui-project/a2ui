@@ -23,7 +23,6 @@ from a2ui.parser import (
     Parser,
     ResponsePart,
 )
-from a2ui.schema import A2uiCatalog
 from google.adk.utils.feature_decorator import experimental
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .compiler import ExpressCompiler
@@ -59,14 +58,14 @@ class ExpressParser(Parser):
 
     def __init__(
         self,
-        catalog: CatalogApi | A2uiCatalog,
+        catalog: CatalogApi,
         surface_id: str = "main",
         version: str = "v1.0",
     ):
         """Initializes the Express parser with a catalog schema and target version.
 
         Args:
-            catalog: Catalog or A2uiCatalog schema helper.
+            catalog: Catalog instance.
             surface_id: Surface identifier for compiled messages.
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """

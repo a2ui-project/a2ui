@@ -21,9 +21,8 @@ from dataclasses import replace
 import logging
 from typing import Any, Callable, Optional, Sequence, Union
 
-from a2ui.core import A2uiCatalogError, A2uiRecursionError
+from a2ui.core import A2uiCatalogError, A2uiRecursionError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import CATALOG_COMPONENTS_KEY
 from a2ui.transformers.macros.macro import _MacroMetadata
 from a2ui.transformers.macros.processor import _MacroProcessor
@@ -77,14 +76,14 @@ class MacroExpander:
             set(passthrough_components) if passthrough_components is not None else None
         )
 
-    def transform_to_inference_catalog(self, base_catalog: A2uiCatalog) -> A2uiCatalog:
+    def transform_to_inference_catalog(self, base_catalog: CatalogApi) -> CatalogApi:
         """Derives an authoring/inference catalog by augmenting the base catalog with macro schemas.
 
         Args:
             base_catalog: The base client catalog.
 
         Returns:
-            A new A2uiCatalog containing macro component schemas.
+            A new Catalog containing macro component schemas.
 
         Raises:
             A2uiCatalogError: If a macro component collides with an existing component in the base catalog.
@@ -123,25 +122,24 @@ class MacroExpander:
                 any_comp_refs.append(ref_entry)
 
         schema_copy[CATALOG_COMPONENTS_KEY] = comps_map
-        return replace(base_catalog, catalog_schema=schema_copy)
+        return Catalog.from_json(
+            catalog_schema=schema_copy,
+            protocol_version=base_catalog.protocol_version,
+            catalog_id=base_catalog.catalog_id,
+        )
 
-    def to_catalog(self) -> A2uiCatalog:
-        """Exports a standalone A2uiCatalog containing exclusively the macro component schemas.
+    def to_catalog(self) -> CatalogApi:
+        """Exports a standalone Catalog containing exclusively the macro component schemas.
 
         Returns:
-            An A2uiCatalog instance ready to be used by inference formats and prompt generators.
+            A Catalog instance ready to be used by inference formats and prompt generators.
         """
         from a2ui.schema.constants import (
             CATALOG_COMPONENTS_KEY,
             VERSION_0_9_1,
         )
-        from a2ui.schema.utils import (
-            load_agent_to_renderer_schema,
-            load_common_types_schema,
-        )
 
         version = VERSION_0_9_1
-        name = "macros"
         catalog_id = "https://a2ui.org/catalogs/macros"
 
         components = {m.name: m.to_json_schema() for m in self.macros}
@@ -163,12 +161,10 @@ class MacroExpander:
             },
         }
 
-        return A2uiCatalog(
-            name=name,
-            version=version,
+        return Catalog.from_json(
             catalog_schema=schema,
-            s2c_schema=load_agent_to_renderer_schema(version),
-            common_types_schema=load_common_types_schema(version),
+            protocol_version=version,
+            catalog_id=catalog_id,
         )
 
     def transform_to_transport(

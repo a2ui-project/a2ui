@@ -16,12 +16,14 @@
 
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
-from a2ui.prompt import PromptGenerator
+
+from a2ui.core import Catalog, CatalogApi
 from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.prompt import PromptGenerator
+from a2ui.schema.catalog import render_as_llm_instructions
 
 if TYPE_CHECKING:
     from a2ui.inference_formats.direct_json import DirectJsonFormat
-    from a2ui.schema.catalog import A2uiCatalog
 
 
 class DirectJsonPromptGenerator(PromptGenerator):
@@ -34,7 +36,8 @@ class DirectJsonPromptGenerator(PromptGenerator):
             format_inst: The DirectJsonFormat instance.
         """
         self._format = format_inst
-        self.selected_catalog: "A2uiCatalog" | None = None
+        self.selected_catalog: CatalogApi | None = None
+        self._allowed_messages: Sequence[str] | None = None
 
     def generate_base_rules(self) -> str:
         """Returns default JSON workflow rules."""
@@ -50,15 +53,40 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """Returns LLM instructions for a catalog or all supported catalogs."""
         if not include_schema:
             return ""
+        s2c = self._format._server_to_client_schema if self._format else None
+        common_types = self._format._common_types_schema if self._format else None
         if catalog:
-            return catalog.render_as_llm_instructions() or ""
+            return (
+                render_as_llm_instructions(
+                    catalog,
+                    s2c_schema=s2c,
+                    common_types_schema=common_types,
+                    allowed_messages=self._allowed_messages,
+                )
+                or ""
+            )
         if self.selected_catalog:
-            return self.selected_catalog.render_as_llm_instructions() or ""
+            return (
+                render_as_llm_instructions(
+                    self.selected_catalog,
+                    s2c_schema=s2c,
+                    common_types_schema=common_types,
+                    allowed_messages=self._allowed_messages,
+                )
+                or ""
+            )
         if self._format and self._format._supported_catalogs:
             instructions = [
                 inst
                 for c in self._format._supported_catalogs
-                if (inst := c.render_as_llm_instructions())
+                if (
+                    inst := render_as_llm_instructions(
+                        c,
+                        s2c_schema=s2c,
+                        common_types_schema=common_types,
+                        allowed_messages=self._allowed_messages,
+                    )
+                )
             ]
             return "\n\n".join(instructions)
         return ""
@@ -92,22 +120,8 @@ class DirectJsonPromptGenerator(PromptGenerator):
         include_examples: bool = False,
         validate_examples: bool = False,
     ) -> str:
-        """Assembles prompt instructions contract for standard JSON.
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete generated prompt system instruction.
-        """
+        """Assembles prompt instructions contract for standard JSON."""
+        self._allowed_messages = allowed_messages
         selected_catalog = self._format.get_selected_catalog(
             client_ui_capabilities, allowed_components, allowed_messages
         )
@@ -141,14 +155,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
         return "\n\n".join(parts)
 
     def _catalog_description(self, include_schema: bool = True) -> str:
-        """Assembles the system prompt component catalog signatures block.
-
-        Args:
-            include_schema: Whether to include the schema description.
-
-        Returns:
-            The rendered LLM instructions string block.
-        """
+        """Assembles the system prompt component catalog signatures block."""
         if not include_schema:
             return ""
         catalog = getattr(self, "selected_catalog", None)
@@ -160,4 +167,14 @@ class DirectJsonPromptGenerator(PromptGenerator):
             )
         if not catalog:
             return ""
-        return catalog.render_as_llm_instructions() or ""
+        s2c = self._format._server_to_client_schema if self._format else None
+        common_types = self._format._common_types_schema if self._format else None
+        return (
+            render_as_llm_instructions(
+                catalog,
+                s2c_schema=s2c,
+                common_types_schema=common_types,
+                allowed_messages=self._allowed_messages,
+            )
+            or ""
+        )

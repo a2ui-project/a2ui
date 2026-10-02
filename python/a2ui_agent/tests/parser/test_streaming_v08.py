@@ -28,95 +28,13 @@ from a2ui.parser.constants import (
     MSG_TYPE_SURFACE_UPDATE,
     MSG_TYPE_BEGIN_RENDERING,
 )
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 
 
 @pytest.fixture
 def mock_catalog():
-    s2c_schema = {
-        "title": "A2UI Message Schema",
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "beginRendering": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {"type": "string"},
-                    "root": {"type": "string"},
-                },
-                "required": ["surfaceId", "root"],
-            },
-            "surfaceUpdate": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {
-                        "type": "string",
-                    },
-                    "components": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {
-                                    "type": "string",
-                                },
-                                "component": {
-                                    "type": "object",
-                                    "additionalProperties": True,
-                                },
-                            },
-                            "required": ["id", "component"],
-                        },
-                    },
-                },
-                "required": ["surfaceId", "components"],
-            },
-            "dataModelUpdate": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {"type": "string"},
-                    "contents": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "key": {"type": "string"},
-                                "valueString": {"type": "string"},
-                                "valueNumber": {"type": "number"},
-                                "valueBoolean": {"type": "boolean"},
-                                "valueMap": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "key": {"type": "string"},
-                                            "valueString": {"type": "string"},
-                                            "valueNumber": {"type": "number"},
-                                            "valueBoolean": {"type": "boolean"},
-                                        },
-                                        "required": ["key"],
-                                    },
-                                },
-                            },
-                            "required": ["key"],
-                        },
-                    },
-                },
-                "required": ["surfaceId", "contents"],
-            },
-            "deleteSurface": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {
-                        "type": "string",
-                    }
-                },
-                "required": ["surfaceId"],
-            },
-        },
-    }
     catalog_schema = {
         "catalogId": "test_catalog",
         "components": {
@@ -189,17 +107,10 @@ def mock_catalog():
             },
         },
     }
-    common_types_schema = {
-        "$id": "https://a2ui.org/specification/v0_8/common_types.json",
-        "type": "object",
-        "$defs": {},
-    }
-    return A2uiCatalog(
-        version=VERSION_0_8,
-        name="test_catalog",
-        s2c_schema=s2c_schema,
-        common_types_schema=common_types_schema,
+    return Catalog.from_json(
         catalog_schema=catalog_schema,
+        protocol_version=VERSION_0_8,
+        catalog_id="test_catalog",
     )
 
 
