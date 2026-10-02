@@ -31,20 +31,17 @@ import {
   FunctionCallSchema,
   ChildSchema,
 } from '../types/common-types.js';
-import type {CatalogApi, ComponentApi, FunctionApi} from './types.js';
+import type {ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 
-export type CatalogConstructor<
-  C extends ComponentApi = ComponentApi,
-  F extends FunctionApi = FunctionApi,
-> = new (
-  id: string,
-  protocolVersion: string,
-  components?: C[],
-  functions?: F[],
-  themeSchema?: z.ZodTypeAny,
-  instructions?: string,
-) => CatalogApi;
+export interface ParsedCatalogSchema {
+  id: string;
+  protocolVersion: string;
+  components: ComponentApi[];
+  functions: FunctionApi[];
+  themeSchema?: z.ZodObject<z.ZodRawShape>;
+  instructions?: string;
+}
 
 /**
  * Protocol version assumed for a catalog schema that does not declare one.
@@ -952,7 +949,7 @@ function parseThemeSchema(
 }
 
 /**
- * Loads a raw A2UI catalog schema into a typed Catalog instance.
+ * Parses a raw A2UI catalog schema into its typed component, function, and metadata fields.
  *
  * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
  * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
@@ -962,15 +959,13 @@ function parseThemeSchema(
  *   one. Catalog schemas published before v1.0 omit `protocolVersion`; when
  *   neither the caller nor the schema supplies it, `DEFAULT_PROTOCOL_VERSION`
  *   applies.
- * @param catalogCtor Catalog constructor to instantiate.
- * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
+ * @returns Parsed catalog fields ready to construct a `Catalog` instance.
  * @throws {Error} If the catalog ID is missing or not a string.
  */
-export function loadCatalogFromSchema(
+export function parseCatalogSchema(
   catalogSchema: Record<string, unknown>,
-  protocolVersion: string | undefined,
-  catalogCtor: CatalogConstructor,
-): CatalogApi {
+  protocolVersion?: string,
+): ParsedCatalogSchema {
   const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
     throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
@@ -1010,12 +1005,12 @@ export function loadCatalogFromSchema(
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
 
-  return new catalogCtor(
-    catalogId,
-    resolvedVersion,
+  return {
+    id: catalogId,
+    protocolVersion: resolvedVersion,
     components,
     functions,
     themeSchema,
     instructions,
-  );
+  };
 }

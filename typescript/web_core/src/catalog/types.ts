@@ -21,7 +21,7 @@ import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
-import {loadCatalogFromSchema} from './schema_loader.js';
+import {parseCatalogSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
 import {
   buildComponentRefMap,
@@ -346,7 +346,15 @@ export class Catalog<
    * @throws {Error} If the catalog ID is missing or not a string.
    */
   static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
-    return loadCatalogFromSchema(catalogSchema, protocolVersion, Catalog);
+    const {
+      id,
+      protocolVersion: resolvedVersion,
+      components,
+      functions,
+      themeSchema,
+      instructions,
+    } = parseCatalogSchema(catalogSchema, protocolVersion);
+    return new Catalog(id, resolvedVersion, components, functions, themeSchema, instructions);
   }
 }
 
