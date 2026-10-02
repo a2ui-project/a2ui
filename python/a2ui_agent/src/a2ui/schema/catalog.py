@@ -30,10 +30,15 @@ from a2ui.core import (
     A2uiErrorDetail,
     A2uiValidationError,
     Catalog,
-    CatalogApi,
     PayloadValidator,
     STRICT_VALIDATION,
 )
+
+
+if TYPE_CHECKING:
+    # The packaging hook imports this module against the published a2ui-core,
+    # which may predate CatalogApi, so it is needed for type checking only.
+    from a2ui.core import CatalogApi
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from .constants import (
