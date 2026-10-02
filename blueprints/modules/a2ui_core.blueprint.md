@@ -45,56 +45,25 @@ Protocol version coverage is per implementation rather than a property of this b
 
 ```mermaid
 graph TD
-    Processing["Processing Layer<br/>(a2ui.core.processing)"]
-    Rpc["RPC Layer<br/>(a2ui.core.rpc)"]
-    Validation["Validation Layer<br/>(a2ui.core.validation)"]
-    State["State Layer<br/>(a2ui.core.state)"]
-    Catalog["Catalog Layer<br/>(a2ui.core.catalog)"]
-    Resolution["Resolution Layer<br/>(a2ui.core.resolution)"]
-    Schema["Schema Layer<br/>(a2ui.core.schema)"]
-    Primitives["Primitives Layer<br/>(a2ui.core.primitives)"]
-    Exceptions["Common & Exceptions<br/>(a2ui.core.exceptions)"]
+    processing["processing:<br/>processor, expressions, basic_functions"]
+    validation["validation:<br/>validator, validation_config, component_graph, component_refs, common_types (generated)"]
+    resolution["resolution:<br/>node_resolver, component_node, ref_fields"]
+    rendering["rendering:<br/>binder"]
+    core["core:<br/>catalog, minimal_catalog, common_schemas, messages, common, renderer_capabilities, surface_group_model, surface_model, component_model, data_model, data_context, component_context"]
+    primitives["primitives:<br/>errors, cancellation, event_notifier, reactivity, data_path, protocol_version, reference_schema, schema_resolution, resolved_binding"]
 
-    Processing --> Rpc
-    Processing --> Validation
-    Processing --> State
-    Processing --> Catalog
-    Rpc --> Catalog
-    Rpc --> Schema
-    Rpc --> Exceptions
-    Validation --> Catalog
-    Validation --> Schema
-    Validation --> Primitives
-    State --> Exceptions
-    Catalog --> Schema
-    Catalog --> Primitives
-    Catalog --> Exceptions
-    Resolution --> State
-    Resolution --> Exceptions
-    Primitives --> Exceptions
+    processing --> core
+    processing --> primitives
+    processing --> validation
+    resolution --> core
+    resolution --> primitives
+    resolution --> rendering
+    rendering --> core
+    rendering --> primitives
+    validation --> core
+    validation --> primitives
+    core --> primitives
 ```
-
-#### Layer Ordering Rules
-
-The graph above is a DAG, and implementations are expected to keep it one. A folder-level
-import cycle means two layers have been merged in practice even where the directory names
-still say otherwise, so implementations SHOULD enforce this with a cycle check in CI.
-
-Four rules carry most of the weight:
-
-1. **Primitives (Layer 0) imports no core layer above it**, only the root exception
-   hierarchy. It holds building blocks that more than one layer needs: shared protocol
-   enums and schema reference expansion.
-2. **The evaluation-context module never imports the catalog.** A catalog function's
-   `execute` names the data context it is handed, so the dependency runs one way, from
-   the catalog to the data context. The data context therefore stays free of catalog and
-   state imports, depending only on the data model, shared message types and primitives.
-3. **A protocol message type never imports the catalog.** Enums shared by a message class
-   and a catalog declaration — `A2uiReturnType` is the current example — belong in
-   `primitives/`, or in the message module itself as long as that module imports nothing
-   above it, as the Dart SDK's `common.dart` does.
-4. **State holds no rendering constructs.** `state/surface_model` is long-lived reactive
-   state; view-tree resolution is transient and lives in `resolution/`.
 
 ### B. Runtime Object Architecture & Consumer Binding
 
