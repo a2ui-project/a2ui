@@ -346,7 +346,7 @@ export class Catalog<
    * @throws {Error} If the catalog ID is missing or not a string.
    */
   static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
-    return loadCatalogFromSchema(catalogSchema, protocolVersion);
+    return loadCatalogFromSchema(catalogSchema, protocolVersion, Catalog);
   }
 }
 

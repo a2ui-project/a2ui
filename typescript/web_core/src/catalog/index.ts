@@ -19,3 +19,5 @@
 
 export * from './types.js';
 export * from './function_invoker.js';
+export * from './schema_loader.js';
+export * from './schema_generator.js';

@@ -19,7 +19,6 @@ import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
-import {loadCatalogFromSchema} from '../../dist/src/catalog/schema_loader.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {toCanonicalVersion} from '../../dist/src/common/semver.js';
@@ -1578,7 +1577,7 @@ function getCatalogsForTestCase(testCase) {
       const cId = catSchema.catalogId || catObj.catalogId || 'custom';
       const pVer = catObj.protocolVersion || catSchema.protocolVersion || version;
       if (catSchema.components || catSchema.theme || catSchema.functions) {
-        const loadedCat = loadCatalogFromSchema({
+        const loadedCat = Catalog.fromSchema({
           catalogId: cId,
           protocolVersion: pVer,
           ...catSchema,
@@ -1595,7 +1594,7 @@ function getCatalogsForTestCase(testCase) {
     for (const cat of testCase.catalogs) {
       if (cat.catalogId) {
         if (cat.components || cat.theme || cat.functions) {
-          const loadedCat = loadCatalogFromSchema({
+          const loadedCat = Catalog.fromSchema({
             protocolVersion: cat.protocolVersion || version,
             ...cat,
           });
@@ -1657,7 +1656,7 @@ function getCatalogsForTestCase(testCase) {
         catalogsMap.set(cId, matchingBasic);
         specifiedCatalogs.push(matchingBasic);
       } else if (json.components) {
-        const loadedCat = loadCatalogFromSchema({
+        const loadedCat = Catalog.fromSchema({
           catalogId: cId,
           protocolVersion: version,
           ...json,

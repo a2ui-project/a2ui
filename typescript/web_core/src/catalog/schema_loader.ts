@@ -31,8 +31,18 @@ import {
   FunctionCallSchema,
   ChildSchema,
 } from '../types/common-types.js';
-import {Catalog, type CatalogApi, type ComponentApi, type FunctionApi} from './types.js';
+import type {CatalogApi, ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
+
+export type CatalogConstructor = new (
+  id: string,
+  protocolVersion: string,
+  components?: ComponentApi[],
+  functions?: FunctionApi[],
+  themeSchema?: z.ZodTypeAny,
+  instructions?: string,
+) => CatalogApi;
+
 /**
  * Protocol version assumed for a catalog schema that does not declare one.
  *
@@ -949,12 +959,14 @@ function parseThemeSchema(
  *   one. Catalog schemas published before v1.0 omit `protocolVersion`; when
  *   neither the caller nor the schema supplies it, `DEFAULT_PROTOCOL_VERSION`
  *   applies.
+ * @param catalogCtor Catalog constructor to instantiate.
  * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
  * @throws {Error} If the catalog ID is missing or not a string.
  */
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, unknown>,
-  protocolVersion?: string,
+  protocolVersion: string | undefined,
+  catalogCtor: CatalogConstructor,
 ): CatalogApi {
   const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
@@ -995,5 +1007,12 @@ export function loadCatalogFromSchema(
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
 
-  return new Catalog(catalogId, resolvedVersion, components, functions, themeSchema, instructions);
+  return new catalogCtor(
+    catalogId,
+    resolvedVersion,
+    components,
+    functions,
+    themeSchema,
+    instructions,
+  );
 }
