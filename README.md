@@ -107,7 +107,7 @@ Pick the path that matches where you want to start:
 | Path                                                                                                      | What you get                                                                                                                            | Time   |
 | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | 🍜 **[Quickstart Restaurant Finder Demo](https://a2ui.org/quickstart/)**                                  | Full-stack A2UI running locally with a Gemini powered ADK agent and Lit renderer. Learn A2UI end-to-end and customize to your use case. | ~5 min |
-| ⚛️ **[Use A2UI with Any Agent Framework & Harness](docs/public/guides/a2ui-with-any-agent-framework.md)** | Scaffold an AG-UI app or harness for your framework of choice, then enable A2UI rendering over AG-UI.                                   | ~5 min |
+| ⚛️ **[Building A2UI Agents with CopilotKit](docs/public/guides/copilotkit.md)**                           | Scaffold an AG-UI app or harness for your framework of choice with CopilotKit, then enable A2UI rendering over AG-UI.                   | ~5 min |
 | 🎨 **[A2UI Composer](https://a2ui-project.github.io/composer/)**                                          | Generate A2UI JSON from a visual editor and paste it into any agent prompt — no install required.                                       | ~1 min |
 | 🎬 **[A2UI Theater](https://a2ui-composer.ag-ui.com/theater)**                                            | Step through pre-built A2UI streaming scenarios across Lit, React, and Angular renderers — no install required.                         | ~1 min |
 
@@ -139,13 +139,13 @@ yarn demo:restaurant
 
 These commands install dependencies across workspaces, build the renderers, start the Python agent, and open the client at `http://localhost:5173`. For step-by-step instructions, alternative demos, and troubleshooting see the **[full Quickstart](docs/public/quickstart.md)**.
 
-### Use A2UI with Any Agent Framework & Harness — Summary
+### Building A2UI Agents with CopilotKit — Summary
 
 ```bash
 npx create-ag-ui-app@latest
 ```
 
-Use the AG-UI CLI with your framework or harness of choice (Google Chat, ADK, LangGraph, CrewAI, Mastra, Strands, Slack, Teams, etc.), then follow the **[AG-UI guide](docs/public/guides/a2ui-with-any-agent-framework.md)** to enable A2UI rendering. Some scaffold paths use [CopilotKit's A2UI runtime](https://docs.copilotkit.ai/generative-ui/a2ui) with Next.js under the hood, but the setup surface is AG-UI-first.
+Use the AG-UI CLI with your framework or harness of choice (Google Chat, ADK, LangGraph, CrewAI, Mastra, Strands, Slack, Teams, etc.), then follow the **[Building A2UI Agents with CopilotKit guide](docs/public/guides/copilotkit.md)** to enable A2UI rendering. Some scaffold paths use [CopilotKit's A2UI runtime](https://docs.copilotkit.ai/generative-ui/a2ui) with Next.js under the hood, but the setup surface is AG-UI-first.
 
 ### Other renderers
 

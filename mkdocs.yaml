@@ -54,8 +54,9 @@ nav:
       - Actions: concepts/actions.md
   - Guides:
       - Client Setup: guides/client-setup.md
-      - Agent Development: guides/agent-development.md
-      - Use A2UI with Any Agent Framework & Harness: guides/a2ui-with-any-agent-framework.md
+      - Building A2UI Agents with Genkit: guides/genkit.md
+      - Building A2UI Agents with ADK: guides/adk.md
+      - Building A2UI Agents with CopilotKit: guides/copilotkit.md
       - Renderer Development: guides/renderer-development.md
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
       - Authoring Custom Components: guides/authoring-components.md
@@ -224,3 +225,5 @@ plugins:
         "introduction/where-is-it-used.md": "ecosystem/a2ui-in-the-world.md"
         "guides/guide_a2ui_dynamic_mcp.md": "guides/a2ui-in-mcp-apps.md"
         "guides/mcp-apps-in-a2ui-surface.md": "guides/mcp-apps-in-a2ui.md"
+        "guides/agent-development.md": "guides/adk.md"
+        "guides/a2ui-with-any-agent-framework.md": "guides/copilotkit.md"

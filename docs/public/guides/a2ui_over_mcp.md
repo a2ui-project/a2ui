@@ -494,7 +494,7 @@ if errors:
     raise ValueError(f"Invalid A2UI payload: {errors}")
 ```
 
-See the full [Agent Development Guide](agent-development.md) for details on schema management, dynamic catalogs, and streaming.
+See the full [Building A2UI Agents with ADK](adk.md) guide for details on schema management, dynamic catalogs, and streaming.
 
 ## Next Steps
 
