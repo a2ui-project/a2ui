@@ -50,6 +50,7 @@ class ComponentContext {
                   ),
                 );
               },
+          protocolVersion: surface.protocolVersion,
         );
 
   /// Dispatches an action from the component.
