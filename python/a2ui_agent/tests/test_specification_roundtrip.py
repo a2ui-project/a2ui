@@ -20,7 +20,6 @@ import os
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.schema import A2uiCatalog
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 from a2ui.inference_formats.experimental.atom.format import AtomFormat
@@ -109,13 +108,7 @@ class TestSpecificationRoundtripAllFormats:
     @pytest.fixture(autouse=True)
     def setup_catalog(self):
         # Load standard basic catalog containing all specification components
-        self.catalog = A2uiCatalog(
-            version="0.9",
-            name="basic_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema=BasicCatalog("0.9").catalog_schema,
-        )
+        self.catalog = BasicCatalog("0.9")
         self.express_fmt = ExpressFormat(catalog=self.catalog)
         self.elemental_fmt = ElementalFormat(catalog=self.catalog)
         self.atom_fmt = AtomFormat(catalog=self.catalog)

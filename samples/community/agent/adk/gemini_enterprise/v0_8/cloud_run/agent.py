@@ -34,7 +34,7 @@ from a2ui.core.parser.parser import parse_response
 from a2ui.core.schema.common_modifiers import remove_strict_validation
 from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig
+from a2ui.schema import CatalogConfig, validate_components
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -325,7 +325,7 @@ class ContactAgent:
                                 "--- ContactAgent.fetch_response: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validate_components(parsed_json_data)
+                            validate_components(selected_catalog, parsed_json_data)
                             # --- End Validation Steps ---
 
                             logger.info(

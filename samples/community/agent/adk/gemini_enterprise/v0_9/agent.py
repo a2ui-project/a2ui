@@ -35,6 +35,7 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 from a2ui.schema.manager import A2uiSchemaManager
 from google.adk.agents import run_config
@@ -374,7 +375,7 @@ class A2uiDemoAgent:
                             "--- A2uiDemoAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        selected_catalog.validate_components(parsed_json_data)
+                        validate_components(selected_catalog, parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

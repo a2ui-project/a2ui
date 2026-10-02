@@ -53,6 +53,7 @@ from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 from a2ui.a2a import (
     create_a2ui_part,
@@ -514,7 +515,7 @@ class ContactAgent:
                                 "--- ContactAgent.stream: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validate_components(parsed_json_data)
+                            validate_components(selected_catalog, parsed_json_data)
 
                             logger.info(
                                 "--- ContactAgent.stream: UI JSON successfully parsed"

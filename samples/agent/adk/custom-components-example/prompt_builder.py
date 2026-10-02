@@ -24,6 +24,7 @@ from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
+    render_as_llm_instructions,
 )
 from typing import Any
 
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     inline_catalog = transport_format.get_selected_catalog(
         client_ui_capabilities=client_ui_capabilities,
     )
-    request_prompt = inline_catalog.render_as_llm_instructions()
+    request_prompt = render_as_llm_instructions(inline_catalog)
     print(request_prompt)
     with open("request_prompt.txt", "w") as f:
         f.write(request_prompt)

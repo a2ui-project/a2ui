@@ -19,7 +19,6 @@ import os
 import unittest
 from unittest.mock import MagicMock
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog, VERSION_1_0
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 from a2ui.inference_formats.experimental.elemental.prompt_generator import (
     ElementalPromptGenerator,

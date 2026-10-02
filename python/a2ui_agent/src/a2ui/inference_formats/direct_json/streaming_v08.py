@@ -23,15 +23,18 @@ from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
 from a2ui.core.validation import RELAXED_VALIDATION
 
-if TYPE_CHECKING:
-    from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog, CatalogApi
 
 
 class DirectJsonStreamParserV08(DirectJsonStreamParser):
     """Streaming parser implementation for A2UI v0.8 specification."""
 
-    def __init__(self, catalog: A2uiCatalog):
-        super().__init__(catalog=catalog)
+    def __init__(
+        self,
+        catalog: CatalogApi,
+        custom_cuttable_keys: frozenset[str] | None = None,
+    ):
+        super().__init__(catalog=catalog, custom_cuttable_keys=custom_cuttable_keys)
         self._yielded_begin_rendering_surfaces: set[str] = set()
 
     @property

@@ -28,106 +28,13 @@ from a2ui.parser.constants import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
 )
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 
 
 @pytest.fixture
 def mock_catalog():
-    s2c_schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
-        "title": "A2UI Message Schema",
-        "type": "object",
-        "oneOf": [
-            {"$ref": "#/$defs/CreateSurfaceMessage"},
-            {"$ref": "#/$defs/UpdateComponentsMessage"},
-            {"$ref": "#/$defs/UpdateDataModelMessage"},
-            {"$ref": "#/$defs/DeleteSurfaceMessage"},
-        ],
-        "$defs": {
-            "CreateSurfaceMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "createSurface": {
-                        "type": "object",
-                        "properties": {
-                            "surfaceId": {
-                                "type": "string",
-                            },
-                            "catalogId": {
-                                "type": "string",
-                            },
-                            "theme": {
-                                "type": "object",
-                                "additionalProperties": True,
-                            },
-                        },
-                        "required": ["surfaceId", "catalogId"],
-                        "additionalProperties": False,
-                    },
-                },
-                "required": ["version", "createSurface"],
-                "additionalProperties": False,
-            },
-            "UpdateComponentsMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "updateComponents": {
-                        "type": "object",
-                        "properties": {
-                            "surfaceId": {
-                                "type": "string",
-                            },
-                            "components": {
-                                "type": "array",
-                                "minItems": 1,
-                                "items": {"$ref": "catalog.json#/$defs/anyComponent"},
-                            },
-                        },
-                        "required": ["surfaceId", "components"],
-                        "additionalProperties": False,
-                    },
-                },
-                "required": ["version", "updateComponents"],
-                "additionalProperties": False,
-            },
-            "UpdateDataModelMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "updateDataModel": {
-                        "type": "object",
-                        "properties": {
-                            "surfaceId": {
-                                "type": "string",
-                            },
-                            "value": {"additionalProperties": True},
-                        },
-                        "required": ["surfaceId"],
-                        "additionalProperties": False,
-                    },
-                },
-                "required": ["version", "updateDataModel"],
-                "additionalProperties": False,
-            },
-            "DeleteSurfaceMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "deleteSurface": {
-                        "type": "object",
-                        "properties": {"surfaceId": {"type": "string"}},
-                        "required": ["surfaceId"],
-                    },
-                },
-                "required": ["version", "deleteSurface"],
-            },
-        },
-    }
     catalog_schema = {
         "catalogId": "test_catalog",
         "components": {
@@ -254,64 +161,10 @@ def mock_catalog():
             },
         },
     }
-    common_types_schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://a2ui.org/specification/v0_9/common_types.json",
-        "title": "A2UI Common Types",
-        "$defs": {
-            "ComponentId": {
-                "type": "string",
-            },
-            "AccessibilityAttributes": {
-                "type": "object",
-                "properties": {
-                    "label": {
-                        "$ref": "#/$defs/DynamicString",
-                    }
-                },
-            },
-            "Action": {"type": "object", "additionalProperties": True},
-            "ComponentCommon": {
-                "type": "object",
-                "properties": {"id": {"$ref": "#/$defs/ComponentId"}},
-                "required": ["id"],
-            },
-            "DataBinding": {"type": "object"},
-            "DynamicString": {
-                "anyOf": [{"type": "string"}, {"$ref": "#/$defs/DataBinding"}]
-            },
-            "DynamicValue": {
-                "anyOf": [
-                    {"type": "object"},
-                    {"type": "array"},
-                    {"$ref": "#/$defs/DataBinding"},
-                ]
-            },
-            "DynamicNumber": {
-                "anyOf": [{"type": "number"}, {"$ref": "#/$defs/DataBinding"}]
-            },
-            "ChildList": {
-                "oneOf": [
-                    {"type": "array", "items": {"$ref": "#/$defs/ComponentId"}},
-                    {
-                        "type": "object",
-                        "properties": {
-                            "componentId": {"$ref": "#/$defs/ComponentId"},
-                            "path": {"type": "string"},
-                        },
-                        "required": ["componentId", "path"],
-                        "additionalProperties": False,
-                    },
-                ]
-            },
-        },
-    }
-    return A2uiCatalog(
-        version=VERSION_0_9,
-        name="test_catalog",
-        s2c_schema=s2c_schema,
-        common_types_schema=common_types_schema,
+    return Catalog.from_json(
         catalog_schema=catalog_schema,
+        protocol_version=VERSION_0_9,
+        catalog_id="test_catalog",
     )
 
 

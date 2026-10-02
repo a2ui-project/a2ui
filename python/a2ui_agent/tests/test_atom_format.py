@@ -504,7 +504,6 @@ class TestAtomFormat(unittest.TestCase):
     def test_fuzzed_synthetic_catalog_agnosticism(self):
         """Verify 100% catalog agnosticism using a fuzzed synthetic catalog with non-standard names."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler
-        from a2ui.schema import A2uiCatalog, CatalogConfig
         from a2ui.core import Catalog
 
         # Synthetic catalog definitions with non-standard names
@@ -552,15 +551,12 @@ class TestAtomFormat(unittest.TestCase):
             },
         }
 
-        cat = A2uiCatalog(
-            version="1.0",
-            name="custom_fuzzed_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema={
+        cat = Catalog.from_json(
+            {
                 "catalogId": "https://a2ui.org/custom_fuzzed_catalog",
                 "components": synthetic_components,
             },
+            protocol_version="v1.0",
         )
         compiler = AtomCompiler(catalog=cat)
         decompiler = AtomDecompiler(catalog=cat)
@@ -613,7 +609,7 @@ class TestAtomFormat(unittest.TestCase):
 
     def test_synthetic_catalog_child_list_template_assignment(self):
         """Test catalog-agnostic ChildList template assignment with custom non-standard property name 'sub_nodes'."""
-        from a2ui.schema.catalog import A2uiCatalog
+        from a2ui.core import Catalog
 
         synthetic_components = {
             "CustomContainerX": {
@@ -637,15 +633,12 @@ class TestAtomFormat(unittest.TestCase):
                 "required": ["component"],
             },
         }
-        cat = A2uiCatalog(
-            version="1.0",
-            name="custom_fuzzed_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema={
+        cat = Catalog.from_json(
+            {
                 "catalogId": "https://a2ui.org/custom_fuzzed_catalog",
                 "components": synthetic_components,
             },
+            protocol_version="v1.0",
         )
         compiler = AtomCompiler(catalog=cat)
         atom_src = (

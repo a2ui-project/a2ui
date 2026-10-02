@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import pytest
-from a2ui.schema import A2uiCatalog, VERSION_0_9
+from a2ui.core import Catalog
+from a2ui.schema import VERSION_0_9
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.adk import A2uiPartConverter
 from google.genai import types as genai_types
@@ -26,12 +27,8 @@ from a2ui.inference_formats.experimental.elemental import (
 
 @pytest.fixture
 def test_catalog():
-    return A2uiCatalog(
-        version=VERSION_0_9,
-        name="test_catalog",
-        s2c_schema={},
-        common_types_schema={},
-        catalog_schema={
+    return Catalog.from_json(
+        {
             "catalogId": "https://a2ui.org/test_catalog",
             "components": {
                 "Text": {
@@ -44,6 +41,7 @@ def test_catalog():
                 }
             },
         },
+        protocol_version=f"v{VERSION_0_9}",
     )
 
 
@@ -222,23 +220,23 @@ def test_decompiler_delegation(test_catalog):
     assert DummyPromptGenerator().generate("role") == "role"
 
     # Verify invalid catalog_id check
-    bad_catalog = A2uiCatalog(
-        version="1.0",
-        name="bad",
-        experiments=None,
-        s2c_schema={},
-        common_types_schema={},
-        catalog_schema={"catalogId": 12345},
-    )
     from a2ui.core import A2uiCatalogError
+    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
+
+    class _BadProvider(A2uiCatalogProvider):
+
+        def load(self):
+            return {"catalogId": 12345}
 
     with pytest.raises(A2uiCatalogError) as ctx:
-        _ = bad_catalog.catalog_id
+        _ = CatalogConfig(name="bad", provider=_BadProvider()).to_catalog(version="1.0")
     assert "catalogId is not a string" in str(ctx.value)
 
     # Verify empty pruned components and messages fallback
-    assert test_catalog._with_pruned_components([]) is test_catalog
-    assert test_catalog._with_pruned_messages([]) is test_catalog
+    from a2ui.schema import prune_catalog_components, prune_messages_schema
+
+    assert prune_catalog_components(test_catalog, []) is test_catalog
+    assert prune_messages_schema({}, []) == {}
 
 
 def test_direct_json_stream_parser_record_inline_components_surface_id(

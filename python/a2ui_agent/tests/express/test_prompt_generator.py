@@ -18,7 +18,7 @@ import json
 import os
 import tempfile
 import unittest
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 from a2ui.schema.constants import VERSION_1_0
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
@@ -27,17 +27,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
     """Test suite covering Express prompt generation, examples pruning, and validation."""
 
     def setUp(self):
-        self.catalog = A2uiCatalog(
-            version=VERSION_1_0,
-            name="test_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={
-                "$id": (
-                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
-                ),
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-            },
-            common_types_schema={},
+        self.catalog = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/test_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/test_catalog",
                 "components": {
@@ -185,12 +177,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
     def test_express_signatures_with_object_properties(self):
         """Test component signatures generation for object properties with map keys."""
-        cat_map_obj = A2uiCatalog(
-            version=VERSION_1_0,
-            name="map_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        cat_map_obj = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/map_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/map_catalog",
                 "components": {
@@ -218,12 +207,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
     def test_express_schema_helper_methods(self):
         from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
 
-        cat = A2uiCatalog(
-            version=VERSION_1_0,
-            name="express_helper_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        cat = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="test",
             catalog_schema={
                 "catalogId": "test",
                 "components": {
