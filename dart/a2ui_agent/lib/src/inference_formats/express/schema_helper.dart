@@ -121,7 +121,13 @@ class CatalogSchemaHelper {
           if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
           if (_properties(sub).containsKey('checks')) isCheckable = true;
         }
-        const structural = {'component', 'id', 'checks'};
+        const structural = {
+          'component',
+          'id',
+          'checks',
+          'accessibility',
+          'weight',
+        };
         schemas.removeWhere((name, _) => structural.contains(name));
         return _ComponentSignature(
           properties: [...schemas.keys],

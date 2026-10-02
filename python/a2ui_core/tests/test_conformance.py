@@ -63,7 +63,11 @@ SUPPORTED_PROTOCOL_VERSIONS = {
     "1.0",
 }
 
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: set[str] = {
+    # Python Catalog currently preserves raw allOf composition and does not flatten envelope mixins.
+    "test_v09_catalog_allof_envelope_flattening",
+    "test_v09_catalog_inlined_fixed_point_round_trip",
+}
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()

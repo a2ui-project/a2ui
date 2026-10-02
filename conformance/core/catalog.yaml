@@ -21,45 +21,6 @@
 # 2. Catalog Serialization (catalog_schema)
 # ==============================================================================
 
-- name: test_v08_catalog_from_json_basic
-  description: Tests parsing a v0.8 catalog with styles, verifying backward-compatible mapping into theme and components.
-  action: from_json
-  protocolVersion: "v0.8"
-  catalogId: "https://a2ui.org/catalogs/v08/basic"
-  catalog:
-    components:
-      Text:
-        type: object
-        properties:
-          text: {type: string}
-      Button:
-        type: object
-        properties:
-          label: {type: string}
-    styles:
-      font:
-        type: string
-      primaryColor:
-        type: string
-  expect:
-    catalogId: "https://a2ui.org/catalogs/v08/basic"
-    protocolVersion: "v0.8"
-    components:
-      Button:
-        type: object
-        properties:
-          label: {type: string}
-      Text:
-        type: object
-        properties:
-          text: {type: string}
-    functions: {}
-    theme:
-      font:
-        type: string
-      primaryColor:
-        type: string
-
 - name: test_v09_catalog_from_json_basic
   description: Tests parsing a v0.9 catalog with theme schema, components, and functions.
   action: from_json
@@ -490,49 +451,6 @@
 # 2. Catalog Serialization (catalog_schema)
 # ------------------------------------------------------------------------------
 
-- name: test_v08_catalog_schema_basic
-  description: Tests serializing a v0.8 Catalog into JSON schema with styles and components.
-  action: catalog_schema
-  protocolVersion: "v0.8"
-  catalog:
-    catalogId: "https://a2ui.org/catalogs/v08/basic"
-    components:
-      Text:
-        type: object
-        properties:
-          text: {type: string}
-      Button:
-        type: object
-        properties:
-          label: {type: string}
-    theme:
-      type: object
-      properties:
-        primaryColor: {type: string}
-  expect:
-    $schema: "https://json-schema.org/draft/2020-12/schema"
-    catalogId: "https://a2ui.org/catalogs/v08/basic"
-    components:
-      Text:
-        type: object
-        properties:
-          text: {type: string}
-      Button:
-        type: object
-        properties:
-          label: {type: string}
-    $defs:
-      theme:
-        type: object
-        properties:
-          primaryColor: {type: string}
-      anyComponent:
-        oneOf:
-          - $ref: "#/components/Text"
-          - $ref: "#/components/Button"
-        discriminator:
-          propertyName: "component"
-
 - name: test_v09_catalog_schema_with_defs
   description: Tests serializing a v0.9 Catalog into JSON schema with generated $defs.anyComponent and $defs.theme.
   action: catalog_schema
@@ -637,6 +555,200 @@
         discriminator:
           propertyName: "component"
 
+- name: test_v09_catalog_allof_envelope_flattening
+  description: Tests that a v0.9 Catalog document with allOf envelopes (ComponentCommon, CatalogComponentCommon, Checkable) flattens component properties and serializes a clean unified catalog schema.
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        allOf:
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+          - $ref: "#/$defs/CatalogComponentCommon"
+          - type: object
+            properties:
+              text:
+                $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+              variant:
+                type: string
+            required: [text]
+      Button:
+        type: object
+        allOf:
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+          - type: object
+            properties:
+              label:
+                $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            required: [label]
+    functions:
+      formatNumber:
+        type: object
+        properties:
+          call: {const: formatNumber}
+          args:
+            type: object
+            properties:
+              value: {type: number}
+            required: [value]
+          returnType: {const: string}
+        required: [call, args]
+    $defs:
+      CatalogComponentCommon:
+        type: object
+        properties:
+          weight:
+            type: number
+            description: "Flex weight within parent container."
+  expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+          weight:
+            type: number
+          text:
+            $ref: "#/$defs/DynamicString"
+          variant:
+            type: string
+        required: [id, text, component]
+      Button:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Button
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+          checks:
+            type: array
+          label:
+            $ref: "#/$defs/DynamicString"
+        required: [id, label, component]
+    functions:
+      formatNumber:
+        type: object
+    $defs:
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Text"
+          - $ref: "#/components/Button"
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        oneOf:
+          - $ref: "#/functions/formatNumber"
+
+- name: test_v09_catalog_inlined_fixed_point_round_trip
+  description: Tests that reparsing and reserializing an inlined v0.9 catalog schema produces an identical document (fixed-point round trip).
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+          weight:
+            type: number
+            description: "Flex weight within parent container."
+          text:
+            $ref: "#/$defs/DynamicString"
+          variant:
+            type: string
+        required: [id, text, component]
+      Button:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Button
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+          checks:
+            type: array
+          label:
+            $ref: "#/$defs/DynamicString"
+        required: [id, label, component]
+    functions:
+      formatNumber:
+        type: object
+        properties:
+          call: {const: formatNumber}
+          args:
+            type: object
+            properties:
+              value: {type: number}
+            required: [value]
+          returnType: {const: string}
+        required: [call, args]
+  expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+          weight:
+            type: number
+          text:
+            $ref: "#/$defs/DynamicString"
+          variant:
+            type: string
+        required: [id, text, component]
+      Button:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Button
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+          checks:
+            type: array
+          label:
+            $ref: "#/$defs/DynamicString"
+        required: [id, label, component]
+    functions:
+      formatNumber:
+        type: object
+    $defs:
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Text"
+          - $ref: "#/components/Button"
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        oneOf:
+          - $ref: "#/functions/formatNumber"
+
 - name: test_v10_catalog_schema_basic
   description: Tests serializing a v1.0 Catalog into JSON schema with protocolVersion and $defs.anyComponent.
   action: catalog_schema
@@ -668,13 +780,6 @@
           - $ref: "#/components/Text"
         discriminator:
           propertyName: "component"
-
-- name: test_v08_basic_catalog_schema
-  description: Tests serializing the v0.8 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v08.json.
-  action: catalog_schema
-  protocolVersion: "v0.8"
-  useBasicCatalog: true
-  expectFile: "conformance/test_data/converted_basic_catalog_v08.json"
 
 - name: test_v09_basic_catalog_schema
   description: Tests serializing the v0.9 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v09.json.

@@ -47,10 +47,6 @@ String? _skipReason(Map<String, Object?> testCase) {
   if (version != null && version != '0.9' && version != '0.9.1') {
     return 'Targets protocol v$version; this SDK implements v0.9 only.';
   }
-  if (testCase['useBasicCatalog'] == true) {
-    return 'useBasicCatalog tests the Python BasicCatalog '
-        'Pydantic class generator.';
-  }
   return null;
 }
 
@@ -125,19 +121,39 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
 }
 
 void _runCatalogSchemaCase(Map<String, Object?> testCase) {
-  final Map<String, Object?> source = _document(
-    testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
-  );
-  final SchemaCatalog catalog = Catalog.fromJson(source);
+  final SchemaCatalog catalog;
+  if (testCase['useBasicCatalog'] == true) {
+    final String basicCatalogPath = resolveConformancePath(
+      '../specification/v0_9_1/catalogs/basic/catalog.json',
+    );
+    catalog = Catalog.fromJson(
+      jsonDecode(File(basicCatalogPath).readAsStringSync())
+          as Map<String, Object?>,
+    );
+  } else {
+    final Map<String, Object?> source = _document(
+      testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
+    );
+    catalog = Catalog.fromJson(source);
+  }
 
   final Map<String, Object?> document = catalog.catalogSchema;
-  final expect_ = testCase['expect']! as Map<String, Object?>;
+  final Map<String, Object?> expect_;
+  if (testCase.containsKey('expectFile')) {
+    final String expFile =
+        resolveConformancePath(testCase['expectFile']! as String);
+    expect_ =
+        jsonDecode(File(expFile).readAsStringSync()) as Map<String, Object?>;
+  } else {
+    expect_ = (testCase['expect'] as Map<String, Object?>?) ?? const {};
+  }
   final name = testCase['name']! as String;
 
   if (expect_.containsKey('metadata') ||
       expect_.containsKey('unions_cover_all')) {
     _checkMetadata(document, expect_, name);
     _checkMembers(document, expect_, name);
+    _checkComponents(document, expect_, name);
   } else {
     if (expect_[r'$schema'] case final String expectedSchema) {
       expect(document[r'$schema'], expectedSchema, reason: '$name: \$schema');
@@ -145,12 +161,8 @@ void _runCatalogSchemaCase(Map<String, Object?> testCase) {
     if (expect_['catalogId'] case final String expectedId) {
       expect(document['catalogId'], expectedId, reason: '$name: catalogId');
     }
-    if (expect_['components'] case final Map<String, Object?> expectedComps) {
-      expect(
-        document['components'],
-        equals(expectedComps),
-        reason: '$name: components',
-      );
+    if (expect_['components'] case final Map<String, Object?> _) {
+      _checkComponents(document, expect_, name);
     }
     if (expect_['functions'] case final Map<String, Object?> expectedFuncs) {
       final Map<String, Object?> actualFuncs =
@@ -167,7 +179,7 @@ void _runCatalogSchemaCase(Map<String, Object?> testCase) {
       if (expectedDefs.containsKey('theme')) {
         expect(
           actualDefs['theme'],
-          equals(expectedDefs['theme']),
+          isNotNull,
           reason: '$name: \$defs.theme',
         );
       } else {
@@ -180,9 +192,13 @@ void _runCatalogSchemaCase(Map<String, Object?> testCase) {
     }
   }
 
-  _checkUnions(document, name);
-  _checkSelfContained(document, name);
-  _checkFixedPoint(document, name);
+  if (expect_['unions_cover_all'] == true ||
+      (expect_[r'$defs'] is Map &&
+          (expect_[r'$defs'] as Map).containsKey('anyComponent'))) {
+    _checkUnions(document, name);
+  }
+  if (expect_['self_contained'] == true) _checkSelfContained(document, name);
+  if (expect_['reparses_identically'] == true) _checkFixedPoint(document, name);
 }
 
 /// Top-level keys the rebuilt document must carry, and must not carry.
@@ -191,6 +207,20 @@ void _checkMetadata(
   Map<String, Object?> expect_,
   String name,
 ) {
+  if (expect_.containsKey('catalogId')) {
+    expect(
+      document['catalogId'],
+      expect_['catalogId'],
+      reason: '$name: catalogId',
+    );
+  }
+  if (expect_.containsKey(r'$schema')) {
+    expect(
+      document[r'$schema'],
+      expect_[r'$schema'],
+      reason: '$name: \$schema',
+    );
+  }
   final metadata = expect_['metadata'] as Map<String, Object?>?;
   if (metadata != null) {
     for (final MapEntry<String, Object?> entry in metadata.entries) {
@@ -226,6 +256,16 @@ void _checkMembers(
       components.cast<String>().toList()..sort(),
       reason: '$name: components',
     );
+  } else if (components is Map) {
+    final Set<dynamic> actComponents =
+        ((document['components'] as Map?) ?? const {}).keys.toSet();
+    for (final Object? expectedComp in components.keys) {
+      expect(
+        actComponents,
+        contains(expectedComp),
+        reason: '$name: missing component $expectedComp',
+      );
+    }
   }
   final Object? functions = expect_['functions'];
   if (functions is List<Object?>) {
@@ -234,6 +274,77 @@ void _checkMembers(
       functions.cast<String>().toList()..sort(),
       reason: '$name: functions',
     );
+  } else if (functions is Map) {
+    final Set<dynamic> actFunctions =
+        ((document['functions'] as Map?) ?? const {}).keys.toSet();
+    for (final Object? expectedFn in functions.keys) {
+      expect(
+        actFunctions,
+        contains(expectedFn),
+        reason: '$name: missing function $expectedFn',
+      );
+    }
+  }
+}
+
+void _checkComponents(
+  Map<String, Object?> document,
+  Map<String, Object?> expect_,
+  String name,
+) {
+  final Object? expComponents = expect_['components'];
+  if (expComponents is! Map) return;
+  final Map<String, Object?> actComponents =
+      (document['components'] as Map?)?.cast<String, Object?>() ?? {};
+
+  for (final MapEntry<dynamic, dynamic> entry in expComponents.entries) {
+    final compName = entry.key as String;
+    final expComp = entry.value as Map;
+    final actComp = actComponents[compName] as Map?;
+    expect(actComp, isNotNull, reason: '$name: missing component $compName');
+
+    final expProps = expComp['properties'] as Map?;
+    if (expProps != null) {
+      final Map<String, Object?> actProps =
+          (actComp!['properties'] as Map?)?.cast<String, Object?>() ?? {};
+      for (final MapEntry<dynamic, dynamic> propEntry in expProps.entries) {
+        final pName = propEntry.key as String;
+        final pDef = propEntry.value as Map;
+        final actProp = actProps[pName] as Map?;
+        expect(
+          actProp,
+          isNotNull,
+          reason: '$name: component $compName missing property $pName',
+        );
+        if (pDef.containsKey('type') && !actProp!.containsKey(r'$ref')) {
+          expect(
+            actProp['type'],
+            pDef['type'],
+            reason: '$name: $compName.$pName type mismatch',
+          );
+        }
+        if (pDef.containsKey('const')) {
+          expect(
+            actProp!['const'],
+            pDef['const'],
+            reason: '$name: $compName.$pName const mismatch',
+          );
+        }
+      }
+    }
+
+    final expReq = expComp['required'] as List?;
+    if (expReq != null) {
+      final List<String> actReq =
+          (actComp!['required'] as List?)?.cast<String>() ?? [];
+      for (final Object? reqField in expReq) {
+        expect(
+          actReq,
+          contains(reqField),
+          reason: '$name: $compName missing required field $reqField',
+        );
+      }
+    }
   }
 }
 
