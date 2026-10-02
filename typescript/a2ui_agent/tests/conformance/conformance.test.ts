@@ -229,14 +229,17 @@ describe('Conformance Harness', () => {
         });
 
         for (const step of testCase.steps as any[]) {
-          if (step.expectError) {
-            assertThrows(() => processor.processChunk(step.input), step.expectError);
-          } else if (step.expect) {
+          // As in Python's harness, a case-level expectError applies to every step, and a
+          // step with no expectation is an error in the suite rather than an unchecked step.
+          const expectError = step.expectError ?? testCase.expectError;
+          if (expectError) {
+            assertThrows(() => processor.processChunk(step.input), expectError);
+          } else if (step.expect !== undefined) {
             const result = processor.processChunk(step.input);
             const adapted = adaptParts(result);
             expect(adapted).toEqual(step.expect);
           } else {
-            processor.processChunk(step.input);
+            throw new Error(`A step of ${name} has neither expect nor expectError`);
           }
         }
       } else if (action === 'skill') {
