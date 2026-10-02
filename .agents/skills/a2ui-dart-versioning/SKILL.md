@@ -21,10 +21,10 @@ request changes the version.
   describe something your change replaces, such as "Declared X as a stub" when
   you implement X. Rewrite those notes so the section describes the release as
   it will ship, rather than adding a second entry that contradicts the first.
-- Describe what a user of the package sees: new API, changed behavior, and
+- Describe what a user of the package sees: new APIs, changed behavior, and
   breaking changes marked `Breaking:`. Internal refactoring needs no entry.
 - Another workspace package that depends on this one needs its constraint
-  raised only if it uses API that the next release adds.
+  raised only if it uses the API that the next release adds.
 
 ## Releasing
 

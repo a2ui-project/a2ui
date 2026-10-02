@@ -148,10 +148,10 @@ Do not assume a book exists or contains a specific fact without verification.
 
 ### Link what you mention
 
-Link everything the reader may want to open: files, functions, test and conformance cases, packages, issues, pull requests and external pages. How precise a link should be depends on how long the text lives.
+Link everything the reader may want to open: files, functions, test and conformance cases, packages, issues, pull requests, and external pages. How precise a link should be depends on how long the text lives.
 
-- In short-lived text, such as review comments, PR descriptions and issues, link to the exact lines. Pin the link to a commit SHA rather than a branch, so it keeps pointing at the lines you meant after the branch moves. For a Markdown file, add `?plain=1` so a line anchor such as `#L10-L20` works.
-- In long-lived documents, such as READMEs, documentation, skills and code comments, link to the file or its section, without line ranges. A line range in one long-lived document has to be updated every time the document it points to changes.
+- In short-lived text, such as review comments, PR descriptions, and issues, link to the exact lines. Pin the link to a commit SHA rather than a branch, so it keeps pointing at the lines you meant after the branch moves. For a Markdown file, add `?plain=1` so a line anchor such as `#L10-L20` works.
+- In long-lived documents, such as READMEs, documentation, skills, and code comments, link to the file or its section, without line ranges. A line range in one long-lived document has to be updated every time the document it points to changes.
 - Link only to what the reader can see at the link target. If your change is not pushed yet, link to the current version, or post the text after the push.
 - Before posting, check that every link resolves.
 
