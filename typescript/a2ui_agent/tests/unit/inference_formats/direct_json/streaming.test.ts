@@ -619,3 +619,25 @@ describe('Direct JSON Streaming partial data model', () => {
     }
   });
 });
+
+describe('Direct JSON Streaming stableStringify', () => {
+  const catalog: SchemaCatalog = new Catalog(
+    'https://test.com/catalog.json',
+    'v0.9',
+    [{name: 'Text', schema: {}} as ComponentApi],
+    [],
+  );
+  const processor = new DirectJsonStreamProcessorImpl([catalog]);
+  const stableStringify = (value: unknown): string =>
+    (processor as unknown as {stableStringify(value: unknown): string}).stableStringify(value);
+
+  test('writes undefined values as JSON.stringify does', () => {
+    const value = {b: [1, undefined], a: undefined, c: {d: undefined}};
+    expect(stableStringify(value)).toBe('{"b":[1,null],"c":{}}');
+    expect(JSON.parse(stableStringify(value))).toEqual(JSON.parse(JSON.stringify(value)));
+  });
+
+  test('sorts keys and escapes them', () => {
+    expect(stableStringify({z: 1, 'a"b': 2})).toBe('{"a\\"b":2,"z":1}');
+  });
+});

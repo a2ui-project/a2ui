@@ -1037,15 +1037,26 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     }
   }
 
-  private stableStringify(obj: any): string {
-    if (Array.isArray(obj)) {
-      return `[${obj.map(o => this.stableStringify(o)).join(',')}]`;
+  /**
+   * Serializes a value as JSON with object keys sorted, so that equal values give equal text.
+   *
+   * Values JSON can't hold are written as `JSON.stringify` writes them: an object entry whose
+   * value is undefined is left out, and an undefined array item becomes `null`.
+   */
+  private stableStringify(value: unknown): string {
+    if (Array.isArray(value)) {
+      const items = value.map(item => (item === undefined ? 'null' : this.stableStringify(item)));
+      return `[${items.join(',')}]`;
     }
-    if (typeof obj === 'object' && obj !== null) {
-      const keys = Object.keys(obj).sort();
-      return `{${keys.map(k => `"${k}":${this.stableStringify(obj[k])}`).join(',')}}`;
+    if (typeof value === 'object' && value !== null) {
+      const record = value as Record<string, unknown>;
+      const entries = Object.keys(record)
+        .sort()
+        .filter(key => record[key] !== undefined)
+        .map(key => `${JSON.stringify(key)}:${this.stableStringify(record[key])}`);
+      return `{${entries.join(',')}}`;
     }
-    return JSON.stringify(obj);
+    return JSON.stringify(value);
   }
 
   private yieldReachable(messages: ResponsePart[], checkRoot: boolean, raiseOnOrphans: boolean) {
