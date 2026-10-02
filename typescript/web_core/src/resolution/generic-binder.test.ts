@@ -17,11 +17,13 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {z} from 'zod';
+import {z as z4} from 'zod/v4';
 import {
   GenericBinder,
   getSafeChildList,
   MAX_DYNAMIC_CHILD_LIST_SIZE,
   scrapeSchemaBehavior,
+  type BehaviorNode,
   type GenerateSetters,
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
@@ -800,6 +802,98 @@ describe('GenericBinder Checkable Trait', () => {
         assert.strictEqual(nestedBehavior.shape.value.type, 'OBJECT');
         assert.strictEqual(nestedBehavior.shape.text.type, 'ARRAY');
       }
+    });
+  });
+
+  describe('scrapeSchemaBehavior with zod 4 schemas', () => {
+    // A host application may build its catalog with zod 4 while web_core is
+    // compiled against zod 3. The `zod/v4` subpath ships genuine zod 4
+    // internals (`def.type`, plain `def.shape`, `def.element`).
+    const dynamicString4 = z4.string().describe('REF:#/$defs/DynamicString');
+    const componentId4 = z4.string().describe('REF:common_types.json#/$defs/ComponentId');
+
+    // scrapeSchemaBehavior adds an `accessibility` entry to every root object.
+    // These tests are about how the declared properties are classified, so they
+    // compare without it.
+    const scrapeDeclared = (schema: z.ZodTypeAny): BehaviorNode => {
+      const behavior = scrapeSchemaBehavior(schema);
+      if (behavior.type !== 'OBJECT') return behavior;
+      const {accessibility: _accessibility, ...shape} = behavior.shape;
+      return {...behavior, shape};
+    };
+
+    it('should classify zod 4 objects, wrappers and arrays', () => {
+      const schema4 = z4.object({
+        value: dynamicString4,
+        min: dynamicString4.optional(),
+        parsed: dynamicString4.transform(s => s.trim()),
+        items: z4.array(dynamicString4),
+        checks: z4.array(z4.unknown().describe('REF:common_types.json#/$defs/CheckRule')),
+        label: z4.string(),
+      });
+
+      assert.deepStrictEqual(scrapeDeclared(schema4 as unknown as z.ZodTypeAny), {
+        type: 'OBJECT',
+        shape: {
+          value: {type: 'DYNAMIC'},
+          min: {type: 'DYNAMIC'},
+          parsed: {type: 'DYNAMIC'},
+          items: {type: 'ARRAY', element: {type: 'DYNAMIC'}},
+          checks: {type: 'CHECKABLE'},
+          label: {type: 'STATIC'},
+        },
+      });
+    });
+
+    it('should classify zod 4 action, dynamic and child list unions structurally', () => {
+      const schema4 = z4.object({
+        onTap: z4.union([
+          z4.object({event: z4.object({name: z4.string()})}),
+          z4.object({functionCall: z4.object({call: z4.string()})}),
+        ]),
+        text: z4.union([z4.string(), z4.object({path: z4.string()})]),
+        children: z4.union([
+          z4.array(componentId4),
+          z4.object({componentId: componentId4, path: z4.string()}),
+        ]),
+      });
+
+      assert.deepStrictEqual(scrapeDeclared(schema4 as unknown as z.ZodTypeAny), {
+        type: 'OBJECT',
+        shape: {
+          onTap: {type: 'ACTION'},
+          text: {type: 'DYNAMIC'},
+          children: {type: 'STRUCTURAL'},
+        },
+      });
+    });
+
+    it('should keep classifying zod 3 common types', () => {
+      const schema = z.object({
+        value: CommonSchemas.DynamicString,
+        onTap: CommonSchemas.Action,
+        children: CommonSchemas.ChildList,
+      });
+
+      assert.deepStrictEqual(scrapeDeclared(schema), {
+        type: 'OBJECT',
+        shape: {
+          value: {type: 'DYNAMIC'},
+          onTap: {type: 'ACTION'},
+          children: {type: 'STRUCTURAL'},
+        },
+      });
+    });
+
+    it('should throw with the property path for nodes with unknown internals', () => {
+      const unknownNode = {_def: {}} as unknown as z.ZodTypeAny;
+      const schema = z.object({outer: z.object({items: z.array(unknownNode)})});
+
+      assert.throws(
+        () => scrapeSchemaBehavior(schema),
+        (err: Error) =>
+          err.message.includes('"(root).outer.items[]"') && err.message.includes('dual-zod'),
+      );
     });
   });
 

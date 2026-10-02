@@ -82,6 +82,90 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   return behavior;
 }
 
+// --- Zod internals ---
+//
+// Catalog schemas come from host applications, which may build them with zod 4
+// even though web_core is compiled against zod 3 (a "dual-zod" setup). The two
+// majors lay out their internals differently:
+//
+// - zod 3 names node kinds with `_def.typeName` (`'ZodUnion'`), stores object
+//   shapes behind `_def.shape()` and array elements at `_def.type`.
+// - zod 4 names node kinds with `def.type` (`'union'`), stores object shapes
+//   directly at `def.shape`, array elements at `def.element`, and models
+//   transforms as `pipe` nodes whose input schema is `def.in`.
+//
+// A scraper that only reads zod 3 internals classifies every property of a
+// zod-4-built catalog as STATIC, silently dropping all of its bindings. The
+// helpers below read either layout and normalize node kinds to the zod 3 names.
+
+/** The parts of a zod 3 or zod 4 node definition that schema scraping reads. */
+interface ZodDef {
+  typeName?: string;
+  type?: unknown;
+  description?: string;
+  innerType?: z.ZodTypeAny;
+  schema?: z.ZodTypeAny;
+  in?: z.ZodTypeAny;
+  getter?: () => z.ZodTypeAny;
+  options?: z.ZodTypeAny[];
+  shape?: Record<string, z.ZodTypeAny> | (() => Record<string, z.ZodTypeAny>);
+  element?: z.ZodTypeAny;
+}
+
+function zodDefOf(schema: unknown): ZodDef | undefined {
+  const node = schema as {_def?: ZodDef; def?: ZodDef; _zod?: {def?: ZodDef}} | undefined;
+  return node?._def ?? node?.def ?? node?._zod?.def;
+}
+
+/**
+ * Returns the node kind using zod 3 names: zod 4 kinds such as `'union'` are
+ * mapped to `'ZodUnion'`. Returns undefined for anything that is not a zod node.
+ */
+function zodKindOf(schema: unknown): string | undefined {
+  const def = zodDefOf(schema);
+  if (typeof def?.typeName === 'string') return def.typeName;
+  if (typeof def?.type === 'string' && def.type) {
+    return `Zod${def.type[0].toUpperCase()}${def.type.slice(1)}`;
+  }
+  return undefined;
+}
+
+function zodObjectShapeOf(schema: unknown): Record<string, z.ZodTypeAny> {
+  const shape = zodDefOf(schema)?.shape;
+  return (typeof shape === 'function' ? shape() : shape) ?? {};
+}
+
+function zodArrayElementOf(schema: unknown): z.ZodTypeAny {
+  const def = zodDefOf(schema);
+  return (def?.element ?? def?.type) as z.ZodTypeAny;
+}
+
+/**
+ * Returns the schema wrapped by a ZodOptional, ZodNullable, ZodDefault,
+ * ZodReadonly, ZodEffects, ZodBranded, ZodLazy (or zod 4 pipe) node, or
+ * undefined if the node is not a wrapper.
+ */
+function unwrapZodSchemaOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
+  const def = zodDefOf(schema);
+  switch (zodKindOf(schema)) {
+    case 'ZodOptional':
+    case 'ZodNullable':
+    case 'ZodDefault':
+    case 'ZodReadonly':
+      return def?.innerType;
+    case 'ZodEffects':
+      return def?.schema;
+    case 'ZodPipe':
+      return def?.in;
+    case 'ZodBranded':
+      return def?.type as z.ZodTypeAny;
+    case 'ZodLazy':
+      return def?.getter?.();
+    default:
+      return undefined;
+  }
+}
+
 /**
  * Unwraps Zod wrapper schemas (ZodOptional, ZodNullable, ZodDefault,
  * ZodReadonly, ZodEffects, ZodBranded, ZodLazy) to retrieve the underlying inner schema type.
@@ -90,25 +174,9 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
  * @returns The inner Zod schema.
  */
 function unwrapZodSchema(type: z.ZodTypeAny): z.ZodTypeAny {
-  let current: any = type;
-  while (current) {
-    const typeName = current._def?.typeName;
-    if (
-      typeName === 'ZodOptional' ||
-      typeName === 'ZodNullable' ||
-      typeName === 'ZodDefault' ||
-      typeName === 'ZodReadonly'
-    ) {
-      current = current._def.innerType;
-    } else if (typeName === 'ZodEffects') {
-      current = current._def.schema;
-    } else if (typeName === 'ZodBranded') {
-      current = current._def.type;
-    } else if (typeName === 'ZodLazy') {
-      current = current._def.getter();
-    } else {
-      break;
-    }
+  let current = type;
+  for (let inner = unwrapZodSchemaOnce(current); inner; inner = unwrapZodSchemaOnce(current)) {
+    current = inner;
   }
   return current;
 }
@@ -121,28 +189,12 @@ function unwrapZodSchema(type: z.ZodTypeAny): z.ZodTypeAny {
  * @returns Target definition name, or an empty string.
  */
 function getRefDefName(type: z.ZodTypeAny): string {
-  let current: any = type;
+  let current: z.ZodTypeAny | undefined = type;
   let desc = '';
   while (current) {
-    desc = current.description ?? current._def?.description ?? '';
+    desc = current.description ?? zodDefOf(current)?.description ?? '';
     if (desc) break;
-    const typeName = current._def?.typeName;
-    if (
-      typeName === 'ZodOptional' ||
-      typeName === 'ZodNullable' ||
-      typeName === 'ZodDefault' ||
-      typeName === 'ZodReadonly'
-    ) {
-      current = current._def.innerType;
-    } else if (typeName === 'ZodEffects') {
-      current = current._def.schema;
-    } else if (typeName === 'ZodBranded') {
-      current = current._def.type;
-    } else if (typeName === 'ZodLazy') {
-      current = current._def.getter();
-    } else {
-      break;
-    }
+    current = unwrapZodSchemaOnce(current);
   }
   if (!desc || !desc.startsWith('REF:')) return '';
   const cleanDesc = desc.slice(4);
@@ -161,10 +213,9 @@ function isCheckableField(type: z.ZodTypeAny): boolean {
     return true;
   }
 
-  const current: any = unwrapZodSchema(type);
-  if (current?._def?.typeName === 'ZodArray') {
-    const elem = current._def.type;
-    const elemDefName = getRefDefName(elem);
+  const current = unwrapZodSchema(type);
+  if (zodKindOf(current) === 'ZodArray') {
+    const elemDefName = getRefDefName(zodArrayElementOf(current));
     if (elemDefName === 'CheckRule') {
       return true;
     }
@@ -176,20 +227,16 @@ function isCheckableField(type: z.ZodTypeAny): boolean {
 function isActionOption(option: z.ZodTypeAny): boolean {
   if (getRefDefName(option) === 'Action') return true;
   const current = unwrapZodSchema(option);
-  const def = (current as any)._def;
-  return def?.typeName === 'ZodObject' && Boolean(def.shape?.().event);
+  return zodKindOf(current) === 'ZodObject' && Boolean(zodObjectShapeOf(current).event);
 }
 
 function isDynamicOption(option: z.ZodTypeAny): boolean {
   const refDef = getRefDefName(option);
   if (refDef === 'DataBinding' || refDef.startsWith('Dynamic')) return true;
   const current = unwrapZodSchema(option);
-  const def = (current as any)._def;
-  if (def?.typeName !== 'ZodObject') return false;
-  const shape = def.shape?.() || {};
-  const hasComponentId = Object.values(shape).some(
-    prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId',
-  );
+  if (zodKindOf(current) !== 'ZodObject') return false;
+  const shape = zodObjectShapeOf(current);
+  const hasComponentId = Object.values(shape).some(prop => getRefDefName(prop) === 'ComponentId');
   return Boolean(shape.path) && !hasComponentId;
 }
 
@@ -198,10 +245,9 @@ function isChildListOption(option: z.ZodTypeAny): boolean {
     return true;
   }
   const current = unwrapZodSchema(option);
-  const def = (current as any)._def;
-  if (def?.typeName !== 'ZodObject') return false;
-  const shape = def.shape?.() || {};
-  return Object.values(shape).some(prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId');
+  if (zodKindOf(current) !== 'ZodObject') return false;
+  const shape = zodObjectShapeOf(current);
+  return Object.values(shape).some(prop => getRefDefName(prop) === 'ComponentId');
 }
 
 function isDynamicDef(defName: string, typeName?: string): boolean {
@@ -219,10 +265,13 @@ function matchUnionBehavior(options: z.ZodTypeAny[]): BehaviorNode | undefined {
   return undefined;
 }
 
-function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<string, BehaviorNode> {
+function scrapeObjectShape(
+  objShape: Record<string, z.ZodTypeAny>,
+  path: string,
+): Record<string, BehaviorNode> {
   const shape: Record<string, BehaviorNode> = {};
   for (const [key, value] of Object.entries(objShape)) {
-    shape[key] = getFieldBehavior(value);
+    shape[key] = getFieldBehavior(value, `${path}.${key}`);
   }
   return shape;
 }
@@ -231,9 +280,11 @@ function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<strin
  * Recursively maps a Zod schema to its corresponding BehaviorNode.
  *
  * @param type Zod schema to inspect.
+ * @param path Property path of the schema, used in error messages.
  * @returns Behavior node representing runtime handling for the schema.
+ * @throws If the schema is not a zod 3 or zod 4 node.
  */
-function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
+function getFieldBehavior(type: z.ZodTypeAny, path = '(root)'): BehaviorNode {
   const defName = getRefDefName(type);
 
   if (isCheckableField(type)) {
@@ -244,35 +295,48 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
     return {type: 'ACTION'};
   }
 
-  const current: any = unwrapZodSchema(type);
+  const current = unwrapZodSchema(type);
+  const kind = zodKindOf(current);
+
+  // A node with neither zod 3 nor zod 4 internals would otherwise scrape as
+  // STATIC and silently drop every binding beneath it.
+  if (kind === undefined) {
+    const defKeys = Object.keys(zodDefOf(current) ?? {}).join(', ');
+    throw new Error(
+      `Cannot classify the schema for property "${path}": it has neither zod 3 ` +
+        '(`_def.typeName`) nor zod 4 (`def.type`) internals. This usually means a ' +
+        'dual-zod setup, where the catalog was built with a zod version web_core cannot ' +
+        `read. Definition keys: [${defKeys}].`,
+    );
+  }
 
   if (childRefKindOf(current) === 'child-list' || defName === 'ChildList') {
     return {type: 'STRUCTURAL'};
   }
 
-  if (isDynamicDef(defName, current._def?.typeName)) {
+  if (isDynamicDef(defName, kind)) {
     return {type: 'DYNAMIC'};
   }
 
-  // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
-  if (current._def.typeName === 'ZodUnion') {
-    const unionBehavior = matchUnionBehavior(current._def.options as z.ZodTypeAny[]);
+  // Structural matching for A2UI primitives using node kinds to avoid dual-module instanceof issues
+  if (kind === 'ZodUnion') {
+    const unionBehavior = matchUnionBehavior(zodDefOf(current)?.options ?? []);
     if (unionBehavior) return unionBehavior;
   }
 
   // Recursive array scraping
-  if (current._def.typeName === 'ZodArray') {
+  if (kind === 'ZodArray') {
     return {
       type: 'ARRAY',
-      element: getFieldBehavior(current._def.type),
+      element: getFieldBehavior(zodArrayElementOf(current), `${path}[]`),
     };
   }
 
   // Recursive object scraping
-  if (current._def.typeName === 'ZodObject') {
+  if (kind === 'ZodObject') {
     return {
       type: 'OBJECT',
-      shape: scrapeObjectShape(current._def.shape()),
+      shape: scrapeObjectShape(zodObjectShapeOf(current), path),
     };
   }
 
