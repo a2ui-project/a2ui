@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- pub.dev now recognizes the license. The package `LICENSE` linked
+  `https://` where the Apache text has `http://`, which pana does not match,
+  and carried the root's notice for `eval/bin/transcrypt`, a file outside
+  this package. Also a longer `description` and an example.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
