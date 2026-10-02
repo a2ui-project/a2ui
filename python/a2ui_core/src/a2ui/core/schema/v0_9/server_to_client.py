@@ -43,14 +43,14 @@ class CreateSurface(StrictBaseModel):
         ),
     )
     theme: Any | None = Field(
-        None,
+        default=None,
         description=(
             "Theme parameters for the surface (e.g., {'primaryColor': '#FF0000'})."
             " These must validate against the 'theme' schema defined in the catalog."
         ),
     )
     send_data_model: bool | None = Field(
-        None,
+        default=None,
         alias="sendDataModel",
         description=(
             "If true, the client will send the full data model of this surface in the"
@@ -97,14 +97,14 @@ class UpdateDataModel(StrictBaseModel):
         ),
     )
     path: str | None = Field(
-        None,
+        default=None,
         description=(
             "An optional path to a location within the data model (e.g., '/user/name')."
             " If omitted, or set to '/', refers to the entire data model."
         ),
     )
     value: Any | None = Field(
-        None,
+        default=None,
         description=(
             "The data to be updated in the data model. If present, the value at 'path'"
             " is replaced (or created). If omitted, the key at 'path' is removed."

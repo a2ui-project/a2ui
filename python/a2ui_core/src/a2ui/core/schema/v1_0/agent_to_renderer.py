@@ -24,6 +24,13 @@ ComponentsList = list[dict[str, Any]]
 Component = dict[str, Any]
 
 
+class CreateSurfaceMetadata(StrictBaseModel):
+    """Optional surface-level metadata."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    extensions: Extensions | None = Field(default=None)
+
+
 class CreateSurface(StrictBaseModel):
     """Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree."""
 
@@ -37,7 +44,7 @@ class CreateSurface(StrictBaseModel):
         ),
     )
     catalog_id: str | None = Field(
-        None,
+        default=None,
         alias="catalogId",
         description=(
             "A string that uniquely identifies the default catalog for this surface. It"
@@ -48,7 +55,7 @@ class CreateSurface(StrictBaseModel):
         ),
     )
     send_data_model: bool | None = Field(
-        None,
+        default=None,
         alias="sendDataModel",
         description=(
             "If true, the renderer will send the full data model of this surface in the"
@@ -56,14 +63,14 @@ class CreateSurface(StrictBaseModel):
             " Defaults to false."
         ),
     )
-    components: list[dict[str, Any]] | None = Field(None)
+    components: list[dict[str, Any]] | None = Field(default=None)
     data_model: dict[str, Any] | None = Field(
-        None,
+        default=None,
         alias="dataModel",
         description="The initial root data model object for the surface.",
     )
-    metadata: dict[str, Any] | None = Field(
-        None, description="Optional surface-level metadata."
+    metadata: CreateSurfaceMetadata | None = Field(
+        default=None, description="Optional surface-level metadata."
     )
 
 
@@ -105,7 +112,7 @@ class UpdateDataModel(StrictBaseModel):
         ),
     )
     path: str | None = Field(
-        None,
+        default=None,
         description=(
             "An optional path to a location within the data model (e.g., '/user/name')."
             " If omitted, or set to '/', refers to the entire data model."

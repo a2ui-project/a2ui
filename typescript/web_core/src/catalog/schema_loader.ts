@@ -34,11 +34,14 @@ import {
 import type {CatalogApi, ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 
-export type CatalogConstructor = new (
+export type CatalogConstructor<
+  C extends ComponentApi = ComponentApi,
+  F extends FunctionApi = FunctionApi,
+> = new (
   id: string,
   protocolVersion: string,
-  components?: ComponentApi[],
-  functions?: FunctionApi[],
+  components?: C[],
+  functions?: F[],
   themeSchema?: z.ZodTypeAny,
   instructions?: string,
 ) => CatalogApi;

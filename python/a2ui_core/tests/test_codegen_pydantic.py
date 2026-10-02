@@ -16,9 +16,12 @@ import ast
 import importlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
+
 import pytest
+from pydantic import TypeAdapter, ValidationError
 
 # Add the skill scripts directory to sys.path
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +34,7 @@ if SKILL_SCRIPT_PATH not in sys.path:
     sys.path.insert(0, SKILL_SCRIPT_PATH)
 
 import codegen_pydantic
+import engine
 
 
 def test_ensure_v_prefix():
@@ -156,7 +160,7 @@ def test_compile_properties_to_pydantic():
     props = {"title": {"type": "string"}}
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 1
-    assert lines[0] == "    title: str | None = Field(None)"
+    assert lines[0] == "    title: str | None = Field(default=None)"
 
     # Defaults are documented, but do not become model defaults.
     props = {
@@ -166,12 +170,13 @@ def test_compile_properties_to_pydantic():
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 2
     assert (
-        '    num: int | None = Field(None, description="Defaults to 42 when absent.")'
+        '    num: int | None = Field(default=None, description="Defaults to 42 when'
+        ' absent.")'
         in lines
     )
     assert (
-        '    text: str | None = Field(None, description="Defaults to \\"hello\\" when'
-        ' absent.")'
+        '    text: str | None = Field(default=None, description="Defaults to'
+        ' \\"hello\\" when absent.")'
         in lines
     )
 
@@ -395,8 +400,11 @@ def test_generate_basic_catalog_styles():
         "class Styles(StrictBaseModel):" in code_v08
         or "class Styles(BaseModel):" in code_v08
     )
-    assert "font: str | None = Field(None" in code_v08
-    assert 'primary_color: str | None = Field(None, alias="primaryColor"' in code_v08
+    assert "font: str | None = Field(default=None" in code_v08
+    assert (
+        'primary_color: str | None = Field(default=None, alias="primaryColor"'
+        in code_v08
+    )
     assert "Theme = Styles" in code_v08
 
     # v0.9 theme
@@ -415,7 +423,7 @@ def test_generate_basic_catalog_styles():
     assert code is not None
     assert "class Theme(BaseModel):" in code
     assert (
-        'primary_color: str | None = Field(None, alias="primaryColor",'
+        'primary_color: str | None = Field(default=None, alias="primaryColor",'
         ' description="Test color.")'
         in code
     )
@@ -494,7 +502,10 @@ def test_generate_renderer_capabilities():
     assert "class V09Capabilities(StrictBaseModel):" in code
     assert "class A2uiClientCapabilities(StrictBaseModel):" in code
     assert "A2uiRendererCapabilities = A2uiClientCapabilities" in code
-    assert "v0_9: V09Capabilities | None = Field(None, alias=PROTOCOL_VERSION)" in code
+    assert (
+        "v0_9: V09Capabilities | None = Field(default=None, alias=PROTOCOL_VERSION)"
+        in code
+    )
 
 
 def test_generate_agent_capabilities():
@@ -589,14 +600,14 @@ def test_const_keyword_mapping():
     codegen = codegen_pydantic.PydanticCodegen("v0.9")
     assert (
         codegen.map_json_type_to_python("code", {"const": "SUCCESS"})
-        == "Literal['SUCCESS']"
+        == 'Literal["SUCCESS"]'
     )
     assert codegen.map_json_type_to_python("num", {"const": 404}) == "Literal[404]"
 
     props = {"code": {"const": "FAIL"}}
     lines = codegen.compile_properties(props, ["code"])
     assert len(lines) == 1
-    assert "    code: Literal['FAIL'] = Field(\"FAIL\")" in lines[0]
+    assert '    code: Literal["FAIL"] = Field("FAIL")' in lines[0]
 
 
 def test_file_header_preamble():
@@ -639,15 +650,15 @@ def test_default_annotations_do_not_set_model_defaults(version):
     lines = codegen.compile_properties(props, ["kind"])
 
     assert (
-        '    display_name: str | None = Field(None, alias="displayName",'
+        '    display_name: str | None = Field(default=None, alias="displayName",'
         ' description="Name shown in the UI. Defaults to \\"Guest\\" when absent.")'
         in lines
     )
-    assert "    kind: Literal['email'] = Field(\"email\")" in lines
+    assert '    kind: Literal["email"] = Field("email")' in lines
 
 
 def test_v0_9_function_call_keeps_schema_default_out_of_payload():
-    from a2ui.core.schema.v0_9.common_types import FunctionCall
+    from a2ui.core.schema.v0_9 import FunctionCall
 
     call = FunctionCall(call="validateEmail")
 
@@ -660,9 +671,10 @@ def test_v0_9_function_call_keeps_schema_default_out_of_payload():
         "call": "validateEmail",
         "returnType": "boolean",
     }
-    assert 'Defaults to "boolean" when absent.' in (
-        FunctionCall.model_fields["return_type"].description
-    )
+    return_type_schema = FunctionCall.model_json_schema(by_alias=True)["properties"][
+        "returnType"
+    ]
+    assert return_type_schema["default"] == "boolean"
 
 
 def test_map_json_type_to_python_non_string_enum():
@@ -834,7 +846,7 @@ def test_index_args_match_the_version_specific_model():
     from pydantic import ValidationError
 
     from a2ui.core.catalog import IndexArgs
-    from a2ui.core.schema.v1_0.common_types import IndexSystemFunctionArgs
+    from a2ui.core.schema.v1_0 import IndexSystemFunctionArgs
 
     accepted = ({}, {"offset": 1}, {"offset": 1.5}, {"offset": {"path": "/i"}})
     rejected = ({"offset": "1"}, {"offset": True}, {"offset": 1, "extra": 1})
@@ -851,7 +863,7 @@ def test_index_args_match_the_version_specific_model():
 
 
 def test_validate_version_field_non_dict_context():
-    from a2ui.core.schema.v0_9.client_to_server import A2uiClientDataModel
+    from a2ui.core.schema.v0_9 import A2uiClientDataModel
 
     # Should not raise AttributeError when context is not a dict
     model = A2uiClientDataModel.model_validate(
@@ -869,7 +881,8 @@ def test_validate_version_field_non_dict_context():
 
 def test_function_definition_conditional_validation():
     from pydantic import ValidationError
-    from a2ui.core.schema.v1_0.catalog_definition import FunctionDefinition
+
+    from a2ui.core.schema.v1_0 import FunctionDefinition
 
     # Valid: requiresUserActivation=True with allowedCallers='rendererOnly'
     fd_valid = FunctionDefinition.model_validate({
@@ -907,3 +920,328 @@ def test_function_definition_conditional_validation():
             "allowedCallers": "agentOnly",
             "requiresUserActivation": True,
         })
+
+
+@pytest.mark.parametrize(
+    "spec_version, package",
+    # The v0.9.1 common types are identical to v0.9 and share its package.
+    [("v0_9", "v0_9"), ("v0_9_1", "v0_9"), ("v1_0", "v1_0")],
+)
+def test_common_types_defs_manifest_matches_spec_defs(spec_version: str, package: str):
+    """COMMON_TYPES_DEFS lists every spec def, each with a usable schema.
+
+    Every entry must build a JSON schema, and a model must declare exactly the
+    properties its spec def declares, under their spec names.
+    """
+    mod = importlib.import_module(f"a2ui.core.schema.{package}")
+    assert "COMMON_TYPES_DEFS" in mod.__all__
+
+    spec_path = os.path.join(SPEC_ROOT, spec_version, "json", "common_types.json")
+    with open(spec_path, "r", encoding="utf-8") as f:
+        spec_defs = json.load(f)["$defs"]
+
+    manifest = mod.COMMON_TYPES_DEFS
+    assert list(manifest.keys()) == list(spec_defs.keys())
+    for name, symbol in manifest.items():
+        schema = TypeAdapter(symbol).json_schema(by_alias=True)
+        assert isinstance(schema, dict), name
+        if "properties" in spec_defs[name]:
+            assert set(schema["properties"]) == set(spec_defs[name]["properties"]), name
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (True, "True"),
+        (False, "False"),
+        (None, "None"),
+        (1.5, "1.5"),
+        ('say "hi" \\ é', '"say \\"hi\\" \\\\ é"'),
+        ({"a": [None, True, "x"]}, '{"a": [None, True, "x"]}'),
+    ],
+)
+def test_python_literal_renders_json_values(value, expected):
+    rendered = engine.python_literal(value)
+
+    assert rendered == expected
+    assert ast.literal_eval(rendered) == value
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), object(), (1, 2)])
+def test_python_literal_rejects_non_json_values(value):
+    with pytest.raises(ValueError, match="Not a JSON value"):
+        engine.python_literal(value)
+
+
+def test_model_docstring_keeps_quotes_and_backslashes():
+    description = 'Use "quotes", a \\ backslash and """triple quotes" at the end"'
+    codegen = codegen_pydantic.PydanticCodegen("v1.0")
+
+    code = codegen.compile_object_def(
+        "Doc", {"description": description, "properties": {"a": {"type": "string"}}}
+    )
+
+    class_def = ast.parse(code).body[0]
+    assert ast.get_docstring(class_def, clean=False) == description
+
+
+def test_strict_model_rejects_a_description_its_docstring_would_change():
+    codegen = codegen_pydantic.PydanticCodegen("v1.0")
+    codegen.strict = True
+
+    with pytest.raises(ValueError):
+        codegen.compile_object_def(
+            "Doc",
+            {"description": "two\nlines", "properties": {"a": {"type": "string"}}},
+        )
+
+
+def _common_types(defs: dict) -> str:
+    return codegen_pydantic.generate_common_types("v1.0", {"$defs": defs})
+
+
+def _object(properties: dict, **keywords) -> dict:
+    return {"type": "object", "properties": properties, **keywords}
+
+
+@pytest.mark.parametrize(
+    "defs, message",
+    [
+        (
+            {
+                "Foo": _object(
+                    {"bar": _object({"x": {"type": "string"}})},
+                ),
+                "FooBar": {"type": "string"},
+            },
+            "collides",
+        ),
+        ({"Foo": _object({"a": {"type": "string"}}, required=["b"])}, "undeclared"),
+        ({"Foo": _object({"a": {"type": "string"}}, minProperties=1)}, "minProperties"),
+        ({"Foo": _object({"a": {"$ref": "#/$defs/Missing"}})}, "Unsupported schema"),
+        (
+            {"Foo": _object({"a": {"$ref": "#/$defs/Foo", "minLength": 1}})},
+            "Unsupported schema",
+        ),
+        (
+            {"Foo": _object({"a": {"const": "x", "type": "number"}})},
+            "Unsupported schema",
+        ),
+        ({"Foo": _object({"a": {"properties": {}}})}, "Unsupported schema"),
+        (
+            {"Foo": _object({"a": {"oneOf": [{"type": "string"}], "minLength": 1}})},
+            "Unsupported schema",
+        ),
+        ({"Foo": {"oneOf": []}}, "Unsupported union def"),
+        (
+            {"Foo": {"oneOf": [{"type": "string"}], "anyOf": [{"type": "number"}]}},
+            "Unsupported union def",
+        ),
+    ],
+)
+def test_common_types_generation_fails_on_unenforced_schema(defs, message):
+    """A spec shape the generated models would not enforce fails generation."""
+    with pytest.raises(ValueError, match=message):
+        _common_types(defs)
+
+
+@pytest.mark.parametrize(
+    "branch",
+    [
+        {"allOf": [{"$ref": "#/$defs/FunctionCall"}]},
+        {
+            "allOf": [
+                {"$ref": "#/$defs/FunctionCall"},
+                {"properties": {"returnType": {"const": "string"}}, "required": []},
+            ]
+        },
+        {
+            "allOf": [
+                {"$ref": "#/$defs/FunctionCall"},
+                {"properties": {"returnType": {"enum": ["string"]}}},
+            ]
+        },
+        "FunctionCall",
+    ],
+)
+def test_dynamic_function_call_branch_requires_the_exact_shape(branch):
+    import schema_generators
+
+    with pytest.raises(ValueError, match="Unsupported FunctionCall branch"):
+        schema_generators._function_call_branch_return_type("DynamicString", branch)
+
+
+def test_dynamic_function_call_branch_reads_the_return_type():
+    import schema_generators
+
+    branch = {
+        "allOf": [
+            {"$ref": "#/$defs/FunctionCall"},
+            {"properties": {"returnType": {"const": "string"}}},
+        ]
+    }
+
+    assert (
+        schema_generators._function_call_branch_return_type("DynamicString", branch)
+        == "string"
+    )
+    assert (
+        schema_generators._function_call_branch_return_type(
+            "DynamicValue", {"$ref": "#/$defs/FunctionCall"}
+        )
+        is None
+    )
+
+
+def test_common_types_generation_is_deterministic():
+    """Output does not depend on string hashing, which varies between runs."""
+    script = (
+        f"import json, sys\nsys.path.insert(0, {SKILL_SCRIPT_PATH!r})\nfrom"
+        " schema_generators import generate_common_types\nspec_path ="
+        f" {os.path.join(SPEC_ROOT, 'v1_0', 'json', 'common_types.json')!r}\nwith"
+        " open(spec_path, encoding='utf-8') as f:\n   "
+        " print(generate_common_types('v1.0', json.load(f)))\n"
+    )
+    outputs = {
+        subprocess.run(
+            [sys.executable, "-c", script],
+            check=True,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        ).stdout
+        for seed in ("1", "2", "3")
+    }
+
+    assert len(outputs) == 1
+
+
+@pytest.mark.parametrize(
+    "package, model, payload",
+    [
+        ("v1_0", "FunctionResponse", {"functionCallId": "c1", "error": None}),
+        ("v1_0", "Surface", {"component": None}),
+        ("v1_0", "Surface", {"child": None}),
+        ("v1_0", "IndexSystemFunction", {"call": "@index", "args": None}),
+        ("v1_0", "ComponentCommon", {"id": "a", "catalogId": None}),
+        ("v1_0", "ComponentCommon", {"id": "a", "catalog_id": None}),
+        ("v0_9", "ComponentCommon", {"id": "a", "accessibility": None}),
+        ("v0_9", "FunctionCall", {"call": "fn", "args": {"a": None}}),
+    ],
+)
+def test_generated_models_reject_null_where_the_spec_does(package, model, payload):
+    cls = getattr(importlib.import_module(f"a2ui.core.schema.{package}"), model)
+
+    with pytest.raises(ValidationError, match="null"):
+        cls.model_validate(payload)
+
+
+def test_generated_models_accept_null_where_the_spec_does():
+    """`FunctionResponse.value` accepts any JSON value, including null."""
+    from a2ui.core.schema.v1_0 import FunctionResponse
+
+    response = FunctionResponse.model_validate({"functionCallId": "c1", "value": None})
+
+    assert response.value is None
+    assert "value" in response.model_fields_set
+
+
+def test_catalog_components_reject_null_for_their_own_optional_fields():
+    """Components inherit `SpecBaseModel`'s null rule through `ComponentCommon`."""
+    from a2ui.core.basic_catalog.v1_0 import TextComponent
+
+    with pytest.raises(ValidationError, match="must not be null"):
+        TextComponent.model_validate(
+            {"id": "t", "component": "Text", "text": "Hi", "variant": None}
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"functionCallId": "c1"},
+        {"functionCallId": "c1", "value": 1, "error": {"code": "E", "message": "m"}},
+    ],
+)
+def test_declared_required_one_of_is_validated(payload):
+    """`FunctionResponse` declares `oneOf` `value` | `error` in its config only."""
+    from a2ui.core.schema.v1_0 import FunctionResponse
+
+    with pytest.raises(ValidationError, match="exactly one of: value \\| error"):
+        FunctionResponse.model_validate(payload)
+
+
+def test_declared_schema_keywords_do_not_apply_to_subclasses():
+    """`ComponentCommon` is open in the spec; components that subclass it are not."""
+    from a2ui.core.basic_catalog.v1_0 import TextComponent
+    from a2ui.core.schema.v1_0 import ComponentCommon
+
+    assert "additionalProperties" not in ComponentCommon.model_json_schema()
+    assert TextComponent.model_json_schema()["additionalProperties"] is False
+
+
+@pytest.mark.parametrize("package", ["v0_9", "v1_0"])
+def test_open_spec_defs_allow_extra_properties(package):
+    """A def without `additionalProperties` in the spec accepts other keys."""
+    checkable = importlib.import_module(f"a2ui.core.schema.{package}").Checkable
+
+    validated = checkable.model_validate({"vendorKey": 1})
+
+    assert validated.model_extra == {"vendorKey": 1}
+
+
+def test_closed_spec_defs_forbid_extra_properties():
+    from a2ui.core.schema.v1_0 import AccessibilityAttributes
+
+    with pytest.raises(ValidationError):
+        AccessibilityAttributes.model_validate({"label": "Submit", "role": "button"})
+
+
+def test_agent_to_renderer_types_nested_payload_objects():
+    """A nested payload object becomes a model rather than a plain dict."""
+    from a2ui.core.schema.v1_0 import CreateSurface, CreateSurfaceMetadata
+
+    surface = CreateSurface.model_validate({
+        "surfaceId": "s1",
+        "catalogId": "c1",
+        "metadata": {"extensions": {"vendorExtension": {"a": 1}}},
+    })
+
+    assert isinstance(surface.metadata, CreateSurfaceMetadata)
+    with pytest.raises(ValidationError):
+        CreateSurface.model_validate({
+            "surfaceId": "s1",
+            "catalogId": "c1",
+            "metadata": {"unknown": True},
+        })
+
+
+def test_generate_agent_to_renderer_extracts_nested_object_models():
+    mock_a2r_data = {
+        "$defs": {
+            "CreateSurfaceMessage": {
+                "properties": {
+                    "createSurface": {
+                        "type": "object",
+                        "properties": {
+                            "metadata": {
+                                "type": "object",
+                                "description": "Surface metadata.",
+                                "properties": {"theme": {"type": "string"}},
+                                "additionalProperties": False,
+                            }
+                        },
+                    }
+                },
+                "required": ["createSurface"],
+            }
+        }
+    }
+
+    code = codegen_pydantic.generate_agent_to_renderer("v1.0", mock_a2r_data)
+
+    assert "class CreateSurfaceMetadata(StrictBaseModel):" in code
+    assert "metadata: CreateSurfaceMetadata | None" in code
+    assert code.index("class CreateSurfaceMetadata") < code.index(
+        "class CreateSurface("
+    )

@@ -22,7 +22,9 @@
       {"$ref": "#/$defs/ParseResponseTest"},
       {"$ref": "#/$defs/ParseChunkTest"},
       {"$ref": "#/$defs/CreateFormatTest"},
-      {"$ref": "#/$defs/CreateProcessorTest"}
+      {"$ref": "#/$defs/CreateProcessorTest"},
+      {"$ref": "#/$defs/EvaluateFunctionTest"},
+      {"$ref": "#/$defs/DispatchActionTest"}
     ]
   },
   "$defs": {
@@ -39,6 +41,7 @@
           "enum": [
             "accessibility_check",
             "catalog_schema",
+            "common_types_schema",
             "compile",
             "convert_event",
             "core_syntax",
@@ -47,6 +50,8 @@
             "create_processor",
             "data_model",
             "decompile",
+            "dispatch_action",
+            "evaluate_function",
             "execute_tool",
             "fix_payload",
             "from_catalog",
@@ -82,6 +87,7 @@
             "try_activate_extension",
             "unwrap",
             "validate",
+            "validate_common_type",
             "verify_cuttable_keys",
             "wrap"
           ],
@@ -202,6 +208,10 @@
           "type": "string",
           "description": "File path to JSON file containing expected outcome object."
         },
+        "definition": {
+          "type": "string",
+          "description": "Name of the common types $defs entry that validate_common_type validates each step's value against."
+        },
         "initial": {
           "description": "Initial contents of the data model. Defaults to an empty object."
         },
@@ -222,6 +232,58 @@
             "type": "string"
           },
           "description": "List of expected skill filenames or keys."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"action": {"const": "from_json"}},
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {"expect": {"$ref": "#/$defs/FromJsonExpect"}}
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "FromJsonExpect": {
+      "type": "object",
+      "description": "Expected outcome of a from_json case. Every key is optional, and a harness fails a case that sets a key not listed here.",
+      "properties": {
+        "catalogId": {
+          "type": "string",
+          "description": "Catalog ID the loaded catalog reports."
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "description": "Protocol version the loaded catalog reports."
+        },
+        "components": {
+          "description": "Components the loaded catalog must define, as a list of names or a map keyed by name.",
+          "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
+        },
+        "functions": {
+          "description": "Functions the loaded catalog must define, as a list of names or a map keyed by name.",
+          "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
+        },
+        "theme": {
+          "type": "object",
+          "description": "Theme schema the loaded catalog carries. A non-empty object requires the catalog to have a theme schema."
+        },
+        "selfContained": {
+          "type": "boolean",
+          "description": "When true, the resolved catalog schema contains at least one $ref, every $ref is a local '#' reference, and each one resolves within the resolved catalog schema."
+        },
+        "validComponents": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Component instances that must pass validation against the loaded catalog."
+        },
+        "invalidComponents": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Component instances that must fail validation against the loaded catalog."
         }
       },
       "additionalProperties": false
@@ -340,7 +402,7 @@
           "description": "JSON Pointer the operation targets."
         },
         "value": {
-          "description": "Value to write. Only meaningful for set."
+          "description": "For data_model set steps, the value to write. For validate_common_type steps, the value validated against the case's definition."
         },
         "expect": {
           "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match)."
@@ -412,6 +474,94 @@
         }
       },
       "required": ["name", "action", "fixture", "expect", "steps"],
+      "additionalProperties": false
+    },
+    "EvaluateFunctionTest": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "evaluate_function"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "useBasicCatalog": {"type": "boolean"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog JSON fixture paths relative to repository root."
+        },
+        "function": {
+          "type": "string",
+          "description": "Name of the catalog function to evaluate."
+        },
+        "args": {
+          "type": "object",
+          "description": "Dictionary of named arguments passed to the function."
+        },
+        "dataModel": {
+          "type": "object",
+          "description": "Initial data model object for dynamic context resolution."
+        },
+        "locale": {
+          "type": "string",
+          "description": "Locale identifier (default 'en-US')."
+        },
+        "expect": {
+          "description": "Expected returned JSON value (primitive, array, or object)."
+        },
+        "expectError": {
+          "$ref": "#/$defs/ExpectError"
+        }
+      },
+      "required": ["name", "action", "function", "args"],
+      "additionalProperties": false
+    },
+    "DispatchActionTest": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "dispatch_action"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "useBasicCatalog": {"type": "boolean"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog JSON fixture paths relative to repository root."
+        },
+        "surfaceId": {
+          "type": "string",
+          "description": "Surface identifier (default 'main')."
+        },
+        "scope": {
+          "type": "string",
+          "description": "JSON pointer path for the local data context scope."
+        },
+        "dataModel": {
+          "type": "object",
+          "description": "Initial data model object."
+        },
+        "actionPayload": {
+          "type": "object",
+          "description": "Action definition object (event or functionCall)."
+        },
+        "expectDispatched": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "context": {"type": "object"},
+            "userMessage": {"type": "string"}
+          },
+          "description": "Expected dispatched client action payload for server-bound events."
+        },
+        "expectDataModel": {
+          "type": "object",
+          "description": "Expected data model state after local functionCall execution."
+        },
+        "expectError": {
+          "$ref": "#/$defs/ExpectError"
+        }
+      },
+      "required": ["name", "action", "actionPayload"],
       "additionalProperties": false
     },
     "NodeResolutionFixture": {
@@ -1185,7 +1335,9 @@
                 "IntegrityError",
                 "RecursionError",
                 "CompilationError",
-                "DataError"
+                "DataError",
+                "ExpressionError",
+                "StateError"
               ]
             },
             "code": {

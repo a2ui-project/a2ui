@@ -1,5 +1,19 @@
 ## Unreleased
 
+- JSON Schema patterns are validated with `regex` (`SchemaValidator` in
+  `a2ui.core.validation`), supporting Unicode property escapes such as
+  `\p{XID_Start}` and `\p{XID_Continue}` natively and anchoring `$` to the end
+  of the string per ECMA-262. `clean_schema_node` leaves `const`, `enum`,
+  `default`, and `examples` values untouched.
+- `PayloadValidator` reports invalid `Extensions` keys even with
+  `allow_unknown_elements`.
+- Catalog schemas reference `DynamicStringList` for string list values, as the
+  basic catalog does, instead of `DynamicValue`.
+- Patch and pre-release protocol versions use the common types of their release
+  line (`1.0.0-rc.1` uses v1.0). Unparsable versions raise `A2uiCatalogError`
+  when a catalog schema is built.
+- `GenericBinder` binds `$ref`s to catalog-defined dynamic defs (for example
+  `DynamicDate`).
 - Add `CatalogApi`, the name for a schema-only `Catalog[ComponentApi, FunctionApi]`, exported from `a2ui.core`. `Catalog.from_json` returns it.
 - Execute `functionCall` and `call` component actions locally in `GenericBinder` and prevent `SurfaceModel.dispatch_action` from emitting them as agent-facing `on_action` events.
 - `ExpressionParser` accepts number literals with a leading decimal point

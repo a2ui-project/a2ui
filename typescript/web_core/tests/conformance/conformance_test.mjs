@@ -19,7 +19,9 @@ import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
+import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
+import {SurfaceModel} from '../../dist/src/state/surface-model.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
@@ -49,7 +51,7 @@ import {
 import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
-import {getValue, peekValue, effect} from '../../dist/src/reactivity/signals.js';
+import {getValue, peekValue, effect, isSignal} from '../../dist/src/reactivity/signals.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
 // Dedicated basic catalog component definitions per specification version
@@ -139,7 +141,74 @@ const SKIP_TEST_NAMES = new Set([
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map();
+const PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
+  "the FunctionCall standard definition keeps its '$ref' to" +
+  " 'catalog.json#/$defs/anyFunction', so the generated catalog schema" +
+  ' points outside itself';
+const V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
+  "the generated catalog schema keeps a '#/$defs/Child' reference without" +
+  ' defining Child in its own $defs';
+const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
+  'the validator accepts a function call carrying a key its catalog function' +
+  ' definition does not declare';
+const KNOWN_DIVERGENCES = new Map([
+  [
+    'core/catalog.yaml',
+    new Map([
+      ['test_v09_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
+      [
+        'test_v09_published_minimal_catalog_is_self_contained',
+        PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
+      ],
+      ['test_v091_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
+      [
+        'test_v10_published_basic_catalog_is_self_contained',
+        V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
+      ],
+      [
+        'test_v09_published_basic_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
+      [
+        'test_v09_published_minimal_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
+      [
+        'test_v091_published_basic_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
+      [
+        'test_v10_published_basic_catalog_rejects_function_call_extra_key',
+        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
+      ],
+    ]),
+  ],
+  [
+    'core/message_processor_v1_0.yaml',
+    new Map([
+      [
+        'test_v10_create_surface_metadata_extension_key_must_be_identifier',
+        'the v1.0 CreateSurface schema does not yet enforce UAX #31 identifier syntax on metadata.extensions keys',
+      ],
+    ]),
+  ],
+]);
+
+/**
+ * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
+ * conformance_schema.json). An unknown key fails the case rather than being
+ * silently ignored.
+ */
+const FROM_JSON_EXPECT_KEYS = new Set([
+  'catalogId',
+  'components',
+  'functions',
+  'invalidComponents',
+  'protocolVersion',
+  'selfContained',
+  'theme',
+  'validComponents',
+]);
 
 /** Suites that must be discovered and contain at least one case. */
 const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
@@ -186,6 +255,8 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['transform_catalog', 'catalog transformers are agent-side only'],
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
+  ['common_types_schema', 'web_core does not generate the common types schema from its own models'],
+  ['validate_common_type', 'web_core has no per-definition validators for the common types'],
 ]);
 
 function findYamlFiles(dir) {
@@ -365,6 +436,12 @@ async function runConformanceHarness() {
             break;
           case 'resolve_nodes':
             await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
+            break;
+          case 'evaluate_function':
+            validateEvaluateFunctionTestCase(testCase);
+            break;
+          case 'dispatch_action':
+            validateDispatchActionTestCase(testCase);
             break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -1000,8 +1077,40 @@ function validateAccessibilityCheckTestCase() {
   // not headless web_core state engines.
 }
 
+function collectRefs(node, refs = []) {
+  if (Array.isArray(node)) {
+    for (const item of node) collectRefs(item, refs);
+  } else if (node && typeof node === 'object') {
+    if (typeof node.$ref === 'string') refs.push(node.$ref);
+    for (const value of Object.values(node)) collectRefs(value, refs);
+  }
+  return refs;
+}
+
+/** Asserts that every `$ref` in the schema resolves within the schema. */
+function assertSelfContained(schema) {
+  const refs = collectRefs(schema);
+  assert.ok(refs.length > 0, 'Catalog schema contains no references at all.');
+  for (const ref of refs) {
+    assert.ok(ref.startsWith('#'), `Reference '${ref}' leaves the catalog document.`);
+    let target = schema;
+    for (const rawToken of ref.slice(1).split('/').slice(1)) {
+      const token = rawToken.replaceAll('~1', '/').replaceAll('~0', '~');
+      assert.ok(
+        target && typeof target === 'object' && Object.hasOwn(target, token),
+        `Reference '${ref}' does not resolve within the catalog document.`,
+      );
+      target = target[token];
+    }
+  }
+}
+
 function validateFromJsonTestCase(testCase) {
-  const rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+  const rawSchema = testCase.catalogPath
+    ? JSON.parse(
+        fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.catalogPath), 'utf8'),
+      )
+    : testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
   const cId =
     testCase.catalogId ||
     (rawSchema && typeof rawSchema === 'object'
@@ -1043,6 +1152,8 @@ function validateFromJsonTestCase(testCase) {
 
   if (testCase.expect) {
     const expected = testCase.expect;
+    const unknownKeys = Object.keys(expected).filter(key => !FROM_JSON_EXPECT_KEYS.has(key));
+    assert.deepStrictEqual(unknownKeys, [], `Unknown from_json expect keys: ${unknownKeys}`);
     if (expected.catalogId) {
       assert.strictEqual(catalog.id, expected.catalogId);
     }
@@ -1065,6 +1176,21 @@ function validateFromJsonTestCase(testCase) {
     if (expected.theme) {
       if (Object.keys(expected.theme).length > 0) {
         assert.ok(catalog.themeSchema, 'Expected catalog to have themeSchema');
+      }
+    }
+    if (expected.selfContained) {
+      assertSelfContained(catalog.catalogSchema);
+    }
+    if (expected.validComponents || expected.invalidComponents) {
+      const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+      for (const component of expected.validComponents ?? []) {
+        validator.validateComponent(component);
+      }
+      for (const component of expected.invalidComponents ?? []) {
+        assert.throws(
+          () => validator.validateComponent(component),
+          `Expected component to be rejected: ${JSON.stringify(component)}`,
+        );
       }
     }
   }
@@ -2164,6 +2290,135 @@ function validateParseExpressionTemplateTestCase(testCase) {
   const parsed = parser.parse(input);
   const actual = joinLiterals(parsed);
   assert.deepStrictEqual(actual, expect);
+}
+
+function validateDispatchActionTestCase(testCase) {
+  const {
+    actionPayload,
+    dataModel = {},
+    surfaceId = 'main',
+    scope,
+    expectDispatched,
+    expectDataModel,
+    expectError,
+    expect_error,
+  } = testCase;
+  const errorSpec = expect_error || expectError;
+
+  const testCatalogs = getCatalogsForTestCase(testCase);
+  const defaultCat = testCatalogs[0] || getBasicCatalog(resolveProtocolVersion(testCase) || 'v0.9');
+  const model = new DataModel(dataModel);
+  const surface = new SurfaceModel(surfaceId, defaultCat, undefined, undefined, false, model);
+
+  const dispatched = [];
+  surface.onAction.subscribe(evt => dispatched.push(evt));
+
+  const ctx = new DataContext(surface, scope || '/');
+
+  if (errorSpec) {
+    assert.throws(() => {
+      const resolved = ctx.resolveAction(actionPayload);
+      if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
+        surface.dispatchAction(resolved);
+      }
+    });
+    return;
+  }
+
+  const resolved = ctx.resolveAction(actionPayload);
+  if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
+    surface.dispatchAction(resolved);
+  }
+
+  if (expectDispatched !== undefined) {
+    assert.ok(dispatched.length >= 1, 'Expected action to be dispatched, but none was');
+    const actual = dispatched[0];
+    if ('name' in expectDispatched) {
+      assert.strictEqual(actual.name, expectDispatched.name);
+    }
+    if ('context' in expectDispatched) {
+      assert.deepStrictEqual(actual.context, expectDispatched.context);
+    }
+    if ('userMessage' in expectDispatched) {
+      assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
+    }
+  }
+
+  if (expectDataModel !== undefined) {
+    assert.deepStrictEqual(model.get('/'), expectDataModel);
+  }
+}
+
+function validateEvaluateFunctionTestCase(testCase) {
+  const {
+    function: funcName,
+    args = {},
+    dataModel = {},
+    expect,
+    expectError,
+    expect_error,
+  } = testCase;
+  const errorSpec = expect_error || expectError;
+
+  const hasExplicitCatalogs = Boolean(
+    testCase.catalog || testCase.catalogs || testCase.catalogPaths,
+  );
+  const ver = resolveProtocolVersion(testCase) || 'v0.9';
+  const defaultCat = hasExplicitCatalogs
+    ? getCatalogsForTestCase(testCase)[0]
+    : getBasicCatalog(ver);
+  const model = new DataModel(dataModel);
+  const surface = new SurfaceModel('main', defaultCat, undefined, undefined, false, model);
+  const ctx = new DataContext(surface, '/');
+
+  const originalWindow = globalThis.window;
+  if (funcName === 'openUrl' && typeof globalThis.window === 'undefined') {
+    globalThis.window = {
+      location: {href: 'https://example.com/'},
+      open: () => {},
+    };
+  }
+
+  try {
+    const fn = defaultCat?.functions?.get(funcName);
+    if (errorSpec) {
+      assert.throws(() => {
+        let r;
+        if (fn && typeof fn.execute === 'function') {
+          r = fn.execute(args, ctx);
+        } else if (defaultCat && defaultCat.invoker) {
+          r = defaultCat.invoker(funcName, args, ctx);
+        } else {
+          r = ctx.resolveDynamicValue({call: funcName, args});
+        }
+        if (isSignal(r)) {
+          getValue(r);
+        }
+      });
+      return;
+    }
+
+    let result;
+    if (fn && typeof fn.execute === 'function') {
+      result = fn.execute(args, ctx);
+    } else if (defaultCat && defaultCat.invoker) {
+      result = defaultCat.invoker(funcName, args, ctx);
+    } else {
+      result = ctx.resolveDynamicValue({call: funcName, args});
+    }
+    result = isSignal(result) ? getValue(result) : result;
+
+    const actualJson = result === undefined ? null : JSON.parse(JSON.stringify(result));
+    if (expect !== undefined) {
+      assert.deepStrictEqual(actualJson, expect);
+    }
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
 }
 
 await runConformanceHarness();

@@ -43,6 +43,7 @@ requires = [
   "hatch-vcs",
   "jsonschema",
   "pyink>=24.10.0",
+  "regex>=2024.11.6",
   "antlr4-tools>=0.2.1",
   "antlr4-python3-runtime>=4.13.0,<4.14.0"
 ]

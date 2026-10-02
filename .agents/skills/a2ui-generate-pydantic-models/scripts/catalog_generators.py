@@ -136,7 +136,7 @@ def generate_basic_catalog_components(
             if isinstance(v, dict)
             and (v.get("const") == cname or v.get("enum") == [cname])
         } or {"component"}
-        discriminator_prop = next(iter(discriminator_keys), "component")
+        discriminator_prop = sorted(discriminator_keys)[0]
 
         lines = [
             f"class {comp_class_name}({base_comp_class}):",

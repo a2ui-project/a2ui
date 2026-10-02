@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Annotated, Any, Callable, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Final, Literal, TypeAlias, Union
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -26,6 +26,15 @@ from pydantic import (
     StrictStr,
     model_serializer,
 )
+from typing_extensions import TypeAliasType
+from .._json_schema import (
+    JsonSchemaAs,
+    KeepAnyOf,
+    OpenObject,
+    ReturnType,
+    SchemaKeywords,
+    catalog_functions,
+)
 from ..common_types import (
     Child,
     ChildList,
@@ -34,28 +43,46 @@ from ..common_types import (
     DataBinding,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )
 
 
-class FunctionCall(StrictBaseModel):
+def _reject_null_values(value: dict[str, Any]) -> dict[str, Any]:
+    nulls = sorted(key for key, item in value.items() if item is None)
+    if nulls:
+        raise ValueError(f"Values must not be null: {nulls}")
+    return value
+
+
+class FunctionCall(SpecBaseModel):
     """Invokes a named function on the client."""
 
-    model_config = ConfigDict(populate_by_name=True)
-    call: str = Field(..., description="The name of the function to call.")
-    args: dict[str, Any] | None = Field(
-        None, description="Arguments passed to the function."
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(
+            {"oneOf": [catalog_functions()]},
+            drop=("additionalProperties",),
+            spec_only=True,
+        ),
+        populate_by_name=True,
     )
+    call: str = Field(..., description="The name of the function to call.")
+    args: (
+        Annotated[
+            dict[str, Any],
+            AfterValidator(_reject_null_values),
+            _FUNCTION_CALL_ARGS_SCHEMA,
+        ]
+        | None
+    ) = Field(default=None, description="Arguments passed to the function.")
     return_type: (
         Literal["string", "number", "boolean", "array", "object", "any", "void"] | None
     ) = Field(
-        None,
+        default=None,
         alias="returnType",
-        description=(
-            'The expected return type of the function call. Defaults to "boolean" when'
-            " absent."
-        ),
+        description="The expected return type of the function call.",
+        json_schema_extra={"default": "boolean"},
     )
 
     # Hand-maintained: omit an inferred return type from serialized calls.
@@ -68,38 +95,19 @@ class FunctionCall(StrictBaseModel):
         return d
 
 
-def _make_return_type_validator(
-    expected: str,
-) -> Callable[[FunctionCall], FunctionCall]:
-    def _validate_return_type(fc: FunctionCall) -> FunctionCall:
-        if "return_type" in fc.model_fields_set:
-            if fc.return_type != expected:
-                raise ValueError(
-                    f"FunctionCall in Dynamic type must have returnType '{expected}',"
-                    f" got '{fc.return_type}'"
-                )
-            return fc
-        if fc.return_type != expected:
-            fc = fc.model_copy()
-            object.__setattr__(fc, "return_type", expected)
-        return fc
-
-    return _validate_return_type
+DynamicString = StrictStr | DataBinding | Annotated[FunctionCall, ReturnType("string")]
 
 
-DynamicString = (
-    StrictStr
-    | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("string"))]
-)
-
-
-class AccessibilityAttributes(StrictBaseModel):
+class AccessibilityAttributes(SpecBaseModel):
     """Attributes to enhance accessibility when using assistive technologies like screen readers."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(drop=("additionalProperties",)),
+        extra="allow",
+        populate_by_name=True,
+    )
     label: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "A short string, typically 1 to 3 words, used by assistive technologies to"
             " convey the purpose or intent of an element. For example, an input field"
@@ -108,7 +116,7 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
     )
     description: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "Additional information provided by assistive technologies about an element"
             " such as instructions, format requirements, or result of an action. For"
@@ -118,10 +126,13 @@ class AccessibilityAttributes(StrictBaseModel):
     )
 
 
-class ComponentCommon(StrictBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+class ComponentCommon(SpecBaseModel):
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(drop=("additionalProperties",)),
+        populate_by_name=True,
+    )
     id: ComponentId = Field(...)
-    accessibility: AccessibilityAttributes | None = Field(None)
+    accessibility: AccessibilityAttributes | None = Field(default=None)
 
 
 DynamicValue = (
@@ -139,25 +150,21 @@ DynamicNumber = (
     StrictFloat
     | StrictInt
     | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("number"))]
+    | Annotated[FunctionCall, ReturnType("number")]
 )
 
 
 DynamicBoolean = (
-    StrictBool
-    | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("boolean"))]
+    StrictBool | DataBinding | Annotated[FunctionCall, ReturnType("boolean")]
 )
 
 
 DynamicStringList = (
-    list[StrictStr]
-    | DataBinding
-    | Annotated[FunctionCall, AfterValidator(_make_return_type_validator("array"))]
+    list[StrictStr] | DataBinding | Annotated[FunctionCall, ReturnType("array")]
 )
 
 
-class CheckRule(StrictBaseModel):
+class CheckRule(SpecBaseModel):
     """A single validation rule applied to an input component."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -167,12 +174,16 @@ class CheckRule(StrictBaseModel):
     )
 
 
-class Checkable(StrictBaseModel):
+class Checkable(SpecBaseModel):
     """Properties for components that support client-side checks."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        json_schema_extra=SchemaKeywords(drop=("additionalProperties",)),
+        extra="allow",
+        populate_by_name=True,
+    )
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
@@ -180,7 +191,7 @@ class Checkable(StrictBaseModel):
     )
 
 
-class ActionEvent(StrictBaseModel):
+class ActionEvent(SpecBaseModel):
     """The event to dispatch to the server."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -188,7 +199,7 @@ class ActionEvent(StrictBaseModel):
         ..., description="The name of the action to be dispatched to the server."
     )
     context: dict[str, DynamicValue] | None = Field(
-        None,
+        default=None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
             " Values can be literals or paths. Use literal values unless the value must"
@@ -197,14 +208,14 @@ class ActionEvent(StrictBaseModel):
     )
 
 
-class ActionEventWrapper(StrictBaseModel):
+class ActionEventWrapper(SpecBaseModel):
     """Triggers a server-side event."""
 
     model_config = ConfigDict(populate_by_name=True)
     event: ActionEvent = Field(..., description="The event to dispatch to the server.")
 
 
-class ActionFunctionCallWrapper(StrictBaseModel):
+class ActionFunctionCallWrapper(SpecBaseModel):
     """Executes a local client-side function."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -213,12 +224,114 @@ class ActionFunctionCallWrapper(StrictBaseModel):
 
 Action = ActionEventWrapper | ActionFunctionCallWrapper
 
+
+if TYPE_CHECKING:
+    _DynamicValueRef: TypeAlias = DynamicValue
+else:
+    _DynamicValueRef = TypeAliasType("DynamicValue", DynamicValue)
+
+
+_FUNCTION_CALL_ARGS_SCHEMA = JsonSchemaAs(
+    dict[
+        str,
+        Annotated[
+            Union[
+                _DynamicValueRef,
+                Annotated[
+                    OpenObject,
+                    Field(
+                        description="A literal object argument (e.g. configuration)."
+                    ),
+                ],
+            ],
+            KeepAnyOf(),
+        ],
+    ]
+)
+
+
+FunctionCall.model_rebuild()
+
+
+COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
+    "ComponentId": Annotated[
+        ComponentId,
+        Field(
+            description=(
+                "The unique identifier for a component, used for both definitions and"
+                " references within the same surface."
+            )
+        ),
+    ],
+    "AccessibilityAttributes": AccessibilityAttributes,
+    "ComponentCommon": ComponentCommon,
+    "ChildList": (
+        Annotated[
+            list[ComponentId],
+            Field(description="A static list of child component IDs."),
+        ]
+        | TemplateChildList
+    ),
+    "DataBinding": DataBinding,
+    "DynamicValue": Annotated[
+        DynamicValue,
+        Field(
+            description=(
+                "A value that can be a literal, a path, or a function call returning"
+                " any type."
+            )
+        ),
+    ],
+    "DynamicString": Annotated[DynamicString, Field(description="Represents a string")],
+    "DynamicNumber": Annotated[
+        DynamicNumber,
+        Field(
+            description=(
+                "Represents a value that can be either a literal number, a path to a"
+                " number in the data model, or a function call returning a number."
+            )
+        ),
+    ],
+    "DynamicBoolean": Annotated[
+        DynamicBoolean,
+        Field(
+            description=(
+                "A boolean value that can be a literal, a path, or a function call"
+                " returning a boolean."
+            )
+        ),
+    ],
+    "DynamicStringList": Annotated[
+        DynamicStringList,
+        Field(
+            description=(
+                "Represents a value that can be either a literal array of strings, a"
+                " path to a string array in the data model, or a function call"
+                " returning a string array."
+            )
+        ),
+    ],
+    "FunctionCall": FunctionCall,
+    "CheckRule": CheckRule,
+    "Checkable": Checkable,
+    "Action": Annotated[
+        Action,
+        Field(
+            description=(
+                "Defines an interaction handler that can either trigger a server-side"
+                " event or execute a local client-side function."
+            )
+        ),
+    ],
+}
+
 __all__ = [
     "AccessibilityAttributes",
     "Action",
     "ActionEvent",
     "ActionEventWrapper",
     "ActionFunctionCallWrapper",
+    "COMMON_TYPES_DEFS",
     "CheckRule",
     "Checkable",
     "Child",
@@ -235,6 +348,7 @@ __all__ = [
     "FunctionCall",
     "ListReference",
     "SingleReference",
+    "SpecBaseModel",
     "StrictBaseModel",
     "TemplateChildList",
 ]

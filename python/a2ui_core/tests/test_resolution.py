@@ -1030,3 +1030,39 @@ def test_adapt_ast_part_for_v10_preserves_arg_names():
             "nested": {"@path": "/y"},
         },
     }
+
+
+def test_generic_binder_binds_catalog_defined_dynamic_defs():
+    """A `$ref` to a catalog-defined dynamic def (e.g. `DynamicDate`) binds."""
+    cat = BasicCatalog()
+    data_model = DataModel({"form": {"date": {"year": 2024, "month": 5, "day": 1}}})
+    comp = ComponentModel(
+        "picker", "DatePicker", cat, {"value": {"path": "/form/date"}}
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    context = ComponentContext(comp, DataContext(surface, path="/"))
+
+    common_types = "https://a2ui.org/specification/v0_9/common_types.json"
+    date_schema = {
+        "type": "object",
+        "properties": {"value": {"$ref": "#/$defs/DynamicDate"}},
+        "$defs": {
+            "DynamicDate": {
+                "oneOf": [
+                    {"type": "object", "properties": {"year": {"type": "integer"}}},
+                    {"$ref": f"{common_types}#/$defs/DataBinding"},
+                    {
+                        "allOf": [
+                            {"$ref": f"{common_types}#/$defs/FunctionCall"},
+                            {"properties": {"returnType": {"const": "object"}}},
+                        ]
+                    },
+                ]
+            }
+        },
+    }
+    binder = GenericBinder(context, schema=date_schema)
+
+    assert binder.current_props["value"] == {"year": 2024, "month": 5, "day": 1}
+    assert callable(binder.current_props.get("setValue"))
+    binder.dispose()

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
+- Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
+- `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
 - **Deprecated:** `SchemaCatalog` is renamed `CatalogApi`, matching
   `ComponentApi` and `FunctionApi`. `SchemaCatalog` stays as a deprecated alias
   and will be removed in a later release.
