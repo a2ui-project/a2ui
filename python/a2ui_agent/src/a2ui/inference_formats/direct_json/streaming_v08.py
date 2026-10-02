@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import re
 from typing import Any, TYPE_CHECKING
 
@@ -31,10 +32,10 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
 
     def __init__(
         self,
-        catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi] | CatalogApi,
         custom_cuttable_keys: frozenset[str] | None = None,
     ):
-        super().__init__(catalog=catalog, custom_cuttable_keys=custom_cuttable_keys)
+        super().__init__(catalogs=catalogs, custom_cuttable_keys=custom_cuttable_keys)
         self._yielded_begin_rendering_surfaces: set[str] = set()
 
     @property
@@ -84,6 +85,10 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
                     return match.group(1)
 
         self.surface_id = get_latest_value('surfaceId')
+
+        parsed_cat_id = get_latest_value('catalogId')
+        if parsed_cat_id is not None:
+            self.catalog_id = parsed_cat_id
 
         parsed_root = get_latest_value('root')
         if parsed_root is not None:
@@ -151,6 +156,8 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
             br_val = obj[MSG_TYPE_BEGIN_RENDERING]
             if isinstance(br_val, dict):
                 self.surface_id = br_val.get(SURFACE_ID_KEY, self.surface_id)
+                if 'catalogId' in br_val:
+                    self.catalog_id = br_val.get('catalogId')
             self.root_id = br_val.get('root', self.root_id or DEFAULT_ROOT_ID)
             self._buffered_start_message = obj
 

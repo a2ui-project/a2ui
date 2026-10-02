@@ -186,11 +186,27 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
     "name, test_case", cases_parser, ids=[c[0] for c in cases_parser]
 )
 def test_parser_conformance(name, test_case):
-    catalog_config = test_case["catalog"]
-    catalog = setup_catalog(catalog_config)
-    custom_cuttable_keys = catalog_config.get("customCuttableKeys")
+    catalogs_config = test_case.get("catalogs")
+    if catalogs_config:
+        catalogs = [setup_catalog(c) for c in catalogs_config]
+        custom_cuttable_keys = test_case.get("customCuttableKeys")
+    else:
+        catalog_config = test_case["catalog"]
+        catalogs = [setup_catalog(catalog_config)]
+        custom_cuttable_keys = catalog_config.get("customCuttableKeys")
+    expect_init_error = test_case.get("expectError")
+    if expect_init_error and not test_case.get("steps") and "input" not in test_case:
+        with assert_raises(expect_init_error):
+            DirectJsonStreamParser(
+                catalogs=catalogs,
+                custom_cuttable_keys=frozenset(custom_cuttable_keys)
+                if custom_cuttable_keys is not None
+                else None,
+            )
+        return
+
     parser = DirectJsonStreamParser(
-        catalog=catalog,
+        catalogs=catalogs,
         custom_cuttable_keys=frozenset(custom_cuttable_keys)
         if custom_cuttable_keys is not None
         else None,
@@ -438,11 +454,16 @@ def test_schema_manager_conformance(name, test_case):
                 assert actual.a2ui_json == exp.get("a2ui")
 
     elif action == "process_chunk":
-        catalog_config = test_case.get("catalog", {})
-        catalog = setup_catalog(catalog_config)
-        custom_cuttable_keys = catalog_config.get("customCuttableKeys")
+        catalogs_config = test_case.get("catalogs")
+        if catalogs_config:
+            catalogs = [setup_catalog(c) for c in catalogs_config]
+            custom_cuttable_keys = test_case.get("customCuttableKeys")
+        else:
+            catalog_config = test_case.get("catalog", {})
+            catalogs = [setup_catalog(catalog_config)]
+            custom_cuttable_keys = catalog_config.get("customCuttableKeys")
         parser = DirectJsonStreamParser(
-            catalog=catalog,
+            catalogs=catalogs,
             custom_cuttable_keys=frozenset(custom_cuttable_keys)
             if custom_cuttable_keys is not None
             else None,
@@ -638,7 +659,7 @@ def make_parser(args):
         from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 
         return DirectJsonParser(
-            catalog=catalog,
+            catalogs=[catalog],
             validator=lambda payload: validate_components(catalog, payload),
         )
 

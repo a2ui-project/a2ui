@@ -14,8 +14,9 @@
 
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
+from collections.abc import Sequence
 from typing import Any
-from a2ui.core import A2uiParseError, Catalog, CatalogApi
+from a2ui.core import A2uiCatalogError, A2uiParseError, Catalog, CatalogApi
 from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
 from a2ui.parser.parser import Parser
 from a2ui.parser.payload_fixer import parse_and_fix
@@ -71,16 +72,41 @@ def unwrap_response(content: str) -> list[ResponsePart]:
 class DirectJsonParser(Parser):
     """Concrete parser implementation for standard A2UI JSON schema responses (Direct JSON Format)."""
 
-    def __init__(self, catalog: CatalogApi, validator: Any = None):
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi] | CatalogApi,
+        validator: Any = None,
+    ):
         """Initializes the DirectJsonParser.
 
         Args:
-            catalog: The Catalog mapping schema identifiers.
+            catalogs: A CatalogApi or sequence of CatalogApi instances mapping schema identifiers.
             validator: Optional callable invoked with the parsed payload. It may
                 return a list of `A2uiErrorDetail`, which `compile` raises as an
                 `A2uiValidationError`, or raise on its own.
         """
-        self._catalog = catalog
+        if isinstance(catalogs, (Sequence, set)) and not isinstance(
+            catalogs, (str, bytes)
+        ):
+            catalog_list = list(catalogs)
+        else:
+            catalog_list = [catalogs]
+
+        if not catalog_list:
+            raise A2uiCatalogError("At least one catalog must be provided.")
+
+        if len(catalog_list) > 1:
+            for c in catalog_list:
+                ver = str(getattr(c, "protocol_version", "")).removeprefix("v")
+                if ver in ("0.8", "0.9", "0.9.1") or (ver and ver < "1.0"):
+                    raise A2uiCatalogError(
+                        "Only a single catalog is supported for protocol version"
+                        f" v{ver}. Multiple catalogs are supported in v1.0 and later."
+                    )
+
+        self.catalogs = catalog_list
+        self._catalogs = self.catalogs
+        self._catalog = self._catalogs[0]
         self._validator = validator
         self._stream_parser: Any | None = None
 
@@ -142,7 +168,7 @@ class DirectJsonParser(Parser):
         from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
         if not self._stream_parser:
-            self._stream_parser = DirectJsonStreamParser(self._catalog)
+            self._stream_parser = DirectJsonStreamParser(self._catalogs)
         return self._stream_parser.process_chunk(chunk)
 
     def decompile(self, val: dict[str, Any]) -> str:

@@ -46,7 +46,7 @@ def test_direct_json_parser_methods():
         catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_8))],
     )
     cat = tf._supported_catalogs[0]
-    parser = DirectJsonParser(cat)
+    parser = DirectJsonParser([cat])
 
     # 1. has_format_content
     assert parser.has_format_content("<a2ui-json>", complete=True) is False

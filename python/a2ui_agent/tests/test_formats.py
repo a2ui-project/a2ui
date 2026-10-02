@@ -75,7 +75,7 @@ def test_schema_strategy_prompt_generation(test_catalog):
 
 
 def test_schema_parser(test_catalog):
-    parser = DirectJsonParser(test_catalog)
+    parser = DirectJsonParser([test_catalog])
     parsed = parser.parse_response(
         '<a2ui-json>[{"createSurface": {"surfaceId": "main", "layout": {"component":'
         ' "Text"}}}]</a2ui-json>'
@@ -85,7 +85,7 @@ def test_schema_parser(test_catalog):
 
 
 def test_schema_parser_with_nested_close_tag(test_catalog):
-    parser = DirectJsonParser(test_catalog)
+    parser = DirectJsonParser([test_catalog])
     # The JSON string literal itself contains '</a2ui-json>'
     response = (
         "<a2ui-json>[{\n"
@@ -246,7 +246,7 @@ def test_direct_json_stream_parser_record_inline_components_surface_id(
         DirectJsonStreamParserV09,
     )
 
-    parser = DirectJsonStreamParserV09(catalog=test_catalog)
+    parser = DirectJsonStreamParserV09(catalogs=[test_catalog])
     parser.surface_id = "main_surface"
     parser._record_inline_components(
         "custom_surface", [{"id": "c1", "component": "Text"}]
@@ -261,7 +261,7 @@ def test_direct_json_stream_parser_record_inline_components_surface_id(
 def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
     from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
-    parser = DirectJsonStreamParser(catalog=test_catalog)
+    parser = DirectJsonStreamParser(catalogs=[test_catalog])
     # Text is defined in reference_map with no child props
     fields = parser._get_child_fields_for_obj(
         {"component": "Text", "id": "t1", "text": "Click me", "label": "Submit"}
@@ -279,3 +279,73 @@ def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
     assert "child" in unmapped_fields
     assert "children" in unmapped_fields
     assert "label" not in unmapped_fields
+
+
+def test_direct_json_parser_and_stream_parser_multiple_catalogs(test_catalog):
+    from a2ui.core import A2uiCatalogError
+    from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
+
+    second_schema = {
+        "catalogId": "https://a2ui.org/custom_catalog",
+        "components": {
+            "CustomPanel": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"type": "string", "enum": ["CustomPanel"]},
+                    "headerChild": {"$ref": "common_types.json#/$defs/ComponentId"},
+                },
+                "required": ["id", "component", "headerChild"],
+            },
+        },
+    }
+    second_catalog = Catalog.from_json(
+        catalog_schema=second_schema,
+        protocol_version=VERSION_0_9,
+        catalog_id="https://a2ui.org/custom_catalog",
+    )
+
+    # v0.8 and v0.9 only support a single catalog
+    with pytest.raises(A2uiCatalogError, match="Only a single catalog is supported"):
+        DirectJsonParser([test_catalog, second_catalog])
+
+    with pytest.raises(A2uiCatalogError, match="Only a single catalog is supported"):
+        DirectJsonStreamParser(catalogs=[test_catalog, second_catalog])
+
+    # v1.0 supports multiple catalogs
+    v1_cat_1 = Catalog.from_json(
+        catalog_schema={
+            "catalogId": "https://a2ui.org/v1/cat1",
+            "components": {
+                "Text": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "component": {"type": "string", "enum": ["Text"]},
+                    },
+                }
+            },
+        },
+        protocol_version="v1.0",
+        catalog_id="https://a2ui.org/v1/cat1",
+    )
+    v1_cat_2 = Catalog.from_json(
+        catalog_schema=second_schema,
+        protocol_version="v1.0",
+        catalog_id="https://a2ui.org/custom_catalog",
+    )
+
+    parser = DirectJsonParser([v1_cat_1, v1_cat_2])
+    assert parser.catalogs == [v1_cat_1, v1_cat_2]
+
+    stream_parser = DirectJsonStreamParser(catalogs=[v1_cat_1, v1_cat_2])
+    assert stream_parser.catalogs == [v1_cat_1, v1_cat_2]
+    fields = stream_parser._get_child_fields_for_obj(
+        {"component": "CustomPanel", "id": "p1", "headerChild": "t1"}
+    )
+    assert fields == {"headerChild"}
+
+    with pytest.raises(A2uiCatalogError, match="At least one catalog"):
+        DirectJsonParser([])
+    with pytest.raises(A2uiCatalogError, match="At least one catalog"):
+        DirectJsonStreamParser([])

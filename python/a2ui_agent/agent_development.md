@@ -207,7 +207,7 @@ Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **auto
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.a2a.parts import create_a2ui_part
 
-parser = DirectJsonStreamParser(catalog=selected_catalog)
+parser = DirectJsonStreamParser(catalogs=[selected_catalog])
 
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
