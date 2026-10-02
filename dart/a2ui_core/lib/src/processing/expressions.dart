@@ -177,7 +177,7 @@ class ExpressionParser {
     }
     if (scanner.matchesKeyword('true')) return true;
     if (scanner.matchesKeyword('false')) return false;
-    if (scanner.matchesKeyword('null')) return null;
+    if (scanner.matchesKeyword('null')) return '';
 
     // Identifiers (Function calls or Path starts)
     final String token = _scanPathOrIdentifier(scanner);
