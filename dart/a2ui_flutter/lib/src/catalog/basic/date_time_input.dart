@@ -79,13 +79,19 @@ class _DateTimeInputWidgetState extends State<_DateTimeInputWidget> {
   }
 
   Future<void> _pickDate(BuildContext context) async {
-    final DateTime initial =
-        DateTime.tryParse(_controller.text) ?? DateTime.now();
+    final first = DateTime(1900);
+    final last = DateTime(2100);
+    DateTime initial = DateTime.tryParse(_controller.text) ?? DateTime.now();
+    if (initial.isBefore(first)) {
+      initial = first;
+    } else if (initial.isAfter(last)) {
+      initial = last;
+    }
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: DateTime(1900),
-      lastDate: DateTime(2100),
+      firstDate: first,
+      lastDate: last,
     );
 
     if (picked != null) {

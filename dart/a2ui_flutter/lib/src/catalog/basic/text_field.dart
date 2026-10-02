@@ -68,6 +68,9 @@ class _A2uiTextFieldWidgetState extends State<_A2uiTextFieldWidget> {
     final String currentModelValue = widget.node.stringValue('value') ?? '';
     if (_controller.text != currentModelValue) {
       _controller.text = currentModelValue;
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: currentModelValue.length),
+      );
     }
   }
 

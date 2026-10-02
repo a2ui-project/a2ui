@@ -47,8 +47,16 @@ final flutterSliderImplementation = FlutterComponentImplementation(
   ),
   builder: (context, node, buildChild) {
     final String? label = node.stringValue('label');
-    final double min = node.doubleValue('min') ?? 0.0;
-    final double max = node.doubleValue('max') ?? 100.0;
+    double min = node.doubleValue('min') ?? 0.0;
+    double max = node.doubleValue('max') ?? 100.0;
+    if (min > max) {
+      final temp = min;
+      min = max;
+      max = temp;
+    }
+    if (min == max) {
+      max = min + 1.0;
+    }
     final double currentVal = (node.doubleValue('value') ?? min).clamp(
       min,
       max,
