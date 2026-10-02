@@ -56,7 +56,11 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
         } else {
           date = Date(timeIntervalSince1970: parsedNumber)
         }
-      } else if let parsedDate = ISO8601DateFormatter().date(from: valueString) {
+      } else if let parsedDate = {
+        let isoFractional = ISO8601DateFormatter()
+        isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return isoFractional.date(from: valueString) ?? ISO8601DateFormatter().date(from: valueString)
+      }() {
         date = parsedDate
       } else {
         // Simple fallback for standard yyyy-MM-dd if not full ISO8601
