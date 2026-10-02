@@ -113,6 +113,20 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** `Tabs.tabs` is affected on both the v0.9 and v1.0 basic catalogs. `@a2ui/agent` compensates with a name-matching fallback in `src/utils/inferred-child-refs.ts`, which on the shipped catalogs claims exactly that one property. Every other consumer of the reference map gets no child reference for `Tabs` at all.
 - **Done looks like:** The loader builds a real object schema for inline array items, `Tabs.tabs` reports formal child references, and the fallback in `@a2ui/agent` can be deleted.
 
+### Component payloads are structurally unchecked (Sharp edge)
+
+- **What it is:** `AnyComponentSchema` is declared `z.ZodType<any>` and built with `.passthrough()` (`web_core/src/v1_0/schema/helpers.ts:95`). Validation therefore stops at the message envelope: `createSurface` and `updateComponents` are `.strict()` and reject unknown keys, but anything inside the `components` array is accepted as-is.
+- **Why it exists:** The recursive component tree is catalog-dependent, so a single static schema cannot know which props a given `component` permits.
+- **What it risks:** A misspelled or invented component prop passes both the TypeScript compiler and `MessageProcessor.processMessages` without complaint, and only fails at the renderer — or renders silently wrong. Typing example payloads as `AgentToRendererMessage[]` buys envelope-level safety only; do not read a passing typecheck as proof that component props are correct.
+- **Done looks like:** Component payloads are validated against the negotiated catalog's per-component Zod schemas, rather than a permissive `any` passthrough.
+
+### The Node sample answers in v0.9, not v0.9.1
+
+- **What it is:** The Node sample loads the v0.9 basic catalog and sends v0.9 messages with the v0.9.1 MIME type (`application/a2ui+json`), which v0.9.1 renderers accept. The repository has a v0.9.1 basic catalog (`specification/v0_9_1/catalogs/basic/catalog.json`), but the sample does not use it, and the conformance harness runs only v0.9 and v1.0.
+- **Why it exists:** The sample clients render v0.9. Moving to `"version": "v0.9.1"` would also break the Flutter sample client: genui 0.8.0 accepts only `"v0.9"` (`lib/src/model/a2ui_message.dart`).
+- **What it risks:** An agent built from the sample cannot answer fully in v0.9.1.
+- **Done looks like:** `@a2ui/agent` runs the v0.9.1 conformance cases, and the Node sample's `V0_9` profile moves to v0.9.1 and its catalog once the sample clients accept it.
+
 ## 3. Specification & Blueprints
 
 ### Truncation signal lost at compile boundary (Sharp edge)
@@ -270,3 +284,40 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Python's truthiness test treats those values like a missing one.
 - **What it risks:** A Python example that resets a field to an empty or zero value shows the model a block without that reset.
 - **Done looks like:** Python skips only empty objects, and a conformance case in `agent/express/decompiler.yaml` pins it.
+
+## 5. Node Sample (`samples/agent/node/restaurant_finder`)
+
+### Only the first streamed message reaches the client (Resolved)
+
+- **What it was:** `@a2a-js/sdk` ends the SSE stream at the first `message` event (`dist/server/index.js:290`: `if (event.kind === "message" || event.kind === "status-update" && event.final) break`). The sample published one `message` per chunk, so with a live model only the first reached the client.
+- **Resolution:** The sample now publishes each batch of parts as a non-final `working` status update carrying `status.message`, as the Python sample does, and ends the turn with one final status update.
+
+### The sample picks the A2UI version from capabilities, not from the A2A extension
+
+- **What it is:** Python's sample picks the A2UI version from the A2UI extension the client activates, and answers with plain text when the client activates none. The Node sample does not advertise or activate the extension. It reads the version and catalogs from the renderer capabilities in the message metadata (`a2uiRendererCapabilities` for v1.0, `a2uiClientCapabilities` for v0.9), and answers in v0.9 when there are none.
+- **Why it exists:** The A2UI extension specification makes activation optional, and no sample client reads the activation result. The lit, angular and react clients send no capabilities and render v0.9, so a v0.9 default serves them without configuration.
+- **What it risks:** A client that wants text gets A2UI, and a client that only activates the v1.0 extension gets v0.9 unless it also sends v1.0 capabilities.
+- **Done looks like:** A text-only mode, if a client needs one.
+
+### Python sends the draft MIME type for v0.9
+
+- **What it is:** The Node sample labels every A2UI data part `application/a2ui+json`, the v0.9.1 and v1.0 MIME type. Python's `create_a2ui_part` (`python/a2ui_agent/src/a2ui/a2a/parts.py`) still sends the draft `application/json+a2ui` for v0.9 and v0.8.
+- **Why it exists:** v0.9.1 renamed the MIME type; the Python SDK kept the old one for older versions.
+- **What it risks:** Nothing for the sample clients, which ignore the MIME type on responses. A client that filters on one of the two types sees only one agent's parts.
+- **Done looks like:** Python sends `application/a2ui+json` for v0.9 too, keeping the draft type only for v0.8.
+
+### `input-required` turns end with `final: true`
+
+- **What it is:** Python marks only `completed` status updates as final. The Node sample also marks `input-required` as final.
+- **Why it exists:** `@a2a-js/sdk` keeps the SSE stream open until it sees a final status update, so a non-final `input-required` would leave streaming clients waiting.
+- **What it risks:** Nothing found so far. The multi-turn flow continues through `contextId`.
+- **Done looks like:** Nothing, unless the SDK changes.
+
+### `@google/adk` cannot be used in this monorepo
+
+- **What it is:** `@google/adk@2.1.0` requires `zod ^4.2.1`. The root `resolutions` block pins `zod` to `^3.25.76`, so ADK fails at import time with `z.object(...).loose is not a function`. The sample uses `@google/genai` directly instead, losing the structural parallel with the Python ADK sample.
+- **Why it exists:** `web_core` is built on Zod 3 APIs, and the v1.0 catalog that `@a2ui/agent` consumes is a tree of Zod 3 `ZodObject`s that web_core converts to JSON Schema for the prompt. The Zod major is load-bearing for the agent-side path, so the pin cannot simply be relaxed.
+- **What it risks:** Any future JavaScript sample or downstream consumer wanting ADK hits the same wall. Working around it means either carrying two Zod majors and guaranteeing they never meet, or migrating `web_core` to Zod 4.
+- **Status:** Deferred by decision. The Node sample is the only consumer affected, and modernising that sample is a separate question that can be answered later.
+- **Untested assumption:** The "guarantee they never meet" option was never actually tried. `@a2ui/agent` declares no Zod dependency. The catalogs it loads get their Zod schemas inside `web_core`, and the only Zod objects it handles itself are `web_core`'s message schemas, which it converts to JSON Schema with `zod-to-json-schema` for the Direct JSON prompt. ADK would use Zod 4 for its own tool schemas while `web_core` uses Zod 3 for catalogs, and the two may never exchange a Zod object. Whoever revisits this should test lifting the root `resolutions` pin before assuming a `web_core` migration is required, because the fallback to `@google/genai` was chosen without that check.
+- **Done looks like:** Either the two majors are shown to coexist and the root pin is scoped rather than global, or `web_core` is migrated to Zod 4 and the pin is lifted, at which point ADK becomes usable and the Node sample can mirror the Python one.
