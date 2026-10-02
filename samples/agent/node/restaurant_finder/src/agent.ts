@@ -24,7 +24,7 @@ import {
   ExpressFormatFactory,
 } from '@a2ui/agent';
 
-import {TaskEvents, toA2aParts} from './a2a.js';
+import {readInboundMessage, TaskEvents, toA2aParts} from './a2a.js';
 import type {BasicCatalogs} from './catalogs.js';
 import type {A2uiFormat} from './config.js';
 import {loadExamples} from './examples.js';
@@ -32,7 +32,7 @@ import {LruCache} from './lru_cache.js';
 import type {ModelBackend, TurnInput} from './model.js';
 import {pickA2ui} from './pick_a2ui.js';
 import {buildSystemPrompt, FALLBACK_TEXT, retryQuery} from './prompt.js';
-import {parseUserQuery} from './user_query.js';
+import {buildUserQuery} from './user_query.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** How many times a turn is tried: once, plus one retry after a validation failure, as in Python. */
@@ -92,7 +92,8 @@ export class RestaurantExecutor implements AgentExecutor {
     // 1. Pick the version and catalogs from the renderer's capabilities.
     const {profile, catalogIds} = pickA2ui(userMessage);
     // 2. Turn the message, or the UI action it carries, into a query.
-    const {query, actionName, useStreaming} = parseUserQuery(userMessage, profile);
+    const inbound = readInboundMessage(userMessage, profile.version);
+    const {query, actionName, useStreaming} = buildUserQuery(inbound);
     const systemPrompt = this.buildSystemPrompt(profile, catalogIds);
     events.status('working', false);
 
