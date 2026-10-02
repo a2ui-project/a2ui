@@ -584,6 +584,12 @@
   input: "a${null}b"
   expect: ["ab"]
 
+- name: test_expr_null_keyword_argument_is_empty_string
+  description: The null keyword passed as a function argument is an empty string.
+  action: parse_expression_template
+  input: "${f(x: null)}"
+  expect: [{call: "f", args: {x: ""}, returnType: "any"}]
+
 - name: test_expr_nested_path_interpolation
   description: An interpolation nested inside another interpolation resolves to the inner path binding.
   action: parse_expression_template
