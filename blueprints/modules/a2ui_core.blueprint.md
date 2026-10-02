@@ -49,7 +49,7 @@ graph TD
     validation["validation:<br/>validator, validation_config, component_graph, component_refs, common_types (generated)"]
     resolution["resolution:<br/>node_resolver, component_node, ref_fields"]
     rendering["rendering:<br/>binder"]
-    core["core:<br/>catalog, minimal_catalog, common_schemas, messages, common, renderer_capabilities, surface_group_model, surface_model, component_model, data_model, data_context, component_context"]
+    core["core:<br/>catalog, common_schemas, messages, common, renderer_capabilities, surface_group_model, surface_model, component_model, data_model, data_context, component_context"]
     primitives["primitives:<br/>errors, cancellation, event_notifier, reactivity, data_path, protocol_version, reference_schema, schema_resolution, resolved_binding"]
 
     processing --> core
@@ -118,7 +118,7 @@ graph TD
     Renderer -->|Binds to surface state| SM
     Agent -->|Evaluates UI tree| SGM
     MP -->|Resolves catalogs from| CAT
-    SM -.->|Holds reference to| CAT
+    SM -->|Holds reference to| CAT
     NR_R -->|Resolves widgets via| CAT
     NR_A -->|Resolves widgets via| CAT
 ```
