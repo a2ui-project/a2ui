@@ -168,6 +168,81 @@ describe('A2uiLitElement', () => {
     document.body.removeChild(el);
   });
 
+  it('keeps its controller when assigned an equivalent context instance', async () => {
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+
+    const context1 = new ComponentContext(surface, 'root', '/items/0');
+    await asyncUpdate(el, (e: any) => {
+      e.context = context1;
+    });
+    assert.strictEqual(controllerCreatedCount, 1);
+    assert.strictEqual(disposedCount, 0);
+
+    // A fresh ComponentContext for the same surface, component, and data path
+    // (as produced by a parent's renderNode on re-render) must not recreate
+    // the controller.
+    const context2 = new ComponentContext(surface, 'root', '/items/0');
+    assert.notStrictEqual(context1, context2);
+    await asyncUpdate(el, (e: any) => {
+      e.context = context2;
+    });
+
+    assert.strictEqual(controllerCreatedCount, 1);
+    assert.strictEqual(disposedCount, 0);
+
+    document.body.removeChild(el);
+  });
+
+  it('replaces its controller when the context binds another data path', async () => {
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, (e: any) => {
+      e.context = new ComponentContext(surface, 'root', '/items/0');
+    });
+    assert.strictEqual(controllerCreatedCount, 1);
+
+    await asyncUpdate(el, (e: any) => {
+      e.context = new ComponentContext(surface, 'root', '/items/1');
+    });
+    assert.strictEqual(disposedCount, 1);
+    assert.strictEqual(controllerCreatedCount, 2);
+
+    document.body.removeChild(el);
+  });
+
+  it('replaces its controller when the component model is recreated', async () => {
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, (e: any) => {
+      e.context = new ComponentContext(surface, 'root');
+    });
+    assert.strictEqual(controllerCreatedCount, 1);
+
+    // Removing and re-adding the component creates a new ComponentModel
+    // instance with the same id.
+    surface.componentsModel.removeComponent('root');
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [{id: 'root', component: 'Text', text: 'Recreated'}],
+        },
+      },
+    ]);
+
+    await asyncUpdate(el, (e: any) => {
+      e.context = new ComponentContext(surface, 'root');
+    });
+    assert.strictEqual(disposedCount, 1);
+    assert.strictEqual(controllerCreatedCount, 2);
+
+    document.body.removeChild(el);
+  });
+
   it('takes its context and its children from an assigned node', async () => {
     const nodeProcessor = new MessageProcessor([basicCatalog]);
     nodeProcessor.processMessages([
@@ -345,5 +420,76 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.controller, undefined);
 
     document.body.removeChild(el);
+  });
+
+  it('does not accumulate component subscriptions when a parent re-renders', async () => {
+    const columnProcessor = new MessageProcessor([basicCatalog]);
+    columnProcessor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'leak-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'leak-surface',
+          components: [
+            {id: 'root', component: 'Column', children: ['c1', 'c2']},
+            {id: 'c1', component: 'Text', text: {'@path': '/label'}},
+            {id: 'c2', component: 'Text', text: 'Static'},
+          ],
+        },
+      },
+      {
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 'leak-surface',
+          value: {label: 'Initial'},
+        },
+      },
+    ]);
+    const columnSurface = columnProcessor.model.getSurface('leak-surface')!;
+
+    for (const impl of basicCatalog.components.values()) {
+      const {registerUniversalElement} = await import('./register_universal_element.js');
+      registerUniversalElement(impl as any);
+    }
+
+    const rootEl = document.createElement('a2ui-basic-column') as any;
+    document.body.appendChild(rootEl);
+    await asyncUpdate(rootEl, (e: any) => {
+      e.context = new ComponentContext(columnSurface, 'root');
+    });
+
+    const onCreatedListeners = (columnSurface.componentsModel.onCreated as any)
+      .listeners as Set<unknown>;
+    const baselineListeners = onCreatedListeners.size;
+    assert.ok(baselineListeners >= 3);
+
+    // Repeatedly update the data model and re-render the parent without a NodeResolver,
+    // which causes Column.render() -> renderNode() to pass fresh ComponentContext
+    // instances to each child on every pass.
+    for (let i = 0; i < 10; i++) {
+      await asyncUpdate(rootEl, (e: any) => {
+        columnProcessor.processMessages([
+          {
+            version: 'v1.0',
+            updateDataModel: {
+              surfaceId: 'leak-surface',
+              value: {label: `Tick ${i}`},
+            },
+          },
+        ]);
+        e.requestUpdate();
+      });
+    }
+
+    assert.strictEqual(onCreatedListeners.size, baselineListeners);
+
+    document.body.removeChild(rootEl);
+    assert.strictEqual(onCreatedListeners.size, 0);
   });
 });

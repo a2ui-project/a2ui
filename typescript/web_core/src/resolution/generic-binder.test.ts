@@ -1110,6 +1110,11 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
   });
 
+  it('scrapeSchemaBehavior returns the same tree for the same schema', () => {
+    const schema = z.object({label: z.string()});
+    assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
+  });
+
   describe('Generated setter types', () => {
     it('keeps the setter callable for a property declared with no literal branch', () => {
       const bindingOnly: GenerateSetters<{value: DataBinding | FunctionCall}> = {

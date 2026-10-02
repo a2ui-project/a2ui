@@ -283,4 +283,60 @@ describe('A2uiController', () => {
     // requestUpdate shouldn't be called again
     assert.strictEqual(updateCount, initialCalls);
   });
+
+  it('dispose() detaches the component and data subscriptions', async () => {
+    const mockHost = await createMockHost(context);
+    const controller = mockHost.testController;
+    assert.strictEqual(mockHost.isConnected, true);
+
+    let updateCount = 0;
+    mockHost.requestUpdate = () => {
+      updateCount++;
+    };
+
+    controller.dispose();
+    const callsAfterDispose = updateCount;
+
+    // Creating a new component fires surface.componentsModel.onCreated;
+    // a disposed controller must not forward that event to its former host.
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'newly_created_comp',
+                component: 'Text',
+                text: 'New',
+              },
+            ],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'test-surface',
+            value: {myText: 'AfterDispose'},
+          },
+        },
+      ]),
+    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(updateCount, callsAfterDispose);
+    assert.notStrictEqual(controller.props.text, 'AfterDispose');
+  });
+
+  it('dispose() and hostDisconnected() are safe to repeat', async () => {
+    const mockHost = await createMockHost(context);
+    const controller = mockHost.testController;
+
+    assert.doesNotThrow(() => {
+      controller.dispose();
+      controller.dispose();
+      controller.hostDisconnected();
+    });
+  });
 });

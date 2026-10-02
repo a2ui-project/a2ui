@@ -73,6 +73,7 @@ export abstract class A2uiLitElement<
   protected readonly api?: Api;
 
   private _controller?: A2uiController<Api, Props>;
+  private _controllerContext?: ComponentContext;
 
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
@@ -309,11 +310,15 @@ export abstract class A2uiLitElement<
       contextChanged = true;
     }
     if (contextChanged && this.context) {
+      if (this._controller && bindsSameComponent(this._controllerContext, this.context)) {
+        return;
+      }
       if (this._controller) {
         this.removeController(this._controller);
         this._controller.dispose();
       }
       this._controller = this.createController();
+      this._controllerContext = this.context;
     }
   }
 
@@ -323,6 +328,33 @@ export abstract class A2uiLitElement<
     }
     super.update(changedProperties);
   }
+}
+
+/**
+ * Whether two `ComponentContext` instances bind the same component model at
+ * the same data path on the same surface.
+ *
+ * Parent elements without a `ComponentNode` construct a fresh
+ * `ComponentContext` in `renderNode` on every render; comparing the bound
+ * targets avoids tearing down and recreating the child's `A2uiController`
+ * and `GenericBinder` when nothing they observe has changed.
+ */
+function bindsSameComponent(
+  a: ComponentContext | undefined,
+  b: ComponentContext | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.componentModel === b.componentModel &&
+    a.surfaceComponents === b.surfaceComponents &&
+    a.theme === b.theme &&
+    a.dataContext.surface === b.dataContext.surface &&
+    a.dataContext.dataModel === b.dataContext.dataModel &&
+    a.dataContext.path === b.dataContext.path &&
+    a.dataContext.explicitIndex === b.dataContext.explicitIndex &&
+    a.dataContext.parent === b.dataContext.parent
+  );
 }
 
 /**
