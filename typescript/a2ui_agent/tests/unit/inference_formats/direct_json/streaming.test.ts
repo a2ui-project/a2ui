@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {describe, test, expect} from 'vitest';
+import {describe, test, expect, vi} from 'vitest';
 import {DirectJsonStreamProcessorImpl} from '../../../../src/inference_formats/direct_json/streaming.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {SchemaCatalog} from '../../../../src/types.js';
@@ -575,5 +575,47 @@ describe('Direct JSON Streaming with several catalogs', () => {
 
   test('uses the first catalog when the surface names an unknown one', () => {
     expect(partialDataModelVersion('https://test.com/other.json')).toBe('v0.9');
+  });
+});
+
+describe('Direct JSON Streaming partial data model', () => {
+  const catalog: SchemaCatalog = new Catalog(
+    'https://test.com/catalog.json',
+    'v0.9',
+    [{name: 'Text', schema: {}} as ComponentApi],
+    [],
+  );
+  const opening =
+    '<a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId": "https://test.com/catalog.json"}}, ' +
+    '{"updateDataModel": {"surfaceId": "s1", "value": {';
+
+  function dataModelValues(parts: ReturnType<DirectJsonStreamProcessorImpl['processChunk']>) {
+    return parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui)
+      .filter(m => 'updateDataModel' in m)
+      .map(m => (m as {updateDataModel: {value: Record<string, unknown>}}).updateDataModel.value);
+  }
+
+  test('keeps a finished string value that contains a comma', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    const values = dataModelValues(processor.processChunk(opening + '"title": "Hi, there", "sub'));
+    expect(values).toEqual([{title: 'Hi, there'}]);
+  });
+
+  test('parses a bounded number of fragments per chunk', () => {
+    const items = Array.from({length: 20}, (_, i) => `{"name": "Item ${i}, open", "rating": ${i}}`);
+    const response = `${opening}"items": [${items.join(', ')}]}}}]</a2ui-json>`;
+    const chunks: string[] = [];
+    for (let i = 0; i < response.length; i += 20) chunks.push(response.substring(i, i + 20));
+
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    const parse = vi.spyOn(JSON, 'parse');
+    try {
+      for (const chunk of chunks) processor.processChunk(chunk);
+      expect(parse.mock.calls.length).toBeLessThanOrEqual(2 * chunks.length);
+    } finally {
+      parse.mockRestore();
+    }
   });
 });

@@ -690,34 +690,19 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
 
   private sniffPartialDataModel(messages: ResponsePart[]) {
     const msgType = MSG_TYPE_UPDATE_DATA_MODEL;
-    if (!this.jsonBuffer.includes(`"${msgType}"`)) return;
+    const keyIdx = this.jsonBuffer.lastIndexOf(`"${msgType}"`);
+    if (keyIdx === -1) return;
 
+    // Only an object that opens before the key can hold it, and the innermost such object
+    // is the message. The objects nested in its value never contain the key, so the
+    // message is the only fragment worth parsing.
     for (let i = this.braceStack.length - 1; i >= 0; i--) {
       const [bType, startIdx] = this.braceStack[i];
-      if (bType !== '{') continue;
+      if (bType !== '{' || startIdx > keyIdx) continue;
       const rawFrag = this.jsonBuffer.substring(startIdx);
       if (!rawFrag) continue;
 
-      const fixed = this.fixJson(rawFrag);
-      let obj: any = null;
-      try {
-        obj = JSON.parse(fixed);
-      } catch (_e) {
-        let trimmed = rawFrag;
-        while (trimmed.includes(',')) {
-          trimmed = trimmed.substring(0, trimmed.lastIndexOf(','));
-          try {
-            const fixedTrimmed = this.fixJson(trimmed);
-            if (fixedTrimmed) {
-              obj = JSON.parse(fixedTrimmed);
-              break;
-            }
-          } catch (_e2) {
-            continue;
-          }
-        }
-      }
-
+      const obj: any = this.parsePartialObject(rawFrag);
       if (obj && typeof obj === 'object' && msgType in obj) {
         const dmObj = obj[msgType];
         if (typeof dmObj === 'object' && dmObj !== null && 'value' in dmObj) {
@@ -745,7 +730,57 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           }
         }
       }
+      break;
     }
+  }
+
+  /**
+   * Parses an unfinished object fragment as `fixJson` completes it.
+   *
+   * When the completed text doesn't parse, for example because the fragment ends inside a
+   * key, the fragment is cut at its commas, from the last one back, until a cut parses.
+   * Only commas outside strings are cut points, so a string value is never cut short.
+   * Returns undefined when no cut parses.
+   */
+  private parsePartialObject(fragment: string): unknown {
+    const parse = (text: string): unknown => {
+      const fixed = this.fixJson(text);
+      if (!fixed) return undefined;
+      try {
+        return JSON.parse(fixed);
+      } catch {
+        return undefined;
+      }
+    };
+
+    const whole = parse(fragment);
+    if (whole !== undefined) return whole;
+    const cuts = this.commasOutsideStrings(fragment);
+    for (let i = cuts.length - 1; i >= 0; i--) {
+      const obj = parse(fragment.substring(0, cuts[i]));
+      if (obj !== undefined) return obj;
+    }
+    return undefined;
+  }
+
+  /** Returns the positions of the commas in `text` that are not inside a string. */
+  private commasOutsideStrings(text: string): number[] {
+    const commas: number[] = [];
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = inString;
+      } else if (char === '"') {
+        inString = !inString;
+      } else if (char === ',' && !inString) {
+        commas.push(i);
+      }
+    }
+    return commas;
   }
 
   private handleCompleteObject(
