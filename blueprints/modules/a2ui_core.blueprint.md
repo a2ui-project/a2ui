@@ -45,13 +45,6 @@ Protocol version coverage is per implementation rather than a property of this b
 
 ```mermaid
 graph TD
-    processing["processing:<br/>processor, expressions, basic_functions"]
-    validation["validation:<br/>validator, validation_config, component_graph, component_refs, common_types (generated)"]
-    resolution["resolution:<br/>node_resolver, component_node, ref_fields"]
-    rendering["rendering:<br/>binder"]
-    core["core:<br/>catalog, common_schemas, messages, common, renderer_capabilities, surface_group_model, surface_model, component_model, data_model, data_context, component_context"]
-    primitives["primitives:<br/>errors, cancellation, event_notifier, reactivity, data_path, protocol_version, reference_schema, schema_resolution, resolved_binding"]
-
     processing --> core
     processing --> primitives
     processing --> validation
@@ -171,12 +164,6 @@ a2ui/core/
     ├── expressions                 # Protocol-version-agnostic expression parser
     └── basic_functions             # Built-in operator implementations
 ```
-
-Layout rules hold across every implementation:
-
-- **Package names are normative.** The validation package is `validation`, schema-driven property binding is `rendering`, and view-tree resolution is `resolution`. Naming validation `validating`, or collapsing `rendering` into `resolution`, is a deviation.
-- **`primitives` sits below everything and imports nothing above it.** Anything two layers both need — the exception hierarchy, a shared protocol enum, schema reference expansion, resolved property snapshots — belongs there rather than in whichever layer happened to introduce it.
-- **Modules not yet in every implementation** — RPC handling, per-version schema models and spec version adapters — are described in the layer sections below and are not reflected in the tree above until they exist.
 
 ---
 
