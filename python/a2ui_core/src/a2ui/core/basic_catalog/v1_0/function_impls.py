@@ -13,11 +13,15 @@
 # limitations under the License.
 
 import datetime
+import json
 import math
 import re
 from typing import Any
+from urllib.parse import urlparse
+
 from ...resolution.data_context import DataContext
 from ...common.events import AbortSignal
+from ...exceptions import A2uiExpressionError
 from ...catalog import (
     FunctionImplementation,
     create_function_implementation,
@@ -61,8 +65,6 @@ def _to_str(val: Any) -> str:
     if val is None:
         return ""
     if isinstance(val, (dict, list)):
-        import json
-
         return json.dumps(val, separators=(",", ":"))
     if isinstance(val, bool):
         return "true" if val else "false"
@@ -96,9 +98,12 @@ def _regex_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = bool(
-        re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
-    )
+    pattern = _to_str(args.get("pattern", ""))
+    val = _to_str(args.get("value", ""))
+    try:
+        valid = bool(re.search(pattern, val))
+    except re.error as e:
+        raise A2uiExpressionError(f"Invalid regex pattern '{pattern}': {e}") from e
     return {"valid": valid}
 
 
@@ -415,12 +420,11 @@ def _open_url_execute(
     url = args.get("url")
     if not isinstance(url, str) or not url.strip():
         return None
-    from urllib.parse import urlparse
 
     parsed = urlparse(url)
     scheme = f"{parsed.scheme.lower()}:"
     if scheme not in _ALLOWED_URL_SCHEMES:
-        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+        raise A2uiExpressionError(f"Unsupported URL scheme: {parsed.scheme}")
     return None
 
 
@@ -435,7 +439,7 @@ def _and_execute(
 ) -> bool:
     values = args.get("values")
     if not isinstance(values, list) or len(values) < 2:
-        raise ValueError("AndFunction requires at least 2 values")
+        raise A2uiExpressionError("AndFunction requires at least 2 values")
     return all(_to_bool(v) for v in values)
 
 
@@ -449,7 +453,7 @@ def _or_execute(
 ) -> bool:
     values = args.get("values")
     if not isinstance(values, list) or len(values) < 2:
-        raise ValueError("OrFunction requires at least 2 values")
+        raise A2uiExpressionError("OrFunction requires at least 2 values")
     return any(_to_bool(v) for v in values)
 
 

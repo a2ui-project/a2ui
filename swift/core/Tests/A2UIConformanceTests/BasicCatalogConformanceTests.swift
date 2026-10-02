@@ -93,13 +93,19 @@ struct BasicCatalogConformanceTests {
         swiftArgs[k] = ConformanceTestHelper.toJSONValue(v)
       }
 
-      let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any]
-      if expectError != nil {
+      if let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
         do {
           _ = try fn.evaluate(arguments: swiftArgs, context: context)
           Issue.record("\(name): expected error but succeeded")
+        } catch is FunctionError {
+          if let expectedCategory = expectError["category"] as? String {
+            #expect(
+              expectedCategory == "ExpressionError" || expectedCategory == "ValidationError",
+              "\(name): unexpected expectedCategory \(expectedCategory)"
+            )
+          }
         } catch {
-          // Expected error
+          Issue.record("\(name): threw unexpected non-function error: \(error)")
         }
       } else {
         do {

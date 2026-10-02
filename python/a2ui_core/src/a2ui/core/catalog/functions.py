@@ -88,12 +88,10 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
     ) -> TReturn:
         if self.execute_func is None:
             raise ValueError(f"Function {self.name} has no executable logic.")
-        safe_args = args
         if self.schema and hasattr(self.schema, "model_validate"):
-            try:
-                safe_args = self.schema.model_validate(args).model_dump(by_alias=True)
-            except Exception:
-                safe_args = args
+            safe_args = self.schema.model_validate(args).model_dump(by_alias=True)
+        else:
+            safe_args = args
         exec_fn = cast(Callable[..., TReturn], self.execute_func)
         try:
             sig = inspect.signature(exec_fn)

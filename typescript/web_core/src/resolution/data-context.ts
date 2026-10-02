@@ -723,7 +723,7 @@ export class DataContext {
     if ('event' in action && typeof action.event === 'object' && action.event !== null) {
       const resolvedContext: Record<string, unknown> = {};
       const ev = action.event as Record<string, unknown>;
-      if (ev.context && typeof ev.context === 'object') {
+      if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
         for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
           resolvedContext[key] = this.resolveDynamicValue(value);
         }
@@ -743,7 +743,7 @@ export class DataContext {
     if ('name' in action) {
       const actObj = action as Record<string, unknown>;
       const resolvedContext: Record<string, unknown> = {};
-      if (actObj.context && typeof actObj.context === 'object') {
+      if (actObj.context && typeof actObj.context === 'object' && !Array.isArray(actObj.context)) {
         for (const [key, value] of Object.entries(actObj.context as Record<string, unknown>)) {
           resolvedContext[key] = this.resolveDynamicValue(value);
         }

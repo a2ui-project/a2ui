@@ -329,12 +329,18 @@ export function getPluralRules(locale: string): Intl.PluralRules {
 
 /** Evaluates logical AND across an array of values. */
 export function executeAnd(values: unknown[]): boolean {
-  return Array.isArray(values) ? values.every(v => !!v) : false;
+  if (!Array.isArray(values) || values.length < 2) {
+    throw new A2uiExpressionError('and requires at least 2 values', 'and');
+  }
+  return values.every(v => !!v);
 }
 
 /** Evaluates logical OR across an array of values. */
 export function executeOr(values: unknown[]): boolean {
-  return Array.isArray(values) ? values.some(v => !!v) : false;
+  if (!Array.isArray(values) || values.length < 2) {
+    throw new A2uiExpressionError('or requires at least 2 values', 'or');
+  }
+  return values.some(v => !!v);
 }
 
 /** Evaluates logical NOT on a single value. */

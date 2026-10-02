@@ -51,7 +51,7 @@ CATEGORY_TO_EXCEPTION = {
     "RecursionError": (A2uiRecursionError,),
     "DataError": (A2uiDataError,),
     "StateError": (A2uiStateError,),
-    "ExpressionError": (A2uiExpressionError, ValueError),
+    "ExpressionError": (A2uiExpressionError,),
 }
 
 SUPPORTED_PROTOCOL_VERSIONS = {
@@ -1534,24 +1534,22 @@ def validate_evaluate_function_case(case: dict[str, Any]) -> None:
     surface.locale = locale
     context = DataContext(surface=surface, path="/")
 
-    if expect_error:
-        with assert_raises(expect_error):
-            if (
-                default_cat
-                and hasattr(default_cat, "functions")
-                and func_name in default_cat.functions
-            ):
-                default_cat.functions[func_name].execute(args, context)
-            else:
-                context.resolve_dynamic_value({"call": func_name, "args": args})
-    else:
+    def _invoke() -> Any:
         if (
             default_cat
             and hasattr(default_cat, "functions")
             and func_name in default_cat.functions
         ):
-            result = default_cat.functions[func_name].execute(args, context)
-        else:
-            result = context.resolve_dynamic_value({"call": func_name, "args": args})
+            fn = default_cat.functions[func_name]
+            if getattr(fn, "execute_func", None) is not None:
+                return fn.execute_func(args, context)
+            return fn.execute(args, context)
+        return context.resolve_dynamic_value({"call": func_name, "args": args})
+
+    if expect_error:
+        with assert_raises(expect_error):
+            _invoke()
+    else:
+        result = _invoke()
         expected = case.get("expect")
         assert result == expected

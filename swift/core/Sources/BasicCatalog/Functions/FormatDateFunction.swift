@@ -75,10 +75,11 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
     }
 
     if format == "ISO" {
-      let isoFormatter = ISO8601DateFormatter()
-      isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-      isoFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-      return .string(isoFormatter.string(from: date))
+      let formatter = DateFormatter()
+      formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+      formatter.timeZone = TimeZone(secondsFromGMT: 0)
+      formatter.locale = Locale(identifier: "en_US_POSIX")
+      return .string(formatter.string(from: date))
     }
 
     let formatter = DateFormatter()

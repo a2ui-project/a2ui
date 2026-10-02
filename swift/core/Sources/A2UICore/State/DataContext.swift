@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import OrderedCollections
 import OrderedJSON
 
 /// Transient object created on-demand during rendering to solve "scope"
@@ -118,22 +119,21 @@ public final class DataContext {
         var newDict = dict
         newDict["event"] = .object(resolvedEvent)
         return .object(newDict)
-      } else if let nameVal = dict["name"] {
-        var resolvedEvent = OrderedDictionary<String, JSONValue>()
-        resolvedEvent["name"] = nameVal
+      } else if dict["name"] != nil {
+        var resolvedAction = dict
         if let ctxVal = dict["context"], case .object(let ctxDict) = ctxVal {
           var resolvedCtx = OrderedDictionary<String, JSONValue>()
           for (k, v) in ctxDict {
             resolvedCtx[k] = resolveDynamicValue(v)
           }
-          resolvedEvent["context"] = .object(resolvedCtx)
+          resolvedAction["context"] = .object(resolvedCtx)
         } else {
-          resolvedEvent["context"] = .object([:])
+          resolvedAction["context"] = .object([:])
         }
         if let msgVal = dict["userMessage"] {
-          resolvedEvent["userMessage"] = resolveDynamicValue(msgVal)
+          resolvedAction["userMessage"] = resolveDynamicValue(msgVal)
         }
-        return .object(["event": .object(resolvedEvent)])
+        return .object(resolvedAction)
       }
       return action
     default:

@@ -2256,19 +2256,15 @@ function validateEvaluateFunctionTestCase(testCase) {
       assert.throws(() => {
         let r;
         if (fn && typeof fn.execute === 'function') {
-          if (
-            (funcName === 'and' || funcName === 'or') &&
-            (!Array.isArray(args.values) || args.values.length < 2)
-          ) {
-            throw new A2uiExpressionError(`${funcName} requires at least 2 values`, funcName);
-          }
           r = fn.execute(args, ctx);
         } else if (defaultCat && defaultCat.invoker) {
           r = defaultCat.invoker(funcName, args, ctx);
         } else {
           r = ctx.resolveDynamicValue({call: funcName, args});
         }
-        r = isSignal(r) ? getValue(r) : r;
+        if (isSignal(r)) {
+          getValue(r);
+        }
       });
       return;
     }

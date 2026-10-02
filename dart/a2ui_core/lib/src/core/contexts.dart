@@ -218,7 +218,7 @@ class DataContext {
     if (map.containsKey('name')) {
       return _resolveActionFields(map);
     }
-    return map;
+    return null;
   }
 
   Map<String, dynamic> _resolveActionFields(Map<String, dynamic> map) {
