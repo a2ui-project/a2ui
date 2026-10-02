@@ -330,12 +330,18 @@ export function getPluralRules(locale: string): Intl.PluralRules {
 
 /** Evaluates logical AND across an array of values. */
 export function executeAnd(values: unknown[]): boolean {
-  return Array.isArray(values) ? values.every(v => !!v) : false;
+  if (!Array.isArray(values) || values.length < 2) {
+    throw new A2uiExpressionError('and requires at least 2 values', 'and');
+  }
+  return values.every(v => !!v);
 }
 
 /** Evaluates logical OR across an array of values. */
 export function executeOr(values: unknown[]): boolean {
-  return Array.isArray(values) ? values.some(v => !!v) : false;
+  if (!Array.isArray(values) || values.length < 2) {
+    throw new A2uiExpressionError('or requires at least 2 values', 'or');
+  }
+  return values.some(v => !!v);
 }
 
 /** Evaluates logical NOT on a single value. */
@@ -507,7 +513,7 @@ export function executeOpenUrl(urlInput: unknown): void {
   if (!target || typeof window === 'undefined' || typeof window['open'] !== 'function') return;
 
   const baseHref =
-    typeof window.location !== 'undefined' && window.location.href
+    typeof window !== 'undefined' && typeof window.location !== 'undefined' && window.location.href
       ? window.location.href
       : undefined;
 
@@ -518,7 +524,12 @@ export function executeOpenUrl(urlInput: unknown): void {
     throw new A2uiExpressionError(`Invalid URL specified: ${target}`, 'openUrl', e);
   }
 
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+  if (
+    url.protocol !== 'https:' &&
+    url.protocol !== 'http:' &&
+    url.protocol !== 'mailto:' &&
+    url.protocol !== 'tel:'
+  ) {
     throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
   }
 

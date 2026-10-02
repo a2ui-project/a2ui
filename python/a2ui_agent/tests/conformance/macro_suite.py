@@ -52,11 +52,10 @@ from a2ui.core import A2uiValidationError
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
-    COMMON_TYPES_SCHEMA_KEY,
     SERVER_TO_CLIENT_SCHEMA_KEY,
     SPEC_VERSION_MAP,
 )
-from a2ui.schema.utils import load_from_bundled_resource
+from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
 from pydantic import TypeAdapter
 
 _message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
@@ -365,9 +364,7 @@ def basic_catalog_schema() -> A2uiCatalog:
             s2c_schema=load_from_bundled_resource(
                 CATALOG_VERSION, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
             ),
-            common_types_schema=load_from_bundled_resource(
-                CATALOG_VERSION, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
-            ),
+            common_types_schema=load_common_types_schema(CATALOG_VERSION),
         )
     return _catalog
 

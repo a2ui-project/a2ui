@@ -194,11 +194,10 @@ def make_test_catalog(components: Optional[dict[str, Any]] = None) -> A2uiCatalo
     from a2ui.basic_catalog.provider import BasicCatalog
     from a2ui.schema.catalog import A2uiCatalog
     from a2ui.schema.constants import (
-        COMMON_TYPES_SCHEMA_KEY,
         SERVER_TO_CLIENT_SCHEMA_KEY,
         SPEC_VERSION_MAP,
     )
-    from a2ui.schema.utils import load_from_bundled_resource
+    from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
 
     basic_config = BasicCatalog.get_config("0.9.1")
     cat_schema = (
@@ -213,9 +212,7 @@ def make_test_catalog(components: Optional[dict[str, Any]] = None) -> A2uiCatalo
         s2c_schema=load_from_bundled_resource(
             "0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
         ),
-        common_types_schema=load_from_bundled_resource(
-            "0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
-        ),
+        common_types_schema=load_common_types_schema("0.9.1"),
     )
 
 
@@ -373,11 +370,10 @@ def test_macro_parser_parse_response():
     from a2ui.basic_catalog.provider import BasicCatalog
     from a2ui.schema.catalog import A2uiCatalog
     from a2ui.schema.constants import (
-        COMMON_TYPES_SCHEMA_KEY,
         SERVER_TO_CLIENT_SCHEMA_KEY,
         SPEC_VERSION_MAP,
     )
-    from a2ui.schema.utils import load_from_bundled_resource
+    from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
     from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
     @macro
@@ -399,9 +395,7 @@ def test_macro_parser_parse_response():
         s2c_schema=load_from_bundled_resource(
             "0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
         ),
-        common_types_schema=load_from_bundled_resource(
-            "0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
-        ),
+        common_types_schema=load_common_types_schema("0.9.1"),
     )
 
     expander = MacroExpander([UserInfoCard])

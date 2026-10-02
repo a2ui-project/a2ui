@@ -46,8 +46,8 @@ class RegexApi(FunctionApi):
 class LengthArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     value: DynamicString = Field(...)
-    min: int | None = Field(None, description="The minimum allowed length.")
-    max: int | None = Field(None, description="The maximum allowed length.")
+    min: int | None = Field(default=None, description="The minimum allowed length.")
+    max: int | None = Field(default=None, description="The maximum allowed length.")
 
 
 class LengthApi(FunctionApi):
@@ -59,8 +59,8 @@ class LengthApi(FunctionApi):
 class NumericArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(...)
-    min: float | None = Field(None, description="The minimum allowed value.")
-    max: float | None = Field(None, description="The maximum allowed value.")
+    min: float | None = Field(default=None, description="The minimum allowed value.")
+    max: float | None = Field(default=None, description="The maximum allowed value.")
 
 
 class NumericApi(FunctionApi):
@@ -95,14 +95,14 @@ class FormatNumberArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(..., description="The number to format.")
     decimals: DynamicNumber | None = Field(
-        None,
+        default=None,
         description=(
             "Optional. The number of decimal places to show. Defaults to 0 or 2"
             " depending on locale."
         ),
     )
     grouping: DynamicBoolean | None = Field(
-        None,
+        default=None,
         description=(
             "Optional. If true, uses locale-specific grouping separators (e.g."
             " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
@@ -123,14 +123,14 @@ class FormatCurrencyArgs(StrictBaseModel):
         ..., description="The ISO 4217 currency code (e.g., 'USD', 'EUR')."
     )
     decimals: DynamicNumber | None = Field(
-        None,
+        default=None,
         description=(
             "Optional. The number of decimal places to show. Defaults to 0 or 2"
             " depending on locale."
         ),
     )
     grouping: DynamicBoolean | None = Field(
-        None,
+        default=None,
         description=(
             "Optional. If true, uses locale-specific grouping separators (e.g."
             " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
@@ -174,22 +174,23 @@ class PluralizeArgs(StrictBaseModel):
         ..., description="The numeric value used to determine the plural category."
     )
     zero: DynamicString | None = Field(
-        None, description="String for the 'zero' category (e.g., 0 items)."
+        default=None, description="String for the 'zero' category (e.g., 0 items)."
     )
     one: DynamicString | None = Field(
-        None, description="String for the 'one' category (e.g., 1 item)."
+        default=None, description="String for the 'one' category (e.g., 1 item)."
     )
     two: DynamicString | None = Field(
-        None, description="String for the 'two' category (used in Arabic, Welsh, etc.)."
+        default=None,
+        description="String for the 'two' category (used in Arabic, Welsh, etc.).",
     )
     few: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "String for the 'few' category (e.g., small groups in Slavic languages)."
         ),
     )
     many: DynamicString | None = Field(
-        None,
+        default=None,
         description=(
             "String for the 'many' category (e.g., large groups in various languages)."
         ),

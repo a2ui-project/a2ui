@@ -70,15 +70,12 @@ PROTOCOL_VERSION_MAP = {
     },
     VERSION_0_9: {
         SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9/json/server_to_client.json",
-        COMMON_TYPES_SCHEMA_KEY: "specification/v0_9/json/common_types.json",
     },
     VERSION_0_9_1: {
         SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9_1/json/server_to_client.json",
-        COMMON_TYPES_SCHEMA_KEY: "specification/v0_9_1/json/common_types.json",
     },
     VERSION_1_0: {
         SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v1_0/json/agent_to_renderer.json",
-        COMMON_TYPES_SCHEMA_KEY: "specification/v1_0/json/common_types.json",
     },
 }
 

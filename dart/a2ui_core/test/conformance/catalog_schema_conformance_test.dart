@@ -69,7 +69,10 @@ void _runCase(Map<String, Object?> testCase) {
 void _runFromJsonCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final Map<String, Object?> rawCatalog = _document(
-    testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
+    testCase['catalogSchema'] ??
+        testCase['catalog'] ??
+        testCase['schema'] ??
+        testCase['catalogPath'],
   );
   final overrideId = testCase['catalogId'] as String?;
   final input = <String, Object?>{

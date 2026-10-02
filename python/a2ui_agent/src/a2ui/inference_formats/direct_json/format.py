@@ -18,13 +18,12 @@ from collections.abc import Mapping, Sequence
 import copy
 from typing import Any, Callable
 
-from a2ui.schema.utils import load_from_bundled_resource
+from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
 from a2ui.core.schema.v0_9 import V09Capabilities
 
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,
-    COMMON_TYPES_SCHEMA_KEY,
     PROTOCOL_VERSION_MAP,
     INLINE_CATALOGS_KEY,
     CATALOG_COMPONENTS_KEY,
@@ -128,9 +127,7 @@ class DirectJsonFormat(InferenceFormat):
             )
         )
         self._common_types_schema = self._apply_modifiers(
-            load_from_bundled_resource(
-                version, COMMON_TYPES_SCHEMA_KEY, PROTOCOL_VERSION_MAP
-            )
+            load_common_types_schema(version)
         )
 
         # Process catalogs

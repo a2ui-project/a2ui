@@ -133,12 +133,14 @@ class MacroExpander:
         """
         from a2ui.schema.constants import (
             CATALOG_COMPONENTS_KEY,
-            COMMON_TYPES_SCHEMA_KEY,
             PROTOCOL_VERSION_MAP,
             SERVER_TO_CLIENT_SCHEMA_KEY,
             VERSION_0_9_1,
         )
-        from a2ui.schema.utils import load_from_bundled_resource
+        from a2ui.schema.utils import (
+            load_common_types_schema,
+            load_from_bundled_resource,
+        )
 
         version = VERSION_0_9_1
         name = "macros"
@@ -170,9 +172,7 @@ class MacroExpander:
             s2c_schema=load_from_bundled_resource(
                 version, SERVER_TO_CLIENT_SCHEMA_KEY, PROTOCOL_VERSION_MAP
             ),
-            common_types_schema=load_from_bundled_resource(
-                version, COMMON_TYPES_SCHEMA_KEY, PROTOCOL_VERSION_MAP
-            ),
+            common_types_schema=load_common_types_schema(version),
         )
 
     def transform_to_transport(

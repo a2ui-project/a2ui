@@ -16,7 +16,9 @@ import pytest
 from pydantic import ValidationError
 from typing import get_args
 
+from a2ui.core import A2uiCatalogError, Catalog, get_common_types_schema_map
 from a2ui.core.schema import (
+    ProtocolVersion,
     A2uiClientMessageListWrapper,
     A2uiClientActionMessage,
     A2uiRendererErrorMessage,
@@ -131,3 +133,44 @@ def test_seamless_programmatic_construction_snake_or_alias():
     assert obj_alias.surface_id == "surf-alias"
     assert obj_alias.catalog_id == "cat-alias"
     assert obj_alias.model_dump(by_alias=True)["surfaceId"] == "surf-alias"
+
+
+@pytest.mark.parametrize(
+    ("version", "schema_version"),
+    [
+        (ProtocolVersion.V0_9, "v0_9"),
+        (ProtocolVersion.V0_9_1, "v0_9"),
+        (ProtocolVersion.V1_0, "v1_0"),
+    ],
+)
+def test_common_types_schema_follows_release_line(
+    version: ProtocolVersion, schema_version: str
+) -> None:
+    """v0.9.1 uses the schema of its release line, v0.9."""
+    schema = get_common_types_schema_map(version)
+    assert schema["$id"] == (
+        f"https://a2ui.org/specification/{schema_version}/common_types.json"
+    )
+
+
+def test_common_types_schema_rejects_unsupported_versions() -> None:
+    with pytest.raises(A2uiCatalogError):
+        get_common_types_schema_map(ProtocolVersion.V0_8)
+
+
+def test_catalog_schema_returns_independent_copies() -> None:
+    catalog = Catalog(
+        catalog_id="test",
+        protocol_version="1.0",
+        defs={"Wrapper": {"$ref": "#/$defs/DynamicString"}},
+        common_types_defs={"DynamicString": {"type": "string"}},
+    )
+    schema = catalog.catalog_schema
+    schema["$defs"]["DynamicString"]["type"] = "number"
+    assert catalog.common_types_defs["DynamicString"] == {"type": "string"}
+    assert catalog.catalog_schema["$defs"]["DynamicString"]["type"] == "string"
+
+
+def test_catalog_schema_rejects_unparsable_versions() -> None:
+    with pytest.raises(A2uiCatalogError):
+        Catalog(catalog_id="test", protocol_version="latest").catalog_schema
