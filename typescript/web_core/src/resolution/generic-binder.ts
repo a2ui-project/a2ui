@@ -60,6 +60,8 @@ export type BehaviorNode =
   | {type: 'OBJECT'; shape: Record<string, BehaviorNode>}
   | {type: 'ARRAY'; element: BehaviorNode};
 
+const behaviorCache = new WeakMap<z.ZodTypeAny, BehaviorNode>();
+
 /**
  * Traverses a Zod schema tree to build a `BehaviorNode` map.
  *
@@ -70,17 +72,23 @@ export type BehaviorNode =
  * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
-  const behavior = getFieldBehavior(schema);
-  if (behavior.type === 'OBJECT' && behavior.shape && !('accessibility' in behavior.shape)) {
-    return {
-      ...behavior,
-      shape: {
-        ...behavior.shape,
-        accessibility: getFieldBehavior(AccessibilityAttributesSchema),
-      },
-    };
+  const cached = behaviorCache.get(schema);
+  if (cached) {
+    return cached;
   }
-  return behavior;
+  const behavior = getFieldBehavior(schema);
+  const result: BehaviorNode =
+    behavior.type === 'OBJECT' && behavior.shape && !('accessibility' in behavior.shape)
+      ? {
+          ...behavior,
+          shape: {
+            ...behavior.shape,
+            accessibility: getFieldBehavior(AccessibilityAttributesSchema),
+          },
+        }
+      : behavior;
+  behaviorCache.set(schema, result);
+  return result;
 }
 
 /**
