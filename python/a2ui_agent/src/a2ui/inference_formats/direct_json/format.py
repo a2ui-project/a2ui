@@ -18,12 +18,14 @@ from collections.abc import Mapping, Sequence
 import copy
 from typing import Any, Callable
 
-from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
+from a2ui.schema.utils import (
+    load_agent_to_renderer_schema,
+    load_common_types_schema,
+)
 from a2ui.inference_format import InferenceFormat
 from a2ui.core.schema.v0_9 import V09Capabilities
 
 from a2ui.schema.constants import (
-    SERVER_TO_CLIENT_SCHEMA_KEY,
     PROTOCOL_VERSION_MAP,
     INLINE_CATALOGS_KEY,
     CATALOG_COMPONENTS_KEY,
@@ -122,9 +124,7 @@ class DirectJsonFormat(InferenceFormat):
 
         # Load server-to-client and common types schemas
         self._server_to_client_schema = self._apply_modifiers(
-            load_from_bundled_resource(
-                version, SERVER_TO_CLIENT_SCHEMA_KEY, PROTOCOL_VERSION_MAP
-            )
+            load_agent_to_renderer_schema(version)
         )
         self._common_types_schema = self._apply_modifiers(
             load_common_types_schema(version)

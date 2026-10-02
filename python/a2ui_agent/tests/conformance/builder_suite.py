@@ -46,15 +46,11 @@ from a2ui.core.schema.v0_9 import (
 )
 from a2ui.core import ValidationConfig
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import (
-    SERVER_TO_CLIENT_SCHEMA_KEY,
-    SPEC_VERSION_MAP,
-    VERSION_0_9_1,
-)
+from a2ui.schema.constants import VERSION_0_9_1
 from a2ui.schema.utils import (
     find_repo_root,
+    load_agent_to_renderer_schema,
     load_common_types_schema,
-    load_from_bundled_resource,
 )
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
@@ -259,16 +255,14 @@ _catalog: Optional[A2uiCatalog] = None
 
 
 def basic_catalog_schema() -> A2uiCatalog:
-    """Loads the bundled basic catalog, memoized because schema loading is slow."""
+    """Loads the basic catalog, memoized because schema loading is slow."""
     global _catalog
     if _catalog is None:
         _catalog = A2uiCatalog(
             version=PROTOCOL_VERSION,
             name="basic",
             catalog_schema=BasicCatalog(PROTOCOL_VERSION).catalog_schema,
-            s2c_schema=load_from_bundled_resource(
-                PROTOCOL_VERSION, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
-            ),
+            s2c_schema=load_agent_to_renderer_schema(PROTOCOL_VERSION),
             common_types_schema=load_common_types_schema(PROTOCOL_VERSION),
         )
     return _catalog

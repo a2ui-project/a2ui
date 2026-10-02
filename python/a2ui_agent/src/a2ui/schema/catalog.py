@@ -227,12 +227,12 @@ class A2uiCatalog:
     @classmethod
     def from_config(cls, config: CatalogConfig, version: str = "1.0") -> A2uiCatalog:
         """Constructs an A2uiCatalog from a loaded CatalogConfig."""
-        from a2ui.schema.constants import PROTOCOL_VERSION_MAP, SERVER_TO_CLIENT_SCHEMA_KEY
-        from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
-
-        s2c_schema = load_from_bundled_resource(
-            version, SERVER_TO_CLIENT_SCHEMA_KEY, PROTOCOL_VERSION_MAP
+        from a2ui.schema.utils import (
+            load_agent_to_renderer_schema,
+            load_common_types_schema,
         )
+
+        s2c_schema = load_agent_to_renderer_schema(version)
         common_types_schema = load_common_types_schema(version)
         catalog_schema = config.provider.load()
         return cls(
