@@ -24,6 +24,7 @@ from a2ui.schema import A2uiCatalog
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 from a2ui.inference_formats.experimental.atom.format import AtomFormat
+from a2ui.inference_formats.experimental.vertical.format import VerticalFormat
 
 
 def _find_specification_example_files():
@@ -121,6 +122,9 @@ class TestSpecificationRoundtripAllFormats:
         self.express_fmt = ExpressFormat(catalog=self.catalog)
         self.elemental_fmt = ElementalFormat(catalog=self.catalog)
         self.atom_fmt = AtomFormat(catalog=self.catalog)
+        self.vertical_fmt = VerticalFormat(
+            catalog=self.catalog, surface_id="main", version="v1.0"
+        )
 
     @pytest.mark.parametrize(
         "json_file", EXAMPLE_FILES, ids=lambda p: os.path.basename(p)
@@ -203,5 +207,20 @@ class TestSpecificationRoundtripAllFormats:
                 processed += 1
         except Exception as e:
             print(f"\n[Atom Error] {os.path.basename(json_file)}: {e}")
+
+        # 4. Test Vertical Format Roundtrip (for non-nested / standalone components)
+        if len(all_components) == 1 and not any(
+            p in all_components[0] for p in ("child", "children")
+        ):
+            try:
+                vertical_dsl = self.vertical_fmt.parser.decompile(surface_payload)
+                if vertical_dsl:
+                    recompiled = self.vertical_fmt.parser.compile(vertical_dsl)
+                    _assert_recompiled_matches_payload(
+                        recompiled, surface_id, all_components
+                    )
+                    processed += 1
+            except Exception as e:
+                print(f"\n[Vertical Error] {os.path.basename(json_file)}: {e}")
 
         assert processed > 0, f"No formats processed for {os.path.basename(json_file)}"

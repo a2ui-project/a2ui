@@ -626,6 +626,15 @@ def make_parser(args):
             catalog=catalog, surface_id=CONFORMANCE_SURFACE_ID, version="v1.0"
         ).parser
 
+    if format_name == "vertical":
+        from a2ui.inference_formats.experimental.vertical.format import (
+            VerticalFormat,
+        )
+
+        return VerticalFormat(
+            catalog=catalog, surface_id=CONFORMANCE_SURFACE_ID, version="v1.0"
+        ).parser
+
     if format_name == "direct_json":
         from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 
@@ -672,6 +681,7 @@ def get_marked_conformance_cases(*filenames):
 cases_compiler = get_marked_conformance_cases(
     "agent/express/compiler.yaml",
     "agent/direct_json/compiler.yaml",
+    "agent/vertical/compiler.yaml",
 )
 
 
@@ -698,6 +708,7 @@ def test_compiler_conformance(name, test_case):
 cases_decompiler = get_marked_conformance_cases(
     "agent/express/decompiler.yaml",
     "agent/direct_json/decompiler.yaml",
+    "agent/vertical/decompiler.yaml",
 )
 
 
@@ -753,6 +764,8 @@ def wrap_parts(parser, parts):
 cases_response_parser = get_marked_conformance_cases(
     "agent/express/response_parser.yaml",
     "agent/direct_json/response_parser.yaml",
+    "agent/vertical/response_parser.yaml",
+    "agent/vertical/response_streaming.yaml",
 )
 
 
@@ -787,5 +800,40 @@ def test_response_parser_conformance(name, test_case):
         parts = parser.parse_response(test_case["input"], **kwargs)
         assert_parts_match(parts, test_case["expect"])
 
+    elif action == "parse_chunk":
+        steps = test_case["steps"]
+        for step in steps:
+            parts = parser.process_chunk(step["input"])
+            assert_parts_match(parts, step["expect"])
+
     else:
         raise ValueError(f"Unknown response parser action: {action}")
+
+
+cases_prompt_generator = get_marked_conformance_cases(
+    "agent/vertical/prompt_generator.yaml",
+)
+
+
+@pytest.mark.parametrize("name, test_case", cases_prompt_generator)
+def test_prompt_generator_conformance(name, test_case):
+    args = test_case["args"]
+    catalogs = [
+        setup_catalog_from_document(c["catalog"]) for c in args.get("catalogs", [])
+    ]
+    fmt_name = args["format"]
+    if fmt_name == "vertical":
+        from a2ui.inference_formats.experimental.vertical import VerticalFormat
+
+        fmt = VerticalFormat(
+            catalog=catalogs[0] if catalogs else None,
+            surface_id=CONFORMANCE_SURFACE_ID,
+        )
+    else:
+        raise ValueError(f"Unknown format: {fmt_name}")
+
+    output = fmt.prompt_generator.generate_system_prompt()
+    for fragment in test_case.get("expect_contains", []):
+        assert fragment in output, f"{fragment!r} not in {output!r}"
+    for fragment in test_case.get("expect_absent", []):
+        assert fragment not in output, f"{fragment!r} unexpectedly in {output!r}"
