@@ -17,8 +17,8 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {signal as angularSignal} from '@angular/core';
 import {SliderComponent} from './slider.component';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
+import {A2uiRendererService} from '@a2ui/angular';
+import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 describe('SliderComponent', () => {

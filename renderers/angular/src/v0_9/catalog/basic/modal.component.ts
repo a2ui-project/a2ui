@@ -15,7 +15,7 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy, signal} from '@angular/core';
-import {ComponentHostComponent} from '../../core/component-host.component';
+import {ComponentHostComponent} from '@a2ui/angular';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
 

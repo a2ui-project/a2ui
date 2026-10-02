@@ -16,7 +16,7 @@
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {TextFieldComponent} from './text-field.component';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../../core/a2ui-renderer.service';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 import {By} from '@angular/platform-browser';
 

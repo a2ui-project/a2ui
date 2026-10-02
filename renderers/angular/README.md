@@ -17,22 +17,24 @@ yarn add @a2ui/angular @a2ui/web_core
 
 ## Protocol Versioning
 
-A2UI supports multiple protocol versions to ensure backward compatibility as the framework evolves. For new projects, it is recommended to use the **v0.9** protocol.
-
-To use the v0.9 implementation, import from the versioned path:
+A2UI supports multiple protocol versions to ensure backward compatibility as the framework evolves. The root `@a2ui/angular` package provides version-agnostic surface management, component hosting, and the latest standard catalog.
 
 ```typescript
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular/v0_9';
-import {BasicCatalog} from '@a2ui/angular/v0_9';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG, BasicCatalog} from '@a2ui/angular';
 ```
+
+For backward compatibility with prior protocol versions, version-specific subpaths are available:
+
+- `@a2ui/angular/v0_9`: v0.9 protocol and native catalog
+- `@a2ui/angular/v0_8`: v0.8 protocol and native catalog
 
 ## Basic Setup
 
-Configure the renderer in your `app.config.ts` using the `A2UI_RENDER_CONFIG` injection token:
+Configure the renderer in your `app.config.ts` using the `A2UI_RENDERER_CONFIG` injection token:
 
 ```typescript
 import {ApplicationConfig} from '@angular/core';
-import {A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog} from '@a2ui/angular/v0_9';
+import {A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog} from '@a2ui/angular';
 
 export const appConfig: ApplicationConfig = {
   providers: [

@@ -14,5 +14,20 @@
  * limitations under the License.
  */
 
-export const A2UI_ANGULAR_VERSION = '0.9.0';
-export * from './v0_8/public-api';
+// Core Services and Components
+export * from './core/a2ui-renderer.service';
+export * from './core/component-host.component';
+export * from './core/surface.component';
+export * from './core/catalog_component';
+export * from './core/component-binder.service';
+export * from './core/types';
+export * from './core/utils';
+export * from './core/markdown';
+
+// Catalog Types and Web Component utilities
+export * from './catalog/types';
+export * from './catalog/to_web_component';
+export * from './catalog/universal_only.component';
+
+// Providers and v1.0 BasicCatalog
+export * from './basic-catalog';
