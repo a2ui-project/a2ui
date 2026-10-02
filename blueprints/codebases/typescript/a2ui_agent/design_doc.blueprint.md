@@ -50,14 +50,14 @@ accept them without redeclaring the shape.
 ### Core contracts landing in `web_core`
 
 The v1.0 core work defines contracts each language SDK should find in its core package.
-Three are not in `web_core` as of this writing but are expected. **This design assumes
-they exist**, and targets their agreed cross-language names rather than working around
-their absence.
+When this design was written, these were not in `web_core` yet, so it assumed they would
+land and targeted their agreed cross-language names rather than working around their
+absence. Both have since landed.
 
-| Contract           | State when last checked                                       | This SDK's assumption                                              |
-| ------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `PayloadValidator` | Specified in the `a2ui_core` blueprint; not yet in `web_core` | Per-catalog checks only, behind `MessageProcessor` — see section 6 |
-| `A2uiCatalogError` | Not defined                                                   | Imported from core rather than declared locally                    |
+| Contract           | State when last checked                   | This SDK's assumption                                              |
+| ------------------ | ----------------------------------------- | ------------------------------------------------------------------ |
+| `PayloadValidator` | In `web_core`, used by `MessageProcessor` | Per-catalog checks only, behind `MessageProcessor` — see section 6 |
+| `A2uiCatalogError` | Exported from `@a2ui/web_core/errors`     | Imported from core rather than declared locally                    |
 
 **The validator is `PayloadValidator`, and it is not the entry point.** The `a2ui_core`
 blueprint makes `MessageProcessor` the single entry point that both processes and
@@ -716,9 +716,8 @@ be resolved before the affected area is finished.
 
 ### C. Dependencies on other work
 
-4. **Core contracts landing in `web_core`.** This design assumes `PayloadValidator` and
-   `A2uiCatalogError`, neither of which exists there yet (section 1). **Blocking** for
-   validation.
+4. **Core contracts landing in `web_core`.** Resolved: `PayloadValidator` and
+   `A2uiCatalogError`, which this design assumed (section 1), have both landed.
 
 5. **Does the YAML expectation format change with structured parts?** Existing cases put
    `text` and `a2ui` in one entry, which the structured model splits into two parts.
@@ -768,10 +767,10 @@ Confirmed present and shaped as documented: `Catalog`, `loadCatalogFromSchema`,
 in `@a2ui/web_core/errors`, and Node-safe subpath imports for every `web_core` path in
 section 1.
 
-Confirmed absent from `web_core` and assumed to be landing: any validator class and
-`A2uiCatalogError`. Also absent: `V09RendererCapabilities`, which this SDK would only
-need if it took on v0.9, and any export path reaching the bundled v1.0 basic catalog
-JSON, which it no longer needs either way.
+Absent when first checked and since landed: `PayloadValidator` and `A2uiCatalogError`.
+Still absent: `V09RendererCapabilities`, which this SDK doesn't need because it defines
+a version-neutral `RendererCapabilities` type, and any export path reaching the bundled
+v1.0 basic catalog JSON, which it no longer needs either way.
 
 Verified while acting on review feedback. `BundledCatalogProvider` is gone from
 TypeScript but still present in `python/a2ui_agent/src/a2ui/basic_catalog/provider.py`

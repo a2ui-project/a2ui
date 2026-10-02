@@ -18,6 +18,7 @@ import {A2uiError} from './internal/web_core.js';
 import type {ResponsePart} from './parser/response_part.js';
 
 export {
+  A2uiCatalogError,
   A2uiError,
   A2uiValidationError,
   A2uiDataError,
@@ -82,35 +83,5 @@ export class A2uiCompilationError extends A2uiError {
     this.column = options.column;
     this.helpMessage = options.helpMessage;
     this.partialResults = options.partialResults ?? [];
-  }
-}
-
-/**
- * TEMPORARY — this belongs in `@a2ui/web_core`, not here.
- *
- * Local stand-in for catalog-related errors.
- *
- * @remarks
- * This is a local stand-in, not a permanent part of the agent SDK's surface.
- * `A2uiCatalogError` is specified by `blueprints/modules/a2ui_core.blueprint.md`
- * and is expected to land in `@a2ui/web_core/errors`. Once it does:
- *   1. delete this declaration,
- *   2. re-export the core one from `src/internal/web_core.ts`,
- *   3. remove this entry from the "Temporary shims" table in the package README.
- * No other file should need to change, because nothing imports it directly.
- *
- * @see blueprints/codebases/typescript/a2ui_agent/design_doc.blueprint.md — section 1
- *
- * TODO(web_core): remove once `A2uiCatalogError` is exported from core.
- */
-export class A2uiCatalogError extends A2uiError {
-  /**
-   * Initializes a new `A2uiCatalogError` instance.
-   *
-   * @param message Human-readable error description.
-   */
-  constructor(message: string) {
-    super(message, 'CATALOG_ERROR');
-    this.name = 'A2uiCatalogError';
   }
 }

@@ -82,6 +82,7 @@ export type {MessageProcessorOptions} from '@a2ui/web_core/processing';
 
 // ./errors
 export {
+  A2uiCatalogError,
   A2uiError,
   A2uiValidationError,
   A2uiDataError,
