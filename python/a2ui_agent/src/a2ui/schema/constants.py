@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-A2UI_ASSET_PACKAGE = "a2ui.assets"
 SERVER_TO_CLIENT_SCHEMA_KEY = "server_to_client"
 COMMON_TYPES_SCHEMA_KEY = "common_types"
 CATALOG_SCHEMA_KEY = "catalog"

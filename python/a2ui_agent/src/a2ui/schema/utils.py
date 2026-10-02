@@ -15,21 +15,16 @@
 """Utilities for A2UI schema resolution, loading, and manipulation.
 
 Provides helper functions for locating specification directories, loading
-bundled or repository schema assets, and performing schema transformations.
+in-memory or repository schema assets, and performing schema transformations.
 """
 
 import json
-import logging
 import os
-import importlib.resources
 from typing import Any, cast
 
 from .constants import (
-    A2UI_ASSET_PACKAGE,
     SPECIFICATION_DIR,
-    ENCODING,
 )
-from .catalog_provider import FileSystemCatalogProvider
 
 
 def find_repo_root(start_path: str | None = None) -> str | None:
@@ -168,97 +163,29 @@ def get_basic_examples_dir(version: str = "v1_0", start_path: str | None = None)
     )
 
 
-def load_from_bundled_resource(
-    version: str,
-    resource_key: str,
-    spec_map: dict[str, dict[str, str]],
-) -> dict[str, Any]:
-    """Loads a schema resource from bundled package resources or local fallbacks.
-
-    Attempts to load the schema from bundled package resources first, falling back
-    to local asset directories, and finally to the source repository.
+def load_agent_to_renderer_schema(version: str) -> dict[str, Any]:
+    """Returns the agent-to-renderer (server-to-client) schema for a protocol version.
 
     Args:
-        version: The protocol version string (e.g. 'v1_0', 'v0_9').
-        resource_key: Key identifying the resource in spec_map.
-        spec_map: Mapping of version names to dictionaries of resource keys and
-            relative file paths.
+        version: The protocol version string (e.g. '1.0', '0.9.1', 'v0_9').
 
     Returns:
-        The parsed schema JSON content as a dictionary.
+        The agent-to-renderer JSON schema as a dictionary.
 
     Raises:
-        A2uiCatalogError: If the version is not found in spec_map, or if resource_key
-            is not found in the specification map for the version.
-        IOError: If the schema resource file cannot be located or loaded from any source.
+        A2uiCatalogError: If the version is not a known protocol version.
     """
-    from a2ui.core.common.semver import to_canonical_version
+    from a2ui.core import A2uiCatalogError, get_agent_to_renderer_schema_json
+    from a2ui.core.common import to_protocol_version
 
-    canonical = to_canonical_version(version)
-    version_spec_map = spec_map.get(canonical or version)
-    if not version_spec_map:
-        from a2ui.core import A2uiCatalogError
-
-        raise A2uiCatalogError(f"Unknown A2UI version: {version}")
-
-    if resource_key not in version_spec_map:
-        from a2ui.core import A2uiCatalogError
-
-        raise A2uiCatalogError(
-            f"Resource key '{resource_key}' not found in specification map for version"
-            f" {version}"
-        )
-
-    rel_path = version_spec_map[resource_key]
-    filename = os.path.basename(rel_path)
-    version_dir = canonical or version
-
-    # 1. Try to load from the bundled package resources.
     try:
-        traversable = importlib.resources.files(A2UI_ASSET_PACKAGE)
-        traversable = traversable.joinpath(version_dir).joinpath(filename)
-        with traversable.open("r", encoding=ENCODING) as f:
-            return cast(dict[str, Any], json.load(f))
-    except Exception as e:
-        logging.debug("Could not load '%s' from package resources: %s", filename, e)
-
-    # 2. Fallback to local assets
-    # This handles cases where assets might be present in src but not installed
-    try:
-        # The assets are located at a2ui/assets/<version_dir>/<filename>
-        # This file is at a2ui/schema/utils.py
-        # So, we need to go up 1 directory to 'a2ui', then down to 'assets'
-        potential_path = os.path.abspath(
-            os.path.join(
-                os.path.dirname(__file__),
-                "..",
-                "assets",
-                version_dir,
-                filename,
-            )
-        )
-        if os.path.exists(potential_path):
-            provider = FileSystemCatalogProvider(potential_path)
-            return provider.load()
-    except Exception as e:
-        logging.debug("Could not load schema '%s' from local assets: %s", filename, e)
-
-    # 3. Fallback: Source Repository (specification/...)
-    # This handles cases where we are running directly from source tree
-    # And assets are not yet copied to src/a2ui/assets
-    # manager.py is at a2a_agents/python/a2ui_agent/src/a2ui/inference/schema/manager.py
-    # Dynamically find repo root by looking for "specification" directory
-    try:
-        repo_root = find_repo_root(os.path.dirname(__file__))
-        if repo_root:
-            source_path = os.path.join(repo_root, rel_path)
-            if os.path.exists(source_path):
-                provider = FileSystemCatalogProvider(source_path)
-                return provider.load()
-    except Exception as e:
-        logging.debug("Could not load schema from source repo: %s", e)
-
-    raise IOError(f"Could not load schema {filename} for version {version}")
+        protocol_version = to_protocol_version(version)
+    except ValueError as e:
+        raise A2uiCatalogError(str(e)) from e
+    return cast(
+        dict[str, Any],
+        json.loads(get_agent_to_renderer_schema_json(protocol_version)),
+    )
 
 
 def load_common_types_schema(version: str) -> dict[str, Any]:
