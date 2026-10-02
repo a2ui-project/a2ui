@@ -167,6 +167,12 @@ describe('renderA2uiNode', () => {
     assert.strictEqual(second, first);
     assert.strictEqual(second.node, root);
     assert.strictEqual(second.context, root.context);
+
+    const contextOnly = new ComponentContext(surface, 'root');
+    const third = renderInParent(container, renderA2uiNode(contextOnly, testCatalog));
+    assert.strictEqual(third, first);
+    assert.strictEqual(third.node, undefined);
+    assert.strictEqual(third.context, contextOnly);
     resolver.dispose();
   });
 

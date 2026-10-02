@@ -38,9 +38,7 @@ class A2uiElementDirective extends Directive {
       this.tagName = tagName;
       this.element = document.createElement(tagName) as A2uiWebComponentElement;
     }
-    if (node) {
-      this.element.node = node;
-    }
+    this.element.node = node;
     this.element.context = context;
     return this.element;
   }
