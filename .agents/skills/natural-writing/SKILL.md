@@ -1,6 +1,6 @@
 ---
 name: natural-writing
-description: Contains well-defined rules for creating natural, accurate, and readable writing. Use this skill whenever authoring longer text, including reports, PR or CL descriptions, READMEs, system designs, analysis documents, or general documentation.
+description: Contains well-defined rules for creating natural, accurate, and readable writing. Use this skill whenever authoring longer text, including reports, PR descriptions, READMEs, system designs, analysis documents, or general documentation.
 ---
 
 # Rules for natural writing
@@ -31,6 +31,13 @@ Do not replace simple "is" or "are" verbs with flowery equivalents.
 ### Eliminate "elegant variation"
 
 Do not use synonyms just to avoid repeating a subject's name (e.g., "the eponymous character," "the titular protagonist," "the celebrated author"). It is acceptable to repeat the name or use pronouns naturally.
+
+### Prefer literal words to idioms
+
+Choose the word that states the meaning directly over an idiom whose meaning depends on context. Idioms are harder to read for non-native speakers and for anyone skimming instructions.
+
+- Instead of: "Leave the version _alone_."
+- Write: "Leave the version _untouched_."
 
 ## 2. Content & tone
 
@@ -138,6 +145,15 @@ Use em dashes sparingly, as language models often overuse them for emphasis. Pre
 Never generate a citation unless you are looking at the source.
 Do not invent URLs or DOIs.
 Do not assume a book exists or contains a specific fact without verification.
+
+### Link what you mention
+
+Link everything the reader may want to open: files, functions, test and conformance cases, packages, issues, pull requests and external pages. How precise a link should be depends on how long the text lives.
+
+- In short-lived text, such as review comments, PR descriptions and issues, link to the exact lines. Pin the link to a commit SHA rather than a branch, so it keeps pointing at the lines you meant after the branch moves. For a Markdown file, add `?plain=1` so a line anchor such as `#L10-L20` works.
+- In long-lived documents, such as READMEs, documentation, skills and code comments, link to the file or its section, without line ranges. A line range in one long-lived document has to be updated every time the document it points to changes.
+- Link only to what the reader can see at the link target. If your change is not pushed yet, link to the current version, or post the text after the push.
+- Before posting, check that every link resolves.
 
 ## 6. Communication (chat context)
 
