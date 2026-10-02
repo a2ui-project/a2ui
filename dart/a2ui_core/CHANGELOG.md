@@ -594,6 +594,10 @@
   entry and tracks nested bindings reactively; previously a container holding
   bindings (such as a function argument list or a nested `{path}` value) was
   passed through as a static literal.
+- pub.dev now recognizes the license. The package `LICENSE` linked
+  `https://` where the Apache text has `http://`, which pana does not match,
+  and carried the root's notice for `eval/bin/transcrypt`, a file outside
+  this package. Also a longer `description` and an example.
 
 ## 0.2.2
 
