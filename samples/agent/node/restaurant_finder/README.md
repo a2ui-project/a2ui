@@ -14,11 +14,7 @@ The model writes A2UI in one of two formats, chosen with `A2UI_FORMAT`: Direct J
 
 ## Running the sample
 
-Build the package first. The project compiles to `dist/src/`, and `yarn start` executes that output:
-
-```bash
-yarn workspace @a2ui/agent-restaurant-node run build
-```
+Run `yarn install` once from the repository root. `yarn start` then builds the sample, along with `@a2ui/agent` and `@a2ui/web_core` when they are out of date, and runs the compiled output in `dist/src/`.
 
 ### Without an API key (stub mode)
 
