@@ -119,7 +119,9 @@ class _DateTimeInputWidgetState extends State<_DateTimeInputWidget> {
   }
 
   void _updateValue(String newValue) {
-    _controller.text = newValue;
+    if (_controller.text != newValue) {
+      _controller.text = newValue;
+    }
     final WritableBinding<dynamic>? binding = widget.node
         .writableBinding<dynamic>('value');
     binding?.set(newValue);
