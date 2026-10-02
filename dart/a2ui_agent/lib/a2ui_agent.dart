@@ -30,7 +30,7 @@ export 'src/parser/parser.dart';
 export 'src/parser/response_part.dart';
 export 'src/processor/catalog_config.dart';
 export 'src/processor/catalog_providers.dart';
+export 'src/processor/catalog_resolver.dart';
 export 'src/processor/generator.dart';
 export 'src/processor/processor.dart';
 export 'src/prompt/generator.dart';
-export 'src/utils/catalog_resolver.dart';

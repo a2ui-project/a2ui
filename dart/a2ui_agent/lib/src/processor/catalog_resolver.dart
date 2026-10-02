@@ -14,7 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-import '../processor/catalog_config.dart';
+import 'catalog_config.dart';
 
 /// Negotiates the catalogs the agent registered against the capabilities a
 /// renderer declared, and returns the catalogs active for the session.
