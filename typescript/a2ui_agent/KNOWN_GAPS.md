@@ -50,12 +50,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Forces a double cast (`as unknown as Catalog<ComponentApi, FunctionImplementation>[]`) in `processor.ts` when passing schema-only catalogs.
 - **Done looks like:** `MessageProcessor` relaxes its type constraint to allow omitting `FunctionImplementation` when no action handler is provided.
 
-### Local shims for missing core exports
+### Local shim for a missing schema modifier
 
-- **What it is:** `A2uiCatalogError` is defined locally in `src/errors.ts`, and `RemoveStrictValidationTransformer` is shimmed in `tests/conformance/fixtures.ts`.
-- **Why it exists:** The blueprints specify them, and the conformance suite relies on the `remove_strict_validation` modifier, but `web_core` does not yet export them.
-- **What it risks:** Duplicate definitions that might fall out of sync with future core updates. Both are tagged `TODO(web_core)` and listed in the README shim table.
-- **Done looks like:** `web_core` exports `A2uiCatalogError` and an equivalent schema modifier, and the local shims are deleted.
+- **What it is:** `RemoveStrictValidationTransformer` is shimmed in `tests/conformance/fixtures.ts`.
+- **Why it exists:** The conformance suite relies on the `remove_strict_validation` modifier, but `web_core` doesn't export common schema modifiers yet.
+- **What it risks:** A duplicate definition that might fall out of sync with future core updates. It is tagged `TODO(web_core)` and listed in the README shim table.
+- **Done looks like:** `web_core` exports an equivalent schema modifier, and the local shim is deleted.
 
 ### Inbound validation ignores processor version pinning
 
