@@ -20,8 +20,12 @@ import Testing
 
 @MainActor
 private final class ConformanceMockFunctionHandler: FunctionHandler {
+  private let functionsMap: [String: any FunctionImplementation] = Dictionary(
+    uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
+  )
+
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
-    nil
+    functionsMap[named]
   }
 }
 

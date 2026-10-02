@@ -19,22 +19,13 @@ import OrderedJSON
 import Testing
 
 @MainActor
-private final class ConformanceActionHandler: ActionHandling {
-  var lastAction: ResolvedAction?
-  var lastError: ClientServerError?
-
-  func handle(action: ResolvedAction, from surfaceID: String) {
-    lastAction = action
-  }
-
-  func handle(error: ClientServerError, from surfaceID: String) {
-    lastError = error
-  }
-}
-
 private final class ConformanceFunctionHandler: FunctionHandler {
+  private let functionsMap: [String: any FunctionImplementation] = Dictionary(
+    uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
+  )
+
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
-    nil
+    functionsMap[named]
   }
 }
 
