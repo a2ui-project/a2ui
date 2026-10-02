@@ -171,6 +171,8 @@ An A2UI function is not the same as an LLM tool:
 | Definition   | Declared in an A2UI catalog with argument and return signatures.         | Declared in a tool definition passed to the model. |
 | State access | Scoped to surface data context, local UI state, or catalog methods.      | Scoped to external tools, APIs, and services.      |
 
+For details on how functions are routed and executed between the agent and renderer, see [Functions in A2UI in the protocol specification](../specification/v1.0-a2ui.md#functions-in-a2ui-content-execution).
+
 ### Function call
 
 An invocation of a catalog function with a set of arguments.
