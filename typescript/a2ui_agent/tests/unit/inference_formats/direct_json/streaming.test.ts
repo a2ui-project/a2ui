@@ -603,6 +603,18 @@ describe('Direct JSON Streaming partial data model', () => {
     expect(values).toEqual([{title: 'Hi, there'}]);
   });
 
+  test('does not yield an unchanged array or object again', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    const first = processor.processChunk(
+      opening + '"items": ["a", "b"], "filter": {"open": true}, "title": "Hi"',
+    );
+    const second = processor.processChunk(', "count": 2');
+    expect(dataModelValues(first)).toEqual([
+      {items: ['a', 'b'], filter: {open: true}, title: 'Hi'},
+    ]);
+    expect(dataModelValues(second)).toEqual([{count: 2}]);
+  });
+
   test('parses a bounded number of fragments per chunk', () => {
     const items = Array.from({length: 20}, (_, i) => `{"name": "Item ${i}, open", "rating": ${i}}`);
     const response = `${opening}"items": [${items.join(', ')}]}}}]</a2ui-json>`;
