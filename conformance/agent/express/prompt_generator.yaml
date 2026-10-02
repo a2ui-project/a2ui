@@ -181,6 +181,28 @@
   expect_contains: ["surface("]
   expect_absent: ["deleteSurface("]
 
+- name: test_express_snippet_describes_only_deletion_when_only_deletion_is_allowed
+  description: With only `deleteSurface` allowed, the snippet teaches `deleteSurface(...)` and not `surface(...)`, which targets the surface that the other statements write to. The check is case sensitive, so `deleteSurface(` does not contain `surface(`.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    allowed_messages: ["deleteSurface"]
+  expect_contains: ["deleteSurface("]
+  expect_absent: ["surface("]
+
+- name: test_express_snippet_describes_data_statements_when_only_data_is_allowed
+  description: With only `updateDataModel` allowed, the snippet still teaches `surface(...)` and data paths, since a data statement writes to a data path of the surface it targets, and it does not teach deletion.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    allowed_messages: ["updateDataModel"]
+  expect_contains: ["surface(", "$/"]
+  expect_absent: ["deleteSurface("]
+
 - name: test_express_snippet_describes_every_envelope_without_an_allowlist
   description: Without an allowlist the snippet describes the envelopes of its protocol version, so leaving the allowlist out is how an agent asks for all of them.
   action: generate_prompt_snippet

@@ -18,12 +18,17 @@ Provides dynamic schema crawling to identify component properties, logical funct
 signatures, and requirements directly from standard catalog JSON schemas.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, TYPE_CHECKING
 
 try:
     from a2ui.core import Catalog
 except ImportError:
     Catalog = Any  # type: ignore
+
+if TYPE_CHECKING:
+    from a2ui.core import CatalogApi
 
 from a2ui.schema.catalog import A2uiCatalog
 
@@ -42,7 +47,7 @@ class CatalogSchemaHelper:
 
     def __init__(
         self,
-        catalog: Catalog[Any, Any] | A2uiCatalog,
+        catalog: CatalogApi | A2uiCatalog,
     ):
         """Initializes the helper with a Catalog or an A2uiCatalog.
 

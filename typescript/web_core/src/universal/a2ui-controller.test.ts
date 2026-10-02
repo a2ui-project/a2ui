@@ -196,7 +196,7 @@ describe('A2uiController', () => {
               {
                 id: 'test_comp_2',
                 component: 'Text',
-                text: {path: '/myText'},
+                text: {'@path': '/myText'},
               },
             ],
           },

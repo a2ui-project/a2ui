@@ -415,7 +415,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatString"
+                  "@call": "formatString"
                   args:
                     value: "Hello, ${/user/name}! You have ${/user/unreadCount} unread messages."
   expect:
@@ -443,7 +443,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatString"
+                  "@call": "formatString"
                   args:
                     value: "Price is \\${/amount} USD"
   expect:
@@ -471,7 +471,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatString"
+                  "@call": "formatString"
                   args:
                     value: "Total: ${formatCurrency(value: /price, currency: 'USD')}"
   expect:
@@ -500,7 +500,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatString"
+                  "@call": "formatString"
                   args:
                     value: "Active: ${/isActive}, Score: ${/score}, Missing: ${/nonexistent}"
   expect:
@@ -526,7 +526,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatString"
+                  "@call": "formatString"
                   args:
                     value: "Hello ${/unclosed"
       expectError:
@@ -551,7 +551,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatString"
+                  "@call": "formatString"
                   args:
                     value: "${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${${1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
       expectError:

@@ -40,7 +40,7 @@ public final class EmailFunction: FunctionImplementation, Sendable {
       return .boolean(false)
     }
 
-    let emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    let emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
     let isMatch = (try? emailRegex.wholeMatch(in: value)) != nil
     return .boolean(isMatch)
   }

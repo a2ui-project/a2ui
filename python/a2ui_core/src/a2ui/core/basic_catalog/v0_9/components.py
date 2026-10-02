@@ -35,6 +35,7 @@ from ...schema.v0_9.common_types import (
     FunctionCall,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )
@@ -44,7 +45,7 @@ from ...catalog.components import ModelComponentApi
 class CatalogComponentCommon(ComponentCommon):
     model_config = ConfigDict(populate_by_name=True)
     weight: float | None = Field(
-        None,
+        default=None,
         description=(
             "The relative weight of this component within a Row or Column. This is"
             " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
@@ -83,7 +84,7 @@ class TextComponent(CatalogComponentCommon):
         ),
     )
     variant: Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | None = Field(
-        None,
+        default=None,
         description='A hint for the base text style. Defaults to "body" when absent.',
     )
 
@@ -92,10 +93,10 @@ class ImageComponent(CatalogComponentCommon):
     component: Literal["Image"] = "Image"
     url: DynamicString = Field(..., description="The URL of the image to display.")
     description: DynamicString | None = Field(
-        None, description="Accessibility text for the image."
+        default=None, description="Accessibility text for the image."
     )
     fit: Literal["contain", "cover", "fill", "none", "scaleDown"] | None = Field(
-        None,
+        default=None,
         description=(
             "Specifies how the image should be resized to fit its container. This"
             " corresponds to the CSS 'object-fit' property. Defaults to \"fill\" when"
@@ -108,7 +109,7 @@ class ImageComponent(CatalogComponentCommon):
         ]
         | None
     ) = Field(
-        None,
+        default=None,
         description=(
             'A hint for the image size and style. Defaults to "mediumFeature" when'
             " absent."
@@ -194,7 +195,8 @@ class AudioPlayerComponent(CatalogComponentCommon):
     component: Literal["AudioPlayer"] = "AudioPlayer"
     url: DynamicString = Field(..., description="The URL of the audio to be played.")
     description: DynamicString | None = Field(
-        None, description="A description of the audio, such as a title or summary."
+        default=None,
+        description="A description of the audio, such as a title or summary.",
     )
 
 
@@ -220,7 +222,7 @@ class RowComponent(CatalogComponentCommon):
         ]
         | None
     ) = Field(
-        None,
+        default=None,
         description=(
             "Defines the arrangement of children along the main axis (horizontally)."
             " Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center'"
@@ -228,7 +230,7 @@ class RowComponent(CatalogComponentCommon):
         ),
     )
     align: Literal["start", "center", "end", "stretch"] | None = Field(
-        None,
+        default=None,
         description=(
             "Defines the alignment of children along the cross axis (vertically). This"
             " is similar to the CSS 'align-items' property, but uses camelCase values"
@@ -259,7 +261,7 @@ class ColumnComponent(CatalogComponentCommon):
         ]
         | None
     ) = Field(
-        None,
+        default=None,
         description=(
             "Defines the arrangement of children along the main axis (vertically). Use"
             " 'spaceBetween' to push items to the edges (e.g. header at top, footer at"
@@ -268,7 +270,7 @@ class ColumnComponent(CatalogComponentCommon):
         ),
     )
     align: Literal["center", "end", "start", "stretch"] | None = Field(
-        None,
+        default=None,
         description=(
             "Defines the alignment of children along the cross axis (horizontally)."
             " This is similar to the CSS 'align-items' property. Defaults to"
@@ -287,14 +289,14 @@ class ListComponent(CatalogComponentCommon):
         ),
     )
     direction: Literal["vertical", "horizontal"] | None = Field(
-        None,
+        default=None,
         description=(
             'The direction in which the list items are laid out. Defaults to "vertical"'
             " when absent."
         ),
     )
     align: Literal["start", "center", "end", "stretch"] | None = Field(
-        None,
+        default=None,
         description=(
             "Defines the alignment of children along the cross axis. Defaults to"
             ' "stretch" when absent.'
@@ -343,7 +345,7 @@ class ModalComponent(CatalogComponentCommon):
 class DividerComponent(CatalogComponentCommon):
     component: Literal["Divider"] = "Divider"
     axis: Literal["horizontal", "vertical"] | None = Field(
-        None,
+        default=None,
         description=(
             'The orientation of the divider. Defaults to "horizontal" when absent.'
         ),
@@ -353,7 +355,7 @@ class DividerComponent(CatalogComponentCommon):
 class ButtonComponent(CatalogComponentCommon):
     component: Literal["Button"] = "Button"
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
@@ -368,7 +370,7 @@ class ButtonComponent(CatalogComponentCommon):
         ),
     )
     variant: Literal["default", "primary", "borderless"] | None = Field(
-        None,
+        default=None,
         description=(
             "A hint for the button style. If omitted, a default button style is used."
             " 'primary' indicates this is the main call-to-action button. 'borderless'"
@@ -382,7 +384,7 @@ class ButtonComponent(CatalogComponentCommon):
 class TextFieldComponent(CatalogComponentCommon):
     component: Literal["TextField"] = "TextField"
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
@@ -390,16 +392,16 @@ class TextFieldComponent(CatalogComponentCommon):
     )
     label: DynamicString = Field(..., description="The text label for the input field.")
     value: DynamicString | None = Field(
-        None, description="The value of the text field."
+        default=None, description="The value of the text field."
     )
     variant: Literal["longText", "number", "shortText", "obscured"] | None = Field(
-        None,
+        default=None,
         description=(
             'The type of input field to display. Defaults to "shortText" when absent.'
         ),
     )
     validation_regexp: str | None = Field(
-        None,
+        default=None,
         alias="validationRegexp",
         description=(
             "A regular expression used for client-side validation of the input."
@@ -410,7 +412,7 @@ class TextFieldComponent(CatalogComponentCommon):
 class CheckBoxComponent(CatalogComponentCommon):
     component: Literal["CheckBox"] = "CheckBox"
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
@@ -430,17 +432,17 @@ class CheckBoxComponent(CatalogComponentCommon):
 class ChoicePickerComponent(CatalogComponentCommon):
     component: Literal["ChoicePicker"] = "ChoicePicker"
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
         ),
     )
     label: DynamicString | None = Field(
-        None, description="The label for the group of options."
+        default=None, description="The label for the group of options."
     )
     variant: Literal["multipleSelection", "mutuallyExclusive"] | None = Field(
-        None,
+        default=None,
         description=(
             "A hint for how the choice picker should be displayed and behave. Defaults"
             ' to "mutuallyExclusive" when absent.'
@@ -457,14 +459,14 @@ class ChoicePickerComponent(CatalogComponentCommon):
         ),
     )
     display_style: Literal["checkbox", "chips"] | None = Field(
-        None,
+        default=None,
         alias="displayStyle",
         description=(
             'The display style of the component. Defaults to "checkbox" when absent.'
         ),
     )
     filterable: bool | None = Field(
-        None,
+        default=None,
         description=(
             "If true, displays a search input to filter the options. Defaults to false"
             " when absent."
@@ -475,15 +477,18 @@ class ChoicePickerComponent(CatalogComponentCommon):
 class SliderComponent(CatalogComponentCommon):
     component: Literal["Slider"] = "Slider"
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
         ),
     )
-    label: DynamicString | None = Field(None, description="The label for the slider.")
+    label: DynamicString | None = Field(
+        default=None, description="The label for the slider."
+    )
     min: float | None = Field(
-        None, description="The minimum value of the slider. Defaults to 0 when absent."
+        default=None,
+        description="The minimum value of the slider. Defaults to 0 when absent.",
     )
     max: float = Field(..., description="The maximum value of the slider.")
     value: DynamicNumber = Field(..., description="The current value of the slider.")
@@ -492,7 +497,7 @@ class SliderComponent(CatalogComponentCommon):
 class DateTimeInputComponent(CatalogComponentCommon):
     component: Literal["DateTimeInput"] = "DateTimeInput"
     checks: list[CheckRule] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
@@ -506,27 +511,27 @@ class DateTimeInputComponent(CatalogComponentCommon):
         ),
     )
     enable_date: bool | None = Field(
-        None,
+        default=None,
         alias="enableDate",
         description=(
             "If true, allows the user to select a date. Defaults to false when absent."
         ),
     )
     enable_time: bool | None = Field(
-        None,
+        default=None,
         alias="enableTime",
         description=(
             "If true, allows the user to select a time. Defaults to false when absent."
         ),
     )
     min: DynamicString | None = Field(
-        None, description="The minimum allowed date/time in ISO 8601 format."
+        default=None, description="The minimum allowed date/time in ISO 8601 format."
     )
     max: DynamicString | None = Field(
-        None, description="The maximum allowed date/time in ISO 8601 format."
+        default=None, description="The maximum allowed date/time in ISO 8601 format."
     )
     label: DynamicString | None = Field(
-        None, description="The text label for the input field."
+        default=None, description="The text label for the input field."
     )
 
 

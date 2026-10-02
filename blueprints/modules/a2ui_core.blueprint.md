@@ -239,7 +239,7 @@ export class Catalog<
 
 A `Catalog` is immutable once constructed.
 
-`TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions.
+`TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions. The schema-only case is named [`CatalogApi`](#catalogapi).
 
 Both parameters default to their constraint, so code that does not care about the concrete component or function type may write `Catalog` unparameterized. The rest of this document does so wherever the distinction is irrelevant.
 
@@ -322,6 +322,19 @@ Functions generally fall into a few common patterns:
 3.  **Effect Functions**: Side-effect handlers (e.g., `openUrl`, `closeModal`) that return `void`. These are triggered by user [**actions**](../../docs/public/concepts/glossary.md#action) rather than interpolation.
 
 If a function returns a reactive stream, it MUST use an idiomatic listening mechanism that supports standard unsubscription. To properly support an AI agent, functions SHOULD include a schema to generate accurate renderer capabilities.
+
+#### `CatalogApi`
+
+`CatalogApi` names the schema-only catalog, alongside `ComponentApi` and `FunctionApi`. Its components and functions carry schemas and no code.
+
+```typescript
+export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+```
+
+Every SDK that has a schema-only catalog exports it from its public facade under this name, as a type alias where the language has one. Parsing a catalog document produces a `CatalogApi`, since a document holds signatures only.
+
+- **Use `CatalogApi`** where functions are described or checked but never run: an agent writing a system prompt, validating generated payloads, or reading the inline catalogs in renderer capabilities.
+- **Use a catalog of `FunctionImplementation`** where functions are evaluated, as in a renderer resolving values or handling actions. APIs that evaluate functions SHOULD bound their catalog type to `FunctionImplementation`, so that passing a `CatalogApi` fails at compile time rather than resolving to nothing at runtime.
 
 #### The [Basic Catalog](../../docs/public/concepts/glossary.md#basic-catalog) Standard (Core APIs)
 
@@ -1292,7 +1305,7 @@ _Per-call catalog dispatch._ A `FunctionCall` may carry a `catalogId`. `DataCont
 
 This depends on `catalogId` surviving deserialization. If the `FunctionCall` model used at runtime is the pre-v1.0 shape (`call`, `args`, `returnType`), a strict schema library strips `catalogId` before resolution ever sees it, and every call silently resolves against the default catalog. Version-specific schema models must be selected by the surface's protocol version rather than aliased back to a legacy definition.
 
-_Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
+_Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"@path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
 
 _Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments, unresolvable catalog) dispatches an `EXPRESSION_ERROR` to the surface and yields an undefined value for that binding. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
 

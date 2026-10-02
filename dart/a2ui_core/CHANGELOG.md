@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
+- Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
+- `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
+- **Deprecated:** `SchemaCatalog` is renamed `CatalogApi`, matching
+  `ComponentApi` and `FunctionApi`. `SchemaCatalog` stays as a deprecated alias
+  and will be removed in a later release.
+- Support reserved protocol key prefix (`@path`, `@call`) in `DataBinding` and `FunctionCall`, dynamic prefix doubling unescaping (`@@path` → `@path`) during dynamic evaluation, and `@path` in dynamic setter generation.
 - Lower SDK floor constraint to `">=3.5.0 <4.0.0"` (replacing post-3.5 null-aware collection element syntax with collection-if) to support Flutter 3.24+ and Dart 3.5+ environments.
 - Execute `functionCall` and `call` component actions locally in
   `GenericBinder`, against the component's data context. A function that

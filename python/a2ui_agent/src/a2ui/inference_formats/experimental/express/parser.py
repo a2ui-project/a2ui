@@ -15,7 +15,7 @@
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
 from typing import Any, Type
-from a2ui.core import Catalog
+from a2ui.core import CatalogApi
 from a2ui.parser import (
     A2uiCompilationError,
     A2uiCompilationParseError,
@@ -59,7 +59,7 @@ class ExpressParser(Parser):
 
     def __init__(
         self,
-        catalog: Catalog[Any, Any] | A2uiCatalog,
+        catalog: CatalogApi | A2uiCatalog,
         surface_id: str = "main",
         version: str = "v1.0",
     ):

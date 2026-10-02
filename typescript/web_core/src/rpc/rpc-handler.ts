@@ -148,7 +148,8 @@ export class RpcHandler {
 
     const {version, callRendererFunction} = message;
     const {functionCallId, callFunction} = callRendererFunction;
-    const {call, catalogId, args} = callFunction;
+    const call = ((callFunction as any)['@call'] ?? callFunction.call) as string;
+    const {catalogId, args} = callFunction;
 
     const resolved = this.resolveFunctionImplementation(catalogId, call, context, version);
     if ('error' in resolved) {
@@ -247,7 +248,8 @@ export class RpcHandler {
       );
     }
 
-    if (!call || !call.call) {
+    const callName = ((call as any)?.['@call'] ?? (call as any)?.call) as string | undefined;
+    if (!call || !callName) {
       return Promise.reject(
         new A2uiRpcError(
           'Missing or invalid function call name.',
@@ -531,9 +533,10 @@ export class RpcHandler {
         this.pendingAgentCalls.delete(functionCallId);
       };
 
+      const callName = (((call as any)['@call'] ?? (call as any).call) || 'unknown') as string;
       timer = this.createTimeoutTimer(
         functionCallId,
-        call.call,
+        callName,
         effectiveTimeoutMs,
         cleanup,
         reject,

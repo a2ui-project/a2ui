@@ -983,3 +983,86 @@ def test_data_context_execute_function_exceeds_max_args():
         A2uiExpressionError, match="exceeds maximum allowed arguments count"
     ):
         ctx._execute_function("dummy_fn", oversized_args)
+
+
+def test_generic_binder_v10_literal_path_no_setter():
+    # In v1.0, {"path": "/x"} is literal data and must not get a setter writing to /x
+    from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV10
+
+    cat = BasicCatalogV10()
+    data_model = DataModel({"x": "initial"})
+    comp = ComponentModel(
+        "custom1",
+        "CustomCard",
+        cat,
+        {"details": {"path": "/x"}},
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "details": {"type": "object"},
+        },
+    }
+    binder = GenericBinder(context, schema=schema)
+    assert "setDetails" not in binder.current_props
+    binder.dispose()
+
+
+def test_adapt_ast_part_for_v10_preserves_arg_names():
+    from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+
+    part = {
+        "call": "myFunction",
+        "args": {
+            "path": "/x",
+            "nested": {"path": "/y"},
+        },
+    }
+    adapted = _adapt_ast_part_for_v10(part)
+    assert adapted == {
+        "@call": "myFunction",
+        "args": {
+            "path": "/x",
+            "nested": {"@path": "/y"},
+        },
+    }
+
+
+def test_generic_binder_binds_catalog_defined_dynamic_defs():
+    """A `$ref` to a catalog-defined dynamic def (e.g. `DynamicDate`) binds."""
+    cat = BasicCatalog()
+    data_model = DataModel({"form": {"date": {"year": 2024, "month": 5, "day": 1}}})
+    comp = ComponentModel(
+        "picker", "DatePicker", cat, {"value": {"path": "/form/date"}}
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    context = ComponentContext(comp, DataContext(surface, path="/"))
+
+    common_types = "https://a2ui.org/specification/v0_9/common_types.json"
+    date_schema = {
+        "type": "object",
+        "properties": {"value": {"$ref": "#/$defs/DynamicDate"}},
+        "$defs": {
+            "DynamicDate": {
+                "oneOf": [
+                    {"type": "object", "properties": {"year": {"type": "integer"}}},
+                    {"$ref": f"{common_types}#/$defs/DataBinding"},
+                    {
+                        "allOf": [
+                            {"$ref": f"{common_types}#/$defs/FunctionCall"},
+                            {"properties": {"returnType": {"const": "object"}}},
+                        ]
+                    },
+                ]
+            }
+        },
+    }
+    binder = GenericBinder(context, schema=date_schema)
+
+    assert binder.current_props["value"] == {"year": 2024, "month": 5, "day": 1}
+    assert callable(binder.current_props.get("setValue"))
+    binder.dispose()

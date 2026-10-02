@@ -40,24 +40,24 @@ class TextItem(StrictBaseModel):
     """The value of the text field. This can be a literal string or a reference to a value in the data model ('path', e.g. '/user/name')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_string: str | None = Field(None, alias="literalString")
-    path: str | None = Field(None)
+    literal_string: str | None = Field(default=None, alias="literalString")
+    path: str | None = Field(default=None)
 
 
 class UrlItem(StrictBaseModel):
     """The URL of the audio to be played. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/song/url')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_string: str | None = Field(None, alias="literalString")
-    path: str | None = Field(None)
+    literal_string: str | None = Field(default=None, alias="literalString")
+    path: str | None = Field(default=None)
 
 
 class AltTextItem(StrictBaseModel):
     """The alt text for the image. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/thumbnail/altText')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_string: str | None = Field(None, alias="literalString")
-    path: str | None = Field(None)
+    literal_string: str | None = Field(default=None, alias="literalString")
+    path: str | None = Field(default=None)
 
 
 class NameItem(StrictBaseModel):
@@ -116,25 +116,25 @@ class NameItem(StrictBaseModel):
             "warning",
         ]
         | None
-    ) = Field(None, alias="literalString")
-    path: str | None = Field(None)
+    ) = Field(default=None, alias="literalString")
+    path: str | None = Field(default=None)
 
 
 class DescriptionItem(StrictBaseModel):
     """A description of the audio, such as a title or summary. This can be a literal string or a reference to a value in the data model ('path', e.g. '/song/title')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_string: str | None = Field(None, alias="literalString")
-    path: str | None = Field(None)
+    literal_string: str | None = Field(default=None, alias="literalString")
+    path: str | None = Field(default=None)
 
 
 class ChildrenItem(StrictBaseModel):
     """Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list."""
 
     model_config = ConfigDict(populate_by_name=True)
-    explicit_list: list[str] | None = Field(None, alias="explicitList")
+    explicit_list: list[str] | None = Field(default=None, alias="explicitList")
     template: TemplateItem | None = Field(
-        None,
+        default=None,
         description=(
             "A template for generating a dynamic list of children from a data model"
             " list. `componentId` is the component to use as a template, and"
@@ -161,31 +161,31 @@ class ActionItem(StrictBaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
     name: str = Field(...)
-    context: list[ContextItem] | None = Field(None)
+    context: list[ContextItem] | None = Field(default=None)
 
 
 class LabelItem(StrictBaseModel):
     """The label for the slider. This can be a literal string or a reference to a value in the data model ('path')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_string: str | None = Field(None, alias="literalString")
-    path: str | None = Field(None)
+    literal_string: str | None = Field(default=None, alias="literalString")
+    path: str | None = Field(default=None)
 
 
 class ValueItem(StrictBaseModel):
     """The current value of the slider. This can be a literal number ('literalNumber') or a reference to a value in the data model ('path', e.g. '/restaurant/cost')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_number: float | None = Field(None, alias="literalNumber")
-    path: str | None = Field(None)
+    literal_number: float | None = Field(default=None, alias="literalNumber")
+    path: str | None = Field(default=None)
 
 
 class SelectionItem(StrictBaseModel):
     """The currently selected values for the component. This can be a literal array of strings or a path to an array in the data model('path', e.g. '/hotel/options')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_array: list[str] | None = Field(None, alias="literalArray")
-    path: str | None = Field(None)
+    literal_array: list[str] | None = Field(default=None, alias="literalArray")
+    path: str | None = Field(default=None)
 
 
 class OptionItem(StrictBaseModel):
@@ -214,8 +214,8 @@ class TitleItem(StrictBaseModel):
     """The tab title. Defines the value as either a literal value or a path to data model value (e.g. '/options/title')."""
 
     model_config = ConfigDict(populate_by_name=True)
-    literal_string: str | None = Field(None, alias="literalString")
-    path: str | None = Field(None)
+    literal_string: str | None = Field(default=None, alias="literalString")
+    path: str | None = Field(default=None)
 
 
 class ContextItem(StrictBaseModel):
@@ -243,7 +243,7 @@ class TextComponent(ComponentCommon):
         ),
     )
     usage_hint: Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | None = Field(
-        None,
+        default=None,
         alias="usageHint",
         description=(
             "A hint for the base text style. One of: - `h1`: Largest heading. - `h2`:"
@@ -265,7 +265,7 @@ class ImageComponent(ComponentCommon):
         ),
     )
     alt_text: AltTextItem | None = Field(
-        None,
+        default=None,
         alias="altText",
         description=(
             "The alt text for the image. This can be a literal string ('literal') or a"
@@ -274,7 +274,7 @@ class ImageComponent(ComponentCommon):
         ),
     )
     fit: Literal["contain", "cover", "fill", "none", "scale-down"] | None = Field(
-        None,
+        default=None,
         description=(
             "Specifies how the image should be resized to fit its container. This"
             " corresponds to the CSS 'object-fit' property."
@@ -286,7 +286,7 @@ class ImageComponent(ComponentCommon):
         ]
         | None
     ) = Field(
-        None,
+        default=None,
         alias="usageHint",
         description=(
             "A hint for the image size and style. One of: - `icon`: Small square icon."
@@ -330,7 +330,7 @@ class AudioPlayerComponent(ComponentCommon):
         ),
     )
     description: DescriptionItem | None = Field(
-        None,
+        default=None,
         description=(
             "A description of the audio, such as a title or summary. This can be a"
             " literal string or a reference to a value in the data model ('path', e.g."
@@ -352,14 +352,14 @@ class RowComponent(ComponentCommon):
         Literal["center", "end", "spaceAround", "spaceBetween", "spaceEvenly", "start"]
         | None
     ) = Field(
-        None,
+        default=None,
         description=(
             "Defines the arrangement of children along the main axis (horizontally)."
             " This corresponds to the CSS 'justify-content' property."
         ),
     )
     alignment: Literal["start", "center", "end", "stretch"] | None = Field(
-        None,
+        default=None,
         description=(
             "Defines the alignment of children along the cross axis (vertically). This"
             " corresponds to the CSS 'align-items' property."
@@ -380,14 +380,14 @@ class ColumnComponent(ComponentCommon):
         Literal["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"]
         | None
     ) = Field(
-        None,
+        default=None,
         description=(
             "Defines the arrangement of children along the main axis (vertically). This"
             " corresponds to the CSS 'justify-content' property."
         ),
     )
     alignment: Literal["center", "end", "start", "stretch"] | None = Field(
-        None,
+        default=None,
         description=(
             "Defines the alignment of children along the cross axis (horizontally)."
             " This corresponds to the CSS 'align-items' property."
@@ -405,10 +405,11 @@ class ListComponent(ComponentCommon):
         ),
     )
     direction: Literal["vertical", "horizontal"] | None = Field(
-        None, description="The direction in which the list items are laid out."
+        default=None, description="The direction in which the list items are laid out."
     )
     alignment: Literal["start", "center", "end", "stretch"] | None = Field(
-        None, description="Defines the alignment of children along the cross axis."
+        default=None,
+        description="Defines the alignment of children along the cross axis.",
     )
 
 
@@ -434,7 +435,7 @@ class TabsComponent(ComponentCommon):
 class DividerComponent(ComponentCommon):
     component: Literal["Divider"] = "Divider"
     axis: Literal["horizontal", "vertical"] | None = Field(
-        None, description="The orientation of the divider."
+        default=None, description="The orientation of the divider."
     )
 
 
@@ -465,7 +466,7 @@ class ButtonComponent(ComponentCommon):
         ),
     )
     primary: bool | None = Field(
-        None,
+        default=None,
         description="Indicates if this button should be styled as the primary action.",
     )
     action: ActionItem = Field(
@@ -506,7 +507,7 @@ class TextFieldComponent(ComponentCommon):
         ),
     )
     text: TextItem | None = Field(
-        None,
+        default=None,
         description=(
             "The value of the text field. This can be a literal string or a reference"
             " to a value in the data model ('path', e.g. '/user/name')."
@@ -515,10 +516,12 @@ class TextFieldComponent(ComponentCommon):
     text_field_type: (
         Literal["date", "longText", "number", "shortText", "obscured"] | None
     ) = Field(
-        None, alias="textFieldType", description="The type of input field to display."
+        default=None,
+        alias="textFieldType",
+        description="The type of input field to display.",
     )
     validation_regexp: str | None = Field(
-        None,
+        default=None,
         alias="validationRegexp",
         description=(
             "A regular expression used for client-side validation of the input."
@@ -537,12 +540,12 @@ class DateTimeInputComponent(ComponentCommon):
         ),
     )
     enable_date: bool | None = Field(
-        None,
+        default=None,
         alias="enableDate",
         description="If true, allows the user to select a date.",
     )
     enable_time: bool | None = Field(
-        None,
+        default=None,
         alias="enableTime",
         description="If true, allows the user to select a time.",
     )
@@ -562,22 +565,23 @@ class MultipleChoiceComponent(ComponentCommon):
         ..., description="An array of available options for the user to choose from."
     )
     max_allowed_selections: int | None = Field(
-        None,
+        default=None,
         alias="maxAllowedSelections",
         description="The maximum number of options that the user is allowed to select.",
     )
     variant: Literal["checkbox", "chips"] | None = Field(
-        None, description="The display style of the component."
+        default=None, description="The display style of the component."
     )
     filterable: bool | None = Field(
-        None, description="If true, displays a search input to filter the options."
+        default=None,
+        description="If true, displays a search input to filter the options.",
     )
 
 
 class SliderComponent(ComponentCommon):
     component: Literal["Slider"] = "Slider"
     label: LabelItem | None = Field(
-        None,
+        default=None,
         description=(
             "The label for the slider. This can be a literal string or a reference to a"
             " value in the data model ('path')."
@@ -592,10 +596,10 @@ class SliderComponent(ComponentCommon):
         ),
     )
     min_value: float | None = Field(
-        None, alias="minValue", description="The minimum value of the slider."
+        default=None, alias="minValue", description="The minimum value of the slider."
     )
     max_value: float | None = Field(
-        None, alias="maxValue", description="The maximum value of the slider."
+        default=None, alias="maxValue", description="The maximum value of the slider."
     )
 
 

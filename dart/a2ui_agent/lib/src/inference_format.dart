@@ -26,7 +26,7 @@ abstract class InferenceFormatFactory {
   /// [examples] are the example turns its prompt shows the model, each the
   /// list of messages making up one turn.
   InferenceFormat createFormat(
-    List<SchemaCatalog> catalogs, {
+    List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
   });
 }

@@ -752,12 +752,14 @@ function wrapDynamicValues(
 ): unknown {
   switch (behavior.type) {
     case 'DYNAMIC': {
+      const bindingKey = dataContext.isV10 ? '@path' : 'path';
+      const rawRecord =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : undefined;
       const path =
-        raw &&
-        typeof raw === 'object' &&
-        !Array.isArray(raw) &&
-        typeof (raw as {path?: unknown}).path === 'string'
-          ? (raw as {path: string}).path
+        rawRecord && typeof rawRecord[bindingKey] === 'string' && !('componentId' in rawRecord)
+          ? (rawRecord[bindingKey] as string)
           : undefined;
       if (path === undefined) {
         return new ResolvedBinding(value);

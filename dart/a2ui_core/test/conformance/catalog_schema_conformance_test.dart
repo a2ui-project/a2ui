@@ -69,7 +69,10 @@ void _runCase(Map<String, Object?> testCase) {
 void _runFromJsonCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final Map<String, Object?> rawCatalog = _document(
-    testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
+    testCase['catalogSchema'] ??
+        testCase['catalog'] ??
+        testCase['schema'] ??
+        testCase['catalogPath'],
   );
   final overrideId = testCase['catalogId'] as String?;
   final input = <String, Object?>{
@@ -87,7 +90,7 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final SchemaCatalog catalog = Catalog.fromJson(input);
+  final CatalogApi catalog = Catalog.fromJson(input);
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
 
@@ -128,7 +131,7 @@ void _runCatalogSchemaCase(Map<String, Object?> testCase) {
   final Map<String, Object?> source = _document(
     testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
   );
-  final SchemaCatalog catalog = Catalog.fromJson(source);
+  final CatalogApi catalog = Catalog.fromJson(source);
 
   final Map<String, Object?> document = catalog.catalogSchema;
   final expect_ = testCase['expect']! as Map<String, Object?>;

@@ -13,11 +13,15 @@
 # limitations under the License.
 
 import datetime
+import json
 import math
 import re
 from typing import Any
+from urllib.parse import urlparse
+
 from ...resolution.data_context import DataContext
 from ...common.events import AbortSignal
+from ...exceptions import A2uiExpressionError
 from ...catalog import (
     FunctionImplementation,
     create_function_implementation,
@@ -61,8 +65,6 @@ def _to_str(val: Any) -> str:
     if val is None:
         return ""
     if isinstance(val, (dict, list)):
-        import json
-
         return json.dumps(val, separators=(",", ":"))
     if isinstance(val, bool):
         return "true" if val else "false"
@@ -96,9 +98,12 @@ def _regex_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = bool(
-        re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
-    )
+    pattern = _to_str(args.get("pattern", ""))
+    val = _to_str(args.get("value", ""))
+    try:
+        valid = bool(re.search(pattern, val))
+    except re.error as e:
+        raise A2uiExpressionError(f"Invalid regex pattern '{pattern}': {e}") from e
     return {"valid": valid}
 
 
@@ -110,12 +115,15 @@ def _length_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None
-        or len(_to_str(args.get("value", ""))) >= int(args["min"])
-    ) and (
-        args.get("max") is None
-        or len(_to_str(args.get("value", ""))) <= int(args["max"])
+    val = args.get("value")
+    if isinstance(val, list):
+        l = len(val)
+    elif val is None:
+        l = 0
+    else:
+        l = len(_to_str(val))
+    valid = (args.get("min") is None or l >= int(args["min"])) and (
+        args.get("max") is None or l <= int(args["max"])
     )
     return {"valid": valid}
 
@@ -128,12 +136,25 @@ def _numeric_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"])
-    ) and (
-        args.get("max") is None or _to_float(args["value"]) <= _to_float(args["max"])
-    )
-    return {"valid": valid}
+    try:
+        val = _to_float(args["value"])
+    except (ValueError, TypeError):
+        return {"valid": False}
+    min_val = args.get("min")
+    if min_val is not None:
+        try:
+            if val < _to_float(min_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    max_val = args.get("max")
+    if max_val is not None:
+        try:
+            if val > _to_float(max_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    return {"valid": True}
 
 
 NumericImplementation = create_function_implementation(NumericApi, _numeric_execute)
@@ -163,6 +184,29 @@ def _email_execute(
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
 
 
+def _adapt_ast_part_for_v10(part: Any) -> Any:
+    if not isinstance(part, dict):
+        return part
+    if (
+        "path" in part
+        and isinstance(part["path"], str)
+        and "componentId" not in part
+        and "@path" not in part
+    ):
+        return {"@path": part["path"]}
+    if "call" in part and isinstance(part["call"], str) and "@call" not in part:
+        args = {}
+        raw_args = part.get("args")
+        if isinstance(raw_args, dict):
+            for k, v in raw_args.items():
+                args[k] = _adapt_ast_part_for_v10(v)
+        res = {"@call": part["call"], "args": args}
+        if "returnType" in part:
+            res["returnType"] = part["returnType"]
+        return res
+    return part
+
+
 # Formatting
 def _format_string(
     args: dict[str, Any],
@@ -182,7 +226,12 @@ def _format_string(
     resolved_parts = []
     for part in parts:
         if context and hasattr(context, "resolve_dynamic_value"):
-            resolved = context.resolve_dynamic_value(part)
+            dyn_part = (
+                _adapt_ast_part_for_v10(part)
+                if getattr(context, "is_v10", False)
+                else part
+            )
+            resolved = context.resolve_dynamic_value(dyn_part)
         else:
             resolved = part
         resolved_parts.append(_to_str(resolved))
@@ -387,12 +436,23 @@ def create_pluralize_implementation(
 PluralizeImplementation = create_pluralize_implementation(None)
 
 
+_ALLOWED_URL_SCHEMES = ("http:", "https:", "mailto:", "tel:")
+
+
 # Actions
 def _open_url_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> None:
+    url = args.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return None
+
+    parsed = urlparse(url)
+    scheme = f"{parsed.scheme.lower()}:"
+    if scheme not in _ALLOWED_URL_SCHEMES:
+        raise A2uiExpressionError(f"Unsupported URL scheme: {parsed.scheme}")
     return None
 
 
@@ -405,7 +465,10 @@ def _and_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return all(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise A2uiExpressionError("AndFunction requires at least 2 values")
+    return all(_to_bool(v) for v in values)
 
 
 AndImplementation = create_function_implementation(AndApi, _and_execute)
@@ -416,7 +479,10 @@ def _or_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return any(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise A2uiExpressionError("OrFunction requires at least 2 values")
+    return any(_to_bool(v) for v in values)
 
 
 OrImplementation = create_function_implementation(OrApi, _or_execute)

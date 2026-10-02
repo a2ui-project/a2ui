@@ -35,6 +35,7 @@ from a2ui.schema.schema_helper import CatalogSchemaHelper
 from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
+    SchemaValidator,
     ValidationConfig,
 )
 from a2ui.core import A2uiParseError, A2uiIntegrityError, A2uiValidationError
@@ -246,7 +247,6 @@ class DirectJsonStreamParser:
             if not self._catalog.s2c_schema:
                 self._s2c_validator_cached = None
             else:
-                from jsonschema import Draft202012Validator
                 from referencing import Registry, Resource
                 import referencing.jsonschema
 
@@ -306,8 +306,9 @@ class DirectJsonStreamParser:
                             "https://a2ui.org/specification/v0_8/catalog.json", res_cat
                         )
                     )
-                self._s2c_validator_cached = Draft202012Validator(
-                    self._catalog.s2c_schema, registry=registry
+                self._s2c_validator_cached = SchemaValidator(
+                    self._catalog.s2c_schema,
+                    registry=registry,
                 )
         return self._s2c_validator_cached
 

@@ -14,6 +14,9 @@
 
 from a2ui.core.catalog import (
     Catalog as Catalog,
+    CatalogApi as CatalogApi,
+    get_common_types_schema_json as get_common_types_schema_json,
+    get_common_types_schema_map as get_common_types_schema_map,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
 )
 from a2ui.core.exceptions import (
@@ -66,6 +69,7 @@ __all__ = [
     "CallOptions",
     "CapabilitiesOptions",
     "Catalog",
+    "CatalogApi",
     "ComponentModel",
     "DataContext",
     "DataModel",
@@ -80,5 +84,7 @@ __all__ = [
     "SurfaceModel",
     "ValidationConfig",
     "__version__",
+    "get_common_types_schema_json",
+    "get_common_types_schema_map",
     "is_valid_uax31_identifier",
 ]

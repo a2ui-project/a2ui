@@ -16,7 +16,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 /// Reads a catalog document as a catalog `MessageProcessor` can hold.
 ///
-/// `Catalog.fromJson` produces a [SchemaCatalog], whose functions are
+/// `Catalog.fromJson` produces a [CatalogApi], whose functions are
 /// signatures ([FunctionApi]). `MessageProcessor` maintains surface state, and
 /// a surface invokes functions, so its catalogs carry [FunctionImplementation]
 /// instead. Dart's generics are covariant, so the schema-only catalog is not
@@ -29,7 +29,7 @@ Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
   Map<String, Object?> document, {
   String? asCatalogId,
 }) {
-  final SchemaCatalog catalog = Catalog.fromJson(
+  final CatalogApi catalog = Catalog.fromJson(
     asCatalogId == null
         ? document
         : <String, Object?>{...document, 'catalogId': asCatalogId},

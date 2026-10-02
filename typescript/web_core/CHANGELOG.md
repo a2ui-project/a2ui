@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Fix `renderA2uiNode` so that re-rendering a parent keeps its existing child elements instead of recreating them; stateful children such as maps no longer reload when a sibling is added. `renderA2uiNode` now returns a Lit directive result instead of a static-html template result. [#2959](https://github.com/a2ui-project/a2ui/pull/2959)
+- Add `CatalogApi`, the name for a schema-only `Catalog<ComponentApi, FunctionApi>`, which `Catalog.fromSchema` now returns. [#2900](https://github.com/a2ui-project/a2ui/issues/2900)
+- (v1_0) Support reserved protocol key prefix (`@path`, `@call`), dynamic prefix doubling unescaping (`@@path` → `@path`), and unknown single-`@` key validation in v1.0 dynamic resolution while maintaining multi-version support for v0.8 and v0.9 ([#2692](https://github.com/a2ui-project/a2ui/issues/2692)).
 - Fix `ResolveA2uiProp` resolving props declared as `Record<string, unknown>` (for example `z.record(z.unknown())`) to action thunks instead of their data type: every object type is assignable to the `{functionCall?: any}` member of `ActionLike`, so object types with a string index signature are now treated as data. [#2939](https://github.com/a2ui-project/a2ui/pull/2939)
 - Add `ComponentNode.id`, a string unique across the document and stable for the node's lifetime, for renderers and components to use as a rendering key or as the base of DOM `id`s and accessibility references. [#2887](https://github.com/a2ui-project/a2ui/pull/2887)
 - `Catalog.catalogSchema` fills `$defs` with the standard definitions of the catalog's own protocol version. It used the v0.9 definitions for every catalog, so a v1.0 catalog got v0.9 shapes for types such as `DynamicString`, `FunctionCall` and `Action`, and no definition for `Child`. `generateCatalogSchema` now falls back to the catalog's `protocolVersion` when no `protocolVersion` option is given. A version at or above 1.0 with no definitions of its own, such as 1.0.1 or 1.1, uses the v1.0 definitions.
@@ -9,6 +11,7 @@
 - (v0_9) Basic catalog component styles now survive Closure-optimized builds.
   The `static styles` of each component are marked `/** @nocollapse */`
   ([#2869](https://github.com/a2ui-project/a2ui/pull/2869)).
+- Include `FunctionCall` and `@call` expressions in dynamic setter typing (`DynamicTypes` and `IsDynamic`), ensuring `GenerateSetters` continues to fall back to `unknown` for binding-only properties following the `@` prefix protocol migration ([#2749](https://github.com/a2ui-project/a2ui/pull/2749), [#2886](https://github.com/a2ui-project/a2ui/pull/2886)).
 - Fix the setter `GenericBinder` generates for a property declared as a binding with no literal branch: its parameter resolved to `never`, making the setter uncallable. It now falls back to `unknown`, matching the fallback `ResolveA2uiProp` already applies to the resolved property ([#2529](https://github.com/a2ui-project/a2ui/pull/2529)).
 - `Catalog.fromSchema` no longer drops properties mixed in through an external
   `allOf` reference, so Checkable components in the basic catalogs now accept

@@ -20,7 +20,7 @@ tailored for prompt tokens compression.
 
 import re
 from typing import Any
-from a2ui.core import Catalog
+from a2ui.core import CatalogApi
 from a2ui.schema import A2uiCatalog
 
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
@@ -109,7 +109,7 @@ class _ExpressDecompiler:
 
     def __init__(
         self,
-        catalog: Catalog[Any, Any] | A2uiCatalog,
+        catalog: CatalogApi | A2uiCatalog,
     ):
         """Initializes the decompiler with the specified catalog.
 

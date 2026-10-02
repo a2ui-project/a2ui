@@ -75,7 +75,7 @@ def _generate_constants_code(
 ) -> str:
     """Dynamically generates constants.py based on the version's schema definitions."""
     dir_name = version_to_underscore(version)
-    spec_dot = ensure_v_prefix(version)
+    spec_dot = "v" + dir_name[1:].replace("_", ".")
     if dir_name == "v0_9":
         ver_type_str = 'Literal["v0.9", "v0.9.1"]'
         sup_vers_str = 'Final[set[str]] = {"v0.9", "v0.9.1"}'

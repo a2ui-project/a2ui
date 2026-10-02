@@ -34,7 +34,7 @@ class BeginRendering(StrictBaseModel):
         description="The unique identifier for the UI surface to be rendered.",
     )
     catalog_id: str | None = Field(
-        None,
+        default=None,
         alias="catalogId",
         description=(
             "The identifier of the component catalog to use for this surface. If"
@@ -45,7 +45,7 @@ class BeginRendering(StrictBaseModel):
     )
     root: str = Field(..., description="The ID of the root component to render.")
     styles: dict[str, Any] | None = Field(
-        None, description="Styling information for the UI."
+        default=None, description="Styling information for the UI."
     )
 
 
@@ -90,7 +90,7 @@ class DataModelUpdate(StrictBaseModel):
         ),
     )
     path: str | None = Field(
-        None,
+        default=None,
         description=(
             "An optional path to a location within the data model (e.g., '/user/name')."
             " If omitted, or set to '/', the entire data model will be replaced."
