@@ -20,7 +20,8 @@ class DataBinding {
   DataBinding(this.path);
 
   factory DataBinding.fromJson(Map<String, dynamic> json) {
-    return DataBinding(json['path'] as String);
+    final path = (json['@path'] ?? json['path']) as String;
+    return DataBinding(path);
   }
 
   Map<String, dynamic> toJson() => {'path': path};
@@ -39,8 +40,9 @@ class FunctionCall {
   });
 
   factory FunctionCall.fromJson(Map<String, dynamic> json) {
+    final call = (json['@call'] ?? json['call']) as String;
     return FunctionCall(
-      call: json['call'] as String,
+      call: call,
       args: json['args'] as Map<String, dynamic>? ?? {},
       returnType: A2uiReturnType.fromJson(
         json['returnType'] as String? ?? 'boolean',

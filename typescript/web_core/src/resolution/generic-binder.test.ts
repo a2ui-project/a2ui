@@ -49,7 +49,7 @@ describe('GenericBinder Checkable Trait', () => {
           args.value.length >= args.min,
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
     const schema = z.object({
@@ -350,7 +350,7 @@ describe('GenericBinder Checkable Trait', () => {
         },
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
     surface.dataModel.set('/order/id', 'ORD-987');
     surface.dataModel.set('/order/total', 49.99);
@@ -411,7 +411,7 @@ describe('GenericBinder Checkable Trait', () => {
         },
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
     const actionSchema = z.object({
@@ -516,7 +516,7 @@ describe('GenericBinder Checkable Trait', () => {
         },
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
     const actionSchema = z.object({
@@ -843,6 +843,44 @@ describe('GenericBinder Checkable Trait', () => {
         },
       });
     });
+
+    it('does not create setter for literal path in v1.0, nor for @path in v0.9', () => {
+      const mockCatalogV10 = new Catalog('test', '1.0', [], []);
+      const surfaceV10 = new SurfaceModel('s1', mockCatalogV10);
+      const compV10 = new ComponentModel(
+        'c1',
+        'Custom',
+        {
+          details: {path: '/secret'},
+        },
+        surfaceV10.defaultCatalog,
+      );
+      surfaceV10.componentsModel.addComponent(compV10);
+      const contextV10 = new ComponentContext(surfaceV10, 'c1');
+      const binderV10 = new GenericBinder<{details: unknown}>(
+        contextV10,
+        z.object({details: z.unknown()}),
+      );
+      assert.strictEqual('setDetails' in (binderV10.snapshot as Record<string, unknown>), false);
+
+      const mockCatalogV09 = new Catalog('test', '0.9', [], []);
+      const surfaceV09 = new SurfaceModel('s2', mockCatalogV09);
+      const compV09 = new ComponentModel(
+        'c2',
+        'Custom',
+        {
+          details: {'@path': '/secret'},
+        },
+        surfaceV09.defaultCatalog,
+      );
+      surfaceV09.componentsModel.addComponent(compV09);
+      const contextV09 = new ComponentContext(surfaceV09, 'c2');
+      const binderV09 = new GenericBinder<{details: unknown}>(
+        contextV09,
+        z.object({details: z.unknown()}),
+      );
+      assert.strictEqual('setDetails' in (binderV09.snapshot as Record<string, unknown>), false);
+    });
   });
 
   it('should support v1.0 ValidationResult objects and dynamic messages', async () => {
@@ -878,12 +916,12 @@ describe('GenericBinder Checkable Trait', () => {
       'c_val',
       'EmailInput',
       {
-        email: {path: '/email'},
+        email: {'@path': '/email'},
         validationRules: [
           {
             condition: {
-              call: 'validate_email',
-              args: {val: {path: '/email'}},
+              '@call': 'validate_email',
+              args: {val: {'@path': '/email'}},
             },
           },
         ],
@@ -948,8 +986,8 @@ describe('GenericBinder Checkable Trait', () => {
         checks: [
           {
             condition: {
-              call: 'dynamic_validator',
-              args: {mode: {path: '/mode'}},
+              '@call': 'dynamic_validator',
+              args: {mode: {'@path': '/mode'}},
             },
             message: 'Default rule failure message',
           },
@@ -1080,6 +1118,16 @@ describe('GenericBinder Checkable Trait', () => {
       bindingOnly.setValue('anything');
       const value: unknown = {selected: true};
       bindingOnly.setValue(value);
+
+      const dataBindingOnly: GenerateSetters<{value: DataBinding}> = {
+        setValue: () => {},
+      };
+      dataBindingOnly.setValue('anything');
+
+      const functionCallOnly: GenerateSetters<{value: FunctionCall}> = {
+        setValue: () => {},
+      };
+      functionCallOnly.setValue('anything');
 
       const withLiteral: GenerateSetters<{value: string | DataBinding | FunctionCall}> = {
         setValue: () => {},

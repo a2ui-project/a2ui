@@ -704,7 +704,7 @@
       "description": "Checks that the value is not null, undefined, or empty.",
       "returnType": "validationResult",
       "properties": {
-        "call": {
+        "@call": {
           "const": "required"
         },
         "args": {
@@ -718,14 +718,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "regex": {
       "type": "object",
       "description": "Checks that the value matches a regular expression string.",
       "returnType": "validationResult",
       "properties": {
-        "call": {
+        "@call": {
           "const": "regex"
         },
         "args": {
@@ -743,14 +743,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "length": {
       "type": "object",
       "description": "Checks string length constraints.",
       "returnType": "validationResult",
       "properties": {
-        "call": {
+        "@call": {
           "const": "length"
         },
         "args": {
@@ -782,14 +782,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "numeric": {
       "type": "object",
       "description": "Checks numeric range constraints.",
       "returnType": "validationResult",
       "properties": {
-        "call": {
+        "@call": {
           "const": "numeric"
         },
         "args": {
@@ -819,14 +819,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "email": {
       "type": "object",
       "description": "Checks that the value is a valid email address.",
       "returnType": "validationResult",
       "properties": {
-        "call": {
+        "@call": {
           "const": "email"
         },
         "args": {
@@ -840,14 +840,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "formatString": {
       "type": "object",
       "description": "Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\\${`.",
       "returnType": "string",
       "properties": {
-        "call": {
+        "@call": {
           "const": "formatString"
         },
         "args": {
@@ -861,14 +861,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "formatNumber": {
       "type": "object",
       "description": "Formats a number with the specified grouping and decimal precision.",
       "returnType": "string",
       "properties": {
-        "call": {
+        "@call": {
           "const": "formatNumber"
         },
         "args": {
@@ -891,14 +891,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "formatCurrency": {
       "type": "object",
       "description": "Formats a number as a currency string.",
       "returnType": "string",
       "properties": {
-        "call": {
+        "@call": {
           "const": "formatCurrency"
         },
         "args": {
@@ -925,14 +925,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "formatDate": {
       "type": "object",
       "description": "Formats a timestamp into a string using a pattern.",
       "returnType": "string",
       "properties": {
-        "call": {
+        "@call": {
           "const": "formatDate"
         },
         "args": {
@@ -951,14 +951,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "pluralize": {
       "type": "object",
       "description": "Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'.",
       "returnType": "string",
       "properties": {
-        "call": {
+        "@call": {
           "const": "pluralize"
         },
         "args": {
@@ -997,7 +997,7 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "openUrl": {
       "type": "object",
@@ -1005,7 +1005,7 @@
       "returnType": "void",
       "requiresUserActivation": true,
       "properties": {
-        "call": {
+        "@call": {
           "const": "openUrl"
         },
         "args": {
@@ -1031,14 +1031,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "and": {
       "type": "object",
       "description": "Performs a logical AND operation on a list of boolean values.",
       "returnType": "boolean",
       "properties": {
-        "call": {
+        "@call": {
           "const": "and"
         },
         "args": {
@@ -1057,14 +1057,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "or": {
       "type": "object",
       "description": "Performs a logical OR operation on a list of boolean values.",
       "returnType": "boolean",
       "properties": {
-        "call": {
+        "@call": {
           "const": "or"
         },
         "args": {
@@ -1083,14 +1083,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "not": {
       "type": "object",
       "description": "Performs a logical NOT operation on a boolean value.",
       "returnType": "boolean",
       "properties": {
-        "call": {
+        "@call": {
           "const": "not"
         },
         "args": {
@@ -1105,7 +1105,7 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     }
   },
   "$defs": {

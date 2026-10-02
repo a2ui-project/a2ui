@@ -107,6 +107,33 @@ struct DataContextTests {
     #expect(context.resolveDynamicValue(literalWithCall) == literalWithCall)
     #expect(mockHandler.lastRequestedName == nil)
   }
+
+  @Test func v10ProtocolVersionGatingResolvesAtDirectivesAndEscaping() throws {
+    let mockHandler = MockFunctionHandler()
+    let dataModel = DataModel()
+    dataModel.set("/item", value: "apple")
+    let context = DataContext(
+      dataModel: dataModel,
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: "v1.0"
+    )
+
+    let atPathBinding: JSONValue = ["@path": "/item"]
+    #expect(context.resolveDynamicValue(atPathBinding) == "apple")
+
+    let plainPathObject: JSONValue = ["path": "/item"]
+    #expect(context.resolveDynamicValue(plainPathObject) == plainPathObject)
+
+    let escapedObject: JSONValue = ["@@path": "/item", "@@type": "fruit"]
+    let resolved = context.resolveDynamicValue(escapedObject)
+    #expect(resolved.objectValue?["@path"] == "/item")
+    #expect(resolved.objectValue?["@type"] == "fruit")
+
+    #expect(throws: A2UIValidationError.self) {
+      try DataContext.validateReservedDirectives(["@invalidKey"])
+    }
+  }
 }
 
 @MainActor

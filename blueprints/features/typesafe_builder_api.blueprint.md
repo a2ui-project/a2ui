@@ -227,7 +227,7 @@ When re-exporting `DataBinding`, `ActionEvent`, `FunctionCall`, `CheckRule`, and
    - In JSON Schema, a `"default"` annotation (such as `FunctionCall.returnType` defaulting to `"boolean"`, or `AccessibilityAttributes.live` defaulting to `"off"`) tells readers what to assume when a key is absent; it does not instruct writers to emit that key on every payload.
    - Optional fields in `a2ui_core` models must default to unset (`None` / `null`) so unauthored default properties are omitted from the wire output.
 2. **Preserve data model paths verbatim**:
-   - `DataBinding.path` and `DynamicChildList.path` must reach the wire exactly as written.
+   - `DataBinding.path` (or `DataBinding.@path` in v1.0+) and `DynamicChildList.path` must reach the wire exactly as written.
    - In the A2UI specification, a leading slash (`"/user/name"`) denotes an absolute path resolved from the data model root. A path without a leading slash (`"name"`) denotes a relative path resolved against the enclosing `DynamicChildList` collection scope. Adding a leading slash breaks collection templates.
 
 #### Authoring-specific models
@@ -279,7 +279,7 @@ Because the golden suite tests only valid positive ASTs, each language implement
    - If an anonymous component appears before an explicit component declaring `id="root_Card_0"`, Pass 1 reserves `"root_Card_0"` so the anonymous component receives a different ID.
    - Placing the same component instance into two slots emits the component dictionary once and writes the same ID into both slots.
 3. **Core synchronization tests**:
-   - Assert minimal serialized dictionary output for shared `a2ui_core` models (`FunctionCall(call="fn")` emits `{"call": "fn"}` without unauthored defaults).
+   - Assert minimal serialized dictionary output for shared `a2ui_core` models (`FunctionCall(call="fn")` emits `{"call": "fn"}` in v0.9, or `{"@call": "fn"}` in v1.0, without unauthored defaults).
    - Assert that serialized output of `Action` and flattened `DynamicChildList` validates against `a2ui_core` wire models (`CoreAction`, `TemplateChildList`).
 4. **Catalog regeneration freshness**:
    - Verify that running `dart/a2ui_cli` against `specification/<version>/catalogs/basic/catalog.json` produces output byte-for-byte identical to the committed catalog file.

@@ -313,8 +313,27 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         is scoped to a single catalog, and the call is checked at resolution time
         against the catalog that actually runs it.
         """
+        ver = getattr(self.catalog, "protocol_version", None)
+        is_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
         if isinstance(val, dict):
-            fn_name = val.get("call") or val.get("function")
+            if is_v10:
+                from ..resolution.data_context import validate_reserved_directives
+
+                try:
+                    validate_reserved_directives(val.keys(), ver)
+                except A2uiValidationError as e:
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"components.{comp_id}.{path}"
+                            if path
+                            else f"components.{comp_id}",
+                            code=getattr(e, "code", "INVALID_RESERVED_KEY"),
+                            message=str(e),
+                        )
+                    )
+                fn_name = val.get("@call")
+            else:
+                fn_name = val.get("call") or val.get("function")
             cat_id = val.get("catalogId")
             targets_this_catalog = not cat_id or cat_id == getattr(
                 self.catalog, "catalog_id", None

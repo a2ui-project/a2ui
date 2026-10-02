@@ -118,7 +118,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         child: 'txt1',
         action: {event: {name: 'submit'}},
         accessibility: {
-          label: {path: '/btnLabel'},
+          label: {'@path': '/btnLabel'},
           live: 'assertive',
         },
         metadata: {
@@ -153,7 +153,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
               component: 'Text',
               text: 'Content',
               accessibility: {
-                label: {path: '/a11yLabel'},
+                label: {'@path': '/a11yLabel'},
                 description: 'Extra description',
                 live: 'polite',
                 hidden: true,
@@ -297,7 +297,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
               checks: [
                 {
                   condition: {
-                    call: 'numeric',
+                    '@call': 'numeric',
                     args: {value: 5, min: 10},
                   },
                 },
@@ -312,12 +312,12 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
               checks: [
                 {
                   condition: {
-                    call: 'required',
+                    '@call': 'required',
                     args: {value: []},
                   },
                 },
                 {
-                  condition: {path: '/warningResult'},
+                  condition: {'@path': '/warningResult'},
                 },
               ],
             },
@@ -329,7 +329,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
               checks: [
                 {
                   condition: {
-                    call: 'required',
+                    '@call': 'required',
                     args: {value: ''},
                   },
                 },
@@ -412,7 +412,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
               child: 'txt1',
               action: {
                 functionCall: {
-                  call: 'openUrl',
+                  '@call': 'openUrl',
                   args: {url: 'https://example.com'},
                 },
               },
@@ -431,7 +431,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       errors.push(err);
     });
     const sig = btnCtx.dataContext.resolveSignal({
-      call: 'openUrl',
+      '@call': 'openUrl',
       args: {url: 'https://example.com'},
     });
     assert.strictEqual(getValue(sig), undefined);
@@ -515,8 +515,8 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
       const passiveSub = dataCtx.subscribeDynamicValue<unknown>(
         {
-          call: 'openUrl',
-          args: {url: {path: '/targetUrl'}},
+          '@call': 'openUrl',
+          args: {url: {'@path': '/targetUrl'}},
         },
         () => {},
       );
@@ -528,7 +528,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       // Invoke a user-activated function that mutates /targetUrl synchronously
       dataCtx.resolveDynamicValue(
         {
-          call: 'mutateData',
+          '@call': 'mutateData',
           args: {url: 'https://malicious.com'},
         },
         0,
@@ -581,7 +581,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
     const surface = processor.model.getSurface('s-idx')!;
     const sig = new ComponentContext(surface, 'item1', '/items/1').dataContext.resolveSignal({
-      call: '@index',
+      '@call': '@index',
       args: {offset: 1},
     });
 
