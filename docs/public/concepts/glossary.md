@@ -177,10 +177,10 @@ An invocation of a catalog function with a set of arguments.
 
 Function calls appear in several contexts:
 
-- **Dynamic value bindings**: Calculating a component property value dynamically (for example, formatting a date or currency).
-- **Validation rules**: Validating user input before submission.
-- **Component interaction triggers**: Executing an immediate local function when a user interacts with a component.
-- **Remote procedure calls (RPCs)**: Requesting function execution across the boundary between the agent and renderer.
+- **Dynamic value bindings**: The renderer calls a renderer function to calculate a component property value dynamically (for example, formatting a date or currency).
+- **Validation rules**: The renderer calls a renderer function to validate user input before submission.
+- **Component interaction triggers**: The renderer calls a renderer function when a user interacts with a component (for example, opening a URL).
+- **Remote procedure calls (RPCs)**: The agent requests the renderer to execute a renderer function, or the renderer requests the agent to execute an agent function.
 
 Function calls execute locally when the target function is implemented in the caller's environment. When the function resides on the other side of the agent-renderer boundary, the call is communicated over the protocol. In architectures where the agent and renderer run within the same process (such as a standalone desktop application), these calls can execute in-process without network transport.
 
@@ -188,9 +188,9 @@ Function calls execute locally when the target function is implemented in the ca
 
 An event triggered by a user interaction with a UI component that is dispatched from the renderer to the agent.
 
-An action informs the agent that an interaction occurred (such as clicking a button or selecting an option). It conveys the user's intent along with an action name, relevant values extracted from the local data model, and an optional description of the action.
+An action informs the agent that an interaction occurred (such as clicking a button or selecting an option). It conveys the user's intent along with an action name, relevant values extracted from the renderer data model, and an optional description of the action.
 
-Actions represent user intent communicated back to the agent to drive conversational turns or business logic. In contrast, when a component interaction triggers immediate behavior directly without notifying the agent (such as opening a URL or running a client-side calculation), it performs a [function call](#function-call) rather than dispatching an action.
+Actions represent user intent communicated back to the agent to drive conversational turns or business logic. In contrast, when a component interaction triggers behavior directly without notifying the agent (such as opening a URL or running a client-side calculation), it performs a [function call](#function-call) rather than dispatching an action.
 
 See the [detailed guide on actions](actions.md).
 
