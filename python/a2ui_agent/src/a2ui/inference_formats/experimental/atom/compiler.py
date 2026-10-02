@@ -242,7 +242,7 @@ class AtomCompiler:
         node_counter: Auto-incrementing node ID generator counter.
     """
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog | Any):
+    def __init__(self, catalog: CatalogApi | A2uiCatalog):
         """Initializes an AtomCompiler instance.
 
         Args:
