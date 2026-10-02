@@ -35,6 +35,7 @@ graph LR
 
 1. **`A2uiSurface`**: The public root widget embedded into your Flutter app. Directly accepts a `SurfaceModel<FlutterComponentImplementation>` as its sole input. Manages the lifecycle of `NodeResolver` and injects ambient context (`A2uiSurfaceScope`).
 2. **`FlutterComponentImplementation`**: Pairs a component type name and JSON Schema with a Flutter widget builder:
+
    ```dart
    typedef ChildWidgetBuilder = Widget Function(
      ComponentNode<FlutterComponentImplementation> child,
@@ -48,6 +49,7 @@ graph LR
      ) builder;
    }
    ```
+
 3. **`NodeView`**: The recursive dispatcher widget keyed by `ValueKey(node.instanceId)`. Subscribes to `node.props` and renders the component or appropriate fallback states (loading placeholder, unknown type warning, cyclic reference indicator).
 4. **`NodePropsAccessors`**: Ergonomic typed accessors on `ComponentNode<FlutterComponentImplementation>` (`stringValue`, `boolValue`, `numValue`, `writableBinding`, `action`, `childNodes`, `childNode`).
 5. **`A2uiThemeAdapter`**: Adapts A2UI JSON theme definitions to Flutter `ThemeData`.
