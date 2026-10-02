@@ -25,9 +25,9 @@ from .payload_validator import (
     PayloadValidator,
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
-    SchemaValidator,
     ValidationConfig,
 )
+from .schema_validator import SchemaValidator
 
 __all__ = [
     "JSON_SCHEMA_DRAFT_2020_12",
