@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import copy
 import json
 import logging
@@ -32,6 +33,7 @@ from a2ui.core import (
     ValidationConfig,
 )
 from a2ui.core.validation import analyze_topology
+from a2ui.inference_formats.direct_json._parser_catalogs import check_parser_catalogs
 from a2ui.parser import ResponsePart
 from a2ui.parser.constants import (
     MSG_TYPE_CREATE_SURFACE,
@@ -43,7 +45,6 @@ from a2ui.schema import (
     A2UI_OPEN_TAG,
     CATALOG_COMPONENTS_KEY,
     VERSION_0_8,
-    VERSION_0_9,
 )
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS, SURFACE_ID_KEY
 from a2ui.schema.schema_helper import CatalogSchemaHelper
@@ -56,52 +57,71 @@ class DirectJsonStreamParser:
     """Parses a stream of text for A2UI JSON messages with fine-grained component yielding.
 
     This class acts as a factory that returns a version-specific parser instance
-    (V08 or V09) depending on the catalog version.
+    depending on the catalogs' protocol version: `DirectJsonStreamParserV08Legacy`
+    for v0.8 and `DirectJsonStreamParserModern` for v0.9 and later.
     """
 
     def __new__(
         cls,
-        catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi],
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
     ) -> DirectJsonStreamParser:
         if cls is DirectJsonStreamParser:
-            version = str(catalog.protocol_version).removeprefix("v")
+            checked = check_parser_catalogs(catalogs)
+            version = str(checked[0].protocol_version).removeprefix("v")
             # Lazy import inside __new__ to prevent circular import errors, as the
             # version-specific subclass modules import DirectJsonStreamParser from this module.
             if version == VERSION_0_8:
-                from .streaming_v08 import DirectJsonStreamParserV08
+                from .streaming_v08_legacy import DirectJsonStreamParserV08Legacy
 
-                return DirectJsonStreamParserV08(
-                    catalog=catalog,
+                return DirectJsonStreamParserV08Legacy(
+                    catalogs=checked,
                     progressive_keys=progressive_keys,
                 )
             else:
-                from .streaming_v09 import DirectJsonStreamParserV09
+                from .streaming_modern import DirectJsonStreamParserModern
 
-                return DirectJsonStreamParserV09(
-                    catalog=catalog,
+                return DirectJsonStreamParserModern(
+                    catalogs=checked,
                     progressive_keys=progressive_keys,
                 )
         return super().__new__(cls)
 
     def __init__(
         self,
-        catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi],
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
     ):
         """Initializes the streaming parser.
 
         Args:
-            catalog: The catalog that components are parsed and validated against.
+            catalogs: The catalogs that components are parsed and validated
+                against. They must share a protocol version. A component uses
+                the catalog that its own `catalogId` names, then the catalog
+                that its surface's `createSurface` names, then the first
+                catalog. v1.0 and later support multiple catalogs; earlier
+                versions take a single catalog.
             progressive_keys: Keys whose string values can be safely auto-closed
                 (healed) when cut in the stream. An empty set turns healing off.
+
+        Raises:
+            A2uiCatalogError: If no catalog is given, the catalogs target
+                different protocol versions, or multiple catalogs are given for
+                a protocol version earlier than v1.0.
         """
-        self._catalog = catalog
-        self._version = str(catalog.protocol_version).removeprefix("v")
+        self._catalogs = check_parser_catalogs(catalogs)
+        self._catalogs_by_id: dict[str, CatalogApi] = {
+            c.catalog_id: c for c in self._catalogs if c.catalog_id
+        }
+        # The catalog id that each surface's start message names.
+        self._surface_catalog_ids: dict[str, str] = {}
+        self._version = str(self._catalogs[0].protocol_version).removeprefix("v")
         self._progressive_keys = frozenset(progressive_keys)
-        self._schema_helper = CatalogSchemaHelper(catalog)
+        self._schema_helpers: dict[int, CatalogSchemaHelper] = {
+            id(c): CatalogSchemaHelper(c) for c in self._catalogs
+        }
 
         self._found_delimiter = False
         self._buffer = ""
@@ -170,16 +190,48 @@ class DirectJsonStreamParser:
         sid = self.surface_id or "default"
         return self._components_by_surface.setdefault(sid, {})
 
+    @property
+    def catalogs(self) -> tuple[CatalogApi, ...]:
+        """The catalogs the parser holds, in the order it received them."""
+        return self._catalogs
+
+    def _resolve_catalog(
+        self, component: Mapping[str, Any] | None = None
+    ) -> CatalogApi:
+        """Returns the catalog that a component of the current surface uses.
+
+        As a renderer does, the parser uses the catalog that the component's
+        own `catalogId` names, then the catalog that the surface's start
+        message names. A catalog the parser doesn't hold, or a surface whose
+        start message it hasn't seen, falls back to the first catalog, and
+        validation reports a catalog that the payload names but the parser
+        doesn't hold.
+
+        Args:
+            component: The component, or None for the surface's catalog.
+        """
+        catalog_id = component.get("catalogId") if component is not None else None
+        if not isinstance(catalog_id, str) and self._surface_id is not None:
+            catalog_id = self._surface_catalog_ids.get(self._surface_id)
+        if isinstance(catalog_id, str) and catalog_id in self._catalogs_by_id:
+            return self._catalogs_by_id[catalog_id]
+        return self._catalogs[0]
+
+    def _schema_helper_for(self, catalog: CatalogApi) -> CatalogSchemaHelper:
+        """Returns the schema helper of a catalog the parser holds."""
+        return self._schema_helpers[id(catalog)]
+
     def _can_use_placeholders(self) -> bool:
-        """Determines whether the active catalog supports placeholder components.
+        """Determines whether the surface's catalog supports placeholder components.
 
         Inspects the catalog schema to verify that the configured placeholder
-        component type is declared in the catalog's component definitions.
+        component type is declared in the catalog's component definitions. A
+        placeholder names no catalog of its own, so it uses the surface's.
 
         Returns:
             True if the catalog supports the configured placeholder type.
         """
-        cat_schema = getattr(self._catalog, "catalog_schema", {}) or {}
+        cat_schema = getattr(self._resolve_catalog(), "catalog_schema", {}) or {}
         components = (
             cat_schema.get("components", {}) if isinstance(cat_schema, dict) else {}
         )
@@ -267,21 +319,36 @@ class DirectJsonStreamParser:
         return True
 
     def _validate_message(self, message: dict[str, Any]) -> None:
-        """Checks a message the way a renderer holding the catalog would.
+        """Checks a message the way a renderer holding the catalogs would.
 
         The check runs the message through a `MessageProcessor` that holds the
-        catalog, using `validate_payload`.
+        catalogs, using `validate_payload`, so each component is checked
+        against the catalog it resolves to. A surface whose start message came
+        earlier in the stream is checked against the catalog that the start
+        message named.
 
         Raises:
             A2uiValidationError: If a renderer would reject the message, or a
                 subclass such as `A2uiIntegrityError`, whose type is kept.
         """
         try:
-            validate_payload([self._catalog], message)
+            validate_payload(
+                self._catalogs,
+                message,
+                surface_catalog_ids=self._surface_catalog_ids,
+            )
         except A2uiRecursionError:
             raise
         except A2uiValidationError as e:
             raise type(e)(f"Validation failed: {e}", details=e.details) from e
+
+    def _record_surface_catalog(self, sid: str, start_body: Mapping[str, Any]) -> None:
+        """Records the catalog id that a surface's start message names."""
+        catalog_id = start_body.get("catalogId")
+        if isinstance(catalog_id, str):
+            self._surface_catalog_ids[sid] = catalog_id
+        else:
+            self._surface_catalog_ids.pop(sid, None)
 
     def _validate_components(
         self,
@@ -330,6 +397,8 @@ class DirectJsonStreamParser:
         self._pending_messages.pop(sid, None)
         self._yielded_ids.pop(sid, None)
         self._components_by_surface.pop(sid, None)
+        self._surface_catalog_ids.pop(sid, None)
+        self._root_ids.pop(sid, None)
 
         # Clear contents for this surface
         self._yielded_contents = {
@@ -884,12 +953,13 @@ class DirectJsonStreamParser:
                 return any(_has_empty_dict(v) for v in obj)
             return False
 
+        schema_helper = self._schema_helper_for(self._resolve_catalog(comp))
         comp_type = comp.get("component")
         if isinstance(comp_type, str):
             # v0.9/v1.0 flat style: check the whole component object for empty dicts
             if _has_empty_dict(comp):
                 return
-            required_fields = self._schema_helper.get_component_required(comp_type)
+            required_fields = schema_helper.get_component_required(comp_type)
             for req in required_fields:
                 if req not in comp:
                     return
@@ -901,9 +971,7 @@ class DirectJsonStreamParser:
             if type_name:
                 props = comp_type.get(type_name, {})
                 if isinstance(props, dict):
-                    required_fields = self._schema_helper.get_component_required(
-                        type_name
-                    )
+                    required_fields = schema_helper.get_component_required(type_name)
                     for req in required_fields:
                         if req not in props:
                             return
@@ -1002,7 +1070,7 @@ class DirectJsonStreamParser:
                 comp_models[cid] = ComponentModel(
                     cid,
                     c_type,
-                    self._catalog,
+                    self._resolve_catalog(cdef),
                     props,
                 )
 
@@ -1180,11 +1248,11 @@ class DirectJsonStreamParser:
             ):
                 path = obj["path"]
                 key = path.lstrip("/")
-                if self._version != VERSION_0_9:
+                if self._version == VERSION_0_8:
                     if "componentId" not in obj:
                         obj.clear()
                     obj.update({"path": "/" + key})
-            elif self._version != VERSION_0_9:
+            elif self._version == VERSION_0_8:
                 # If not in data model, still ensure path has leading slash if it's a bindable object (v0.8 only)
                 current_path = obj.get("path")
                 if current_path is not None:
@@ -1288,7 +1356,8 @@ class DirectJsonStreamParser:
         """
         child_fields: set[str] = set()
         comp_type = obj.get("component")
-        ref_map = self._catalog.component_ref_map
+        catalog = self._resolve_catalog(obj)
+        ref_map = catalog.component_ref_map
         if isinstance(comp_type, str) and comp_type in ref_map:
             ref_spec = ref_map[comp_type]
             child_fields.update(ref_spec.single_refs)

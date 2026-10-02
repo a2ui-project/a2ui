@@ -164,7 +164,6 @@ activated_version = try_activate_a2ui_extension(context, agent_card)
 if activated_version:
     # Use the activated version to route requests to the inference format
     inference_format = inference_formats[activated_version]
-    selected_catalog = inference_format.catalogs[0]
 ```
 
 #### 4c. Select a Parsing Strategy
@@ -177,7 +176,7 @@ Use this approach if you wait for the LLM to finish its entire response before p
 
 **1. Parse, Validate, and Fix**
 
-Validate the LLM's JSON output before returning it. The parser attempts to fix simple errors (e.g., trailing commas), and `validate_payload` raises `A2uiValidationError` if a renderer holding the catalog would reject the payload.
+Validate the LLM's JSON output before returning it. The parser attempts to fix simple errors (e.g., trailing commas), and `validate_payload` raises `A2uiValidationError` if a renderer holding the catalogs would reject the payload.
 
 ```python
 from a2ui.utils import validate_payload
@@ -187,8 +186,8 @@ response_parts = inference_format.parser.parse_response(full_text)
 
 for part in response_parts:
   if part.a2ui_json:
-    # Validate against schema
-    validate_payload([selected_catalog], part.a2ui_json)
+    # Validate against the active catalogs
+    validate_payload(inference_format.catalogs, part.a2ui_json)
 ```
 
 **2. Stream the A2UI Payload**
@@ -212,7 +211,7 @@ yield {
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Create it with the format's `create_stream_parser`, so that it validates against the catalog and heals the format's progressive keys.
+Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Create it with the format's `create_stream_parser`, so that it validates against the format's catalogs and heals the format's progressive keys. From v1.0 on, the parser holds all of the format's catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
 
 > [!IMPORTANT]
 > **Prerequisite**: To use incremental streaming, your agent executor must support streaming mode. In ADK, enable this using `RunConfig`:
@@ -226,7 +225,7 @@ Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **auto
 ```python
 from a2ui.a2a import create_a2ui_part
 
-parser = inference_format.create_stream_parser(selected_catalog)
+parser = inference_format.create_stream_parser()
 
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:

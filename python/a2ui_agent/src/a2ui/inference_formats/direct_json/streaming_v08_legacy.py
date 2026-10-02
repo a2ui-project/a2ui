@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import re
 from typing import Any
 
@@ -31,17 +32,35 @@ from a2ui.schema import CATALOG_COMPONENTS_KEY
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS, SURFACE_ID_KEY
 
 
-class DirectJsonStreamParserV08(DirectJsonStreamParser):
-    """Streaming parser implementation for A2UI v0.8 specification."""
+class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
+    """Streaming parser implementation for the legacy A2UI v0.8 specification.
+
+    A v0.8 parser holds a single catalog.
+    """
 
     def __init__(
         self,
-        catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi],
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
     ):
+        """Initializes the v0.8 streaming parser.
+
+        `DirectJsonStreamParser(catalogs)` builds this parser for v0.8 and then
+        runs its `__init__` with the same arguments, so it takes the same
+        sequence as the other parsers.
+
+        Args:
+            catalogs: The single catalog that components are parsed and
+                validated against, in a sequence.
+            progressive_keys: Keys whose string values can be safely auto-closed
+                (healed) when cut in the stream. An empty set turns healing off.
+
+        Raises:
+            A2uiCatalogError: If the sequence doesn't hold exactly one catalog.
+        """
         super().__init__(
-            catalog=catalog,
+            catalogs=catalogs,
             progressive_keys=progressive_keys,
         )
         self._yielded_begin_rendering_surfaces: set[str] = set()

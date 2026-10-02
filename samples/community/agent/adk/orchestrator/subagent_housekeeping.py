@@ -44,7 +44,7 @@ from a2ui.schema import (
 my_catalog = CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_9)).to_catalog(
     protocol_version=VERSION_0_9, schema_modifiers=[remove_strict_validation]
 )
-a2ui_converter = A2uiPartConverter(a2ui_catalog=my_catalog, version=VERSION_0_9)
+a2ui_converter = A2uiPartConverter(catalogs=[my_catalog], version=VERSION_0_9)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)

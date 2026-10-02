@@ -186,7 +186,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             A configured A2uiPartConverter.
         """
         catalog = await self._ui_tool._resolve_a2ui_catalog(ctx)
-        return A2uiPartConverter(catalog)
+        return A2uiPartConverter([catalog])
 
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):
         TOOL_NAME = A2UI_TOOL_NAME

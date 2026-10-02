@@ -414,3 +414,49 @@ def test_full_v0_8_flow_on_the_basic_catalog_is_accepted():
     ]
 
     validate_payload([BasicCatalog("0.8")], payload)
+
+
+def test_updated_surface_with_a_known_catalog_is_checked_against_it_only():
+    catalogs = [_catalog("a", "Text"), _catalog("b", "Text", "Card")]
+    components = [{"id": "c", "component": "Card", "text": "Hi"}]
+
+    validate_payload(catalogs, [_update(*components)])
+    with pytest.raises(A2uiValidationError, match="Unrecognized component type 'Card'"):
+        validate_payload(
+            catalogs, [_update(*components)], surface_catalog_ids={"s": "a"}
+        )
+
+
+def test_updated_surface_on_a_known_catalog_that_is_not_held_is_rejected():
+    with pytest.raises(A2uiValidationError, match="isn't one of the active catalogs"):
+        validate_payload(
+            [_catalog("a", "Text")],
+            [_update({"id": "t", "component": "Text", "text": "Hi"})],
+            surface_catalog_ids={"s": "missing"},
+        )
+
+
+def test_created_surface_ignores_its_known_catalog():
+    catalogs = [_catalog("a", "Text"), _catalog("b", "Card")]
+
+    validate_payload(
+        catalogs,
+        [_create("b"), _update({"id": "root", "component": "Card", "text": "Hi"})],
+        surface_catalog_ids={"s": "a"},
+    )
+
+
+def test_typed_schema_models_are_accepted():
+    from a2ui.core.schema import v0_9
+
+    wrapper = v0_9.A2uiMessageListWrapper.model_validate({"messages": [_update(_TEXT)]})
+    msg = wrapper.messages[0]
+
+    validate_payload([_BASIC], msg)
+    validate_payload([_BASIC], [msg])
+    validate_payload([_BASIC], wrapper)
+
+
+def test_validate_payload_rejects_single_catalog_not_in_a_sequence():
+    with pytest.raises(A2uiCatalogError, match="sequence of catalogs"):
+        validate_payload(_BASIC, [_update(_TEXT)])

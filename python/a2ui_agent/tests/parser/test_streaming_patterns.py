@@ -42,7 +42,7 @@ def _stream_create_surface(catalog: Catalog, extensions: dict[str, int]) -> None
             "metadata": {"extensions": extensions},
         },
     }
-    parser = DirectJsonStreamParser(catalog=catalog)
+    parser = DirectJsonStreamParser(catalogs=[catalog])
     parser.process_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
 
 

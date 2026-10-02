@@ -19,6 +19,9 @@ from collections.abc import Collection, Sequence
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.inference_format import InferenceFormat
+from a2ui.inference_formats.direct_json._parser_catalogs import (
+    supports_multiple_catalogs,
+)
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
@@ -44,8 +47,11 @@ class DirectJsonFormat(InferenceFormat):
         """Initializes the DirectJsonFormat with resolved catalogs.
 
         Args:
-            catalogs: The active catalogs. The prompt describes all of them, and
-              the parsers validate against the first one.
+            catalogs: The active catalogs. The prompt describes all of them.
+              From v1.0 on, the parsers hold all of them and resolve each
+              component against the catalog that it or its surface names.
+              Before v1.0, a parser holds a single catalog, so the parsers
+              validate against the first one.
             examples_path: Optional directory or glob pattern of few-shot example
               files, which `a2ui.schema.load_examples` reads.
             progressive_keys: Keys whose string values the stream parsers heal
@@ -55,6 +61,11 @@ class DirectJsonFormat(InferenceFormat):
             A2uiCatalogError: If no catalog is given, or the catalogs target
               different protocol versions.
         """
+        if isinstance(catalogs, (str, bytes)) or not isinstance(catalogs, Sequence):
+            raise A2uiCatalogError(
+                "The Direct JSON format takes a sequence of catalogs, got"
+                f" {type(catalogs).__name__}."
+            )
         if not catalogs:
             raise A2uiCatalogError("The Direct JSON format needs at least one catalog.")
         versions = {to_protocol_version(c.protocol_version) for c in catalogs}
@@ -81,7 +92,7 @@ class DirectJsonFormat(InferenceFormat):
         """The parser instance configured for this Direct JSON format."""
         if self._parser is None:
             self._parser = DirectJsonParser(
-                self._catalogs[0],
+                self._catalogs_for_parser(),
                 progressive_keys=self._progressive_keys,
             )
         return self._parser
@@ -96,22 +107,22 @@ class DirectJsonFormat(InferenceFormat):
         """The directory or glob pattern of few-shot example files, if any."""
         return self._examples_path
 
-    def create_stream_parser(
-        self, catalog: CatalogApi | None = None
-    ) -> DirectJsonStreamParser:
+    def create_stream_parser(self) -> DirectJsonStreamParser:
         """Creates a streaming parser configured by this format.
 
         The parser heals this format's progressive keys and checks each
-        message the way a renderer holding the catalog would.
-
-        Args:
-            catalog: The catalog to parse against. Defaults to the first
-                catalog.
+        message the way a renderer holding the catalogs would.
 
         Returns:
             A new streaming parser.
         """
         return DirectJsonStreamParser(
-            catalog if catalog is not None else self._catalogs[0],
+            self._catalogs_for_parser(),
             progressive_keys=self._progressive_keys,
         )
+
+    def _catalogs_for_parser(self) -> Sequence[CatalogApi]:
+        """Returns the catalogs that a parser for this format may hold."""
+        if supports_multiple_catalogs(self._catalogs[0].protocol_version):
+            return self._catalogs
+        return self._catalogs[:1]

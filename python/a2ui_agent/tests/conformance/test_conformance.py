@@ -178,7 +178,18 @@ def get_conformance_cases(filename):
         catalog = (
             case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
         )
-        version = str(catalog.get("protocolVersion", "v0.9"))
+        catalogs = (
+            case.get("catalogs", []) if isinstance(case.get("catalogs"), list) else []
+        )
+        first_catalog = (
+            catalogs[0] if catalogs and isinstance(catalogs[0], dict) else {}
+        )
+        version = str(
+            case.get("protocolVersion")
+            or catalog.get("protocolVersion")
+            or first_catalog.get("protocolVersion")
+            or "v0.9"
+        )
         if not version.startswith("v"):
             version = f"v{version}"
 
@@ -188,17 +199,25 @@ def get_conformance_cases(filename):
     return filtered
 
 
-def make_stream_parser(catalog_config):
-    """Builds the stream parser that a case's catalog config describes.
+def make_stream_parser(test_case):
+    """Builds the stream parser that a case's catalog configs describe.
 
-    The shared suites name the progressive keys `customCuttableKeys`.
+    A case configures one catalog under `catalog`, or several under
+    `catalogs`. The shared suites name the progressive keys
+    `customCuttableKeys`, on the catalog config or, for several catalogs, on
+    the case.
     """
-    catalog = setup_catalog(catalog_config)
-    progressive_keys = catalog_config.get("customCuttableKeys")
+    if "catalogs" in test_case:
+        catalogs = [setup_catalog(config) for config in test_case["catalogs"]]
+        progressive_keys = test_case.get("customCuttableKeys")
+    else:
+        catalog_config = test_case.get("catalog", {})
+        catalogs = [setup_catalog(catalog_config)]
+        progressive_keys = catalog_config.get("customCuttableKeys")
     if progressive_keys is None:
-        return DirectJsonStreamParser(catalog=catalog)
+        return DirectJsonStreamParser(catalogs)
     return DirectJsonStreamParser(
-        catalog=catalog, progressive_keys=frozenset(progressive_keys)
+        catalogs, progressive_keys=frozenset(progressive_keys)
     )
 
 
@@ -215,7 +234,7 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
     "name, test_case", cases_parser, ids=[c[0] for c in cases_parser]
 )
 def test_parser_conformance(name, test_case):
-    parser = make_stream_parser(test_case["catalog"])
+    parser = make_stream_parser(test_case)
     if test_case.get("disableValidation"):
         _disable_validation(parser)
 
@@ -491,7 +510,7 @@ def test_schema_manager_conformance(name, test_case):
                 assert actual.a2ui_json == exp.get("a2ui")
 
     elif action == "process_chunk":
-        parser = make_stream_parser(test_case.get("catalog", {}))
+        parser = make_stream_parser(test_case)
         if test_case.get("disableValidation"):
             _disable_validation(parser)
 
@@ -690,7 +709,7 @@ def make_parser(args):
         ).parser
 
     if format_name == "direct_json":
-        return DirectJsonParser(catalog=catalog)
+        return DirectJsonParser([catalog])
 
     raise ValueError(f"Unknown inference format: {format_name}")
 

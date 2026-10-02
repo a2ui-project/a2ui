@@ -97,7 +97,7 @@ def test_schema_strategy_prompt_shows_the_protocol_schemas_once(test_catalog):
 
 
 def test_schema_parser(test_catalog):
-    parser = DirectJsonParser(test_catalog)
+    parser = DirectJsonParser([test_catalog])
     parsed = parser.parse_response(
         '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
         ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
@@ -107,7 +107,7 @@ def test_schema_parser(test_catalog):
 
 
 def test_schema_parser_rejects_an_invalid_payload(test_catalog):
-    parser = DirectJsonParser(test_catalog)
+    parser = DirectJsonParser([test_catalog])
     with pytest.raises(A2uiValidationError):
         parser.parse_response(
             '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
@@ -118,7 +118,7 @@ def test_schema_parser_rejects_an_invalid_payload(test_catalog):
 
 
 def test_schema_parser_with_nested_close_tag(test_catalog):
-    parser = DirectJsonParser(test_catalog)
+    parser = DirectJsonParser([test_catalog])
     # The JSON string literal itself contains '</a2ui-json>'
     response = (
         "<a2ui-json>[{\n"
@@ -144,7 +144,7 @@ def test_schema_parser_with_nested_close_tag(test_catalog):
 def test_strategy_based_converters(test_catalog, monkeypatch):
     monkeypatch.setenv("A2UI_VERSION_1_0", "true")
     # Test JSON default (DirectJsonParser)
-    json_converter = A2uiPartConverter(a2ui_catalog=test_catalog)
+    json_converter = A2uiPartConverter(catalogs=[test_catalog])
     part_json = genai_types.Part(
         text=(
             '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
@@ -278,11 +278,9 @@ def test_decompiler_delegation(test_catalog):
 def test_direct_json_stream_parser_record_inline_components_surface_id(
     test_catalog,
 ):
-    from a2ui.inference_formats.direct_json.streaming_v09 import (
-        DirectJsonStreamParserV09,
-    )
+    from a2ui.inference_formats.direct_json import DirectJsonStreamParserModern
 
-    parser = DirectJsonStreamParserV09(catalog=test_catalog)
+    parser = DirectJsonStreamParserModern([test_catalog])
     parser.surface_id = "main_surface"
     parser._record_inline_components(
         "custom_surface", [{"id": "c1", "component": "Text"}]
@@ -295,9 +293,9 @@ def test_direct_json_stream_parser_record_inline_components_surface_id(
 
 
 def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
-    from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
+    from a2ui.inference_formats.direct_json import DirectJsonStreamParser
 
-    parser = DirectJsonStreamParser(catalog=test_catalog)
+    parser = DirectJsonStreamParser([test_catalog])
     # Text is defined in reference_map with no child props
     fields = parser._get_child_fields_for_obj(
         {"component": "Text", "id": "t1", "text": "Click me", "label": "Submit"}
@@ -330,6 +328,23 @@ def test_direct_json_prompt_describes_every_catalog():
 
     assert '"catalogId":"a"' in prompt
     assert '"catalogId":"b"' in prompt
+    assert direct_json_format.catalogs == tuple(catalogs)
+    assert direct_json_format.parser.catalogs == (catalogs[0],)
+    assert direct_json_format.create_stream_parser().catalogs == (catalogs[0],)
+
+
+def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
+    catalogs = [
+        Catalog.from_json(
+            {"catalogId": catalog_id, "components": {}}, protocol_version="1.0"
+        )
+        for catalog_id in ("a", "b")
+    ]
+    direct_json_format = DirectJsonFormat(catalogs)
+
+    assert direct_json_format.catalogs == tuple(catalogs)
+    assert direct_json_format.parser.catalogs == tuple(catalogs)
+    assert direct_json_format.create_stream_parser().catalogs == tuple(catalogs)
 
 
 _CUT_TEXT_CHUNK = (

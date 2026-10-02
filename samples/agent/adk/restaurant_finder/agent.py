@@ -278,9 +278,7 @@ class RestaurantAgent:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = inference_format.create_stream_parser(
-                        selected_catalog
-                    )
+                    self._parsers[session_id] = inference_format.create_stream_parser()
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
 

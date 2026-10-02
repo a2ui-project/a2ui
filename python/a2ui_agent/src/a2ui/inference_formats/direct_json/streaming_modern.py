@@ -14,15 +14,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import json
 import re
 from typing import Any
 
 from a2ui.core import CatalogApi, RELAXED_VALIDATION
+from a2ui.core.common import is_at_least_version, to_protocol_version
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser import ResponsePart
 from a2ui.parser.constants import (
     DEFAULT_ROOT_ID,
+    MSG_TYPE_AGENT_FUNCTION_RESPONSE,
+    MSG_TYPE_CALL_RENDERER_FUNCTION,
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
@@ -32,25 +37,43 @@ from a2ui.schema import CATALOG_COMPONENTS_KEY
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS, SURFACE_ID_KEY
 
 
-class DirectJsonStreamParserV09(DirectJsonStreamParser):
-    """Streaming parser implementation for A2UI v0.9 specification."""
+class DirectJsonStreamParserModern(DirectJsonStreamParser):
+    """Streaming parser implementation for A2UI v0.9 and later specifications."""
 
     def __init__(
         self,
-        catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi],
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
     ):
         super().__init__(
-            catalog=catalog,
+            catalogs=catalogs,
             progressive_keys=progressive_keys,
         )
-        # v0.9 default root is "root"
+        # Default root is "root"
         self._default_root_id = DEFAULT_ROOT_ID
+        self._seen_version: str | None = None
+
+    @property
+    def _passthrough_msg_types(self) -> tuple[str, ...]:
+        """Message types beyond surface and data updates that pass through."""
+        if is_at_least_version(
+            to_protocol_version(self._version), ProtocolVersion.V1_0
+        ):
+            return (
+                MSG_TYPE_CALL_RENDERER_FUNCTION,
+                MSG_TYPE_AGENT_FUNCTION_RESPONSE,
+            )
+        return ()
+
+    @property
+    def _message_version(self) -> str:
+        """The `version` string that synthesized messages carry."""
+        return self._seen_version or f'v{self._version}'
 
     @property
     def _placeholder_component(self) -> dict[str, Any]:
-        """Returns a v0.9 flat style placeholder component specification."""
+        """Returns a flat style placeholder component specification."""
         return {
             'component': 'Row',
             'children': [],
@@ -62,7 +85,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         return MSG_TYPE_UPDATE_DATA_MODEL
 
     def _sniff_metadata(self) -> None:
-        """Sniffs for v0.9 metadata in the json_buffer."""
+        """Sniffs for metadata in the json_buffer."""
 
         def get_latest_value(key: str) -> str | None:
             idx = len(self._json_buffer)
@@ -80,12 +103,26 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         if parsed_root is not None:
             self.root_id = parsed_root
 
-        if f'"{MSG_TYPE_CREATE_SURFACE}":' in self._json_buffer:
-            self.add_msg_type(MSG_TYPE_CREATE_SURFACE)
-        if f'"{MSG_TYPE_UPDATE_COMPONENTS}":' in self._json_buffer:
-            self.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
-        if f'"{MSG_TYPE_UPDATE_DATA_MODEL}":' in self._json_buffer:
-            self.add_msg_type(MSG_TYPE_UPDATE_DATA_MODEL)
+        if f'"{MSG_TYPE_CREATE_SURFACE}"' in self._json_buffer:
+            cs_idx = self._json_buffer.rfind(f'"{MSG_TYPE_CREATE_SURFACE}"')
+            cs_header = self._json_buffer[cs_idx:].split(
+                f'"{CATALOG_COMPONENTS_KEY}"', 1
+            )[0]
+            surface_match = re.search(r'"surfaceId"\s*:\s*"([^"]+)"', cs_header)
+            catalog_match = re.search(r'"catalogId"\s*:\s*"([^"]+)"', cs_header)
+            if surface_match and catalog_match:
+                self._surface_catalog_ids[surface_match.group(1)] = catalog_match.group(
+                    1
+                )
+
+        for msg_type in (
+            MSG_TYPE_CREATE_SURFACE,
+            MSG_TYPE_UPDATE_COMPONENTS,
+            MSG_TYPE_UPDATE_DATA_MODEL,
+            *self._passthrough_msg_types,
+        ):
+            if f'"{msg_type}":' in self._json_buffer:
+                self.add_msg_type(msg_type)
 
     def _handle_complete_object(
         self,
@@ -93,40 +130,45 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         sid: str | None,
         messages: list[ResponsePart],
     ) -> bool:
-        """Handles v0.9 specific complete objects."""
+        """Handles complete protocol message objects for v0.9 and later."""
         if not isinstance(obj, dict):
             return False
 
         self._validate_message(obj)
+        if isinstance(obj.get('version'), str):
+            self._seen_version = obj['version']
 
         # Update state based on the message content
         surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)
-        if MSG_TYPE_UPDATE_COMPONENTS in obj:
-            val = obj[MSG_TYPE_UPDATE_COMPONENTS]
-            if isinstance(val, dict):
-                surface_id = val.get(SURFACE_ID_KEY) or surface_id
-        elif MSG_TYPE_CREATE_SURFACE in obj:
-            val = obj[MSG_TYPE_CREATE_SURFACE]
-            if isinstance(val, dict):
-                surface_id = val.get(SURFACE_ID_KEY) or surface_id
+        for msg_type in (
+            MSG_TYPE_CREATE_SURFACE,
+            MSG_TYPE_UPDATE_COMPONENTS,
+            MSG_TYPE_UPDATE_DATA_MODEL,
+            MSG_TYPE_DELETE_SURFACE,
+        ):
+            if msg_type in obj:
+                val = obj[msg_type]
+                if isinstance(val, dict):
+                    surface_id = val.get(SURFACE_ID_KEY) or surface_id
+                break
 
         self.surface_id = surface_id
         sid = self.surface_id or 'unknown'
 
-        # v0.9 Specific Handling
         if MSG_TYPE_CREATE_SURFACE in obj:
+            self._deleted_surfaces.discard(sid)
             val = obj[MSG_TYPE_CREATE_SURFACE]
             if isinstance(val, dict):
+                self._record_surface_catalog(sid, val)
                 self.root_id = val.get('root', self.root_id or DEFAULT_ROOT_ID)
                 self._record_inline_components(sid, val.get('components'))
-            self._buffered_start_message = obj
 
             # Yield createSurface immediately when it completes
             if sid not in self._yielded_start_messages:
                 self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
                 self._yielded_start_messages.add(sid)
                 self._yielded_surfaces_set.add(sid)
-                self._buffered_start_message = None
+            self._buffered_start_message = None
 
             if sid in self._pending_messages:
                 # Clear pending messages when createSurface arrives, we want a fresh start!
@@ -153,6 +195,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                 return True
             self.add_msg_type(MSG_TYPE_DELETE_SURFACE)
             self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
+            self._delete_surface(sid)
             return True
 
         if MSG_TYPE_UPDATE_DATA_MODEL in obj:
@@ -162,16 +205,22 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
             self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             return True
 
+        for msg_type in self._passthrough_msg_types:
+            if msg_type in obj:
+                self.add_msg_type(msg_type)
+                self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
+                return True
+
         return False
 
     def _construct_sniffed_data_model_message(
         self, active_msg_type: str, delta_msg_payload: dict[str, Any]
     ) -> dict[str, Any]:
-        """Returns the message to yield for a partial data model update for v0.9."""
-        return {'version': 'v0.9', active_msg_type: delta_msg_payload}
+        """Returns the message to yield for a partial data model update."""
+        return {'version': self._message_version, active_msg_type: delta_msg_payload}
 
     def _sniff_partial_data_model(self, messages: list[ResponsePart]) -> None:
-        """Sniffs for partial data model updates in v0.9 (value property)."""
+        """Sniffs for partial data model updates (value property)."""
         msg_type = MSG_TYPE_UPDATE_DATA_MODEL
         if f'"{msg_type}"' not in self._json_buffer:
             return
@@ -228,9 +277,6 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                             self._yield_messages(
                                 [delta_msg], messages, config=RELAXED_VALIDATION
                             )
-                            # Do NOT update _yielded_data_model here, let update_data_model do it when complete
-                            # Wait! If we don't update it, will we over-yield it in the next chunk?
-                            # Yes, we might. So we should update it or track it!
                             self._yielded_data_model.update(delta)
 
     def _record_inline_components(self, sid: str, components: Any) -> None:
@@ -248,16 +294,16 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
     def _construct_partial_message(
         self, processed_components: list[dict[str, Any]], active_msg_type: str
     ) -> dict[str, Any]:
-        """Constructs a partial message for v0.9/v1.0 (updateComponents)."""
+        """Constructs a partial message for v0.9 and later (updateComponents)."""
         payload: dict[str, Any] = {
             CATALOG_COMPONENTS_KEY: processed_components,
         }
         if self.surface_id:
             payload[SURFACE_ID_KEY] = self.surface_id
-        version = getattr(self._catalog, 'protocol_version', None) or 'v0.9'
-        if not str(version).startswith('v'):
-            version = f'v{version}'
-        return {'version': version, MSG_TYPE_UPDATE_COMPONENTS: payload}
+        return {
+            'version': self._message_version,
+            MSG_TYPE_UPDATE_COMPONENTS: payload,
+        }
 
     @property
     def _yielded_surfaces_set(self) -> set[str]:

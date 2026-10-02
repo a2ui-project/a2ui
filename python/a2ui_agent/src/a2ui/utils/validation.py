@@ -30,7 +30,7 @@ from a2ui.core import (
     ValidationConfig,
 )
 from a2ui.core.common import to_protocol_version
-from a2ui.core.schema import ProtocolVersion
+from a2ui.core.schema import AgentToRendererMessagePayload, ProtocolVersion
 
 # The `version` values that messages for each protocol version's catalogs
 # state, spelled as the specification spells them. A v0.8 message has no
@@ -63,7 +63,12 @@ _UPDATED_SURFACE_VALIDATION = ValidationConfig(
 )
 
 
-def validate_payload(catalogs: Sequence[CatalogApi], payload: Any) -> None:
+def validate_payload(
+    catalogs: Sequence[CatalogApi],
+    payload: AgentToRendererMessagePayload,
+    *,
+    surface_catalog_ids: Mapping[str, str] | None = None,
+) -> None:
     """Checks a payload the way a renderer holding the catalogs would.
 
     The check is stateless: it sees one payload, with no record of what earlier
@@ -74,7 +79,9 @@ def validate_payload(catalogs: Sequence[CatalogApi], payload: Any) -> None:
     references to components outside the payload and a missing root are
     accepted there. Each of its components is still checked against a catalog
     that defines all of them, and the surface passes if one such catalog
-    accepts it.
+    accepts it. A caller that knows the catalog an earlier payload created
+    the surface with passes it in `surface_catalog_ids`, and the surface is
+    then checked against that catalog only.
 
     Each message must state a `version` that the catalogs' protocol version
     accepts, spelled as the specification spells it: none for v0.8, `v0.9` or
@@ -84,7 +91,11 @@ def validate_payload(catalogs: Sequence[CatalogApi], payload: Any) -> None:
       catalogs: The active catalogs, which must target compatible protocol
         versions. Each surface is checked against the catalog its `catalogId`
         names. A v0.8 surface that names none uses the first catalog.
-      payload: One message or a list of messages, as parsed JSON.
+      payload: One message or a sequence of messages, as parsed JSON mappings
+        or typed schema models.
+      surface_catalog_ids: The catalog ids that earlier payloads created
+        surfaces with, keyed by surface id. A surface that the payload creates
+        uses the catalog that the payload names instead.
 
     Raises:
       A2uiValidationError: If a renderer holding the catalogs would reject the
@@ -93,6 +104,11 @@ def validate_payload(catalogs: Sequence[CatalogApi], payload: Any) -> None:
       A2uiCatalogError: If no catalogs are given, or if their messages state
         different versions, for example v0.9 and v1.0 catalogs.
     """
+    if isinstance(catalogs, (str, bytes)) or not isinstance(catalogs, Sequence):
+        raise A2uiCatalogError(
+            "Validating a payload takes a sequence of catalogs, got"
+            f" {type(catalogs).__name__}."
+        )
     if not catalogs:
         raise A2uiCatalogError("Validating a payload requires at least one catalog.")
     protocol_version = to_protocol_version(catalogs[0].protocol_version)
@@ -105,10 +121,8 @@ def validate_payload(catalogs: Sequence[CatalogApi], payload: Any) -> None:
                 f" '{catalog.catalog_id}' targets {other_version.value}."
             )
 
-    messages = payload if isinstance(payload, list) else [payload]
+    messages = _extract_messages(payload)
     for index, message in enumerate(messages):
-        if not isinstance(message, dict):
-            raise A2uiValidationError(f"Message {index} is not a JSON object.")
         _check_version(message, index, protocol_version)
 
     created = {
@@ -129,8 +143,39 @@ def validate_payload(catalogs: Sequence[CatalogApi], payload: Any) -> None:
         if protocol_version is ProtocolVersion.V0_8:
             checked = _begin_rendering_first(checked)
         _process(catalogs, checked, STRICT_VALIDATION)
+    known_catalog_ids = surface_catalog_ids or {}
     for surface_id, surface_messages in updated.items():
-        _check_updated_surface(catalogs, protocol_version, surface_id, surface_messages)
+        _check_updated_surface(
+            catalogs,
+            protocol_version,
+            surface_id,
+            surface_messages,
+            known_catalog_ids.get(surface_id),
+        )
+
+
+def _extract_messages(
+    payload: AgentToRendererMessagePayload,
+) -> list[dict[str, Any]]:
+    """Normalizes a payload into a list of message dictionaries."""
+    raw: Any = payload
+    if hasattr(raw, "model_dump"):
+        raw = raw.model_dump(by_alias=True, exclude_none=True)
+        if isinstance(raw, Mapping) and isinstance(raw.get("messages"), list):
+            raw = raw["messages"]
+    raw_messages = (
+        raw
+        if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes))
+        else [raw]
+    )
+    messages: list[dict[str, Any]] = []
+    for index, item in enumerate(raw_messages):
+        if hasattr(item, "model_dump"):
+            item = item.model_dump(by_alias=True, exclude_none=True)
+        if not isinstance(item, Mapping):
+            raise A2uiValidationError(f"Message {index} is not a JSON object.")
+        messages.append(dict(item))
+    return messages
 
 
 def _check_version(
@@ -207,19 +252,33 @@ def _check_updated_surface(
     protocol_version: ProtocolVersion,
     surface_id: str,
     messages: list[dict[str, Any]],
+    known_catalog_id: str | None = None,
 ) -> None:
     """Checks the messages for a surface that the payload doesn't create.
 
-    The surface is created empty on each catalog that defines every component
+    A surface whose catalog is known is created empty on that catalog.
+    Otherwise it is created empty on each catalog that defines every component
     the messages add to it, until one accepts the messages. If none does, the
     error from the first is raised.
+
+    Raises:
+      A2uiValidationError: If the messages are rejected, or the known catalog
+        isn't one of the catalogs.
     """
-    component_types = _component_types(messages)
-    candidates = [
-        catalog
-        for catalog in catalogs
-        if all(catalog.get_component(name) is not None for name in component_types)
-    ] or [catalogs[0]]
+    if known_catalog_id is not None:
+        candidates = [c for c in catalogs if c.catalog_id == known_catalog_id]
+        if not candidates:
+            raise A2uiValidationError(
+                f"Surface '{surface_id}' uses catalog '{known_catalog_id}', which"
+                " isn't one of the active catalogs."
+            )
+    else:
+        component_types = _component_types(messages)
+        candidates = [
+            catalog
+            for catalog in catalogs
+            if all(catalog.get_component(name) is not None for name in component_types)
+        ] or [catalogs[0]]
 
     errors: list[A2uiValidationError] = []
     for catalog in candidates:

@@ -27,11 +27,12 @@ Usage Example:
   Typically used internally by the A2uiEventConverter or manually configured for custom part conversions:
 
   ```python
-  converter = A2uiPartConverter(a2ui_catalog=my_catalog)
+  converter = A2uiPartConverter(catalogs=[my_catalog])
   a2a_parts = converter.convert(genai_part)
   ```
 """
 
+from collections.abc import Sequence
 import logging
 
 from a2a import types as a2a_types
@@ -54,28 +55,29 @@ class A2uiPartConverter:
 
     This converter handles both tool-based A2UI (via `send_a2ui_json_to_client`)
     and text-based A2UI (via A2UI delimiter tags). It uses the provided
-    catalog to validate and fix JSON payloads.
+    catalogs to validate and fix JSON payloads.
 
     Args:
-        a2ui_catalog: The A2UI catalog.
+        catalogs: The A2UI catalogs that text-based A2UI is validated against.
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
         version: The A2UI version to use. Defaults to "0.8".
+        parser: Optional parser for text-based A2UI. Defaults to a
+            `DirectJsonParser` holding the catalogs.
     """
 
     def __init__(
         self,
-        a2ui_catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi],
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
         version: str = constants.VERSION_0_8,
         parser: Parser | None = None,
     ):
-        self._catalog = a2ui_catalog
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
         self._version = version
-        self._parser = parser or DirectJsonParser(a2ui_catalog)
+        self._parser = parser or DirectJsonParser(catalogs)
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
         """Converts a GenAI part to A2A parts, with A2UI validation.

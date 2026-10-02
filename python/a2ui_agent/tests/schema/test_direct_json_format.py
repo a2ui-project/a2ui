@@ -38,6 +38,11 @@ def test_direct_json_format_without_catalogs_is_an_error():
         DirectJsonFormat([])
 
 
+def test_direct_json_format_rejects_single_catalog_not_in_a_sequence():
+    with pytest.raises(A2uiCatalogError, match="sequence of catalogs"):
+        DirectJsonFormat(BasicCatalog(VERSION_0_9))
+
+
 def test_direct_json_format_with_mixed_versions_is_an_error():
     with pytest.raises(A2uiCatalogError, match="different protocol versions"):
         DirectJsonFormat([BasicCatalog(VERSION_0_8), BasicCatalog(VERSION_0_9)])
@@ -57,7 +62,7 @@ def test_direct_json_format_supports_each_version(version):
 def test_direct_json_parser_methods():
     tf = DirectJsonFormat([BasicCatalog(VERSION_0_8)])
     cat = tf.catalogs[0]
-    parser = DirectJsonParser(cat)
+    parser = DirectJsonParser([cat])
 
     # 1. has_format_content
     assert parser.has_format_content("<a2ui-json>", complete=True) is False
