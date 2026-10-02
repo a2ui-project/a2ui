@@ -56,7 +56,7 @@ async def test_a2ui_system_prompt(tmp_path: Path) -> None:
 
 
 from a2ui_eval.strategies.subagent_tool import extract_subagent_payload, PAYLOAD_STORE_KEY
-from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageTool, ChatMessageUser
 
 
 @pytest.mark.asyncio
@@ -355,3 +355,59 @@ async def test_format_system_prompt_with_domain_prompt() -> None:
     )
     res_error = await compile_solver(error_state, dummy_generate)
     assert "Compilation/validation failed:" in res_error.output.completion
+
+
+from a2ui_eval.strategies.skill import skill_preloaded_prompt, skill_interactive_system_prompt
+
+
+@pytest.mark.asyncio
+async def test_skill_preloaded_prompt_solver(tmp_path: Path) -> None:
+    catalog_file = tmp_path / "catalog.json"
+    catalog_file.write_text('{"catalogId": "test_cat", "components": {}}')
+
+    solver = skill_preloaded_prompt(format_name="express", version="1.0")
+
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="Create a button",
+        messages=[ChatMessageUser(content="Create a button")],
+        metadata={
+            "catalog": str(catalog_file),
+            "system_prompt": "Domain prompt test",
+        },
+    )
+
+    result = await solver(state, dummy_generate)
+
+    assert len(result.messages) == 2
+    assert result.messages[0].role == "system"
+    assert "Domain prompt test" in result.messages[0].content
+    assert "pre-loaded A2UI UI generation rules" in result.messages[1].content
+
+
+@pytest.mark.asyncio
+async def test_skill_interactive_system_prompt_solver(tmp_path: Path) -> None:
+    catalog_file = tmp_path / "catalog.json"
+    catalog_file.write_text('{"catalogId": "test_cat", "components": {}}')
+
+    solver = skill_interactive_system_prompt(format_name="express", version="1.0")
+
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="Create a button",
+        messages=[],
+        metadata={
+            "catalog": str(catalog_file),
+        },
+    )
+
+    result = await solver(state, dummy_generate)
+
+    assert len(result.messages) == 1
+    assert result.messages[0].role == "system"
+    assert "Available Skills" in result.messages[0].content
+    assert "load_skill" in result.messages[0].content
