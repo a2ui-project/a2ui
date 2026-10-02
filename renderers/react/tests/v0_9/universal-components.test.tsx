@@ -27,8 +27,8 @@
  */
 
 import {describe, it, expect, afterEach, vi} from 'vitest';
-import {act, render, waitFor, within} from '@testing-library/react';
-import React, {createContext, useContext} from 'react';
+import {act, fireEvent, render, waitFor, within} from '@testing-library/react';
+import React, {createContext, useContext, useLayoutEffect, useRef} from 'react';
 import {z} from 'zod';
 import {
   Catalog,
@@ -65,9 +65,56 @@ const Themed = createComponentImplementation({name: 'Themed', schema: z.object({
   <span data-testid="themed">{useContext(Theme)}</span>
 ));
 
+const ThemedPanel = createComponentImplementation(
+  {name: 'ThemedPanel', schema: z.object({child: ComponentIdSchema.optional()})},
+  ({props, buildChild}) => (
+    <Theme.Provider value="from panel">
+      {props.child ? buildChild(props.child) : null}
+    </Theme.Provider>
+  ),
+);
+
 const Thrower = createComponentImplementation({name: 'Thrower', schema: z.object({})}, () => {
   throw new Error('nested component failed');
 });
+
+/** A clickable React wrapper that counts its own clicks. */
+const clicks = new Map<string, number>();
+const Clicker = createComponentImplementation(
+  {name: 'Clicker', schema: z.object({child: ComponentIdSchema.optional()})},
+  ({props, buildChild, context}) => (
+    <div
+      data-testid={`clicker-${context.componentModel.id}`}
+      onClick={() =>
+        clicks.set(context.componentModel.id, (clicks.get(context.componentModel.id) ?? 0) + 1)
+      }
+    >
+      {props.child ? buildChild(props.child) : null}
+    </div>
+  ),
+);
+
+/** Records what its layout effect finds inside its child's host on mount. */
+const layoutLog: string[] = [];
+const Measurer = createComponentImplementation(
+  {name: 'Measurer', schema: z.object({child: ComponentIdSchema.optional()})},
+  ({props, buildChild}) => {
+    const ref = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+      layoutLog.push(`measurer: ${ref.current?.firstElementChild?.childElementCount ?? 'none'}`);
+    }, []);
+    return <div ref={ref}>{props.child ? buildChild(props.child) : null}</div>;
+  },
+);
+const LoggingBadge = createComponentImplementation(
+  {name: 'LoggingBadge', schema: z.object({})},
+  () => {
+    useLayoutEffect(() => {
+      layoutLog.push('badge');
+    }, []);
+    return <span data-testid="logging-badge">badge</span>;
+  },
+);
 
 /**
  * A hand-written React implementation: a plain object, with no factory and no
@@ -97,6 +144,14 @@ class CatchBoundary extends React.Component<{children: React.ReactNode}, {error:
   }
 }
 
+/** A catalog component that is itself an error boundary around its child. */
+const Guarded = createComponentImplementation(
+  {name: 'Guarded', schema: z.object({child: ComponentIdSchema.optional()})},
+  ({props, buildChild}) => (
+    <CatchBoundary>{props.child ? buildChild(props.child) : null}</CatchBoundary>
+  ),
+);
+
 /** web_core's Lit column and list, which render their children by tag name. */
 const Column = webCoreBasicCatalog.components.get('Column')!;
 const List = webCoreBasicCatalog.components.get('List')!;
@@ -105,7 +160,12 @@ const catalog = new Catalog<ReactCatalogComponent>('mixed', '0.9', [
   Badge,
   Panel,
   Themed,
+  ThemedPanel,
   Thrower,
+  Clicker,
+  Measurer,
+  LoggingBadge,
+  Guarded,
   HandPanel,
   Column,
   List,
@@ -113,6 +173,8 @@ const catalog = new Catalog<ReactCatalogComponent>('mixed', '0.9', [
 
 afterEach(() => {
   vi.restoreAllMocks();
+  clicks.clear();
+  layoutLog.length = 0;
 });
 
 function surfaceWith(id: string, ...components: ComponentModel[]) {
@@ -312,6 +374,105 @@ describe('mixed React and Web Component catalogs', () => {
     expect(await within(container).findByTestId('caught')).toHaveTextContent(
       'caught: nested component failed',
     );
+  });
+});
+
+/**
+ * Each React host's content portals the hosts below it, so the React tree
+ * nests like the DOM: what a component provides, catches or listens for
+ * applies to the components it renders, through any Lit component in between.
+ */
+describe('the React tree nests like the DOM', () => {
+  it('passes a provider from a component to a child under a Lit component', async () => {
+    const surface = surfaceWith(
+      'provider-through-component',
+      new ComponentModel('root', 'ThemedPanel', {child: 'col'}),
+      new ComponentModel('col', 'Column', {children: ['themed-1']}),
+      new ComponentModel('themed-1', 'Themed', {}),
+    );
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(await within(container).findByTestId('themed')).toHaveTextContent('from panel');
+  });
+
+  it('dispatches a React event once to each handler above the target', async () => {
+    const surface = surfaceWith(
+      'events-through-hosts',
+      new ComponentModel('root', 'Clicker', {child: 'mid'}),
+      new ComponentModel('mid', 'Clicker', {child: 'col'}),
+      new ComponentModel('col', 'Column', {children: ['leaf']}),
+      new ComponentModel('leaf', 'Clicker', {child: 'badge-1'}),
+      new ComponentModel('badge-1', 'Badge', {label: 'click me'}),
+    );
+    let above = 0;
+    const {container} = render(
+      <div
+        onClick={() => {
+          above++;
+        }}
+      >
+        <A2uiSurface surface={surface} />
+      </div>,
+    );
+    const badge = await within(container).findByTestId('badge');
+
+    await act(async () => {
+      fireEvent.click(badge);
+    });
+
+    expect([...clicks]).toEqual([
+      ['leaf', 1],
+      ['mid', 1],
+      ['root', 1],
+    ]);
+    expect(above).toBe(1);
+  });
+
+  it('lets a component that is an error boundary catch a throw from its child', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const surface = surfaceWith(
+      'boundary-in-component',
+      new ComponentModel('root', 'Panel', {child: 'guard'}),
+      new ComponentModel('guard', 'Guarded', {child: 'thrower-1'}),
+      new ComponentModel('thrower-1', 'Thrower', {}),
+    );
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(await within(container).findByTestId('caught')).toHaveTextContent(
+      'caught: nested component failed',
+    );
+    expect(container.querySelector('[data-testid="panel"] [data-testid="caught"]')).not.toBeNull();
+  });
+
+  it("mounts a React child's content before its parent's layout effect, as React does", async () => {
+    const surface = surfaceWith(
+      'layout-order-react',
+      new ComponentModel('root', 'Measurer', {child: 'badge-1'}),
+      new ComponentModel('badge-1', 'LoggingBadge', {}),
+    );
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+    await within(container).findByTestId('logging-badge');
+
+    expect(layoutLog).toEqual(['badge', 'measurer: 1']);
+  });
+
+  it("mounts a child's content under a Lit component after its parent's layout effect", async () => {
+    const surface = surfaceWith(
+      'layout-order-lit',
+      new ComponentModel('root', 'Measurer', {child: 'col'}),
+      new ComponentModel('col', 'Column', {children: ['badge-1']}),
+      new ComponentModel('badge-1', 'LoggingBadge', {}),
+    );
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+    await within(container).findByTestId('logging-badge');
+
+    // The Lit column renders its children, and so creates the child's host,
+    // after the parent has committed; the child's content follows the host.
+    expect(layoutLog).toEqual(['measurer: 0', 'badge']);
   });
 });
 

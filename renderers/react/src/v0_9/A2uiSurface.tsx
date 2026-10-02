@@ -18,19 +18,17 @@
  * Surface renderer driven by the node layer.
  *
  * `A2uiSurface` owns one `NodeResolver` for the surface it is given,
- * subscribes to the resolved root node, renders its element and portals
- * `NodeContent` into every React host registered with the surface's
- * `HostRegistry`. Everything below the root, including dispatch to each
+ * subscribes to the resolved root node and renders its element; it also
+ * portals content into the surface's React hosts that no React-rendered
+ * element owns. Everything below the root, including dispatch to each
  * implementation and child reference resolution, lives in `node-view.tsx`.
  */
 
 import React, {useCallback, useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
-import {createPortal} from 'react-dom';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {prepareCatalogs} from './catalog/prepare_catalogs';
-import {HostRegistry} from './host_registry';
-import {ChildElement, LoadingPlaceholder, NodeContent} from './node-view';
+import {ChildElement, HostedChildren, LoadingPlaceholder} from './node-view';
 import type {ReactCatalogComponent} from './react_component_implementation';
 import {useMarkdownRenderer} from './markdown-context';
 
@@ -85,20 +83,15 @@ export const A2uiSurface: React.FC<{
   );
   const root = useSyncExternalStore(subscribe, getSnapshot);
 
-  // Hosts are created by whichever parent renders them, a React parent through
-  // `WebComponentNode` or a Lit parent through `renderA2uiNode`, so they are
-  // not in this component's tree. A connected host registers with its surface
-  // together with its node, and the surface portals that node's content into it.
-  const registry = HostRegistry.forSurface(surface);
-  const hosts = useSyncExternalStore(registry.subscribe, registry.getSnapshot);
-
   if (!root) {
     return <LoadingPlaceholder componentId="root" />;
   }
+  // A React host of this surface with no React-rendered element above it
+  // (one created outside the surface's tree) gets its content from here.
   return (
     <>
       <ChildElement node={root} />
-      {hosts.map(({host, node}) => createPortal(<NodeContent node={node} />, host, node.id))}
+      <HostedChildren surface={surface} owner={null} />
     </>
   );
 };

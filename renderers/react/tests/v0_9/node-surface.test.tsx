@@ -40,6 +40,7 @@ import {toWebComponent} from '../../src/v0_9/catalog/to_web_component';
 import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
 import {HostRegistry} from '../../src/v0_9/host_registry';
 import {basicCatalog} from '../../src/v0_9/catalog/basic';
+import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /** View render counts, keyed per component instance. */
 const renders = new Map<string, number>();
@@ -213,7 +214,7 @@ const ThemedImpl = createComponentImplementation({name: 'Themed', schema: z.obje
   return <span data-testid="themed">{`${theme}/${panelTheme}`}</span>;
 });
 
-/** Provides React context around its child, which does not reach the child. */
+/** Provides React context around its child, which reaches the child. */
 const PanelImpl = createComponentImplementation(
   {name: 'Panel', schema: z.object({child: ComponentIdSchema.optional()})},
   ({props, buildChild}) => (
@@ -241,6 +242,19 @@ function setup() {
   ]);
   const surface = new SurfaceModel<ReactComponentImplementation>('surf-1', catalog);
   return surface;
+}
+
+/**
+ * A surface whose `List` is web_core's Lit list, a parent that creates its
+ * children's hosts itself. Only such hosts register; React renders the
+ * content of its own hosts as children.
+ */
+function setupWithLitList() {
+  const catalog = new Catalog<ReactCatalogComponent>('node-react-lit-test', '0.9', [
+    TextImpl,
+    webCoreBasicCatalog.components.get('List')!,
+  ]);
+  return new SurfaceModel<ReactCatalogComponent>('surf-lit', catalog);
 }
 
 function add(surface: SurfaceModel, id: string, type: string, props: Record<string, unknown>) {
@@ -890,15 +904,17 @@ describe('host elements', () => {
     expect(container.querySelector(tagOf(TextImpl))).toBeNull();
   });
 
-  it('moves every host to the new surface when the surface prop changes', async () => {
-    const first = setup();
-    add(first, 'root', 'Card', {child: 'kid'});
+  it('moves every registered host to the new surface when the surface prop changes', async () => {
+    const first = setupWithLitList();
+    add(first, 'root', 'List', {children: ['kid']});
     add(first, 'kid', 'Text', {text: 'first surface'});
-    const second = setup();
-    add(second, 'root', 'Card', {child: 'kid'});
+    const second = setupWithLitList();
+    add(second, 'root', 'List', {children: ['kid', 'kid2']});
     add(second, 'kid', 'Text', {text: 'second surface'});
+    add(second, 'kid2', 'Text', {text: 'second surface'});
 
     const {container, rerender} = render(<A2uiSurface surface={first} />);
+    await flushMicrotasks();
     expect(container).toHaveTextContent('first surface');
 
     rerender(<A2uiSurface surface={second} />);
@@ -906,36 +922,40 @@ describe('host elements', () => {
 
     expect(container).toHaveTextContent('second surface');
     expect(container).not.toHaveTextContent('first surface');
-    expect(container.querySelectorAll(tagOf(CardImpl))).toHaveLength(1);
-    expect(HostRegistry.forSurface(first).getSnapshot()).toHaveLength(0);
-    expect(HostRegistry.forSurface(second).getSnapshot()).toHaveLength(2);
+    expect(container.querySelectorAll(tagOf(TextImpl))).toHaveLength(2);
+    expect(HostRegistry.forSurface(first).entries()).toHaveLength(0);
+    expect(HostRegistry.forSurface(second).entries()).toHaveLength(2);
   });
 
   it('unregisters every host on unmount', async () => {
-    const surface = setup();
-    add(surface, 'root', 'Card', {child: 'kid'});
+    const surface = setupWithLitList();
+    add(surface, 'root', 'List', {children: ['kid', 'kid2']});
     add(surface, 'kid', 'Text', {text: 'kid'});
+    add(surface, 'kid2', 'Text', {text: 'kid2'});
 
     const {unmount} = render(<A2uiSurface surface={surface} />);
-    expect(HostRegistry.forSurface(surface).getSnapshot()).toHaveLength(2);
+    await flushMicrotasks();
+    expect(HostRegistry.forSurface(surface).entries()).toHaveLength(2);
 
     unmount();
     await flushMicrotasks();
 
-    expect(HostRegistry.forSurface(surface).getSnapshot()).toHaveLength(0);
+    expect(HostRegistry.forSurface(surface).entries()).toHaveLength(0);
   });
 });
 
 describe('React context across hosts', () => {
-  it('does not pass React context from a parent component to its child components', () => {
+  it('passes React context from a parent component to its child components', async () => {
     const surface = setup();
     add(surface, 'root', 'Panel', {child: 'themed'});
     add(surface, 'themed', 'Themed', {});
 
-    const {container} = render(<A2uiSurface surface={surface} />);
-
-    expect(within(container).getByTestId('themed')).toHaveTextContent(
-      'no provider/no panel provider',
+    const {container} = render(
+      <Theme.Provider value="from app">
+        <A2uiSurface surface={surface} />
+      </Theme.Provider>,
     );
+
+    expect(await within(container).findByTestId('themed')).toHaveTextContent('from app/from panel');
   });
 });
