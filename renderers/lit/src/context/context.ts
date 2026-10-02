@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
-export {basicCatalog as basicCatalogV09} from '@a2ui/lit/v0_9';
-export {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
-export {LocalGallery} from './local-gallery.js';
+import {markdown} from './markdown.js';
+
+/**
+ * Contexts used to inject dependencies into the Lit renderer.
+ */
+export const Context = {
+  markdown,
+};
