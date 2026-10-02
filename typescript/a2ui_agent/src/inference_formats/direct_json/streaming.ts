@@ -603,6 +603,10 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
    * reported as having no required properties. That is deliberately the permissive
    * direction: an unreadable schema should not silently withhold every component on the
    * wire. The same applies to a shape entry that does not expose `isOptional`.
+   *
+   * web_core's loader builds plain `z.object` schemas, but a hand-written catalog can wrap
+   * the object in `refine`, `default` and similar, so the shape is read from the innermost
+   * schema.
    */
   private getRequiredProps(componentType: string): string[] {
     let cache = this.requiredPropsCache.get(this.catalog.id);
@@ -621,7 +625,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       return [];
     }
 
-    const schema = componentApi.schema;
+    const schema = this.unwrapSchema(componentApi.schema);
     if (typeof schema === 'object' && schema !== null && 'shape' in schema) {
       interface ZodObjectShapeLike {
         shape: Record<string, {isOptional?: () => boolean}>;
@@ -643,6 +647,25 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
 
     cache.set(componentType, []);
     return [];
+  }
+
+  /**
+   * Returns the schema inside zod wrappers such as `refine`, `transform`, `default`,
+   * `optional` and `nullable`, which keep it in `_def.schema` or `_def.innerType`.
+   */
+  private unwrapSchema(schema: unknown): unknown {
+    interface ZodWrapperLike {
+      _def?: {schema?: unknown; innerType?: unknown};
+    }
+    let current = schema;
+    for (let depth = 0; depth < 16; depth++) {
+      if (typeof current !== 'object' || current === null || 'shape' in current) break;
+      const def = (current as ZodWrapperLike)._def;
+      const inner = def?.schema ?? def?.innerType;
+      if (inner === undefined) break;
+      current = inner;
+    }
+    return current;
   }
 
   private handlePartialComponent(comp: Record<string, any>) {

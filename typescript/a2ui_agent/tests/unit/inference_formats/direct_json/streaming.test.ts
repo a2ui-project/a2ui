@@ -641,3 +641,29 @@ describe('Direct JSON Streaming stableStringify', () => {
     expect(stableStringify({z: 1, 'a"b': 2})).toBe('{"a\\"b":2,"z":1}');
   });
 });
+
+describe('Direct JSON Streaming required properties', () => {
+  const fields = {text: z.string(), label: z.string().optional()};
+
+  function requiredProps(schema: z.ZodTypeAny): string[] {
+    const catalog: SchemaCatalog = new Catalog(
+      'https://test.com/catalog.json',
+      'v0.9',
+      [{name: 'Text', schema} as unknown as ComponentApi],
+      [],
+    );
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    return (
+      processor as unknown as {getRequiredProps(componentType: string): string[]}
+    ).getRequiredProps('Text');
+  }
+
+  test('reads a plain object schema', () => {
+    expect(requiredProps(z.object(fields))).toEqual(['text']);
+  });
+
+  test('reads through refine, default and optional wrappers', () => {
+    expect(requiredProps(z.object(fields).refine(() => true))).toEqual(['text']);
+    expect(requiredProps(z.object(fields).default({text: ''}).optional())).toEqual(['text']);
+  });
+});
