@@ -1,0 +1,621 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Templates for generating Agent Skills (SKILL.md, runtime/, scripts/, references/)."""
+
+# The webview runtime shim: React-style h()/render() compiled to an A2UI flat graph. Fully
+# domain- and catalog-agnostic, so the SDK owns it rather than expecting one to be lying in
+# the output directory. The DEVICE injects its own copy at run time; this one is emitted so
+# the pre-flight simulates the device exactly and a generated skill is self-sufficient.
+RUNTIME_SHIM_JS = r"""// a2ui-react — the host's WEBVIEW RUNTIME that turns React into A2UI DOM.
+//
+// This is the "generate React/Dart, compile to A2UI, run in a webview" mechanism,
+// made concrete and tiny. A client render module authors UI as React elements —
+// `h(type, props, ...children)`, the same shape JSX desugars to — and calls
+// `render(tree)`. This runtime WALKS that element tree and compiles it into an
+// A2UI component tree: a flat `{ componentId -> { component, properties, children } }`
+// map plus a root id. It emits that via `ui.updateComponents`; the host renders
+// the catalog's components NATIVELY. The module ships CODE that
+// produces a typed tree — never markup, never a screenshot.
+//
+// `type` is either a string naming a host component (in the component catalog) or
+// a function component, which is called and its output expanded — real React
+// composition, compiled away before anything reaches the host.
+//
+// The Flutter/Dart host analog is identical in shape: a widget builder
+// (`Column(children:[CardA(...), CardB(...)])`) walks to the SAME A2UI
+// tree. The authored UI is portable because it targets the component catalog, not
+// a platform.
+//
+// The host injects an equivalent of this into the client sandbox as the
+// globals `h` and `render`. This file is the readable, testable reference.
+function createA2UIReact(emit, surfaceId) {
+  let counter = 0;
+
+  // hyperscript — what JSX compiles to. Children may be nested arrays (…map()).
+  const h = (type, props, ...children) => ({
+    __a2ui: true,
+    type,
+    props: props || {},
+    children: children.flat(Infinity).filter((c) => c != null && c !== false && c !== true),
+  });
+
+  function walk(node, comps) {
+    if (node == null || node === false || node === true) return null;
+
+    // a bare string/number becomes a Text component
+    if (typeof node === 'string' || typeof node === 'number') {
+      const id = 'n' + (++counter);
+      comps[id] = { component: 'Text', properties: { text: String(node) } };
+      return id;
+    }
+    if (!node.__a2ui) return null;
+
+    // function component: call it, expand its output (React composition)
+    if (typeof node.type === 'function') {
+      return walk(node.type({ ...node.props, children: node.children }), comps);
+    }
+
+    const id = node.props.id || 'n' + (++counter);
+    // properties = props minus framework-only keys (id, key, children)
+    const properties = {};
+    for (const k of Object.keys(node.props)) {
+      if (k === 'id' || k === 'key' || k === 'children') continue;
+      properties[k] = node.props[k];
+    }
+    // children: explicit element children win; else a `children` prop (array)
+    const kids = node.children && node.children.length ? node.children : [].concat(node.props.children || []);
+    const childIds = kids.map((k) => walk(k, comps)).filter(Boolean);
+
+    const c = { component: node.type, properties };
+    // TEMPLATE children: `template: '<data path>'` plus ONE child element means "repeat that
+    // child for every item at the path". The child is still walked into the component map (so
+    // it exists to be referenced), but the parent's `children` becomes the A2UI template
+    // descriptor { componentId, path } instead of a list of ids. Without this a bound list
+    // renders empty -- the template is emitted and then referenced by nothing.
+    if (typeof node.props.template === 'string' && childIds.length) {
+      delete properties.template;
+      c.children = { componentId: childIds[0], path: node.props.template };
+    } else if (childIds.length) c.children = childIds;
+    comps[id] = c;
+    return id;
+  }
+
+  function renderToA2UI(root) {
+    counter = 0;
+    const components = {};
+    const rootId = walk(root, components);
+    emit('ui.updateComponents', { surfaceId, root: rootId, components });
+    return { root: rootId, components };
+  }
+
+  return { h, render: renderToA2UI, renderToA2UI };
+}
+
+// Node/CommonJS export so this file is unit-testable outside a browser.
+if (typeof module !== 'undefined' && module.exports) module.exports = { createA2UIReact };
+"""
+
+# ---------------------------------------------------------------------------------------
+# RuntimeProfile: classic-global-main + injected-emit  (e.g. webview)
+#
+# The module is injected as a CLASSIC <script> under a deny-all CSP. There is no module
+# resolution and no filesystem, so: no `import`, nothing outside the entry function, and UI
+# reaches the renderer through host-injected globals rather than stdout.
+# ---------------------------------------------------------------------------------------
+
+SKILL_MD_TEMPLATE = """---
+name: {skill_name}
+surface: client
+description: {description}
+capabilities:
+{capability_list}
+---
+
+# {skill_name_title} Skill
+
+Author a client module that renders A2UI natively on the connected device. You do NOT run
+it -- the host ships it to the device with `{tool_name}` and the device executes it in a
+confined webview.
+
+---
+
+## 1. When to Activate
+
+Activate whenever a response needs a visual surface: choices to pick from, structured data
+to present, a form to fill, or a summary to confirm.
+
+---
+
+## 2. The module contract (HARD REQUIREMENTS)
+
+The device injects these globals -- **never import, redefine, or shadow them**:
+
+`{injected_globals}`
+
+Write exactly this shape:
+
+```javascript
+async function {entry}(input) {{
+  // 1. Every helper you use goes INSIDE this function.
+  //    Nothing above `async function {entry}` is guaranteed to survive: the pre-flight
+  //    evaluates only the slice starting here, so top-level declarations are dropped.
+  const Card = (props) => h('SomeComponent', props);
+
+  // 2. Build a tree with h(type, props, ...children) and render it.
+  const build = () => h('Column', {{}}, Card({{ /* ... */ }}));
+  render(build());
+
+  // 3. Re-render on user edits so validation and button states stay live.
+  onUpdate((path, value) => {{ /* track */ render(build()); }});
+
+  // 4. RESOLVE on a user event -- the module drives itself.
+  return await new Promise((resolve) => {{
+    onEvent((name) => {{
+      if (name !== 'confirm') return;
+      resolve({{ status: 'ok', selection: {{}}, userText: 'what the user chose' }});
+    }});
+  }});
+}}
+```
+
+**Rules that make the difference between rendering and not:**
+
+- **No `import` / `require` / `export`.** The module is a classic script; `import` is a
+  syntax error and there is no `lib/` on the device.
+- **Everything inside `{entry}()`.** See the comment above -- this is not a style rule.
+- **Render your OWN buttons** (`action: {{ event: {{ name: 'confirm' }} }}`). The host is a
+  pure renderer and event bus; it has no submit gate.
+- **Always resolve** -- from `input`, from an `invoke()`, or from a user event. A module that
+  waits for the agent deadlocks and is killed.
+- **Return `{{ status: 'ok', ... }}`** once the user acts. Anything else is a failure.
+- **Only emit components in the catalog below.** The device drops the rest.
+
+---
+
+## 3. Available components
+
+{catalog_documentation}
+
+---
+
+## 4. Capabilities
+
+Call these with `await invoke(name, args)`. Only those the connected client implements are
+available; if one is missing, compose the same outcome from what is there rather than
+skipping the task.
+
+{capability_documentation}
+
+---
+
+## 5. Pre-flight -- nothing reaches a device untested
+
+```bash
+{preflight_cmd}
+```
+
+Fix and re-run until it passes, then send. It runs the module exactly as the device will and
+fails on: a missing entry function, a component outside the client's catalog, a module that
+never renders, and a wrong return contract.
+
+---
+
+## 6. References — and the input each one REQUIRES
+
+{reference_contracts}
+"""
+
+VALIDATE_UI_TEMPLATE = r"""#!/usr/bin/env node
+// Pre-flight for client modules -- GENERATED from the catalog + RuntimeProfile.
+// Generated by a2ui_agent.skill_generator; do not edit by hand.
+//
+// Runs a module the way the device will (same shim, same injected globals, a simulated
+// user) and fails on anything the device would reject. The allowed component set comes from
+// the CATALOG, so it cannot drift from what the client can actually draw.
+//
+//   node scripts/validate_ui.mjs --code-file app.js [--input input.json] [--client A,B,C]
+//   node scripts/validate_ui.mjs --suite --examples catalog/examples
+import {{ readFileSync, existsSync, readdirSync }} from 'node:fs';
+import {{ fileURLToPath }} from 'node:url';
+import {{ dirname, join }} from 'node:path';
+import {{ createRequire }} from 'node:module';
+
+const require_ = createRequire(import.meta.url);
+const here = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(here, '..');
+const {{ createA2UIReact }} = require_('../runtime/a2ui-react.js');
+
+// The full palette this skill may reach for; narrowed per send by --client. Derived from the
+// CATALOG at generation time, so it cannot drift from what the client can actually draw.
+export const CATALOG_COMPONENTS = {catalog_components};
+
+// ---------------------------------------------------------------------------------------
+// Cases come from EXAMPLES -- nothing else.
+//
+// An example is a stream of A2UI messages: `updateComponents` is the tree, `updateDataModel`
+// is the data it renders. That is everything a case needs, so there is no fixture file, no
+// suite manifest, and no per-case metadata to keep in sync:
+//   name              <- the file name
+//   input             <- updateDataModel.value
+//   allowed           <- the components the example actually uses
+//   input-sensitivity <- whether the tree contains any {{path}} binding
+// Examples are repo data, so they are passed in at run time and never mounted with the skill.
+// ---------------------------------------------------------------------------------------
+const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
+
+function resolveDir(dir) {{
+  if (!dir) return null;
+  const abs = dir.startsWith('/') ? dir : join(process.cwd(), dir);
+  return existsSync(abs) ? abs : null;
+}}
+
+/** {{ components: [...], data: {{...}} }} from a stream of A2UI messages. */
+function parseExample(raw) {{
+  const msgs = Array.isArray(raw) ? raw : [raw];
+  let components = null, data = {{}};
+  for (const m of msgs) {{
+    if (!m || typeof m !== 'object') continue;
+    if (m.updateComponents) components = m.updateComponents.components;
+    else if (m.updateDataModel) data = m.updateDataModel.value || {{}};
+  }}
+  return {{ components: components || [], data }};
+}}
+
+/** Component names the example uses -- the allowed set, with no separate declaration. */
+function componentsUsed(list) {{
+  return [...new Set((list || []).map((c) => c && c.component).filter(Boolean))];
+}}
+
+/** True when the tree READS the data model.
+ *
+ * A `write: true` binding does not count: it carries a user edit INTO the model, so a surface
+ * whose only bindings are writes (a form asking for a value) has nothing to read and cannot
+ * demonstrate input sensitivity. */
+function hasBinding(list) {{
+  const probe = (v) => {{
+    if (!v || typeof v !== 'object') return false;
+    if (typeof v.path === 'string') return v.write !== true;
+    return Object.values(v).some(probe);
+  }};
+  return (list || []).some((c) => Object.entries(c || {{}})
+    .some(([k, v]) => k !== 'children' && probe(v)));
+}}
+
+/** One runnable case per example file. */
+export function loadCases(dir) {{
+  const base = resolveDir(dir);
+  if (!base) return [];
+  const refFor = (name) => {{
+    for (const ext of ['.jsx', '.js', '.mjs']) {{
+      const p = join(ROOT, 'references', name + ext);
+      if (existsSync(p)) return p;
+    }}
+    return null;
+  }};
+  return readdirSync(base).filter((f) => f.endsWith('.json')).sort().map((f) => {{
+    const name = f.replace(/\.json$/, '');
+    const ex = parseExample(readJson(join(base, f)));
+    return {{
+      name,
+      file: refFor(name),
+      input: ex.data,
+      allowed: componentsUsed(ex.components),
+      // Two grades, both derived:
+      //   bound  - the tree READS the data model, so insensitivity is a hard error
+      //   data   - literal-style tree with data available; insensitivity is a warning, since
+      //            a module may legitimately render only chrome
+      // No data at all -> nothing to compare, so no check.
+      sensitivity: hasBinding(ex.components) ? 'require'
+                 : (ex.data && Object.keys(ex.data).length ? 'warn' : 'skip'),
+    }};
+  }}).filter((c) => c.file);
+}}
+
+// ---------------------------------------------------------------------------------------
+// DATA MODEL
+//
+// The module publishes its input with `emit('ui.updateDataModel', ...)` and the tree reads it
+// back through `{{path}}` bindings, so the harness has to keep a model for the same reason the
+// device does -- without one every binding resolves against nothing.
+// ---------------------------------------------------------------------------------------
+
+/** A binding path made absolute against the item scope it appears in. */
+function absPath(path, basePath) {{
+  const raw = String(path == null ? '' : path);
+  if (raw.startsWith('/')) return raw;
+  return basePath ? basePath + '/' + raw : '/' + raw;
+}}
+
+function getPath(model, path, basePath) {{
+  let cur = model;
+  for (const k of absPath(path, basePath).split('/').filter(Boolean)) {{
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = cur[k];
+  }}
+  return cur;
+}}
+
+/** Write into the model. A path of '/' REPLACES the root, which is how a module publishes
+ *  its whole input. */
+function setPath(model, path, value) {{
+  const parts = String(path == null ? '' : path).split('/').filter(Boolean);
+  if (!parts.length) {{
+    for (const k of Object.keys(model)) delete model[k];
+    if (value && typeof value === 'object') Object.assign(model, value);
+    return;
+  }}
+  let cur = model;
+  for (const k of parts.slice(0, -1)) {{
+    if (cur[k] == null || typeof cur[k] !== 'object') cur[k] = {{}};
+    cur = cur[k];
+  }}
+  cur[parts[parts.length - 1]] = value;
+}}
+
+// Run a module exactly as the device does: inject the globals, let it render, fill every
+// write binding, then press the confirm button.
+export async function evalClientApp(src, input, invokeImpl, fireEvents) {{
+  let emitted = null;
+  const invokes = [];
+  const data = {{}};
+  // ONE `emit`, shared by the shim and the module -- exactly how the device injects it. The
+  // module publishes its data model through this, so it has to be a real binding here: the
+  // globals list names it, and passing a name that is not defined throws ReferenceError
+  // before any module gets to run.
+  const emit = (method, params) => {{
+    const p = params || {{}};
+    if (method === 'ui.updateComponents') emitted = p;
+    else if (method === 'ui.updateDataModel') setPath(data, p.path, p.value);
+  }};
+  const {{ h, render }} = createA2UIReact(emit, 'surface');
+  const invoke = async (m, a) => {{ invokes.push({{ method: m, args: a }}); return invokeImpl ? invokeImpl(m, a) : {{}}; }};
+  let onUpdateCb = null, onEventCb = null;
+  const onUpdate = (f) => {{ onUpdateCb = f; }};
+  const onEvent = (f) => {{ onEventCb = f; }};
+  const m = /(^|\\n)[ \\t]*async\\s+function\\s+{entry}\\s*\\(/.exec(src);
+  if (!m) throw new Error('no `async function {entry}(input)` found');
+  const body = src.slice(m.index).replace(/^\\s*async\\s+function\\s+{entry}/, 'async function');
+  const fn = new Function({globals_args}, 'return (' + body + ')')({globals_args_bare});
+  const done = fn(input || {{}});
+  await new Promise((r) => setTimeout(r, 0));
+  if (emitted && onUpdateCb) {{
+    for (const b of writeBindings(emitted)) {{ try {{ onUpdateCb(b.path, b.value); }} catch (_) {{}} }}
+    await new Promise((r) => setTimeout(r, 0));
+  }}
+  // Press the buttons this surface ACTUALLY renders, and STOP as soon as the module
+  // resolves. Two failures sit on either side of this:
+  //   - assuming 'confirm' leaves a surface that resolves on its own event name (a share
+  //     button) awaiting one that never arrives. That does not fail the suite, it HANGS it
+  //     on an unsettled promise, which is a much worse signal.
+  //   - pressing everything simulates a user who mashes every button at once, so a
+  //     capability behind an optional button ('use-location') fires when no one asked for
+  //     it -- and a test asserting that capability is never read silently sees the HARNESS
+  //     press the button, not the module misbehaving.
+  // Settling is the signal a real user's press would have ended the surface on.
+  if (onEventCb) {{
+    let settled = false;
+    Promise.resolve(done).then(() => {{ settled = true; }}, () => {{ settled = true; }});
+    for (const name of eventNames(emitted)) {{
+      if (settled) break;
+      try {{ onEventCb(name, {{}}); }} catch (_) {{}}
+      // A macrotask, so the module's own await chain drains before the next press.
+      await new Promise((r) => setTimeout(r, 0));
+    }}
+  }}
+  const out = await done;
+  if (onEventCb && Array.isArray(fireEvents)) {{
+    for (const name of fireEvents) {{ try {{ onEventCb(name, {{}}); }} catch (_) {{}} }}
+    await new Promise((r) => setTimeout(r, 0));
+  }}
+  return {{ emitted, out, invokes, data }};
+}}
+
+/** Every event a button on this surface can fire, 'confirm' first when present -- the
+ *  surface's own resolve triggers, read off the rendered tree rather than assumed. */
+function eventNames(tree) {{
+  const names = [];
+  for (const c of Object.values((tree && tree.components) || {{}})) {{
+    const a = (c.properties || {{}}).action;
+    const n = a && a.event && a.event.name;
+    if (typeof n === 'string' && names.indexOf(n) < 0) names.push(n);
+  }}
+  if (!names.length) return ['confirm'];
+  return names.indexOf('confirm') < 0 ? names
+    : ['confirm'].concat(names.filter((n) => n !== 'confirm'));
+}}
+
+// Every write binding the tree exposed, with a plausible value -- so the harness can "fill
+// the form" like a user before confirming.
+function writeBindings(tree) {{
+  const iso = (o) => new Date(Date.now() + o * 864e5).toISOString().slice(0, 10);
+  const out = [];
+  for (const c of Object.values(tree.components || {{}})) {{
+    const p = c.properties || {{}};
+    if (p.value && p.value.write && p.value.path) {{
+      const path = p.value.path;
+      const v = path === '/dates/end' ? iso(33)
+        : (String(c.component).includes('Date') || path.indexOf('/dates/') === 0) ? iso(30)
+        : 'Test Value';
+      out.push({{ path, value: v }});
+    }}
+    if (p.selected && p.selected.write && p.selected.path) {{
+      out.push({{ path: p.selected.path, value: p.selected.value != null ? p.selected.value : true }});
+    }}
+  }}
+  return out;
+}}
+
+// ---------------------------------------------------------------------------------------
+// INPUT SENSITIVITY
+//
+// A module scaffolded from a rendered example passes every structural check -- it renders,
+// stays in catalog, resolves 'ok' -- while replaying the example's literals and ignoring its
+// input entirely. Structure cannot distinguish "reads its data" from "replays a frame", so
+// this runs the module twice against systematically different data and requires the output
+// to change. Without it, a scaffold whose data binding was never completed looks certified.
+// ---------------------------------------------------------------------------------------
+
+/** Deep copy with every string/number leaf perturbed, so any echoed value visibly changes. */
+function mutateInput(v) {{
+  if (typeof v === 'string') return v + '~Zq';
+  if (typeof v === 'number') return v + 7;
+  if (Array.isArray(v)) return v.map(mutateInput);
+  if (v && typeof v === 'object') {{
+    const o = {{}};
+    for (const [k, val] of Object.entries(v)) o[k] = mutateInput(val);
+    return o;
+  }}
+  return v;
+}}
+
+/** Every string the rendered tree displays, in order -- the module's visible output.
+ *
+ * Bindings are RESOLVED against the data model, walking from the root so each item scope is
+ * known, because in a bound tree the literals are chrome and every real value arrives through
+ * a `{{path}}`. Comparing unresolved trees would report a fully data-driven module as showing
+ * the same thing for every input.
+ *
+ * Resolving is also why the model alone is not the measure: a module that publishes its input
+ * and then renders hardcoded text has a model that varies and output that does not. Only what
+ * a binding actually reaches counts. */
+function renderedText(tree, data) {{
+  const comps = (tree && tree.components) || {{}};
+  const model = data || {{}};
+  const out = [];
+
+  const collect = (v, basePath) => {{
+    if (typeof v === 'string' || typeof v === 'number') {{ out.push(String(v)); return; }}
+    if (!v || typeof v !== 'object') return;
+    if (typeof v.path === 'string') {{
+      // A write binding carries a user edit INTO the model; it displays nothing.
+      if (v.write === true) return;
+      const r = getPath(model, v.path, basePath);
+      if (r != null && typeof r !== 'object') out.push(String(r));
+      return;
+    }}
+    for (const x of Object.values(v)) collect(x, basePath);
+  }};
+
+  const visit = (id, basePath, depth) => {{
+    const c = comps[id];
+    if (!c || depth > 40) return;
+    for (const [k, v] of Object.entries(c.properties || {{}})) {{
+      if (k !== 'children') collect(v, basePath);
+    }}
+    const kids = c.children;
+    if (Array.isArray(kids)) {{
+      for (const k of kids) visit(k, basePath, depth + 1);
+    }} else if (kids && kids.componentId) {{
+      // Template descriptor: one instance per item, each scoped to its own item path -- the
+      // same expansion List performs on the device.
+      const items = getPath(model, kids.path, basePath);
+      if (Array.isArray(items)) {{
+        const base = absPath(kids.path, basePath);
+        items.forEach((_, i) => visit(kids.componentId, base + '/' + i, depth + 1));
+      }}
+    }}
+  }};
+
+  visit(tree && tree.root, '', 0);
+  return out.join('\\u0000');
+}}
+
+/** True when the module's output actually depends on its input. */
+export async function checkInputSensitivity({{ src, input, invokeImpl }}) {{
+  const a = await evalClientApp(src, input, invokeImpl);
+  const b = await evalClientApp(src, mutateInput(input), invokeImpl);
+  const ta = renderedText(a.emitted, a.data);
+  const tb = renderedText(b.emitted, b.data);
+  return {{ sensitive: ta !== tb, sample: ta.split('\\u0000').filter(Boolean).slice(0, 3) }};
+}}
+
+export async function validateApp({{ src, input, allowed, expect = 'any', invokeImpl }}) {{
+  const allow = new Set(allowed && allowed.length ? allowed : CATALOG_COMPONENTS);
+  const {{ emitted, out, invokes }} = await evalClientApp(src, input, invokeImpl);
+  const status = out && out.status;
+  if (status !== 'ok') throw new Error('must return {{ status:"ok", ... }} after the user acts -- got ' + JSON.stringify(out).slice(0, 140));
+  const used = emitted ? [...new Set(Object.values(emitted.components).map((c) => c.component))] : [];
+  const bad = used.filter((c) => !allow.has(c));
+  if (bad.length) throw new Error('uses components outside the allowed set (device WILL drop them): ' + bad.join(', '));
+  if (expect !== 'any' && status !== expect) throw new Error('expected status "' + expect + '", got ' + status);
+  const kinds = {{}};
+  if (emitted) for (const c of Object.values(emitted.components)) kinds[c.component] = (kinds[c.component] || 0) + 1;
+  return {{ components: emitted ? Object.keys(emitted.components).length : 0, kinds, used, status, invokes }};
+}}
+
+// ---- CLI ----
+if (import.meta.url === `file://${{process.argv[1]}}`) {{
+  const arg = (n) => {{ const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : null; }};
+  const clientArg = (process.argv.find((a) => a.startsWith('--client=')) || '').split('=')[1];
+  const allowed = clientArg ? clientArg.split(',').map((s) => s.trim()).filter(Boolean) : null;
+  const fail = (m) => {{ console.error('VALIDATE FAIL: ' + m); process.exit(1); }};
+
+  const examplesDir = arg('--examples');
+
+  if (process.argv.includes('--suite')) {{
+    const suite = loadCases(examplesDir);
+    if (!suite.length) {{
+      fail(examplesDir
+        ? 'no example/reference pairs found in ' + examplesDir
+        : '--suite needs --examples <dir> (examples are repo data, not part of the skill)');
+    }}
+    let pass = 0, warned = 0;
+    for (const t of suite) {{
+      if (!existsSync(t.file)) fail(t.name + ' -- missing file ' + t.file);
+      try {{
+        const src = readFileSync(t.file, 'utf8');
+        const r = await validateApp({{ src, input: t.input,
+                                      allowed: allowed || t.allowed, expect: 'ok' }});
+        // Structural checks cannot tell a data-driven module from one replaying literals.
+        // Only enforced where the example's tree actually binds to the data model -- a tree of
+        // literals has nothing to read, so demanding sensitivity there would be meaningless.
+        let note = '';
+        if (t.sensitivity !== 'skip') {{
+          const s = await checkInputSensitivity({{ src, input: t.input }});
+          if (s.sensitive) {{
+            note = ' - input-sensitive';
+          }} else if (t.sensitivity === 'require') {{
+            throw new Error('the example BINDS to the data model, but this module renders the '
+              + 'SAME output for different input -- the binding was never wired up. Showing: '
+              + JSON.stringify(s.sample));
+          }} else {{
+            note = ' - WARNING: output does not vary with input (renders literals?)';
+            warned++;
+          }}
+        }}
+        console.log('  ok ' + t.name + ' -> ' + r.status + ' - ' + r.components + ' components ' + JSON.stringify(r.kinds) + note);
+        pass++;
+      }} catch (e) {{ fail(t.name + ' -- ' + e.message); }}
+    }}
+    console.log('VALIDATE SUITE PASS: ' + pass + '/' + suite.length + ' references clean'
+      + (warned ? ' (' + warned + ' with warnings).' : '.'));
+  }} else {{
+    // Accept the flag form and a bare positional path, so existing invocations keep working.
+    const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+    const file = arg('--code-file') || positional[0];
+    if (!file) fail('usage: validate_ui.mjs <app.js> [input.json] [--client=A,B] [--examples dir] | --suite');
+    const inputPath = arg('--input') || positional[1];
+    const input = inputPath && existsSync(inputPath)
+      ? JSON.parse(readFileSync(inputPath, 'utf8'))
+      : ((loadCases(examplesDir)[0] || {{}}).input || {{}});
+    try {{
+      const r = await validateApp({{ src: readFileSync(file, 'utf8'), input, allowed, expect: 'any',
+                                    invokeImpl: () => ({{}}) }});
+      console.log('VALIDATE PASS: ' + r.components + ' components ' + JSON.stringify(r.kinds)
+        + ' - status=' + r.status + (allowed ? ' - client=[' + allowed.join(',') + ']' : ''));
+    }} catch (e) {{ fail(e.message); }}
+  }}
+}}
+"""
