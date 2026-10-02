@@ -57,13 +57,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** A duplicate definition that might fall out of sync with future core updates. It is tagged `TODO(web_core)` and listed in the README shim table.
 - **Done looks like:** `web_core` exports an equivalent schema modifier, and the local shim is deleted.
 
-### Inbound validation ignores processor version pinning
-
-- **What it is:** Passing `{version: 'v1.0'}` to `MessageProcessor` has no observable effect on inbound validation; it only governs outgoing formatting.
-- **Why it exists:** The internal adapter resolves from the payload's own `version` string.
-- **What it risks:** The constructor argument is slightly misleading, and we cannot pin the version strictness via tests from our API surface.
-- **Done looks like:** `web_core` documents this behaviour explicitly, or enforces the pinned version strictly for inbound payloads.
-
 ### Unreachable exports
 
 - **What it is:** `loadCatalogFromSchema` is unreachable from the `./catalog` subpath.
@@ -77,13 +70,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The two grew independently.
 - **What it risks:** The copy falls behind silently. It already has once: it lacked `Child`, so every v1.0 single-child reference resolved to nothing and the basic catalog lost its child references with no test noticing. That was fixed by adding the entry, not by removing the duplication, so the next new common type will hit the same wall.
 - **Done looks like:** The loader resolves against `CommonSchemas` directly and the local table is deleted.
-
-### Arrays of inline objects lose their child references
-
-- **What it is:** The catalog loader converts an array of inline anonymous objects to `z.array(z.record(z.unknown()))` rather than building the inner object schema. Any component reference inside those objects is invisible to reference analysis.
-- **Why it exists:** The loader handles named `$ref` item types but not inline `properties` on array items.
-- **What it risks:** `Tabs.tabs` is affected on both the v0.9 and v1.0 basic catalogs. Every consumer of the reference map gets no child reference for `Tabs`.
-- **Done looks like:** The loader builds a real object schema for inline array items, and `Tabs.tabs` reports formal child references.
 
 ## 3. Specification & Blueprints
 
@@ -107,13 +93,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** A gap between the generated `web_core` schema and the JSON source.
 - **Status in `@a2ui/agent`:** Not affected. The SDK bundles no catalog; agents load the published `catalog.json` through a catalog provider, which keeps the full `instructions` string.
 - **Done looks like:** `web_core` exports the basic catalog instructions natively so consumers without filesystem access do not need to read `catalog.json`.
-
-### Capabilities schema inconsistency
-
-- **What it is:** `V10RendererCapabilities.supportedCatalogIds` is required in the v1.0 specification JSON, but is `.optional()` in `web_core`'s own helpers (`v1_0/schema/helpers.ts`).
-- **Why it exists:** Internal inconsistency between the canonical spec and the hand-written `web_core` helpers.
-- **What it risks:** Test fixtures have to cast `{}` to `V10RendererCapabilities` to pass.
-- **Done looks like:** The spec owners settle the discrepancy and align `web_core` with the JSON schema.
 
 ## 4. Upstream Python & Conformance Suite
 
