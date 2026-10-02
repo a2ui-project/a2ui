@@ -123,7 +123,8 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
 
   /**
    * Infers child references from property names for components whose schema produced
-   * no formal references. See inferred-child-refs.ts for when this applies.
+   * no formal references. `src/utils/inferred-child-refs.ts` explains when this applies
+   * and what has to change before it can go.
    */
   private inferMissingChildRefs(catalog: SchemaCatalog, refMap: ComponentRefMap) {
     if (!catalog.components || typeof catalog.components.values !== 'function') {

@@ -27,16 +27,21 @@
  * - `Tabs.tabs` in the v0.9 and v1.0 basic catalogs. The catalog declares the child with
  *   a `$ref`, but web_core's catalog loader drops references inside arrays of inline
  *   objects. See "Arrays of inline objects lose their child references" in KNOWN_GAPS.md.
- * - Test fixtures that list children as plain strings without a `$ref`.
+ * - Catalogs that list children as plain strings without a `$ref`. The catalogs in
+ *   `conformance/agent/legacy/streaming_parser.yaml` do this, and two of its cases,
+ *   `test_partial_children_lists_v09` and
+ *   `test_sniff_partial_component_discards_empty_children_dict_v09`, fail without
+ *   inference.
  *
  * Inference runs only for components with no formal references at all. A component that
  * declares any `$ref` child is taken from the schema alone.
  *
- * Delete this file once web_core keeps references in inline arrays and the fixtures use
- * `$ref`.
+ * Python's streaming parser uses the same gate in `_get_child_fields_for_obj`: a component
+ * that the catalog's reference map doesn't cover falls back to
+ * `is_v0_8_heuristic_child_prop_key` from `a2ui.core.state`, for every protocol version.
  *
- * Python's streaming parser has a similar fallback, `is_v0_8_heuristic_child_prop_key` in
- * `a2ui.core.state`.
+ * Delete this file once web_core keeps references in inline arrays and the conformance
+ * catalogs declare their children with `$ref`.
  */
 
 const SINGLE_CHILD_PROPERTY_NAMES: ReadonlySet<string> = new Set([
