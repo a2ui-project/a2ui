@@ -55,8 +55,16 @@ function readExamples(specPath, catalogs, version) {
   const examples = [];
 
   for (const catalog of catalogs) {
-    const examplesDir = path.join(specPath, catalog, 'examples');
-    if (fs.existsSync(examplesDir)) {
+    const candidateDirs = [
+      path.resolve(import.meta.dirname, specPath, catalog, 'examples'),
+      path.resolve(import.meta.dirname, specPath, catalog, 'v1', 'examples'),
+      path.join(specPath, catalog, 'examples'),
+      path.join(specPath, catalog, 'v1', 'examples'),
+      path.resolve(import.meta.dirname, specPath),
+      specPath,
+    ];
+    const examplesDir = candidateDirs.find(d => fs.existsSync(d));
+    if (examplesDir) {
       const files = fs
         .readdirSync(examplesDir)
         .filter(f => f.endsWith('.json'))
@@ -127,6 +135,7 @@ async function main() {
 
   const examplesV08 = readExamples('../../../specification/v0_8/json/catalogs', catalogs, '0.8');
   const examplesV09 = readExamples('../../../specification/v0_9/catalogs', catalogs, '0.9');
+  const examplesV10 = readExamples('../../../../catalogs/basic/v1/examples', catalogs, '1.0');
 
   // Generate the file now!
   const tsContent = `/**
@@ -138,6 +147,8 @@ import { Example, Example_08 } from '../types';
 export const EXAMPLES_V08: Example_08[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV08))});
 
 export const EXAMPLES_V09: Example[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV09))});
+
+export const EXAMPLES_V10: Example[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV10))});
 
 // Defaults to v0.9
 export const EXAMPLES: Example[] = EXAMPLES_V09;

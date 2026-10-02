@@ -32,8 +32,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "clean": "wireit",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --ignore-path ../../.prettierignore --write .",
+    "format:check": "prettier --ignore-path ../../.prettierignore --check ."
   },
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
@@ -130,10 +130,16 @@
       ]
     },
     "test:integration": {
-      "command": "yarn workspace @a2ui/angular-explorer test:integration"
+      "command": "yarn workspace @a2ui/angular-explorer test:integration",
+      "dependencies": [
+        "test:unit"
+      ]
     },
     "test:closure-compiler": {
-      "command": "yarn workspace @a2ui/angular-explorer test:closure-compiler"
+      "command": "yarn workspace @a2ui/angular-explorer test:closure-compiler",
+      "dependencies": [
+        "test:integration"
+      ]
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"

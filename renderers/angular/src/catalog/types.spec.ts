@@ -20,7 +20,7 @@ import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
 import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import {AngularCatalog, createComponentImplementation} from './types';
 import {UniversalOnlyComponent} from './universal_only.component';
-import {BASIC_COMPONENTS} from './basic/basic-catalog';
+import {BASIC_COMPONENTS} from '../v0_9/catalog/basic/basic-catalog';
 import {CatalogComponent} from '../core/catalog_component';
 import {z} from 'zod';
 

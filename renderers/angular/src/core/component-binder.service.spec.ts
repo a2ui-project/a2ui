@@ -337,5 +337,89 @@ describe('ComponentBinder', () => {
       expect(bound['isValid'].value()).toBe(true);
       expect(bound['validationErrors'].value()).toEqual([]);
     });
+
+    it('should resolve dynamic message bindings in check rules', () => {
+      const {context, surface} = createComponentContext({
+        properties: {
+          checks: [
+            {
+              condition: {path: '/form/isValid'},
+              message: {path: '/i18n/errorMsg'},
+            },
+          ],
+        },
+        data: {
+          '/form/isValid': false,
+          '/i18n/errorMsg': 'Dynamic localized error',
+        },
+      });
+
+      const bound = binder.bind(context);
+
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Dynamic localized error']);
+
+      surface.dataModel.set('/i18n/errorMsg', 'Updated localized error');
+      expect(bound['validationErrors'].value()).toEqual(['Updated localized error']);
+    });
+
+    it('should support v1.0 structured CheckResult objects with severity and dynamic message override', () => {
+      const {context, surface} = createComponentContext({
+        properties: {
+          checks: [
+            {
+              condition: {path: '/form/checkResult'},
+              message: 'Static fallback error',
+            },
+          ],
+        },
+        data: {
+          '/form/checkResult': {
+            valid: false,
+            severity: 'error',
+            message: 'Server returned custom error',
+            code: 'INVALID_EMAIL',
+          },
+        },
+      });
+
+      const bound = binder.bind(context);
+
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Server returned custom error']);
+
+      // When CheckResult omits message, fall back to rule.message:
+      surface.dataModel.set('/form/checkResult', {
+        valid: false,
+        severity: 'error',
+      });
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Static fallback error']);
+
+      // When severity is warning or info, it does not block validity or emit validationErrors:
+      surface.dataModel.set('/form/checkResult', {
+        valid: false,
+        severity: 'warning',
+        message: 'Non-blocking warning',
+      });
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+
+      surface.dataModel.set('/form/checkResult', {
+        valid: false,
+        severity: 'info',
+        message: 'Informational hint',
+      });
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+
+      // When valid is true, no error is emitted:
+      surface.dataModel.set('/form/checkResult', {
+        valid: true,
+        severity: 'error',
+      });
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+    });
   });
 });

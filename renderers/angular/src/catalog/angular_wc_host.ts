@@ -23,7 +23,7 @@ import {
   NgZone,
 } from '@angular/core';
 import {ComponentContext} from '@a2ui/web_core/v0_9';
-import type {AngularComponentImplementation} from './types';
+import type {AngularCatalog, AngularComponentImplementation} from './types';
 
 import {ComponentBinder} from '../core/component-binder.service';
 
@@ -101,15 +101,16 @@ export class AngularWcHost extends HTMLElement {
         );
       }
       const type = context.componentModel.type;
-      const defaultCatalog = context.dataContext.surface?.defaultCatalog;
-      if (!defaultCatalog) {
+      // The catalog entry that owns this element pairs it with the Angular component to mount.
+      const catalog =
+        (context.componentModel.catalog as AngularCatalog | undefined) ??
+        context.dataContext.surface?.defaultCatalog;
+      if (!catalog) {
         throw new Error(
           `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': no surface default catalog available.`,
         );
       }
-      const entry = defaultCatalog.components.get(type) as
-        | AngularComponentImplementation
-        | undefined;
+      const entry = catalog.components.get(type) as AngularComponentImplementation | undefined;
       if (typeof entry?.component !== 'function') {
         throw new Error(
           `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': catalog entry ` +

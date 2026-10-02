@@ -15,8 +15,8 @@
  */
 
 import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {Directive, input} from '@angular/core';
-import {ComponentApiToProps} from './types';
+import {computed, Directive, input} from '@angular/core';
+import {BoundProperty, ComponentApiToProps} from './types';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 /**
@@ -26,7 +26,14 @@ import {CatalogComponentInstance} from './catalog_component_instance';
  * which provides type safe access to props() and other common
  * fields.
  */
-@Directive()
+@Directive({
+  host: {
+    '[attr.aria-label]': 'ariaLabel()',
+    '[attr.aria-description]': 'ariaDescription()',
+    '[attr.aria-live]': 'ariaLive()',
+    '[attr.aria-hidden]': 'ariaHidden()',
+  },
+})
 export abstract class CatalogComponent<
   Api extends ComponentApi,
 > implements CatalogComponentInstance {
@@ -37,4 +44,20 @@ export abstract class CatalogComponent<
   readonly surfaceId = input.required<string>();
   readonly componentId = input.required<string>();
   readonly dataContextPath = input<string>('/');
+
+  private readonly accessibility = computed(() => {
+    const p = this.props() as unknown as Record<string, BoundProperty<unknown>>;
+    const acc = p['accessibility']?.value();
+    return typeof acc === 'object' && acc !== null ? (acc as Record<string, unknown>) : null;
+  });
+
+  readonly ariaLabel = computed(() => (this.accessibility()?.['label'] as string) ?? null);
+  readonly ariaDescription = computed(
+    () => (this.accessibility()?.['description'] as string) ?? null,
+  );
+  readonly ariaLive = computed(() => (this.accessibility()?.['live'] as string) ?? null);
+  readonly ariaHidden = computed(() => {
+    const hidden = this.accessibility()?.['hidden'];
+    return typeof hidden === 'boolean' ? String(hidden) : null;
+  });
 }

@@ -18,8 +18,8 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {ButtonComponent} from './button.component';
 import {Action, ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder, Child} from '../../core/component-binder.service';
+import {A2uiRendererService} from '@a2ui/angular';
+import {ComponentBinder, Child} from '@a2ui/angular';
 import {By} from '@angular/platform-browser';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 

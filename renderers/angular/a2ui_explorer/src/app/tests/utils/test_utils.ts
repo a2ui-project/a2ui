@@ -16,8 +16,8 @@
 
 import {TestBed} from '@angular/core/testing';
 import {DemoComponent, A2UI_USE_UNIVERSAL_COMPONENTS} from '../../demo.component';
-import {EXAMPLES_V08, EXAMPLES_V09} from '../../generated/examples-bundle';
-import {provideMarkdownRenderer} from '../../../../../src/v0_9/core/markdown';
+import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from '../../generated/examples-bundle';
+import {provideMarkdownRenderer} from '@a2ui/angular';
 import {A2UI_VERSION, Version} from '../../types';
 
 export {Version};
@@ -57,7 +57,12 @@ export async function loadExample(options: LoadExampleOptions) {
   const component = fixture.componentInstance;
   fixture.detectChanges();
 
-  const examples = version === Version.V0_9 ? EXAMPLES_V09 : EXAMPLES_V08;
+  const examples =
+    version === Version.V1_0 || version === Version.VERSION_1_0
+      ? EXAMPLES_V10
+      : version === Version.V0_9
+        ? EXAMPLES_V09
+        : EXAMPLES_V08;
   let example = examples.find(ex => ex.name === name);
 
   if (version === Version.V0_8 && !example) {
