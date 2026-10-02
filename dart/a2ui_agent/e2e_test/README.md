@@ -2,7 +2,8 @@
 
 Tests that the following entities work well together:
 
-1. `a2ui_agent`, generating UI in the Express format
+1. `a2ui_agent`, generating UI in the direct JSON and Express formats, and
+   reading direct JSON as it streams
 2. `a2ui_core`, accepting the generated messages as a renderer would
 3. AI model
 

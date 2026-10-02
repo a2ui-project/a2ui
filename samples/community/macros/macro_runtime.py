@@ -25,11 +25,10 @@ from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
-    COMMON_TYPES_SCHEMA_KEY,
     SERVER_TO_CLIENT_SCHEMA_KEY,
     SPEC_VERSION_MAP,
 )
-from a2ui.schema.utils import load_from_bundled_resource
+from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
 from a2ui.transformers.macros import MacroExpander
 
 
@@ -55,9 +54,7 @@ class MacroAgentRuntime:
             s2c_schema=load_from_bundled_resource(
                 catalog_version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
             ),
-            common_types_schema=load_from_bundled_resource(
-                catalog_version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
-            ),
+            common_types_schema=load_common_types_schema(catalog_version),
         )
 
         # 2. Macro Expander

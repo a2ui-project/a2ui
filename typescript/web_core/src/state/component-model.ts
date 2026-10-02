@@ -42,6 +42,7 @@ export class ComponentModel {
     readonly type: string,
     initialProperties: Record<string, any>,
     readonly catalog?: Catalog<any, any>,
+    public metadata?: Record<string, unknown>,
   ) {
     this._properties = initialProperties;
   }
@@ -72,6 +73,7 @@ export class ComponentModel {
     return {
       id: this.id,
       type: this.type,
+      ...(this.metadata !== undefined ? {metadata: this.metadata} : {}),
       ...this._properties,
     };
   }

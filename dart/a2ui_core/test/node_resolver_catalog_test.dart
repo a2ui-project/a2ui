@@ -49,7 +49,7 @@ void main() {
     late _RecordingFunction openUrl;
 
     setUp(() {
-      final SchemaCatalog parsed = Catalog.fromJson(
+      final CatalogApi parsed = Catalog.fromJson(
         jsonDecode(
           File(
             resolveConformancePath(
@@ -217,7 +217,7 @@ void main() {
       'DynamicStringList': ['a', 'b'],
       'DynamicValue': {'count': 1},
     };
-    final SchemaCatalog parsed = Catalog.fromJson({
+    final CatalogApi parsed = Catalog.fromJson({
       'catalogId': 'dynamic-types',
       'components': {
         'Values': {

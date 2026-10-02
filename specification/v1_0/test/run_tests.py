@@ -332,11 +332,20 @@ def validate_catalogs_identifiers():
 
         errors = []
 
+        # Reserved protocol directives are defined by the specification, not by
+        # the catalog author, and their leading '@' is deliberately outside the
+        # UAX #31 identifier grammar. Catalogs may not introduce their own
+        # '@'-prefixed names, so exempt only this fixed set.
+        reserved_directives = {"@path", "@call"}
+
         def check_schema_properties(obj):
             if isinstance(obj, dict):
                 if "properties" in obj and isinstance(obj["properties"], dict):
                     for prop_name, prop_def in obj["properties"].items():
-                        if not prop_name.isidentifier():
+                        if (
+                            prop_name not in reserved_directives
+                            and not prop_name.isidentifier()
+                        ):
                             errors.append(
                                 f"Invalid argument/property name: '{prop_name}'"
                             )

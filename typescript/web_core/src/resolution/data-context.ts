@@ -26,18 +26,17 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import {
-  type DataBinding,
-  type FunctionCall,
-  type Action,
-  MAX_FUNCTION_CALL_ARGS,
-} from '../types/common-types.js';
-import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {type FunctionCall, type Action} from '../types/common-types.js';
+import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
+import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
+import {isAtLeastVersion} from '../common/semver.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {SurfaceModel} from '../state/surface-model.js';
 
 import {Catalog, CatalogInterface} from '../catalog/types.js';
+import {SpecVersion} from '../spec_versions.js';
+import {IndexApi} from '../v1_0/functions/system_functions.js';
 
 const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
 
@@ -148,7 +147,13 @@ export function validateFunctionArgs(
     );
   }
 
-  const fn = catalog?.functions?.get?.(functionName);
+  const fn =
+    catalog?.functions?.get?.(functionName) ??
+    (functionName === '@index' &&
+    catalog?.protocolVersion &&
+    isAtLeastVersion(catalog.protocolVersion, SpecVersion.V1_0)
+      ? IndexApi
+      : undefined);
   if (!fn?.schema) {
     return;
   }
@@ -173,6 +178,59 @@ export function validateFunctionArgs(
       `Too many arguments for function '${functionName}': expected at most ${knownKeys.size}, received ${suppliedKeys.length}`,
       functionName,
     );
+  }
+}
+
+/**
+ * Checks whether a key begins with a single '@' character and is not escaped by prefix doubling.
+ *
+ * Matches property names conforming to `^@([^@]|$)`.
+ *
+ * @param key Object property key to test.
+ * @returns True if the key starts with a single unescaped '@'.
+ */
+export function isSingleAtKey(key: string): boolean {
+  return key.startsWith('@') && !key.startsWith('@@');
+}
+
+/**
+ * Unescapes a property key if it begins with doubled '@@' prefix.
+ *
+ * In A2UI v1.0, literal keys starting with '@' are escaped by prefix doubling ('@@path' -> '@path').
+ *
+ * @param key Object property key to unescape.
+ * @returns The unescaped key without the leading '@' if it started with '@@', otherwise the key unchanged.
+ */
+export function unescapeObjectKey(key: string): string {
+  return key.startsWith('@@') ? key.slice(1) : key;
+}
+
+/** Recognized reserved protocol directives in v1.0 dynamic objects. */
+const RESERVED_DIRECTIVES = new Set(['@path', '@call']);
+
+/**
+ * Validates that any single-'@' prefixed keys in an object are recognized protocol directives.
+ *
+ * In A2UI v1.0, any key matching `^@([^@]|$)` that is not a recognized protocol directive is invalid.
+ *
+ * @param keys The keys of the object to validate.
+ * @param protocolVersion The protocol specification version.
+ * @throws {A2uiValidationError} If an unrecognized single-'@' key is found in v1.0.
+ */
+export function validateReservedDirectives(keys: Iterable<string>, protocolVersion?: string): void {
+  if (!isAtLeastVersion(protocolVersion, '1.0')) {
+    return;
+  }
+  for (const key of keys) {
+    if (isSingleAtKey(key) && !RESERVED_DIRECTIVES.has(key)) {
+      throw new A2uiValidationError(
+        `Unrecognized reserved protocol directive '${key}' in v1.0 dynamic object. Reserved keys must be in ${Array.from(
+          RESERVED_DIRECTIVES,
+        ).join(', ')}, or escaped with prefix doubling (e.g. '@${key}').`,
+        undefined,
+        'INVALID_RESERVED_KEY',
+      );
+    }
   }
 }
 
@@ -246,6 +304,8 @@ export class DataContext {
   /** Explicit collection iteration index supplied to this context, if any. */
   readonly explicitIndex?: number;
   private readonly warnedPaths: Set<string>;
+  private _isUserActivated = false;
+  private _isPassiveEvaluation = false;
 
   readonly surface?: SurfaceModel<any>;
 
@@ -275,6 +335,16 @@ export class DataContext {
     this.explicitIndex = index;
     this.parent = parent;
     this.warnedPaths = parent ? parent.warnedPaths : new Set<string>();
+  }
+
+  /** Whether the current function evaluation was initiated by an active user action. */
+  get isUserActivated(): boolean {
+    return this._isUserActivated || Boolean(this.parent?.isUserActivated);
+  }
+
+  /** Whether the current function evaluation is running inside a passive reactive binding. */
+  get isPassiveEvaluation(): boolean {
+    return this._isPassiveEvaluation || Boolean(this.parent?.isPassiveEvaluation);
   }
 
   /**
@@ -307,45 +377,70 @@ export class DataContext {
     this.dataModel.set(absolutePath, value);
   }
 
+  /** Whether this context targets A2UI protocol v1.0 or newer. */
+  private _cachedIsV10?: boolean;
+  public get isV10(): boolean {
+    if (this._cachedIsV10 === undefined) {
+      this._cachedIsV10 = isAtLeastVersion(this.surface?.defaultCatalog?.protocolVersion, '1.0');
+    }
+    return this._cachedIsV10;
+  }
+
   /**
    * Checks whether an object represents a data binding.
    *
+   * In v1.0, data bindings must use `@path`. In v0.9, data bindings use `path`.
+   *
    * @param val Candidate object to inspect.
-   * @returns Whether the object has a string `path` and is not a component reference.
+   * @returns Whether the object represents a valid data binding for this context's protocol version.
    */
-  private static isDataBindingObject(val: Record<string, unknown>): boolean {
-    return 'path' in val && typeof val.path === 'string' && !('componentId' in val);
+  private isDataBindingObject(val: Record<string, unknown>): boolean {
+    const hasPath = this.isV10
+      ? '@path' in val && typeof val['@path'] === 'string'
+      : 'path' in val && typeof val.path === 'string';
+    return hasPath && !('componentId' in val);
   }
 
   /**
    * Checks whether an object represents a function call.
    *
+   * In v1.0, function calls must use `@call`. In v0.9, function calls use `call`.
+   *
    * @param val Candidate object to inspect.
-   * @returns Whether the object has a string `call` property.
+   * @returns Whether the object represents a valid function call for this context's protocol version.
    */
-  private static isFunctionCallObject(val: Record<string, unknown>): boolean {
-    return 'call' in val && typeof val.call === 'string';
+  private isFunctionCallObject(val: Record<string, unknown>): boolean {
+    return this.isV10
+      ? '@call' in val && typeof val['@call'] === 'string'
+      : 'call' in val && typeof val.call === 'string';
   }
 
   /**
-   * Checks whether a value contains any dynamic parts (path bindings or
-   * function calls) at any nesting depth that require resolution.
+   * Checks whether a value contains any dynamic parts (path bindings,
+   * function calls, or escaped/reserved directive keys) at any nesting depth.
    *
    * @param value The value or data structure to inspect.
-   * @returns Whether the value contains any dynamic path bindings or function calls.
+   * @returns Whether the value contains dynamic elements requiring resolution.
    */
-  private static containsDynamicValue(value: unknown): boolean {
+  private containsDynamicValue(value: unknown): boolean {
     if (value === null || typeof value !== 'object') {
       return false;
     }
     if (Array.isArray(value)) {
-      return value.some(item => DataContext.containsDynamicValue(item));
+      return value.some(item => this.containsDynamicValue(item));
     }
     const rec = value as Record<string, unknown>;
-    if (DataContext.isDataBindingObject(rec) || DataContext.isFunctionCallObject(rec)) {
+    if (this.isDataBindingObject(rec) || this.isFunctionCallObject(rec)) {
       return true;
     }
-    return Object.values(rec).some(v => DataContext.containsDynamicValue(v));
+    if (this.isV10) {
+      for (const k of Object.keys(rec)) {
+        if (k.startsWith('@')) {
+          return true;
+        }
+      }
+    }
+    return Object.values(rec).some(v => this.containsDynamicValue(v));
   }
 
   /**
@@ -377,7 +472,7 @@ export class DataContext {
    * @param depth The current recursion depth when evaluating nested arguments or expressions.
    * @returns The synchronously resolved value.
    */
-  resolveDynamicValue<V>(value: unknown, depth = 0): V {
+  resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false): V {
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
       const err = new A2uiExpressionError(
         `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
@@ -391,16 +486,17 @@ export class DataContext {
     }
 
     if (Array.isArray(value)) {
-      if (!DataContext.containsDynamicValue(value)) {
+      if (!this.containsDynamicValue(value)) {
         return value as V;
       }
-      return value.map(item => this.resolveDynamicValue(item, depth + 1)) as V;
+      return value.map(item => this.resolveDynamicValue(item, depth + 1, userActivated)) as V;
     }
 
     const rec = value as Record<string, unknown>;
 
-    if (DataContext.isDataBindingObject(rec)) {
-      const absolutePath = this.resolvePath((value as DataBinding).path);
+    if (this.isDataBindingObject(rec)) {
+      const bindingPath = (rec['@path'] ?? rec.path) as string;
+      const absolutePath = this.resolvePath(bindingPath);
       const val = this.dataModel.get(absolutePath);
       if (val === undefined) {
         this.emitMissingDataBindingWarning(absolutePath);
@@ -408,8 +504,8 @@ export class DataContext {
       return val as V;
     }
 
-    if (DataContext.isFunctionCallObject(rec)) {
-      return this.resolveFunctionCallValue<V>(value as FunctionCall, depth);
+    if (this.isFunctionCallObject(rec)) {
+      return this.resolveFunctionCallValue<V>(rec as unknown as FunctionCall, depth, userActivated);
     }
 
     return this.resolvePlainObjectValue<V>(rec, depth);
@@ -420,32 +516,41 @@ export class DataContext {
    *
    * @param call Function call definition to execute.
    * @param depth Current recursion depth for nested expression tracking.
+   * @param userActivated Whether the evaluation was initiated by an active user action.
    * @returns The resolved function return value.
    */
-  private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0): V {
+  private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0, userActivated = false): V {
     let targetCatalog: Catalog<any>;
+    const callName = (call['@call'] ?? call.call)!;
     try {
       // Resolve before validating: the arguments must be checked against the
       // catalog that will actually run the call, not the surface default.
       targetCatalog = this.resolveFunctionCatalog(call.catalogId);
-      validateFunctionArgs(call.call, call.args, targetCatalog);
+      validateFunctionArgs(callName, call.args, targetCatalog);
     } catch (e: unknown) {
-      this.dispatchExpressionError(e, call.call);
+      this.dispatchExpressionError(e, callName);
       return undefined as V;
     }
     const args: Record<string, unknown> = {};
     for (const [key, argVal] of Object.entries(call.args ?? {})) {
-      args[key] = this.resolveDynamicValue(argVal, depth + 1);
+      args[key] = this.resolveDynamicValue(argVal, depth + 1, userActivated);
     }
 
     const abortController = new AbortController();
-    const result = this.evaluateFunctionReactive<V>(
-      call.call,
-      args,
-      abortController.signal,
-      call.catalogId,
-      targetCatalog.invoker,
-    );
+    const prevActivated = this._isUserActivated;
+    this._isUserActivated = prevActivated || userActivated;
+    let result: Signal<V> | V;
+    try {
+      result = this.evaluateFunctionReactive<V>(
+        callName,
+        args,
+        abortController.signal,
+        call.catalogId,
+        targetCatalog.invoker,
+      );
+    } finally {
+      this._isUserActivated = prevActivated;
+    }
 
     if (result === undefined) {
       return undefined as unknown as V;
@@ -462,12 +567,16 @@ export class DataContext {
    * @returns A copy of the object with all nested dynamic values resolved.
    */
   private resolvePlainObjectValue<V>(rec: Record<string, unknown>, depth = 0): V {
-    if (!DataContext.containsDynamicValue(rec)) {
+    if (this.isV10) {
+      validateReservedDirectives(Object.keys(rec), this.surface?.defaultCatalog?.protocolVersion);
+    }
+    if (!this.containsDynamicValue(rec)) {
       return rec as unknown as V;
     }
     const resolved: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rec)) {
-      resolved[k] = this.resolveDynamicValue(v, depth + 1);
+      const key = this.isV10 ? unescapeObjectKey(k) : k;
+      resolved[key] = this.resolveDynamicValue(v, depth + 1);
     }
     return resolved as unknown as V;
   }
@@ -531,8 +640,8 @@ export class DataContext {
       );
       this.dispatchExpressionError(
         err,
-        typeof value === 'object' && value && 'call' in value
-          ? (value as FunctionCall).call
+        typeof value === 'object' && value && ('@call' in value || 'call' in value)
+          ? (((value as any)['@call'] ?? (value as any).call) as string)
           : 'DynamicValue',
       );
       return signal(undefined as unknown as V);
@@ -546,7 +655,7 @@ export class DataContext {
     // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
     if (Array.isArray(value)) {
       // Fast path: fully static arrays need no per-element signals.
-      if (!DataContext.containsDynamicValue(value)) {
+      if (!this.containsDynamicValue(value)) {
         return signal(value as V);
       }
       const itemSignals = value.map(item => this.resolveSignal(item, depth + 1));
@@ -562,23 +671,25 @@ export class DataContext {
     const rec = value as Record<string, unknown>;
 
     // 2. Path Check
-    if (DataContext.isDataBindingObject(rec)) {
-      const absolutePath = this.resolvePath((value as DataBinding).path);
+    if (this.isDataBindingObject(rec)) {
+      const bindingPath = (rec['@path'] ?? rec.path) as string;
+      const absolutePath = this.resolvePath(bindingPath);
       this.emitMissingDataBindingWarning(absolutePath);
       return this.dataModel.getSignal<V>(absolutePath) as Signal<V>;
     }
 
     // 3. Function Call
-    if (DataContext.isFunctionCallObject(rec)) {
-      const call = value as FunctionCall;
+    if (this.isFunctionCallObject(rec)) {
+      const call = rec as unknown as FunctionCall;
+      const callName = (call['@call'] ?? call.call)!;
       let targetCatalog: Catalog<any>;
       try {
         // Resolve before validating: the arguments must be checked against the
         // catalog that will actually run the call, not the surface default.
         targetCatalog = this.resolveFunctionCatalog(call.catalogId);
-        validateFunctionArgs(call.call, call.args, targetCatalog);
+        validateFunctionArgs(callName, call.args, targetCatalog);
       } catch (e: unknown) {
-        this.dispatchExpressionError(e, call.call);
+        this.dispatchExpressionError(e, callName);
         return signal(undefined as unknown as V);
       }
       const argSignals: Record<string, Signal<unknown>> = {};
@@ -589,13 +700,13 @@ export class DataContext {
 
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
-        const result = this.evaluateFunctionReactive<V>(
-          call.call,
-          {},
-          abortController.signal,
-          call.catalogId,
-          targetCatalog.invoker,
-        );
+        const result = this.evaluateFunctionPassive<V>({
+          name: callName,
+          args: {},
+          abortSignal: abortController.signal,
+          catalogId: call.catalogId,
+          resolvedInvoker: targetCatalog.invoker,
+        });
         const sig = isSignal(result) ? result : signal(result as V);
         sig.unsubscribe = () => abortController.abort();
         return sig;
@@ -625,13 +736,13 @@ export class DataContext {
           }
           abortController = new AbortController();
 
-          const res = this.evaluateFunctionReactive<V>(
-            call.call,
+          const res = this.evaluateFunctionPassive<V>({
+            name: callName,
             args,
-            abortController.signal,
-            call.catalogId,
-            targetCatalog.invoker,
-          );
+            abortSignal: abortController.signal,
+            catalogId: call.catalogId,
+            resolvedInvoker: targetCatalog.invoker,
+          });
 
           if (isSignal(res)) {
             innerUnsubscribe = effect(() => {
@@ -641,7 +752,7 @@ export class DataContext {
             setValue(resultSig, res);
           }
         } catch (e: unknown) {
-          this.dispatchExpressionError(e, call.call);
+          this.dispatchExpressionError(e, callName);
           // In reactive mode, we should not throw. Instead, reset the signal value.
           setValue(resultSig, undefined);
         }
@@ -659,11 +770,18 @@ export class DataContext {
       return resultSig as unknown as Signal<V>;
     }
 
-    if (!DataContext.containsDynamicValue(rec)) {
+    if (this.isV10) {
+      validateReservedDirectives(Object.keys(rec), this.surface?.defaultCatalog?.protocolVersion);
+    }
+
+    if (!this.containsDynamicValue(rec)) {
       return signal(value as unknown as V);
     }
 
-    const entrySignals = Object.entries(rec).map(([k, v]) => [k, this.resolveSignal(v)] as const);
+    const entrySignals = Object.entries(rec).map(([k, v]) => {
+      const key = this.isV10 ? unescapeObjectKey(k) : k;
+      return [key, this.resolveSignal(v, depth + 1)] as const;
+    });
     const objSig = computed(() => {
       const resolved: Record<string, unknown> = {};
       for (const [k, s] of entrySignals) {
@@ -690,23 +808,49 @@ export class DataContext {
    * @param action The Action object to resolve.
    * @returns The resolved action payload or function execution result.
    */
-  resolveAction(action: Action): Action | unknown {
-    if ('event' in action) {
+  resolveAction(action: Action | Record<string, unknown>): Action | unknown {
+    if ('event' in action && typeof action.event === 'object' && action.event !== null) {
       const resolvedContext: Record<string, unknown> = {};
-      if (action.event.context) {
-        for (const [key, value] of Object.entries(action.event.context)) {
+      const ev = action.event as Record<string, unknown>;
+      if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
+        for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
           resolvedContext[key] = this.resolveDynamicValue(value);
         }
       }
+      const resolvedEvent: Record<string, unknown> = {
+        ...ev,
+        context: resolvedContext,
+      };
+      if (ev.userMessage !== undefined) {
+        resolvedEvent.userMessage = this.resolveDynamicValue(ev.userMessage);
+      }
       return {
-        event: {
-          ...action.event,
-          context: resolvedContext,
-        },
+        ...action,
+        event: resolvedEvent,
       };
     }
+    if ('name' in action) {
+      const actObj = action as Record<string, unknown>;
+      const resolvedContext: Record<string, unknown> = {};
+      if (actObj.context && typeof actObj.context === 'object' && !Array.isArray(actObj.context)) {
+        for (const [key, value] of Object.entries(actObj.context as Record<string, unknown>)) {
+          resolvedContext[key] = this.resolveDynamicValue(value);
+        }
+      }
+      const resolved: Record<string, unknown> = {
+        ...actObj,
+        context: resolvedContext,
+      };
+      if (actObj.userMessage !== undefined) {
+        resolved.userMessage = this.resolveDynamicValue(actObj.userMessage);
+      }
+      return resolved;
+    }
     if ('functionCall' in action) {
-      return this.resolveDynamicValue(action.functionCall);
+      return this.resolveDynamicValue((action as any).functionCall, 0, true);
+    }
+    if ('call' in action) {
+      return this.resolveDynamicValue(action, 0, true);
     }
     return action;
   }
@@ -735,6 +879,23 @@ export class DataContext {
       throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
     }
     return target;
+  }
+
+  private evaluateFunctionPassive<V>(options: {
+    name: string;
+    args: Record<string, unknown>;
+    abortSignal?: AbortSignal;
+    catalogId?: string;
+    resolvedInvoker?: FunctionInvoker;
+  }): Signal<V> | V {
+    const {name, args, abortSignal, catalogId, resolvedInvoker} = options;
+    const prevPassive = this._isPassiveEvaluation;
+    this._isPassiveEvaluation = true;
+    try {
+      return this.evaluateFunctionReactive<V>(name, args, abortSignal, catalogId, resolvedInvoker);
+    } finally {
+      this._isPassiveEvaluation = prevPassive;
+    }
   }
 
   /**

@@ -42,7 +42,7 @@
             "id": "product_name",
             "component": "Text",
             "text": {
-              "path": "/productName"
+              "@path": "/productName"
             }
           },
           {
@@ -71,7 +71,7 @@
             "id": "seats_value",
             "component": "Text",
             "text": {
-              "path": "/seats"
+              "@path": "/seats"
             }
           },
           {
@@ -101,7 +101,7 @@
               }
             ],
             "value": {
-              "path": "/billingPeriod"
+              "@path": "/billingPeriod"
             },
             "variant": "mutuallyExclusive",
             "displayStyle": "chips"
@@ -126,7 +126,7 @@
             "id": "total_value",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "${formatCurrency(value: ${/total}, currency: 'USD')}/year"
               }

@@ -41,6 +41,7 @@ export class V1Point0Adapter extends BaseVersionAdapter {
         type: 'createSurface',
         surfaceId: String(cs?.surfaceId || ''),
         catalogId: typeof cs?.catalogId === 'string' ? cs.catalogId : undefined,
+        theme: cs?.theme,
         sendDataModel: Boolean(cs?.sendDataModel),
         components: Array.isArray(cs?.components)
           ? (cs.components as InternalComponentPayload[])
@@ -50,6 +51,10 @@ export class V1Point0Adapter extends BaseVersionAdapter {
             ? (cs.dataModel as Record<string, unknown>)
             : undefined,
         version: typeof msgObj.version === 'string' ? msgObj.version : this.version,
+        metadata:
+          cs?.metadata && typeof cs.metadata === 'object' && !Array.isArray(cs.metadata)
+            ? (cs.metadata as Record<string, unknown>)
+            : undefined,
       });
     }
     if ('updateComponents' in msgObj) {
@@ -84,7 +89,7 @@ export class V1Point0Adapter extends BaseVersionAdapter {
       ops.push({
         type: 'callRendererFunction',
         functionCallId: String(crf?.functionCallId || ''),
-        call: String(cf?.call || ''),
+        call: String(cf?.['@call'] || cf?.call || ''),
         version: this.version,
         catalogId: typeof cf?.catalogId === 'string' ? cf.catalogId : undefined,
         args:

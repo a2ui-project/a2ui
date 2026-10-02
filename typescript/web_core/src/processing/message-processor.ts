@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
+import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
-import {generateCatalogSchema} from '../catalog/schema_generator.js';
+import {generateCatalogSchema, cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 
-import {A2uiStateError, A2uiValidationError} from '../errors.js';
+import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, toCanonicalVersion} from '../common/semver.js';
 import {
@@ -272,31 +273,68 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
   ): Record<string, unknown> {
-    const rawSchema = generateCatalogSchema(catalog, {componentEnvelopeRef});
-    const components = (rawSchema.components as Record<string, unknown>) || {};
+    const components: Record<string, unknown> = {};
+    for (const [name, comp] of catalog.components.entries()) {
+      let props: Record<string, unknown> = {};
+      let reqList: string[] = [];
+      if (comp.schema && typeof comp.schema === 'object' && 'safeParse' in comp.schema) {
+        const rawZod = zodToJsonSchema(comp.schema, {
+          target: 'jsonSchema2019-09',
+          $refStrategy: 'none',
+        }) as Record<string, unknown>;
+        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
+        props = (rawZod.properties as Record<string, unknown>) || {};
+        reqList = Array.isArray(rawZod.required)
+          ? (rawZod.required as string[]).filter(r => r !== 'component' && r !== 'id')
+          : [];
+      }
+      const {component: _ignoredComp, id: _ignoredId, ...sanitizedProps} = props;
+      components[name] = {
+        allOf: [
+          {$ref: componentEnvelopeRef},
+          {
+            properties: {
+              component: {const: name},
+              ...sanitizedProps,
+            },
+            required: ['component', ...reqList],
+          },
+        ],
+      };
+    }
 
-    const rawFunctions = rawSchema.functions as Record<string, Record<string, unknown>> | undefined;
     const functions: Array<Record<string, unknown>> = [];
     for (const fn of catalog.functions.values()) {
-      const fnDef = rawFunctions?.[fn.name] as
-        | {properties?: {args?: Record<string, unknown>}}
-        | undefined;
+      let paramSchema: Record<string, unknown> = {type: 'object', properties: {}};
+      if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
+        const rawZod = zodToJsonSchema(fn.schema, {
+          target: 'jsonSchema2019-09',
+          $refStrategy: 'none',
+        }) as Record<string, unknown>;
+        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
+        paramSchema = rawZod;
+      }
       functions.push({
         name: fn.name,
-        description: fn.description,
+        ...(fn.description ? {description: fn.description} : {}),
         returnType: fn.returnType,
-        parameters: fnDef?.properties?.args ?? {type: 'object', properties: {}},
+        parameters: paramSchema,
       });
     }
 
-    const rawDefs = rawSchema.$defs as
-      | Record<string, {properties?: Record<string, unknown>}>
-      | undefined;
-    const theme = rawDefs?.theme?.properties;
+    let theme: Record<string, unknown> | undefined;
+    if (catalog.themeSchema) {
+      const rawTheme = zodToJsonSchema(catalog.themeSchema, {
+        target: 'jsonSchema2019-09',
+        $refStrategy: 'none',
+      }) as Record<string, unknown>;
+      cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
+      theme = (rawTheme.properties as Record<string, unknown>) || undefined;
+    }
 
     return {
       catalogId: catalog.id,
-      components,
+      ...(Object.keys(components).length > 0 ? {components} : {}),
       ...(functions.length > 0 ? {functions} : {}),
       ...(theme ? {theme} : {}),
     };
@@ -647,13 +685,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private processCreateSurfaceOp(op: InternalCreateSurfaceOp): void {
     const {surfaceId, catalogId, theme, sendDataModel, components, dataModel} = op;
 
-    const catalog =
-      catalogId !== undefined ? this.catalogs.find(c => c.id === catalogId) : this.catalogs[0];
+    const msgVersion = op.version;
+    const catalog = resolveSurfaceDefaultCatalog(this.catalogs, catalogId, msgVersion);
     if (!catalog) {
-      throw new A2uiStateError(`Catalog not found: ${catalogId}`);
+      throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
     }
 
-    const msgVersion = op.version;
     if (
       catalog.protocolVersion &&
       msgVersion &&
@@ -665,7 +702,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     if (this.model.getSurface(surfaceId)) {
-      throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
+      throw new A2uiIntegrityError(`Surface ${surfaceId} already exists.`);
     }
 
     let validatedTheme = theme;
@@ -703,6 +740,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       sendDataModel ?? false,
       undefined,
       op.rootId ?? 'root',
+      op.metadata,
     );
     this.model.addSurface(surface);
 
@@ -732,7 +770,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     surface: SurfaceModel<T>,
   ): void {
     const {id, component} = comp;
-    const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+    const rawCatalogId = (comp as any).catalogId;
 
     if (typeof id !== 'string' || !id) {
       throw new A2uiValidationError(
@@ -748,11 +786,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (!found) {
         const known = this.catalogs.find(c => c.id === rawCatalogId);
         if (!known) {
-          throw new A2uiValidationError(
+          throw new A2uiCatalogError(
             `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
           );
         }
-        throw new A2uiValidationError(
+        throw new A2uiCatalogError(
           `Component '${id}' catalog '${rawCatalogId}' specification version (${known.protocolVersion}) does not match surface default catalog version (${surface.defaultCatalog.protocolVersion}).`,
         );
       }
@@ -768,37 +806,37 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
-    const {id, component, ...properties} = comp;
+    const {id, component, catalogId, metadata: rawMetadata, ...properties} = comp;
     if (typeof id !== 'string') return;
-    const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+    const metadata = extractComponentMetadata(rawMetadata);
+    const targetCatalog = resolveComponentTargetCatalog(catalogId, surface);
     const existing = surface.componentsModel.get(id);
-
-    let targetCatalog = surface.defaultCatalog;
-    if (typeof rawCatalogId === 'string' && rawCatalogId) {
-      const found = surface.availableCatalogs.get(rawCatalogId);
-      if (found) {
-        targetCatalog = found;
-      }
-    }
 
     if (existing) {
       const componentType = typeof component === 'string' ? component : existing.type;
       if (
         componentType !== existing.type ||
-        (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
+        (catalogId && existing.catalog?.id !== targetCatalog.id)
       ) {
         // Recreate component if type or catalog changes
         surface.componentsModel.removeComponent(id);
-        const newComponent = new ComponentModel(id, componentType, properties, targetCatalog);
+        const newComponent = new ComponentModel(
+          id,
+          componentType,
+          properties,
+          targetCatalog,
+          metadata,
+        );
         surface.componentsModel.addComponent(newComponent);
       } else {
+        existing.metadata = metadata;
         existing.properties = properties;
       }
     } else {
       if (typeof component !== 'string' || !component) {
         throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
       }
-      const newComponent = new ComponentModel(id, component, properties, targetCatalog);
+      const newComponent = new ComponentModel(id, component, properties, targetCatalog, metadata);
       surface.componentsModel.addComponent(newComponent);
     }
   }
@@ -808,11 +846,18 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const surface = this.model.getSurface(op.surfaceId);
     if (!surface) {
-      throw new A2uiStateError(`Surface not found for message: ${op.surfaceId}`);
+      throw new A2uiIntegrityError(`Surface not found for message: ${op.surfaceId}`);
     }
 
     // 1. Validation pass: validate all components before mutating state
+    const seenBatchIds = new Set<string>();
     for (const comp of op.components) {
+      if (comp && typeof comp === 'object' && typeof comp.id === 'string') {
+        if (seenBatchIds.has(comp.id)) {
+          throw new A2uiIntegrityError(`Duplicate component ID: '${comp.id}'`, [comp.id]);
+        }
+        seenBatchIds.add(comp.id);
+      }
       this.validateComponentProperties(comp, surface);
     }
 
@@ -830,7 +875,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const surface = this.model.getSurface(op.surfaceId);
     if (!surface) {
-      throw new A2uiStateError(`Surface not found for message: ${op.surfaceId}`);
+      throw new A2uiIntegrityError(`Surface not found for message: ${op.surfaceId}`);
     }
 
     const path = op.path || '/';
@@ -912,7 +957,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (typeof id !== 'string') continue;
 
       let compCatalog = surface.defaultCatalog;
-      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+      const rawCatalogId = (comp as any).catalogId;
       if (typeof rawCatalogId === 'string' && rawCatalogId) {
         const found = surface.availableCatalogs.get(rawCatalogId);
         if (found) {
@@ -1001,14 +1046,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const {id, component, ...properties} = comp;
       if (typeof id !== 'string' || !id) continue;
 
-      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
-      let targetCatalog = surface.defaultCatalog;
-      if (typeof rawCatalogId === 'string' && rawCatalogId) {
-        const found = surface.availableCatalogs.get(rawCatalogId);
-        if (found) {
-          targetCatalog = found;
-        }
-      }
+      const rawCatalogId = (comp as any).catalogId;
+      const targetCatalog = resolveComponentTargetCatalog(rawCatalogId, surface);
+      delete properties.catalogId;
+      delete properties.metadata;
 
       const existing = candidateModel.get(id);
       const componentType = (typeof component === 'string' ? component : existing?.type) || '';
@@ -1038,4 +1079,37 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       rootId: this.validationConfig.rootId ?? surface.rootId,
     });
   }
+}
+
+function extractComponentMetadata(rawMetadata: unknown): Record<string, unknown> | undefined {
+  if (rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)) {
+    return rawMetadata as Record<string, unknown>;
+  }
+  return undefined;
+}
+
+function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
+  catalogs: ReadonlyArray<Catalog<T>>,
+  catalogId: string | undefined,
+  msgVersion: string | undefined,
+): Catalog<T> | undefined {
+  if (catalogId !== undefined) {
+    return catalogs.find(c => c.id === catalogId);
+  }
+  return (
+    catalogs.find(c =>
+      msgVersion ? isCatalogVersionCompatible(c.protocolVersion, msgVersion) : true,
+    ) ?? catalogs[0]
+  );
+}
+
+function resolveComponentTargetCatalog<T extends ComponentApi>(
+  rawCatalogId: unknown,
+  surface: SurfaceModel<T>,
+): Catalog<T> {
+  if (typeof rawCatalogId === 'string' && rawCatalogId) {
+    const found = surface.availableCatalogs.get(rawCatalogId);
+    if (found) return found;
+  }
+  return surface.defaultCatalog;
 }

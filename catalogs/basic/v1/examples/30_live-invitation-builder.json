@@ -55,7 +55,7 @@
             "component": "TextField",
             "label": "Event Name",
             "value": {
-              "path": "/event/name"
+              "@path": "/event/name"
             }
           },
           {
@@ -63,7 +63,7 @@
             "component": "TextField",
             "label": "Guest of Honor",
             "value": {
-              "path": "/event/guest"
+              "@path": "/event/guest"
             }
           },
           {
@@ -71,7 +71,7 @@
             "component": "DateTimeInput",
             "label": "Event Date & Time",
             "value": {
-              "path": "/event/date"
+              "@path": "/event/date"
             },
             "enableDate": true,
             "enableTime": true
@@ -95,7 +95,7 @@
               }
             ],
             "value": {
-              "path": "/event/location"
+              "@path": "/event/location"
             },
             "variant": "mutuallyExclusive",
             "displayStyle": "chips"
@@ -140,7 +140,7 @@
             "id": "invite_event_name",
             "component": "Text",
             "text": {
-              "path": "/event/name"
+              "@path": "/event/name"
             }
           },
           {
@@ -159,17 +159,17 @@
             "id": "invite_guest_name",
             "component": "Text",
             "text": {
-              "path": "/event/guest"
+              "@path": "/event/guest"
             }
           },
           {
             "id": "invite_date_text",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/event/date"
+                  "@path": "/event/date"
                 },
                 "format": "EEEE, MMMM d, yyyy 'at' h:mm a"
               }
@@ -180,7 +180,7 @@
             "id": "invite_location_text",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "Location: ${/event/location/0}"
               }

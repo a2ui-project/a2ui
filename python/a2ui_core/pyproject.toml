@@ -19,10 +19,11 @@ description = "A2UI Python SDK - Core Library"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "babel>=2.14.0",
     "jsonschema>=4.26.0",
     "pydantic>=2.10.0",
     "referencing>=0.37.0",
-    "babel>=2.14.0",
+    "regex>=2024.11.6",
 ]
 
 [dependency-groups]

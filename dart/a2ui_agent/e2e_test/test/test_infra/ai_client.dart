@@ -49,4 +49,31 @@ class AiClient {
       }
     }
   }
+
+  /// Sends [userMessage] under [systemPrompt] and yields the response as the
+  /// model streams it.
+  ///
+  /// Retries like [send] while nothing has been yielded; a failure after
+  /// that is rethrown, since the caller has already read part of the
+  /// response.
+  Stream<String> sendStream(String systemPrompt, String userMessage) async* {
+    for (var attempt = 1; ; attempt++) {
+      var yielded = false;
+      try {
+        await for (final dartantic.ChatResult<String> result
+            in _agent.sendStream(
+              userMessage,
+              history: [dartantic.ChatMessage.system(systemPrompt)],
+            )) {
+          if (result.output.isEmpty) continue;
+          yielded = true;
+          yield result.output;
+        }
+        return;
+      } on Exception {
+        if (yielded || attempt == 3) rethrow;
+        await Future<void>.delayed(Duration(seconds: 5 * attempt));
+      }
+    }
+  }
 }

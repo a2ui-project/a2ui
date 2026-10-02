@@ -23,7 +23,7 @@
       callRendererFunction:
         functionCallId: "call-101"
         callFunction:
-          call: "playMedia"
+          "@call": "playMedia"
           catalogId: "media_catalog"
           args:
             mediaId: "video-789"
@@ -52,7 +52,7 @@
       callRendererFunction:
         functionCallId: "call-102"
         callFunction:
-          call: "internalStateReset"
+          "@call": "internalStateReset"
           catalogId: "system_catalog"
           args: {}
     functionMetadata:
@@ -80,7 +80,7 @@
       callRendererFunction:
         functionCallId: "call-103"
         callFunction:
-          call: "openExternalUrl"
+          "@call": "openExternalUrl"
           catalogId: "basic"
           args:
             url: "https://example.com/details"
@@ -106,7 +106,7 @@
       surfaceId: "main_surface"
       functionCallId: "agent-call-55"
       callFunction:
-        call: "queryInventory"
+        "@call": "queryInventory"
         catalogId: "store_catalog"
         args:
           sku: "ITEM-404"
@@ -135,7 +135,7 @@
       callRendererFunction:
         functionCallId: "call-104"
         callFunction:
-          call: "openExternalUrl"
+          "@call": "openExternalUrl"
           catalogId: "basic"
           args:
             url: "https://example.com/details"
@@ -163,7 +163,7 @@
       callRendererFunction:
         functionCallId: "call-105"
         callFunction:
-          call: "failingFunction"
+          "@call": "failingFunction"
           catalogId: "basic"
           args: {}
     functionMetadata:
@@ -190,7 +190,7 @@
       callRendererFunction:
         functionCallId: "call-106"
         callFunction:
-          call: "syncState"
+          "@call": "syncState"
           catalogId: "basic"
           args: {}
     functionMetadata:
@@ -215,7 +215,7 @@
       callRendererFunction:
         functionCallId: "call-107"
         callFunction:
-          call: "unknownFunc"
+          "@call": "unknownFunc"
           catalogId: "basic"
           args: {}
     functionMetadata: {}
@@ -239,7 +239,7 @@
       callRendererFunction:
         functionCallId: "call-108"
         callFunction:
-          call: "playMedia"
+          "@call": "playMedia"
           catalogId: "non_existent_catalog"
           args: {}
     functionMetadata:
@@ -294,7 +294,7 @@
       callRendererFunction:
         functionCallId: "call-301"
         callFunction:
-          call: "calculateTax"
+          "@call": "calculateTax"
           catalogId: "basic"
           args:
             amount: "invalid_string_amount"
@@ -329,7 +329,7 @@
       callRendererFunction:
         functionCallId: "call-302"
         callFunction:
-          call: "playMedia"
+          "@call": "playMedia"
           catalogId: "legacy_cat"
           args:
             mediaId: "vid1"
@@ -356,7 +356,7 @@
       functionCallId: "call-timeout-1"
       timeoutMs: 10
       callFunction:
-        call: "longRunningTask"
+        "@call": "longRunningTask"
         catalogId: "basic"
         args: {}
   expectError:
@@ -372,14 +372,14 @@
       surfaceId: "main_surface"
       functionCallId: "call-dup-1"
       callFunction:
-        call: "fetchData"
+        "@call": "fetchData"
         catalogId: "basic"
         args: {}
     secondOutboundCall:
       surfaceId: "main_surface"
       functionCallId: "call-dup-1"
       callFunction:
-        call: "fetchData"
+        "@call": "fetchData"
         catalogId: "basic"
         args: {}
   expectError:

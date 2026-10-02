@@ -16,9 +16,18 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
+import {
+  AccessibilityAttributesSchema,
+  Action,
+  ChildList,
+  DataBinding,
+  FunctionCall,
+} from '../types/common-types.js';
+import {childRefKindOf} from '../types/child-ref-helpers.js';
+import type {Action as V1Action} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
+import {isAtLeastVersion} from '../common/semver.js';
 
 // --- Schema Scraping ---
 
@@ -51,6 +60,8 @@ export type BehaviorNode =
   | {type: 'OBJECT'; shape: Record<string, BehaviorNode>}
   | {type: 'ARRAY'; element: BehaviorNode};
 
+const behaviorCache = new WeakMap<z.ZodTypeAny, BehaviorNode>();
+
 /**
  * Traverses a Zod schema tree to build a `BehaviorNode` map.
  *
@@ -61,7 +72,23 @@ export type BehaviorNode =
  * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
-  return getFieldBehavior(schema);
+  const cached = behaviorCache.get(schema);
+  if (cached) {
+    return cached;
+  }
+  const behavior = getFieldBehavior(schema);
+  const result: BehaviorNode =
+    behavior.type === 'OBJECT' && behavior.shape && !('accessibility' in behavior.shape)
+      ? {
+          ...behavior,
+          shape: {
+            ...behavior.shape,
+            accessibility: getFieldBehavior(AccessibilityAttributesSchema),
+          },
+        }
+      : behavior;
+  behaviorCache.set(schema, result);
+  return result;
 }
 
 /**
@@ -164,7 +191,9 @@ function isActionOption(option: z.ZodTypeAny): boolean {
 
 function isDynamicOption(option: z.ZodTypeAny): boolean {
   const refDef = getRefDefName(option);
-  if (refDef === 'DataBinding' || refDef.startsWith('Dynamic')) return true;
+  if (refDef === 'DataBinding' || refDef === 'FunctionCall' || refDef.startsWith('Dynamic')) {
+    return true;
+  }
   const current = unwrapZodSchema(option);
   const def = (current as any)._def;
   if (def?.typeName !== 'ZodObject') return false;
@@ -172,7 +201,13 @@ function isDynamicOption(option: z.ZodTypeAny): boolean {
   const hasComponentId = Object.values(shape).some(
     prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId',
   );
-  return Boolean(shape.path) && !hasComponentId;
+  return (
+    (Boolean(shape['@path']) ||
+      Boolean(shape.path) ||
+      Boolean(shape['@call']) ||
+      Boolean(shape.call)) &&
+    !hasComponentId
+  );
 }
 
 function isChildListOption(option: z.ZodTypeAny): boolean {
@@ -188,7 +223,7 @@ function isChildListOption(option: z.ZodTypeAny): boolean {
 
 function isDynamicDef(defName: string, typeName?: string): boolean {
   return (
-    (defName === 'DataBinding' || defName.startsWith('Dynamic')) &&
+    (defName === 'DataBinding' || defName === 'FunctionCall' || defName.startsWith('Dynamic')) &&
     typeName !== 'ZodObject' &&
     typeName !== 'ZodArray'
   );
@@ -265,17 +300,44 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
 /** Types recognized as dynamic data bindings or expression function calls. */
 type DynamicTypes =
   | DataBinding
+  | FunctionCall
+  | {'@path': string}
   | {path: string}
-  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
+  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string}
+  | {'@call': string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
 
 /** Types recognized as user actions or function call events. */
 type ActionLike =
   | Action
+  // The v1.0 `FunctionCall` schema infers as `any`, so its action variant is
+  // `{functionCall?: any}` and needs its own entry.
+  | V1Action
   | {event: {name: string; context?: Record<string, unknown>}}
-  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}};
+  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}}
+  | {functionCall: {'@call': string; catalogId?: string; args?: Record<string, unknown>}};
+
+/**
+ * Evaluates to true for object types with a string index signature, such as
+ * `Record<string, unknown>`. Every object type is assignable to the weak
+ * `{functionCall?: any}` member of `ActionLike`, so these are checked
+ * separately: they carry data, not an action.
+ */
+type HasStringIndex<T> = string extends keyof T ? true : false;
 
 /** Evaluates to true if type T can contain a dynamic binding. */
-type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
+type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) extends true
+  ? true
+  : ({'@path': string} extends NonNullable<T> ? true : false) extends true
+    ? true
+    : ({call: string} extends NonNullable<T> ? true : false) extends true
+      ? true
+      : ({'@call': string} extends NonNullable<T> ? true : false) extends true
+        ? true
+        : DataBinding extends NonNullable<T>
+          ? true
+          : FunctionCall extends NonNullable<T>
+            ? true
+            : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.
@@ -290,10 +352,12 @@ export interface ResolvedChildRef {
 /**
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  *
- * For example, an `Action` object becomes a callable `() => void` function.
+ * For example, an `Action` object becomes a callable `() => Promise<void>` function.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
-  ? (() => void) | Extract<T, undefined>
+  ? HasStringIndex<NonNullable<T>> extends true
+    ? Exclude<T, DynamicTypes>
+    : (() => Promise<void>) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
@@ -329,6 +393,18 @@ export type ResolveA2uiProps<T> = (T extends object
   GenerateSetters<T> & {
     isValid?: boolean;
     validationErrors?: string[];
+    validationResults?: Array<{
+      valid: boolean;
+      message: string;
+      code?: string;
+      severity: 'error' | 'warning' | 'info';
+    }>;
+    accessibility?: {
+      label?: string;
+      description?: string;
+      live?: 'off' | 'polite' | 'assertive';
+      hidden?: boolean;
+    };
   };
 
 /**
@@ -371,7 +447,7 @@ export class GenericBinder<T> {
   // Actions resolve to closures, which downstream value comparison cannot
   // inspect; reusing the closure while the raw payload is unchanged keeps
   // unchanged action props reference-identical across rebuilds.
-  private actionClosures = new Map<string, {raw: unknown; closure: () => void}>();
+  private actionClosures = new Map<string, {raw: unknown; closure: () => Promise<void>}>();
 
   /**
    * Creates a new binder for the given component context and schema.
@@ -461,6 +537,17 @@ export class GenericBinder<T> {
     return res;
   }
 
+  private resolveActionContext(context: unknown): Record<string, unknown> | undefined {
+    if (typeof context !== 'object' || context === null || Array.isArray(context)) {
+      return undefined;
+    }
+    const res: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(context)) {
+      res[k] = this.resolveDeepSync(v, 1);
+    }
+    return res;
+  }
+
   /**
    * Resolves a server-bound `event` action payload at invocation time, preserving
    * the `event` wrapper while evaluating nested `context` and `userMessage` fields.
@@ -474,9 +561,7 @@ export class GenericBinder<T> {
       const ev = obj.event as Record<string, unknown>;
       const resolvedEvent: Record<string, unknown> = {
         ...ev,
-        context: ev.context
-          ? (this.resolveDeepSync(ev.context, 1) as Record<string, unknown>)
-          : undefined,
+        context: ev.context ? this.resolveActionContext(ev.context) : undefined,
       };
       // `userMessage` is a DynamicString; the agent expects it already
       // resolved to a plain string.
@@ -488,9 +573,7 @@ export class GenericBinder<T> {
     if ('name' in obj) {
       const resolved: Record<string, unknown> = {
         ...obj,
-        context: obj.context
-          ? (this.resolveDeepSync(obj.context, 1) as Record<string, unknown>)
-          : undefined,
+        context: obj.context ? this.resolveActionContext(obj.context) : undefined,
       };
       if (obj['userMessage'] !== undefined) {
         resolved['userMessage'] = this.resolveDeepSync(obj['userMessage'], 1);
@@ -500,25 +583,25 @@ export class GenericBinder<T> {
     return this.resolveDeepSync(val, 0) as Action | Record<string, unknown>;
   }
 
-  private bindAction(value: unknown, path: string[]): () => void {
+  private bindAction(value: unknown, path: string[]): () => Promise<void> {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
     if (cached && jsonEquals(cached.raw, value)) {
       return cached.closure;
     }
-    const closure = () => {
+    const closure = async () => {
       if (value && typeof value === 'object') {
         const valObj = value as Record<string, unknown>;
-        const fc =
-          valObj.functionCall && typeof valObj.functionCall === 'object'
-            ? (valObj.functionCall as Record<string, unknown>)
-            : valObj;
-        if (typeof fc.call === 'string') {
-          this.context.dataContext.resolveDynamicValue(fc);
+        const isWrapped = Boolean(valObj.functionCall && typeof valObj.functionCall === 'object');
+        const fc = isWrapped ? (valObj.functionCall as Record<string, unknown>) : valObj;
+        const callName = ((fc as any)['@call'] ?? (fc as any).call) as string | undefined;
+        if (typeof callName === 'string') {
+          const callObj = isWrapped && !('@call' in fc) ? {'@call': callName, ...fc} : fc;
+          await this.context.dataContext.resolveDynamicValue(callObj, 0, true);
           return;
         }
       }
-      this.context.dispatchAction(this.resolveEventAction(value));
+      return this.context.dispatchAction(this.resolveEventAction(value));
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
@@ -555,7 +638,12 @@ export class GenericBinder<T> {
       return value;
     }
 
-    const bound = this.context.dataContext.subscribeDynamicValue({path: templatePath}, newVal => {
+    const isV10 = isAtLeastVersion(
+      this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
+      '1.0',
+    );
+    const binding = isV10 ? {'@path': templatePath} : {path: templatePath};
+    const bound = this.context.dataContext.subscribeDynamicValue(binding, newVal => {
       const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);
       this.updateDeepValue(path, resolvedChildren);
       this.notify();
@@ -573,35 +661,55 @@ export class GenericBinder<T> {
   private extractValidationResult(
     val: unknown,
     fallbackMessage: string,
-  ): {valid: boolean; message: string} {
+  ): {valid: boolean; message: string; code?: string; severity: 'error' | 'warning' | 'info'} {
     if (typeof val === 'object' && val !== null && 'valid' in val) {
-      const customMessage = (val as {message?: unknown}).message;
+      const rec = val as {valid: unknown; message?: unknown; code?: unknown; severity?: unknown};
+      const customMessage = rec.message;
+      const severity =
+        rec.severity === 'warning' || rec.severity === 'info' ? rec.severity : 'error';
+      const code = typeof rec.code === 'string' ? rec.code : undefined;
       return {
-        valid: Boolean((val as {valid: unknown}).valid),
+        valid: Boolean(rec.valid),
         message:
           customMessage !== undefined && customMessage !== null
             ? String(customMessage)
             : fallbackMessage,
+        ...(code !== undefined ? {code} : {}),
+        severity,
       };
     }
     return {
       valid: Boolean(val),
       message: fallbackMessage,
+      severity: 'error',
     };
   }
 
   private bindCheckable(value: unknown, path: string[], isSync: boolean): unknown {
     const rules = Array.isArray(value) ? value : [];
-    const ruleResults: {valid: boolean; message: string}[] = rules.map(() => ({
+    const ruleResults: {
+      valid: boolean;
+      message: string;
+      code?: string;
+      severity: 'error' | 'warning' | 'info';
+    }[] = rules.map(() => ({
       valid: true,
       message: '',
+      severity: 'error',
     }));
 
     const parentPath = path.slice(0, -1);
-    const updateValidationState = () => {
-      const errors = ruleResults.filter(r => !r.valid).map(r => r.message);
+    const applyValidationState = () => {
+      const errors = ruleResults
+        .filter(r => !r.valid && r.severity === 'error')
+        .map(r => r.message);
+      const failedResults = ruleResults.filter(r => !r.valid);
       this.updateDeepValue([...parentPath, 'isValid'], errors.length === 0);
       this.updateDeepValue([...parentPath, 'validationErrors'], errors);
+      this.updateDeepValue([...parentPath, 'validationResults'], failedResults);
+    };
+    const updateValidationState = () => {
+      applyValidationState();
       this.notify();
     };
 
@@ -627,9 +735,7 @@ export class GenericBinder<T> {
     });
 
     // Set initial state
-    const initialErrors = ruleResults.filter(r => !r.valid).map(r => r.message);
-    this.updateDeepValue([...parentPath, 'isValid'], initialErrors.length === 0);
-    this.updateDeepValue([...parentPath, 'validationErrors'], initialErrors);
+    applyValidationState();
 
     return value;
   }
@@ -654,9 +760,14 @@ export class GenericBinder<T> {
         const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
         const rawPropValue = valObj[k];
         result[setterName] = (newValue: unknown) => {
-          if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
-            const pathVal = (rawPropValue as {path: unknown}).path;
-            if (typeof pathVal === 'string') {
+          if (rawPropValue && typeof rawPropValue === 'object') {
+            const rawObj = rawPropValue as Record<string, unknown>;
+            const bindingKey = this.context.dataContext.isV10 ? '@path' : 'path';
+            const pathVal = rawObj[bindingKey];
+            if (
+              typeof pathVal === 'string' &&
+              (this.context.dataContext.isV10 || !('componentId' in rawObj))
+            ) {
               this.context.dataContext.set(pathVal, newValue);
             }
           }

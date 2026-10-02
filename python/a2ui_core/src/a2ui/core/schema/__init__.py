@@ -95,3 +95,12 @@ from .v0_9.constants import *
 from .v0_9.server_to_client import *
 from .v0_9.client_to_server import *
 from .v0_9.client_capabilities import *
+
+from .agent_to_renderer_schema import (
+    get_agent_to_renderer_schema_json,
+    get_agent_to_renderer_schema_map,
+)
+from .common_types_schema import (
+    get_common_types_schema_json,
+    get_common_types_schema_map,
+)

@@ -15,28 +15,29 @@
  */
 
 import {Catalog} from '../../catalog/types.js';
-import type {WebComponentImplementation} from '../universal/index.js';
+import type {WebComponentImplementation} from '../../universal/index.js';
 import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
-import {BasicCatalogThemeSchema} from './theme.js';
-
-import {A2uiText} from './components/Text.js';
-import {A2uiButton} from './components/Button.js';
-import {A2uiTextField} from './components/TextField.js';
-import {A2uiRow} from './components/Row.js';
-import {A2uiColumn} from './components/Column.js';
-import {A2uiList} from './components/List.js';
-import {A2uiImage} from './components/Image.js';
-import {A2uiIcon} from './components/Icon.js';
-import {A2uiVideo} from './components/Video.js';
-import {A2uiAudioPlayer} from './components/AudioPlayer.js';
-import {A2uiCard} from './components/Card.js';
-import {A2uiDivider} from './components/Divider.js';
-import {A2uiCheckBox} from './components/CheckBox.js';
-import {A2uiSlider} from './components/Slider.js';
-import {A2uiDateTimeInput} from './components/DateTimeInput.js';
-import {A2uiChoicePicker} from './components/ChoicePicker.js';
-import {A2uiTabs} from './components/Tabs.js';
-import {A2uiModal} from './components/Modal.js';
+import {BasicCatalogThemeSchema} from '../../universal/basic_catalog/theme.js';
+import {
+  A2uiText,
+  A2uiButton,
+  A2uiTextField,
+  A2uiRow,
+  A2uiColumn,
+  A2uiList,
+  A2uiImage,
+  A2uiIcon,
+  A2uiVideo,
+  A2uiAudioPlayer,
+  A2uiCard,
+  A2uiDivider,
+  A2uiCheckBox,
+  A2uiSlider,
+  A2uiDateTimeInput,
+  A2uiChoicePicker,
+  A2uiTabs,
+  A2uiModal,
+} from './components/index.js';
 
 /**
  * The single canonical basic catalog of A2UI components implemented via Web Components (Custom Elements).

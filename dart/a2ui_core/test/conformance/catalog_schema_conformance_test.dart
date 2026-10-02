@@ -21,19 +21,15 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
-/// Runs the shared `catalog_schema` cases in `conformance/core/catalog.yaml`.
-///
-/// Each case parses a catalog document, rebuilds the document from the parsed
-/// catalog, and checks the result against assertions any SDK can make. The
-/// cases name a source document rather than an SDK's own bundled catalog, so
-/// every implementation converts the same input.
+/// Runs the shared `conformance/core/catalog.yaml` suite (`from_json` and
+/// `catalog_schema` actions) against [Catalog].
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'core/catalog.yaml',
-  ).where((c) => c['action'] == 'catalog_schema').toList();
+  );
 
-  group('conformance core/catalog.yaml (catalog_schema)', () {
-    test('suite has catalog_schema cases', () => expect(cases, isNotEmpty));
+  group('conformance core/catalog.yaml', () {
+    test('suite has cases', () => expect(cases, isNotEmpty));
 
     for (final testCase in cases) {
       test(
@@ -48,32 +44,152 @@ void main() {
 /// Why a case cannot run yet, or null when it can.
 String? _skipReason(Map<String, Object?> testCase) {
   final String? version = caseVersion(testCase);
-  if (version != null && version != '0.9') {
+  if (version != null && version != '0.9' && version != '0.9.1') {
     return 'Targets protocol v$version; this SDK implements v0.9 only.';
   }
-  final Object? catalog = testCase['catalog'];
-  if (catalog is! Map<String, Object?> ||
-      !catalog.containsKey('catalog_schema')) {
-    return 'Case does not declare a catalog_schema document.';
+  if (testCase.containsKey('expectCatalog') ||
+      testCase['useBasicCatalog'] == true) {
+    return 'expectCatalog checks the SDK implementation of the basic '
+        'catalog against the specification.';
   }
   return null;
 }
 
 void _runCase(Map<String, Object?> testCase) {
-  final config = testCase['catalog']! as Map<String, Object?>;
-  final SchemaCatalog catalog = Catalog.fromJson(
-    _document(config['catalog_schema']),
+  final action = testCase['action'] as String?;
+  switch (action) {
+    case 'from_json':
+      _runFromJsonCase(testCase);
+    case 'catalog_schema':
+      _runCatalogSchemaCase(testCase);
+    default:
+      throw StateError('Unsupported catalog conformance action: $action');
+  }
+}
+
+void _runFromJsonCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final Map<String, Object?> rawCatalog = _document(
+    testCase['catalogSchema'] ??
+        testCase['catalog'] ??
+        testCase['schema'] ??
+        testCase['catalogPath'],
   );
+  final overrideId = testCase['catalogId'] as String?;
+  final input = <String, Object?>{
+    ...rawCatalog,
+    if (overrideId != null) 'catalogId': overrideId,
+  };
+
+  final Object? expectError = testCase['expectError'];
+  if (expectError != null) {
+    expect(
+      () => Catalog.fromJson(input),
+      throwsA(isA<A2uiCatalogError>()),
+      reason: name,
+    );
+    return;
+  }
+
+  final CatalogApi catalog = Catalog.fromJson(input);
+  final Map<String, Object?> expected =
+      (testCase['expect'] as Map<String, Object?>?) ?? const {};
+
+  if (expected['catalogId'] case final String expectedId) {
+    expect(catalog.id, expectedId, reason: '$name: catalogId');
+  }
+  if (expected['components'] case final Map<String, Object?> expectedComps) {
+    expect(
+      catalog.components.keys.toList()..sort(),
+      expectedComps.keys.toList()..sort(),
+      reason: '$name: components',
+    );
+    for (final String compName in expectedComps.keys) {
+      final Map<String, Object?> schemaValue =
+          catalog.components[compName]!.schema.value;
+      expect(
+        jsonEncode(schemaValue),
+        isNot(contains(r'"$ref":"#/$defs/')),
+        reason: '$name: local \$defs inlined in $compName',
+      );
+    }
+  }
+  if (expected['functions'] case final Map<String, Object?> expectedFuncs) {
+    expect(
+      catalog.functions.keys.toList()..sort(),
+      expectedFuncs.keys.toList()..sort(),
+      reason: '$name: functions',
+    );
+  }
+  if (expected['theme'] case final Map<String, Object?> expectedTheme) {
+    if (expectedTheme.isNotEmpty) {
+      expect(catalog.themeSchema, isNotNull, reason: '$name: themeSchema');
+    }
+  }
+}
+
+void _runCatalogSchemaCase(Map<String, Object?> testCase) {
+  final Map<String, Object?> source = _document(
+    testCase['catalogSchema'] ??
+        testCase['catalog'] ??
+        testCase['schema'] ??
+        testCase['catalogPath'],
+  );
+  final CatalogApi catalog = Catalog.fromJson(source);
 
   final Map<String, Object?> document = catalog.catalogSchema;
   final expect_ = testCase['expect']! as Map<String, Object?>;
   final name = testCase['name']! as String;
 
-  _checkMetadata(document, expect_, name);
-  _checkMembers(document, expect_, name);
-  if (expect_['unions_cover_all'] == true) _checkUnions(document, name);
-  if (expect_['self_contained'] == true) _checkSelfContained(document, name);
-  if (expect_['reparses_identically'] == true) _checkFixedPoint(document, name);
+  if (expect_.containsKey('metadata') ||
+      expect_.containsKey('unions_cover_all')) {
+    _checkMetadata(document, expect_, name);
+    _checkMembers(document, expect_, name);
+  } else {
+    if (expect_[r'$schema'] case final String expectedSchema) {
+      expect(document[r'$schema'], expectedSchema, reason: '$name: \$schema');
+    }
+    if (expect_['catalogId'] case final String expectedId) {
+      expect(document['catalogId'], expectedId, reason: '$name: catalogId');
+    }
+    if (expect_['components'] case final Map<String, Object?> expectedComps) {
+      expect(
+        document['components'],
+        equals(expectedComps),
+        reason: '$name: components',
+      );
+    }
+    if (expect_['functions'] case final Map<String, Object?> expectedFuncs) {
+      final Map<String, Object?> actualFuncs =
+          (document['functions'] as Map?)?.cast<String, Object?>() ?? const {};
+      expect(
+        actualFuncs.keys.toList()..sort(),
+        expectedFuncs.keys.toList()..sort(),
+        reason: '$name: function names',
+      );
+    }
+    if (expect_[r'$defs'] case final Map<String, Object?> expectedDefs) {
+      final Map<String, Object?> actualDefs =
+          (document[r'$defs'] as Map?)?.cast<String, Object?>() ?? const {};
+      if (expectedDefs.containsKey('theme')) {
+        expect(
+          actualDefs['theme'],
+          equals(expectedDefs['theme']),
+          reason: '$name: \$defs.theme',
+        );
+      } else {
+        expect(
+          actualDefs.containsKey('theme'),
+          isFalse,
+          reason: '$name: \$defs.theme should be omitted',
+        );
+      }
+    }
+  }
+
+  _checkUnions(document, name);
+  _checkSelfContained(document, name);
+  _checkFixedPoint(document, name);
 }
 
 /// Top-level keys the rebuilt document must carry, and must not carry.
@@ -169,10 +285,6 @@ List<String> _unionTargets(Object? union) {
 }
 
 /// Every reference into the document resolves inside it.
-///
-/// References that leave the document, such as the `common_types.json` URLs,
-/// are resolved by the validator against the definitions it is given, so they
-/// are not the document's to satisfy.
 void _checkSelfContained(Map<String, Object?> document, String name) {
   for (final String ref in _localRefs(document)) {
     expect(
@@ -224,7 +336,11 @@ void _checkFixedPoint(Map<String, Object?> document, String name) {
 
 /// Reads a catalog document, inline or by path.
 Map<String, Object?> _document(Object? value) {
-  if (value is Map<String, Object?>) return value;
+  if (value is Map<String, Object?>) {
+    return value.containsKey('catalog_schema')
+        ? _document(value['catalog_schema'])
+        : value;
+  }
   if (value is String) {
     final file = File(resolveConformancePath(value));
     if (!file.existsSync()) {

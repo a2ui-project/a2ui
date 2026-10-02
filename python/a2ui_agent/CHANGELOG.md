@@ -1,6 +1,14 @@
 ## Unreleased
 
+- Catalogs that inference formats and `A2uiCatalog.core_catalog` take or return are typed `CatalogApi` from `a2ui.core` instead of `Catalog[Any, Any]`.
 - Add A2UI Macros API under `a2ui.transformers.macros` (`@macro` decorator and `MacroExpander`), enabling authoring of reusable, high-level composite components using fluent Python builder classes that lower into primitive A2UI component subtrees (`transform_to_transport`) and synthesize inference catalog schemas (`transform_to_inference_catalog`, `to_catalog`) (#2519).
+- **BREAKING**: The common types schema is no longer bundled as an asset.
+  `A2uiCatalog.from_config` and `DirectJsonFormat` take it from a2ui-core's
+  generated schema (`a2ui.schema.utils.load_common_types_schema`), the same
+  definitions that payload validation uses. `load_from_bundled_resource` now
+  raises `A2uiCatalogError` for the `common_types` key instead of returning `{}`.
+- Streaming validation errors quote the schema's own pattern (for example
+  `\p{XID_Start}`) instead of its expansion for Python's `re` module.
 
 ## 0.7.0 (2026-09-28)
 

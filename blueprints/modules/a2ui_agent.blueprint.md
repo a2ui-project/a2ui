@@ -42,7 +42,7 @@ graph TD
 ```
 
 1. **Decoupled Primitive Layer**:
-   - **Catalog Representation**: Directly uses canonical `Catalog` models from `a2ui_core`.
+   - **Catalog Representation**: Directly uses canonical `Catalog` models from `a2ui_core`, as the schema-only `CatalogApi`.
    - **Catalog Transformers**: Standalone rule sets (`CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`) for filtering component definitions and function signatures from pristine catalogs.
    - **Inference Formats**: Strategy facades (`InferenceFormat`, `InferenceFormatFactory`) pairing format-specific prompt generators (`PromptGenerator`) and parsers (`Parser`). Supported strategies include `DirectJsonFormat` and `ExpressFormat`.
    - **Prompt Generators**: Format builders consuming transformed catalogs and prompt examples to generate system instruction snippets.
@@ -97,6 +97,8 @@ a2ui_agent/
 ### A. Catalog Representation & Catalog Transformers
 
 The Agent SDK uses `a2ui.core.Catalog` directly as the canonical model representing component definitions, function signatures, and theme schemas.
+
+An agent describes and validates functions but never runs them, so every catalog it loads, negotiates, prompts with, or validates against is a [`CatalogApi`](a2ui_core.blueprint.md#catalogapi), the core name for `Catalog[ComponentApi, FunctionApi]`. Catalog transformers are the exception: they stay generic over the component and function types, so the same rules can also prune a catalog that carries implementations.
 
 #### `CatalogTransformer`
 
@@ -230,6 +232,8 @@ ResponsePart = Union[TextPart, A2uiPart]
 
 Base interface for response parsers across all inference format strategies.
 
+A parser knows only its own format. It reads its own sentinel tags and treats everything else in a response as conversational text, including a block in another format's tags: a model that shows the other notation in prose has written text, not a payload, and adding a format must not require changing the parsers of the existing ones.
+
 ```python
 class Parser(ABC):
     """Abstract base class for response parsers.
@@ -244,6 +248,7 @@ class Parser(ABC):
 
         A caller uses this to decide whether a response is this format's business at all,
         without paying for a parse. It reads the sentinel tags only and never compiles.
+        Another format's tags do not count.
 
         Args:
             content: Raw string response emitted by the LLM, possibly partial.
@@ -264,6 +269,8 @@ class Parser(ABC):
     @abstractmethod
     def unwrap(self, content: str) -> list[RawResponsePart]:
         """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
+
+        Content outside this format's sentinel tags, including another format's tags, is a TextPart.
 
         Args:
             content: Raw string response emitted by the LLM.
@@ -400,7 +407,7 @@ class InferenceFormatFactory(ABC):
     @abstractmethod
     def create_format(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
     ) -> "InferenceFormat":
         """Constructs an InferenceFormat instance bound to the provided active catalogs.
@@ -457,7 +464,7 @@ class CatalogProvider(ABC):
     """Abstract base class for loading catalog definitions."""
 
     @abstractmethod
-    def load(self) -> Catalog[TComponent, TFunction]:
+    def load(self) -> CatalogApi:
         """Loads and returns a Catalog definition instance."""
         pass
 
@@ -481,7 +488,7 @@ class FileSystemCatalogProvider(CatalogProvider):
         self.protocol_version = protocol_version
         self.catalog_id = catalog_id
 
-    def load(self) -> Catalog[TComponent, TFunction]:
+    def load(self) -> CatalogApi:
         """Reads the catalog JSON file and returns a Catalog instance.
 
         If self.protocol_version or self.catalog_id are defined and the loaded catalog
@@ -509,7 +516,7 @@ class InMemoryCatalogProvider(CatalogProvider):
         self.protocol_version = protocol_version
         self.catalog_id = catalog_id
 
-    def load(self) -> Catalog[TComponent, TFunction]:
+    def load(self) -> CatalogApi:
         """Constructs and returns a Catalog instance from the raw schema dictionary.
 
         If self.protocol_version or self.catalog_id are defined and the loaded catalog
@@ -529,11 +536,11 @@ class CatalogConfig:
         catalog: Base Catalog instance loaded via a CatalogProvider.
         transformers: Optional list of CatalogTransformer rules to apply sequentially.
     """
-    catalog: Catalog[TComponent, TFunction]
+    catalog: CatalogApi
     transformers: Optional[Sequence[CatalogTransformer]] = None
 
     @property
-    def transformed_catalog(self) -> Catalog[TComponent, TFunction]:
+    def transformed_catalog(self) -> CatalogApi:
         """Returns the Catalog after applying all configured transformers sequentially."""
         current = self.catalog
         if self.transformers:
@@ -603,7 +610,10 @@ class A2uiGenerator:
         """Creates an A2uiRequestProcessor bound to the specified renderer capabilities.
 
         Args:
-            renderer_capabilities: Capabilities sent by the client renderer. Must not be None.
+            renderer_capabilities: Capabilities sent by the client renderer. Must not be None:
+                a processor is negotiated for one renderer, so a request without capabilities
+                is a catalog error here, although resolve_catalogs accepts one. A language
+                with non-nullable types enforces this in the signature.
             inference_format_factory: Optional override format factory for this processor.
 
         Returns:
@@ -620,7 +630,7 @@ class A2uiRequestProcessor:
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         format_factory: Optional[InferenceFormatFactory] = None,
     ):
@@ -634,7 +644,7 @@ class A2uiRequestProcessor:
         pass
 
     @property
-    def active_catalogs(self) -> list[Catalog[TComponent, TFunction]]:
+    def active_catalogs(self) -> list[CatalogApi]:
         """Returns the list of active negotiated Catalog instances for this processor."""
         pass
 
@@ -666,13 +676,18 @@ Negotiates renderer capabilities against a registered sequence of catalogs (`Seq
 ```python
 def resolve_catalogs(
     catalogs: Sequence[CatalogConfig],
-    renderer_capabilities: A2uiRendererCapabilities,
+    renderer_capabilities: Optional[A2uiRendererCapabilities],
     accepts_inline_catalogs: bool = False,
-) -> list[Catalog[TComponent, TFunction]]:
+) -> list[CatalogApi]:
     """Matches renderer capabilities against registered catalogs and returns active transformed Catalog objects.
 
     Resolution follows these rules:
 
+    - `None`, for a request that carries no capabilities object, activates every
+      registered catalog in registration order, since the renderer stated no
+      preference. Where the language allows it, the argument stays required
+      but nullable, so a caller passes `None` deliberately rather than by
+      leaving it out.
     - A present but empty `supportedCatalogIds` with no inline catalogs raises a catalog
       error, because the renderer has said it can render nothing.
     - Active catalogs come back in the renderer's preference order rather than the
@@ -719,7 +734,7 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
 
     def create_format(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
     ) -> InferenceFormat:
         """Constructs a DirectJsonFormat instance bound to the provided active catalogs.
@@ -743,7 +758,7 @@ class DirectJsonFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         allowed_messages: Optional[Sequence[str]] = None,
         progressive_keys: frozenset[str] = frozenset(),
@@ -778,7 +793,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         allowed_messages: Optional[Sequence[str]] = None,
     ):
@@ -806,7 +821,7 @@ class DirectJsonParser(Parser):
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         progressive_keys: frozenset[str] = frozenset(),
     ):
         """Initializes DirectJsonParser.
@@ -874,7 +889,27 @@ The Express format package under `a2ui/inference_formats/express/` contains:
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
 - `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
 
+```python
+class ExpressFormatFactory(InferenceFormatFactory):
+    """Factory for instantiating ExpressFormat strategies bound to active catalogs."""
+
+    def __init__(self, allowed_messages: Optional[Sequence[str]] = None):
+        """Initializes ExpressFormatFactory.
+
+        Args:
+            allowed_messages: Optional list of allowed payload envelope names. The
+                prompt teaches only the statements that compile to them.
+        """
+        self.allowed_messages = allowed_messages
+```
+
 Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `parse_chunk`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
+
+#### Grammar and parser generation
+
+[`Express.g4`](../../specification/inference_formats/express/Express.g4) is the canonical grammar, and every SDK accepts exactly the language it defines. Generating the lexer and parser from it with [ANTLR](https://www.antlr.org/) is preferred, so that a change to the grammar reaches each SDK by regenerating rather than by reimplementing. The Python SDK does this.
+
+An SDK may write its parser by hand instead, for example when the language has no maintained ANTLR runtime or the SDK avoids third-party dependencies. It then says so where the parser is defined, and a change to the grammar has to be made in that parser too. `<format>/compiler.yaml` and the round-trip test below check that the parser still accepts the grammar's language.
 
 ---
 

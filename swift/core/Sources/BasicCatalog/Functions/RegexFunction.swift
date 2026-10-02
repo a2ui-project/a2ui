@@ -48,8 +48,10 @@ public final class RegexFunction: FunctionImplementation, Sendable {
       let firstMatch = try regex.firstMatch(in: value)
       return .boolean(firstMatch != nil)
     } catch {
-      // Invalid regular expression pattern
-      return .boolean(false)
+      throw FunctionError.executionFailed(
+        name: "regex",
+        message: "Invalid regular expression pattern '\(pattern)': \(error)"
+      )
     }
   }
 }

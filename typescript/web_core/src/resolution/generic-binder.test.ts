@@ -49,7 +49,7 @@ describe('GenericBinder Checkable Trait', () => {
           args.value.length >= args.min,
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
     const schema = z.object({
@@ -258,6 +258,49 @@ describe('GenericBinder Checkable Trait', () => {
     });
   });
 
+  it('should return action dispatch promise settling after onAction listeners complete', async () => {
+    const {surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/user/name', 'Alice');
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5',
+      'Button',
+      {
+        onTap: {
+          event: {
+            name: 'submit',
+            context: {
+              user: {path: '/user/name'},
+            },
+          },
+        },
+      },
+      surface.defaultCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let listenerCompleted = false;
+    surface.onAction.subscribe(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      listenerCompleted = true;
+    });
+
+    const context = new ComponentContext(surface, 'c5');
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    const dispatchPromise = binder.snapshot.onTap!();
+    assert.strictEqual(typeof dispatchPromise?.then, 'function');
+    assert.strictEqual(listenerCompleted, false);
+
+    await dispatchPromise;
+    assert.strictEqual(listenerCompleted, true);
+  });
+
   it('should resolve dynamic userMessage on direct name action and include it in dispatched action', () => {
     const {surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/feedback', 'Great service!');
@@ -307,7 +350,7 @@ describe('GenericBinder Checkable Trait', () => {
         },
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
     surface.dataModel.set('/order/id', 'ORD-987');
     surface.dataModel.set('/order/total', 49.99);
@@ -368,7 +411,7 @@ describe('GenericBinder Checkable Trait', () => {
         },
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
     const actionSchema = z.object({
@@ -407,6 +450,59 @@ describe('GenericBinder Checkable Trait', () => {
     assert.strictEqual(dispatchedAction, null);
   });
 
+  it('should return promise settling after async functionCall ACTION completes', async () => {
+    let executionCompleted = false;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'saveDraft',
+        returnType: 'string',
+        schema: z.object({}).passthrough(),
+        execute: async () => {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          executionCompleted = true;
+          return 'saved';
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_async_fc',
+      'Button',
+      {
+        onTap: {
+          functionCall: {
+            call: 'saveDraft',
+          },
+        },
+      },
+      surface.defaultCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_async_fc');
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    const actionPromise = binder.snapshot.onTap!();
+    assert.strictEqual(typeof actionPromise?.then, 'function');
+    assert.strictEqual(executionCompleted, false);
+
+    await actionPromise;
+    assert.strictEqual(executionCompleted, true);
+    assert.strictEqual(dispatchedAction, null);
+  });
+
   it('should execute unwrapped {call} ACTION binding locally and not dispatch onAction event', () => {
     let executedArgs: Record<string, unknown> | null = null;
     const mockFunctions: FunctionImplementation[] = [
@@ -420,7 +516,7 @@ describe('GenericBinder Checkable Trait', () => {
         },
       },
     ];
-    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
     const actionSchema = z.object({
@@ -747,6 +843,44 @@ describe('GenericBinder Checkable Trait', () => {
         },
       });
     });
+
+    it('does not create setter for literal path in v1.0, nor for @path in v0.9', () => {
+      const mockCatalogV10 = new Catalog('test', '1.0', [], []);
+      const surfaceV10 = new SurfaceModel('s1', mockCatalogV10);
+      const compV10 = new ComponentModel(
+        'c1',
+        'Custom',
+        {
+          details: {path: '/secret'},
+        },
+        surfaceV10.defaultCatalog,
+      );
+      surfaceV10.componentsModel.addComponent(compV10);
+      const contextV10 = new ComponentContext(surfaceV10, 'c1');
+      const binderV10 = new GenericBinder<{details: unknown}>(
+        contextV10,
+        z.object({details: z.unknown()}),
+      );
+      assert.strictEqual('setDetails' in (binderV10.snapshot as Record<string, unknown>), false);
+
+      const mockCatalogV09 = new Catalog('test', '0.9', [], []);
+      const surfaceV09 = new SurfaceModel('s2', mockCatalogV09);
+      const compV09 = new ComponentModel(
+        'c2',
+        'Custom',
+        {
+          details: {'@path': '/secret'},
+        },
+        surfaceV09.defaultCatalog,
+      );
+      surfaceV09.componentsModel.addComponent(compV09);
+      const contextV09 = new ComponentContext(surfaceV09, 'c2');
+      const binderV09 = new GenericBinder<{details: unknown}>(
+        contextV09,
+        z.object({details: z.unknown()}),
+      );
+      assert.strictEqual('setDetails' in (binderV09.snapshot as Record<string, unknown>), false);
+    });
   });
 
   it('should support v1.0 ValidationResult objects and dynamic messages', async () => {
@@ -782,12 +916,12 @@ describe('GenericBinder Checkable Trait', () => {
       'c_val',
       'EmailInput',
       {
-        email: {path: '/email'},
+        email: {'@path': '/email'},
         validationRules: [
           {
             condition: {
-              call: 'validate_email',
-              args: {val: {path: '/email'}},
+              '@call': 'validate_email',
+              args: {val: {'@path': '/email'}},
             },
           },
         ],
@@ -852,8 +986,8 @@ describe('GenericBinder Checkable Trait', () => {
         checks: [
           {
             condition: {
-              call: 'dynamic_validator',
-              args: {mode: {path: '/mode'}},
+              '@call': 'dynamic_validator',
+              args: {mode: {'@path': '/mode'}},
             },
             message: 'Default rule failure message',
           },
@@ -976,6 +1110,11 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
   });
 
+  it('scrapeSchemaBehavior returns the same tree for the same schema', () => {
+    const schema = z.object({label: z.string()});
+    assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
+  });
+
   describe('Generated setter types', () => {
     it('keeps the setter callable for a property declared with no literal branch', () => {
       const bindingOnly: GenerateSetters<{value: DataBinding | FunctionCall}> = {
@@ -984,6 +1123,16 @@ describe('GenericBinder Checkable Trait', () => {
       bindingOnly.setValue('anything');
       const value: unknown = {selected: true};
       bindingOnly.setValue(value);
+
+      const dataBindingOnly: GenerateSetters<{value: DataBinding}> = {
+        setValue: () => {},
+      };
+      dataBindingOnly.setValue('anything');
+
+      const functionCallOnly: GenerateSetters<{value: FunctionCall}> = {
+        setValue: () => {},
+      };
+      functionCallOnly.setValue('anything');
 
       const withLiteral: GenerateSetters<{value: string | DataBinding | FunctionCall}> = {
         setValue: () => {},

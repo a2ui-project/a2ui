@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 import pytest
@@ -19,14 +20,18 @@ from a2ui.core.catalog import (
     Catalog,
     ComponentApi,
     FunctionApi,
-    ModelComponentApi,
     FunctionImplementation,
+    ModelComponentApi,
+    get_common_types_schema_json,
+    get_common_types_schema_map,
 )
+from a2ui.core.common import to_protocol_version
+from a2ui.core.schema import ProtocolVersion
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validation import PayloadValidator
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.schema.v0_9.common_types import ComponentId
+from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
@@ -82,22 +87,6 @@ def test_catalog_initialization_with_models():
     assert cat.catalog_id == "https://a2ui.org/model-init"
 
 
-def test_catalog_initialization_from_json():
-    schema = {
-        "catalogId": "https://a2ui.org/spec/v0.9/catalog.json",
-        "components": {
-            "Text": {
-                "type": "object",
-                "properties": {"text": {"type": "string"}},
-                "additionalProperties": False,
-            }
-        },
-    }
-    catalog = Catalog.from_json(schema, protocol_version=PROTOCOL_VERSION)
-    assert catalog.catalog_id == "https://a2ui.org/spec/v0.9/catalog.json"
-    assert catalog.protocol_version == PROTOCOL_VERSION
-
-
 def test_catalog_initialization_requires_version():
     with pytest.raises(
         TypeError,
@@ -134,7 +123,7 @@ def test_catalog_from_json_requires_version():
 
 
 # ==============================================================================
-# 2. Component Validation & Properties Handling
+# 2. Component Validation & Properties Handling (Pydantic ModelComponentApi)
 # ==============================================================================
 
 
@@ -208,47 +197,10 @@ def test_additional_properties_handling_with_models():
         )
 
 
-def test_additional_properties_handling_from_json():
-    # 1. additionalProperties is not set explicitly (defaults to True)
-    cat_default_json = {
-        "catalogId": "https://a2ui.org/default",
-        "components": {
-            "SimpleBox": {
-                "type": "object",
-                "properties": {"component": {"const": "SimpleBox"}},
-            }
-        },
-    }
-    cat_default = Catalog.from_json(cat_default_json, protocol_version=PROTOCOL_VERSION)
-
-    # Permits extra properties when additionalProperties is not set explicitly
-    _val(cat_default).validate_component(
-        {"id": "b1", "component": "SimpleBox", "extraProp": 123}
-    )
-
-    # 2. additionalProperties being set explicitly to true
-    cat_true_json = {
-        "catalogId": "https://a2ui.org/explicit-true",
-        "components": {
-            "FlexBox": {
-                "type": "object",
-                "properties": {"component": {"const": "FlexBox"}},
-                "additionalProperties": True,
-            }
-        },
-    }
-    cat_true = Catalog.from_json(cat_true_json, protocol_version=PROTOCOL_VERSION)
-
-    # Permits extra properties when additionalProperties is explicitly True
-    _val(cat_true).validate_component(
-        {"id": "b2", "component": "FlexBox", "extraProp": 456}
-    )
-
-
 @pytest.mark.skip(
     reason=(
-        "PayloadValidator checks model components with Pydantic model_validate, which"
-        " ignores json_schema_extra={'unevaluatedProperties': False}."
+        "PayloadValidator checks model components with Pydantic model_validate,"
+        " which ignores json_schema_extra={'unevaluatedProperties': False}."
     )
 )
 def test_unevaluated_properties_handling_with_models():
@@ -290,64 +242,6 @@ def test_unevaluated_properties_handling_with_models():
         _val(cat).validate_components(
             [{"id": "b3", "component": "ForbidBox", "extraProp": 789}]
         )
-
-
-def test_unevaluated_properties_handling_from_json():
-    # 1. unevaluatedProperties with the default settings (omitted/true)
-    cat_default_json = {
-        "catalogId": "https://a2ui.org/unevaluated-default",
-        "components": {
-            "DefaultBox": {
-                "type": "object",
-                "properties": {"component": {"const": "DefaultBox"}},
-            }
-        },
-    }
-    cat_default = Catalog.from_json(cat_default_json, protocol_version=PROTOCOL_VERSION)
-
-    # Permits extra properties when unevaluatedProperties is default (omitted/true)
-    _val(cat_default).validate_component(
-        {"id": "b1", "component": "DefaultBox", "extraField": 123}
-    )
-
-    # 2. unevaluatedProperties set to false
-    cat_false_json = {
-        "catalogId": "https://a2ui.org/unevaluated-false",
-        "components": {
-            "StrictBox": {
-                "type": "object",
-                "properties": {"component": {"const": "StrictBox"}},
-                "unevaluatedProperties": False,
-            }
-        },
-    }
-    cat_false = Catalog.from_json(cat_false_json, protocol_version=PROTOCOL_VERSION)
-
-    # Rejects extra properties when unevaluatedProperties is False
-    with pytest.raises(
-        A2uiValidationError, match="Unevaluated properties|Additional properties"
-    ):
-        _val(cat_false).validate_component(
-            {"id": "b2", "component": "StrictBox", "extraField": 123}
-        )
-
-    # 3. unevaluatedProperties set to true
-    cat_true_json = {
-        "catalogId": "https://a2ui.org/unevaluated-true",
-        "components": {
-            "FlexBox": {
-                "type": "object",
-                "properties": {"component": {"const": "FlexBox"}},
-                "unevaluatedProperties": True,
-            }
-        },
-    }
-    cat_true = Catalog.from_json(cat_true_json, protocol_version=PROTOCOL_VERSION)
-
-    # Permits extra properties when unevaluatedProperties is True
-    _val(cat_true).validate_component(
-        {"id": "b3", "component": "FlexBox", "extraField": 456}
-    )
 
 
 def test_unrecognized_type_and_mismatched_properties_with_models():
@@ -397,7 +291,7 @@ def test_unrecognized_type_and_mismatched_properties_with_models():
 
 
 # ==============================================================================
-# 3. Function Registration & Validation
+# 3. Function Registration & Validation (Pydantic BaseModel schemas)
 # ==============================================================================
 
 
@@ -411,27 +305,6 @@ def test_function_validation_with_models():
         catalog_id="https://a2ui.org/func-test",
         functions=[FunctionApi("search", schema=CustomArgs)],
     )
-    val = _val(catalog)
-    val.validate_function("search", {"query": "hello", "limit": 10})
-    with pytest.raises(A2uiValidationError):
-        val.validate_function("search", {"query": "hello", "limit": "not-an-int"})
-
-
-def test_function_validation_from_json():
-    json_catalog = {
-        "catalogId": "https://a2ui.org/func-json-test",
-        "protocolVersion": PROTOCOL_VERSION,
-        "functions": {
-            "search": {
-                "parameters": {
-                    "query": {"type": "string"},
-                    "limit": {"type": "integer"},
-                },
-                "required": ["query"],
-            }
-        },
-    }
-    catalog = Catalog.from_json(json_catalog)
     val = _val(catalog)
     val.validate_function("search", {"query": "hello", "limit": 10})
     with pytest.raises(A2uiValidationError):
@@ -455,26 +328,6 @@ def test_validate_function_returns_coerced_model_args():
     assert res == {"query": "hello", "limit": 50, "offset": 0}
 
 
-def test_validate_function_returns_dict_args_with_defaults():
-    json_catalog = {
-        "catalogId": "https://a2ui.org/func-json-defaults",
-        "protocolVersion": PROTOCOL_VERSION,
-        "functions": {
-            "search": {
-                "parameters": {
-                    "query": {"type": "string"},
-                    "limit": {"type": "integer", "default": 25},
-                },
-                "required": ["query"],
-            }
-        },
-    }
-    catalog = Catalog.from_json(json_catalog)
-    val = _val(catalog)
-    res = val.validate_function("search", {"query": "hello"})
-    assert res == {"query": "hello", "limit": 25}
-
-
 def test_nested_function_validation_with_models():
     class SearchArgs(BaseModel):
         query: str
@@ -490,45 +343,6 @@ def test_nested_function_validation_with_models():
         components=[ModelComponentApi(SearchButton)],
         functions=[FunctionApi("doSearch", schema=SearchArgs)],
     )
-    val = _val(catalog)
-    val.validate_components([{
-        "id": "b1",
-        "component": "SearchButton",
-        "onSearch": {"call": "doSearch", "args": {"query": "test"}},
-    }])
-    with pytest.raises(A2uiValidationError):
-        val.validate_components([{
-            "id": "b1",
-            "component": "SearchButton",
-            "onSearch": {"call": "doSearch", "args": {"query": 12345}},
-        }])
-
-
-def test_nested_function_validation_from_json():
-    json_catalog = {
-        "catalogId": "https://a2ui.org/nested-func-json-test",
-        "protocolVersion": PROTOCOL_VERSION,
-        "components": {
-            "SearchButton": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "component": {"const": "SearchButton"},
-                    "onSearch": {"type": "object"},
-                },
-                "required": ["id", "component", "onSearch"],
-            }
-        },
-        "functions": {
-            "doSearch": {
-                "parameters": {
-                    "query": {"type": "string"},
-                },
-                "required": ["query"],
-            }
-        },
-    }
-    catalog = Catalog.from_json(json_catalog)
     val = _val(catalog)
     val.validate_components([{
         "id": "b1",
@@ -566,39 +380,12 @@ def test_theme_validation_with_models():
     assert "does not match" in error_msg.lower()
 
 
-def test_theme_validation_from_json():
-    catalog_json = {
-        "catalogId": "https://rizzcharts.com/catalog.json",
-        "theme": {
-            "type": "object",
-            "properties": {
-                "primaryColor": {
-                    "type": "string",
-                    "pattern": "^#[0-9a-fA-F]{6}$",
-                }
-            },
-            "additionalProperties": False,
-        },
-    }
-
-    catalog = Catalog.from_json(catalog_json, protocol_version=PROTOCOL_VERSION)
-
-    # 1. Test Valid Theme
-    _val(catalog).validate_theme({"primaryColor": "#00FF00"})
-
-    # 2. Test Invalid Theme fails on incorrect color hex code pattern
-    with pytest.raises(A2uiValidationError, match="does not match"):
-        _val(catalog).validate_theme({"primaryColor": "red"})
-
-
 # ==============================================================================
-# 5. Mixed Spec Interoperability
+# 4. Mixed Spec Interoperability
 # ==============================================================================
 
 
 def test_seamless_mixed_catalogs():
-    from a2ui.core.catalog import Catalog, ComponentApi, ModelComponentApi
-
     # Pydantic model for Component A
     class ModelCompA(BaseModel):
         id: str
@@ -650,7 +437,7 @@ def test_seamless_mixed_catalogs():
 
 
 # ==============================================================================
-# 7. BasicCatalog Conformance
+# 5. BasicCatalog & Version Submodules
 # ==============================================================================
 
 
@@ -658,70 +445,6 @@ def test_basic_catalog_initialization():
     catalog = BasicCatalog()
     assert catalog.protocol_version == PROTOCOL_VERSION
     assert "https://a2ui.org/specification" in catalog.catalog_id
-
-
-def test_basic_catalog_validate_components():
-    catalog = BasicCatalog()
-
-    # Valid component payload
-    text_comp = {
-        "id": "t1",
-        "component": "Text",
-        "text": "Hello World",
-        "variant": "body",
-    }
-    _val(catalog).validate_components([text_comp])
-
-    # Invalid component payload (wrong type for text)
-    invalid_text_comp = {
-        "id": "t2",
-        "component": "Text",
-        "text": 12345,  # Should be string / data binding
-    }
-    with pytest.raises((ValidationError, ValueError)):
-        _val(catalog).validate_components([invalid_text_comp])
-
-
-def test_basic_catalog_validate_theme():
-    catalog = BasicCatalog()
-
-    # 1. Test Valid Theme
-    _val(catalog).validate_theme({"primaryColor": "#00BFFF"})
-
-    # 2. Test Invalid Theme raises A2uiValidationError
-    with pytest.raises(A2uiValidationError):
-        _val(catalog).validate_theme({"primaryColor": "invalid-color-name"})
-
-
-def test_basic_catalog_validate_functions():
-    catalog = BasicCatalog()
-    validator = _val(catalog)
-    # Valid function call
-    validator.validate_function("formatNumber", {"value": 123.45, "decimals": 2})
-    # Unrecognized function call
-    with pytest.raises(A2uiValidationError, match="Unrecognized function"):
-        validator.validate_function("unknownFunction", {})
-
-
-def test_basic_catalog_nested_function_validation():
-    catalog = BasicCatalog()
-    with pytest.raises(A2uiValidationError, match="formatNumber|type_mismatch|number"):
-        _val(catalog).validate_components([{
-            "id": "root",
-            "component": "Text",
-            "text": {
-                "call": "formatNumber",
-                "args": {
-                    "value": 123.45,
-                    "decimals": "invalid-string-instead-of-number",
-                },
-            },
-        }])
-
-
-# ==============================================================================
-# 6. Phase 2 v1.0 Spec Additions Tests
-# ==============================================================================
 
 
 def test_catalog_v1_0_additions():
@@ -759,7 +482,6 @@ def test_validation_config_defaults():
 
 
 def test_mixed_catalog_validation():
-    from a2ui.core.catalog import Catalog
     from a2ui.core.state import ComponentModel, SurfaceComponentsModel
     from a2ui.core.validation import ValidationConfig
 
@@ -807,7 +529,7 @@ def test_mixed_catalog_validation():
 
 
 # ==============================================================================
-# 9. Dynamic Schema & Reference Inlining Tests
+# 6. Dynamic Schema & Reference Inlining Tests
 # ==============================================================================
 
 
@@ -868,8 +590,6 @@ def test_load_preserved_type_refs():
 
 
 def test_computed_catalog_schema():
-    from a2ui.core.catalog import Catalog, ComponentApi, FunctionApi
-
     comp = ComponentApi(
         "Text", {"type": "object", "properties": {"text": {"type": "string"}}}
     )
@@ -934,136 +654,6 @@ def test_catalog_from_json_preserves_custom_defs():
     assert "CustomType" in schema["$defs"]
 
 
-def test_payload_validator_bare_refs_self_contained():
-    """Verifies PayloadValidator validates components using in-memory bare refs without disk I/O or registry."""
-    catalog_json = {
-        "catalogId": "https://a2ui.org/catalogs/self_contained",
-        "protocolVersion": "v1.0",
-        "$defs": {
-            "StatusEnum": {
-                "type": "string",
-                "enum": ["active", "inactive"],
-            }
-        },
-        "components": {
-            "StatusBadge": {
-                "type": "object",
-                "properties": {
-                    "id": {"$ref": "#/$defs/ComponentId"},
-                    "component": {"const": "StatusBadge"},
-                    "status": {"$ref": "#/$defs/StatusEnum"},
-                },
-                "required": ["id", "component", "status"],
-            }
-        },
-    }
-    cat = Catalog.from_json(catalog_json)
-    validator = PayloadValidator(catalog=cat)
-
-    # Valid payload
-    validator.validate_component(
-        {"id": "b1", "component": "StatusBadge", "status": "active"}
-    )
-
-    # Invalid payload (violates enum in StatusEnum)
-    with pytest.raises(A2uiValidationError) as exc_info:
-        validator.validate_component(
-            {"id": "b2", "component": "StatusBadge", "status": "unknown"}
-        )
-    assert len(exc_info.value.details) == 1
-    assert exc_info.value.details[0].code == "type_mismatch"
-
-
-def test_payload_validator_recursive_bare_refs():
-    """Verifies PayloadValidator validates nested / recursive bare refs in $defs."""
-    catalog_json = {
-        "catalogId": "https://a2ui.org/catalogs/recursive",
-        "protocolVersion": "v1.0",
-        "$defs": {
-            "TreeNode": {
-                "type": "object",
-                "properties": {
-                    "label": {"type": "string"},
-                    "children": {
-                        "type": "array",
-                        "items": {"$ref": "#/$defs/TreeNode"},
-                    },
-                },
-                "required": ["label"],
-            }
-        },
-        "components": {
-            "TreeView": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "component": {"const": "TreeView"},
-                    "root": {"$ref": "#/$defs/TreeNode"},
-                },
-                "required": ["id", "component", "root"],
-            }
-        },
-    }
-    cat = Catalog.from_json(catalog_json)
-    validator = PayloadValidator(catalog=cat)
-
-    # Valid recursive tree
-    valid_tree = {
-        "id": "t1",
-        "component": "TreeView",
-        "root": {
-            "label": "root",
-            "children": [{
-                "label": "child1",
-                "children": [{"label": "grandchild"}],
-            }],
-        },
-    }
-    validator.validate_component(valid_tree)
-
-    # Invalid recursive tree
-    invalid_tree = {
-        "id": "t2",
-        "component": "TreeView",
-        "root": {
-            "label": "root",
-            "children": [{"children": []}],  # missing 'label'
-        },
-    }
-    with pytest.raises(A2uiValidationError) as exc_info:
-        validator.validate_component(invalid_tree)
-    assert len(exc_info.value.details) == 1
-    assert exc_info.value.details[0].code == "missing_field"
-
-
-def test_payload_validator_unresolvable_bare_ref_error():
-    """Verifies PayloadValidator gracefully handles unresolvable bare refs and records invalid_reference error."""
-    catalog_json = {
-        "catalogId": "https://a2ui.org/catalogs/broken_ref",
-        "protocolVersion": "v1.0",
-        "components": {
-            "BrokenComp": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "component": {"const": "BrokenComp"},
-                    "field": {"$ref": "#/$defs/NonExistentType"},
-                },
-                "required": ["id", "component", "field"],
-            }
-        },
-    }
-    cat = Catalog.from_json(catalog_json)
-    validator = PayloadValidator(catalog=cat)
-
-    with pytest.raises(A2uiValidationError) as exc_info:
-        validator.validate_component(
-            {"id": "c1", "component": "BrokenComp", "field": "val"}
-        )
-    assert len(exc_info.value.details) == 1
-    assert exc_info.value.details[0].code == "invalid_reference"
-
-
 def test_collect_defs_refs_nested_subpath():
     from a2ui.core.catalog.catalog import _collect_defs_refs
 
@@ -1075,102 +665,6 @@ def test_collect_defs_refs_nested_subpath():
     }
     _collect_defs_refs(node, refs)
     assert refs == {"TemplateChildList", "SimpleDef", "NestedDef"}
-
-
-def test_payload_validator_skips_nested_function_from_another_catalog():
-    """Verifies PayloadValidator only checks calls targeting its own catalog."""
-    from a2ui.core.catalog import FunctionImplementation
-
-    comp_api = ComponentApi(
-        name="CustomComp",
-        schema={
-            "type": "object",
-            "properties": {"val": {"type": "object"}},
-        },
-    )
-    add_fn = FunctionImplementation(
-        name="add",
-        return_type="number",
-        schema={
-            "type": "object",
-            "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
-            "required": ["a", "b"],
-        },
-        execute=lambda args, *_: args["a"] + args["b"],
-    )
-    app_cat = Catalog(
-        catalog_id="app-cat",
-        protocol_version="v1.0",
-        components=[comp_api],
-        functions=[add_fn],
-    )
-    validator = PayloadValidator(catalog=app_cat)
-
-    def component(comp_id: str, call: dict) -> dict:
-        return {"id": comp_id, "component": "CustomComp", "val": call}
-
-    # A call naming another catalog is left to resolution-time validation, even
-    # when the function is unknown here and the arguments are wrong.
-    assert (
-        validator.validate_component(
-            component(
-                "c1",
-                {"call": "multiply", "catalogId": "math-cat", "args": {"nope": True}},
-            )
-        )
-        is None
-    )
-
-    # A call naming this catalog explicitly is still validated.
-    assert (
-        validator.validate_component(
-            component(
-                "c2",
-                {"call": "add", "catalogId": "app-cat", "args": {"a": 1, "b": 2}},
-            )
-        )
-        is None
-    )
-    with pytest.raises(A2uiValidationError):
-        validator.validate_component(
-            component("c3", {"call": "add", "catalogId": "app-cat", "args": {"a": 1}})
-        )
-
-    # A call naming no catalog is validated against this catalog.
-    with pytest.raises(A2uiValidationError):
-        validator.validate_component(
-            component("c4", {"call": "unknownFunction", "args": {}})
-        )
-
-
-def test_payload_validator_collects_errors_past_a_foreign_catalog_call():
-    """Verifies the nested walk continues after skipping a foreign-catalog call."""
-    comp_api = ComponentApi(
-        name="CustomComp",
-        schema={
-            "type": "object",
-            "properties": {"first": {"type": "object"}, "second": {"type": "object"}},
-        },
-    )
-    app_cat = Catalog(
-        catalog_id="app-cat",
-        protocol_version="v1.0",
-        components=[comp_api],
-        functions=[],
-    )
-    validator = PayloadValidator(catalog=app_cat)
-
-    with pytest.raises(A2uiValidationError) as exc_info:
-        validator.validate_component({
-            "id": "c1",
-            "component": "CustomComp",
-            "first": {"call": "add", "catalogId": "math-cat", "args": {"a": 1}},
-            "second": {"call": "unknownFunction", "args": {}},
-        })
-
-    assert [detail.code for detail in exc_info.value.details] == [
-        "unrecognized_function"
-    ]
 
 
 def test_is_valid_uax31_identifier():
@@ -1208,10 +702,6 @@ def test_is_valid_uax31_identifier():
 
 
 def test_validate_function_rejects_non_dict_args():
-    from a2ui.core.catalog import Catalog, FunctionImplementation
-    from a2ui.core.validation import PayloadValidator
-    from pydantic import BaseModel
-
     class SearchParams(BaseModel):
         query: str
         limit: int = 10
@@ -1246,52 +736,7 @@ def test_validate_function_rejects_non_dict_args():
     assert exc_info.value.details[0].code == "type_mismatch"
 
 
-def test_payload_validator_foreign_catalog_identifier_validation():
-    from a2ui.core.catalog import Catalog, ModelComponentApi
-    from a2ui.core.validation import PayloadValidator
-    from pydantic import BaseModel
-
-    class ContainerProps(BaseModel):
-        title: Any = None
-
-    catalog = Catalog(
-        catalog_id="home_cat",
-        protocol_version="v1.0",
-        components=[ModelComponentApi(ContainerProps, "Container")],
-        functions=[],
-    )
-    val = PayloadValidator(catalog=catalog)
-
-    # Valid foreign catalog call with valid UAX #31 identifier syntax
-    val.validate_component({
-        "id": "c1",
-        "component": "Container",
-        "title": {
-            "call": "foreign_func",
-            "catalogId": "foreign_cat",
-            "args": {"param": "ok"},
-        },
-    })
-
-    # Invalid function identifier syntax targeting foreign catalog
-    with pytest.raises(A2uiValidationError) as exc_info:
-        val.validate_component({
-            "id": "c2",
-            "component": "Container",
-            "title": {
-                "call": "invalid-func-name!",
-                "catalogId": "foreign_cat",
-                "args": {"param": "ok"},
-            },
-        })
-    assert any(d.code == "invalid_identifier" for d in exc_info.value.details)
-
-
 def test_validate_function_non_string_arg_key_defensive():
-    from a2ui.core.catalog import Catalog, FunctionImplementation
-    from a2ui.core.validation import PayloadValidator
-    from pydantic import BaseModel
-
     class NoopParams(BaseModel):
         pass
 
@@ -1321,66 +766,243 @@ def test_catalog_missing_protocol_version_raises_catalog_error():
         Catalog(catalog_id="test_cat", protocol_version="")
 
 
-def test_payload_validator_max_function_call_args():
-    from a2ui.core.catalog import Catalog, FunctionImplementation
-    from a2ui.core.validation import MAX_FUNCTION_CALL_ARGS, PayloadValidator
-
-    catalog = Catalog(
-        catalog_id="test_cat",
-        protocol_version="v0.9",
-        components=[],
-        functions=[
-            FunctionImplementation(
-                name="custom_fn",
-                return_type="string",
-                execute=lambda args, ctx, abort: "",
-            )
-        ],
-    )
-    val = PayloadValidator(catalog=catalog)
-
-    excessive_args = {f"k_{i}": i for i in range(MAX_FUNCTION_CALL_ARGS + 5)}
-    with pytest.raises(A2uiValidationError) as exc_info:
-        val.validate_function("custom_fn", excessive_args)
-    assert exc_info.value.details[0].code == "too_many_arguments"
+# ==============================================================================
+# 11. Common Types Schema Resolution
+# ==============================================================================
 
 
-def test_payload_validator_foreign_catalog_identifier_validation():
-    from a2ui.core.catalog import Catalog, ModelComponentApi
-    from a2ui.core.validation import PayloadValidator
-    from pydantic import BaseModel
+@pytest.mark.parametrize(
+    "version",
+    [ProtocolVersion.V0_9, ProtocolVersion.V0_9_1, ProtocolVersion.V1_0],
+)
+def test_get_common_types_schema_map_and_json_agree(version):
+    # Content is checked against the specification by core/common_types.yaml,
+    # which reads the JSON form only.
+    schema_json = get_common_types_schema_json(version)
+    assert json.loads(schema_json) == get_common_types_schema_map(version)
 
-    class ContainerProps(BaseModel):
-        title: Any = None
 
-    catalog = Catalog(
-        catalog_id="home_cat",
-        protocol_version="v1.0",
-        components=[ModelComponentApi(ContainerProps, "Container")],
-        functions=[],
-    )
-    val = PayloadValidator(catalog=catalog)
+def test_get_common_types_schema_supported_versions():
+    res_09 = get_common_types_schema_map(ProtocolVersion.V0_9)
+    assert res_09["$id"] == "https://a2ui.org/specification/v0_9/common_types.json"
+    # v0.9.1 publishes v0.9's common types unchanged.
+    assert get_common_types_schema_map(ProtocolVersion.V0_9_1) == res_09
 
-    # Valid foreign catalog call with valid UAX #31 identifier syntax
-    val.validate_component({
-        "id": "c1",
-        "component": "Container",
-        "title": {
-            "call": "foreign_func",
-            "catalogId": "foreign_cat",
-            "args": {"param": "ok"},
+    res_10 = get_common_types_schema_map(ProtocolVersion.V1_0)
+    assert res_10["$id"] == "https://a2ui.org/specification/v1_0/common_types.json"
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("0.8", ProtocolVersion.V0_8),
+        ("v0.9", ProtocolVersion.V0_9),
+        ("0.9.1", ProtocolVersion.V0_9_1),
+        ("1.0", ProtocolVersion.V1_0),
+        ("1.0.0", ProtocolVersion.V1_0),
+        ("1.0.0-beta.1", ProtocolVersion.V1_0),
+        (ProtocolVersion.V1_0, ProtocolVersion.V1_0),
+    ],
+)
+def test_to_protocol_version(version, expected):
+    assert to_protocol_version(version) is expected
+
+
+@pytest.mark.parametrize("version", ["", "invalid_version", "1.1", "0.9.2"])
+def test_to_protocol_version_rejects_unknown_versions(version):
+    with pytest.raises(ValueError, match="Unknown protocol version"):
+        to_protocol_version(version)
+
+
+@pytest.mark.parametrize(
+    "getter", [get_common_types_schema_map, get_common_types_schema_json]
+)
+def test_get_common_types_schema_unsupported_versions(getter):
+    # v0.8 has no common_types.json
+    with pytest.raises(A2uiCatalogError, match="common_types schema is not available"):
+        getter(ProtocolVersion.V0_8)
+
+
+def test_get_common_types_schema_map_returns_deepcopy():
+    res1 = get_common_types_schema_map(ProtocolVersion.V1_0)
+    res1["$defs"]["MutatedKey"] = {"type": "string"}
+
+    res2 = get_common_types_schema_map(ProtocolVersion.V1_0)
+    assert "MutatedKey" not in res2["$defs"]
+    assert "MutatedKey" not in get_common_types_schema_json(ProtocolVersion.V1_0)
+
+
+def test_catalog_from_json_determines_common_types_automatically():
+    catalog_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "test_auto_common_types",
+        "protocolVersion": "1.0",
+        "components": {
+            "CustomCard": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "CustomCard"},
+                    "items": {"$ref": "common_types.json#/$defs/ChildList"},
+                },
+                "required": ["component"],
+            }
         },
-    })
+    }
 
-    # Invalid function identifier syntax targeting foreign catalog
-    with pytest.raises(A2uiValidationError) as exc_info:
-        val.validate_component({
-            "id": "c2",
-            "component": "Container",
-            "title": {
-                "call": "invalid-func-name!",
-                "catalogId": "foreign_cat",
-                "args": {"param": "ok"},
-            },
-        })
-    assert any(d.code == "invalid_identifier" for d in exc_info.value.details)
+    catalog = Catalog.from_json(catalog_schema)
+    assert catalog.protocol_version == "1.0"
+    reconstructed = catalog.catalog_schema
+    # The external reference should be rewritten to local #/$defs/...
+    card_props = reconstructed["components"]["CustomCard"]["properties"]
+    assert card_props["items"]["$ref"] == "#/$defs/ChildList"
+    # ChildList should be populated automatically into $defs from common_types_schema
+    assert "ChildList" in reconstructed["$defs"]
+
+
+_INLINE_METADATA = {
+    "type": "object",
+    "description": "Optional component-level metadata for vendor extensions.",
+    "properties": {"extensions": {"$ref": "#/$defs/Extensions"}},
+    "additionalProperties": False,
+}
+
+
+def test_v1_0_catalogs_inline_component_metadata():
+    """Nested objects stay inline, as in the specification, not as helper defs."""
+    json_catalog = Catalog.from_json({
+        "catalogId": "test_inline_metadata",
+        "protocolVersion": "1.0",
+        "components": {
+            "Card": {
+                "allOf": [{"$ref": "common_types.json#/$defs/ComponentCommon"}],
+                "properties": {"component": {"const": "Card"}},
+                "required": ["component"],
+            }
+        },
+    }).catalog_schema
+    basic_catalog = BasicCatalogV1_0().catalog_schema
+
+    assert (
+        json_catalog["$defs"]["ComponentCommon"]["properties"]["metadata"]
+        == _INLINE_METADATA
+    )
+    assert "ComponentCommonMetadata" not in json_catalog["$defs"]
+    assert "Extensions" in json_catalog["$defs"]
+    # As in the specification, v1.0 basic catalog components leave
+    # `ComponentCommon`, and so its metadata, to the message envelope.
+    assert "metadata" not in basic_catalog["components"]["Text"]["properties"]
+    assert "ComponentCommonMetadata" not in basic_catalog["$defs"]
+    # No internal schema-generation marker leaks into a published catalog.
+    for schema in (json_catalog, basic_catalog, BasicCatalog().catalog_schema):
+        assert '"x-a2ui-' not in json.dumps(schema)
+
+
+def test_v08_basic_catalog_schema_structure():
+    """v0.8 basic catalog schema produces a valid catalog document."""
+    from a2ui.core.basic_catalog import v0_8
+
+    cat = v0_8.BasicCatalog()
+    schema = cat.catalog_schema
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert "https://a2ui.org/specification/v0_8" in schema["catalogId"]
+    assert "Text" in schema["components"]
+    assert "Button" in schema["components"]
+
+
+def test_catalog_schema_caching():
+    """catalog_schema caches the generated schema and returns independent copies."""
+    from a2ui.core.basic_catalog import v0_9
+
+    cat = v0_9.BasicCatalog()
+    s1 = cat.catalog_schema
+    s2 = cat.catalog_schema
+    assert s1 == s2
+    assert s1 is not s2
+    s1["mutated"] = True
+    assert "mutated" not in cat.catalog_schema
+
+
+def test_custom_component_recursive_model_inlining():
+    """Recursive nested models do not crash schema generation and remain in $defs."""
+    from pydantic import BaseModel
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.schema.v0_9.common_types import ComponentCommon
+
+    class TreeNode(BaseModel):
+        val: str
+        children: list["TreeNode"] | None = None
+
+    class TreeComponent(ComponentCommon):
+        component: str = "Tree"
+        root: TreeNode
+
+    TreeNode.model_rebuild()
+
+    comp = ModelComponentApi(TreeComponent, "Tree")
+    cat = Catalog(
+        catalog_id="https://example.com/tree",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    schema = cat.catalog_schema
+    assert "TreeNode" in schema.get("$defs", {})
+    assert "Tree" in schema["components"]
+
+
+def test_concrete_component_subclassing_discriminator():
+    """Subclassing a concrete component model sets the new discriminator."""
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.basic_catalog.v0_9 import ButtonComponent
+
+    class SpecialButton(ButtonComponent):
+        badge: str
+
+    comp = ModelComponentApi(SpecialButton, "SpecialButton")
+    cat = Catalog(
+        catalog_id="https://example.com/special",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    schema = cat.catalog_schema
+    comp_schema = schema["components"]["SpecialButton"]
+    inner = [
+        s
+        for s in comp_schema["allOf"]
+        if "properties" in s and "component" in s["properties"]
+    ][0]
+    assert inner["properties"]["component"] == {"const": "SpecialButton"}
+    assert "Button" not in schema.get("$defs", {})
+
+
+def test_custom_model_collision_with_common_type_rejected():
+    """A custom nested model whose name collides with a common type raises A2uiCatalogError."""
+    from pydantic import BaseModel
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.schema.v0_9.common_types import ComponentCommon
+
+    class Action(BaseModel):
+        custom_field: str
+
+    class CollidingComp(ComponentCommon):
+        component: str = "CollidingComp"
+        action: Action
+
+    comp = ModelComponentApi(CollidingComp, "CollidingComp")
+    cat = Catalog(
+        catalog_id="https://example.com/colliding",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    with pytest.raises(A2uiCatalogError, match="collides with built-in common type"):
+        _ = cat.catalog_schema
+
+
+def test_function_api_description_fallback():
+    """FunctionApi preserves class-level description when not explicitly provided."""
+    from a2ui.core.basic_catalog.v0_9 import RequiredApi
+
+    api = RequiredApi("required")
+    assert api.description == "Checks that the value is not null, undefined, or empty."
+
+    api_override = RequiredApi("required", description="Overridden description")
+    assert api_override.description == "Overridden description"

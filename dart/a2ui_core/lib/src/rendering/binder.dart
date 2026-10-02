@@ -477,10 +477,13 @@ class GenericBinder {
     );
     if (hasEvent || hasFunctionCall) return BehaviorNode(Behavior.action);
 
+    final bool isV10 = context.dataContext.isV10;
     bool hasPath = schemasToInspect.any(
       (s) =>
           s['properties'] != null &&
-          (s['properties'] as Map)['path'] != null &&
+          (isV10
+              ? (s['properties'] as Map)['@path'] != null
+              : (s['properties'] as Map)['path'] != null) &&
           (s['properties'] as Map)['componentId'] == null,
     );
     if (hasPath) return BehaviorNode(Behavior.dynamic);
@@ -534,44 +537,8 @@ class GenericBinder {
     }
   }
 
-  Map<String, dynamic> _resolveActionFields(
-    DataContext dataContext,
-    Map<String, dynamic> map,
-  ) {
-    final result = Map<String, dynamic>.from(map);
-    // Each context value is a separate `DynamicValue`, so resolve entries one
-    // by one. Resolving the whole map at once would read a context key named
-    // `path` or `call` as a data binding or function call.
-    final Object? ctx = result['context'];
-    if (ctx is Map) {
-      result['context'] = <String, Object?>{
-        for (final MapEntry<Object?, Object?> e in ctx.entries)
-          e.key.toString(): dataContext.resolveSync(e.value),
-      };
-    }
-    if (result.containsKey('userMessage')) {
-      result['userMessage'] = dataContext.resolveSync(result['userMessage']);
-    }
-    return result;
-  }
-
   Object? _resolveEventAction(DataContext dataContext, Object? value) {
-    if (value is! Map) {
-      return dataContext.resolveSync(value);
-    }
-    final map = Map<String, dynamic>.from(value);
-    final Object? eventObj = map['event'];
-    if (eventObj is Map) {
-      final Map<String, dynamic> ev = _resolveActionFields(
-        dataContext,
-        Map<String, dynamic>.from(eventObj),
-      );
-      return {...map, 'event': ev};
-    }
-    if (map.containsKey('name')) {
-      return _resolveActionFields(dataContext, map);
-    }
-    return dataContext.resolveSync(value);
+    return dataContext.resolveAction(value) ?? dataContext.resolveSync(value);
   }
 
   /// Permanently disconnects this binder, including an interrupted rebuild.

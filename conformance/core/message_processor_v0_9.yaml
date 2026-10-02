@@ -868,38 +868,6 @@
                     - "component"
                     - "label"
 
-- name: test_v09_get_renderer_capabilities_ref_description_transformation
-  description: "Tests transforming REF: tagged descriptions into valid JSON Schema $ref nodes."
-  action: get_renderer_capabilities
-  catalogs:
-    - catalogId: cat-ref
-      components:
-        Custom:
-          type: object
-          properties:
-            title:
-              type: string
-              description: "REF:common_types.json#/$defs/DynamicString|The title"
-  args:
-    includeInlineCatalogs: true
-    version: "v0.9"
-  expect:
-    v0.9:
-      supportedCatalogIds:
-        - "cat-ref"
-      inlineCatalogs:
-        - catalogId: "cat-ref"
-          components:
-            Custom:
-              allOf:
-                - $ref: "common_types.json#/$defs/ComponentCommon"
-                - properties:
-                    component:
-                      const: "Custom"
-                    title:
-                      $ref: "common_types.json#/$defs/DynamicString"
-                      description: "The title"
-
 - name: test_v09_get_renderer_capabilities_with_functions_and_theme
   description: Tests generating inline catalogs including function definitions and theme schema.
   action: get_renderer_capabilities
@@ -930,7 +898,8 @@
         type: object
         properties:
           primaryColor:
-            $ref: "common_types.json#/$defs/Color"
+            type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
             description: The main color
   args:
     includeInlineCatalogs: true
@@ -967,7 +936,8 @@
                 required: ["a", "b"]
           theme:
             primaryColor:
-              $ref: "common_types.json#/$defs/Color"
+              type: "string"
+              pattern: "^#[0-9a-fA-F]{6}$"
               description: "The main color"
 
 - name: test_v09_get_renderer_capabilities_multiple_catalogs
@@ -1034,3 +1004,95 @@
   expectError:
     category: "ValidationError"
     message: "surfaceId must be a string"
+
+- name: test_update_components_target_named_surface_only
+  description: Tests that components are added to the surface the message names, not to every open surface.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s2"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expect:
+    surfaces:
+      s1:
+        exists: true
+        components: []
+      s2:
+        exists: true
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_update_data_model_isolated_per_surface
+  description: Tests that each surface owns its data model, so the same path holds a different value per surface.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/value"
+        value: "one"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s2"
+        path: "/value"
+        value: "two"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          value: "one"
+      s2:
+        dataModel:
+          value: "two"
+
+- name: test_v091_version_string_compatibility
+  description: Tests that messages carrying version 'v0.9.1' are accepted compatibly by v0.9 processors and catalogs.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9.1"
+      createSurface:
+        surfaceId: "s_v091"
+        catalogId: "test-catalog"
+    - version: "v0.9.1"
+      updateComponents:
+        surfaceId: "s_v091"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello v0.9.1"
+  expect:
+    surfaces:
+      s_v091:
+        exists: true
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello v0.9.1"

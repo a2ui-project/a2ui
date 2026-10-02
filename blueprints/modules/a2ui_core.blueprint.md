@@ -141,16 +141,16 @@ a2ui/core/
 │   ├── events                      # EventSource / listener plumbing
 │   └── semver                      # Protocol version comparison
 ├── expressions/                    # Protocol-version-agnostic expression parser
-├── basic_catalog/                  # Bundled default components and operators
+├── basic_catalog/                  # Bundled default components and functions
 │   ├── v0_8/                       # Conforms to spec v0.8
 │   ├── v0_9/                       # Conforms to spec v0.9, v0.9.1
 │   ├── v1_0/                       # Conforms to spec v1.0
-│   ├── operator_apis               # Operator function signatures
-│   └── locale_config               # Locale defaults for formatting functions
+│   └── locale_formatting           # CLDR locale rules Babel does not implement
 ├── catalog/                        # Catalog declarations
 │   ├── catalog                     # Catalog base class & inlining
 │   ├── components                  # Component declarations & API
-│   └── functions                   # Function declarations & implementations
+│   ├── functions                   # Function declarations & implementations
+│   └── system_functions            # Runtime-supplied '@' functions, shared by all versions
 ├── state/                          # Reactive Layout State Models
 │   ├── component_model             # Component property structures
 │   ├── data_model                  # Value dictionary binding paths
@@ -239,7 +239,7 @@ export class Catalog<
 
 A `Catalog` is immutable once constructed.
 
-`TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions.
+`TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions. The schema-only case is named [`CatalogApi`](#catalogapi).
 
 Both parameters default to their constraint, so code that does not care about the concrete component or function type may write `Catalog` unparameterized. The rest of this document does so wherever the distinction is irrelevant.
 
@@ -322,6 +322,19 @@ Functions generally fall into a few common patterns:
 3.  **Effect Functions**: Side-effect handlers (e.g., `openUrl`, `closeModal`) that return `void`. These are triggered by user [**actions**](../../docs/public/concepts/glossary.md#action) rather than interpolation.
 
 If a function returns a reactive stream, it MUST use an idiomatic listening mechanism that supports standard unsubscription. To properly support an AI agent, functions SHOULD include a schema to generate accurate renderer capabilities.
+
+#### `CatalogApi`
+
+`CatalogApi` names the schema-only catalog, alongside `ComponentApi` and `FunctionApi`. Its components and functions carry schemas and no code.
+
+```typescript
+export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+```
+
+Every SDK that has a schema-only catalog exports it from its public facade under this name, as a type alias where the language has one. Parsing a catalog document produces a `CatalogApi`, since a document holds signatures only.
+
+- **Use `CatalogApi`** where functions are described or checked but never run: an agent writing a system prompt, validating generated payloads, or reading the inline catalogs in renderer capabilities.
+- **Use a catalog of `FunctionImplementation`** where functions are evaluated, as in a renderer resolving values or handling actions. APIs that evaluate functions SHOULD bound their catalog type to `FunctionImplementation`, so that passing a `CatalogApi` fails at compile time rather than resolving to nothing at runtime.
 
 #### The [Basic Catalog](../../docs/public/concepts/glossary.md#basic-catalog) Standard (Core APIs)
 
@@ -863,7 +876,6 @@ A component belongs to exactly one catalog, and from v1.0 one surface may mix ca
 - Raise `A2uiCatalogError` when a resolved `catalogId` is not one this processor supports.
 - Record the catalog on the `SurfaceModel` when the surface is created, so a later `updateComponents` resolves against it.
 - Expose `processMessages` as the single entry point for applying a payload to surface state and checking each message against the surface it joins. An agent uses it over its own output too, keeping a processor for the session so each payload is checked against the state the previous ones built.
-- Check every surface a payload creates as one graph once the payload has been applied: a `root` component exists, every reference resolves, and every component is reachable from the root. These three cannot be answered as each message arrives, because a payload may declare a parent before its child, so they answer for the surface the payload leaves behind rather than for each message in turn. `ValidationConfig` governs which of them run, so a caller whose transport delivers one surface across several payloads relaxes the ones that span them. A surface the payload only updates is an incremental update to a render it does not own, and is not held to them.
 - Envelope parsing is `AgentToRendererMessage.parseAll(payload, protocolVersion)`, not a validator method: it needs no catalog, which is what lets a payload be read before each message is matched to its surface.
 
 Envelope parsing takes no catalog: the protocol version tag and the single-update-type rule read none. Make it a static on the message type, so a payload can be parsed before each message is matched to a surface, and so to a catalog.
@@ -1293,7 +1305,7 @@ _Per-call catalog dispatch._ A `FunctionCall` may carry a `catalogId`. `DataCont
 
 This depends on `catalogId` surviving deserialization. If the `FunctionCall` model used at runtime is the pre-v1.0 shape (`call`, `args`, `returnType`), a strict schema library strips `catalogId` before resolution ever sees it, and every call silently resolves against the default catalog. Version-specific schema models must be selected by the surface's protocol version rather than aliased back to a legacy definition.
 
-_Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
+_Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"@path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
 
 _Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments, unresolvable catalog) dispatches an `EXPRESSION_ERROR` to the surface and yields an undefined value for that binding. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
 

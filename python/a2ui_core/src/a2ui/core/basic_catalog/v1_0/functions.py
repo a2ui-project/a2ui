@@ -30,16 +30,12 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from .operator_apis import (
-    IndexApi,
-)
 from .function_impls import (
     RequiredImplementation,
     RegexImplementation,
     LengthImplementation,
     NumericImplementation,
     EmailImplementation,
-    IndexImplementation,
     FormatStringImplementation,
     FormatNumberImplementation,
     FormatCurrencyImplementation,
@@ -72,13 +68,11 @@ __all__ = [
     "AndApi",
     "OrApi",
     "NotApi",
-    "IndexApi",
     "RequiredImplementation",
     "RegexImplementation",
     "LengthImplementation",
     "NumericImplementation",
     "EmailImplementation",
-    "IndexImplementation",
     "FormatStringImplementation",
     "FormatNumberImplementation",
     "FormatCurrencyImplementation",

@@ -25,7 +25,7 @@ import 'catalog_providers.dart';
 class CatalogConfig {
   /// The catalog as its document declares it, parsed by [Catalog.fromJson] or
   /// loaded by a [CatalogProvider].
-  final SchemaCatalog catalog;
+  final CatalogApi catalog;
 
   /// The transformers applied to [catalog], in order, before it reaches a
   /// prompt or a validator.
@@ -53,9 +53,9 @@ class CatalogConfig {
 
   /// [catalog] after each of [transformers] in turn, each seeing the previous
   /// result.
-  SchemaCatalog get transformedCatalog => transformers.fold(
+  CatalogApi get transformedCatalog => transformers.fold(
     catalog,
-    (SchemaCatalog current, CatalogTransformer transformer) =>
+    (CatalogApi current, CatalogTransformer transformer) =>
         transformer.transform(current),
   );
 }

@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 
-export * from './A2uiSurface';
-export * from './adapter';
-export {useSignalValue, type NodeBuildChild, type NodeViewProps} from './node-view';
+export {A2uiSurface} from './A2uiSurface';
+export {createBinderlessComponentImplementation, createComponentImplementation} from './adapter';
+export {useSignalValue} from './node-view';
+export type {
+  NodeBuildChild,
+  NodeViewProps,
+  ReactA2uiComponentProps,
+  ReactComponentImplementation,
+} from './react_component_implementation';
 
 // Export basic catalog components directly for 3P developers
 export * from './catalog/basic';

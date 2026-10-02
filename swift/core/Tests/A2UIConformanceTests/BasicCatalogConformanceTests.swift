@@ -20,8 +20,12 @@ import Testing
 
 @MainActor
 private final class ConformanceMockFunctionHandler: FunctionHandler {
+  private let functionsMap: [String: any FunctionImplementation] = Dictionary(
+    uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
+  )
+
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
-    nil
+    functionsMap[named]
   }
 }
 
@@ -55,145 +59,69 @@ struct BasicCatalogConformanceTests {
     #expect(result == .string("Welcome Alice, you are 30 years old."))
   }
 
-  @Test func logicalOperators() throws {
-    let dataModel = DataModel()
-    let context = DataContext(dataModel: dataModel, path: "", functionHandler: functionHandler)
+  @Test func evaluateFunctionConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/functions.yaml")
+    let cases = (rawYAML as? [[String: Any]]) ?? []
+    #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
 
-    let andFunction = AndFunction()
-    let andTrue = try andFunction.evaluate(
-      arguments: ["values": .array([.boolean(true), .boolean(true)])],
-      context: context
+    let functionsMap: [String: any FunctionImplementation] = Dictionary(
+      uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
     )
-    #expect(andTrue == .boolean(true))
 
-    let andFalse = try andFunction.evaluate(
-      arguments: ["values": .array([.boolean(true), .boolean(false)])],
-      context: context
-    )
-    #expect(andFalse == .boolean(false))
+    for testCase in cases {
+      guard let action = testCase["action"] as? String, action == "evaluate_function" else {
+        continue
+      }
 
-    let orFunction = OrFunction()
-    let orTrue = try orFunction.evaluate(
-      arguments: ["values": .array([.boolean(false), .boolean(true)])],
-      context: context
-    )
-    #expect(orTrue == .boolean(true))
+      guard let name = testCase["name"] as? String,
+        let funcName = testCase["function"] as? String
+      else {
+        continue
+      }
 
-    let orFalse = try orFunction.evaluate(
-      arguments: ["values": .array([.boolean(false), .boolean(false)])],
-      context: context
-    )
-    #expect(orFalse == .boolean(false))
+      guard let fn = functionsMap[funcName] else {
+        Issue.record("\(name): function '\(funcName)' not found in BasicFunctions")
+        continue
+      }
 
-    let notFunction = NotFunction()
-    let notTrue = try notFunction.evaluate(
-      arguments: ["value": .boolean(false)],
-      context: context
-    )
-    #expect(notTrue == .boolean(true))
+      let dataModelDict: JSONValue =
+        (testCase["dataModel"] ?? testCase["data_model"]).map {
+          ConformanceTestHelper.toJSONValue($0)
+        } ?? .object([:])
+      let model = DataModel(initial: dataModelDict)
+      let context = DataContext(dataModel: model, path: "/", functionHandler: functionHandler)
 
-    let notFalse = try notFunction.evaluate(
-      arguments: ["value": .boolean(true)],
-      context: context
-    )
-    #expect(notFalse == .boolean(false))
-  }
+      let rawArgs = (testCase["args"] as? [String: Any]) ?? [:]
+      var swiftArgs: [String: JSONValue] = [:]
+      for (k, v) in rawArgs {
+        swiftArgs[k] = ConformanceTestHelper.toJSONValue(v)
+      }
 
-  @Test func validationOperators() throws {
-    let dataModel = DataModel()
-    let context = DataContext(dataModel: dataModel, path: "", functionHandler: functionHandler)
-
-    let emailFunction = EmailFunction()
-    let validEmail = try emailFunction.evaluate(
-      arguments: ["value": .string("user@example.com")],
-      context: context
-    )
-    #expect(validEmail == .boolean(true))
-
-    let invalidEmail = try emailFunction.evaluate(
-      arguments: ["value": .string("invalid-email")],
-      context: context
-    )
-    #expect(invalidEmail == .boolean(false))
-
-    let regexFunction = RegexFunction()
-    let matchRegex = try regexFunction.evaluate(
-      arguments: ["pattern": .string("^[0-9]+$"), "value": .string("12345")],
-      context: context
-    )
-    #expect(matchRegex == .boolean(true))
-
-    let mismatchRegex = try regexFunction.evaluate(
-      arguments: ["pattern": .string("^[0-9]+$"), "value": .string("abc")],
-      context: context
-    )
-    #expect(mismatchRegex == .boolean(false))
-
-    let lengthFunction = LengthFunction()
-    let stringLengthValid = try lengthFunction.evaluate(
-      arguments: ["value": .string("hello"), "min": .integer(3), "max": .integer(10)],
-      context: context
-    )
-    #expect(stringLengthValid == .boolean(true))
-
-    let stringLengthTooShort = try lengthFunction.evaluate(
-      arguments: ["value": .string("hi"), "min": .integer(3)],
-      context: context
-    )
-    #expect(stringLengthTooShort == .boolean(false))
-
-    let requiredFunction = RequiredFunction()
-    let requiredValid = try requiredFunction.evaluate(
-      arguments: ["value": .string("not empty")],
-      context: context
-    )
-    #expect(requiredValid == .boolean(true))
-
-    let requiredEmpty = try requiredFunction.evaluate(
-      arguments: ["value": .string("")],
-      context: context
-    )
-    #expect(requiredEmpty == .boolean(false))
-
-    let numericFunction = NumericFunction()
-    let isNumeric = try numericFunction.evaluate(
-      arguments: ["value": .string("42.5")],
-      context: context
-    )
-    #expect(isNumeric == .boolean(true))
-
-    let notNumeric = try numericFunction.evaluate(
-      arguments: ["value": .string("not-a-number")],
-      context: context
-    )
-    #expect(notNumeric == .boolean(false))
-  }
-
-  @Test func formatters() throws {
-    let dataModel = DataModel()
-    let context = DataContext(dataModel: dataModel, path: "", functionHandler: functionHandler)
-
-    let formatNumberFunction = FormatNumberFunction()
-    let formattedNumber = try formatNumberFunction.evaluate(
-      arguments: ["value": .number(1234.56), "decimalPlaces": .integer(2)],
-      context: context
-    )
-    let numberString = try #require(formattedNumber.stringValue)
-    #expect(!numberString.isEmpty)
-
-    let formatCurrencyFunction = FormatCurrencyFunction()
-    let formattedCurrency = try formatCurrencyFunction.evaluate(
-      arguments: ["value": .number(99.99), "currency": .string("USD")],
-      context: context
-    )
-    let currencyString = try #require(formattedCurrency.stringValue)
-    #expect(currencyString.contains("99.99"))
-
-    let formatDateFunction = FormatDateFunction()
-    let formattedDate = try formatDateFunction.evaluate(
-      arguments: ["value": .string("2026-08-26T12:00:00Z"), "format": .string("yyyy-MM-dd")],
-      context: context
-    )
-    #expect(formattedDate.stringValue == "2026-08-26")
+      if let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
+        do {
+          _ = try fn.evaluate(arguments: swiftArgs, context: context)
+          Issue.record("\(name): expected error but succeeded")
+        } catch is FunctionError {
+          if let expectedCategory = expectError["category"] as? String {
+            #expect(
+              expectedCategory == "ExpressionError" || expectedCategory == "ValidationError",
+              "\(name): unexpected expectedCategory \(expectedCategory)"
+            )
+          }
+        } catch {
+          Issue.record("\(name): threw unexpected non-function error: \(error)")
+        }
+      } else {
+        do {
+          let actual = try fn.evaluate(arguments: swiftArgs, context: context)
+          if let expectedRaw = testCase["expect"] {
+            let expected = ConformanceTestHelper.toJSONValue(expectedRaw)
+            #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
+          }
+        } catch {
+          Issue.record("\(name): threw unexpected error \(error)")
+        }
+      }
+    }
   }
 }
