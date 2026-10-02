@@ -22,7 +22,7 @@ from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
-from a2ui.core.validation import RELAXED_VALIDATION, restore_original_patterns
+from a2ui.core.validation import RELAXED_VALIDATION
 from a2ui.core import A2uiValidationError
 
 if TYPE_CHECKING:
@@ -106,9 +106,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                 errors = list(v.iter_errors(obj))
                 if errors:
                     err = best_match(errors) or errors[0]
-                    raise A2uiValidationError(
-                        f'Validation failed: {restore_original_patterns(err.message)}'
-                    )
+                    raise A2uiValidationError(f'Validation failed: {err.message}')
 
         # Update state based on the message content
         surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)

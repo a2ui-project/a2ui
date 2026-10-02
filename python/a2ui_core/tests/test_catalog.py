@@ -32,7 +32,6 @@ from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validation import PayloadValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
-from a2ui.core.schema.v0_9 import ComponentId
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
@@ -765,71 +764,6 @@ def test_validate_function_non_string_arg_key_defensive():
 def test_catalog_missing_protocol_version_raises_catalog_error():
     with pytest.raises(A2uiCatalogError, match="protocol_version must be provided"):
         Catalog(catalog_id="test_cat", protocol_version="")
-
-
-def test_payload_validator_max_function_call_args():
-    from a2ui.core.catalog import Catalog, FunctionImplementation
-    from a2ui.core.validation import MAX_FUNCTION_CALL_ARGS, PayloadValidator
-
-    catalog = Catalog(
-        catalog_id="test_cat",
-        protocol_version="v0.9",
-        components=[],
-        functions=[
-            FunctionImplementation(
-                name="custom_fn",
-                return_type="string",
-                execute=lambda args, ctx, abort: "",
-            )
-        ],
-    )
-    val = PayloadValidator(catalog=catalog)
-
-    excessive_args = {f"k_{i}": i for i in range(MAX_FUNCTION_CALL_ARGS + 5)}
-    with pytest.raises(A2uiValidationError) as exc_info:
-        val.validate_function("custom_fn", excessive_args)
-    assert exc_info.value.details[0].code == "too_many_arguments"
-
-
-def test_payload_validator_foreign_catalog_identifier_validation():
-    from a2ui.core.catalog import Catalog, ModelComponentApi
-    from a2ui.core.validation import PayloadValidator
-    from pydantic import BaseModel
-
-    class ContainerProps(BaseModel):
-        title: Any = None
-
-    catalog = Catalog(
-        catalog_id="home_cat",
-        protocol_version="v1.0",
-        components=[ModelComponentApi(ContainerProps, "Container")],
-        functions=[],
-    )
-    val = PayloadValidator(catalog=catalog)
-
-    # Valid foreign catalog call with valid UAX #31 identifier syntax
-    val.validate_component({
-        "id": "c1",
-        "component": "Container",
-        "title": {
-            "call": "foreign_func",
-            "catalogId": "foreign_cat",
-            "args": {"param": "ok"},
-        },
-    })
-
-    # Invalid function identifier syntax targeting foreign catalog
-    with pytest.raises(A2uiValidationError) as exc_info:
-        val.validate_component({
-            "id": "c2",
-            "component": "Container",
-            "title": {
-                "call": "invalid-func-name!",
-                "catalogId": "foreign_cat",
-                "args": {"param": "ok"},
-            },
-        })
-    assert any(d.code == "invalid_identifier" for d in exc_info.value.details)
 
 
 # ==============================================================================

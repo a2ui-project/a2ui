@@ -111,6 +111,9 @@ _SPEC_BASE_MODEL = "SpecBaseModel"
 # The Unicode identifier pattern (UAX #31), which Python's `re` cannot compile.
 _IDENTIFIER_KEY_PATTERN = r"^[\p{XID_Start}_][\p{XID_Continue}]*$"
 
+# Reserved single-`@` directive key pattern forbidden on literal objects.
+_SINGLE_AT_KEY_PATTERN = "^@([^@]|$)"
+
 # The cross-document reference to the catalog's function union.
 _CATALOG_FUNCTIONS_REF_SUFFIX = "catalog.json#/$defs/anyFunction"
 
@@ -296,6 +299,22 @@ def _not_clause_forbidden_keys(name: str, not_clause: Any) -> set[str]:
     return keys
 
 
+def _literal_object_forbids_single_at(name: str, branch: dict[str, Any]) -> bool:
+    """Returns whether `branch` forbids single-`@` keys via `propertyNames`.
+
+    Raises:
+        ValueError: If `branch` uses keywords or a `propertyNames` shape that
+            the validator would not enforce.
+    """
+    if not ({"type", "not"} <= set(branch) <= {"type", "not", "propertyNames"}):
+        raise ValueError(f"Unsupported literal object in {name}: {branch}")
+    if "propertyNames" not in branch:
+        return False
+    if branch["propertyNames"] != {"not": {"pattern": _SINGLE_AT_KEY_PATTERN}}:
+        raise ValueError(f"Unsupported literal object in {name}: {branch}")
+    return True
+
+
 def _literal_object_validator_code(
     name: str, branch: dict[str, Any], schema_annotation: str
 ) -> str:
@@ -306,9 +325,20 @@ def _literal_object_validator_code(
         branch: The union's `{"type": "object", "not": ...}` branch.
         schema_annotation: An annotation that shapes the type's JSON schema.
     """
+    forbids_single_at = _literal_object_forbids_single_at(name, branch)
     forbidden_keys = _not_clause_forbidden_keys(name, branch["not"])
     forbidden_set_repr = (
         "{" + ", ".join(python_literal(k) for k in sorted(forbidden_keys)) + "}"
+    )
+    single_at_check = (
+        f"""
+    for k in v.keys():
+        if k.startswith("@") and not k.startswith("@@"):
+            raise ValueError(
+                f"Object in {name} cannot contain unrecognized reserved directive: '{{k}}'"
+            )"""
+        if forbids_single_at
+        else ""
     )
     annotations = [
         "dict[str, Any]",
@@ -323,7 +353,7 @@ def _literal_object_validator_code(
     if found:
         raise ValueError(
             f"Object in {name} cannot contain forbidden properties: {{', '.join(sorted(found))}}"
-        )
+        ){single_at_check}
     return v
 
 LiteralObject = Annotated[{", ".join(annotations)}]"""
@@ -380,11 +410,9 @@ def generate_common_types(
     base_symbols = get_base_common_symbols()
     # Dynamic value unions are regenerated per version so their FunctionCall
     # branch binds to the versioned FunctionCall model.
-    versioned_symbols = {"ComponentCommon", "FunctionCall"} | {
+    versioned_symbols = {"ComponentCommon", "DataBinding", "FunctionCall"} | {
         name for name, spec in defs.items() if is_dynamic_def(spec)
     }
-    if is_at_least_v10(version):
-        versioned_symbols.add("DataBinding")
     # Any class/type defined in base common_types.py is imported and not repeated in versioned folders
     imports_from_common = [
         s
@@ -396,6 +424,13 @@ def generate_common_types(
             and (
                 "ComponentCommon" not in defs
                 or defs["ComponentCommon"].get("properties", {}).keys() <= {"id"}
+            )
+        )
+        or (
+            s == "DataBinding"
+            and (
+                "DataBinding" not in defs
+                or set(defs["DataBinding"].get("properties", {})) == {"path"}
             )
         )
     ]
@@ -857,13 +892,18 @@ def generate_common_types(
             )
             base_spec = defs.get(base_name) if base_name else None
             base_props = base_spec.get("properties") if base_spec else None
-            if not isinstance(base_props, dict) or "call" not in base_props:
+            call_key = (
+                next((k for k in ("@call", "call") if k in base_props), None)
+                if isinstance(base_props, dict)
+                else None
+            )
+            if not isinstance(base_props, dict) or call_key is None:
                 raise ValueError(
                     "FunctionCall must declare properties or reference, through"
-                    f" `allOf`, one def that declares `call`: {spec}"
+                    f" `allOf`, one def that declares `call` or `@call`: {spec}"
                 )
             assert base_spec is not None
-            fn_props = {"call": base_props["call"]}
+            fn_props = {call_key: base_props[call_key]}
             # Each catalog function declares its own `args`, so the flat model
             # accepts any arguments object; the catalog validates its shape.
             fn_props["args"] = base_props.get(
@@ -925,16 +965,16 @@ def generate_common_types(
                 # The `not` clause keeps the branch exclusive of bindings and
                 # function calls, which catalogs rely on too. The type is
                 # emitted once; a second def needing one fails generation.
-                if set(branch) != {"type", "not"}:
-                    raise ValueError(f"Unsupported literal object in {name}: {branch}")
                 _claim_name("LiteralObject")
                 imports.helpers.add("SchemaKeywords")
-                not_code = _render_schema_code({"not": branch["not"]})
+                branch_keywords = {k: v for k, v in branch.items() if k != "type"}
+                keywords_code = _render_schema_code(branch_keywords)
                 common_blocks.append(
                     _literal_object_validator_code(
                         name,
                         branch,
-                        f'SchemaKeywords({not_code}, drop=("additionalProperties",))',
+                        f"SchemaKeywords({keywords_code},"
+                        ' drop=("additionalProperties",))',
                     )
                 )
                 member = "LiteralObject"

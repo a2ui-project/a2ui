@@ -44,7 +44,7 @@ from a2ui.core.schema._dynamic_types import (
     clean_schema_node,
 )
 from a2ui.core.schema.common_types_schema import get_dynamic_type_index
-from a2ui.core.validation import translate_schema_patterns
+from a2ui.core.validation import SchemaValidator
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SPEC_ROOT = os.path.join(REPO_ROOT, "specification")
@@ -84,16 +84,14 @@ def test_every_published_version_has_a_schema_package() -> None:
 def test_models_round_trip_through_generated_schema(version: str) -> None:
     """Data dumped from the models validates against the generated schema."""
     schema_map = get_common_types_schema_map(_protocol_version(version))
-    # The meta-schema check does not check formats, so the `Extensions` key
-    # pattern's Unicode property classes (`\p{...}`), which Python's `re`
-    # cannot compile, are left as published here. Instances are validated
-    # against the schema after `translate_schema_patterns` rewrites them.
     Draft202012Validator(Draft202012Validator.META_SCHEMA).validate(schema_map)
-    instance_schema_defs = translate_schema_patterns(schema_map["$defs"])
 
     defs = importlib.import_module(
         f"a2ui.core.schema.{_SCHEMA_PACKAGES[version]}"
     ).COMMON_TYPES_DEFS
+
+    call_key = "@call" if version == "v1_0" else "call"
+    path_key = "@path" if version == "v1_0" else "path"
 
     # FunctionCall references `catalog.json#/$defs/anyFunction`, so resolve it
     # against a stub catalog with one function that takes object args.
@@ -106,33 +104,33 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
                 "anyFunction": {
                     "type": "object",
                     "properties": {
-                        "call": {"const": "fetchData"},
+                        call_key: {"const": "fetchData"},
                         "args": {"type": "object"},
                     },
-                    "required": ["call"],
+                    "required": [call_key],
                 }
             },
         }),
     )
 
-    def validator_for(def_name: str) -> Draft202012Validator:
-        return Draft202012Validator(
+    def validator_for(def_name: str) -> Any:
+        return SchemaValidator(
             {
                 "$schema": schema_map.get("$schema", _DRAFT_2020_12),
                 "$id": schema_map["$id"],
-                "$defs": instance_schema_defs,
+                "$defs": schema_map["$defs"],
                 "$ref": f"#/$defs/{def_name}",
             },
             registry=registry,
         )
 
     cases: list[tuple[str, Any]] = [
-        ("DataBinding", {"path": "/user/profile/name"}),
+        ("DataBinding", {path_key: "/user/profile/name"}),
         ("ComponentCommon", {"id": "comp_header"}),
-        ("FunctionCall", {"call": "fetchData", "args": {"query": "test"}}),
+        ("FunctionCall", {call_key: "fetchData", "args": {"query": "test"}}),
         (
             "CheckRule",
-            {"condition": {"path": "/form/valid"}, "message": "Required field"},
+            {"condition": {path_key: "/form/valid"}, "message": "Required field"},
         ),
         ("ChildList", ["header", "body"]),
         ("ChildList", {"componentId": "row_template", "path": "/items"}),
@@ -155,7 +153,7 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
         validator_for(def_name).validate(dumped)
 
     if "Extensions" in defs:
-        # The translated key pattern still rejects a key that is not an identifier.
+        # The key pattern rejects a key that is not a UAX #31 identifier.
         with pytest.raises(ValidationError):
             validator_for("ComponentCommon").validate(
                 {"id": "comp_header", "metadata": {"extensions": {"bad-key": 1}}}
@@ -194,6 +192,34 @@ def test_dynamic_type_index_matches_specification(version: str) -> None:
         {"anyOf": [{"type": "string"}, db_ref]}, dynamic_index=index
     )
     assert plain == {"oneOf": [{"type": "string"}, db_ref]}
+
+    # Data-valued keywords are preserved verbatim without recursing into their
+    # contents, while properties named after those keywords are still cleaned.
+    literal_payload = {
+        "title": "KeepTitle",
+        "items": {},
+        "anyOf": [{"type": "string"}, {"type": "null"}],
+    }
+    schema_with_data = {
+        "title": "DropMe",
+        "const": literal_payload,
+        "default": literal_payload,
+        "enum": [literal_payload],
+        "examples": [literal_payload],
+        "properties": {
+            "default": {
+                "title": "DropMe",
+                "anyOf": [{"type": "string"}, {"type": "null"}],
+            }
+        },
+    }
+    assert clean_schema_node(schema_with_data, dynamic_index=index) == {
+        "const": literal_payload,
+        "default": literal_payload,
+        "enum": [literal_payload],
+        "examples": [literal_payload],
+        "properties": {"default": {"type": "string"}},
+    }
 
 
 def _inline_refs(node: Any, defs: dict[str, Any]) -> Any:
@@ -257,6 +283,6 @@ def test_catalog_defs_match_specification(version: str) -> None:
                     )
             assert set(catalog_def["properties"]) == spec_props | {"args"}
             assert catalog_def["additionalProperties"] is False
-            assert catalog_def["required"] == ["call"]
+            assert catalog_def["required"] == ["@call" if version == "v1_0" else "call"]
         else:
             assert catalog_def == spec_def, name

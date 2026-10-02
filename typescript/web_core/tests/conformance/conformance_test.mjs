@@ -183,6 +183,15 @@ const KNOWN_DIVERGENCES = new Map([
       ],
     ]),
   ],
+  [
+    'core/message_processor_v1_0.yaml',
+    new Map([
+      [
+        'test_v10_create_surface_metadata_extension_key_must_be_identifier',
+        'the v1.0 CreateSurface schema does not yet enforce UAX #31 identifier syntax on metadata.extensions keys',
+      ],
+    ]),
+  ],
 ]);
 
 /**

@@ -13,34 +13,33 @@
 # limitations under the License.
 
 from ..catalog.catalog import is_valid_uax31_identifier
-from .payload_validator import (
-    JSON_SCHEMA_DRAFT_2020_12,
-    MAX_FUNCTION_CALL_ARGS,
-    PayloadValidator,
-    ValidationConfig,
-    RELAXED_VALIDATION,
-    STRICT_VALIDATION,
-)
-from .schema_patterns import restore_original_patterns, translate_schema_patterns
 from ..state.validation_helpers import (
     analyze_topology,
     validate_component_integrity,
     validate_composition_constraints,
     validate_recursion_and_paths,
 )
+from .payload_validator import (
+    JSON_SCHEMA_DRAFT_2020_12,
+    MAX_FUNCTION_CALL_ARGS,
+    PayloadValidator,
+    RELAXED_VALIDATION,
+    STRICT_VALIDATION,
+    SchemaValidator,
+    ValidationConfig,
+)
 
 __all__ = [
     "JSON_SCHEMA_DRAFT_2020_12",
     "MAX_FUNCTION_CALL_ARGS",
-    "is_valid_uax31_identifier",
-    "ValidationConfig",
-    "STRICT_VALIDATION",
-    "RELAXED_VALIDATION",
     "PayloadValidator",
+    "RELAXED_VALIDATION",
+    "STRICT_VALIDATION",
+    "SchemaValidator",
+    "ValidationConfig",
     "analyze_topology",
+    "is_valid_uax31_identifier",
     "validate_component_integrity",
-    "validate_recursion_and_paths",
     "validate_composition_constraints",
-    "restore_original_patterns",
-    "translate_schema_patterns",
+    "validate_recursion_and_paths",
 ]

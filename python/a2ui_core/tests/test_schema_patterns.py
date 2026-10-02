@@ -12,39 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests the translation of ECMA-262 schema patterns for Python's `re`."""
+"""Tests ECMA-262 and UAX #31 pattern validation with `SchemaValidator`."""
 
 from __future__ import annotations
 
-import copy
-import re
-from types import MappingProxyType
 from typing import Any
 
 import pytest
 
 from a2ui.core import A2uiValidationError, Catalog
 from a2ui.core.validation import (
+    PayloadValidator,
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
-    PayloadValidator,
-    restore_original_patterns,
-    translate_schema_patterns,
+    SchemaValidator,
 )
 
 _IDENTIFIER = r"^[\p{XID_Start}_][\p{XID_Continue}]*$"
-
-# Translated patterns expand each property into thousands of characters;
-# messages that quote the original stay well below this.
 _MAX_MESSAGE_LENGTH = 300
 
 
-def _translate(pattern: str) -> str:
-    return translate_schema_patterns({"pattern": pattern})["pattern"]
-
-
 def _matches(pattern: str, value: str) -> bool:
-    return re.search(_translate(pattern), value) is not None
+    return SchemaValidator({"type": "string", "pattern": pattern}).is_valid(value)
 
 
 @pytest.mark.parametrize("key", ["ñame", "_x", "a2ui_foo", "名前", "x1", "a\u0301"])
@@ -59,35 +48,17 @@ def test_identifier_pattern_rejects_non_identifiers(key: str) -> None:
 
 def test_dollar_matches_only_at_end_of_input() -> None:
     """ECMA's `$` does not match before a trailing newline, unlike Python's."""
-    assert _translate("^foo$") == r"^foo\Z"
     assert _matches("^foo$", "foo")
     assert not _matches("^foo$", "foo\n")
 
 
 def test_dollar_in_class_or_escaped_is_literal() -> None:
-    assert _translate("^[$]$") == r"^[$]\Z"
     assert _matches("^[$]$", "$")
-    assert _translate(r"^\$$") == r"^\$\Z"
     assert _matches(r"^\$$", "$")
-
-
-def test_property_inside_class_extends_the_class() -> None:
-    translated = _translate(r"^[\p{XID_Start}_]$")
-    assert translated.startswith("^[") and not translated.startswith("^[[")
-    assert _matches(r"^[\p{XID_Start}_]$", "_")
-    assert _matches(r"^[\p{XID_Start}_]$", "a")
-    assert not _matches(r"^[\p{XID_Start}_]$", "1")
-
-
-def test_standalone_property_becomes_a_class() -> None:
-    assert _translate(r"^\p{XID_Start}$").startswith("^[")
-    assert _matches(r"^\p{XID_Start}$", "ñ")
-    assert not _matches(r"^\p{XID_Start}$", "_")
 
 
 def test_escaped_backslash_before_p_is_left_alone() -> None:
     pattern = r"^\\p{XID_Start}$"
-    assert _translate(pattern) == r"^\\p{XID_Start}\Z"
     assert _matches(pattern, r"\p{XID_Start}")
     assert not _matches(pattern, "a")
 
@@ -103,58 +74,6 @@ def test_negated_class() -> None:
     pattern = r"^[^\p{XID_Start}]$"
     assert _matches(pattern, "1")
     assert not _matches(pattern, "a")
-
-
-@pytest.mark.parametrize("pattern", [r"^\P{XID_Start}$", r"^\p{L}$"])
-def test_unsupported_properties_fail_loudly(pattern: str) -> None:
-    with pytest.raises(re.error):
-        re.compile(_translate(pattern))
-
-
-def test_data_keywords_are_not_rewritten() -> None:
-    data = {"pattern": "^a$"}
-    schema = {
-        "const": data,
-        "default": data,
-        "enum": [data],
-        "examples": [data],
-        # A property named like a data keyword is still a schema.
-        "properties": {"default": {"type": "string", "pattern": "^a$"}},
-    }
-    translated = translate_schema_patterns(schema)
-    assert translated["const"] == data
-    assert translated["default"] == data
-    assert translated["enum"] == [data]
-    assert translated["examples"] == [data]
-    assert translated["properties"]["default"]["pattern"] == r"^a\Z"
-
-
-def test_input_is_not_mutated() -> None:
-    schema: dict[str, Any] = {
-        "type": "object",
-        "properties": {"key": {"type": "string", "pattern": _IDENTIFIER}},
-        "patternProperties": {_IDENTIFIER: {"type": "string"}},
-        "allOf": [{"pattern": "^a$"}],
-        "const": {"pattern": "^a$"},
-    }
-    original = copy.deepcopy(schema)
-    translated = translate_schema_patterns(schema)
-    assert schema == original
-    assert translated["properties"]["key"]["pattern"] != _IDENTIFIER
-    assert translated["const"] is not schema["const"]
-
-
-def test_mappings_and_tuples_are_walked() -> None:
-    schema = MappingProxyType({"anyOf": ({"pattern": "^a$"},)})
-    assert translate_schema_patterns(schema) == {"anyOf": [{"pattern": r"^a\Z"}]}
-
-
-def test_restore_original_patterns() -> None:
-    translated = _translate(_IDENTIFIER)
-    message = f"'1a' does not match {translated!r}"
-    assert restore_original_patterns(message) == f"'1a' does not match {_IDENTIFIER!r}"
-    assert restore_original_patterns(translated) == _IDENTIFIER
-    assert restore_original_patterns("no pattern here") == "no pattern here"
 
 
 def _v1_catalog() -> Catalog[Any, Any]:

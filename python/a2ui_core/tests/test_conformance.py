@@ -286,18 +286,10 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                     c_schema["theme"] = c_theme
                 if c_funcs:
                     c_schema["functions"] = c_funcs
-                common_types_schema = None
-                c_types_path = os.path.join(
-                    SPEC_ROOT, _version_dir(p_ver), "json", "common_types.json"
-                )
-                if os.path.exists(c_types_path):
-                    with open(c_types_path, "r", encoding="utf-8") as f:
-                        common_types_schema = json.load(f)
                 cat = Catalog.from_json(
                     c_schema,
                     catalog_id=c_id,
                     protocol_version=p_ver,
-                    common_types_schema=common_types_schema,
                 )
             else:
                 default_comps = (
@@ -1106,7 +1098,7 @@ def validate_common_types_schema_case(case: dict[str, Any]) -> None:
 
 
 def validate_common_type_case(case: dict[str, Any]) -> None:
-    from pydantic import TypeAdapter
+    from pydantic import TypeAdapter, ValidationError
 
     from a2ui.core.schema import v0_9 as schema_v0_9, v1_0 as schema_v1_0
 
@@ -1127,7 +1119,10 @@ def validate_common_type_case(case: dict[str, Any]) -> None:
         expect_error = step.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
-                adapter.validate_python(value)
+                try:
+                    adapter.validate_python(value)
+                except ValidationError as exc:
+                    raise A2uiValidationError(str(exc)) from exc
             continue
         validated = adapter.validate_python(value)
         # A valid value serializes back to the same JSON.

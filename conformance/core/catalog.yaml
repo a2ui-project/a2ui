@@ -972,7 +972,7 @@
         child: txt1
         action:
           functionCall:
-            call: openUrl
+            "@call": openUrl
             args: {url: "https://example.com"}
     invalidComponents:
       - id: btn1
@@ -980,7 +980,7 @@
         child: txt1
         action:
           functionCall:
-            call: notAFunction
+            "@call": notAFunction
             args: {}
 
 - name: test_v10_published_basic_catalog_rejects_function_call_extra_key
@@ -995,6 +995,6 @@
         child: txt1
         action:
           functionCall:
-            call: openUrl
+            "@call": openUrl
             args: {url: "https://example.com"}
             bogus: 1

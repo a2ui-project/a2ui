@@ -1807,15 +1807,20 @@
             "anyOf": [
               {
                 "required": [
-                  "path"
+                  "@path"
                 ]
               },
               {
                 "required": [
-                  "call"
+                  "@call"
                 ]
               }
             ]
+          },
+          "propertyNames": {
+            "not": {
+              "pattern": "^@([^@]|$)"
+            }
           },
           "type": "object"
         },

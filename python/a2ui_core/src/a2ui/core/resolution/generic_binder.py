@@ -223,7 +223,7 @@ def _schema_defs(catalog: Any, schema: Any) -> dict[str, Any]:
     return defs
 
 
-def _classify_value_fallback(key: str, val: Any) -> BehaviorNode:
+def _classify_value_fallback(key: str, val: Any, is_v10: bool = False) -> BehaviorNode:
     """Fallback classification derived dynamically from property key and value shapes."""
     if key == "checks" or (
         isinstance(val, list)

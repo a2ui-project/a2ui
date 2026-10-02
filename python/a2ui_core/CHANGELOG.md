@@ -1,10 +1,10 @@
 ## Unreleased
 
-- Schema patterns are translated for Python's `re` with ECMA-262 semantics:
-  `$` no longer matches before a trailing newline, and `const`, `enum`,
-  `default`, and `examples` values are left untouched. Validation error messages
-  quote the original pattern; `restore_original_patterns` is exported from
-  `a2ui.core.validation`.
+- JSON Schema patterns are validated with `regex` (`SchemaValidator` in
+  `a2ui.core.validation`), supporting Unicode property escapes such as
+  `\p{XID_Start}` and `\p{XID_Continue}` natively and anchoring `$` to the end
+  of the string per ECMA-262. `clean_schema_node` leaves `const`, `enum`,
+  `default`, and `examples` values untouched.
 - `PayloadValidator` reports invalid `Extensions` keys even with
   `allow_unknown_elements`.
 - Catalog schemas reference `DynamicStringList` for string list values, as the

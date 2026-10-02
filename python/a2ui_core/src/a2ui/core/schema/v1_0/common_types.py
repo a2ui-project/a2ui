@@ -50,6 +50,15 @@ from ..common_types import (
 )
 
 
+class DataBinding(SpecBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    path: str = Field(
+        ...,
+        alias="@path",
+        description="A JSON Pointer path to a value in the data model.",
+    )
+
+
 class FunctionCommon(SpecBaseModel):
     """Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog."""
 
@@ -58,7 +67,9 @@ class FunctionCommon(SpecBaseModel):
         extra="allow",
         populate_by_name=True,
     )
-    call: str = Field(..., description="The name of the function to call.")
+    call: str = Field(
+        ..., alias="@call", description="The name of the function to call."
+    )
     catalog_id: str | None = Field(
         default=None,
         alias="catalogId",
@@ -87,7 +98,9 @@ class FunctionCall(SpecBaseModel):
         ),
         populate_by_name=True,
     )
-    call: str = Field(..., description="The name of the function to call.")
+    call: str = Field(
+        ..., alias="@call", description="The name of the function to call."
+    )
     args: dict[str, Any] | None = Field(
         default=None, description="Arguments passed to the function."
     )
@@ -224,10 +237,11 @@ LiteralObject = Annotated[
     AfterValidator(_validate_literal_object),
     SchemaKeywords(
         {
+            "propertyNames": {"not": {"pattern": "^@([^@]|$)"}},
             "not": {
-                "anyOf": [{"required": ["path"]}, {"required": ["call"]}],
+                "anyOf": [{"required": ["@path"]}, {"required": ["@call"]}],
                 KEEP_ANY_OF_MARKER: True,
-            }
+            },
         },
         drop=("additionalProperties",),
     ),
@@ -280,7 +294,7 @@ class IndexSystemFunction(SpecBaseModel):
         ),
         populate_by_name=True,
     )
-    call: Literal["@index"] = Field(...)
+    call: Literal["@index"] = Field(..., alias="@call")
     args: IndexSystemFunctionArgs | None = Field(default=None)
 
 

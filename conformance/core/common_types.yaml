@@ -97,20 +97,20 @@
         category: ValidationError
 
 - name: test_v10_index_system_function_requires_call
-  description: IndexSystemFunction requires call to be present and equal to "@index".
+  description: IndexSystemFunction requires @call to be present and equal to "@index".
   action: validate_common_type
   protocolVersion: "v1.0"
   definition: IndexSystemFunction
   steps:
-    - value: {call: "@index"}
-    - value: {call: "@index", args: {offset: 1}}
+    - value: {"@call": "@index"}
+    - value: {"@call": "@index", args: {offset: 1}}
     - value: {}
       expectError:
         category: ValidationError
-    - value: {call: "now"}
+    - value: {"@call": "now"}
       expectError:
         category: ValidationError
-    - value: {call: "@index", args: {offset: 1, step: 2}}
+    - value: {"@call": "@index", args: {offset: 1, step: 2}}
       expectError:
         category: ValidationError
 
@@ -137,21 +137,26 @@
         category: ValidationError
 
 - name: test_v10_dynamic_value_object_branches_are_exclusive
-  description: A DynamicValue object is a literal object only when it has no path or call key, so an invalid binding or call is not accepted as a literal.
+  description: A DynamicValue object is a literal object only when it has no @path, @call or unescaped single-@ key, so an invalid binding or call is not accepted as a literal.
   action: validate_common_type
   protocolVersion: "v1.0"
   definition: DynamicValue
   steps:
     - value: {label: "x"}
     - value: {path: "/a"}
-    - value: {call: "now"}
-    - value: {path: "/a", extra: 1}
+    - value: {"@@path": "/a"}
+    - value: {"@path": "/a"}
+    - value: {"@call": "now"}
+    - value: {"@path": "/a", extra: 1}
       expectError:
         category: ValidationError
-    - value: {call: "now", path: "/a", extra: 1}
+    - value: {"@call": "now", "@path": "/a", extra: 1}
       expectError:
         category: ValidationError
-    - value: {call: "now", path: "/a"}
+    - value: {"@call": "now", "@path": "/a"}
+      expectError:
+        category: ValidationError
+    - value: {"@unknown": 1}
       expectError:
         category: ValidationError
 
@@ -177,7 +182,7 @@
   protocolVersion: "v1.0"
   definition: IndexSystemFunction
   steps:
-    - value: {call: "@index", args: null}
+    - value: {"@call": "@index", args: null}
       expectError:
         category: ValidationError
 
@@ -202,14 +207,14 @@
         category: ValidationError
 
 - name: test_v10_function_call_rejects_unknown_keys
-  description: FunctionCall accepts call, catalogId and args, and rejects any other key.
+  description: FunctionCall accepts @call, catalogId and args, and rejects any other key.
   action: validate_common_type
   protocolVersion: "v1.0"
   definition: FunctionCall
   steps:
-    - value: {call: "x"}
-    - value: {call: "x", catalogId: "c", args: {a: 1}}
-    - value: {call: "x", bogus: 1}
+    - value: {"@call": "x"}
+    - value: {"@call": "x", catalogId: "c", args: {a: 1}}
+    - value: {"@call": "x", bogus: 1}
       expectError:
         category: ValidationError
 

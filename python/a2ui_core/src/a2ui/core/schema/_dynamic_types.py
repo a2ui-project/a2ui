@@ -239,6 +239,9 @@ def clean_schema_node(
             if k == SPEC_TITLE_KEY and not is_properties_dict:
                 cleaned["title"] = v
                 continue
+            if not is_properties_dict and k in ("const", "default", "enum", "examples"):
+                cleaned[k] = v
+                continue
             cleaned[k] = clean_schema_node(
                 v,
                 referenced_dynamics=referenced_dynamics,

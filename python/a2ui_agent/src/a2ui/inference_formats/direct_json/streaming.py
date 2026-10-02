@@ -35,9 +35,8 @@ from a2ui.schema.schema_helper import CatalogSchemaHelper
 from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
+    SchemaValidator,
     ValidationConfig,
-    restore_original_patterns,
-    translate_schema_patterns,
 )
 from a2ui.core import A2uiParseError, A2uiIntegrityError, A2uiValidationError
 
@@ -248,7 +247,6 @@ class DirectJsonStreamParser:
             if not self._catalog.s2c_schema:
                 self._s2c_validator_cached = None
             else:
-                from jsonschema import Draft202012Validator
                 from referencing import Registry, Resource
                 import referencing.jsonschema
 
@@ -256,7 +254,7 @@ class DirectJsonStreamParser:
                 ver = f"v{self._version.removeprefix('v')}"
                 if self._catalog.common_types_schema:
                     res_ct = Resource.from_contents(
-                        translate_schema_patterns(self._catalog.common_types_schema),
+                        self._catalog.common_types_schema,
                         default_specification=referencing.jsonschema.DRAFT202012,
                     )
                     registry = (
@@ -292,7 +290,7 @@ class DirectJsonStreamParser:
                                 ]
                             }
                     res_cat = Resource.from_contents(
-                        translate_schema_patterns(cat_schema_to_register),
+                        cat_schema_to_register,
                         default_specification=referencing.jsonschema.DRAFT202012,
                     )
                     registry = (
@@ -308,10 +306,8 @@ class DirectJsonStreamParser:
                             "https://a2ui.org/specification/v0_8/catalog.json", res_cat
                         )
                     )
-                # Registered resources are translated too, since the
-                # validator compiles their patterns with Python's `re`.
-                self._s2c_validator_cached = Draft202012Validator(
-                    translate_schema_patterns(self._catalog.s2c_schema),
+                self._s2c_validator_cached = SchemaValidator(
+                    self._catalog.s2c_schema,
                     registry=registry,
                 )
         return self._s2c_validator_cached
@@ -341,8 +337,7 @@ class DirectJsonStreamParser:
                         if errors:
                             err = best_match(errors) or errors[0]
                             raise A2uiValidationError(
-                                "Validation failed:"
-                                f" {restore_original_patterns(err.message)}"
+                                f"Validation failed: {err.message}"
                             )
 
             # Consolidated appending logic
