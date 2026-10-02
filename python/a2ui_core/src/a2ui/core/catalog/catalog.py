@@ -334,6 +334,7 @@ class Catalog(Generic[TComponent, TFunction]):
         self.common_types_defs: dict[str, Any] = (
             copy.deepcopy(common_types_defs) if common_types_defs else {}
         )
+        self._cached_catalog_schema: dict[str, Any] | None = None
 
         validate_identifiers = is_at_least_version(
             protocol_version, ProtocolVersion.V1_0
@@ -376,6 +377,9 @@ class Catalog(Generic[TComponent, TFunction]):
         `FunctionApi.schema` and the flat common types defs. System functions,
         which the runtime supplies, are not declared.
         """
+        cached = getattr(self, "_cached_catalog_schema", None)
+        if cached is not None:
+            return copy.deepcopy(cached)
         try:
             protocol_version = to_protocol_version(self.protocol_version)
         except ValueError as e:
@@ -540,6 +544,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 referenced_dynamics | _defs_refs(cleaned_schema),
                 protocol_version,
             )
+            self._cached_catalog_schema = copy.deepcopy(cleaned_schema)
             return cleaned_schema
 
         if referenced_dynamics:
@@ -584,6 +589,7 @@ class Catalog(Generic[TComponent, TFunction]):
                             **cleaned_schema["$defs"][dyn],
                         }
 
+        self._cached_catalog_schema = copy.deepcopy(cleaned_schema)
         return cleaned_schema
 
     def _add_published_common_types(

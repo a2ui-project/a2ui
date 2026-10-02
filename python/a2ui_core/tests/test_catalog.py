@@ -895,3 +895,114 @@ def test_v1_0_catalogs_inline_component_metadata():
     # No internal schema-generation marker leaks into a published catalog.
     for schema in (json_catalog, basic_catalog, BasicCatalog().catalog_schema):
         assert '"x-a2ui-' not in json.dumps(schema)
+
+
+def test_v08_basic_catalog_schema_structure():
+    """v0.8 basic catalog schema produces a valid catalog document."""
+    from a2ui.core.basic_catalog import v0_8
+
+    cat = v0_8.BasicCatalog()
+    schema = cat.catalog_schema
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert "https://a2ui.org/specification/v0_8" in schema["catalogId"]
+    assert "Text" in schema["components"]
+    assert "Button" in schema["components"]
+
+
+def test_catalog_schema_caching():
+    """catalog_schema caches the generated schema and returns independent copies."""
+    from a2ui.core.basic_catalog import v0_9
+
+    cat = v0_9.BasicCatalog()
+    s1 = cat.catalog_schema
+    s2 = cat.catalog_schema
+    assert s1 == s2
+    assert s1 is not s2
+    s1["mutated"] = True
+    assert "mutated" not in cat.catalog_schema
+
+
+def test_custom_component_recursive_model_inlining():
+    """Recursive nested models do not crash schema generation and remain in $defs."""
+    from pydantic import BaseModel
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.schema.v0_9.common_types import ComponentCommon
+
+    class TreeNode(BaseModel):
+        val: str
+        children: list["TreeNode"] | None = None
+
+    class TreeComponent(ComponentCommon):
+        component: str = "Tree"
+        root: TreeNode
+
+    TreeNode.model_rebuild()
+
+    comp = ModelComponentApi(TreeComponent, "Tree")
+    cat = Catalog(
+        catalog_id="https://example.com/tree",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    schema = cat.catalog_schema
+    assert "TreeNode" in schema.get("$defs", {})
+    assert "Tree" in schema["components"]
+
+
+def test_concrete_component_subclassing_discriminator():
+    """Subclassing a concrete component model sets the new discriminator."""
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.basic_catalog.v0_9 import ButtonComponent
+
+    class SpecialButton(ButtonComponent):
+        badge: str
+
+    comp = ModelComponentApi(SpecialButton, "SpecialButton")
+    cat = Catalog(
+        catalog_id="https://example.com/special",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    schema = cat.catalog_schema
+    comp_schema = schema["components"]["SpecialButton"]
+    inner = [
+        s
+        for s in comp_schema["allOf"]
+        if "properties" in s and "component" in s["properties"]
+    ][0]
+    assert inner["properties"]["component"] == {"const": "SpecialButton"}
+    assert "Button" not in schema.get("$defs", {})
+
+
+def test_custom_model_collision_with_common_type_rejected():
+    """A custom nested model whose name collides with a common type raises A2uiCatalogError."""
+    from pydantic import BaseModel
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.schema.v0_9.common_types import ComponentCommon
+
+    class Action(BaseModel):
+        custom_field: str
+
+    class CollidingComp(ComponentCommon):
+        component: str = "CollidingComp"
+        action: Action
+
+    comp = ModelComponentApi(CollidingComp, "CollidingComp")
+    cat = Catalog(
+        catalog_id="https://example.com/colliding",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    with pytest.raises(A2uiCatalogError, match="collides with built-in common type"):
+        _ = cat.catalog_schema
+
+
+def test_function_api_description_fallback():
+    """FunctionApi preserves class-level description when not explicitly provided."""
+    from a2ui.core.basic_catalog.v0_9 import RequiredApi
+
+    api = RequiredApi("required")
+    assert api.description == "Checks that the value is not null, undefined, or empty."
+
+    api_override = RequiredApi("required", description="Overridden description")
+    assert api_override.description == "Overridden description"

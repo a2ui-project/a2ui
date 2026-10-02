@@ -412,7 +412,11 @@ class PydanticCodegen:
                 field_opts.append(f"json_schema_extra={{{items}}}")
 
             if "pattern" in prop_desc:
-                field_opts.append(f"pattern=r{python_literal(prop_desc['pattern'])}")
+                pat = prop_desc["pattern"]
+                if '"' not in pat and "\n" not in pat and not pat.endswith("\\"):
+                    field_opts.append(f'pattern=r"{pat}"')
+                else:
+                    field_opts.append(f"pattern={python_literal(pat)}")
 
             if const_default:
                 field_opts.append(const_default)

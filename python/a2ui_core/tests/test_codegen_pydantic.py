@@ -184,7 +184,7 @@ def test_compile_properties_to_pydantic():
     pattern = r"^\d+\.[A-Z]+$"
     props = {"code": {"type": "string", "pattern": pattern}}
     lines = codegen.compile_properties(props, ["code"])
-    assert lines == [f"    code: str = Field(..., pattern=r{json.dumps(pattern)})"]
+    assert lines == [f'    code: str = Field(..., pattern=r"{pattern}")']
 
     # CamelCase to snake_case alias
     props = {"surfaceId": {"type": "string"}}

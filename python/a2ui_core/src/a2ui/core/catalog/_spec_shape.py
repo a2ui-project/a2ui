@@ -27,11 +27,12 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 from __future__ import annotations
 
 import inspect
-from typing import Any, Final, NamedTuple, TypeGuard
+from typing import Any, Final, NamedTuple, TypeGuard, get_args, get_origin
 
 from pydantic import BaseModel
 
 from ..common.semver import is_at_least_version
+from ..exceptions import A2uiCatalogError
 from ..schema import ProtocolVersion
 from ..schema.common_types_schema import get_common_types_symbols
 
@@ -69,7 +70,8 @@ def _own_fields(model: type[BaseModel]) -> list[str]:
     inherited: set[str] = set()
     for base in model.__bases__:
         if _is_model(base):
-            inherited.update(base.model_fields)
+            if _COMPONENT_KEY not in base.model_fields:
+                inherited.update(base.model_fields)
     return [name for name in model.model_fields if name not in inherited]
 
 
@@ -77,6 +79,27 @@ def _description(model: type[BaseModel]) -> str | None:
     """Returns the description of `model`'s own docstring, if any."""
     doc = model.__dict__.get("__doc__")
     return inspect.cleandoc(doc) if isinstance(doc, str) and doc.strip() else None
+
+
+def _find_referenced_models(
+    tp: Any, visited: set[Any] | None = None
+) -> set[type[BaseModel]]:
+    """Recursively finds all BaseModel classes referenced by a type annotation."""
+    if visited is None:
+        visited = set()
+    if tp in visited:
+        return set()
+    visited.add(tp)
+    models: set[type[BaseModel]] = set()
+    if _is_model(tp):
+        models.add(tp)
+        for field in tp.model_fields.values():
+            models.update(_find_referenced_models(field.annotation, visited))
+    origin = get_origin(tp)
+    if origin is not None:
+        for arg in get_args(tp):
+            models.update(_find_referenced_models(arg, visited))
+    return models
 
 
 def _object_schema(
@@ -116,6 +139,7 @@ def _composed_models(model: type[BaseModel]) -> list[type[BaseModel]]:
                 _is_model(ancestor)
                 and ancestor not in composed
                 and _own_fields(ancestor)
+                and _COMPONENT_KEY not in ancestor.model_fields
             ):
                 composed.append(ancestor)
     return composed
@@ -135,6 +159,7 @@ class SpecShaper:
         self.common_models: dict[type[BaseModel], str] = {
             symbol: name for name, symbol in symbols.items() if _is_model(symbol)
         }
+        self.common_symbols: dict[str, Any] = symbols
         self._component_common = symbols.get(_COMPONENT_COMMON)
 
     def component_schema(self, name: str, model: Any) -> SpecSchema | None:
@@ -154,6 +179,16 @@ class SpecShaper:
             and issubclass(model, self._component_common)
         ):
             return None
+
+        for ref_model in _find_referenced_models(model):
+            model_name = ref_model.__name__
+            if model_name in self.common_symbols:
+                expected_symbol = self.common_symbols[model_name]
+                if ref_model is not expected_symbol:
+                    raise A2uiCatalogError(
+                        f"Custom model '{model_name}' in component '{name}'"
+                        f" collides with built-in common type '{model_name}'."
+                    )
 
         catalog_defs: dict[str, Any] = {}
         model_defs: dict[str, Any] = {}
@@ -177,11 +212,10 @@ class SpecShaper:
         inner, defs = _object_schema(model, None if self._v1 else description)
         model_defs.update(defs)
         properties = inner["properties"]
-        if _COMPONENT_KEY in properties:
-            properties[_COMPONENT_KEY] = {"const": name}
-            required = inner.setdefault("required", [])
-            if _COMPONENT_KEY not in required:
-                required.insert(0, _COMPONENT_KEY)
+        properties[_COMPONENT_KEY] = {"const": name}
+        required = inner.setdefault("required", [])
+        if _COMPONENT_KEY not in required:
+            required.insert(0, _COMPONENT_KEY)
 
         schema: dict[str, Any] = {"type": "object"}
         if self._v1:

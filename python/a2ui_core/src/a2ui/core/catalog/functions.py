@@ -70,7 +70,11 @@ class FunctionApi:
         self.schema = schema
         self.allowed_callers = allowed_callers or "rendererOnly"
         self.requires_user_activation = bool(requires_user_activation)
-        self.description = description
+        self.description = (
+            description
+            if description is not None
+            else getattr(self, "description", None)
+        )
 
 
 class FunctionImplementation(FunctionApi, Generic[TReturn]):
