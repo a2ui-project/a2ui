@@ -26,7 +26,8 @@
 'use client';
 
 import {useMemo} from 'react';
-import {A2uiSurface, basicCatalog, type ReactComponentImplementation} from '@a2ui/react/v0_9';
+import {A2uiSurface, type ReactCatalogComponent} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
 
 const CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -47,7 +48,7 @@ export interface V09ViewerProps {
 
 export function V09Viewer({root, components, data = {}, onAction}: V09ViewerProps) {
   const surface = useMemo(() => {
-    const processor = new MessageProcessor<ReactComponentImplementation>(
+    const processor = new MessageProcessor<ReactCatalogComponent>(
       [basicCatalog],
       onAction ? (action: unknown) => onAction(action) : undefined,
     );
