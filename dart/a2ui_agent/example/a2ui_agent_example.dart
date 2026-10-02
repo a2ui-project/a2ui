@@ -20,7 +20,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// [callLlm] sends the system prompt and the user's message to the model and
 /// returns its complete response.
 Future<List<AgentToRendererMessage>> respond({
-  required SchemaCatalog catalog,
+  required CatalogApi catalog,
   required A2uiRendererCapabilities rendererCapabilities,
   required String userMessage,
   required Future<String> Function(String systemPrompt, String userMessage)

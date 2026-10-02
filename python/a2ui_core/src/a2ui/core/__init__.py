@@ -14,6 +14,7 @@
 
 from a2ui.core.catalog import (
     Catalog as Catalog,
+    CatalogApi as CatalogApi,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
 )
 from a2ui.core.exceptions import (
@@ -66,6 +67,7 @@ __all__ = [
     "CallOptions",
     "CapabilitiesOptions",
     "Catalog",
+    "CatalogApi",
     "ComponentModel",
     "DataContext",
     "DataModel",

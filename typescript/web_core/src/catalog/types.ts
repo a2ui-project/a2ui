@@ -345,13 +345,19 @@ export class Catalog<
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
-  static fromSchema(
-    catalogSchema: Record<string, any>,
-    protocolVersion?: string,
-  ): Catalog<ComponentApi, FunctionApi> {
+  static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
     return loadCatalogFromSchema(catalogSchema, protocolVersion);
   }
 }
+
+/**
+ * A catalog whose components and functions carry schemas only.
+ *
+ * What `Catalog.fromSchema` produces, and what agents work with: they prompt
+ * and validate against signatures but never execute a function. A renderer
+ * that executes functions needs a catalog of `FunctionImplementation`s instead.
+ */
+export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
 
 function createCatalogInvoker<F extends FunctionApi>(
   catalogId: string,

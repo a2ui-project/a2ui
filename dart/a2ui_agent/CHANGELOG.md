@@ -2,6 +2,8 @@
 
 ## 0.0.1-wip005
 
+- Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
+  `SchemaCatalog`.
 - Implemented the rest of the agent SDK blueprint API for protocol v0.9:
   - `CatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`
     and `CatalogConfig.fromPath`. A document's id and version are settled with

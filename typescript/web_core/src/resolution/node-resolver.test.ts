@@ -26,6 +26,7 @@ import {describe, it} from 'node:test';
 import {z} from 'zod';
 import {
   Catalog,
+  CatalogApi,
   ComponentApi,
   FunctionApi,
   createFunctionImplementation,
@@ -1223,7 +1224,7 @@ describe('NodeResolver constructor checks and disposal', () => {
 
     function schemaOnlyCatalogIsRejected(
       surface: SurfaceModel<ComponentApi, FunctionApi>,
-      schemaOnly: Catalog<ComponentApi, FunctionApi>,
+      schemaOnly: CatalogApi,
     ) {
       // @ts-expect-error a schema-only catalog has no function implementations
       return new NodeResolver(surface, schemaOnly);

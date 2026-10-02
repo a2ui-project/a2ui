@@ -27,7 +27,7 @@ import 'package:test/test.dart';
 /// what those suites do not: the v0.9 message shapes and catalog, decisions
 /// of this SDK, and errors.
 void main() {
-  final SchemaCatalog basic = Catalog.fromJson(
+  final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
           File(
             '../../specification/v0_9/catalogs/basic/catalog.json',
@@ -35,7 +35,7 @@ void main() {
         )
         as Map<String, Object?>,
   );
-  final SchemaCatalog custom = Catalog.fromJson({
+  final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
     'components': {
       'Gauge': {
@@ -424,7 +424,7 @@ void main() {
 
   group('promptSnippet', () {
     String snippet({
-      List<SchemaCatalog>? catalogs,
+      List<CatalogApi>? catalogs,
       List<String>? allowedMessages,
       List<List<AgentToRendererMessage>> examples = const [],
     }) => DirectJsonFormatFactory(allowedMessages: allowedMessages)

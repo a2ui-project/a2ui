@@ -34,7 +34,7 @@ Map<String, Object?> loadBasicCatalogJson() => jsonDecode(
 void main() {
   group('Catalog.fromJson', () {
     test('parses the published basic catalog document', () {
-      final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogJson());
 
       expect(catalog.id, basicCatalogId);
       expect(
@@ -49,7 +49,7 @@ void main() {
     });
 
     test('reads a function argument schema and return type', () {
-      final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogJson());
 
       final FunctionApi required = catalog.functions['required']!;
       expect(required.name, 'required');
@@ -69,7 +69,7 @@ void main() {
   group('Catalog generics', () {
     test('separates function signatures from function implementations', () {
       // Agents hold schema-only functions; renderers hold implementations.
-      final SchemaCatalog agentCatalog = Catalog.fromJson(
+      final CatalogApi agentCatalog = Catalog.fromJson(
         loadBasicCatalogJson(),
       );
       expect(agentCatalog.functions.values, everyElement(isA<FunctionApi>()));

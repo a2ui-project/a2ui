@@ -29,7 +29,7 @@ const String loginFormRequest =
 /// graph, and throws on the first one it rejects. [llmOutput] is printed
 /// with any failure.
 void expectLoginForm(
-  SchemaCatalog catalog,
+  CatalogApi catalog,
   List<AgentToRendererMessage> messages, {
   required String llmOutput,
 }) {

@@ -37,10 +37,10 @@ class ExpressCompiler {
   /// its catalog.
   ExpressCompiler(this.catalogs);
 
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {
-    for (final SchemaCatalog catalog in catalogs)
+    for (final CatalogApi catalog in catalogs)
       catalog.id: CatalogSchemaHelper(catalog),
   };
 

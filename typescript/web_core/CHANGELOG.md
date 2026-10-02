@@ -1,3 +1,6 @@
+## Unreleased
+
+- Add `CatalogApi`, the name for a schema-only `Catalog<ComponentApi, FunctionApi>`, which `Catalog.fromSchema` now returns. [#2900](https://github.com/a2ui-project/a2ui/issues/2900)
 - (v1_0) Support reserved protocol key prefix (`@path`, `@call`), dynamic prefix doubling unescaping (`@@path` → `@path`), and unknown single-`@` key validation in v1.0 dynamic resolution while maintaining multi-version support for v0.8 and v0.9 ([#2692](https://github.com/a2ui-project/a2ui/issues/2692)).
 - Fix `ResolveA2uiProp` resolving props declared as `Record<string, unknown>` (for example `z.record(z.unknown())`) to action thunks instead of their data type: every object type is assignable to the `{functionCall?: any}` member of `ActionLike`, so object types with a string index signature are now treated as data. [#2939](https://github.com/a2ui-project/a2ui/pull/2939)
 - Add `ComponentNode.id`, a string unique across the document and stable for the node's lifetime, for renderers and components to use as a rendering key or as the base of DOM `id`s and accessibility references. [#2887](https://github.com/a2ui-project/a2ui/pull/2887)

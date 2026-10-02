@@ -31,7 +31,7 @@ final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressParser(List<SchemaCatalog> catalogs)
+  ExpressParser(List<CatalogApi> catalogs)
     : _compiler = ExpressCompiler(catalogs),
       _decompiler = ExpressDecompiler(catalogs);
 

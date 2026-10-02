@@ -31,7 +31,7 @@ void main() {
       test(testCase['name']! as String, () {
         final capabilities =
             args['renderer_capabilities'] as Map<String, Object?>?;
-        List<SchemaCatalog> resolve() => resolveCatalogs(
+        List<CatalogApi> resolve() => resolveCatalogs(
           [
             for (final Object? entry in args['catalogs']! as List<Object?>)
               catalogConfig(entry),
@@ -45,7 +45,7 @@ void main() {
           expect(resolve, throwsCategory(error));
           return;
         }
-        final List<SchemaCatalog> active = resolve();
+        final List<CatalogApi> active = resolve();
         final expected = testCase['expect']! as Map<String, Object?>;
         expect(
           active.map((c) => c.id),

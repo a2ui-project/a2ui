@@ -239,7 +239,7 @@ export class Catalog<
 
 A `Catalog` is immutable once constructed.
 
-`TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions.
+`TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions. The schema-only case is named [`CatalogApi`](#catalogapi).
 
 Both parameters default to their constraint, so code that does not care about the concrete component or function type may write `Catalog` unparameterized. The rest of this document does so wherever the distinction is irrelevant.
 
@@ -322,6 +322,19 @@ Functions generally fall into a few common patterns:
 3.  **Effect Functions**: Side-effect handlers (e.g., `openUrl`, `closeModal`) that return `void`. These are triggered by user [**actions**](../../docs/public/concepts/glossary.md#action) rather than interpolation.
 
 If a function returns a reactive stream, it MUST use an idiomatic listening mechanism that supports standard unsubscription. To properly support an AI agent, functions SHOULD include a schema to generate accurate renderer capabilities.
+
+#### `CatalogApi`
+
+`CatalogApi` names the schema-only catalog, alongside `ComponentApi` and `FunctionApi`. Its components and functions carry schemas and no code.
+
+```typescript
+export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+```
+
+Every SDK that has a schema-only catalog exports it from its public facade under this name, as a type alias where the language has one. Parsing a catalog document produces a `CatalogApi`, since a document holds signatures only.
+
+- **Use `CatalogApi`** where functions are described or checked but never run: an agent writing a system prompt, validating generated payloads, or reading the inline catalogs in renderer capabilities.
+- **Use a catalog of `FunctionImplementation`** where functions are evaluated, as in a renderer resolving values or handling actions. APIs that evaluate functions SHOULD bound their catalog type to `FunctionImplementation`, so that passing a `CatalogApi` fails at compile time rather than resolving to nothing at runtime.
 
 #### The [Basic Catalog](../../docs/public/concepts/glossary.md#basic-catalog) Standard (Core APIs)
 

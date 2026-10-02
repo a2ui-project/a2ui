@@ -48,7 +48,7 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   Map<String, Object?> schema, {
   Map<String, Object?> definitions = const {},
 }) {
-  final SchemaCatalog parsed = Catalog.fromJson({
+  final CatalogApi parsed = Catalog.fromJson({
     'catalogId': 'wire-references',
     r'$defs': definitions,
     'components': {

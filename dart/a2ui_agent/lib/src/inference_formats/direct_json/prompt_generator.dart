@@ -31,7 +31,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
   });
 
   /// The catalogs whose components and functions the snippet describes.
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
   /// Example turns the snippet shows the model, in order. Each is the list of
   /// messages making up one turn.
@@ -79,7 +79,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
         '${catalogs.map((c) => '`${c.id}`').join(', ')}.',
       );
     }
-    for (final SchemaCatalog catalog in catalogs) {
+    for (final CatalogApi catalog in catalogs) {
       buffer
         ..write('\n\n## Catalog `${catalog.id}`\n\n')
         ..write(_schemaBlock(catalog.catalogSchema));

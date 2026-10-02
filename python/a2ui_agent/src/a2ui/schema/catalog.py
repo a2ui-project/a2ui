@@ -34,6 +34,12 @@ from a2ui.core import (
     STRICT_VALIDATION,
 )
 
+
+if TYPE_CHECKING:
+    # The packaging hook imports this module against the published a2ui-core,
+    # which may predate CatalogApi, so it is needed for type checking only.
+    from a2ui.core import CatalogApi
+
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from .constants import (
     A2UI_SCHEMA_BLOCK_START,
@@ -241,7 +247,7 @@ class A2uiCatalog:
         raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
 
     @property
-    def core_catalog(self) -> Catalog[Any, Any]:
+    def core_catalog(self) -> CatalogApi:
         return Catalog.from_json(
             catalog_schema=self.catalog_schema,
             protocol_version=self.version,

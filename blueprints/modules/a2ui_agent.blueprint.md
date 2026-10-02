@@ -42,7 +42,7 @@ graph TD
 ```
 
 1. **Decoupled Primitive Layer**:
-   - **Catalog Representation**: Directly uses canonical `Catalog` models from `a2ui_core`.
+   - **Catalog Representation**: Directly uses canonical `Catalog` models from `a2ui_core`, as the schema-only `CatalogApi`.
    - **Catalog Transformers**: Standalone rule sets (`CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`) for filtering component definitions and function signatures from pristine catalogs.
    - **Inference Formats**: Strategy facades (`InferenceFormat`, `InferenceFormatFactory`) pairing format-specific prompt generators (`PromptGenerator`) and parsers (`Parser`). Supported strategies include `DirectJsonFormat` and `ExpressFormat`.
    - **Prompt Generators**: Format builders consuming transformed catalogs and prompt examples to generate system instruction snippets.
@@ -97,6 +97,8 @@ a2ui_agent/
 ### A. Catalog Representation & Catalog Transformers
 
 The Agent SDK uses `a2ui.core.Catalog` directly as the canonical model representing component definitions, function signatures, and theme schemas.
+
+An agent describes and validates functions but never runs them, so every catalog it loads, negotiates, prompts with, or validates against is a [`CatalogApi`](a2ui_core.blueprint.md#catalogapi), the core name for `Catalog[ComponentApi, FunctionApi]`. Catalog transformers are the exception: they stay generic over the component and function types, so the same rules can also prune a catalog that carries implementations.
 
 #### `CatalogTransformer`
 
@@ -405,7 +407,7 @@ class InferenceFormatFactory(ABC):
     @abstractmethod
     def create_format(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
     ) -> "InferenceFormat":
         """Constructs an InferenceFormat instance bound to the provided active catalogs.
@@ -462,7 +464,7 @@ class CatalogProvider(ABC):
     """Abstract base class for loading catalog definitions."""
 
     @abstractmethod
-    def load(self) -> Catalog[TComponent, TFunction]:
+    def load(self) -> CatalogApi:
         """Loads and returns a Catalog definition instance."""
         pass
 
@@ -486,7 +488,7 @@ class FileSystemCatalogProvider(CatalogProvider):
         self.protocol_version = protocol_version
         self.catalog_id = catalog_id
 
-    def load(self) -> Catalog[TComponent, TFunction]:
+    def load(self) -> CatalogApi:
         """Reads the catalog JSON file and returns a Catalog instance.
 
         If self.protocol_version or self.catalog_id are defined and the loaded catalog
@@ -514,7 +516,7 @@ class InMemoryCatalogProvider(CatalogProvider):
         self.protocol_version = protocol_version
         self.catalog_id = catalog_id
 
-    def load(self) -> Catalog[TComponent, TFunction]:
+    def load(self) -> CatalogApi:
         """Constructs and returns a Catalog instance from the raw schema dictionary.
 
         If self.protocol_version or self.catalog_id are defined and the loaded catalog
@@ -534,11 +536,11 @@ class CatalogConfig:
         catalog: Base Catalog instance loaded via a CatalogProvider.
         transformers: Optional list of CatalogTransformer rules to apply sequentially.
     """
-    catalog: Catalog[TComponent, TFunction]
+    catalog: CatalogApi
     transformers: Optional[Sequence[CatalogTransformer]] = None
 
     @property
-    def transformed_catalog(self) -> Catalog[TComponent, TFunction]:
+    def transformed_catalog(self) -> CatalogApi:
         """Returns the Catalog after applying all configured transformers sequentially."""
         current = self.catalog
         if self.transformers:
@@ -628,7 +630,7 @@ class A2uiRequestProcessor:
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         format_factory: Optional[InferenceFormatFactory] = None,
     ):
@@ -642,7 +644,7 @@ class A2uiRequestProcessor:
         pass
 
     @property
-    def active_catalogs(self) -> list[Catalog[TComponent, TFunction]]:
+    def active_catalogs(self) -> list[CatalogApi]:
         """Returns the list of active negotiated Catalog instances for this processor."""
         pass
 
@@ -676,7 +678,7 @@ def resolve_catalogs(
     catalogs: Sequence[CatalogConfig],
     renderer_capabilities: Optional[A2uiRendererCapabilities],
     accepts_inline_catalogs: bool = False,
-) -> list[Catalog[TComponent, TFunction]]:
+) -> list[CatalogApi]:
     """Matches renderer capabilities against registered catalogs and returns active transformed Catalog objects.
 
     Resolution follows these rules:
@@ -732,7 +734,7 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
 
     def create_format(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
     ) -> InferenceFormat:
         """Constructs a DirectJsonFormat instance bound to the provided active catalogs.
@@ -756,7 +758,7 @@ class DirectJsonFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         allowed_messages: Optional[Sequence[str]] = None,
         progressive_keys: frozenset[str] = frozenset(),
@@ -791,7 +793,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         allowed_messages: Optional[Sequence[str]] = None,
     ):
@@ -819,7 +821,7 @@ class DirectJsonParser(Parser):
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
+        catalogs: Sequence[CatalogApi],
         progressive_keys: frozenset[str] = frozenset(),
     ):
         """Initializes DirectJsonParser.

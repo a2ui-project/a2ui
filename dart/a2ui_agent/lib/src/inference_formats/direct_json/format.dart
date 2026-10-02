@@ -39,7 +39,7 @@ class DirectJsonFormatFactory extends InferenceFormatFactory {
 
   @override
   InferenceFormat createFormat(
-    List<SchemaCatalog> catalogs, {
+    List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
   }) => DirectJsonFormat(
     catalogs,
@@ -59,7 +59,7 @@ class DirectJsonFormat extends InferenceFormat {
   /// properties hold prose depends on the catalog, so there is no built-in
   /// set. Empty turns healing off.
   DirectJsonFormat(
-    List<SchemaCatalog> catalogs, {
+    List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
     List<String>? allowedMessages,
     Set<String> progressiveKeys = const {},

@@ -31,7 +31,7 @@ import {
   FunctionCallSchema,
   ChildSchema,
 } from '../types/common-types.js';
-import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
+import {Catalog, type CatalogApi, type ComponentApi, type FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 /**
  * Protocol version assumed for a catalog schema that does not declare one.
@@ -955,7 +955,7 @@ function parseThemeSchema(
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, unknown>,
   protocolVersion?: string,
-): Catalog<ComponentApi, FunctionApi> {
+): CatalogApi {
   const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
     throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");

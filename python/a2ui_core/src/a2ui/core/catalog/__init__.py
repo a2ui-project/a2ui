@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .catalog import Catalog, is_valid_uax31_identifier
+from .catalog import Catalog, CatalogApi, is_valid_uax31_identifier
 from .components import (
     ComponentApi,
     ComponentImplementation,
@@ -44,6 +44,7 @@ from .system_functions import (
 __all__ = [
     "AllowedCallers",
     "Catalog",
+    "CatalogApi",
     "ComponentApi",
     "ComponentImplementation",
     "ComponentRefSpec",

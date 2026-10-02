@@ -85,7 +85,7 @@ CatalogConfig catalogConfig(Object? entry) => switch (entry) {
 
 /// The catalogs a case names in `args`, each after the transformers
 /// registered with it.
-List<SchemaCatalog> caseCatalogs(Map<String, Object?> args) => [
+List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
   if (args['catalog'] case final Object catalog)
     catalogConfig(catalog).transformedCatalog,
   if (args['catalogs'] case final List<Object?> entries)
@@ -102,14 +102,14 @@ CatalogTransformer _transformer(Object? spec) => switch (spec) {
   _ => throw ArgumentError.value(spec, 'spec', 'Unknown transformer'),
 };
 
-final Map<String, SchemaCatalog> _catalogCache = {};
+final Map<String, CatalogApi> _catalogCache = {};
 
 /// The catalog document at [path], lowered to v0.9 and loaded by a
 /// provider.
 ///
 /// A document that names no catalog is given its path as its id, which a
 /// provider supplies the same way an agent would.
-SchemaCatalog loadCatalog(String path) => _catalogCache.putIfAbsent(path, () {
+CatalogApi loadCatalog(String path) => _catalogCache.putIfAbsent(path, () {
   final Map<String, Object?> document = lowerCatalogDocument(
     jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
         as Map<String, Object?>,
@@ -158,7 +158,7 @@ String lowerText(String text, {String? catalogId}) {
 /// none, or null when the case names one itself.
 String? injectedCatalogId(Map<String, Object?> testCase) {
   if (jsonEncode(testCase).contains('catalogId')) return null;
-  final List<SchemaCatalog> catalogs = caseCatalogs(
+  final List<CatalogApi> catalogs = caseCatalogs(
     testCase['args']! as Map<String, Object?>,
   );
   return catalogs.isEmpty ? null : catalogs.first.id;
@@ -301,7 +301,7 @@ A2uiRendererCapabilities lowerCapabilities(Map<String, Object?> json) =>
 ///
 /// A case's `protocol_version` is not checked, because an `a2ui_core`
 /// catalog does not record the version its document declares.
-void expectCatalog(SchemaCatalog catalog, Map<String, Object?> expected) {
+void expectCatalog(CatalogApi catalog, Map<String, Object?> expected) {
   if (expected['catalog_id'] case final String id) expect(catalog.id, id);
   if (expected['components'] case final List<Object?> names) {
     expect(catalog.components.keys, unorderedEquals(names));

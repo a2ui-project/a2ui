@@ -42,7 +42,7 @@ import '../processor/catalog_config.dart';
 /// for v0.9, and [A2uiCatalogError] if no catalog is active: the renderer
 /// supports none of the registered catalogs and declares no inline catalog
 /// the agent accepts.
-List<SchemaCatalog> resolveCatalogs(
+List<CatalogApi> resolveCatalogs(
   List<CatalogConfig> catalogs,
   A2uiRendererCapabilities? rendererCapabilities, {
   bool acceptsInlineCatalogs = false,
@@ -67,15 +67,15 @@ List<SchemaCatalog> resolveCatalogs(
   final Map<String, CatalogConfig> registered = {
     for (final CatalogConfig config in catalogs) config.catalog.id: config,
   };
-  final List<SchemaCatalog> active = [
+  final List<CatalogApi> active = [
     for (final CatalogConfig config in {
       for (final String id in capabilities.supportedCatalogIds) ?registered[id],
     })
       config.transformedCatalog,
   ];
   if (acceptsInlineCatalogs) {
-    for (final SchemaCatalog inline in capabilities.inlineCatalogs) {
-      if (active.every((SchemaCatalog c) => c.id != inline.id)) {
+    for (final CatalogApi inline in capabilities.inlineCatalogs) {
+      if (active.every((CatalogApi c) => c.id != inline.id)) {
         active.add(inline);
       }
     }

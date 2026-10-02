@@ -26,7 +26,7 @@ import 'validation.dart';
 class A2uiRequestProcessor {
   /// The catalogs negotiated for this request, in the renderer's preference
   /// order.
-  final List<SchemaCatalog> activeCatalogs;
+  final List<CatalogApi> activeCatalogs;
 
   /// Example turns the prompt shows the model, in order. Each is the list of
   /// messages making up one turn.
